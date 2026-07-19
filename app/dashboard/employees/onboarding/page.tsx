@@ -28,11 +28,11 @@ interface Onboarding {
 }
 
 export default function OnboardingDashboard() {
-  const { loading } = useRequireRole(['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR']);
+  const { loading: authLoading } = useRequireRole(['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR']);
   const { session } = useSession();
   const router = useRouter();
 
-  if (loading) {
+  if (authLoading) {
     return null;
   }
   const [onboardings, setOnboardings] = useState<Onboarding[]>([]);

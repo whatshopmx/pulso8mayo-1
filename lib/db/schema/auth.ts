@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, boolean, uuid, pgEnum } from "drizzle-orm/pg-
 import { sql } from "drizzle-orm";
 
 // Auth-related Enums
-export const roleEnum = pgEnum("role", ['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR', 'EMPLEADO', 'READONLY']);
+export const roleEnum = pgEnum("role", ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR', 'EMPLEADO', 'READONLY']);
 
 // Account table (OAuth accounts from better-auth)
 export const account = pgTable("account", {

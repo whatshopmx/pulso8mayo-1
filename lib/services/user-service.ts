@@ -19,7 +19,7 @@ import { ApiError } from "../api/error";
 export class UserService {
     static async listUsers(
         tenantId?: string,
-        options: { page?: number; limit?: number; search?: string; role?: "SUPER_ADMIN" | "ADMIN" | "GERENTE" | "SUPERVISOR" | "EMPLEADO" | "READONLY"; branchId?: string } = {}
+        options: { page?: number; limit?: number; search?: string; role?: "SUPER_ADMIN" | "OWNER" | "ADMIN" | "GERENTE" | "SUPERVISOR" | "EMPLEADO" | "READONLY"; branchId?: string } = {}
     ) {
         const { page = 1, limit = 20, search, role, branchId } = options;
         const offset = (page - 1) * limit;

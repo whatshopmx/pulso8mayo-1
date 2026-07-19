@@ -34,9 +34,8 @@ export async function POST(req: Request) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        // Only ADMIN or OWNER should be able to change billing
-        // We assume 'ADMIN' role check is done or implicitly allowed for now
-        // Ideally: if (!['ADMIN', 'SUPER_ADMIN'].includes(session.user.role)) return 403;
+        // Only OWNER or ADMIN should be able to change billing
+        // Ideally: if (!['OWNER', 'ADMIN'].includes(session.user.role)) return 403;
 
         const body = await req.json();
         const { planId } = subscribeSchema.parse(body);

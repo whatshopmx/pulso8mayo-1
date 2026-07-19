@@ -154,7 +154,7 @@ export default function AuditPage() {
     const hasFilters = Object.values(filters).some(v => v !== undefined && v !== "");
 
     const handleExport = () => {
-        exportToCSV(logs, [
+        exportToCSV(logs as any[], [
             { key: "action", label: "Acción" },
             { key: "resource", label: "Recurso" },
             { key: "resourceType", label: "Tipo" },

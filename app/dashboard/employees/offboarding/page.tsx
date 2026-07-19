@@ -29,11 +29,11 @@ interface Offboarding {
 }
 
 export default function OffboardingDashboard() {
-  const { loading } = useRequireRole(['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR']);
+  const { loading: authLoading } = useRequireRole(['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR']);
   const { session } = useSession();
   const router = useRouter();
 
-  if (loading) {
+  if (authLoading) {
     return null;
   }
   const [offboardings, setOffboardings] = useState<Offboarding[]>([]);

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { NOM251Report } from "@/components/compliance/nom251-report";
 import { NOM035Report } from "@/components/compliance/nom035-report";
 import { ComplianceDashboard } from "@/components/compliance/compliance-dashboard";
+import { CorporateComplianceGrid } from "@/components/compliance/corporate-compliance-grid";
 import { SUAGenerator } from "@/components/compliance/imss/sua-generator";
 import { IDSEGenerator } from "@/components/compliance/imss/idse-generator";
 import { PayrollExport } from "@/components/compliance/payroll-export";
@@ -70,11 +71,17 @@ export default function CompliancePage() {
             </PageHeader>
 
             <Tabs defaultValue="dashboard" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
+                <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7">
                     <TabsTrigger value="dashboard">
                         <ClipboardCheck className="h-4 w-4 mr-2" />
                         Dashboard
                     </TabsTrigger>
+                    {branches.length > 1 && (
+                        <TabsTrigger value="corporate">
+                            <Building2 className="h-4 w-4 mr-2" />
+                            Vista Corporativa
+                        </TabsTrigger>
+                    )}
                     <TabsTrigger value="nom251">
                         <FileText className="h-4 w-4 mr-2" />
                         NOM-251
@@ -100,6 +107,12 @@ export default function CompliancePage() {
                 <TabsContent value="dashboard" className="space-y-4">
                     <ComplianceDashboard />
                 </TabsContent>
+
+                {branches.length > 1 && (
+                    <TabsContent value="corporate" className="space-y-4">
+                        <CorporateComplianceGrid />
+                    </TabsContent>
+                )}
 
                 <TabsContent value="nom251" className="space-y-4">
                     <section className="space-y-4">

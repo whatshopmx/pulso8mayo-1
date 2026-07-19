@@ -56,9 +56,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Company not found' }, { status: 400 });
         }
 
-        // Check if user has permission (only OWNER or MANAGER can create sessions)
+        // Check if user has permission (only OWNER or GERENTE can create sessions)
         const userRole = authSession.user.role as string;
-        if (!['OWNER', 'MANAGER'].includes(userRole)) {
+        if (!['OWNER', 'GERENTE'].includes(userRole)) {
             return NextResponse.json(
                 { error: 'Insufficient permissions' },
                 { status: 403 }
@@ -103,7 +103,7 @@ export async function DELETE(req: NextRequest) {
 
         // Check if user has permission
         const userRole = authSession.user.role as string;
-        if (!['OWNER', 'MANAGER'].includes(userRole)) {
+        if (!['OWNER', 'GERENTE'].includes(userRole)) {
             return NextResponse.json(
                 { error: 'Insufficient permissions' },
                 { status: 403 }

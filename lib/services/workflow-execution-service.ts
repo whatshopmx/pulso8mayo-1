@@ -284,6 +284,46 @@ return {
                 console.error('[WorkflowExecution] Error checking incidents:', error);
             }
 
+            // New: NOM-251 Expiration Check for Insumos (Fase 2)
+            if (instance && instance.workflowTemplateId === 'tpl-recepcion-mercancia-v2' && stepId === 'paso-6') {
+                let urlToVerify = data.evidenceUrl || data.value;
+                if (urlToVerify && typeof urlToVerify === 'string' && urlToVerify.trim().startsWith('[')) {
+                    try {
+                        const parsed = JSON.parse(urlToVerify);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            urlToVerify = parsed[0];
+                        }
+                    } catch (e) {}
+                }
+                
+                if (urlToVerify && typeof urlToVerify === 'string') {
+                    try {
+                        const { AIService } = await import("./ai-service");
+                        const expirationDate = await AIService.extractExpirationDate(urlToVerify);
+                        if (expirationDate) {
+                            const daysLeft = Math.ceil((expirationDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                            if (daysLeft >= 0 && daysLeft < 7) {
+                                const { IncidentEngine } = await import('./incident-engine');
+                                await IncidentEngine.createIncident(instanceId, stepId, {
+                                    id: 'lr-insumo-caducidad-proxima',
+                                    condition: 'true',
+                                    severity: 'WARNING',
+                                    message: `Alerta: Insumo con caducidad próxima (${daysLeft} días restantes)`,
+                                    description: `El insumo recibido expira el ${expirationDate.toISOString().split('T')[0]}. Restan ${daysLeft} días de vida útil.`,
+                                }, {
+                                    value: data.value,
+                                    aiResult: { passed: true, reason: `Fecha de caducidad extraída: ${expirationDate.toISOString().split('T')[0]}` },
+                                    userId,
+                                    branchId: instance.branchId
+                                });
+                            }
+                        }
+                    } catch (err) {
+                        console.error('[WorkflowExecution] Error extracting expiration date:', err);
+                    }
+                }
+            }
+
 
             // --- CONDITIONAL BRANCHING LOGIC ---
             if (currentStepDef && currentStepDef.branches && currentStepDef.branches.length > 0) {

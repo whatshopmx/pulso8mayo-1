@@ -161,7 +161,7 @@ export default async function LaborManagementPage() {
         .innerJoin(shiftSessions, eq(breakLogs.sessionId, shiftSessions.id))
         .innerJoin(users, eq(shiftSessions.userId, users.id))
         .where(and(eq(users.companyId, companyId), gte(breakLogs.startTime, oneWeekAgo))),
-        db.select({ count: count() }).from(holidays).where(and(eq(holidays.companyId, companyId), gte(holidays.date, startOfYear))),
+        db.select({ count: count() }).from(holidays).where(and(eq(holidays.companyId, companyId), gte(holidays.date, startOfYear.toISOString().split('T')[0]))),
         db.select({ count: count() }).from(shiftTemplates).where(and(eq(shiftTemplates.companyId, companyId), eq(shiftTemplates.isActive, true))),
         db.select({ count: count() }).from(incidents)
             .innerJoin(branches, eq(incidents.branchId, branches.id))

@@ -18,6 +18,7 @@ type PermissionMatrix = Record<Role, Partial<Record<Resource, Action[]>>>;
 
 const ROLES_HIERARCHY: Record<Role, number> = {
     'SUPER_ADMIN': 100,
+    'OWNER': 95,
     'ADMIN': 90,
     'GERENTE': 80, // Manager
     'SUPERVISOR': 50,
@@ -28,6 +29,16 @@ const ROLES_HIERARCHY: Record<Role, number> = {
 export const PERMISSIONS: PermissionMatrix = {
     'SUPER_ADMIN': {
         // Full access implicitly handled in logic, but explicit here for clarity
+        'users': ['manage'],
+        'companies': ['manage'],
+        'branches': ['manage'],
+        'workflows': ['manage'],
+        'inventory': ['manage'],
+        'reports': ['manage'],
+        'settings': ['manage'],
+        'billing': ['manage']
+    },
+    'OWNER': {
         'users': ['manage'],
         'companies': ['manage'],
         'branches': ['manage'],

@@ -46,7 +46,7 @@ export default function OnboardingPage() {
 
             if (!onboardingRes.ok) {
                 const error = await onboardingRes.json();
-                throw new Error(error.message || "Onboarding failed");
+                throw new Error(error.error?.message || error.message || "Onboarding failed");
             }
 
             const result = await onboardingRes.json();

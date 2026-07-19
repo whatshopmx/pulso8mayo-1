@@ -1965,6 +1965,18 @@ export const complianceAlerts = pgTable("compliance_alerts", {
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const employeeTrainingRecords = pgTable("employee_training_records", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    userId: text("user_id").notNull(),
+    companyId: uuid("company_id").notNull(),
+    courseName: text("course_name").notNull(), // "Prácticas Higiénicas NOM-251"
+    completedAt: timestamp("completed_at").defaultNow().notNull(),
+    score: integer("score").notNull(),
+    certificateUrl: text("certificate_url"),
+    status: text("status").default('ACTIVE'), // ACTIVE, EXPIRED
+    expiresAt: timestamp("expires_at").notNull(),
+});
+
 // Adding manual reference definitions where appropriate for clarity or Drizzle query API
 export const accountRelations = {
     user: foreignKey({

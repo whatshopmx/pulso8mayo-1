@@ -13,7 +13,7 @@ interface EscalationSectionProps {
     onUpdate: (chain: EscalationStep[]) => void;
 }
 
-const ROLES = ['EMPLOYEE', 'CHEF', 'GERENTE', 'OWNER', 'TECHNICAL_SERVICE', 'SUPERVISOR'];
+const ROLES = ['EMPLEADO', 'GERENTE', 'OWNER', 'SUPERVISOR'];
 const CHANNELS = ['whatsapp', 'call_priority', 'email', 'sms'];
 const TRIGGER_CONDITIONS = ['immediate', 'remediation_failed', 'no_response', 'no_technician_response'];
 

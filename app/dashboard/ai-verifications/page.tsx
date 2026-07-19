@@ -100,7 +100,7 @@ export default function AIVerificationsPage() {
     }, [verifications]);
 
     const handleExport = () => {
-        exportToCSV(verifications, [
+        exportToCSV(verifications as any[], [
             { key: "workflowName", label: "Workflow" },
             { key: "instanceId", label: "Instancia" },
             { key: "stepId", label: "Paso" },
