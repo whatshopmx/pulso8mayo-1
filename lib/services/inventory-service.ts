@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { inventoryItems, inventoryBatches, inventoryMovements, suppliers, inventoryPriceHistory, inventoryTransfers, inventoryTransferItems, inventoryWaste } from "@/lib/db/schema";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, gte, lte } from "drizzle-orm";
 
 export class InventoryService {
 
@@ -259,8 +259,19 @@ export class InventoryService {
         notes?: string;
     }) {
         return await db.transaction(async (tx) => {
-            // Generate transfer number
-            const transferNumber = `TRF-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+            // Generate sequential transfer number: TRF-YYYYMM-XXXX
+            const now = new Date();
+            const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            const [{ count: monthCount }] = await tx.select({ count: sql<number>`count(*)` })
+              .from(inventoryTransfers)
+              .where(and(
+                gte(inventoryTransfers.createdAt, monthStart),
+                lte(inventoryTransfers.createdAt, monthEnd)
+              ));
+            const sequential = String((monthCount || 0) + 1).padStart(4, '0');
+            const transferNumber = `TRF-${yearMonth}-${sequential}`;
 
             // Create transfer header
             const [transfer] = await tx.insert(inventoryTransfers).values({
