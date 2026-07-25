@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader, PageContainer } from "@/components/shared";
-import { TrendingUp, Plus, Calendar, AlertCircle, ShoppingCart, RefreshCw, Loader2, ArrowRight, Check } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TrendingUp, Plus, Calendar, AlertCircle, ShoppingCart, RefreshCw, Loader2, ArrowRight, Check, Upload, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -49,6 +51,11 @@ export default function InventoryReportsPage() {
     const [saleQty, setSaleQty] = useState(1);
     const [saleRevenue, setSaleRevenue] = useState(0);
     const [isSavingSale, setIsSavingSale] = useState(false);
+
+    // CSV Batch Upload State
+    const [isCSVOpen, setIsCSVOpen] = useState(false);
+    const [csvRows, setCsvRows] = useState<Array<{ csvName: string; quantity: number; revenue: number; matchedRecipeId: string | null }>>([]);
+    const [isSavingCSV, setIsSavingCSV] = useState(false);
 
     useEffect(() => {
         // Load recipes
@@ -92,7 +99,7 @@ export default function InventoryReportsPage() {
                     sales: [{
                         recipeId: selectedRecipeId,
                         quantitySold: saleQty,
-                        totalRevenue: saleRevenue || undefined,
+                        totalRevenue: Math.round(saleRevenue * 100) || undefined,
                     }],
                     saleDate: new Date().toISOString(),
                 }),
@@ -117,6 +124,122 @@ export default function InventoryReportsPage() {
         }
     };
 
+    const parseCSV = (text: string) => {
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+        return lines.map(line => {
+            const result = [];
+            let current = "";
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = "";
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        });
+    };
+
+    const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const text = event.target?.result as string;
+                if (!text) return;
+
+                const parsed = parseCSV(text);
+                if (parsed.length <= 1) {
+                    toast.error("El archivo CSV está vacío o no es válido");
+                    return;
+                }
+
+                // Detect headers
+                const headers = parsed[0].map(h => h.toLowerCase().trim());
+                const recipeIndex = headers.findIndex(h => h.includes("receta") || h.includes("platillo") || h.includes("recipe") || h.includes("product") || h.includes("name") || h.includes("item"));
+                const qtyIndex = headers.findIndex(h => h.includes("cantidad") || h.includes("cant") || h.includes("qty") || h.includes("quantity") || h.includes("sold"));
+                const revIndex = headers.findIndex(h => h.includes("total") || h.includes("precio") || h.includes("price") || h.includes("revenue") || h.includes("monto"));
+
+                const rIndex = recipeIndex !== -1 ? recipeIndex : 0;
+                const qIndex = qtyIndex !== -1 ? qtyIndex : 1;
+                const vIndex = revIndex !== -1 ? revIndex : -1;
+
+                const mappedRows = parsed.slice(1).map(row => {
+                    const csvName = row[rIndex] || "";
+                    const quantity = parseFloat(row[qIndex]) || 1;
+                    const revenue = vIndex !== -1 ? parseFloat(row[vIndex]) || 0 : 0;
+
+                    // Try to match with system recipes
+                    const match = recipes.find(r => r.name.toLowerCase().trim() === csvName.toLowerCase().trim() ||
+                                                    r.name.toLowerCase().includes(csvName.toLowerCase()) ||
+                                                    csvName.toLowerCase().includes(r.name.toLowerCase()));
+
+                    return {
+                        csvName,
+                        quantity,
+                        revenue,
+                        matchedRecipeId: match ? match.id : null
+                    };
+                }).filter(r => r.csvName.trim() !== "");
+
+                if (mappedRows.length === 0) {
+                    toast.error("No se encontraron filas con datos de recetas válidos en el CSV");
+                    return;
+                }
+
+                setCsvRows(mappedRows);
+                setIsCSVOpen(true);
+            };
+            reader.readAsText(file);
+            e.target.value = ""; // Reset input
+        }
+    };
+
+    const handleSaveCSV = async () => {
+        const unmapped = csvRows.filter(r => !r.matchedRecipeId);
+        if (unmapped.length > 0) {
+            toast.error(`Aún quedan ${unmapped.length} platillos sin asociar a una receta del sistema`);
+            return;
+        }
+
+        setIsSavingCSV(true);
+        try {
+            const res = await fetch("/api/inventory/sales-entry", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    sales: csvRows.map(r => ({
+                        recipeId: r.matchedRecipeId!,
+                        quantitySold: r.quantity,
+                        totalRevenue: Math.round(r.revenue * 100) || undefined, // in cents
+                    })),
+                    saleDate: new Date().toISOString(),
+                }),
+            });
+
+            const result = await res.json();
+            if (res.ok) {
+                toast.success(`Carga masiva completada exitosamente. Se registraron ${csvRows.length} líneas de venta.`);
+                setIsCSVOpen(false);
+                setCsvRows([]);
+                fetchReport(); // Refresh report
+            } else {
+                toast.error(result.error || "Error al registrar lote de ventas");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Error al registrar lote de ventas");
+        } finally {
+            setIsSavingCSV(false);
+        }
+    };
+
     // Prepare chart data (top 5 items with highest mermas/variance)
     const chartData = [...reportRows]
         .filter(r => r.varianceQty > 0)
@@ -133,12 +256,12 @@ export default function InventoryReportsPage() {
         <PageContainer>
             <PageHeader
                 title="Reporte de Mermas y Variaciones"
-                description="Cruza tus recetas contra ventas y existencias físicas de inventario para encontrar mermas ocultas"
+                description="Cruza tus recetas contra ventas y existencias físicas de inventario para encontrar mermas de ingredientes"
                 icon={TrendingUp}
             />
 
             <div className="grid gap-6 lg:grid-cols-3 mt-6">
-                {/* Filters and POS simulator */}
+                {/* Filters, POS simulator, and CSV import */}
                 <div className="lg:col-span-1 space-y-6">
                     {/* Date Filters Card */}
                     <Card>
@@ -228,6 +351,31 @@ export default function InventoryReportsPage() {
                                 Registrar Venta
                             </Button>
                         </CardFooter>
+                    </Card>
+
+                    {/* CSV Batch Upload Card */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base flex items-center gap-2">
+                                <FileText className="w-4 h-4" /> Carga Masiva de Ventas (CSV)
+                            </CardTitle>
+                            <CardDescription>
+                                Importa un archivo CSV con las ventas de un periodo para realizar la deconsolidación masiva.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="border-2 border-dashed rounded-lg p-6 bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer relative text-center">
+                                <input
+                                    type="file"
+                                    accept=".csv"
+                                    onChange={handleCSVUpload}
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                />
+                                <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                                <span className="text-xs font-semibold text-slate-600 block">Subir archivo CSV</span>
+                                <span className="text-[10px] text-muted-foreground block mt-1">Soporta columnas: Receta, Cantidad, Total</span>
+                            </div>
+                        </CardContent>
                     </Card>
                 </div>
 
@@ -335,6 +483,92 @@ export default function InventoryReportsPage() {
                     </Card>
                 </div>
             </div>
+
+            {/* CSV MAP DIALOG */}
+            <Dialog open={isCSVOpen} onOpenChange={setIsCSVOpen}>
+                <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Previsualizar y Mapear Ventas (CSV)</DialogTitle>
+                        <DialogDescription>
+                            Asocia los platillos del archivo CSV con las recetas del sistema para realizar la deconsolidación de ingredientes.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-4">
+                        <div className="border rounded-lg overflow-hidden">
+                            <Table>
+                                <TableHeader className="bg-slate-50/50">
+                                    <TableRow>
+                                        <TableHead>Nombre en CSV</TableHead>
+                                        <TableHead>Receta de Sistema</TableHead>
+                                        <TableHead className="text-center w-24">Cantidad</TableHead>
+                                        <TableHead className="text-right w-28">Total</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {csvRows.map((row, idx) => {
+                                        const isMapped = !!row.matchedRecipeId;
+                                        return (
+                                            <TableRow key={idx} className={cn(!isMapped && "bg-amber-50/10")}>
+                                                <TableCell className="font-medium text-slate-800">
+                                                    {row.csvName}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col gap-1 w-72">
+                                                        <Select 
+                                                            value={row.matchedRecipeId || "unmapped"} 
+                                                            onValueChange={(val) => {
+                                                                const updated = [...csvRows];
+                                                                updated[idx].matchedRecipeId = val === "unmapped" ? null : val;
+                                                                setCsvRows(updated);
+                                                            }}
+                                                        >
+                                                            <SelectTrigger className="h-8">
+                                                                <SelectValue placeholder="No emparejado - Seleccionar..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="unmapped">No emparejado</SelectItem>
+                                                                {recipes.map(r => (
+                                                                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        {!isMapped && (
+                                                            <span className="text-[10px] text-amber-600 flex items-center gap-1 font-medium">
+                                                                <AlertCircle className="w-3 h-3" /> Requiere vinculación manual
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {row.quantity}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    ${row.revenue.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsCSVOpen(false)} disabled={isSavingCSV}>
+                            Cancelar
+                        </Button>
+                        <Button 
+                            onClick={handleSaveCSV} 
+                            disabled={isSavingCSV || csvRows.some(r => !r.matchedRecipeId)}
+                            className="gap-2"
+                        >
+                            {isSavingCSV ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            Registrar Ventas ({csvRows.length})
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </PageContainer>
     );
 }

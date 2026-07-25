@@ -24,7 +24,7 @@ const receiveSchema = z.object({
     action: z.literal("receive"),
     items: z.array(z.object({
         id: z.string().uuid(),
-        receivedQuantity: z.number().positive(),
+        receivedQuantity: z.number().nonnegative(),
     })).optional(),
 });
 

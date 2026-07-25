@@ -10,6 +10,7 @@ export const companies = pgTable("companies", {
   plan: text("plan").default('FREE'),
   billingStatus: text("billing_status").default('ACTIVE'),
   stripeCustomerId: text("stripe_customer_id"),
+  blindStockCount: boolean("blind_stock_count").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -1,17 +1,30 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { StockCountService } from "@/lib/services/stock-count-service";
 import { CATEGORIES } from "@/lib/inventory/constants";
 import { db } from "@/lib/db";
-import { branches } from "@/lib/db/schema";
+import { branches, companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, History } from "lucide-react";
+import { ClipboardList, History, Settings } from "lucide-react";
 import { PageHeader, PageContainer } from "@/components/shared";
+
+async function toggleBlindCountSetting(formData: FormData) {
+  "use server";
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user?.companyId) return;
+
+  const value = formData.get("blindCount") === "true";
+  await db.update(companies)
+    .set({ blindStockCount: value })
+    .where(eq(companies.id, session.user.companyId));
+  revalidatePath("/dashboard/inventory/stock-count");
+}
 
 async function createStockCount(formData: FormData) {
   "use server";
@@ -52,6 +65,15 @@ export default async function StockCountPage() {
 
     const history = await StockCountService.getStockCountHistory(companyId);
 
+    const [company] = await db.select({
+        blindStockCount: companies.blindStockCount
+    })
+    .from(companies)
+    .where(eq(companies.id, companyId))
+    .limit(1);
+
+    const isBlindCount = company?.blindStockCount || false;
+
     const formatDate = (date: Date | null | undefined) => {
         if (!date) return "En progreso";
         return new Date(date).toLocaleDateString("es-MX", {
@@ -67,7 +89,7 @@ export default async function StockCountPage() {
         <PageContainer className="max-w-2xl">
             <PageHeader
                 title="Conteo de Inventario"
-                description="Inicia un conteo físico de inventario por categoría"
+                description="Inicia un conteo físico de inventario por categoría y configura sus opciones"
                 icon={ClipboardList}
             />
 
@@ -78,7 +100,7 @@ export default async function StockCountPage() {
                     </CardContent>
                 </Card>
             ) : (
-                <>
+                <div className="space-y-6">
                     <Card>
                         <CardHeader>
                             <CardTitle>Nuevo Conteo</CardTitle>
@@ -125,6 +147,30 @@ export default async function StockCountPage() {
                         </CardContent>
                     </Card>
 
+                    {/* Settings Card */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base flex items-center gap-2">
+                                <Settings className="h-4 w-4" /> Configuración de Conteo
+                            </CardTitle>
+                            <CardDescription>
+                                Modifica el comportamiento de las auditorías de inventario de tu empresa.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <form action={toggleBlindCountSetting} className="flex items-center justify-between p-4 rounded-lg border bg-muted/20">
+                                <div className="space-y-0.5 max-w-[70%]">
+                                    <Label className="text-sm font-semibold">Conteo Físico Ciego</Label>
+                                    <p className="text-xs text-muted-foreground">Oculta las existencias teóricas del sistema a los auditores para forzar conteos reales.</p>
+                                </div>
+                                <input type="hidden" name="blindCount" value={isBlindCount ? "false" : "true"} />
+                                <Button type="submit" variant={isBlindCount ? "default" : "outline"} size="sm">
+                                    {isBlindCount ? "Activo (Ciego)" : "Inactivo (Ver teórico)"}
+                                </Button>
+                            </form>
+                        </CardContent>
+                    </Card>
+
                     {history.length > 0 && (
                         <Card>
                             <CardHeader>
@@ -158,7 +204,7 @@ export default async function StockCountPage() {
                             </CardContent>
                         </Card>
                     )}
-                </>
+                </div>
             )}
         </PageContainer>
     );

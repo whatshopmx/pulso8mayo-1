@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { workflowInstances, workflowInstanceSteps, workflowTemplates, users } from "@/lib/db/schema";
+import { workflowInstances, workflowInstanceSteps, workflowTemplates, users, companies } from "@/lib/db/schema";
 import { WorkflowStep } from "@/lib/types/workflow";
 import { eq, and, sql } from "drizzle-orm";
 import { STOCK_COUNT_TEMPLATE_NAME, DEFAULT_CATEGORIES } from "./stock-count-service";
@@ -84,9 +84,6 @@ export class WorkflowExecutionService {
     static async getExecution(instanceId: string) {
         const instance = await db.query.workflowInstances.findFirst({
             where: eq(workflowInstances.id, instanceId),
-            with: {
-                // We might need to handle relations manually if not defined in schema.ts relations
-            }
         });
 
         if (!instance) return null;
@@ -109,21 +106,30 @@ export class WorkflowExecutionService {
             where: eq(workflowTemplates.id, instance.workflowTemplateId)
         });
 
-return {
-    ...instance,
-    templateId: instance.workflowTemplateId,
-    assignedTo: instance.assigneeId,
-    createdAt: instance.createdAt?.toISOString(),
-    completedAt: instance.completedAt?.toISOString(),
-    steps: steps.map(s => ({
-      ...s,
-      value: s.value as string || "",
-      status: s.status as "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED",
-      completedAt: s.completedAt?.toISOString()
-    })),
-    assignee,
-    template
-  };
+        let isBlindCount = false;
+        if (template && template.name === STOCK_COUNT_TEMPLATE_NAME && template.companyId) {
+            const company = await db.query.companies.findFirst({
+                where: eq(companies.id, template.companyId)
+            });
+            isBlindCount = company?.blindStockCount || false;
+        }
+
+        return {
+            ...instance,
+            templateId: instance.workflowTemplateId,
+            assignedTo: instance.assigneeId,
+            createdAt: instance.createdAt?.toISOString(),
+            completedAt: instance.completedAt?.toISOString(),
+            steps: steps.map(s => ({
+                ...s,
+                value: s.value as string || "",
+                status: s.status as "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED",
+                completedAt: s.completedAt?.toISOString()
+            })),
+            assignee,
+            template,
+            blindCount: isBlindCount
+        };
     }
 
     static async updateStep(

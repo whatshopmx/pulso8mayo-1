@@ -41,10 +41,10 @@ Módulos base de productos, proveedores, recetas, conteos y mermas completados. 
 ---
 
 ## Fase 4: Documentos y Operación Plus
-- [ ] **Task 11** — PDF y WhatsApp: Exportación a PDF de POs y link de WhatsApp para compartir
-- [ ] **Task 12** — Reclamo a Proveedor: Exportar PDF de discrepancias detectadas en recepción física
-- [ ] **Task 13** — Conteo Ciego: Ajuste para ocultar las existencias del sistema durante un conteo físico
-- [ ] **Task 14** — Consumo Interno: Registro de salidas de inventario por consumo de staff
+- [x] **Task 11** — PDF y WhatsApp: Exportación a PDF de POs y link de WhatsApp para compartir
+- [x] **Task 12** — Reclamo a Proveedor: Exportar PDF de discrepancias detectadas en recepción física
+- [x] **Task 13** — Conteo Ciego: Ajuste para ocultar las existencias del sistema durante un conteo físico
+- [x] **Task 14** — Consumo Interno: Registro de salidas de inventario por consumo de staff
 
 ---
 

@@ -527,6 +527,7 @@ export class NotificationDispatcher {
             minLevel: number;
             severity: string;
             branchId: string;
+            message?: string;
         }
     }): Promise<void> {
         try {
@@ -555,12 +556,12 @@ export class NotificationDispatcher {
                 'BAJA': '🟢'
             }[payload.data.severity] || '⚪';
 
-            const message = `${severityEmoji} *ALERTA DE INVENTARIO*\n\n` +
+            const message = payload.data.message || (`${severityEmoji} *ALERTA DE INVENTARIO*\n\n` +
                 `Producto: ${payload.data.itemName}\n` +
                 `Stock Actual: ${payload.data.currentStock}\n` +
                 `Stock Mínimo: ${payload.data.minLevel}\n` +
                 `Severidad: ${payload.data.severity}\n\n` +
-                `Por favor revisa el inventario y toma las acciones necesarias.`;
+                `Por favor revisa el inventario y toma las acciones necesarias.`);
 
             // Send through enabled channels
             const promises = [];
@@ -575,7 +576,7 @@ export class NotificationDispatcher {
                         userId: payload.userId,
                         type: 'warning',
                         title: `Alerta de Inventario: ${payload.data.itemName}`,
-                        message: `El stock de ${payload.data.itemName} está por debajo del mínimo (${payload.data.currentStock} < ${payload.data.minLevel})`,
+                        message: payload.data.message || `El stock de ${payload.data.itemName} está por debajo del mínimo (${payload.data.currentStock} < ${payload.data.minLevel})`,
                         actionUrl: `/dashboard/inventory/alerts`,
                     })
                 );
@@ -585,7 +586,7 @@ export class NotificationDispatcher {
         } catch (error) {
             console.error("Error in sendInventoryAlert:", error);
         }
-  }
+    }
 
   static async sendStockCountVarianceAlert(payload: {
     userId: string;

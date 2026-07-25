@@ -31,7 +31,7 @@ const wasteFormSchema = z.object({
   batchId: z.string().min(1, 'Selecciona un lote'),
   quantity: z.coerce.number().min(1, 'Cantidad debe ser mayor a 0'),
   unit: z.string().min(1, 'Unidad es requerida'),
-  reason: z.enum(['EXPIRED', 'DAMAGED', 'QUALITY', 'SPILLAGE', 'OTHER']),
+  reason: z.enum(['EXPIRED', 'DAMAGED', 'QUALITY', 'SPILLAGE', 'OTHER', 'STAFF']),
   costPerUnit: z.coerce.number().min(0).optional(),
   notes: z.string().optional(),
 });
@@ -378,6 +378,7 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
                     <SelectItem value="DAMAGED">Dañado</SelectItem>
                     <SelectItem value="QUALITY">Calidad</SelectItem>
                     <SelectItem value="SPILLAGE">Derrame</SelectItem>
+                    <SelectItem value="STAFF">Consumo de Personal (Staff)</SelectItem>
                     <SelectItem value="OTHER">Otro</SelectItem>
                   </SelectContent>
                 </Select>

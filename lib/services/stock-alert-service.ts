@@ -11,7 +11,7 @@ export interface StockAlert {
     branchId: string;
     branchName?: string;
     severity: "BAJA" | "MEDIA" | "ALTA" | "CRITICA";
-    type: "LOW_STOCK" | "OUT_OF_STOCK" | "EXPIRING_SOON" | "EXPIRED";
+    type: "LOW_STOCK" | "OUT_OF_STOCK" | "EXPIRING_SOON" | "EXPIRED" | "PRICE_INCREASE";
     detectedAt?: Date;
 }
 
@@ -307,6 +307,104 @@ export class StockAlertService {
         } catch (error) {
             console.error("[StockAlert] Error getting expired items:", error);
             return [];
+        }
+    }
+
+    /**
+     * Check for price increase compared to 30-day moving average and trigger alert if increase >= 10%
+     */
+    static async checkPriceIncrease(
+        itemId: string,
+        newPriceCents: number,
+        supplierId: string | null,
+        companyId: string,
+        branchId: string | null,
+        userId?: string
+    ): Promise<void> {
+        try {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            // Fetch recent batch unit costs in the last 30 days for this item
+            const recentBatches = await db.select({
+                unitCost: inventoryBatches.unitCost
+            })
+            .from(inventoryBatches)
+            .where(
+                and(
+                    eq(inventoryBatches.itemId, itemId),
+                    sql`${inventoryBatches.receivedAt} >= ${thirtyDaysAgo}`,
+                    sql`${inventoryBatches.unitCost} IS NOT NULL`
+                )
+            );
+
+            const prices = recentBatches
+                .map(b => b.unitCost)
+                .filter((c): c is number => c !== null && c > 0);
+
+            let avgCost = 0;
+            if (prices.length > 0) {
+                avgCost = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+            } else {
+                // Fallback to item's lastCost before this check
+                const item = await db.query.inventoryItems.findFirst({
+                    where: eq(inventoryItems.id, itemId)
+                });
+                if (!item || !item.lastCost) return;
+                avgCost = item.lastCost;
+            }
+
+            // Trigger alert if new price is >= 10% higher than average
+            if (avgCost > 0 && newPriceCents >= avgCost * 1.10) {
+                const pct = Math.round(((newPriceCents - avgCost) / avgCost) * 100);
+
+                const item = await db.query.inventoryItems.findFirst({
+                    where: eq(inventoryItems.id, itemId)
+                });
+                const itemName = item?.name || "Insumo";
+
+                // Persist the alert
+                await db.insert(inventoryAlerts).values({
+                    companyId,
+                    branchId: branchId || undefined,
+                    itemId,
+                    type: 'PRICE_INCREASE',
+                    severity: pct >= 25 ? 'ALTA' : 'MEDIA',
+                    currentStock: 0,
+                    minLevel: 0,
+                    status: 'ACTIVE',
+                    notes: `Alza de costo del ${pct}% detectada. Costo anterior prom: $${(avgCost / 100).toFixed(2)}, nuevo costo: $${(newPriceCents / 100).toFixed(2)}`,
+                });
+
+                // Find managers to notify
+                const managers = await db.query.users.findMany({
+                    where: and(
+                        eq(users.companyId, companyId),
+                        sql`${users.role} IN ('ADMIN', 'GERENTE')`
+                    )
+                });
+
+                for (const manager of managers) {
+                    try {
+                        await NotificationDispatcher.sendInventoryAlert({
+                            userId: manager.id,
+                            eventType: 'inventory_alert',
+                            data: {
+                                itemName,
+                                currentStock: 0,
+                                minLevel: 0,
+                                severity: pct >= 25 ? 'ALTA' : 'MEDIA',
+                                branchId: branchId || undefined,
+                                message: `Alza de precio en ${itemName}: +${pct}% ($${(newPriceCents / 100).toFixed(2)} vs prom $${(avgCost / 100).toFixed(2)})`
+                            }
+                        });
+                    } catch (err) {
+                        console.error(`[StockAlert] Failed to notify manager ${manager.id} of price increase:`, err);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("[StockAlert] Error checking price increase:", error);
         }
     }
 }

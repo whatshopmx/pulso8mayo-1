@@ -109,16 +109,44 @@ export default function PODetailPage() {
     });
   };
 
+  const handleShareWhatsApp = () => {
+    const poLink = window.location.href;
+    const text = `Hola, te comparto la Orden de Compra *${po.poNumber}* de *${po.branchName || 'Pulso Horeca'}*.\n\n*Detalles:*\n• Proveedor: ${po.supplierName || '—'}\n• Total: ${formatCurrency(po.totalAmount)}\n• Fecha Requerida: ${formatDate(po.dateRequired)}\n\nLink de visualización: ${poLink}`;
+    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(whatsappUrl, "_blank");
+  };
+
   const items = po.items || [];
 
   return (
     <PageContainer>
+      <style>{`
+        @media print {
+          aside, nav, header, footer, button, .print\\:hidden {
+            display: none !important;
+          }
+          main, .print\\:full-width {
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+        }
+      `}</style>
       <PageHeader
         title={po.poNumber}
         description={`Orden de compra • ${formatDate(po.createdAt)}`}
         icon={FileText}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 print:hidden">
+            <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
+              <FileText className="h-4 w-4" /> Imprimir / PDF
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleShareWhatsApp} className="gap-2 text-emerald-700 border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50">
+              <svg className="h-4 w-4 fill-emerald-600" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.458L0 24zM6.59 19.842c1.617.959 3.01 1.458 4.887 1.458 5.48 0 9.943-4.444 9.947-9.913.002-2.65-1.02-5.14-2.88-7.006C16.68 2.516 14.19 1.49 11.54 1.49 6.06 1.49 1.597 5.936 1.594 11.405c-.001 1.83.483 3.197 1.42 4.793L2.012 21.8l5.885-1.543a9.88 9.88 0 0 0-1.307-.415z"/>
+              </svg>
+              Compartir WhatsApp
+            </Button>
             <Link href="/dashboard/inventory/purchase-orders">
               <Button variant="ghost" size="icon"><ChevronLeft className="h-5 w-5" /></Button>
             </Link>

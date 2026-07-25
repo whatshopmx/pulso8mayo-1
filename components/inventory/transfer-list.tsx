@@ -60,11 +60,25 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
     const [isProcessing, setIsProcessing] = useState(false);
     const [rejectionReason, setRejectionReason] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
+    const [receivedQuantities, setReceivedQuantities] = useState<Record<string, number>>({});
 
     // Fetch transfers
     useEffect(() => {
         fetchTransfers();
     }, [branchId]);
+
+    const handleOpenDetail = (t: Transfer) => {
+        setSelectedTransfer(t);
+        const initialQties: Record<string, number> = {};
+        t.items?.forEach(item => {
+            const qty = item.shippedQuantity !== null && item.shippedQuantity !== undefined 
+                ? parseFloat(item.shippedQuantity) 
+                : parseFloat(item.requestedQuantity || "0");
+            initialQties[item.id] = qty;
+        });
+        setReceivedQuantities(initialQties);
+        setIsDetailOpen(true);
+    };
 
     const fetchTransfers = async () => {
         try {
@@ -187,8 +201,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => {
-                                            setSelectedTransfer({ transfer, items });
-                                            setIsDetailOpen(true);
+                                            handleOpenDetail({ transfer, items });
                                         }}
                                     >
                                         <Eye className="w-4 h-4" />
@@ -231,17 +244,61 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2">
-                                {items?.map((item: any, idx: number) => (
-                                    <div key={idx} className="flex items-center justify-between p-2 border rounded">
-                                        <div className="flex items-center gap-2">
-                                            <Package className="w-4 h-4 text-muted-foreground" />
-                                            <span className="text-sm">{item.itemId}</span>
+                                {items?.map((item: any, idx: number) => {
+                                    const maxQty = item.shippedQuantity !== null && item.shippedQuantity !== undefined
+                                        ? parseFloat(item.shippedQuantity)
+                                        : parseFloat(item.requestedQuantity || "0");
+                                        
+                                    return (
+                                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded gap-2">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <Package className="w-4 h-4 text-muted-foreground" />
+                                                    <span className="text-sm font-semibold">{item.itemName || "Desconocido"}</span>
+                                                </div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    SKU: {item.itemSku || 'N/A'} • Solicitado: {item.requestedQuantity} {item.itemUnit || 'U'}
+                                                    {item.shippedQuantity !== null && item.shippedQuantity !== undefined && ` • Enviado: ${item.shippedQuantity}`}
+                                                </div>
+                                            </div>
+                                            
+                                            {transfer.status === "IN_TRANSIT" && transfer.toBranchId === branchId ? (
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <Label htmlFor={`qty-${item.id}`} className="text-xs">Recibido:</Label>
+                                                    <Input
+                                                        id={`qty-${item.id}`}
+                                                        type="number"
+                                                        step="any"
+                                                        min="0"
+                                                        max={maxQty}
+                                                        value={receivedQuantities[item.id] ?? maxQty}
+                                                        onChange={(e) => {
+                                                            const val = parseFloat(e.target.value);
+                                                            if (!isNaN(val)) {
+                                                                const constrainedVal = Math.min(val, maxQty);
+                                                                setReceivedQuantities(prev => ({
+                                                                    ...prev,
+                                                                    [item.id]: constrainedVal
+                                                                }));
+                                                            }
+                                                        }}
+                                                        className="w-24 h-8 text-right"
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div className="text-sm font-medium text-right">
+                                                    {transfer.status === "COMPLETED" ? (
+                                                        <span className="text-emerald-700 font-semibold">
+                                                            Recibido: {item.receivedQuantity}
+                                                        </span>
+                                                    ) : (
+                                                        <span>Cantidad: {item.requestedQuantity}</span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="text-sm font-medium">
-                                            Cantidad: {item.requestedQuantity}
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </CardContent>
                     </Card>
@@ -256,7 +313,20 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                         </div>
                     )}
 
-                    {/* Rejection reason */}
+                    {/* Rejection input */}
+                    {transfer.status === "PENDING" && transfer.toBranchId === branchId && (
+                        <div className="space-y-2">
+                            <Label htmlFor="rejection-reason">Motivo de Rechazo (si se rechaza):</Label>
+                            <Input
+                                id="rejection-reason"
+                                placeholder="Escribe el motivo..."
+                                value={rejectionReason}
+                                onChange={(e) => setRejectionReason(e.target.value)}
+                            />
+                        </div>
+                    )}
+
+                    {/* Rejection reason display */}
                     {transfer.rejectionReason && (
                         <Alert variant="destructive">
                             <AlertCircle className="h-4 w-4" />
@@ -316,7 +386,13 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                     )}
                     {transfer.status === "IN_TRANSIT" && transfer.toBranchId === branchId && (
                         <Button
-                            onClick={() => handleAction(transfer.id, "receive")}
+                            onClick={() => {
+                                const itemsData = items?.map(item => ({
+                                    id: item.id,
+                                    receivedQuantity: receivedQuantities[item.id] ?? (item.shippedQuantity || item.requestedQuantity)
+                                }));
+                                handleAction(transfer.id, "receive", { items: itemsData });
+                            }}
                             disabled={isProcessing}
                         >
                             <CheckCircle className="w-4 h-4 mr-2" />
@@ -386,7 +462,9 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
             </Tabs>
 
             {/* Detail Dialog */}
-            {isDetailOpen && renderTransferDetail()}
+            <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+                {renderTransferDetail()}
+            </Dialog>
         </div>
     );
 }

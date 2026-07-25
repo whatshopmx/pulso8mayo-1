@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { CameraCapture } from "@/components/shared/camera-capture";
 import { usePhotoUpload } from "@/components/shared/use-photo-upload";
 
-function StockCountConfirmSummary({ steps, onConfirm, value }: { steps: WorkflowStepData[]; onConfirm: (val: string) => void; value: string }) {
+function StockCountConfirmSummary({ steps, onConfirm, value, blindCount }: { steps: WorkflowStepData[]; onConfirm: (val: string) => void; value: string; blindCount?: boolean }) {
   const countSteps = steps.filter(s => s.stepId.startsWith("count-") && s.value);
 
   const rows = countSteps.map(s => {
@@ -48,39 +48,43 @@ function StockCountConfirmSummary({ steps, onConfirm, value }: { steps: Workflow
           <thead className="bg-muted/50">
             <tr>
               <th className="text-left p-2 font-medium">Producto</th>
-              <th className="text-right p-2 font-medium">Sistema</th>
+              {!blindCount && <th className="text-right p-2 font-medium">Sistema</th>}
               <th className="text-right p-2 font-medium">Físico</th>
-              <th className="text-right p-2 font-medium">Diferencia</th>
-              <th className="text-center p-2 font-medium">Estado</th>
+              {!blindCount && <th className="text-right p-2 font-medium">Diferencia</th>}
+              {!blindCount && <th className="text-center p-2 font-medium">Estado</th>}
             </tr>
           </thead>
           <tbody>
             {rows.map(row => (
-              <tr key={row.stepId} className={`border-t ${row.isAlert ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>
+              <tr key={row.stepId} className={`border-t ${!blindCount && row.isAlert ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>
                 <td className="p-2">{row.itemName}</td>
-                <td className="text-right p-2">{row.systemQty}</td>
+                {!blindCount && <td className="text-right p-2">{row.systemQty}</td>}
                 <td className="text-right p-2">{row.physicalQty}</td>
-                <td className={`text-right p-2 font-medium ${row.variance > 0 ? 'text-green-600' : row.variance < 0 ? 'text-red-600' : ''}`}>
-                  {row.variance > 0 ? '+' : ''}{row.variance}
-                </td>
-                <td className="text-center p-2">
-                  {row.isAlert ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                      <AlertCircle className="h-3 w-3" /> {row.variancePercent}%
-                    </span>
-                  ) : row.variance === 0 ? (
-                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">OK</span>
-                  ) : (
-                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">{row.variancePercent}%</span>
-                  )}
-                </td>
+                {!blindCount && (
+                  <td className={`text-right p-2 font-medium ${row.variance > 0 ? 'text-green-600' : row.variance < 0 ? 'text-red-600' : ''}`}>
+                    {row.variance > 0 ? '+' : ''}{row.variance}
+                  </td>
+                )}
+                {!blindCount && (
+                  <td className="text-center p-2">
+                    {row.isAlert ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                        <AlertCircle className="h-3 w-3" /> {row.variancePercent}%
+                      </span>
+                    ) : row.variance === 0 ? (
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">OK</span>
+                    ) : (
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">{row.variancePercent}%</span>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      {rows.some(r => r.isAlert) && (
+      {!blindCount && rows.some(r => r.isAlert) && (
         <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg flex gap-2 text-red-600 dark:text-red-400 text-sm">
           <AlertCircle className="h-5 w-5 shrink-0" />
           <span>Se detectaron varianzas mayores al 10%. Revisa antes de confirmar.</span>
@@ -137,6 +141,7 @@ export interface WorkflowExecutionData {
     steps: WorkflowStep[];
   };
   steps: WorkflowStepData[];
+  blindCount?: boolean;
 }
 
 export interface WorkflowExecutorProps {
@@ -305,7 +310,7 @@ export function WorkflowExecutor({
       case 'NUMBER':
         return (
           <div className="space-y-3">
-            {step.id.startsWith('count-') && currentStepInstance?.value && (() => {
+            {!execution.blindCount && step.id.startsWith('count-') && currentStepInstance?.value && (() => {
               try {
                 const parsed = typeof currentStepInstance.value === 'string' ? JSON.parse(currentStepInstance.value) : currentStepInstance.value;
                 const sysQty = (parsed as any)?.systemQuantity;
@@ -760,7 +765,11 @@ const getStepIcon = (type: string) => {
         </CardHeader>
         <CardContent className="space-y-4">
           {currentStep.description && (
-            <p className="text-sm text-muted-foreground">{currentStep.description}</p>
+            <p className="text-sm text-muted-foreground">
+              {execution.blindCount && currentStep.id.startsWith('count-')
+                ? 'Ingresa la cantidad física encontrada en estantería para este insumo.'
+                : currentStep.description}
+            </p>
           )}
 
           <Separator />

@@ -155,6 +155,7 @@ export default function InventoryAlertsPage() {
             OUT_OF_STOCK: { variant: "destructive", label: "Sin Stock", icon: <Package className="h-3 w-3" /> },
             EXPIRING_SOON: { variant: "default", label: "Próximo a Vencer", icon: <Clock className="h-3 w-3" /> },
             EXPIRED: { variant: "destructive", label: "Vencido", icon: <AlertTriangle className="h-3 w-3" /> },
+            PRICE_INCREASE: { variant: "destructive", label: "Alza de Costo", icon: <TrendingDown className="h-3 w-3" /> },
         };
 
         const config = variants[type] || variants.LOW_STOCK;
@@ -257,6 +258,7 @@ const getSeverityBadge = (severity: string) => {
                                     <SelectItem value="OUT_OF_STOCK">Sin Stock</SelectItem>
                                     <SelectItem value="EXPIRING_SOON">Próximo a Vencer</SelectItem>
                                     <SelectItem value="EXPIRED">Vencido</SelectItem>
+                                    <SelectItem value="PRICE_INCREASE">Alza de Costo</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -297,6 +299,9 @@ const getSeverityBadge = (severity: string) => {
                                                 <div className="font-medium">{alert.itemName || "N/A"}</div>
                                                 {alert.itemSku && (
                                                     <div className="text-xs text-muted-foreground">{alert.itemSku}</div>
+                                                )}
+                                                {alert.notes && (
+                                                    <div className="text-xs text-muted-foreground max-w-xs truncate" title={alert.notes}>{alert.notes}</div>
                                                 )}
                                             </div>
                                         </TableCell>

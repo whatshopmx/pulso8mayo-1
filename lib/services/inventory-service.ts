@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { inventoryItems, inventoryBatches, inventoryMovements, suppliers, inventoryPriceHistory, inventoryTransfers, inventoryTransferItems } from "@/lib/db/schema";
+import { inventoryItems, inventoryBatches, inventoryMovements, suppliers, inventoryPriceHistory, inventoryTransfers, inventoryTransferItems, inventoryWaste } from "@/lib/db/schema";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 
 export class InventoryService {
@@ -85,27 +85,31 @@ export class InventoryService {
 
     // --- Transactions (Movements) ---
 
- static async recordMovement(data: {
-  branchId: string;
-  itemId: string;
-  batchId?: string;
-  type: 'RECEIVING' | 'USAGE' | 'ADJUSTMENT' | 'TRANSFER' | 'WASTE' | 'RETURN';
-  quantityChange: number;
-  reason?: string;
-  performedBy: string;
-  referenceId?: string;
- }) {
-  return await db.transaction(async (tx) => {
-  const [movement] = await tx.insert(inventoryMovements).values({
-  branchId: data.branchId,
-  itemId: data.itemId,
-  batchId: data.batchId,
-  type: data.type,
-  quantityChange: data.quantityChange,
-  reason: data.reason,
-  performedBy: data.performedBy,
-  referenceId: data.referenceId,
-  }).returning();
+  static async recordMovement(data: {
+   branchId: string;
+   itemId: string;
+   batchId?: string;
+   type: 'RECEIVING' | 'USAGE' | 'ADJUSTMENT' | 'TRANSFER' | 'WASTE' | 'RETURN';
+   quantityChange: number;
+   reason?: string;
+   performedBy: string;
+   referenceId?: string;
+   fromLocationId?: string;
+   toLocationId?: string;
+  }) {
+   return await db.transaction(async (tx) => {
+   const [movement] = await tx.insert(inventoryMovements).values({
+   branchId: data.branchId,
+   itemId: data.itemId,
+   batchId: data.batchId,
+   type: data.type,
+   quantityChange: data.quantityChange,
+   reason: data.reason,
+   performedBy: data.performedBy,
+   referenceId: data.referenceId,
+   fromLocationId: data.fromLocationId,
+   toLocationId: data.toLocationId,
+   }).returning();
 
             // 2. Update Batch if exists
             if (data.batchId) {
@@ -472,85 +476,137 @@ static async shipTransfer(transferId: string, shippedBy: string) {
 }
 
   static async receiveTransfer(transferId: string, receivedBy: string, items?: Array<{ id: string; receivedQuantity: number }>) {
-  return await db.transaction(async (tx) => {
-    // Get transfer
-    const [transfer] = await tx.select()
-      .from(inventoryTransfers)
+    return await db.transaction(async (tx) => {
+      // Get transfer
+      const [transfer] = await tx.select()
+        .from(inventoryTransfers)
+        .where(eq(inventoryTransfers.id, transferId))
+        .limit(1);
+
+      if (!transfer) {
+        throw new Error("Transfer not found");
+      }
+
+      if (transfer.status !== 'IN_TRANSIT') {
+        throw new Error("Transfer must be in transit before receiving");
+      }
+
+      // Get transfer items
+      const transferItems = await tx.select()
+        .from(inventoryTransferItems)
+        .where(eq(inventoryTransferItems.transferId, transferId));
+
+      // Update transfer status
+      const [updatedTransfer] = await tx.update(inventoryTransfers)
+      .set({
+        status: 'COMPLETED',
+        receivedBy,
+        receivedAt: new Date(),
+      })
       .where(eq(inventoryTransfers.id, transferId))
-      .limit(1);
+      .returning();
 
-    if (!transfer) {
-      throw new Error("Transfer not found");
-    }
+      // Increase stock in destination branch
+      for (const item of transferItems) {
+        const shippedQty = item.shippedQuantity !== null && item.shippedQuantity !== undefined
+          ? Number(item.shippedQuantity)
+          : Number(item.requestedQuantity || 0);
 
-    if (transfer.status !== 'IN_TRANSIT') {
-      throw new Error("Transfer must be in transit before receiving");
-    }
+        const receivedQtyRaw = items
+          ? Number(items.find(i => i.id === item.id)?.receivedQuantity ?? shippedQty)
+          : shippedQty;
 
-    // Get transfer items
-    const transferItems = await tx.select()
-      .from(inventoryTransferItems)
-      .where(eq(inventoryTransferItems.transferId, transferId));
+        if (receivedQtyRaw > shippedQty) {
+          throw new Error(`Received quantity (${receivedQtyRaw}) cannot be greater than shipped quantity (${shippedQty}) for item ID ${item.itemId}`);
+        }
 
-    // Update transfer status
-    const [updatedTransfer] = await tx.update(inventoryTransfers)
-    .set({
-      status: 'COMPLETED',
-      receivedBy,
-      receivedAt: new Date(),
-    })
-    .where(eq(inventoryTransfers.id, transferId))
-    .returning();
+        const wasteQty = Math.max(0, Math.round(shippedQty - receivedQtyRaw));
+        const receivedQty = Math.round(receivedQtyRaw);
 
-    // Increase stock in destination branch
-    for (const item of transferItems) {
-      const receivedQty = items
-        ? items.find(i => i.id === item.id)?.receivedQuantity ?? item.requestedQuantity
-        : item.requestedQuantity;
+        // Get source batch if available
+        const sourceBatch = item.batchId ? await tx.select()
+          .from(inventoryBatches)
+          .where(eq(inventoryBatches.id, item.batchId))
+          .limit(1)
+          .then(r => r[0]) : null;
 
-      // Get source batch if available
-      const sourceBatch = item.batchId ? await tx.select()
-        .from(inventoryBatches)
-        .where(eq(inventoryBatches.id, item.batchId))
-        .limit(1)
-        .then(r => r[0]) : null;
+        if (receivedQty > 0) {
+          const [newBatch] = await tx.insert(inventoryBatches).values({
+            itemId: item.itemId,
+            branchId: transfer.toBranchId,
+            initialQuantity: receivedQty,
+            currentQuantity: receivedQty,
+            lotNumber: sourceBatch?.lotNumber || `TRF-BATCH-${Date.now()}`,
+            expirationDate: sourceBatch?.expirationDate,
+            productionDate: sourceBatch?.productionDate,
+            status: 'AVAILABLE',
+          }).returning();
 
-      const [newBatch] = await tx.insert(inventoryBatches).values({
-        itemId: item.itemId,
-        branchId: transfer.toBranchId,
-        initialQuantity: receivedQty,
-        currentQuantity: receivedQty,
-        lotNumber: sourceBatch?.lotNumber || `TRF-BATCH-${Date.now()}`,
-        expirationDate: sourceBatch?.expirationDate,
-        productionDate: sourceBatch?.productionDate,
-        status: 'AVAILABLE',
-      }).returning();
+          // Record movement
+          await tx.insert(inventoryMovements).values({
+            branchId: transfer.toBranchId,
+            itemId: item.itemId,
+            batchId: newBatch.id,
+            type: 'TRANSFER',
+            quantityChange: receivedQty,
+            reason: `Transfer from branch ${transfer.fromBranchId}`,
+            performedBy: receivedBy,
+            referenceId: transferId,
+          });
+        }
 
-      // Record movement
-      await tx.insert(inventoryMovements).values({
-        branchId: transfer.toBranchId,
-        itemId: item.itemId,
-        batchId: newBatch.id,
-        type: 'TRANSFER',
-        quantityChange: receivedQty,
-        reason: `Transfer from branch ${transfer.fromBranchId}`,
-        performedBy: receivedBy,
-        referenceId: transferId,
-      });
+        // If received less than shipped, record transportation waste (merma de transporte)
+        if (wasteQty > 0) {
+          const [inventoryItem] = await tx.select()
+            .from(inventoryItems)
+            .where(eq(inventoryItems.id, item.itemId))
+            .limit(1);
 
-      // Update received quantity
-      if (items) {
-        const transferItem = items.find(i => i.id === item.id);
-        if (transferItem) {
-          await tx.update(inventoryTransferItems)
-          .set({ receivedQuantity: transferItem.receivedQuantity })
-          .where(eq(inventoryTransferItems.id, item.id));
+          if (inventoryItem) {
+            const unitCost = sourceBatch?.unitCost || inventoryItem.lastCost || 0;
+            const totalLoss = wasteQty * unitCost;
+
+            await tx.insert(inventoryWaste).values({
+              companyId: inventoryItem.companyId,
+              branchId: transfer.toBranchId,
+              batchId: item.batchId || null,
+              itemId: item.itemId,
+              quantity: wasteQty,
+              unit: inventoryItem.unit || 'UNIT',
+              reason: 'DAMAGED',
+              costPerUnit: unitCost,
+              totalLoss: totalLoss,
+              recordedBy: receivedBy,
+              notes: `Merma de transporte en transferencia ${transfer.transferNumber}. Encontrado en recepción.`,
+            });
+
+            // Record movement for waste
+            await tx.insert(inventoryMovements).values({
+              branchId: transfer.toBranchId,
+              itemId: item.itemId,
+              batchId: item.batchId || null,
+              type: 'WASTE',
+              quantityChange: -wasteQty,
+              reason: `Merma de transporte en transferencia ${transfer.transferNumber}`,
+              performedBy: receivedBy,
+              referenceId: transferId,
+            });
+          }
+        }
+
+        // Update received quantity in DB
+        if (items) {
+          const transferItem = items.find(i => i.id === item.id);
+          if (transferItem) {
+            await tx.update(inventoryTransferItems)
+            .set({ receivedQuantity: transferItem.receivedQuantity })
+            .where(eq(inventoryTransferItems.id, item.id));
+          }
         }
       }
-    }
 
-    return updatedTransfer;
-  });
+      return updatedTransfer;
+    });
   }
 
   static async recordAdjustment(data: {

@@ -160,9 +160,9 @@ export async function POST(request: NextRequest) {
         branchId,
         itemId,
         batchId: batchId || null,
-        type: 'WASTE',
+        type: reason === 'STAFF' ? 'USAGE' : 'WASTE',
         quantityChange: -quantity, // Negative because we're removing stock
-        reason: `WASTE: ${reason}`,
+        reason: reason === 'STAFF' ? 'Consumo de Personal (Staff)' : `WASTE: ${reason}`,
         performedBy: session.user.id,
         timestamp: new Date(),
       });

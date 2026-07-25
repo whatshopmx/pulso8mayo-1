@@ -11,7 +11,7 @@ import { PageHeader, PageContainer } from "@/components/shared";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Upload, Check, AlertTriangle, ArrowRight, Loader2, RefreshCw, Eye, AlertCircle, CheckCircle2, TrendingUp } from "lucide-react";
+import { FileText, Upload, Check, AlertTriangle, ArrowRight, Loader2, RefreshCw, Eye, AlertCircle, CheckCircle2, TrendingUp, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -86,6 +86,7 @@ export default function InvoiceUploadPage() {
     const [selectedInvoiceDetail, setSelectedInvoiceDetail] = useState<any | null>(null);
     const [isLoadingDetail, setIsLoadingDetail] = useState(false);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const [isClaimOpen, setIsClaimOpen] = useState(false);
 
     useEffect(() => {
         // Fetch inventory products for manual mapping dropdown
@@ -249,6 +250,27 @@ export default function InvoiceUploadPage() {
         } finally {
             setIsLoadingDetail(false);
         }
+    };
+
+    const handleOpenClaimDialog = () => {
+        setIsClaimOpen(true);
+    };
+
+    const handleShareClaimWhatsApp = () => {
+        if (!selectedInvoiceDetail) return;
+        const supplierName = selectedInvoiceDetail.supplier?.name || selectedInvoiceDetail.invoice.nombreEmisor || "Proveedor";
+        const invoiceFolio = `${selectedInvoiceDetail.invoice.serie || ''}-${selectedInvoiceDetail.invoice.folio || ''}`;
+        
+        let text = `Estimado equipo de *${supplierName}*,\n\nLe escribimos de *Pulso Horeca* en relación a la Factura *${invoiceFolio}*.\n\nHemos detectado las siguientes discrepancias en el recibo de mercancía:\n\n`;
+        
+        selectedInvoiceDetail.matchDetails?.discrepancies.forEach((dis: any) => {
+            text += `• ${dis.description}\n`;
+        });
+        
+        text += `\nSolicitamos de su apoyo para la corrección/nota de crédito correspondiente. Agradecemos su pronta atención.\n\nAtentamente,\nControl de Calidad, Pulso Horeca`;
+        
+        const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(url, "_blank");
     };
 
     const getMatchStatusBadge = (status: string) => {
@@ -745,20 +767,171 @@ export default function InvoiceUploadPage() {
                                 </div>
                             </div>
 
-                            {/* Total summary */}
-                            <div className="flex justify-end pt-4 border-t gap-6 text-sm">
-                                <div className="text-right">
-                                    <span className="text-muted-foreground block">Subtotal</span>
-                                    <span className="font-semibold text-base">${(selectedInvoiceDetail.invoice.subtotal / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                            {/* Total summary / Actions */}
+                            <div className="flex justify-between items-center pt-4 border-t print:hidden">
+                                <div>
+                                    {selectedInvoiceDetail.invoice.matchStatus === "DISCREPANCY" && (
+                                        <Button 
+                                            variant="outline" 
+                                            className="gap-2 text-rose-700 border-rose-200 bg-rose-50/50 hover:bg-rose-100" 
+                                            onClick={handleOpenClaimDialog}
+                                        >
+                                            <AlertTriangle className="w-4 h-4" /> Generar Reclamo a Proveedor
+                                        </Button>
+                                    )}
                                 </div>
-                                <div className="text-right">
-                                    <span className="text-muted-foreground block">IVA / Impuestos</span>
-                                    <span className="font-semibold text-base">${(selectedInvoiceDetail.invoice.taxAmount / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                <div className="flex gap-6 text-sm">
+                                    <div className="text-right">
+                                        <span className="text-muted-foreground block">Subtotal</span>
+                                        <span className="font-semibold text-base">${(selectedInvoiceDetail.invoice.subtotal / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-muted-foreground block">IVA / Impuestos</span>
+                                        <span className="font-semibold text-base">${(selectedInvoiceDetail.invoice.taxAmount / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-muted-foreground block text-emerald-700 font-semibold">Total Factura</span>
+                                        <span className="font-bold text-lg text-emerald-600">${(selectedInvoiceDetail.invoice.total / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                    </div>
                                 </div>
-                                <div className="text-right">
-                                    <span className="text-muted-foreground block text-emerald-700 font-semibold">Total Factura</span>
-                                    <span className="font-bold text-lg text-emerald-600">${(selectedInvoiceDetail.invoice.total / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* CLAIM DIALOG */}
+            <Dialog open={isClaimOpen} onOpenChange={setIsClaimOpen}>
+                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto print-claim-container">
+                    <style>{`
+                        @media print {
+                            body * {
+                                visibility: hidden;
+                            }
+                            .print-claim-container, .print-claim-container * {
+                                visibility: visible;
+                            }
+                            .print-claim-container {
+                                position: absolute;
+                                left: 0;
+                                top: 0;
+                                width: 100% !important;
+                                padding: 0 !important;
+                                margin: 0 !important;
+                                box-shadow: none !important;
+                                border: none !important;
+                            }
+                            .print\\:hidden {
+                                display: none !important;
+                            }
+                        }
+                    `}</style>
+                    {selectedInvoiceDetail && (
+                        <div className="space-y-6 p-4">
+                            <div className="flex justify-between items-start border-b pb-4">
+                                <div>
+                                    <h1 className="text-2xl font-bold text-slate-800">RECLAMO FORMAL A PROVEEDOR</h1>
+                                    <p className="text-sm text-slate-500 mt-1">Pulso HORECA - Control de Calidad</p>
                                 </div>
+                                <div className="text-right text-sm">
+                                    <p className="font-semibold">Fecha: {new Date().toLocaleDateString()}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">Referencia: REC-{selectedInvoiceDetail.invoice.id.slice(-6).toUpperCase()}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2 text-sm text-slate-700">
+                                <p><strong>Para:</strong> {selectedInvoiceDetail.supplier?.name || selectedInvoiceDetail.invoice.nombreEmisor}</p>
+                                <p><strong>De:</strong> Control de Inventarios, Pulso HORECA</p>
+                                <p><strong>Asunto:</strong> Reporte de Discrepancias en Factura {selectedInvoiceDetail.invoice.serie || ''}-{selectedInvoiceDetail.invoice.folio || ''}</p>
+                            </div>
+
+                            <div className="text-sm text-slate-700 leading-relaxed space-y-4">
+                                <p>Estimado Proveedor,</p>
+                                <p>Por medio del presente documento, le notificamos de manera formal que durante nuestro proceso de control de calidad y conciliación automatizada (3-Way Match), se han identificado discrepancias significativas entre las cantidades/precios facturados y la mercancía físicamente recibida.</p>
+                                <p>Detalle de las discrepancias identificadas:</p>
+                            </div>
+
+                            {/* Discrepancies list */}
+                            <div className="p-4 bg-rose-50 border border-rose-100 rounded-lg text-rose-800 text-sm">
+                                <ul className="list-disc list-inside space-y-2">
+                                    {selectedInvoiceDetail.matchDetails?.discrepancies.map((dis: any, idx: number) => (
+                                        <li key={idx} className="leading-relaxed">
+                                            {dis.description}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            {/* Verification Table */}
+                            <div className="space-y-2">
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cotejo de Ítems Afectados</p>
+                                <div className="border rounded-lg overflow-hidden">
+                                    <Table>
+                                        <TableHeader className="bg-slate-50">
+                                            <TableRow>
+                                                <TableHead>Producto</TableHead>
+                                                <TableHead className="text-center">Facturado</TableHead>
+                                                <TableHead className="text-center">Recibido</TableHead>
+                                                <TableHead className="text-right">Precio Factura</TableHead>
+                                                <TableHead className="text-right">Precio PO</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {selectedInvoiceDetail.matchDetails?.itemComparisons
+                                                .filter((comp: any) => !comp.qtyMatches || !comp.priceMatches)
+                                                .map((comp: any, index: number) => (
+                                                    <TableRow key={index} className="text-xs">
+                                                        <TableCell className="font-semibold text-slate-800">
+                                                            {comp.itemName}
+                                                        </TableCell>
+                                                        <TableCell className={cn("text-center", !comp.qtyMatches && "text-rose-600 font-semibold")}>
+                                                            {comp.invoiceQty}
+                                                        </TableCell>
+                                                        <TableCell className={cn("text-center", !comp.qtyMatches && "text-rose-600 font-semibold")}>
+                                                            {comp.receivedQty}
+                                                        </TableCell>
+                                                        <TableCell className={cn("text-right", !comp.priceMatches && "text-rose-600 font-semibold")}>
+                                                            ${comp.invoicePrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                                        </TableCell>
+                                                        <TableCell className="text-right text-muted-foreground">
+                                                            ${comp.poPrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            }
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+
+                            <div className="text-sm text-slate-700 leading-relaxed space-y-4 pt-4">
+                                <p>Solicitamos atentamente su apoyo para realizar la revisión de los puntos anteriores y proceder con la emisión de la nota de crédito correspondiente o la reposición física del producto a la brevedad posible.</p>
+                                <p>Agradecemos de antemano su colaboración.</p>
+                                <div className="pt-8 flex justify-between">
+                                    <div className="border-t border-slate-300 w-48 text-center pt-2">
+                                        <p className="font-semibold text-xs">Firma Sucursal</p>
+                                        <p className="text-[10px] text-muted-foreground">Recibido de Almacén</p>
+                                    </div>
+                                    <div className="border-t border-slate-300 w-48 text-center pt-2">
+                                        <p className="font-semibold text-xs">Firma Autorizada</p>
+                                        <p className="text-[10px] text-muted-foreground">Control de Inventarios</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-6 border-t print:hidden">
+                                <Button variant="outline" onClick={() => setIsClaimOpen(false)}>
+                                    Cerrar
+                                </Button>
+                                <Button variant="outline" onClick={() => window.print()} className="gap-2">
+                                    <Printer className="w-4 h-4" /> Imprimir Documento
+                                </Button>
+                                <Button onClick={handleShareClaimWhatsApp} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+                                    <svg className="h-4 w-4 fill-white" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.458L0 24zM6.59 19.842c1.617.959 3.01 1.458 4.887 1.458 5.48 0 9.943-4.444 9.947-9.913.002-2.65-1.02-5.14-2.88-7.006C16.68 2.516 14.19 1.49 11.54 1.49 6.06 1.49 1.597 5.936 1.594 11.405c-.001 1.83.483 3.197 1.42 4.793L2.012 21.8l5.885-1.543a9.88 9.88 0 0 0-1.307-.415z"/>
+                                    </svg>
+                                    Compartir por WhatsApp
+                                </Button>
                             </div>
                         </div>
                     )}
