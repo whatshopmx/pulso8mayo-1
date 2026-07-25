@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Loader2, Package, PackagePlus, ArrowRight, AlertTriangle, ClipboardList, FileText, ChefHat, TrendingUp, Upload } from "lucide-react";
+import { Plus, Search, Loader2, Package, PackagePlus, ArrowRight, AlertTriangle, ClipboardList, FileText, ChefHat, TrendingUp, Upload, Building2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useBranch } from "@/lib/branch-context";
@@ -19,6 +19,8 @@ import { DashboardCharts } from "@/components/inventory/dashboard-charts";
 import { QuickAlerts } from "@/components/inventory/quick-alerts";
 import { ProductPhotoUpload } from "@/components/inventory/product-photo-upload";
 import { CATEGORIES, UNITS } from "@/lib/inventory/constants";
+import { Badge } from "@/components/ui/badge";
+import { ProductDetailDrawer } from "@/components/inventory/product-detail-drawer";
 
 export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,6 +39,12 @@ export default function InventoryPage() {
   const [formStorage, setFormStorage] = useState("");
   const [formAllergenInfo, setFormAllergenInfo] = useState("");
   const [formPhotoUrl, setFormPhotoUrl] = useState<string | null>(null);
+  
+  // Dashboard Refactor State variables
+  const [activeTab, setActiveTab] = useState<"all" | "low" | "expiring" | "inactive">("all");
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   const { selectedBranchId, selectedBranch } = useBranch();
 
   const { data: products = [], isLoading: loading } = useInventory(selectedBranchId || undefined);
@@ -109,193 +117,307 @@ export default function InventoryPage() {
     );
   });
 
+  const tabFilteredProducts = filteredProducts.filter((product) => {
+    if (activeTab === "low") {
+      return product.isLowStock;
+    }
+    if (activeTab === "inactive") {
+      return (product.currentStock || 0) === 0 && !product.isLowStock;
+    }
+    if (activeTab === "expiring") {
+      const expiringIds = (dashboardData?.topExpiring || []).map((e: any) => e.itemId);
+      return expiringIds.includes(product.id);
+    }
+    return true;
+  });
+
   return (
     <PageContainer>
       <PageHeader
         title="Gestión de Inventario"
-        description="Gestiona productos, niveles de stock y recepciones"
+        description="Dashboard operativo y control de stock"
         icon={Package}
         branchName={selectedBranch?.name}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Link href="/dashboard/inventory/receiving">
-              <Button variant="outline" size="sm" className="gap-2">
-                <PackagePlus className="h-4 w-4" />
-                Recepción
-              </Button>
-            </Link>
-            <Link href="/dashboard/inventory/suppliers">
-              <Button variant="outline" size="sm" className="gap-2">
-                <ArrowRight className="h-4 w-4" />
-                Proveedores
-              </Button>
-            </Link>
-            <Link href="/dashboard/inventory/waste">
-              <Button variant="outline" size="sm" className="gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                Merma
-              </Button>
-            </Link>
-            <Link href="/dashboard/inventory/stock-count">
-              <Button variant="outline" size="sm" className="gap-2">
-                <ClipboardList className="h-4 w-4" />
-                Conteo
-              </Button>
-            </Link>
-            <Link href="/dashboard/inventory/movements">
-              <Button variant="outline" size="sm" className="gap-2">
-                <Package className="h-4 w-4" />
-                Movimientos
-              </Button>
-            </Link>
-            <Link href="/dashboard/inventory/purchase-orders">
-              <Button variant="outline" size="sm" className="gap-2">
-                <FileText className="h-4 w-4" />
-                Órdenes de Compra
-              </Button>
-            </Link>
-            <Link href="/dashboard/inventory/recipes">
-              <Button variant="outline" size="sm" className="gap-2">
-                <ChefHat className="h-4 w-4" />
-                Recetas & BOM
-              </Button>
-            </Link>
-            <Link href="/dashboard/inventory/invoices">
-              <Button variant="outline" size="sm" className="gap-2">
-                <Upload className="h-4 w-4" />
-                Cargar XML
-              </Button>
-            </Link>
-            <Link href="/dashboard/inventory/reports">
-              <Button variant="outline" size="sm" className="gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Mermas
-              </Button>
-            </Link>
-            <Button onClick={() => setDialogOpen(true)} size="sm">
-              <Plus className="mr-2 h-4 w-4" /> Agregar Producto
-            </Button>
-          </div>
+          <Button onClick={() => setDialogOpen(true)} size="sm">
+            <Plus className="mr-2 h-4 w-4" /> Agregar Producto
+          </Button>
         }
       />
 
-      <DashboardKpis data={dashboardData} loading={dashboardLoading} />
+      {/* Hub de Operaciones */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+          <Link href="/dashboard/inventory/receiving" className="h-full flex flex-col justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <PackagePlus className="h-5 w-5" />
+              </div>
+              <span className="font-semibold text-sm">Recepción Física</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Registra entradas de stock con lectura de código de barras.</p>
+          </Link>
+        </Card>
 
-      <DashboardCharts
-        stockByCategory={dashboardData?.stockByCategory}
-        recentMovements={dashboardData?.recentMovements}
-      />
+        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+          <Link href="/dashboard/inventory/transfers" className="h-full flex flex-col justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <ArrowRight className="h-5 w-5" />
+              </div>
+              <span className="font-semibold text-sm">Transferencias</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Envía o recibe mercancías entre tus sucursales.</p>
+          </Link>
+        </Card>
 
-      <QuickAlerts
-        topLowStock={dashboardData?.topLowStock}
-        topExpiring={dashboardData?.topExpiring}
-      />
+        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+          <Link href="/dashboard/inventory/waste" className="h-full flex flex-col justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <span className="font-semibold text-sm">Merma / Consumo</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Reporta mermas por caducidad, mermas de tránsito o consumo de staff.</p>
+          </Link>
+        </Card>
 
-      <div className="flex items-center gap-2 mb-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Buscar productos..."
-            className="pl-8 sm:w-[300px] md:w-[200px] lg:w-[300px]"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+          <Link href="/dashboard/inventory/stock-count" className="h-full flex flex-col justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <ClipboardList className="h-5 w-5" />
+              </div>
+              <span className="font-semibold text-sm">Auditorías / Conteo</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Realiza conteos físicos regulares (soporta Conteo Ciego).</p>
+          </Link>
+        </Card>
+
+        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+          <Link href="/dashboard/inventory/purchase-orders" className="h-full flex flex-col justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <FileText className="h-5 w-5" />
+              </div>
+              <span className="font-semibold text-sm">Órdenes de Compra</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Genera solicitudes de compra en PDF y compártelas en WhatsApp.</p>
+          </Link>
+        </Card>
+
+        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+          <Link href="/dashboard/inventory/invoices" className="h-full flex flex-col justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <Upload className="h-5 w-5" />
+              </div>
+              <span className="font-semibold text-sm">Cargar Factura XML</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Carga archivos CFDI para realizar la conciliación de 3 vías.</p>
+          </Link>
+        </Card>
+
+        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+          <Link href="/dashboard/inventory/recipes" className="h-full flex flex-col justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <ChefHat className="h-5 w-5" />
+              </div>
+              <span className="font-semibold text-sm">Recetas & BOM</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Monitorea el costeo de ingredientes y fórmulas de recetas.</p>
+          </Link>
+        </Card>
+
+        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+          <Link href="/dashboard/inventory/suppliers" className="h-full flex flex-col justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <span className="font-semibold text-sm">Proveedores</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Administra contactos comerciales e historiales de precios.</p>
+          </Link>
+        </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Productos</CardTitle>
-          <CardDescription>
-            Lista de todos los artículos del inventario
-            {selectedBranch && ` para ${selectedBranch.name}`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Categoría</TableHead>
-                  <TableHead>Unidad</TableHead>
-                  {selectedBranchId && <TableHead>Stock Actual</TableHead>}
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProducts.length === 0 ? (
+      <div className="space-y-6">
+        <DashboardKpis data={dashboardData} loading={dashboardLoading} />
+
+        <DashboardCharts
+          stockByCategory={dashboardData?.stockByCategory}
+          recentMovements={dashboardData?.recentMovements}
+        />
+
+        <QuickAlerts
+          topLowStock={dashboardData?.topLowStock}
+          topExpiring={dashboardData?.topExpiring}
+        />
+
+        {/* Tab-filtered Products List Card */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Productos en Almacén</CardTitle>
+                <CardDescription>
+                  Consulta el catálogo de insumos
+                  {selectedBranch && ` para ${selectedBranch.name}`}
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* Filter tab bar */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <div className="flex gap-2 p-1 bg-muted/40 rounded-lg border">
+                <Button 
+                  variant={activeTab === "all" ? "secondary" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setActiveTab("all")}
+                  className="text-xs font-semibold"
+                >
+                  Todos
+                </Button>
+                <Button 
+                  variant={activeTab === "low" ? "secondary" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setActiveTab("low")}
+                  className="text-xs font-semibold flex items-center gap-1.5"
+                >
+                  Bajo Stock 
+                  {products.filter(p => p.isLowStock).length > 0 && (
+                    <Badge variant="destructive" className="h-4 px-1 min-w-[16px] flex items-center justify-center text-[10px] rounded-full">
+                      {products.filter(p => p.isLowStock).length}
+                    </Badge>
+                  )}
+                </Button>
+                <Button 
+                  variant={activeTab === "expiring" ? "secondary" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setActiveTab("expiring")}
+                  className="text-xs font-semibold flex items-center gap-1.5"
+                >
+                  Por Vencer
+                  {(dashboardData?.topExpiring || []).length > 0 && (
+                    <Badge variant="outline" className="h-4 px-1 min-w-[16px] flex items-center justify-center text-[10px] rounded-full border-orange-500 text-orange-600">
+                      {(dashboardData?.topExpiring || []).length}
+                    </Badge>
+                  )}
+                </Button>
+                <Button 
+                  variant={activeTab === "inactive" ? "secondary" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setActiveTab("inactive")}
+                  className="text-xs font-semibold"
+                >
+                  Inactivos
+                </Button>
+              </div>
+
+              <div className="relative w-full sm:w-[250px]">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Buscar productos..."
+                  className="pl-8 h-9 text-xs"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={selectedBranchId ? 6 : 5} className="text-center py-16">
-                      {searchQuery.trim() && products.length > 0 ? (
-                        <EmptyState
-                          icon={Search}
-                          title="Sin resultados"
-                          description={`No hay productos que coincidan con "${searchQuery}".`}
-                        />
-                      ) : (
-                        <EmptyState
-                          icon={Package}
-                          title="No se encontraron productos"
-                          description="Agrega tu primer producto para comenzar a gestionar el inventario."
-                          action={{ label: "Agregar Producto", onClick: () => setDialogOpen(true) }}
-                        />
-                      )}
-                    </TableCell>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Categoría</TableHead>
+                    <TableHead>Unidad</TableHead>
+                    {selectedBranchId && <TableHead>Stock Actual</TableHead>}
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
-                ) : (
-                    filteredProducts.map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-3">
-                          {product.photoUrl ? (
-                            /* eslint-disable-next-line @next/next/no-img-element */
-                            <img src={product.photoUrl} alt="" className="h-8 w-8 rounded object-cover border" />
-                          ) : (
-                            <Package className="h-4 w-4 text-muted-foreground shrink-0" />
-                          )}
-                          <span className="text-balance">{product.name}</span>
-                          {product.isLowStock && selectedBranchId && (
-                            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>{product.sku}</TableCell>
-                      <TableCell>{product.category}</TableCell>
-                      <TableCell>{product.unit}</TableCell>
-                      {selectedBranchId && (
-                        <TableCell>
-                          <span className={product.isLowStock ? "text-amber-600 font-medium" : ""}>
-                            {product.currentStock || 0}
-                          </span>
-                        </TableCell>
-                      )}
-                      <TableCell className="text-right">
-                        <Link href={`/dashboard/inventory/${product.id}`}>
-                          <Button variant="ghost" size="sm">
-                            Ver
-                          </Button>
-                        </Link>
+                </TableHeader>
+                <TableBody>
+                  {tabFilteredProducts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={selectedBranchId ? 6 : 5} className="text-center py-16">
+                        {searchQuery.trim() && products.length > 0 ? (
+                          <EmptyState
+                            icon={Search}
+                            title="Sin resultados"
+                            description={`No hay productos que coincidan con "${searchQuery}".`}
+                          />
+                        ) : (
+                          <EmptyState
+                            icon={Package}
+                            title="No se encontraron productos"
+                            description="No hay insumos para mostrar en esta pestaña."
+                          />
+                        )}
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                  ) : (
+                    tabFilteredProducts.map((product) => (
+                      <TableRow key={product.id} className="hover:bg-muted/30">
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-3">
+                            {product.photoUrl ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img src={product.photoUrl} alt="" className="h-8 w-8 rounded object-cover border" />
+                            ) : (
+                              <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+                            )}
+                            <span className="text-balance">{product.name}</span>
+                            {product.isLowStock && selectedBranchId && (
+                              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{product.sku || "N/A"}</TableCell>
+                        <TableCell className="capitalize">{product.category || "General"}</TableCell>
+                        <TableCell>{product.unit}</TableCell>
+                        {selectedBranchId && (
+                          <TableCell className="font-mono">
+                            <span className={product.isLowStock ? "text-amber-600 font-bold" : ""}>
+                              {product.currentStock || 0}
+                            </span>
+                          </TableCell>
+                        )}
+                        <TableCell className="text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setSelectedProductId(product.id);
+                              setDrawerOpen(true);
+                            }}
+                          >
+                            Ver
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-background">
           <DialogHeader>
             <DialogTitle>Agregar Producto</DialogTitle>
             <DialogDescription>
-              Ingresa los datos del nuevo producto
+              Ingresa los datos del nuevo producto para el catálogo.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -468,6 +590,14 @@ export default function InventoryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Side-over detail Drawer */}
+      <ProductDetailDrawer
+        productId={selectedProductId}
+        branchId={selectedBranchId || null}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+      />
     </PageContainer>
   );
 }
