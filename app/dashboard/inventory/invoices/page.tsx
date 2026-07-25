@@ -287,7 +287,7 @@ export default function InvoiceUploadPage() {
     return (
         <PageContainer>
             <PageHeader
-                title="Persistencia y Conciliación de Insumos (3-Way Match)"
+                title="Conciliación de Facturas"
                 description="Gestión y cotejo automático entre facturas (XML CFDI), órdenes de compra y recepciones físicas."
                 icon={FileText}
             />
@@ -663,7 +663,7 @@ export default function InvoiceUploadPage() {
                                     <span className="font-mono font-semibold">{selectedInvoiceDetail.purchaseOrder?.poNumber || 'N/A'}</span>
                                 </div>
                                 <div>
-                                    <span className="text-muted-foreground block">Recepción Física</span>
+                                    <span className="text-muted-foreground block">Recepción</span>
                                     <span className="font-semibold text-slate-700">
                                         {selectedInvoiceDetail.receivingReport ? `Reporte #${selectedInvoiceDetail.receivingReport.id.slice(-6).toUpperCase()}` : 'N/A'}
                                     </span>
@@ -691,8 +691,8 @@ export default function InvoiceUploadPage() {
                                 <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-lg flex gap-3 text-emerald-800 text-sm">
                                     <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600" />
                                     <div>
-                                        <p className="font-semibold">Conciliación Perfecta (3-Way Match Exitoso)</p>
-                                        <p className="text-xs text-emerald-700 mt-0.5">Las cantidades y costos unitarios coinciden perfectamente entre la Factura XML, la Orden de Compra y la Recepción Física en Sucursal.</p>
+                                        <p className="font-semibold">Conciliación Perfecta</p>
+                                        <p className="text-xs text-emerald-700 mt-0.5">Las cantidades y costos unitarios coinciden perfectamente entre la Factura XML, la Orden de Compra y la Recepción en Sucursal.</p>
                                     </div>
                                 </div>
                             )}
@@ -847,7 +847,7 @@ export default function InvoiceUploadPage() {
 
                             <div className="text-sm text-slate-700 leading-relaxed space-y-4">
                                 <p>Estimado Proveedor,</p>
-                                <p>Por medio del presente documento, le notificamos de manera formal que durante nuestro proceso de control de calidad y conciliación automatizada (3-Way Match), se han identificado discrepancias significativas entre las cantidades/precios facturados y la mercancía físicamente recibida.</p>
+                                <p>Por medio del presente documento, le notificamos de manera formal que durante nuestro proceso de control de calidad y conciliación automatizada, se han identificado discrepancias significativas entre las cantidades/precios facturados y la mercancía físicamente recibida.</p>
                                 <p>Detalle de las discrepancias identificadas:</p>
                             </div>
 

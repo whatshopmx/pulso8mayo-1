@@ -166,7 +166,7 @@ export default function InventoryPage() {
               <div className="p-2 rounded-lg bg-primary/10 text-primary">
                 <PackagePlus className="h-5 w-5" />
               </div>
-              <span className="font-semibold text-sm">Recepción Física</span>
+              <span className="font-semibold text-sm">Recepción</span>
             </div>
             <p className="text-xs text-muted-foreground mt-2">Registra entradas de stock con lectura de código de barras.</p>
           </Link>
@@ -190,7 +190,7 @@ export default function InventoryPage() {
               <div className="p-2 rounded-lg bg-primary/10 text-primary">
                 <AlertTriangle className="h-5 w-5" />
               </div>
-              <span className="font-semibold text-sm">Merma / Consumo</span>
+              <span className="font-semibold text-sm">Mermas y Consumos</span>
             </div>
             <p className="text-xs text-muted-foreground mt-2">Reporta mermas por caducidad, mermas de tránsito o consumo de staff.</p>
           </Link>
@@ -204,7 +204,7 @@ export default function InventoryPage() {
               </div>
               <span className="font-semibold text-sm">Auditorías / Conteo</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">Realiza conteos físicos regulares (soporta Conteo Ciego).</p>
+            <p className="text-xs text-muted-foreground mt-2">Realiza conteos físicos regulares (soporta Conteo sin Stock Esperado).</p>
           </Link>
         </Card>
 
@@ -238,7 +238,7 @@ export default function InventoryPage() {
               <div className="p-2 rounded-lg bg-primary/10 text-primary">
                 <ChefHat className="h-5 w-5" />
               </div>
-              <span className="font-semibold text-sm">Recetas & BOM</span>
+              <span className="font-semibold text-sm">Recetas & Fórmulas</span>
             </div>
             <p className="text-xs text-muted-foreground mt-2">Monitorea el costeo de ingredientes y fórmulas de recetas.</p>
           </Link>
