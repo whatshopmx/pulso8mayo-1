@@ -366,12 +366,14 @@ export default function InventoryPage() {
                             icon={Search}
                             title="Sin resultados"
                             description={`No hay productos que coincidan con "${searchQuery}".`}
+                            action={{ label: "Limpiar búsqueda", onClick: () => setSearchQuery("") }}
                           />
                         ) : (
                           <EmptyState
                             icon={Package}
                             title="No se encontraron productos"
                             description="No hay insumos para mostrar en esta pestaña."
+                            action={{ label: "Agregar Producto", onClick: () => setDialogOpen(true) }}
                           />
                         )}
                       </TableCell>

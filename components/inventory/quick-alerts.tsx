@@ -39,7 +39,12 @@ export function QuickAlerts({ topLowStock, topExpiring }: QuickAlertsProps) {
         </CardHeader>
         <CardContent>
           {!topLowStock || topLowStock.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Sin alertas de stock bajo</p>
+            <div className="text-center py-4 space-y-2">
+              <p className="text-sm text-muted-foreground">Sin alertas de stock bajo</p>
+              <Link href="/dashboard/inventory/alerts" className="text-xs text-primary hover:underline block">
+                Ver todas las alertas
+              </Link>
+            </div>
           ) : (
             <ul className="space-y-2">
               {topLowStock.map((item) => (
@@ -66,7 +71,12 @@ export function QuickAlerts({ topLowStock, topExpiring }: QuickAlertsProps) {
         </CardHeader>
         <CardContent>
           {!topExpiring || topExpiring.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Sin productos próximos a vencer</p>
+            <div className="text-center py-4 space-y-2">
+              <p className="text-sm text-muted-foreground">Sin productos próximos a vencer</p>
+              <Link href="/dashboard/inventory/alerts" className="text-xs text-primary hover:underline block">
+                Ver todas las alertas
+              </Link>
+            </div>
           ) : (
             <ul className="space-y-2">
               {topExpiring.map((batch) => (
