@@ -40,6 +40,7 @@ export default function InventoryPage() {
   const [formAllergenInfo, setFormAllergenInfo] = useState("");
   const [formPhotoUrl, setFormPhotoUrl] = useState<string | null>(null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  const [suppliersError, setSuppliersError] = useState(false);
   
   // Dashboard Refactor State variables
   const [activeTab, setActiveTab] = useState<"all" | "low" | "expiring" | "inactive">("all");
@@ -54,12 +55,21 @@ export default function InventoryPage() {
 
   const isDirty = formName !== "" || formSku !== "" || formBarcode !== "" || formCategory !== "" || formUnit !== "KG" || formMinLevel !== "" || formMaxLevel !== "" || formSupplierId !== "" || formLastCost !== "" || formShelfLife !== "" || formStorage !== "" || formAllergenInfo !== "" || formPhotoUrl !== null;
 
-  useEffect(() => {
+  const fetchSuppliers = () => {
+    setSuppliersError(false);
     fetch("/api/inventory/suppliers")
-      .then((res) => res.ok && res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Error al cargar proveedores");
+        return res.json();
+      })
       .then((data) => setSuppliers(data.suppliers || []))
-      .catch(() => {});
-  }, []);
+      .catch(() => {
+        setSuppliersError(true);
+        toast.error("Error al cargar proveedores");
+      });
+  };
+
+  useEffect(fetchSuppliers, []);
 
   const resetForm = () => {
     setFormName("");
@@ -556,7 +566,14 @@ export default function InventoryPage() {
                     <SelectValue placeholder="Seleccionar Proveedor..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {suppliers.length > 0 ? (
+                    {suppliersError ? (
+                      <div className="p-3 text-sm text-center space-y-2">
+                        <p className="text-destructive">Error al cargar</p>
+                        <Button variant="outline" size="sm" onClick={fetchSuppliers}>
+                          Reintentar
+                        </Button>
+                      </div>
+                    ) : suppliers.length > 0 ? (
                       suppliers.map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))
