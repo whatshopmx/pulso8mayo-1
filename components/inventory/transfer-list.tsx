@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
     ArrowRight, 
     CheckCircle, 
@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { EmptyState } from "@/components/shared";
 
 interface Transfer {
     transfer: {
@@ -61,11 +62,12 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
     const [rejectionReason, setRejectionReason] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
     const [receivedQuantities, setReceivedQuantities] = useState<Record<string, number>>({});
+    const [roleFilter, setRoleFilter] = useState<"from" | "to" | "both">("both");
 
     // Fetch transfers
     useEffect(() => {
         fetchTransfers();
-    }, [branchId]);
+    }, [branchId, roleFilter]);
 
     const handleOpenDetail = (t: Transfer) => {
         setSelectedTransfer(t);
@@ -82,7 +84,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
 
     const fetchTransfers = async () => {
         try {
-            const response = await fetch(`/api/inventory/transfers?role=both`);
+            const response = await fetch(`/api/inventory/transfers?role=${roleFilter}`);
             const result = await response.json();
 
             if (response.ok) {
@@ -170,12 +172,12 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
     const renderTransferTable = (transferList: Transfer[]) => (
         <div className="space-y-2">
             {transferList.length === 0 ? (
-                <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                        No hay transferencias en esta categoría.
-                    </AlertDescription>
-                </Alert>
+                <EmptyState
+                    icon={Package}
+                    title="Sin transferencias"
+                    description="No hay transferencias en esta categoría."
+                    action={{ label: "Solicitar primera transferencia" }}
+                />
             ) : (
                 transferList.map(({ transfer, items }) => (
                     <Card key={transfer.id}>
@@ -416,6 +418,37 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-8"
                     />
+                </div>
+            </div>
+
+            {/* Role filter */}
+            <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground font-medium">Rol:</span>
+                <div className="flex gap-1 p-0.5 bg-muted/40 rounded-lg border">
+                    <Button
+                        variant={roleFilter === "both" ? "secondary" : "ghost"}
+                        size="sm"
+                        onClick={() => setRoleFilter("both")}
+                        className="text-xs"
+                    >
+                        Todos
+                    </Button>
+                    <Button
+                        variant={roleFilter === "from" ? "secondary" : "ghost"}
+                        size="sm"
+                        onClick={() => setRoleFilter("from")}
+                        className="text-xs"
+                    >
+                        Origen
+                    </Button>
+                    <Button
+                        variant={roleFilter === "to" ? "secondary" : "ghost"}
+                        size="sm"
+                        onClick={() => setRoleFilter("to")}
+                        className="text-xs"
+                    >
+                        Destino
+                    </Button>
                 </div>
             </div>
 
