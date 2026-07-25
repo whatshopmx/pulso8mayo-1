@@ -95,7 +95,6 @@ export function DashboardCharts({ stockByCategory, recentMovements }: DashboardC
                   align="center" 
                   verticalAlign="bottom" 
                   iconType="circle"
-                  tick={{ fontSize: 10 }}
                   wrapperStyle={{ paddingTop: 10 }}
                 />
               </PieChart>

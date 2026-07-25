@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Loader2, Package, PackagePlus, ArrowRight, AlertTriangle, ClipboardList, FileText, ChefHat, TrendingUp, Upload, Building2 } from "lucide-react";
+import { Plus, Search, Loader2, Package, PackagePlus, ArrowRight, AlertTriangle, ClipboardList, FileText, ChefHat, Upload, Building2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useBranch } from "@/lib/branch-context";
@@ -125,7 +125,7 @@ export default function InventoryPage() {
       return (product.currentStock || 0) === 0 && !product.isLowStock;
     }
     if (activeTab === "expiring") {
-      const expiringIds = (dashboardData?.topExpiring || []).map((e: any) => e.itemId);
+      const expiringIds = (dashboardData?.topExpiring || []).map((e: { itemId: string }) => e.itemId);
       return expiringIds.includes(product.id);
     }
     return true;
