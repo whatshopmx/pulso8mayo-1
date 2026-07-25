@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
     Table,
     TableBody,
@@ -11,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
-import { CheckCircle2, Clock, XCircle, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Search } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -29,16 +31,42 @@ interface RecentWorkflowsTableProps {
 }
 
 export function RecentWorkflowsTable({ workflows }: RecentWorkflowsTableProps) {
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const filteredWorkflows = workflows.filter((w) => {
+        const query = searchQuery.toLowerCase();
+        return (
+            w.templateName.toLowerCase().includes(query) ||
+            (w.assigneeName && w.assigneeName.toLowerCase().includes(query))
+        );
+    });
+
     const getStatusBadge = (status: string | null) => {
         switch (status) {
             case "COMPLETED":
-                return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle2 className="w-3 h-3 mr-1" /> Completado</Badge>;
+                return (
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 gap-1 font-medium">
+                        <CheckCircle2 className="w-3 h-3" /> Completado
+                    </Badge>
+                );
             case "IN_PROGRESS":
-                return <Badge variant="secondary" className="bg-blue-100 text-blue-800"><Clock className="w-3 h-3 mr-1" /> En Progreso</Badge>;
+                return (
+                    <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 gap-1 font-medium">
+                        <Clock className="w-3 h-3" /> En Progreso
+                    </Badge>
+                );
             case "PENDING":
-                return <Badge variant="outline"><Clock className="w-3 h-3 mr-1" /> Pendiente</Badge>;
+                return (
+                    <Badge variant="outline" className="bg-muted text-muted-foreground gap-1 font-medium">
+                        <Clock className="w-3 h-3" /> Pendiente
+                    </Badge>
+                );
             case "BLOCKED":
-                return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" /> Bloqueado</Badge>;
+                return (
+                    <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 gap-1 font-medium">
+                        <XCircle className="w-3 h-3" /> Bloqueado
+                    </Badge>
+                );
             default:
                 return <Badge variant="secondary">{status}</Badge>;
         }
@@ -46,59 +74,73 @@ export function RecentWorkflowsTable({ workflows }: RecentWorkflowsTableProps) {
 
     const getScoreColor = (score: number | null) => {
         if (score === null) return "text-muted-foreground";
-        if (score >= 90) return "text-green-600 font-bold";
-        if (score >= 70) return "text-yellow-600 font-bold";
-        return "text-red-600 font-bold";
+        if (score >= 90) return "text-emerald-600 dark:text-emerald-400 font-bold";
+        if (score >= 70) return "text-amber-600 dark:text-amber-400 font-bold";
+        return "text-destructive font-bold";
     };
 
     return (
-        <div className="rounded-md border">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Workflow</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead>Calificación</TableHead>
-                        <TableHead>Asignado a</TableHead>
-                        <TableHead>Actualizado</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {workflows.length === 0 ? (
-                        <TableRow>
-                            <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                                No hay actividad reciente.
-                            </TableCell>
+        <div className="space-y-3">
+            <div className="flex items-center px-4 pt-3 pb-1">
+                <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        type="search"
+                        placeholder="Buscar flujo o responsable..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8 h-9 text-xs"
+                    />
+                </div>
+            </div>
+            <div className="border-t border-border">
+                <Table>
+                    <TableHeader>
+                        <TableRow className="hover:bg-transparent border-b border-border">
+                            <TableHead className="text-xs font-semibold uppercase tracking-wider">Flujo de Trabajo</TableHead>
+                            <TableHead className="text-xs font-semibold uppercase tracking-wider">Estado</TableHead>
+                            <TableHead className="text-xs font-semibold uppercase tracking-wider">Calificación</TableHead>
+                            <TableHead className="text-xs font-semibold uppercase tracking-wider">Asignado a</TableHead>
+                            <TableHead className="text-xs font-semibold uppercase tracking-wider">Actualizado</TableHead>
+                            <TableHead className="text-right text-xs font-semibold uppercase tracking-wider">Acciones</TableHead>
                         </TableRow>
-                    ) : (
-                        workflows.map((workflow) => (
-                            <TableRow key={workflow.id}>
-                                <TableCell className="font-medium">
-                                    {workflow.templateName}
-                                </TableCell>
-                                <TableCell>{getStatusBadge(workflow.status)}</TableCell>
-                                <TableCell className={getScoreColor(workflow.score)}>
-                                    {workflow.score !== null ? `${workflow.score}%` : "-"}
-                                </TableCell>
-                                <TableCell>{workflow.assigneeName || "Sin asignar"}</TableCell>
-                                <TableCell className="text-muted-foreground text-sm">
-                                    {workflow.updatedAt
-                                        ? formatDistanceToNow(new Date(workflow.updatedAt), { addSuffix: true, locale: es })
-                                        : "-"}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <Link href={`/dashboard/workflows/${workflow.id}/execute`}>
-                                        <Button variant="ghost" size="sm">
-                                            Ver detalles
-                                        </Button>
-                                    </Link>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredWorkflows.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground text-sm">
+                                    {searchQuery ? "No se encontraron flujos coincidentes." : "No hay actividad reciente."}
                                 </TableCell>
                             </TableRow>
-                        ))
-                    )}
-                </TableBody>
-            </Table>
+                        ) : (
+                            filteredWorkflows.map((workflow) => (
+                                <TableRow key={workflow.id} className="hover:bg-muted/30 border-b border-border">
+                                    <TableCell className="font-medium text-sm">
+                                        {workflow.templateName}
+                                    </TableCell>
+                                    <TableCell>{getStatusBadge(workflow.status)}</TableCell>
+                                    <TableCell className={getScoreColor(workflow.score)}>
+                                        {workflow.score !== null ? `${workflow.score}%` : "-"}
+                                    </TableCell>
+                                    <TableCell className="text-sm">{workflow.assigneeName || "Sin asignar"}</TableCell>
+                                    <TableCell className="text-muted-foreground text-xs font-mono">
+                                        {workflow.updatedAt
+                                            ? formatDistanceToNow(new Date(workflow.updatedAt), { addSuffix: true, locale: es })
+                                            : "-"}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Link href={`/dashboard/workflows/${workflow.id}/execute`}>
+                                            <Button variant="ghost" size="sm" className="h-8 text-xs">
+                                                Ver detalles
+                                            </Button>
+                                        </Link>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
         </div>
     );
 }

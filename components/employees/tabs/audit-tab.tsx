@@ -22,6 +22,7 @@ import {
   Eye,
   Filter,
   Download as DownloadIcon,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -33,12 +34,12 @@ interface AuditTabProps {
 }
 
 const actionLabels: Record<string, string> = {
-  CREATE: "Create",
-  UPDATE: "Update",
-  DELETE: "Delete",
-  VIEW: "View",
-  EXPORT: "Export",
-  IMPORT: "Import",
+  CREATE: "Creación",
+  UPDATE: "Actualización",
+  DELETE: "Eliminación",
+  VIEW: "Consulta",
+  EXPORT: "Exportación",
+  IMPORT: "Importación",
 };
 
 const actionColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -51,14 +52,14 @@ const actionColors: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 const entityTypeLabels: Record<string, string> = {
-  PROFILE: "Profile",
-  CONTRACT: "Contract",
-  SALARY: "Salary",
-  DOCUMENT: "Document",
+  PROFILE: "Perfil",
+  CONTRACT: "Contrato",
+  SALARY: "Salario",
+  DOCUMENT: "Documento",
   ONBOARDING: "Onboarding",
-  OFFBOARDING: "Offboarding",
-  BENEFITS: "Benefits",
-  TRAINING: "Training",
+  OFFBOARDING: "Baja / Offboarding",
+  BENEFITS: "Prestaciones",
+  TRAINING: "Capacitación",
 };
 
 export function AuditTab({ userId }: AuditTabProps) {
@@ -94,7 +95,7 @@ export function AuditTab({ userId }: AuditTabProps) {
       }
     } catch (error) {
       console.error("Error fetching audit logs:", error);
-      toast.error("Error fetching audit logs");
+      toast.error("Error al cargar registros de auditoría");
     } finally {
       setLoading(false);
     }
@@ -120,22 +121,22 @@ export function AuditTab({ userId }: AuditTabProps) {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Filter className="h-5 w-5" />
-                Audit Trail
+                Bitácora de Auditoría
               </CardTitle>
               <CardDescription>
-                Complete history of changes made to this employee's record
+                Historial completo de modificaciones en el expediente del colaborador
               </CardDescription>
             </div>
             <Button variant="outline" size="sm">
               <DownloadIcon className="mr-2 h-4 w-4" />
-              Export Logs
+              Exportar Bitácora
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Entity Type</Label>
+              <Label className="text-xs text-muted-foreground">Tipo de Entidad</Label>
               <Select
                 value={filters.entityType || "all"}
                 onValueChange={(v) =>
@@ -143,10 +144,10 @@ export function AuditTab({ userId }: AuditTabProps) {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="All Types" />
+                  <SelectValue placeholder="Todas las Entidades" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="all">Todas las Entidades</SelectItem>
                   {Object.entries(entityTypeLabels).map(([key, label]) => (
                     <SelectItem key={key} value={key}>
                       {label}
@@ -157,7 +158,7 @@ export function AuditTab({ userId }: AuditTabProps) {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Action</Label>
+              <Label className="text-xs text-muted-foreground">Acción</Label>
               <Select
                 value={filters.action || "all"}
                 onValueChange={(v) =>
@@ -165,10 +166,10 @@ export function AuditTab({ userId }: AuditTabProps) {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="All Actions" />
+                  <SelectValue placeholder="Todas las Acciones" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Actions</SelectItem>
+                  <SelectItem value="all">Todas las Acciones</SelectItem>
                   {Object.entries(actionLabels).map(([key, label]) => (
                     <SelectItem key={key} value={key}>
                       {label}
@@ -179,7 +180,7 @@ export function AuditTab({ userId }: AuditTabProps) {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">From Date</Label>
+              <Label className="text-xs text-muted-foreground">Fecha Desde</Label>
               <Input
                 type="date"
                 value={filters.dateFrom}
@@ -188,7 +189,7 @@ export function AuditTab({ userId }: AuditTabProps) {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">To Date</Label>
+              <Label className="text-xs text-muted-foreground">Fecha Hasta</Label>
               <Input
                 type="date"
                 value={filters.dateTo}
@@ -202,7 +203,7 @@ export function AuditTab({ userId }: AuditTabProps) {
                 className="w-full"
                 onClick={() => setFilters({ ...filters, sensitiveOnly: !filters.sensitiveOnly })}
               >
-                {filters.sensitiveOnly ? "Showing Sensitive" : "Show Sensitive Only"}
+                {filters.sensitiveOnly ? "Mostrando Sensibles" : "Ver Solo Sensibles"}
               </Button>
             </div>
           </div>
@@ -212,16 +213,16 @@ export function AuditTab({ userId }: AuditTabProps) {
       {/* Audit Log Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Change History</CardTitle>
+          <CardTitle>Historial de Cambios</CardTitle>
           <CardDescription>
-            {auditLogs.length} record(s) found
+            {auditLogs.length} registro(s) encontrado(s)
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
-              <p className="text-muted-foreground">Loading audit logs...</p>
+              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+              <p className="text-muted-foreground">Cargando registros de auditoría...</p>
             </div>
           ) : auditLogs.length > 0 ? (
             <div className="space-y-2">
@@ -236,12 +237,12 @@ export function AuditTab({ userId }: AuditTabProps) {
                         {entityTypeLabels[log.entityType] || log.entityType}
                       </Badge>
                       {log.isSensitive && (
-                        <Badge variant="destructive">Sensitive</Badge>
+                        <Badge variant="destructive">Sensible</Badge>
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {log.performedAt
-                        ? format(new Date(log.performedAt), "MMM d, yyyy h:mm a", {
+                        ? format(new Date(log.performedAt), "d 'de' MMM, yyyy h:mm a", {
                             locale: es,
                           })
                         : "N/A"}
@@ -254,7 +255,7 @@ export function AuditTab({ userId }: AuditTabProps) {
                       <div className="text-sm font-medium">{log.fieldName}</div>
                       <div className="grid grid-cols-2 gap-4 mt-2 text-xs">
                         <div>
-                          <Label className="text-muted-foreground">Old Value</Label>
+                          <Label className="text-muted-foreground">Valor Anterior</Label>
                           <div className="font-mono bg-muted p-2 rounded mt-1">
                             {log.isSensitive
                               ? maskSensitiveData(log.oldValue)
@@ -266,7 +267,7 @@ export function AuditTab({ userId }: AuditTabProps) {
                           </div>
                         </div>
                         <div>
-                          <Label className="text-muted-foreground">New Value</Label>
+                          <Label className="text-muted-foreground">Valor Nuevo</Label>
                           <div className="font-mono bg-muted p-2 rounded mt-1">
                             {log.isSensitive
                               ? maskSensitiveData(log.newValue)
@@ -284,16 +285,16 @@ export function AuditTab({ userId }: AuditTabProps) {
                   {/* Performed by */}
                   <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
                     <div>
-                      Performed by:{" "}
+                      Realizado por:{" "}
                       <span className="font-medium">
-                        {log.performedByName || log.performedBy || "Unknown"}
+                        {log.performedByName || log.performedBy || "Desconocido"}
                       </span>
                     </div>
                     {log.ipAddress && (
                       <div>IP: {log.ipAddress}</div>
                     )}
                     {log.reason && (
-                      <div>Reason: {log.reason}</div>
+                      <div>Motivo: {log.reason}</div>
                     )}
                   </div>
                 </div>
@@ -302,9 +303,9 @@ export function AuditTab({ userId }: AuditTabProps) {
           ) : (
             <div className="text-center py-12">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Audit Logs</h3>
+              <h3 className="text-lg font-semibold mb-2">Sin Registros de Auditoría</h3>
               <p className="text-muted-foreground text-sm">
-                No changes have been recorded for this employee yet.
+                No se han registrado modificaciones en este expediente aún.
               </p>
             </div>
           )}

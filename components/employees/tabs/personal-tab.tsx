@@ -14,18 +14,18 @@ interface PersonalTabProps {
 }
 
 const genderLabels: Record<string, string> = {
-  MALE: "Male",
-  FEMALE: "Female",
-  OTHER: "Other",
-  PREFER_NOT_TO_SAY: "Prefer not to say",
+  MALE: "Masculino",
+  FEMALE: "Femenino",
+  OTHER: "Otro",
+  PREFER_NOT_TO_SAY: "Prefiero no decir",
 };
 
 const maritalStatusLabels: Record<string, string> = {
-  SINGLE: "Single",
-  MARRIED: "Married",
-  DIVORCED: "Divorced",
-  WIDOWED: "Widowed",
-  COMMON_LAW: "Common Law",
+  SINGLE: "Soltero(a)",
+  MARRIED: "Casado(a)",
+  DIVORCED: "Divorciado(a)",
+  WIDOWED: "Viudo(a)",
+  COMMON_LAW: "Unión Libre",
 };
 
 const bloodTypeLabels: Record<string, string> = {
@@ -40,10 +40,10 @@ const bloodTypeLabels: Record<string, string> = {
 };
 
 const paymentMethodLabels: Record<string, string> = {
-  BANK_TRANSFER: "Bank Transfer",
-  CHECK: "Check",
-  CASH: "Cash",
-  PAYROLL_CARD: "Payroll Card",
+  BANK_TRANSFER: "Transferencia Bancaria",
+  CHECK: "Cheque",
+  CASH: "Efectivo",
+  PAYROLL_CARD: "Tarjeta de Nómina",
 };
 
 function InfoField({ label, value }: { label: string; value: string | null | undefined }) {
@@ -51,7 +51,7 @@ function InfoField({ label, value }: { label: string; value: string | null | und
     <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <div className="text-sm font-medium">
-        {value || <span className="text-muted-foreground italic">Not provided</span>}
+        {value || <span className="text-muted-foreground italic">No proporcionado</span>}
       </div>
     </div>
   );
@@ -67,13 +67,13 @@ export function PersonalTab({ profile, onEdit, canEdit }: PersonalTabProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Personal Details</CardTitle>
-              <CardDescription>Basic personal information and identification documents.</CardDescription>
+              <CardTitle>Datos Personales</CardTitle>
+              <CardDescription>Información personal básica y documentos de identificación oficial.</CardDescription>
             </div>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Edit className="mr-2 h-4 w-4" />
-                Edit
+                Editar
               </Button>
             )}
           </div>
@@ -81,29 +81,29 @@ export function PersonalTab({ profile, onEdit, canEdit }: PersonalTabProps) {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <InfoField
-              label="Date of Birth"
+              label="Fecha de Nacimiento"
               value={
                 profile.dateOfBirth
-                  ? format(new Date(profile.dateOfBirth), "MMMM d, yyyy")
+                  ? format(new Date(profile.dateOfBirth), "d 'de' MMMM, yyyy", { locale: require("date-fns/locale").es })
                   : null
               }
             />
             <InfoField label="CURP" value={profile.curp} />
             <InfoField label="RFC" value={profile.rfc} />
-            <InfoField label="NSS" value={profile.nss} />
+            <InfoField label="NSS (Imss)" value={profile.nss} />
             <InfoField
-              label="Gender"
+              label="Género"
               value={profile.gender ? genderLabels[profile.gender] : null}
             />
             <InfoField
-              label="Marital Status"
+              label="Estado Civil"
               value={profile.maritalStatus ? maritalStatusLabels[profile.maritalStatus] : null}
             />
             <InfoField
-              label="Blood Type"
+              label="Tipo de Sangre"
               value={profile.bloodType ? bloodTypeLabels[profile.bloodType] : null}
             />
-            <InfoField label="Nationality" value={profile.nationality} />
+            <InfoField label="Nacionalidad" value={profile.nationality || "Mexicana"} />
           </div>
         </CardContent>
       </Card>
@@ -113,41 +113,41 @@ export function PersonalTab({ profile, onEdit, canEdit }: PersonalTabProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Contact Information</CardTitle>
-              <CardDescription>Personal email, phone, and address.</CardDescription>
+              <CardTitle>Información de Contacto</CardTitle>
+              <CardDescription>Correo electrónico personal, teléfono celular y domicilio.</CardDescription>
             </div>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Edit className="mr-2 h-4 w-4" />
-                Edit
+                Editar
               </Button>
             )}
           </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <InfoField label="Personal Email" value={profile.personalEmail} />
-            <InfoField label="Personal Phone" value={profile.personalPhone} />
+            <InfoField label="Correo Personal" value={profile.personalEmail} />
+            <InfoField label="Teléfono Celular" value={profile.personalPhone} />
           </div>
 
           {address && (
             <>
               <Separator className="my-4" />
               <div className="space-y-4">
-                <Label className="text-sm font-semibold">Address</Label>
+                <Label className="text-sm font-semibold">Domicilio</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <div className="md:col-span-2">
                     <InfoField
-                      label="Street"
+                      label="Calle y Número"
                       value={`${address.street || ""} ${address.exteriorNumber || ""}${
                         address.interiorNumber ? ` Int. ${address.interiorNumber}` : ""
                       }`}
                     />
                   </div>
-                  <InfoField label="Neighborhood" value={address.neighborhood} />
-                  <InfoField label="City" value={address.city || profile.city} />
-                  <InfoField label="State" value={address.state || profile.state} />
-                  <InfoField label="ZIP Code" value={address.zipCode || profile.zipCode} />
+                  <InfoField label="Colonia" value={address.neighborhood} />
+                  <InfoField label="Alcaldía / Municipio" value={address.city || profile.city} />
+                  <InfoField label="Estado" value={address.state || profile.state} />
+                  <InfoField label="Código Postal" value={address.zipCode || profile.zipCode} />
                 </div>
               </div>
             </>
@@ -155,7 +155,7 @@ export function PersonalTab({ profile, onEdit, canEdit }: PersonalTabProps) {
 
           {!address && (
             <div className="text-sm text-muted-foreground italic">
-              No address provided
+              No se ha registrado domicilio
             </div>
           )}
         </CardContent>
@@ -166,13 +166,13 @@ export function PersonalTab({ profile, onEdit, canEdit }: PersonalTabProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Emergency Contact</CardTitle>
-              <CardDescription>Contact person in case of emergency.</CardDescription>
+              <CardTitle>Contacto de Emergencia</CardTitle>
+              <CardDescription>Persona de contacto designada para casos de emergencia.</CardDescription>
             </div>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Edit className="mr-2 h-4 w-4" />
-                Edit
+                Editar
               </Button>
             )}
           </div>
@@ -180,17 +180,17 @@ export function PersonalTab({ profile, onEdit, canEdit }: PersonalTabProps) {
         <CardContent>
           {profile.emergencyContactName ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <InfoField label="Name" value={profile.emergencyContactName} />
-              <InfoField label="Phone" value={profile.emergencyContactPhone} />
-              <InfoField label="Email" value={profile.emergencyContactEmail} />
+              <InfoField label="Nombre Completo" value={profile.emergencyContactName} />
+              <InfoField label="Teléfono" value={profile.emergencyContactPhone} />
+              <InfoField label="Correo Electrónico" value={profile.emergencyContactEmail} />
               <InfoField
-                label="Relationship"
+                label="Parentesco"
                 value={profile.emergencyContactRelationship}
               />
             </div>
           ) : (
             <div className="text-sm text-muted-foreground italic">
-              No emergency contact provided
+              No se ha registrado contacto de emergencia
             </div>
           )}
         </CardContent>
@@ -201,13 +201,13 @@ export function PersonalTab({ profile, onEdit, canEdit }: PersonalTabProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Bank Information</CardTitle>
-              <CardDescription>Bank account details for payroll.</CardDescription>
+              <CardTitle>Información Bancaria</CardTitle>
+              <CardDescription>Datos de la cuenta bancaria para dispersión de nómina.</CardDescription>
             </div>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Edit className="mr-2 h-4 w-4" />
-                Edit
+                Editar
               </Button>
             )}
           </div>
@@ -215,10 +215,10 @@ export function PersonalTab({ profile, onEdit, canEdit }: PersonalTabProps) {
         <CardContent>
           {profile.bankName ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <InfoField label="Bank" value={profile.bankName} />
-              <InfoField label="CLABE" value={profile.clabe} />
+              <InfoField label="Institución Bancaria" value={profile.bankName} />
+              <InfoField label="CLABE Interbancaria" value={profile.clabe} />
               <InfoField
-                label="Payment Method"
+                label="Método de Pago"
                 value={
                   profile.paymentMethod
                     ? paymentMethodLabels[profile.paymentMethod]
@@ -228,7 +228,7 @@ export function PersonalTab({ profile, onEdit, canEdit }: PersonalTabProps) {
             </div>
           ) : (
             <div className="text-sm text-muted-foreground italic">
-              No bank information provided
+              No se ha registrado información bancaria
             </div>
           )}
         </CardContent>

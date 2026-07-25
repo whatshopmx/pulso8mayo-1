@@ -3,6 +3,7 @@ import { workflowInstances, workflowInstanceSteps, workflowTemplates, users } fr
 import { WorkflowStep } from "@/lib/types/workflow";
 import { eq, and, sql } from "drizzle-orm";
 import { STOCK_COUNT_TEMPLATE_NAME, DEFAULT_CATEGORIES } from "./stock-count-service";
+import { templateLibrary } from "@/templates";
 
 export class WorkflowExecutionService {
 
@@ -21,57 +22,11 @@ export class WorkflowExecutionService {
         // 2. If Stock Count template, generate dynamic product steps
         if (template.name === STOCK_COUNT_TEMPLATE_NAME) {
             const category = categoryValue || DEFAULT_CATEGORIES[0].value;
-            
-            // Get products with stock for the category
             const { StockCountService } = await import("./stock-count-service");
-            
-            // Use provided companyId or get from assignee
             const cid = companyId || (await db.query.users.findFirst({ where: eq(users.id, assigneeId || "") }))?.companyId || "";
-            
             const products = await StockCountService.getProductsWithStock(cid, branchId, category);
-
-            // Generate dynamic steps
-            steps = [
-                {
-      id: "category-select",
-      type: "SELECT" as const,
-                    title: "¿Qué área vas a contar?",
-                    description: "Selecciona la categoría de productos a contar",
-                    required: true,
-                    config: {
-                        options: DEFAULT_CATEGORIES.map(c => ({ value: c.value, label: c.name }))
-                    }
-                },
-    ...products.map(p => ({
-      id: `count-${p.id}`,
-      type: "NUMBER" as const,
-      title: `${p.name} (SKU: ${p.sku})`,
-      description: `Cantidad en sistema: ${p.currentStock || 0} ${p.unit}. Ingresa la cantidad física encontrada:`,
-      required: true,
-      unit: p.unit,
-      config: {
-        min: 0,
-        unit: p.unit
-      },
-      metadata: {
-        systemQuantity: p.currentStock || 0,
-        itemId: p.id
-      }
-    })),
-    {
-      id: "confirm-count",
-      type: "SELECT" as const,
-                    title: "¿Confirmas que el conteo está correcto?",
-                    description: "Una vez confirmado, se generarán los ajustes automáticamente",
-                    required: true,
-                    config: {
-                        options: [
-                            { value: "yes", label: "Sí, confirmar y generar ajustes" },
-                            { value: "no", label: "No, revisar conteo" }
-                        ]
-                    }
-                }
-            ];
+            const templateSteps = template.steps as unknown as WorkflowStep[];
+            steps = StockCountService.generateStockCountSteps(templateSteps, products, category);
         }
 
         return await db.transaction(async (tx) => {
@@ -86,19 +41,39 @@ export class WorkflowExecutionService {
                 score: 0,
                 data: template.name === STOCK_COUNT_TEMPLATE_NAME ? { 
                     category: categoryValue || DEFAULT_CATEGORIES[0].value,
-                    productCount: steps.filter(s => s.id.startsWith("count-")).length
+                    productCount: steps.filter(s => s.id.startsWith("count-")).length,
+                    ...(() => {
+                        const st = templateLibrary['conteo-inventario-v1'];
+                        return {
+                            ...(st?.aiConfig ? { aiConfig: st.aiConfig } : {}),
+                            ...(st?.complianceConfig ? { complianceConfig: st.complianceConfig } : {}),
+                            ...(st?.completionActions ? { completionActions: st.completionActions } : {}),
+                        };
+                    })(),
                 } : undefined
             }).returning();
 
             // 3. Create Steps
             if (steps.length > 0) {
                 await tx.insert(workflowInstanceSteps).values(
-                    steps.map(step => ({
-                        instanceId: instance.id,
-                        stepId: step.id,
-                        status: 'PENDING',
-                        value: step.metadata ? JSON.stringify(step.metadata) : null,
-                    }))
+                    steps.map(step => {
+                        const hasDirectFields = 'systemQuantity' in step;
+                        const value = hasDirectFields
+                            ? JSON.stringify({
+                                systemQuantity: (step as any).systemQuantity,
+                                itemId: (step as any).itemId,
+                                inputValue: 'value' in step ? (step as any).value ?? null : null,
+                            })
+                            : step.metadata
+                                ? JSON.stringify(step.metadata)
+                                : null;
+                        return {
+                            instanceId: instance.id,
+                            stepId: step.id,
+                            status: 'PENDING',
+                            value,
+                        };
+                    })
                 );
             }
 
@@ -222,7 +197,7 @@ return {
                         aiAnalysis.reason = `Verification Rule Failed: Low confidence or missing requirements. ${result.aiResult.reason}`;
                     }
                 }
-            } else if (currentStepDef?.config?.aiVerification?.enabled) {
+            } else if (currentStepDef?.aiVerification?.enabled || currentStepDef?.config?.aiVerification?.enabled) {
                 // Legacy: Simple AI Verification
                 let urlToVerify = data.evidenceUrl || (currentStepDef.type === 'PHOTO' ? data.value : null);
 
@@ -242,7 +217,7 @@ return {
                     const { AIService } = await import("./ai-service");
                     aiAnalysis = await AIService.verifyPhoto(
                         urlToVerify,
-                        currentStepDef.config.aiVerification.prompt || "Verify this photo."
+                        (currentStepDef.aiVerification?.prompt || currentStepDef.config?.aiVerification?.prompt || "Verify this photo.")
                     );
                 }
                 // } // template check moved up
@@ -454,7 +429,9 @@ return {
                 if (template && template.name === STOCK_COUNT_TEMPLATE_NAME) {
                     const confirmStep = allSteps.find(s => s.stepId === "confirm-count");
                     const confirmValue = confirmStep?.value;
-                    const isConfirmed = confirmValue === "yes" || confirmValue === '{"value":"yes"}' || (typeof confirmValue === 'string' && confirmValue.includes('"yes"'));
+                    const isConfirmed = confirmValue === "yes"
+                        || confirmValue === '{"value":"yes"}'
+                        || (typeof confirmValue === 'string' && (confirmValue.toLowerCase().includes("yes") || confirmValue.toLowerCase().includes("sí") || confirmValue.toLowerCase().includes("si")));
                     
                     if (isConfirmed) {
                         try {

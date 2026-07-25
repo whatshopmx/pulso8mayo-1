@@ -256,6 +256,17 @@ export const inventoryPriceHistory = pgTable("inventory_price_history", {
 	changedAt: timestamp("changed_at", { mode: 'string' }).defaultNow().notNull(),
 });
 
+export const unitConversions = pgTable("unit_conversions", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	companyId: uuid("company_id").notNull(),
+	fromUnit: text("from_unit").notNull(),
+	toUnit: text("to_unit").notNull(),
+	factor: integer("factor").notNull(),
+	description: text("description"),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+});
+
 export const inventoryItems = pgTable("inventory_items", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	companyId: uuid("company_id").notNull(),
@@ -275,6 +286,7 @@ export const inventoryItems = pgTable("inventory_items", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 	supplierId: uuid("supplier_id"),
 	lastCost: integer("last_cost"),
+	photoUrl: text("photo_url"),
 });
 
 export const workflowAssignments = pgTable("workflow_assignments", {

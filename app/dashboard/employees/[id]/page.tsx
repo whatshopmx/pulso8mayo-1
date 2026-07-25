@@ -29,6 +29,7 @@ import { AttendanceTab } from "@/components/employees/tabs/attendance-tab";
 import { AuditTab } from "@/components/employees/tabs/audit-tab";
 import { PersonalDialog } from "@/components/employees/personal-dialog";
 import { ProfessionalDialog } from "@/components/employees/professional-dialog";
+import { EmployeeDialog } from "@/components/employees/employee-dialog";
 import { toast } from "sonner";
 
 // Type definitions based on database schema
@@ -264,6 +265,13 @@ export default function EmployeeProfilePage() {
     router.push("/dashboard/employees");
   };
 
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    const currentUrlParams = new URLSearchParams(searchParams?.toString() || "");
+    currentUrlParams.set("tab", newTab);
+    router.replace(`/dashboard/employees/${employeeId}?${currentUrlParams.toString()}`, { scroll: false });
+  };
+
   const handleEditSuccess = () => {
     fetchEmployeeData();
   };
@@ -273,7 +281,7 @@ export default function EmployeeProfilePage() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="animate-spin h-8 w-8 text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading employee profile...</p>
+          <p className="text-muted-foreground">Cargando expediente del colaborador...</p>
         </div>
       </div>
     );
@@ -283,11 +291,14 @@ export default function EmployeeProfilePage() {
     return (
       <div className="text-center py-12">
         <User className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Unable to load employee</h3>
+        <h3 className="text-lg font-semibold mb-2">No se pudo cargar la información del colaborador</h3>
         <p className="text-muted-foreground mb-4">
           {loadError}
         </p>
-        <Button onClick={handleBack}>Back to Directory</Button>
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="outline" onClick={handleBack}>Volver al Directorio</Button>
+          <Button onClick={fetchEmployeeData}>Reintentar</Button>
+        </div>
       </div>
     );
   }
@@ -308,49 +319,52 @@ export default function EmployeeProfilePage() {
         }}
         onBack={handleBack}
         onEdit={() => setShowEditDialog(true)}
+        onSelectTab={handleTabChange}
         canEdit={canEdit}
       />
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-9">
-          <TabsTrigger value="personal" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            <span className="hidden md:inline">Personal</span>
-          </TabsTrigger>
-          <TabsTrigger value="professional" className="flex items-center gap-2">
-            <Briefcase className="h-4 w-4" />
-            <span className="hidden md:inline">Professional</span>
-          </TabsTrigger>
-          <TabsTrigger value="contracts" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            <span className="hidden md:inline">Contracts</span>
-          </TabsTrigger>
-          <TabsTrigger value="documents" className="flex items-center gap-2">
-            <FolderOpen className="h-4 w-4" />
-            <span className="hidden md:inline">Documents</span>
-          </TabsTrigger>
-          <TabsTrigger value="onboarding" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            <span className="hidden md:inline">Onboarding</span>
-          </TabsTrigger>
-          <TabsTrigger value="attendance" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            <span className="hidden md:inline">Attendance</span>
-          </TabsTrigger>
-          <TabsTrigger value="benefits" className="flex items-center gap-2">
-            <Award className="h-4 w-4" />
-            <span className="hidden md:inline">Benefits</span>
-          </TabsTrigger>
-          <TabsTrigger value="training" className="flex items-center gap-2">
-            <GraduationCap className="h-4 w-4" />
-            <span className="hidden md:inline">Training</span>
-          </TabsTrigger>
-          <TabsTrigger value="audit" className="flex items-center gap-2">
-            <FileCheck className="h-4 w-4" />
-            <span className="hidden md:inline">Audit</span>
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <div className="overflow-x-auto pb-1 no-scrollbar">
+          <TabsList className="inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-auto min-w-full">
+            <TabsTrigger value="personal" className="flex items-center gap-2 whitespace-nowrap px-3.5 py-1.5 text-xs font-medium shrink-0 transition-colors data-[state=active]:font-semibold data-[state=active]:text-foreground">
+              <User className="h-4 w-4 shrink-0" />
+              <span>Personal</span>
+            </TabsTrigger>
+            <TabsTrigger value="professional" className="flex items-center gap-2 whitespace-nowrap px-3.5 py-1.5 text-xs font-medium shrink-0 transition-colors data-[state=active]:font-semibold data-[state=active]:text-foreground">
+              <Briefcase className="h-4 w-4 shrink-0" />
+              <span>Expediente</span>
+            </TabsTrigger>
+            <TabsTrigger value="contracts" className="flex items-center gap-2 whitespace-nowrap px-3.5 py-1.5 text-xs font-medium shrink-0 transition-colors data-[state=active]:font-semibold data-[state=active]:text-foreground">
+              <FileText className="h-4 w-4 shrink-0" />
+              <span>Contratos</span>
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="flex items-center gap-2 whitespace-nowrap px-3.5 py-1.5 text-xs font-medium shrink-0 transition-colors data-[state=active]:font-semibold data-[state=active]:text-foreground">
+              <FolderOpen className="h-4 w-4 shrink-0" />
+              <span>Documentos</span>
+            </TabsTrigger>
+            <TabsTrigger value="onboarding" className="flex items-center gap-2 whitespace-nowrap px-3.5 py-1.5 text-xs font-medium shrink-0 transition-colors data-[state=active]:font-semibold data-[state=active]:text-foreground">
+              <Calendar className="h-4 w-4 shrink-0" />
+              <span>Onboarding</span>
+            </TabsTrigger>
+            <TabsTrigger value="attendance" className="flex items-center gap-2 whitespace-nowrap px-3.5 py-1.5 text-xs font-medium shrink-0 transition-colors data-[state=active]:font-semibold data-[state=active]:text-foreground">
+              <Clock className="h-4 w-4 shrink-0" />
+              <span>Asistencia</span>
+            </TabsTrigger>
+            <TabsTrigger value="benefits" className="flex items-center gap-2 whitespace-nowrap px-3.5 py-1.5 text-xs font-medium shrink-0 transition-colors data-[state=active]:font-semibold data-[state=active]:text-foreground">
+              <Award className="h-4 w-4 shrink-0" />
+              <span>Prestaciones</span>
+            </TabsTrigger>
+            <TabsTrigger value="training" className="flex items-center gap-2 whitespace-nowrap px-3.5 py-1.5 text-xs font-medium shrink-0 transition-colors data-[state=active]:font-semibold data-[state=active]:text-foreground">
+              <GraduationCap className="h-4 w-4 shrink-0" />
+              <span>Capacitación</span>
+            </TabsTrigger>
+            <TabsTrigger value="audit" className="flex items-center gap-2 whitespace-nowrap px-3.5 py-1.5 text-xs font-medium shrink-0 transition-colors data-[state=active]:font-semibold data-[state=active]:text-foreground">
+              <FileCheck className="h-4 w-4 shrink-0" />
+              <span>Auditoría</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="personal" className="mt-6">
           <PersonalTab profile={profile} onEdit={() => setShowPersonalDialog(true)} canEdit={canEdit} />
@@ -418,6 +432,13 @@ export default function EmployeeProfilePage() {
       </Tabs>
 
       {/* Edit Dialogs */}
+      <EmployeeDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        onSuccess={handleEditSuccess}
+        companyId={companyId || ""}
+        employee={profile}
+      />
       <PersonalDialog
         open={showPersonalDialog}
         onOpenChange={setShowPersonalDialog}

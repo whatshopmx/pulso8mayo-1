@@ -34,81 +34,80 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
         notFound();
     }
 
-    // Ensure steps are properly typed as WorkflowStep[] and normalized
-    // Handle both English (steps) and Spanish (pasos) field names
-    console.log('[EditorPage] Raw template data:', {
-        id: template.id,
-        name: template.name,
-        steps: (template as any).steps,
-        pasos: (template as any).pasos,
-        allKeys: Object.keys(template)
+    const rawSteps = ((template as any).pasos || (template as any).steps || template.steps || []) as any[];
+
+    const steps: WorkflowStep[] = rawSteps.map(step => {
+        const stepId = step.id || crypto.randomUUID();
+        const stepType = step.fieldType || step.tipo || step.type || 'text';
+        const stepTitle = step.label || step.titulo || step.nombre || step.title || 'Untitled Step';
+        const stepDescription = step.descripcion || step.description || '';
+        const stepRequired = step.obligatorio ?? step.required ?? false;
+
+        const extra = step.extraAttributes || {};
+        const placeholder = step.placeholder || extra.placeholder || '';
+        const defaultValue = step.defaultValue || extra.defaultValue || extra.value || step.valorPorDefecto || '';
+        const readOnly = step.readOnly ?? step.soloLectura ?? step.static ?? extra.readonly ?? extra.readOnly ?? false;
+        const helperText = extra.helperText || '';
+
+        const config = step.config || { ...extra };
+
+        const rawOptions = step.options || step.opciones || config.options || config.items;
+        const options = normalizeOptions(rawOptions);
+
+        if (config.options) {
+            config.options = normalizeOptions(config.options);
+        }
+        if (config.items) {
+            config.items = normalizeOptions(config.items);
+        }
+
+        const finalDescription = stepDescription || helperText;
+
+        return {
+            id: stepId,
+            type: stepType,
+            title: stepTitle,
+            description: finalDescription,
+            required: stepRequired,
+            config,
+            validation: step.validation || step.validacion,
+            aiVerification: step.aiVerification || step.verificacionIA,
+            logicRules: step.logicRules || step.reglasLogica,
+            actions: step.actions || (step as any).acciones,
+            options: options.length > 0 ? options : undefined,
+            readOnly,
+            placeholder,
+            defaultValue,
+            conditionalLogic: step.conditionalLogic || step.logicaCondicional,
+            branches: step.branches,
+            category: step.category || step.categoria,
+        } as WorkflowStep;
     });
 
-    const rawSteps = ((template as any).pasos || (template as any).steps || template.steps || []) as any[];
-    console.log('[EditorPage] Raw steps before normalization:', rawSteps);
-
-    if (rawSteps.length > 0) {
-        console.log('[EditorPage] First step detailed:', {
-            ...rawSteps[0],
-            configKeys: rawSteps[0].config ? Object.keys(rawSteps[0].config) : [],
-            fullConfig: rawSteps[0].config
-        });
-    }
-
- const steps: WorkflowStep[] = rawSteps.map(step => {
-  const stepId = step.id || crypto.randomUUID();
-  const stepType = step.fieldType || step.tipo || step.type || 'text';
-  const stepTitle = step.label || step.titulo || step.nombre || step.title || 'Untitled Step';
-  const stepDescription = step.descripcion || step.description || '';
-  const stepRequired = step.obligatorio ?? step.required ?? false;
-
-  const extra = step.extraAttributes || {};
-  const placeholder = step.placeholder || extra.placeholder || '';
-  const defaultValue = step.defaultValue || extra.defaultValue || extra.value || step.valorPorDefecto || '';
-  const readOnly = step.readOnly ?? step.soloLectura ?? step.static ?? extra.readonly ?? extra.readOnly ?? false;
-  const helperText = extra.helperText || '';
-
-  const config = step.config || { ...extra };
-
-  const rawOptions = step.options || step.opciones || config.options || config.items;
-  const options = normalizeOptions(rawOptions);
-
-  if (config.options) {
-  config.options = normalizeOptions(config.options);
-  }
-  if (config.items) {
-  config.items = normalizeOptions(config.items);
-  }
-
-  const finalDescription = stepDescription || helperText;
-
-  return {
-  id: stepId,
-  type: stepType,
-  title: stepTitle,
-  description: finalDescription,
-  required: stepRequired,
-  config,
-  validation: step.validation || step.validacion,
-  aiVerification: step.aiVerification || step.verificacionIA,
-  logicRules: step.logicRules || step.reglasLogica,
-  options: options.length > 0 ? options : undefined,
-  readOnly,
-  placeholder,
-  defaultValue,
-  conditionalLogic: step.conditionalLogic || step.logicaCondicional,
-  branches: step.branches,
-  category: step.category || step.categoria,
-  } as WorkflowStep;
- });
-
-    console.log('[EditorPage] Normalized steps:', steps.length, steps);
+    const initialSettings = {
+        version: template.version ?? 1,
+        activo: template.active ?? true,
+        requiereIA: template.isCritical ?? false,
+        duracionEstimada: template.duracionEstimada ?? '',
+        cumplimientoNormativo: template.complianceType ? [template.complianceType] : [],
+        tags: (template.tags as string[]) || [],
+        aiConfig: template.aiConfig as any,
+        complianceConfig: template.complianceConfig as any,
+        completionActions: (template.completionActions as any[]) || [],
+        frequency: '',
+        days: [],
+        assignedRoles: [],
+        assignedShifts: [],
+        shiftTimes: {},
+        triggers: [],
+    };
 
     return (
         <EditorClient
             id={id}
             title={template.name}
             initialSteps={steps}
+            initialSettings={initialSettings}
         />
     );
 }

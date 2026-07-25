@@ -69,7 +69,7 @@ export function WorkflowStatusChart({ data }: WorkflowStatusChartProps) {
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle>Workflows por Estado</CardTitle>
+        <CardTitle>Flujos por Estado</CardTitle>
         <CardDescription>Distribución de tareas hoy</CardDescription>
       </CardHeader>
       <CardContent>
@@ -102,7 +102,7 @@ export function WorkflowStatusChart({ data }: WorkflowStatusChartProps) {
       </CardContent>
       <CardFooter className="flex-col items-start gap-2 text-sm">
         <div className="leading-none text-muted-foreground">
-          Mostrando el estado actual de todas las instancias de workflow asignadas.
+          Mostrando el estado actual de todas las instancias de flujos asignadas.
         </div>
       </CardFooter>
     </Card>

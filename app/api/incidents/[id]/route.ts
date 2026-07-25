@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { incidents } from '@/lib/db/schema';
+import { incidents, branches, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { headers } from 'next/headers';
+import { auth } from '@/lib/auth';
 import { IncidentEngine } from '@/lib/services/incident-engine';
 import { EscalationService } from '@/lib/services/escalation-service';
 
 /**
  * GET /api/incidents/[id]
- * Get incident details
+ * Get incident details with branch and user names
  */
 export async function GET(
     request: NextRequest,
@@ -28,7 +30,33 @@ export async function GET(
             );
         }
 
-        return NextResponse.json({ incident });
+        const result: Record<string, unknown> = { ...incident };
+
+        if (incident.branchId) {
+            const branch = await db.query.branches.findFirst({
+                where: eq(branches.id, incident.branchId),
+                columns: { name: true },
+            });
+            result.branchName = branch?.name ?? null;
+        }
+
+        if (incident.detectedBy) {
+            const user = await db.query.users.findFirst({
+                where: eq(users.id, incident.detectedBy),
+                columns: { name: true },
+            });
+            result.detectedByName = user?.name ?? null;
+        }
+
+        if (incident.resolvedBy) {
+            const user = await db.query.users.findFirst({
+                where: eq(users.id, incident.resolvedBy),
+                columns: { name: true },
+            });
+            result.resolvedByName = user?.name ?? null;
+        }
+
+        return NextResponse.json({ incident: result });
     } catch (error) {
         console.error('[API] Error fetching incident:', error);
         return NextResponse.json(
@@ -39,7 +67,7 @@ export async function GET(
 }
 
 /**
- * PATCH /api/incidents/[id]/resolve
+ * PATCH /api/incidents/[id]
  * Resolve an incident
  */
 export async function PATCH(
@@ -48,20 +76,31 @@ export async function PATCH(
 ) {
     try {
         const body = await request.json();
-        const { resolution, resolvedBy } = body;
+        const { resolution } = body;
         const { id } = await params;
 
-        if (!resolution || !resolvedBy) {
+        if (!resolution) {
             return NextResponse.json(
-                { error: 'Missing resolution or resolvedBy' },
+                { error: 'Missing resolution' },
                 { status: 400 }
+            );
+        }
+
+        const session = await auth.api.getSession({
+            headers: await headers(),
+        });
+
+        if (!session?.user?.id) {
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 }
             );
         }
 
         const incident = await IncidentEngine.resolveIncident(
             id,
             resolution,
-            resolvedBy
+            session.user.id
         );
 
         if (!incident) {

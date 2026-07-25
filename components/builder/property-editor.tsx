@@ -10,9 +10,27 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Plus } from 'lucide-react';
-import { LogicRule } from './builder-context';
+import { Trash2, Plus, Info, HelpCircle } from 'lucide-react';
+import { LogicRule, RuleAction } from './builder-context';
 import { LogicRuleCard } from './logic-rule-card';
+import { STEP_ACTION_TYPES, getStepActionType } from '@/lib/workflow-actions';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 export function PropertyEditor() {
     const { steps, selectedStepId, updateStep, removeStep } = useBuilder();
@@ -21,7 +39,7 @@ export function PropertyEditor() {
     if (!step) {
         return (
             <div className="w-80 flex-shrink-0 border-l bg-accent/10 p-6 flex flex-col justify-center items-center text-center">
-                <p className="text-muted-foreground">Select a step to edit properties</p>
+                <p className="text-muted-foreground">Selecciona un paso para editar sus propiedades</p>
             </div>
         );
     }
@@ -29,54 +47,76 @@ export function PropertyEditor() {
     return (
         <div className="w-80 flex-shrink-0 border-l bg-background p-6 space-y-6 overflow-y-auto h-full">
             <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">{STEP_TYPE_DISPLAY[step.type] || step.type} Settings</h3>
-                <Button variant="ghost" size="icon" onClick={() => removeStep(step.id)} className="text-destructive hover:bg-destructive/10">
-                    <Trash2 className="w-4 h-4" />
-                </Button>
+                <h3 className="font-semibold text-lg">{STEP_TYPE_DISPLAY[step.type] || step.type}</h3>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10">
+                            <Trash2 className="w-4 h-4" />
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>¿Eliminar este paso?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Se eliminará "{step.title}" y toda su configuración (reglas lógicas, verificación IA, ramas). Esta acción se puede deshacer con Ctrl+Z.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => removeStep(step.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Eliminar
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
 
             <div className="space-y-4">
                 <div className="space-y-2">
-                    <Label>Title</Label>
+                    <Label>Título</Label>
                     <Input
                         value={step.title}
                         onChange={(e) => updateStep(step.id, { title: e.target.value })}
                     />
                 </div>
 
-                <div className="space-y-2">
-                    <Label>Placeholder</Label>
-                    <Input
-                        value={step.placeholder || ''}
-                        onChange={(e) => updateStep(step.id, { placeholder: e.target.value })}
-                        placeholder="Placeholder text..."
-                    />
-                </div>
+                {(getStepCategory(step.type) === 'TEXT' || getStepCategory(step.type) === 'NUMBER' || getStepCategory(step.type) === 'TIME' || getStepCategory(step.type) === 'DATE') && (
+                    <div className="space-y-2">
+                        <Label>Placeholder</Label>
+                        <Input
+                            value={step.placeholder || ''}
+                            onChange={(e) => updateStep(step.id, { placeholder: e.target.value })}
+                            placeholder="Texto de referencia..."
+                        />
+                    </div>
+                )}
+
+                {!(getStepCategory(step.type) === 'INFO' || getStepCategory(step.type) === 'PHOTO' || getStepCategory(step.type) === 'SIGNATURE' || getStepCategory(step.type) === 'LOCATION' || getStepCategory(step.type) === 'TIMER') && (
+                    <div className="space-y-2">
+                        <Label>Valor por Defecto</Label>
+                        <Input
+                            value={step.defaultValue || ''}
+                            onChange={(e) => updateStep(step.id, { defaultValue: e.target.value })}
+                            placeholder="Valor predeterminado..."
+                        />
+                    </div>
+                )}
 
                 <div className="space-y-2">
-                    <Label>Default Value</Label>
-                    <Input
-                        value={step.defaultValue || ''}
-                        onChange={(e) => updateStep(step.id, { defaultValue: e.target.value })}
-                        placeholder="Default value..."
-                    />
-                </div>
-
-                <div className="space-y-2">
-                    <Label>Category</Label>
+                    <Label>Categoría</Label>
                     <Input
                         value={step.category || ''}
                         onChange={(e) => updateStep(step.id, { category: e.target.value })}
-                        placeholder="e.g. Safety, Quality, Training"
+                        placeholder="Ej. Seguridad, Calidad, Capacitación"
                     />
                 </div>
 
                 <div className="space-y-2">
-                    <Label>Description</Label>
+                    <Label>Descripción</Label>
                     {getStepCategory(step.type) === 'INFO' ? (
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <Label className="text-xs">Rich Text</Label>
+                                <Label className="text-xs">Texto Enriquecido</Label>
                                 <Switch
                                     checked={step.config?.richText || false}
                                     onCheckedChange={(c) => updateStep(step.id, {
@@ -89,7 +129,7 @@ export function PropertyEditor() {
                                     value={step.description || ''}
                                     onChange={(e) => updateStep(step.id, { description: e.target.value })}
                                     className="min-h-[120px] font-mono text-sm"
-                                    placeholder="Use HTML tags for rich formatting: <strong>bold</strong>, <em>italic</em>, <br> for line breaks, etc."
+                                    placeholder="Usa etiquetas HTML: &lt;strong&gt;negritas&lt;/strong&gt;, &lt;em&gt;cursiva&lt;/em&gt;, &lt;br&gt; para saltos, etc."
                                 />
                             ) : (
                                 <Textarea
@@ -108,32 +148,36 @@ export function PropertyEditor() {
                     )}
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                    <Label className="cursor-pointer" htmlFor="req-switch">Required</Label>
-                    <Switch
-                        id="req-switch"
-                        checked={step.required}
-                        onCheckedChange={(c: boolean) => updateStep(step.id, { required: c })}
-                    />
-                </div>
+                {getStepCategory(step.type) !== 'INFO' && (
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                        <Label className="cursor-pointer" htmlFor="req-switch">Obligatorio</Label>
+                        <Switch
+                            id="req-switch"
+                            checked={step.required}
+                            onCheckedChange={(c: boolean) => updateStep(step.id, { required: c })}
+                        />
+                    </div>
+                )}
 
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                    <Label className="cursor-pointer" htmlFor="readonly-switch">Read Only</Label>
-                    <Switch
-                        id="readonly-switch"
-                        checked={step.readOnly || false}
-                        onCheckedChange={(c: boolean) => updateStep(step.id, { readOnly: c })}
-                    />
-                </div>
+                {getStepCategory(step.type) !== 'INFO' && (
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                        <Label className="cursor-pointer" htmlFor="readonly-switch">Solo Lectura</Label>
+                        <Switch
+                            id="readonly-switch"
+                            checked={step.readOnly || false}
+                            onCheckedChange={(c: boolean) => updateStep(step.id, { readOnly: c })}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Validation Config */}
             {(getStepCategory(step.type) === 'NUMBER') && (
                 <div className="space-y-4 border-t pt-4">
-                    <h4 className="font-medium text-sm">Validation</h4>
+                    <h4 className="font-medium text-sm">Validación</h4>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label className="text-xs">Min Value</Label>
+                            <Label className="text-xs">Valor Mín.</Label>
                             <Input
                                 type="number"
                                 value={step.validation?.min ?? ''}
@@ -143,7 +187,7 @@ export function PropertyEditor() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-xs">Max Value</Label>
+                            <Label className="text-xs">Valor Máx.</Label>
                             <Input
                                 type="number"
                                 value={step.validation?.max ?? ''}
@@ -154,9 +198,9 @@ export function PropertyEditor() {
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-xs">Error Message</Label>
+                        <Label className="text-xs">Mensaje de Error</Label>
                         <Input
-                            placeholder="Value out of range"
+                            placeholder="Valor fuera de rango"
                             value={step.validation?.message || ''}
                             onChange={(e) => updateStep(step.id, {
                                 validation: { ...step.validation, message: e.target.value }
@@ -169,10 +213,10 @@ export function PropertyEditor() {
             {/* Time Validation */}
             {(getStepCategory(step.type) === 'TIME' || getStepCategory(step.type) === 'TIMER' || getStepCategory(step.type) === 'DATE') && (
                 <div className="space-y-4 border-t pt-4">
-                    <h4 className="font-medium text-sm">Time Validation</h4>
+                    <h4 className="font-medium text-sm">Validación de Hora</h4>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label className="text-xs">Min Time</Label>
+                            <Label className="text-xs">Hora Mín.</Label>
                             <Input
                                 type="time"
                                 value={step.validation?.minTime || ''}
@@ -182,7 +226,7 @@ export function PropertyEditor() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-xs">Max Time</Label>
+                            <Label className="text-xs">Hora Máx.</Label>
                             <Input
                                 type="time"
                                 value={step.validation?.maxTime || ''}
@@ -193,9 +237,9 @@ export function PropertyEditor() {
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-xs">Error Message</Label>
+                        <Label className="text-xs">Mensaje de Error</Label>
                         <Input
-                            placeholder="Time out of range"
+                            placeholder="Hora fuera de rango"
                             value={step.validation?.message || ''}
                             onChange={(e) => updateStep(step.id, {
                                 validation: { ...step.validation, message: e.target.value }
@@ -208,9 +252,9 @@ export function PropertyEditor() {
             {/* GPS/Location Validation */}
             {(getStepCategory(step.type) === 'LOCATION') && (
                 <div className="space-y-4 border-t pt-4">
-                    <h4 className="font-medium text-sm">Location Validation</h4>
+                    <h4 className="font-medium text-sm">Validación de Ubicación</h4>
                     <div className="space-y-2">
-                        <Label className="text-xs">Radius (meters)</Label>
+                        <Label className="text-xs">Radio (metros)</Label>
                         <Input
                             type="number"
                             placeholder="100"
@@ -226,10 +270,20 @@ export function PropertyEditor() {
             {/* Type specific config */}
             {(getStepCategory(step.type) === 'PHOTO') && (
                 <div className="space-y-4 border-t pt-4">
-                    <h4 className="font-medium text-sm">AI Verification</h4>
+                    <div className="flex items-center gap-1.5">
+                        <h4 className="font-medium text-sm">Verificación IA</h4>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-pointer" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                Analiza la foto con modelos de IA para validar automáticamente el cumplimiento.
+                            </TooltipContent>
+                        </Tooltip>
+                    </div>
 
                     <div className="flex items-center justify-between">
-                        <Label htmlFor="ai-enabled">Enable AI Check</Label>
+                        <Label htmlFor="ai-enabled" className="text-xs">Activar Verificación IA</Label>
                         <Switch
                             id="ai-enabled"
                             checked={step.aiVerification?.enabled || false}
@@ -242,9 +296,19 @@ export function PropertyEditor() {
                     {(step.aiVerification?.enabled) && (
                         <div className="space-y-4 pt-2">
                             <div className="space-y-2">
-                                <Label className="text-xs">Prompt Instruction</Label>
+                                <Label className="text-xs flex items-center gap-1">
+                                    Instrucción del Prompt
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <HelpCircle className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            Instrucciones para el modelo de IA. Ej: "Verifica que el termómetro muestre menos de 4°C".
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </Label>
                                 <Textarea
-                                    placeholder="e.g. Verify the employee is wearing a hairnet..."
+                                    placeholder="Ej. Verifica que el empleado lleve red para el cabello..."
                                     className="h-20 text-sm"
                                     value={step.aiVerification?.prompt || ''}
                                     onChange={(e) => updateStep(step.id, {
@@ -254,9 +318,19 @@ export function PropertyEditor() {
                             </div>
 
                             <div className="space-y-2">
-                                <Label className="text-xs">Expected Conditions (comma separated)</Label>
+                                <Label className="text-xs flex items-center gap-1">
+                                    Condiciones Esperadas
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <HelpCircle className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            Lista de condiciones clave separadas por comas. Ej: "red_puesta, uniforme_limpio".
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </Label>
                                 <Input
-                                    placeholder="hairnet_present, uniform_clean"
+                                    placeholder="red_presente, uniforme_limpio"
                                     className="text-sm"
                                     value={step.aiVerification?.expectedConditions?.join(', ') || ''}
                                     onChange={(e) => updateStep(step.id, {
@@ -271,7 +345,17 @@ export function PropertyEditor() {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Confidence Threshold (0-1)</Label>
+                                    <Label className="text-xs flex items-center gap-1">
+                                        Umbral Confianza
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <HelpCircle className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                Nivel de certeza mínimo (0.0 a 1.0) para que la verificación sea aprobada automáticamente.
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </Label>
                                     <Input
                                         type="number"
                                         step="0.1"
@@ -285,15 +369,35 @@ export function PropertyEditor() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Auto Fill Field ID</Label>
-                                    <Input
-                                        placeholder="Field ID to auto-fill"
-                                        className="text-sm"
+                                    <Label className="text-xs flex items-center gap-1">
+                                        Auto-Llenar Campo
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <HelpCircle className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                Elige otro paso de tipo Texto para volcar automáticamente el resultado del análisis de IA.
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </Label>
+                                    <Select
                                         value={step.aiVerification?.autoFillField || ''}
-                                        onChange={(e) => updateStep(step.id, {
-                                            aiVerification: { ...step.aiVerification, enabled: true, autoFillField: e.target.value }
+                                        onValueChange={(v) => updateStep(step.id, {
+                                            aiVerification: { ...step.aiVerification, enabled: true, autoFillField: v }
                                         })}
-                                    />
+                                    >
+                                        <SelectTrigger className="text-sm">
+                                            <SelectValue placeholder="Ninguno" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="">Ninguno</SelectItem>
+                                            {steps.filter(s => s.id !== step.id).map(s => (
+                                                <SelectItem key={s.id} value={s.id} className="text-sm">
+                                                    {s.title || STEP_TYPE_DISPLAY[s.type] || s.type}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
                         </div>
@@ -304,9 +408,9 @@ export function PropertyEditor() {
             {/* Conditional Branches */}
             {(getStepCategory(step.type) === 'YESNO' || getStepCategory(step.type) === 'SELECT' || getStepCategory(step.type) === 'CHECKBOX') && (
                 <div className="space-y-4 border-t pt-4">
-                    <h4 className="font-medium text-sm">Conditional Branches</h4>
+                    <h4 className="font-medium text-sm">Ramas Condicionales</h4>
                     <p className="text-xs text-muted-foreground">
-                        Skip to a different step based on the answer
+                        Salta a un paso diferente según la respuesta
                     </p>
 
                     {step.branches && step.branches.length > 0 ? (
@@ -314,7 +418,7 @@ export function PropertyEditor() {
                             {step.branches.map((branch, idx) => (
                                 <div key={branch.id || idx} className="border rounded p-2 space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs font-medium">Branch {idx + 1}</span>
+                                        <span className="text-xs font-medium">Rama {idx + 1}</span>
                                         <Button
                                             size="sm"
                                             variant="ghost"
@@ -327,26 +431,90 @@ export function PropertyEditor() {
                                             <Trash2 className="h-3 w-3" />
                                         </Button>
                                     </div>
-                                    <Input
-                                        placeholder="Condition (e.g., value == 'no')"
-                                        value={branch.condition}
-                                        onChange={(e) => {
-                                            const newBranches = [...step.branches!];
-                                            newBranches[idx] = { ...newBranches[idx], condition: e.target.value };
-                                            updateStep(step.id, { branches: newBranches });
-                                        }}
-                                        className="text-xs"
-                                    />
-                                    <Input
-                                        placeholder="Target Step ID"
-                                        value={branch.targetStepId}
-                                        onChange={(e) => {
-                                            const newBranches = [...step.branches!];
-                                            newBranches[idx] = { ...newBranches[idx], targetStepId: e.target.value };
-                                            updateStep(step.id, { branches: newBranches });
-                                        }}
-                                        className="text-xs"
-                                    />
+                                    <div className="space-y-1">
+                                        <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                                            Condición de salto
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-pointer" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    Define cuándo se debe realizar el salto al paso de destino.
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </Label>
+                                        {getStepCategory(step.type) === 'YESNO' ? (
+                                            <Select
+                                                value={branch.condition}
+                                                onValueChange={(v) => {
+                                                    const newBranches = [...step.branches!];
+                                                    newBranches[idx] = { ...newBranches[idx], condition: v };
+                                                    updateStep(step.id, { branches: newBranches });
+                                                }}
+                                            >
+                                                <SelectTrigger className="text-xs">
+                                                    <SelectValue placeholder="Selecciona una condición..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="valor == 'si'" className="text-xs">Si responde "Sí"</SelectItem>
+                                                    <SelectItem value="valor == 'no'" className="text-xs">Si responde "No"</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (step.options && step.options.length > 0) ? (
+                                            <Select
+                                                value={branch.condition}
+                                                onValueChange={(v) => {
+                                                    const newBranches = [...step.branches!];
+                                                    newBranches[idx] = { ...newBranches[idx], condition: v };
+                                                    updateStep(step.id, { branches: newBranches });
+                                                }}
+                                            >
+                                                <SelectTrigger className="text-xs">
+                                                    <SelectValue placeholder="Selecciona una opción..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {step.options.map((opt) => (
+                                                        <SelectItem key={opt} value={`valor == '${opt}'`} className="text-xs">
+                                                            Si se selecciona "{opt}"
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (
+                                            <Input
+                                                placeholder="Condición (ej. valor == 'opcion')"
+                                                value={branch.condition}
+                                                onChange={(e) => {
+                                                    const newBranches = [...step.branches!];
+                                                    newBranches[idx] = { ...newBranches[idx], condition: e.target.value };
+                                                    updateStep(step.id, { branches: newBranches });
+                                                }}
+                                                className="text-xs"
+                                            />
+                                        )}
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-xs text-muted-foreground">Paso destino</Label>
+                                        <Select
+                                            value={branch.targetStepId || ''}
+                                            onValueChange={(v) => {
+                                                const newBranches = [...step.branches!];
+                                                newBranches[idx] = { ...newBranches[idx], targetStepId: v };
+                                                updateStep(step.id, { branches: newBranches });
+                                            }}
+                                        >
+                                            <SelectTrigger className="text-xs">
+                                                <SelectValue placeholder="Selecciona un paso..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {steps.filter(s => s.id !== step.id).map(s => (
+                                                    <SelectItem key={s.id} value={s.id} className="text-xs">
+                                                        {s.title || STEP_TYPE_DISPLAY[s.type] || s.type}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -368,29 +536,31 @@ export function PropertyEditor() {
                         className="h-7 text-xs"
                     >
                         <Plus className="h-3 w-3 mr-1" />
-                        Add Branch
+                        Agregar Rama
                     </Button>
                 </div>
             )}
 
-            {/* Checklist Options */}
-            {(getStepCategory(step.type) === 'CHECKBOX') && (
+            {/* Checklist & Select Options */}
+            {(getStepCategory(step.type) === 'CHECKBOX' || getStepCategory(step.type) === 'SELECT') && (
                 <div className="space-y-4 border-t pt-4">
                     <div className="flex items-center justify-between">
-                        <h4 className="font-medium text-sm">Checklist Options</h4>
+                        <h4 className="font-medium text-sm">
+                            {getStepCategory(step.type) === 'CHECKBOX' ? 'Opciones de Lista' : 'Opciones de Selección'}
+                        </h4>
                         <Button
                             size="sm"
                             variant="outline"
                             onClick={() => {
                                 const currentOptions = step.options || [];
                                 updateStep(step.id, {
-                                    options: [...currentOptions, `Option ${currentOptions.length + 1}`]
+                                    options: [...currentOptions, `Opción ${currentOptions.length + 1}`]
                                 });
                             }}
                             className="h-7 text-xs"
                         >
                             <Plus className="h-3 w-3 mr-1" />
-                            Add Option
+                            Agregar Opción
                         </Button>
                     </div>
 
@@ -405,7 +575,7 @@ export function PropertyEditor() {
                                             newOptions[idx] = e.target.value;
                                             updateStep(step.id, { options: newOptions });
                                         }}
-                                        placeholder={`Option ${idx + 1}`}
+                                        placeholder={`Opción ${idx + 1}`}
                                         className="text-sm"
                                     />
                                     <Button
@@ -424,64 +594,7 @@ export function PropertyEditor() {
                         </div>
                     ) : (
                         <p className="text-xs text-muted-foreground text-center py-4">
-                            No options defined. Click "Add Option" to create one.
-                        </p>
-                    )}
-                </div>
-            )}
-
-            {/* Select Options */}
-            {(getStepCategory(step.type) === 'SELECT') && (
-                <div className="space-y-4 border-t pt-4">
-                    <div className="flex items-center justify-between">
-                        <h4 className="font-medium text-sm">Choice Options</h4>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                                const currentOptions = step.options || [];
-                                updateStep(step.id, {
-                                    options: [...currentOptions, `Option ${currentOptions.length + 1}`]
-                                });
-                            }}
-                            className="h-7 text-xs"
-                        >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Add Option
-                        </Button>
-                    </div>
-
-                    {step.options && step.options.length > 0 ? (
-                        <div className="space-y-2">
-                            {step.options.map((option, idx) => (
-                                <div key={idx} className="flex items-center gap-2">
-                                    <Input
-                                        value={option}
-                                        onChange={(e) => {
-                                            const newOptions = [...step.options!];
-                                            newOptions[idx] = e.target.value;
-                                            updateStep(step.id, { options: newOptions });
-                                        }}
-                                        placeholder={`Option ${idx + 1}`}
-                                        className="text-sm"
-                                    />
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        onClick={() => {
-                                            const newOptions = step.options!.filter((_, i) => i !== idx);
-                                            updateStep(step.id, { options: newOptions });
-                                        }}
-                                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                                    >
-                                        <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-xs text-muted-foreground text-center py-4">
-                            No options defined. Click "Add Option" to create one.
+                            No hay opciones definidas. Haz clic en "Agregar Opción" para crear una.
                         </p>
                     )}
                 </div>
@@ -489,7 +602,7 @@ export function PropertyEditor() {
             {/* Conditional Logic */}
             <div className="space-y-4 border-t pt-4">
                 <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-sm">Conditional Visibility</h4>
+                    <h4 className="font-medium text-sm">Visibilidad Condicional</h4>
                     <Switch
                         checked={!!step.conditionalLogic}
                         onCheckedChange={(c) => updateStep(step.id, {
@@ -501,21 +614,30 @@ export function PropertyEditor() {
                 {step.conditionalLogic && (
                     <div className="space-y-3 pl-2">
                         <p className="text-xs text-muted-foreground">
-                            This step will only show when the condition is met
+                            Este paso solo se mostrará cuando se cumpla la condición
                         </p>
                         <div className="space-y-2">
-                            <Label className="text-xs">Source Field ID</Label>
-                            <Input
-                                placeholder="Field ID to check"
+                            <Label className="text-xs">Campo fuente</Label>
+                            <Select
                                 value={step.conditionalLogic.fieldId || ''}
-                                onChange={(e) => updateStep(step.id, {
-                                    conditionalLogic: { ...step.conditionalLogic, fieldId: e.target.value }
+                                onValueChange={(v) => updateStep(step.id, {
+                                    conditionalLogic: { ...step.conditionalLogic, fieldId: v }
                                 })}
-                                className="text-sm"
-                            />
+                            >
+                                <SelectTrigger className="text-sm">
+                                    <SelectValue placeholder="Selecciona un paso..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {steps.filter(s => s.id !== step.id).map(s => (
+                                        <SelectItem key={s.id} value={s.id} className="text-sm">
+                                            {s.title || STEP_TYPE_DISPLAY[s.type] || s.type}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-xs">Operator</Label>
+                            <Label className="text-xs">Operador</Label>
                             <Select
                                 value={step.conditionalLogic.operator || 'equals'}
                                 onValueChange={(v) => updateStep(step.id, {
@@ -526,26 +648,73 @@ export function PropertyEditor() {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="equals">Equals</SelectItem>
-                                    <SelectItem value="not_equals">Not Equals</SelectItem>
-                                    <SelectItem value="contains">Contains</SelectItem>
-                                    <SelectItem value="greater_than">Greater Than</SelectItem>
-                                    <SelectItem value="less_than">Less Than</SelectItem>
-                                    <SelectItem value="is_empty">Is Empty</SelectItem>
-                                    <SelectItem value="is_not_empty">Is Not Empty</SelectItem>
+                                    <SelectItem value="equals">Igual a</SelectItem>
+                                    <SelectItem value="not_equals">Diferente de</SelectItem>
+                                    <SelectItem value="contains">Contiene</SelectItem>
+                                    <SelectItem value="greater_than">Mayor que</SelectItem>
+                                    <SelectItem value="less_than">Menor que</SelectItem>
+                                    <SelectItem value="is_empty">Está vacío</SelectItem>
+                                    <SelectItem value="is_not_empty">No está vacío</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-xs">Value</Label>
-                            <Input
-                                placeholder="Value to compare"
-                                value={step.conditionalLogic.value || ''}
-                                onChange={(e) => updateStep(step.id, {
-                                    conditionalLogic: { ...step.conditionalLogic, value: e.target.value }
-                                })}
-                                className="text-sm"
-                            />
+                            <Label className="text-xs">Valor</Label>
+                            {(() => {
+                                const sourceStep = steps.find(s => s.id === step.conditionalLogic.fieldId);
+                                if (sourceStep) {
+                                    const sourceCat = getStepCategory(sourceStep.type);
+                                    if (sourceCat === 'YESNO') {
+                                        return (
+                                            <Select
+                                                value={step.conditionalLogic.value || ''}
+                                                onValueChange={(v) => updateStep(step.id, {
+                                                    conditionalLogic: { ...step.conditionalLogic, value: v }
+                                                })}
+                                            >
+                                                <SelectTrigger className="text-sm">
+                                                    <SelectValue placeholder="Selecciona valor..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="si">Sí</SelectItem>
+                                                    <SelectItem value="no">No</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        );
+                                    }
+                                    if ((sourceCat === 'SELECT' || sourceCat === 'CHECKBOX') && sourceStep.options && sourceStep.options.length > 0) {
+                                        return (
+                                            <Select
+                                                value={step.conditionalLogic.value || ''}
+                                                onValueChange={(v) => updateStep(step.id, {
+                                                    conditionalLogic: { ...step.conditionalLogic, value: v }
+                                                })}
+                                            >
+                                                <SelectTrigger className="text-sm">
+                                                    <SelectValue placeholder="Selecciona valor..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {sourceStep.options.map(opt => (
+                                                        <SelectItem key={opt} value={opt}>
+                                                            {opt}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        );
+                                    }
+                                }
+                                return (
+                                    <Input
+                                        placeholder="Valor a comparar"
+                                        value={step.conditionalLogic.value || ''}
+                                        onChange={(e) => updateStep(step.id, {
+                                            conditionalLogic: { ...step.conditionalLogic, value: e.target.value }
+                                        })}
+                                        className="text-sm"
+                                    />
+                                );
+                            })()}
                         </div>
                     </div>
                 )}
@@ -554,9 +723,9 @@ export function PropertyEditor() {
             {/* Timer Options */}
             {(getStepCategory(step.type) === 'TIMER') && (
                 <div className="space-y-4 border-t pt-4">
-                    <h4 className="font-medium text-sm">Timer Settings</h4>
+                    <h4 className="font-medium text-sm">Configuración de Temporizador</h4>
                     <div className="space-y-2">
-                        <Label className="text-xs">Duration (seconds)</Label>
+                        <Label className="text-xs">Duración (segundos)</Label>
                         <Input
                             type="number"
                             min="1"
@@ -567,7 +736,7 @@ export function PropertyEditor() {
                         />
                     </div>
                     <div className="flex items-center justify-between">
-                        <Label htmlFor="auto-start" className="text-xs">Auto Start</Label>
+                        <Label htmlFor="auto-start" className="text-xs">Inicio Automático</Label>
                         <Switch
                             id="auto-start"
                             checked={step.config?.autoStart || false}
@@ -581,7 +750,7 @@ export function PropertyEditor() {
             {/* Advanced Logic Rules (Visual Editor) */}
             <div className="space-y-4 border-t pt-4">
                 <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-sm">Logic Rules & Incidents</h4>
+                    <h4 className="font-medium text-sm">Reglas Lógicas e Incidentes</h4>
                     <Button
                         size="sm"
                         variant="outline"
@@ -599,7 +768,7 @@ export function PropertyEditor() {
                         className="h-7 text-xs"
                     >
                         <Plus className="h-3 w-3 mr-1" />
-                        Add Rule
+                        Agregar Regla
                     </Button>
                 </div>
 
@@ -623,9 +792,158 @@ export function PropertyEditor() {
                     </div>
                 ) : (
                     <p className="text-xs text-muted-foreground text-center py-4">
-                        No logic rules defined. Click "Add Rule" to create one.
+                        No hay reglas lógicas definidas. Haz clic en "Agregar Regla" para crear una.
                     </p>
                 )}
+            </div>
+
+            {/* Step-level Actions */}
+            <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-sm">Acciones del Paso</h4>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                            const newAction: RuleAction = { type: 'SEND_NOTIFICATION' };
+                            const current = Array.isArray(step.actions)
+                                ? step.actions as RuleAction[]
+                                : [];
+                            updateStep(step.id, {
+                                actions: [...current, newAction]
+                            });
+                        }}
+                        className="h-7 text-xs"
+                    >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Agregar Acción
+                    </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    Acciones que se ejecutan al completar este paso
+                </p>
+
+                {(() => {
+                    const stepActions = Array.isArray(step.actions)
+                        ? (step.actions as RuleAction[])
+                        : [];
+
+                    if (stepActions.length === 0) {
+                        return (
+                            <p className="text-xs text-muted-foreground text-center py-4">
+                                No hay acciones definidas para este paso.
+                            </p>
+                        );
+                    }
+
+                    return (
+                        <div className="space-y-2">
+                            {stepActions.map((action, idx) => {
+                                const actionDef = getStepActionType(action.type);
+                                return (
+                                    <div key={idx} className="border rounded p-2 space-y-2 bg-muted/20">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-medium">
+                                                {actionDef?.label || action.type}
+                                            </span>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    const newActions = [...stepActions];
+                                                    newActions.splice(idx, 1);
+                                                    updateStep(step.id, { actions: newActions });
+                                                }}
+                                                className="h-5 w-5 p-0"
+                                            >
+                                                <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                        </div>
+                                        <Select
+                                            value={action.type}
+                                            onValueChange={(v) => {
+                                                const newActions = [...stepActions];
+                                                newActions[idx] = { type: v };
+                                                updateStep(step.id, { actions: newActions });
+                                            }}
+                                        >
+                                            <SelectTrigger className="text-xs h-7">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {STEP_ACTION_TYPES.map(at => (
+                                                    <SelectItem key={at.type} value={at.type}>
+                                                        {at.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {actionDef && actionDef.fields.map(field => (
+                                            <div key={field.name} className="space-y-1">
+                                                <Label className="text-xs">{field.label}</Label>
+                                                {field.type === 'text' && (
+                                                    <Input
+                                                        className="text-xs h-7"
+                                                        placeholder={field.placeholder}
+                                                        value={(action as any)[field.name] || ''}
+                                                        onChange={(e) => {
+                                                            const newActions = [...stepActions];
+                                                            newActions[idx] = { ...newActions[idx], [field.name]: e.target.value };
+                                                            updateStep(step.id, { actions: newActions });
+                                                        }}
+                                                    />
+                                                )}
+                                                {field.type === 'number' && (
+                                                    <Input
+                                                        type="number"
+                                                        className="text-xs h-7"
+                                                        value={(action as any)[field.name] ?? field.defaultValue ?? ''}
+                                                        onChange={(e) => {
+                                                            const newActions = [...stepActions];
+                                                            newActions[idx] = { ...newActions[idx], [field.name]: parseInt(e.target.value) };
+                                                            updateStep(step.id, { actions: newActions });
+                                                        }}
+                                                    />
+                                                )}
+                                                {field.type === 'multiline' && (
+                                                    <Textarea
+                                                        className="text-xs min-h-[50px]"
+                                                        placeholder={field.placeholder}
+                                                        value={(action as any)[field.name] || ''}
+                                                        onChange={(e) => {
+                                                            const newActions = [...stepActions];
+                                                            newActions[idx] = { ...newActions[idx], [field.name]: e.target.value };
+                                                            updateStep(step.id, { actions: newActions });
+                                                        }}
+                                                    />
+                                                )}
+                                                {field.type === 'select' && field.options && (
+                                                    <Select
+                                                        value={(action as any)[field.name] || field.defaultValue || ''}
+                                                        onValueChange={(v) => {
+                                                            const newActions = [...stepActions];
+                                                            newActions[idx] = { ...newActions[idx], [field.name]: v };
+                                                            updateStep(step.id, { actions: newActions });
+                                                        }}
+                                                    >
+                                                        <SelectTrigger className="text-xs h-7">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {field.options.map(opt => (
+                                                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                })()}
             </div>
         </div>
     );

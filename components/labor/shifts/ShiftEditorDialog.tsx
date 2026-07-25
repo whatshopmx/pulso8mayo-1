@@ -25,6 +25,7 @@ interface ShiftEditorDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: CreateShiftInput) => void;
+  companyId: string;
   shift?: Shift;
   employees: { id: string; name: string }[];
   branches: { id: string; name: string }[];
@@ -50,6 +51,7 @@ export function ShiftEditorDialog({
     startTime: "09:00",
     endTime: "17:00",
     status: "DRAFT",
+    companyId: "",
   });
   const [shiftType, setShiftType] = useState<ShiftTypeKey | "CUSTOM">("MATUTINO");
 
@@ -64,6 +66,7 @@ export function ShiftEditorDialog({
         endTime: shift.endTime,
         notes: shift.notes,
         status: (shift.status === "DRAFT" || shift.status === "PUBLISHED") ? shift.status : "DRAFT",
+        companyId: shift.companyId,
       });
     } else if (selectedDate) {
       setFormData((prev) => ({

@@ -17,23 +17,35 @@ interface AlertItem {
   color: string;
 }
 
-export function AlertDistributionChart() {
+interface AlertDistributionChartProps {
+  branch?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export function AlertDistributionChart({ branch, startDate, endDate }: AlertDistributionChartProps) {
   const [data, setData] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/analytics/alert-distribution")
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (branch && branch !== "all") params.set("branchId", branch);
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+
+    fetch(`/api/analytics/alert-distribution?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
         setData(data.alertDistribution || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [branch, startDate, endDate]);
 
   if (loading) {
     return (
-      <Card>
+      <Card className="border border-border">
         <CardHeader>
           <CardTitle>Distribución de Alertas</CardTitle>
         </CardHeader>
@@ -48,7 +60,7 @@ export function AlertDistributionChart() {
 
   if (data.length === 0) {
     return (
-      <Card>
+      <Card className="border border-border">
         <CardHeader>
           <CardTitle>Distribución de Alertas</CardTitle>
         </CardHeader>
@@ -62,7 +74,7 @@ export function AlertDistributionChart() {
   }
 
   return (
-    <Card>
+    <Card className="border border-border">
       <CardHeader>
         <CardTitle>Distribución de Alertas</CardTitle>
       </CardHeader>

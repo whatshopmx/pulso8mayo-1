@@ -5,16 +5,15 @@ import { eq, and, sql, desc, inArray, isNotNull } from "drizzle-orm";
 import { InventoryService } from "./inventory-service";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { templateLibrary } from "@/templates";
+import { CATEGORIES } from "@/lib/inventory/constants";
 
 export const STOCK_COUNT_TEMPLATE_NAME = "Conteo de Inventario";
 
-export const DEFAULT_CATEGORIES = [
-  { id: "materia-prima", name: "Materia Prima", value: "Materia Prima" },
-  { id: "producto-terminado", name: "Producto Terminado", value: "Producto Terminado" },
-  { id: "insumo", name: "Insumo", value: "Insumo" },
-  { id: "embalaje", name: "Embalaje", value: "Embalaje" },
-  { id: "otro", name: "Otro", value: "Otro" },
-];
+export const DEFAULT_CATEGORIES = CATEGORIES.map((c) => ({
+  id: c.value.toLowerCase().replace(/\s+\//g, "").replace(/\s+/g, "-"),
+  name: c.label,
+  value: c.value,
+}));
 
 export class StockCountService {
   static getCategoryName(categoryValue: string): string {
@@ -102,6 +101,71 @@ export class StockCountService {
         return items;
     }
 
+  static generateStockCountSteps(
+    templateSteps: any[],
+    products: Array<{ id: string; name: string; sku: string; currentStock: number; unit: string }>,
+    categoryValue?: string
+  ): any[] {
+    const confirmStepIndex = templateSteps.findIndex((s: any) => s.id === "confirm-count");
+
+    const dynamicProductSteps = products.map(p => ({
+      id: `count-${p.id}`,
+      type: "NUMBER" as const,
+      title: `${p.name} (SKU: ${p.sku})`,
+      description: `Cantidad en sistema: ${p.currentStock || 0} ${p.unit}. Ingresa la cantidad física encontrada:`,
+      required: true,
+      unit: p.unit,
+      systemQuantity: p.currentStock || 0,
+      itemId: p.id,
+    }));
+
+    const confirmCountStep: any = {
+      id: "confirm-count",
+      type: "SELECT" as const,
+      title: "¿Confirmas que el conteo está correcto?",
+      description: "Una vez confirmado, se generarán los ajustes automáticamente",
+      required: true,
+      options: [
+        { value: "yes", label: "Sí, confirmar y generar ajustes" },
+        { value: "no", label: "No, revisar conteo" },
+      ],
+    };
+
+    if (confirmStepIndex >= 0) {
+      const baseSteps = templateSteps.map((s: any) => {
+        if (s.id === "category-select") {
+          return { ...s, value: categoryValue };
+        }
+        if (s.id === "confirm-count") {
+          return confirmCountStep;
+        }
+        return s;
+      });
+
+      return [
+        ...baseSteps.slice(0, confirmStepIndex),
+        ...dynamicProductSteps,
+        ...baseSteps.slice(confirmStepIndex),
+      ];
+    }
+
+    return [
+      {
+        id: "category-select",
+        type: "SELECT" as const,
+        title: "¿Qué área vas a contar?",
+        description: "Selecciona la categoría de productos a contar",
+        required: true,
+        config: {
+          options: DEFAULT_CATEGORIES.map(c => ({ value: c.value, label: c.name })),
+        },
+        ...(categoryValue ? { value: categoryValue } : {}),
+      },
+      ...dynamicProductSteps,
+      confirmCountStep,
+    ];
+  }
+
   static async getActiveCountForBranch(branchId: string) {
     const active = await db.select({ id: workflowInstances.id })
       .from(workflowInstances)
@@ -135,61 +199,9 @@ export class StockCountService {
         }
 
         const templateSteps = typeof template.steps === 'string' ? JSON.parse(template.steps) : template.steps;
-        const confirmStepIndex = templateSteps.findIndex((s: any) => s.id === "confirm-count");
+        const steps = StockCountService.generateStockCountSteps(templateSteps, products, data.categoryValue);
 
-        const dynamicProductSteps = products.map(p => ({
-            id: `count-${p.id}`,
-            type: "NUMBER" as const,
-            title: `${p.name} (SKU: ${p.sku})`,
-            description: `Cantidad en sistema: ${p.currentStock || 0} ${p.unit}. Ingresa la cantidad física encontrada:`,
-            required: true,
-            unit: p.unit,
-            systemQuantity: p.currentStock || 0,
-            itemId: p.id,
-        }));
-
-        let steps: any[] = [];
-        
-        if (confirmStepIndex >= 0) {
-            // Pre-fill the category-select value if present so the user doesn't have to select it again
-            const baseSteps = templateSteps.map((s: any) => {
-                if (s.id === "category-select") {
-                    return { ...s, value: data.categoryValue };
-                }
-                return s;
-            });
-            
-            // Inject dynamic product steps right before the confirm step
-            steps = [
-                ...baseSteps.slice(0, confirmStepIndex),
-                ...dynamicProductSteps,
-                ...baseSteps.slice(confirmStepIndex)
-            ];
-        } else {
-            // Fallback in case the template is malformed
-            steps = [
-                {
-                    id: "category-select",
-                    type: "multiple_choice" as const,
-                    title: "¿Qué área vas a contar?",
-                    options: DEFAULT_CATEGORIES.map(c => c.name),
-                    required: true,
-                    value: data.categoryValue,
-                },
-                ...dynamicProductSteps,
-                {
-                    id: "confirm-count",
-                    type: "SELECT" as const,
-                    title: "¿Confirmas que el conteo está correcto?",
-                    description: "Una vez confirmado, se generarán los ajustes automáticamente",
-                    options: [
-                        { value: "yes", label: "Sí, confirmar y generar ajustes" },
-                        { value: "no", label: "No, revisar conteo" },
-                    ],
-                    required: true,
-                },
-            ];
-        }
+        const staticTemplate = templateLibrary['conteo-inventario-v1'];
 
         const [instance] = await db.insert(workflowInstances).values({
             workflowTemplateId: template.id,
@@ -201,6 +213,9 @@ export class StockCountService {
                 category: data.categoryValue,
                 productCount: products.length,
                 startTime: new Date().toISOString(),
+                ...(staticTemplate?.aiConfig ? { aiConfig: staticTemplate.aiConfig } : {}),
+                ...(staticTemplate?.complianceConfig ? { complianceConfig: staticTemplate.complianceConfig } : {}),
+                ...(staticTemplate?.completionActions ? { completionActions: staticTemplate.completionActions } : {}),
             },
         }).returning();
 
@@ -238,9 +253,18 @@ export class StockCountService {
 
         const instanceData = instance.data as Record<string, unknown> || {};
 
-        const confirmStep = steps.find(s => s.stepId === "confirm-count");
+        const confirmStep = steps.find(s => s.stepId === "confirm-count" || s.stepId === "paso-10");
         const confirmValue = confirmStep?.value as string | null;
-        if (!confirmValue || confirmValue !== "yes") {
+        if (!confirmValue) {
+            throw new Error("Count not confirmed");
+        }
+        const isConfirmed = confirmValue === "yes"
+            || confirmValue === '{"value":"yes"}'
+            || (() => {
+                const lowerVal = String(confirmValue).toLowerCase();
+                return lowerVal.includes("yes") || lowerVal.includes("sí") || lowerVal.includes("si") || lowerVal.includes("confirmar");
+            })();
+        if (!isConfirmed) {
             throw new Error("Count not confirmed");
         }
 

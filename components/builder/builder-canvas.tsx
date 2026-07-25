@@ -145,7 +145,7 @@ function SortableItem({ element }: { element: WorkflowStep }) {
             style={style}
             className={cn(
                 "relative group flex items-start gap-4 p-4 mb-3 bg-card border rounded-lg transition-all",
-                isDragging ? "opacity-50 z-50 shadow-xl" : "shadow-sm",
+                isDragging ? "opacity-50 z-50 shadow-xl" : "",
                 isSelected ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/50"
             )}
             onClick={(e) => {

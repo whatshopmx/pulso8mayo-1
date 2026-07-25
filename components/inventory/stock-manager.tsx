@@ -23,6 +23,21 @@ interface Props {
   branchId: string;
 }
 
+const STATUS_TRANSLATIONS: Record<string, string> = {
+  AVAILABLE: "Disponible",
+  EXPIRED: "Vencido",
+  QUARANTINE: "Cuarentena",
+};
+
+const MOVEMENT_TRANSLATIONS: Record<string, string> = {
+  RECEIVE: "Recepción",
+  USAGE: "Consumo/Uso",
+  WASTE: "Merma",
+  ADJUSTMENT: "Ajuste",
+  TRANSFER_IN: "Transf. Entrada",
+  TRANSFER_OUT: "Transf. Salida",
+};
+
 export function StockManager({ item, batches, movements, priceHistory, totalStock }: Props) {
     const [isReceiveOpen, setIsReceiveOpen] = useState(false);
     const [isUsageOpen, setIsUsageOpen] = useState(false);
@@ -163,7 +178,7 @@ export function StockManager({ item, batches, movements, priceHistory, totalStoc
                                             <TableCell>{batch.expirationDate ? format(new Date(batch.expirationDate), 'dd/MM/yyyy') : '-'}</TableCell>
                                             <TableCell>
                                                 <Badge variant={batch.status === 'AVAILABLE' ? 'default' : 'destructive'}>
-                                                    {batch.status}
+                                                    {STATUS_TRANSLATIONS[batch.status] || batch.status}
                                                 </Badge>
                                             </TableCell>
                                         </TableRow>
@@ -201,7 +216,7 @@ export function StockManager({ item, batches, movements, priceHistory, totalStoc
                                         <TableRow key={mov.id}>
                                             <TableCell>{format(new Date(mov.timestamp), "dd/MM/yyyy HH:mm")}</TableCell>
                                             <TableCell>
-                                                <Badge variant="outline">{mov.type}</Badge>
+                                                <Badge variant="outline">{MOVEMENT_TRANSLATIONS[mov.type] || mov.type}</Badge>
                                             </TableCell>
                                             <TableCell className={mov.quantityChange > 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
                                                 {mov.quantityChange > 0 ? "+" : ""}{mov.quantityChange}

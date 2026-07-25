@@ -9,6 +9,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import { ProductPhotoUpload } from "@/components/inventory/product-photo-upload";
+import { useState } from "react";
+import { CATEGORIES, UNITS } from "@/lib/inventory/constants";
 
 function SubmitButton() {
     const { pending } = useFormStatus();
@@ -27,8 +30,8 @@ interface ProductFormProps {
 
 export function ProductForm({ suppliers = [], initialData }: ProductFormProps) {
     const action = initialData ? updateProduct.bind(null, initialData.id) : createProduct;
-    // Divide cost by 100 for display if exists
     const defaultCost = initialData?.lastCost ? (initialData.lastCost / 100).toFixed(2) : "";
+    const [photoUrl, setPhotoUrl] = useState<string | null>(initialData?.photoUrl || null);
 
     return (
         <form action={action} className="max-w-2xl mx-auto space-y-6">
@@ -48,10 +51,14 @@ export function ProductForm({ suppliers = [], initialData }: ProductFormProps) {
                         <Input id="name" name="name" placeholder="Ej: Harina de Trigo" required defaultValue={initialData?.name} />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="sku">SKU (Opcional)</Label>
+                            <Label htmlFor="sku">SKU</Label>
                             <Input id="sku" name="sku" placeholder="HAR-001" defaultValue={initialData?.sku} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="barcode">Código de Barras</Label>
+                            <Input id="barcode" name="barcode" placeholder="750100123456" defaultValue={initialData?.barcode} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="category">Categoría</Label>
@@ -60,36 +67,62 @@ export function ProductForm({ suppliers = [], initialData }: ProductFormProps) {
                                     <SelectValue placeholder="Seleccionar..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="ingredientes">Ingredientes Secos</SelectItem>
-                                    <SelectItem value="frescos">Frescos / Perecederos</SelectItem>
-                                    <SelectItem value="limpieza">Limpieza</SelectItem>
-                                    <SelectItem value="empaque">Empaque</SelectItem>
-                                    <SelectItem value="equipamiento">Equipamiento</SelectItem>
+                                    {CATEGORIES.map((cat) => (
+                                        <SelectItem key={cat.value} value={cat.value}>
+                                            {cat.label}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="unit">Unidad de Medida</Label>
-                            <Select name="unit" defaultValue={initialData?.unit || "UNIT"}>
+                            <Select name="unit" defaultValue={initialData?.unit || "PIEZA"}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Seleccionar..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="UNIT">Pieza / Unidad</SelectItem>
-                                    <SelectItem value="KG">Kilogramos (KG)</SelectItem>
-                                    <SelectItem value="L">Litros (L)</SelectItem>
-                                    <SelectItem value="BOX">Caja</SelectItem>
+                                    {UNITS.map((u) => (
+                                        <SelectItem key={u.value} value={u.value}>
+                                            {u.label}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="minLevel">Stock Mínimo (Alerta)</Label>
+                            <Label htmlFor="minLevel">Stock Mínimo</Label>
                             <Input id="minLevel" name="minLevel" type="number" min="0" placeholder="0" defaultValue={initialData?.minLevel} />
                         </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="maxLevel">Stock Máximo</Label>
+                            <Input id="maxLevel" name="maxLevel" type="number" min="0" placeholder="0" defaultValue={initialData?.maxLevel} />
+                        </div>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+                        <div className="space-y-2">
+                            <Label htmlFor="typicalShelfLifeDays">Vida Útil (días)</Label>
+                            <Input id="typicalShelfLifeDays" name="typicalShelfLifeDays" type="number" min="0" placeholder="Ej: 365" defaultValue={initialData?.typicalShelfLifeDays} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="storageRequirements">Requisitos de Almacenamiento</Label>
+                            <Input id="storageRequirements" name="storageRequirements" placeholder="Ej: Temperatura ambiente < 25°C" defaultValue={initialData?.storageRequirements} />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="allergenInfo">Información de Alérgenos</Label>
+                        <Input id="allergenInfo" name="allergenInfo" placeholder="Ej: Contiene gluten, lácteos" defaultValue={initialData?.allergenInfo} />
+                    </div>
+
+                    <ProductPhotoUpload
+                        currentPhotoUrl={initialData?.photoUrl}
+                        onPhotoChange={setPhotoUrl}
+                    />
 
                     {/* Supplier and Cost Section */}
                     <div className="grid grid-cols-2 gap-4 pt-2 border-t">
@@ -115,7 +148,7 @@ export function ProductForm({ suppliers = [], initialData }: ProductFormProps) {
                         <div className="space-y-2">
                             <Label htmlFor="lastCost">Costo Unitario (Estándar)</Label>
                             <Input id="lastCost" name="lastCost" type="number" step="0.01" min="0" placeholder="0.00" defaultValue={defaultCost} />
-                            <p className="text-[10px] text-muted-foreground">Se guardará en historial de precios.</p>
+                            <p className="text-xs text-muted-foreground">Se guardará en historial de precios.</p>
                         </div>
                     </div>
 

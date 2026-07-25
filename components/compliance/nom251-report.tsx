@@ -164,7 +164,7 @@ export function NOM251Report({ branchId, defaultStartDate, defaultEndDate }: NOM
 
             lines.push('REPORTE DE CUMPLIMIENTO NOM-251');
             lines.push(`Sucursal,${reportData.companyInfo.branchName}`);
-            lines.push(`Período,${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
+            lines.push(`Período,${startDate.toLocaleDateString("es-MX")} - ${endDate.toLocaleDateString("es-MX")}`);
             lines.push('');
 
             lines.push('RESUMEN EJECUTIVO');

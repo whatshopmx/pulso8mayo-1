@@ -19,6 +19,13 @@ export interface VerificationRule {
     customPrompt?: string; // Optional override
 }
 
+export interface BBox {
+    x_min: number;
+    y_min: number;
+    x_max: number;
+    y_max: number;
+}
+
 export interface AIAnalysisResult {
     passed: boolean;
     reason: string;
@@ -26,6 +33,8 @@ export interface AIAnalysisResult {
     detectedObjects?: string[];
     detectedText?: string;
     classification?: string;
+    detections?: { object: string; bbox: BBox }[];
+    caption?: string;
     metadata?: Record<string, any>;
     provider?: string;
 }

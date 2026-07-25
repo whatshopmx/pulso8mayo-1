@@ -38,10 +38,10 @@ const benefitTypeIcons: Record<string, any> = {
 };
 
 const benefitTypeLabels: Record<string, string> = {
-  HEALTH_INSURANCE: "Health Insurance (IMSS/SGMM)",
-  LIFE_INSURANCE: "Life Insurance",
-  SAVINGS_FUND: "Savings Fund (Fondo de Ahorro)",
-  FOOD_VOUCHERS: "Food Vouchers (Vales de Despensa)",
+  HEALTH_INSURANCE: "Seguro de Gastos Médicos / IMSS",
+  LIFE_INSURANCE: "Seguro de Vida",
+  SAVINGS_FUND: "Fondo de Ahorro",
+  FOOD_VOUCHERS: "Vales de Despensa",
 };
 
 export function BenefitsTab({ benefits, employeeId, companyId, onSuccess }: BenefitsTabProps) {
@@ -55,15 +55,15 @@ export function BenefitsTab({ benefits, employeeId, companyId, onSuccess }: Bene
             <div>
               <CardTitle className="flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-green-600" />
-                Active Benefits & Perks
+                Prestaciones y Beneficios Activos
               </CardTitle>
               <CardDescription>
-                Overview of current enrollment in company benefits
+                Resumen del paquete de prestaciones y beneficios corporativos del colaborador
               </CardDescription>
             </div>
             <Button size="sm" variant="outline" onClick={() => setShowBenefitDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Enroll in Benefit
+              Inscribir Beneficio
             </Button>
           </div>
         </CardHeader>
@@ -81,29 +81,29 @@ export function BenefitsTab({ benefits, employeeId, companyId, onSuccess }: Bene
                       <div className="flex items-center justify-between">
                         <span className="font-bold">{benefitTypeLabels[benefit.benefitType] || benefit.benefitType}</span>
                         <Badge variant={benefit.isActive ? "default" : "secondary"}>
-                          {benefit.isActive ? "Active" : "Inactive"}
+                          {benefit.isActive ? "Activo" : "Inactivo"}
                         </Badge>
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {benefit.provider || "Company Provided"}
+                        {benefit.provider || "Proporcionado por la Empresa"}
                       </div>
                       <div className="flex items-center gap-4 text-xs mt-2">
                         <div className="flex items-center gap-1">
                           <DollarSign className="h-3 w-3" />
-                          <span>${((benefit.employerContribution || 0) / 100).toFixed(2)}/mo (Employer)</span>
+                          <span>${((benefit.employerContribution || 0) / 100).toFixed(2)}/mes (Patrón)</span>
                         </div>
                         {benefit.startDate && (
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <Calendar className="h-3 w-3" />
-                            <span>Since {format(new Date(benefit.startDate), 'MMM yyyy', { locale: es })}</span>
+                            <span>Desde {format(new Date(benefit.startDate), 'MMM yyyy', { locale: es })}</span>
                           </div>
                         )}
                       </div>
                       
                       {benefit.beneficiaries && (
-                        <div className="mt-3 flex items-center gap-1 text-[10px] bg-muted px-2 py-1 rounded w-fit">
+                        <div className="mt-3 flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded w-fit">
                           <Users className="h-3 w-3" />
-                          <span>{Array.isArray(benefit.beneficiaries) ? benefit.beneficiaries.length : 0} Beneficiaries registered</span>
+                          <span>{Array.isArray(benefit.beneficiaries) ? benefit.beneficiaries.length : 0} Beneficiarios registrados</span>
                         </div>
                       )}
                     </div>
@@ -114,9 +114,9 @@ export function BenefitsTab({ benefits, employeeId, companyId, onSuccess }: Bene
           ) : (
             <div className="text-center py-12">
               <HeartPulse className="mx-auto h-12 w-12 text-muted-foreground mb-4 opacity-20" />
-              <h3 className="text-lg font-semibold">No Benefits Enrolled</h3>
+              <h3 className="text-lg font-semibold">Sin Beneficios Registrados</h3>
               <p className="text-muted-foreground text-sm max-w-xs mx-auto">
-                This employee is not currently enrolled in any optional company benefits.
+                Este colaborador no cuenta con beneficios adicionales registrados actualmente.
               </p>
             </div>
           )}
@@ -127,18 +127,18 @@ export function BenefitsTab({ benefits, employeeId, companyId, onSuccess }: Bene
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle className="text-sm">Benefit Package Summary</CardTitle>
+            <CardTitle className="text-sm">Resumen del Paquete de Prestaciones</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">Total Company Contribution (Monthly)</span>
+              <span className="text-muted-foreground">Aportación Patronal Total (Mensual)</span>
               <span className="font-bold text-green-700">
                 ${(benefits.reduce((acc, b) => acc + (b.employerContribution || 0), 0) / 100).toFixed(2)} MXN
               </span>
             </div>
             <Separator />
             <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">Employee Deduction (Monthly)</span>
+              <span className="text-muted-foreground">Deducción al Trabajador (Mensual)</span>
               <span className="font-bold text-orange-700">
                 ${(benefits.reduce((acc, b) => acc + (b.employeeContribution || 0), 0) / 100).toFixed(2)} MXN
               </span>
@@ -148,17 +148,17 @@ export function BenefitsTab({ benefits, employeeId, companyId, onSuccess }: Bene
         
         <Card className="bg-blue-50 border-blue-100">
           <CardHeader>
-            <CardTitle className="text-sm text-blue-900">Compliance Check</CardTitle>
+            <CardTitle className="text-sm text-blue-900">Verificación de Cumplimiento</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs text-blue-800">
                 <ShieldCheck className="h-4 w-4" />
-                <span>IMSS Registration: Valid</span>
+                <span>Registro IMSS: Vigente</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-blue-800">
                 <ShieldCheck className="h-4 w-4" />
-                <span>Infonavit Pmt: Current</span>
+                <span>Aportaciones INFONAVIT: Al día</span>
               </div>
             </div>
           </CardContent>

@@ -34,34 +34,23 @@ export default async function LaborDocumentsPage() {
 
         const tenant = await requireTenant()
         
-// Get document stats
-const docsRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || ''}/api/employee-documents?companyId=${tenant.id}`, {
-  headers: await headers()
-});
-const docsData = await docsRes.json();
-const docs = docsData.documents || [];
+        // Get document stats directly from DB
+        const docs = await db.select()
+            .from(employeeDocuments)
+            .where(eq(employeeDocuments.companyId, tenant.id));
 
-        const totalDocuments = docs.length
-        const validDocuments = docs.filter(d => d.isValid && d.status === 'VALIDATED').length
-        const pendingDocuments = docs.filter(d => d.status === 'PENDING').length
-        const expiredDocuments = docs.filter(d => d.status === 'EXPIRED' || !d.isValid).length
+        const totalDocuments = docs.length;
+        const validDocuments = docs.filter(d => d.isValid && d.status === 'VALIDATED').length;
+        const pendingDocuments = docs.filter(d => d.status === 'PENDING').length;
+        const expiredDocuments = docs.filter(d => d.status === 'EXPIRED' || !d.isValid).length;
 
-// Get employee count
-const employees: any[] = []
-try {
-  const empRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || ''}/api/employees?companyId=${tenant.id}`, {
-    headers: await headers()
-  });
-  const empData = await empRes.json();
-  if (empData.employees) {
-    employees.push(...empData.employees);
-  }
-} catch (e) {
-  console.error("Error fetching employees:", e);
-}
+        // Get employee count directly from DB
+        const employees = await db.select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.companyId, tenant.id), isNull(users.deletedAt)));
 
         // Calculate missing required documents
-        const requiredTypes = ['CONTRACT', 'ID', 'TAX_ID', 'BANK_INFO']
+        const requiredTypes = ['CONTRACT', 'ID', 'TAX_ID', 'BANK_INFO'] as const
         let missingRequiredCount = 0
         for (const emp of employees) {
             const empDocs = docs.filter(d => d.userId === emp.id && d.status === 'VALIDATED' && d.isValid)
@@ -153,10 +142,10 @@ try {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Cumplimiento</CardTitle>
-                        <Shield className="h-4 w-4 text-purple-600" />
+                        <Shield className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-purple-600">{summary.overallCompliance}%</div>
+                        <div className="text-2xl font-bold">{summary.overallCompliance}%</div>
                         <p className="text-xs text-muted-foreground">
                             {summary.totalEmployees} empleados
                         </p>

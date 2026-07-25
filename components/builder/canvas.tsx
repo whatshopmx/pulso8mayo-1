@@ -9,47 +9,14 @@ import { CSS } from '@dnd-kit/utilities';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { GripVertical } from 'lucide-react';
+import { STEP_TYPE_DISPLAY } from '@/lib/workflow-type-map';
 
-function SortableStep({ step }: { step: WorkflowStep }) {
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: step.id });
-    const { selectedStepId, selectStep } = useBuilder();
-
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-    };
-
-    return (
-        <Card
-            ref={setNodeRef}
-            style={style}
-            className={cn(
-                "mb-3 cursor-pointer border-2 transition-all hover:border-primary/50",
-                selectedStepId === step.id ? "border-primary shadow-md" : "border-transparent"
-            )}
-            onClick={() => selectStep(step.id)}
-        >
-            <CardHeader className="p-4 flex flex-row items-center gap-4 space-y-0">
-                <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground">
-                    <GripVertical className="h-5 w-5" />
-                </div>
-                <div className="flex-1">
-                    <CardTitle className="text-sm font-medium leading-none">
-                        {step.title}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground mt-1">
-                        {step.type} • {step.required ? 'Required' : 'Optional'}
-                    </p>
-                </div>
-            </CardHeader>
-        </Card>
-    );
-}
+import { SortableStep } from './sortable-step';
 
 export function Canvas() {
     const { steps, moveStep, selectStep } = useBuilder();
 
-    console.log('[Canvas] Rendering with steps:', steps.length, steps);
+
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -76,8 +43,8 @@ export function Canvas() {
             >
                 <div className="max-w-xl mx-auto space-y-4 pb-20">
                     <div className="mb-8">
-                        <h2 className="text-2xl font-semibold tracking-tight">Workflow Canvas</h2>
-                        <p className="text-muted-foreground">Drag and drop to reorder. Click to edit properties.</p>
+                        <h2 className="text-2xl font-semibold tracking-tight">Lienzo del Flujo</h2>
+                        <p className="text-muted-foreground">Arrastra y suelta para reordenar. Haz clic para editar propiedades.</p>
                     </div>
 
                     <SortableContext items={steps.map(s => s.id)} strategy={verticalListSortingStrategy}>
@@ -88,7 +55,7 @@ export function Canvas() {
 
                     {steps.length === 0 && (
                         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
-                            <p>Select a tool from the left to start building.</p>
+                            <p>Selecciona un componente de la izquierda para comenzar.</p>
                         </div>
                     )}
                 </div>

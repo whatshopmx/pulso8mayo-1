@@ -146,7 +146,7 @@ export default function EvidencePage() {
                 <div>
                     <h1 className="text-3xl font-bold">Galería de Evidencias</h1>
                     <p className="text-muted-foreground mt-1">
-                        Todas las evidencias subidas en los workflows
+                        Todas las evidencias subidas en los flujos de trabajo
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -192,7 +192,7 @@ export default function EvidencePage() {
                             <Video className="h-4 w-4" />
                             Videos
                         </CardDescription>
-                        <CardTitle className="text-3xl text-purple-600">{stats.videos}</CardTitle>
+                        <CardTitle className="text-3xl font-bold">{stats.videos}</CardTitle>
                     </CardHeader>
                 </Card>
                 <Card>

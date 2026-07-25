@@ -4,7 +4,7 @@
  * All tables will be moved to domain-specific modules in lib/db/schema/
  */
 
-import { pgTable, text, timestamp, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // Import auth tables and enums for internal use within this file
@@ -12,6 +12,7 @@ import { account, users, session, sessions, verifications, magicLinks, roleEnum 
 
 // Import core tables for foreign key references
 import { companies, branches } from './schema/core';
+import { branchComplianceServices } from './schema/equipment';
 
 // Re-export modular schema
 export * from './schema/index';
@@ -21,7 +22,7 @@ export const shiftTypeEnum = pgEnum("shift_type", ['MATUTINO', 'VESPERTINO', 'NO
 export const dayOfWeekEnum = pgEnum("day_of_week", ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']);
 // roleEnum is re-exported from auth.ts via schema/index.ts
 export const incidentSeverityEnum = pgEnum("incident_severity", ['CRITICAL', 'WARNING', 'FATAL']);
-export const incidentStatusEnum = pgEnum("incident_status", ['DETECTED', 'IN_REMEDIATION', 'RESOLVED', 'ESCALATED']);
+export const incidentStatusEnum = pgEnum("incident_status", ['DETECTED', 'IN_REMEDIATION', 'AWAITING_EXTERNAL', 'CONFIRMED', 'RESOLVED', 'ESCALATED']);
 
 // Workflow Scheduling Enums
 export const scheduleFrequencyEnum = pgEnum("schedule_frequency", ['DAILY', 'WEEKLY', 'MONTHLY', 'ONCE']);
@@ -82,8 +83,8 @@ export const workflowInstanceSteps = pgTable("workflow_instance_steps", {
 });
 
 export const workflowTemplates = pgTable("workflow_templates", {
-    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
-    companyId: uuid("company_id").notNull(),
+    id: text("id").$defaultFn(() => crypto.randomUUID()).primaryKey().notNull(),
+    companyId: uuid("company_id"), // Optional for global system templates
     branchId: uuid("branch_id"), // Optional, if template is branch-specific
     name: text("name"),
     description: text("description"),
@@ -227,6 +228,35 @@ export const incidents = pgTable("incidents", {
     resolvedAt: timestamp("resolved_at"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const remediationActionStatusEnum = pgEnum("remediation_action_status", ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED']);
+
+export const remediationActions = pgTable("remediation_actions", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+  incidentId: uuid("incident_id").notNull().references(() => incidents.id),
+  serviceConfigId: uuid("service_config_id").references(() => branchComplianceServices.id),
+  branchId: uuid("branch_id").notNull(),
+  companyId: uuid("company_id").notNull(),
+
+  actionType: text("action_type").notNull(), // 'SCHEDULE_COMPLIANCE_SERVICE'
+  serviceType: text("service_type").notNull(), // 'FUMIGATION'
+  workflowTemplateId: text("workflow_template_id"),
+
+  status: remediationActionStatusEnum("status").default('PENDING'),
+
+  confirmedBy: text("confirmed_by"),
+  confirmedAt: timestamp("confirmed_at"),
+  scheduledDate: timestamp("scheduled_date"),
+
+  scheduleId: uuid("schedule_id"),
+  workflowInstanceId: uuid("workflow_instance_id"),
+
+  completedAt: timestamp("completed_at"),
+  result: text("result"),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // Note: magicLinks, users, sessions, verifications tables re-exported from auth.ts
@@ -557,6 +587,7 @@ export const breakReminderLogs = pgTable("break_reminder_logs", {
 export const inventoryTransactionTypeEnum = pgEnum("inventory_transaction_type", ['RECEIVING', 'USAGE', 'ADJUSTMENT', 'TRANSFER', 'WASTE', 'RETURN']);
 export const inventoryBatchStatusEnum = pgEnum("inventory_batch_status", ['AVAILABLE', 'RESERVED', 'EXPIRED', 'QUARANTINED', 'DEPLETED']);
 export const inventoryTransferStatusEnum = pgEnum("inventory_transfer_status", ['PENDING', 'APPROVED', 'REJECTED', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED']);
+export const storageLocationTypeEnum = pgEnum("storage_location_type", ['DRY_STORAGE', 'REFRIGERATOR', 'FREEZER', 'BAR', 'KITCHEN', 'PRODUCTION', 'PACKAGING', 'OTHER']);
 
 export const suppliers = pgTable("suppliers", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -567,6 +598,17 @@ export const suppliers = pgTable("suppliers", {
     phone: text("phone"),
     address: text("address"),
     taxId: text("tax_id"),
+    active: boolean("active").default(true),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const storageLocations = pgTable("storage_locations", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    name: text("name").notNull(),
+    type: storageLocationTypeEnum("type").notNull().default('DRY_STORAGE'),
     active: boolean("active").default(true),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
@@ -591,6 +633,7 @@ export const inventoryItems = pgTable("inventory_items", {
     // New fields for Supplier and Pricing
     supplierId: uuid("supplier_id"), // Preferred Supplier
     lastCost: integer("last_cost"), // Unit cost in cents/decimals
+    photoUrl: text("photo_url"),
 
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
@@ -604,6 +647,17 @@ export const inventoryPriceHistory = pgTable("inventory_price_history", {
     supplierId: uuid("supplier_id"), // Optional: if price change is linked to a specific supplier offer
     changedBy: text("changed_by").notNull(), // User ID
     changedAt: timestamp("changed_at").defaultNow().notNull(),
+});
+
+export const unitConversions = pgTable("unit_conversions", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    fromUnit: text("from_unit").notNull(),
+    toUnit: text("to_unit").notNull(),
+    factor: integer("factor").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const inventoryBatches = pgTable("inventory_batches", {
@@ -631,6 +685,8 @@ export const inventoryMovements = pgTable("inventory_movements", {
     batchId: uuid("batch_id"), // Optional, if tracking by batch
     type: inventoryTransactionTypeEnum("type").notNull(),
     quantityChange: integer("quantity_change").notNull(), // Positive or negative
+    fromLocationId: uuid("from_location_id"), // Origin storage location
+    toLocationId: uuid("to_location_id"), // Destination storage location
     reason: text("reason"),
     referenceId: text("reference_id"), // Could be workflow instance ID or order ID
     performedBy: text("performed_by"), // User ID
@@ -649,7 +705,7 @@ export const temperatureLogs = pgTable("temperature_logs", {
   isCompliant: boolean("is_compliant").default(true),
   minThreshold: integer("min_threshold"),
   maxThreshold: integer("max_threshold"),
-  capturedBy: uuid("captured_by"),
+  capturedBy: text("captured_by"),
   captureMethod: text("capture_method").default('MANUAL'),
   photoUrl: text("photo_url"),
   notes: text("notes"),
@@ -666,11 +722,86 @@ export const costRecords = pgTable("cost_records", {
   amount: integer("amount").notNull(),
   description: text("description"),
   referenceId: text("reference_id"),
-  recordedBy: uuid("recorded_by"),
+  recordedBy: text("recorded_by"),
   periodStart: timestamp("period_start"),
   periodEnd: timestamp("period_end"),
   recordedAt: timestamp("recorded_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Purchase Order Statuses
+export const purchaseOrderStatusEnum = pgEnum("purchase_order_status", ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'SENT', 'PARTIALLY_RECEIVED', 'CLOSED', 'CANCELLED']);
+export const purchaseOrderItemStatusEnum = pgEnum("purchase_order_item_status", ['PENDING', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED']);
+
+// Requisitions (internal requests for items)
+export const requisitions = pgTable("requisitions", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    requisitionNumber: text("requisition_number").notNull().unique(),
+    status: text("status").default('PENDING').notNull(), // PENDING, APPROVED, REJECTED, CONVERTED
+    requestedBy: text("requested_by").notNull(),
+    approvedBy: text("approved_by"),
+    notes: text("notes"),
+    dateRequired: timestamp("date_required"),
+    requestedAt: timestamp("requested_at").defaultNow().notNull(),
+    approvedAt: timestamp("approved_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const requisitionItems = pgTable("requisition_items", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    requisitionId: uuid("requisition_id").notNull(),
+    itemId: uuid("item_id").notNull(),
+    requestedQuantity: integer("requested_quantity").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Purchase Orders
+export const purchaseOrders = pgTable("purchase_orders", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    poNumber: text("po_number").notNull().unique(),
+    supplierId: uuid("supplier_id").notNull(),
+    status: purchaseOrderStatusEnum("status").default('DRAFT').notNull(),
+    requisitionId: uuid("requisition_id"),
+    requestedBy: text("requested_by").notNull(),
+    approvedBy: text("approved_by"),
+    approvedAt: timestamp("approved_at"),
+    rejectionReason: text("rejection_reason"),
+    dateOrdered: timestamp("date_ordered"),
+    dateRequired: timestamp("date_required"),
+    expectedDeliveryDate: timestamp("expected_delivery_date"),
+    subtotal: integer("subtotal"),
+    taxAmount: integer("tax_amount"),
+    totalAmount: integer("total_amount"),
+    currency: text("currency").default('MXN'),
+    notes: text("notes"),
+    termsConditions: text("terms_conditions"),
+    sentAt: timestamp("sent_at"),
+    receivedAt: timestamp("received_at"),
+    cancelledAt: timestamp("cancelled_at"),
+    cancellationReason: text("cancellation_reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const purchaseOrderItems = pgTable("purchase_order_items", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    poId: uuid("po_id").notNull(),
+    itemId: uuid("item_id").notNull(),
+    orderedQuantity: integer("ordered_quantity").notNull(),
+    receivedQuantity: integer("received_quantity").default(0),
+    unitCost: integer("unit_cost").notNull(),
+    lineTotal: integer("line_total"),
+    status: purchaseOrderItemStatusEnum("status").default('PENDING').notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // Inventory Transfers between branches
@@ -766,9 +897,32 @@ export const notificationPreferences = pgTable("notification_preferences", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const inventoryAuditActionEnum = pgEnum("inventory_audit_action", ['CREATE', 'UPDATE', 'DELETE']);
+export const inventoryAuditEntityEnum = pgEnum("inventory_audit_entity", ['ITEM', 'BATCH', 'MOVEMENT', 'TRANSFER', 'WASTE', 'RECEIVING', 'ADJUSTMENT', 'SUPPLIER', 'PURCHASE_ORDER']);
+
+export const inventoryAuditLog = pgTable("inventory_audit_log", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+
+    action: inventoryAuditActionEnum("action").notNull(),
+    entityType: inventoryAuditEntityEnum("entity_type").notNull(),
+    entityId: text("entity_id"),
+
+    oldValue: jsonb("old_value"),
+    newValue: jsonb("new_value"),
+
+    performedBy: text("performed_by").notNull(),
+    performedAt: timestamp("performed_at").defaultNow().notNull(),
+    reason: text("reason"),
+    metadata: jsonb("metadata").default(sql`'{}'::jsonb`),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Inventory Alerts table
 export const inventoryAlertStatusEnum = pgEnum("inventory_alert_status", ['ACTIVE', 'VIEWED', 'IN_PROGRESS', 'RESOLVED', 'DISMISSED']);
-export const inventoryAlertTypeEnum = pgEnum("inventory_alert_type", ['LOW_STOCK', 'OUT_OF_STOCK', 'EXPIRING_SOON', 'EXPIRED']);
+export const inventoryAlertTypeEnum = pgEnum("inventory_alert_type", ['LOW_STOCK', 'OUT_OF_STOCK', 'EXPIRING_SOON', 'EXPIRED', 'PRICE_INCREASE']);
 export const inventoryWasteReasonEnum = pgEnum("inventory_waste_reason", ['EXPIRED', 'DAMAGED', 'QUALITY', 'SPILLAGE', 'OTHER']);
 
 export const inventoryAlerts = pgTable("inventory_alerts", {
@@ -1977,6 +2131,53 @@ export const employeeTrainingRecords = pgTable("employee_training_records", {
     expiresAt: timestamp("expires_at").notNull(),
 });
 
+// KPI Snapshot Logs Table
+export const kpiSnapshotLogs = pgTable("kpi_snapshot_logs", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id"),
+    snapshotType: text("snapshot_type").notNull(), // DAILY | WEEKLY | MONTHLY
+    snapshotDate: timestamp("snapshot_date").notNull(),
+    metrics: jsonb("metrics").notNull(), // { kpiId: value, ... }
+    periodStart: timestamp("period_start"),
+    periodEnd: timestamp("period_end"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const discrepancyTypeEnum = pgEnum("discrepancy_type", ['NONE', 'QUANTITY', 'PRICE', 'QUALITY', 'SUBSTITUTION']);
+
+export const receivingReports = pgTable("receiving_reports", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    supplierId: uuid("supplier_id"),
+    purchaseOrderId: uuid("purchase_order_id"),
+    receivedBy: text("received_by").notNull(),
+    receivedAt: timestamp("received_at").defaultNow().notNull(),
+    notes: text("notes"),
+    discrepancyNotes: text("discrepancy_notes"),
+    signatureUrl: text("signature_url"),
+    photoUrls: jsonb("photo_urls"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const receivingReportItems = pgTable("receiving_report_items", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    receivingReportId: uuid("receiving_report_id").notNull(),
+    itemId: uuid("item_id").notNull(),
+    orderedQuantity: integer("ordered_quantity"),
+    receivedQuantity: integer("received_quantity").notNull(),
+    unitCost: integer("unit_cost"),
+    lineTotal: integer("line_total"),
+    discrepancyType: discrepancyTypeEnum("discrepancy_type").default('NONE').notNull(),
+    discrepancyQty: integer("discrepancy_qty").default(0),
+    discrepancyNotes: text("discrepancy_notes"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Adding manual reference definitions where appropriate for clarity or Drizzle query API
 export const accountRelations = {
     user: foreignKey({
@@ -1991,3 +2192,108 @@ export const sessionsRelations = {
         foreignColumns: [users.id],
     })
 }
+
+export const recipes = pgTable("recipes", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    baseYield: numeric("base_yield", { precision: 10, scale: 2 }).notNull().default("1.00"),
+    unit: text("unit").notNull().default("PORTION"),
+    calculatedCost: integer("calculated_cost").default(0).notNull(), // in cents
+    priceSelling: integer("price_selling").default(0).notNull(), // in cents
+    foodCostPercentage: numeric("food_cost_percentage", { precision: 5, scale: 2 }).default("0.00").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const recipeItems = pgTable("recipe_items", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    recipeId: uuid("recipe_id").notNull(),
+    itemId: uuid("item_id").notNull(),
+    quantity: numeric("quantity", { precision: 10, scale: 4 }).notNull(),
+    unit: text("unit").notNull(),
+    isSubRecipe: boolean("is_sub_recipe").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const salesEntries = pgTable("sales_entries", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    recipeId: uuid("recipe_id").notNull(),
+    quantitySold: numeric("quantity_sold", { precision: 10, scale: 2 }).notNull(),
+    saleDate: timestamp("sale_date").defaultNow().notNull(),
+    totalRevenue: integer("total_revenue").default(0).notNull(), // in cents
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const invoices = pgTable("invoices", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").references(() => branches.id),
+    supplierId: uuid("supplier_id").references(() => suppliers.id),
+    purchaseOrderId: uuid("purchase_order_id").references(() => purchaseOrders.id),
+    receivingReportId: uuid("receiving_report_id").references(() => receivingReports.id),
+    
+    uuid: text("uuid").unique().notNull(),
+    folio: text("folio"),
+    serie: text("serie"),
+    fecha: text("fecha").notNull(),
+    subtotal: integer("subtotal").notNull(),
+    taxAmount: integer("tax_amount").default(0).notNull(),
+    total: integer("total").notNull(),
+    currency: text("currency").default("MXN").notNull(),
+    rfcEmisor: text("rfc_emisor").notNull(),
+    nombreEmisor: text("nombre_emisor"),
+    rfcReceptor: text("rfc_receptor").notNull(),
+    nombreReceptor: text("nombre_receptor"),
+    
+    matchStatus: text("match_status").default("PENDING").notNull(),
+    hasPriceDiscrepancy: boolean("has_price_discrepancy").default(false).notNull(),
+    hasQtyDiscrepancy: boolean("has_qty_discrepancy").default(false).notNull(),
+    
+    xmlContent: text("xml_content"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const invoiceLines = pgTable("invoice_lines", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    invoiceId: uuid("invoice_id").notNull().references(() => invoices.id, { onDelete: 'cascade' }),
+    itemId: uuid("item_id").references(() => inventoryItems.id),
+    
+    claveProdServ: text("clave_prod_serv").notNull(),
+    noIdentificacion: text("no_identificacion"),
+    cantidad: numeric("cantidad", { precision: 10, scale: 4 }).notNull(),
+    claveUnidad: text("clave_unidad").notNull(),
+    unidad: text("unidad"),
+    descripcion: text("descripcion").notNull(),
+    valorUnitario: integer("valor_unitario").notNull(),
+    importe: integer("importe").notNull(),
+    
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const creditNotes = pgTable("credit_notes", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    invoiceId: uuid("invoice_id").references(() => invoices.id, { onDelete: 'set null' }),
+    
+    uuid: text("uuid").unique().notNull(),
+    folio: text("folio"),
+    serie: text("serie"),
+    fecha: text("fecha").notNull(),
+    subtotal: integer("subtotal").notNull(),
+    taxAmount: integer("tax_amount").default(0).notNull(),
+    total: integer("total").notNull(),
+    currency: text("currency").default("MXN").notNull(),
+    reason: text("reason"),
+    xmlContent: text("xml_content"),
+    
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

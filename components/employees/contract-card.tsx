@@ -195,7 +195,7 @@ export function ContractCard({ contract, onView, onDownload }: ContractCardProps
                 {contract.workDays.map((day) => (
                   <span
                     key={day}
-                    className="text-[10px] px-1.5 py-0.5 bg-muted rounded"
+                    className="text-xs px-1.5 py-0.5 bg-muted rounded"
                   >
                     {day.slice(0, 3)}
                   </span>

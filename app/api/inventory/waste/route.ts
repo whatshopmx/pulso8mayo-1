@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { eq, and, desc } from 'drizzle-orm';
 import { inventoryWaste, inventoryBatches, inventoryItems, inventoryMovements } from '@/lib/db/schema';
+import { AuditService } from '@/lib/services/audit-service';
 
 // GET /api/inventory/waste - Get waste history
 export async function GET(request: NextRequest) {
@@ -165,6 +166,18 @@ export async function POST(request: NextRequest) {
         performedBy: session.user.id,
         timestamp: new Date(),
       });
+
+    AuditService.logInventoryAction({
+      companyId: session.user.companyId,
+      branchId,
+      action: 'CREATE',
+      entityType: 'WASTE',
+      entityId: waste.id,
+      newValue: { itemId, quantity, unit, reason, notes },
+      performedBy: session.user.id,
+      reason: `Waste: ${reason}`,
+      metadata: { batchId, costPerUnit, totalLoss, notes },
+    });
 
     return NextResponse.json({
       success: true,

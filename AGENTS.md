@@ -17,6 +17,10 @@ pnpm db:generate          # Generate migrations
 pnpm db:push              # ⚠️ DANGER: can drop tables
 pnpm db:migrate           # Apply migrations
 
+# Inngest
+pnpm run dev              # Start with INNGEST_DEV=1 for Inngest local dev
+npx inngest-cli@latest dev -u http://localhost:3000/api/inngest  # Dev server UI
+
 # Utilities
 npx tsx scripts/seed-demo-data.ts  # Seed demo data
 ```
@@ -38,7 +42,8 @@ npx tsx scripts/seed-demo-data.ts  # Seed demo data
 - Workflow execution: `app/api/workflows/execute/route.ts`
 - WhatsApp webhook: `app/api/whatsapp/webhook/route.ts`
 - AI verification: `app/api/ai/verify/route.ts`
-- Cron jobs: `app/api/cron/*` (6 scheduled tasks via Vercel)
+- Inngest serve: `app/api/inngest/route.ts` (durable functions & cron)
+- Inngest functions: `lib/inngest/functions/` (11 cron jobs migrated from Vercel)
 
 ## ⚙️ Configuration
 
@@ -49,12 +54,17 @@ npx tsx scripts/seed-demo-data.ts  # Seed demo data
 - `QSTASH_TOKEN`, `QSTASH_*` - Upstash cron/redis
 - `R2_*` - Cloudflare R2 storage (or local fallback)
 - `RESEND_API_KEY` - Email notifications
+- `INNGEST_DEV=1` - Local dev mode for Inngest
+- `INNGEST_SIGNING_KEY` - Production signing key (Inngest Cloud)
+- `INNGEST_EVENT_KEY` - Production event key (Inngest Cloud)
 
-**Vercel Cron Jobs** (`vercel.json`):
+**Inngest Cron Jobs** (`lib/inngest/functions/`):
 - `*/5 * * * *` - Execute scheduled workflows
-- `0 * * * *` - Check overdue items, send reminders
+- `0 * * * *` - Check overdue items, send reminders, overdue workflows
 - `0 8 * * *` - Daily reminders
-- `0 */6 * * *` - Inventory checks
+- `0 */6 * * *` - Inventory checks, stock check, compliance alerts
+- `0 6 * * *` - Scheduled reports, document expiration
+- `0 18 * * *` - Break reminders
 
 ## 🧪 Testing
 
@@ -111,7 +121,7 @@ Main schema: `lib/db/schema.ts`
 2. **i18n:** Uses `next-intl` with config at `./i18n/config.ts`
 3. **Workflow package:** Custom `workflow` npm package (v4.1.0-beta.52)
 4. **Playwright tests:** Excluded from TS build, run via separate command
-5. **Cron paths:** Must match Vercel cron job paths exactly
+5. **Inngest dev mode:** Set `INNGEST_DEV=1` for local dev, otherwise Inngest defaults to Cloud mode
 
 ## 📚 Documentation
 
@@ -164,3 +174,12 @@ Use codegraph for **structural** questions — what calls what, what would break
 
 The MCP server returns "not initialized." Ask the user: *"I notice this project doesn't have CodeGraph initialized. Want me to run `codegraph init -i` to build the index?"*
 <!-- CODEGRAPH_END -->
+
+## Design Context
+
+Design decisions are captured in two root files:
+- **PRODUCT.md** — strategic: register (product), platform (web), users, positioning, brand personality, anti-references, design principles
+- **DESIGN.md** — visual: OKLCH color tokens, Geist typography, component specs, elevation philosophy, do's and don'ts
+- **`.impeccable/design.json`** — machine-readable sidecar for live mode
+
+Key principles: Operational Red used sparingly (10-15%), flat with tonal layering (no shadows), single Geist family, compliance as a byproduct not a chore. Run `/impeccable` for the full command menu.

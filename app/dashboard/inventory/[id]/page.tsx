@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { Metadata } from "next";
+import { PageHeader, PageContainer } from "@/components/shared";
 
 interface Props {
     params: Promise<{ id: string }>;
@@ -49,35 +50,27 @@ export default async function ProductDetailPage({ params }: Props) {
     const priceHistory = await getPriceHistory(id);
 
     return (
-        <div className="max-w-7xl mx-auto p-6 space-y-6">
-            <div className="flex items-center gap-4 border-b pb-4">
-                <Link href="/dashboard/inventory">
-                    <Button variant="ghost" size="icon">
-                        <ChevronLeft className="w-5 h-5" />
-                    </Button>
-                </Link>
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        {item.name}
-                        <span className="text-sm font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                            {item.sku}
-                        </span>
-                    </h1>
-                    <p className="text-muted-foreground text-sm">
-                        {item.category} • Unidad: {item.unit}
-                        {item.lastCost && (
-                            <span className="ml-2 font-medium text-foreground">
-                                • Costo Actual: ${(item.lastCost / 100).toFixed(2)}
-                            </span>
-                        )}
-                    </p>
-                </div>
-                <div className="ml-auto">
-                    <Link href={`/dashboard/inventory/${id}/edit`}>
-                        <Button variant="outline">Editar Producto</Button>
-                    </Link>
-                </div>
-            </div>
+        <PageContainer>
+            <PageHeader
+                title={item.name}
+                description={`${item.category} • Unidad: ${item.unit}${item.lastCost ? ` • Costo Actual: $${(item.lastCost / 100).toFixed(2)}` : ""}`}
+                actions={
+                    <div className="flex items-center gap-2">
+                        <Link href="/dashboard/inventory">
+                            <Button variant="ghost" size="icon">
+                                <ChevronLeft className="w-5 h-5" />
+                            </Button>
+                        </Link>
+                        <Link href={`/dashboard/inventory/${id}/edit`}>
+                            <Button variant="outline">Editar Producto</Button>
+                        </Link>
+                    </div>
+                }
+            />
+            {item.photoUrl && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={item.photoUrl} alt={item.name} className="h-20 w-20 rounded-lg object-cover border shrink-0" />
+            )}
 
             <StockManager
                 branchId={branchId}
@@ -87,6 +80,6 @@ export default async function ProductDetailPage({ params }: Props) {
                 totalStock={stock}
                 priceHistory={priceHistory}
             />
-        </div>
+        </PageContainer>
     );
 }

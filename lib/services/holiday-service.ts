@@ -10,8 +10,8 @@ export class HolidayService {
         let whereClause = eq(holidays.companyId, companyId);
 
         if (year) {
-            const startOfYear = new Date(year, 0, 1);
-            const endOfYear = new Date(year, 11, 31, 23, 59, 59);
+            const startOfYear = `${year}-01-01`;
+            const endOfYear = `${year}-12-31`;
             whereClause = and(
                 eq(holidays.companyId, companyId),
                 gte(holidays.date, startOfYear),
@@ -28,9 +28,11 @@ export class HolidayService {
     static async createHoliday(data: { name: string; date: Date | string; companyId: string; description?: string }) {
         if (!data.companyId) throw ApiError.badRequest("Company ID required");
 
+        const dateStr = typeof data.date === 'string' ? data.date : data.date.toISOString().split('T')[0];
+
         const newHoliday = await db.insert(holidays).values({
             name: data.name,
-            date: new Date(data.date),
+            date: dateStr,
             companyId: data.companyId,
             description: data.description
         }).returning();

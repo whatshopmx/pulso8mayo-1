@@ -127,7 +127,7 @@ export default function EmployeeOnboardingPortal() {
               <span className="text-2xl font-bold">{onboarding.progressPercentage}%</span>
             </div>
             <Progress value={onboarding.progressPercentage} className="h-2 bg-white/20" />
-            <p className="text-[10px] mt-3 opacity-80 uppercase tracking-wider font-bold">
+            <p className="text-xs mt-3 opacity-80 uppercase tracking-wider font-bold">
               {completedCount} de {totalCount} pasos listos
             </p>
           </div>
@@ -164,7 +164,7 @@ export default function EmployeeOnboardingPortal() {
                       {step.stepName}
                     </h3>
                     <div className="flex items-center gap-3 mt-1">
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 uppercase font-bold text-muted-foreground border-slate-200">
+                      <Badge variant="outline" className="text-xs px-1.5 py-0 h-4 uppercase font-bold text-muted-foreground border-slate-200">
                         {step.stepCategory}
                       </Badge>
                       {step.dueDate && (

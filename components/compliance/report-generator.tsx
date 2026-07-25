@@ -25,7 +25,7 @@ export function ComplianceReportGenerator() {
             doc.setFontSize(20);
             doc.text("Compliance Audit Report", 14, 22);
             doc.setFontSize(11);
-            doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 30);
+            doc.text(`Generado: ${new Date().toLocaleDateString("es-MX")}`, 14, 30);
             doc.text(`Organization: Pulso Demo`, 14, 35);
 
             // Summary Stats
@@ -60,7 +60,7 @@ export function ComplianceReportGenerator() {
 
         } catch (error) {
             console.error(error);
-            toast.error("Failed to generate report");
+            toast.error("Error al generar el reporte");
         } finally {
             setGenerating(false);
         }
@@ -69,7 +69,7 @@ export function ComplianceReportGenerator() {
     return (
         <Button onClick={generateReport} disabled={generating} variant="outline" className="gap-2">
             {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-            Export Compliance Report
+            Exportar Reporte
         </Button>
     );
 }

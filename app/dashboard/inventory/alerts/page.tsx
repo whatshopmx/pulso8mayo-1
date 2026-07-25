@@ -30,8 +30,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, Package, TrendingDown, Clock, RefreshCw, Eye, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { AlertCircle, Package, TrendingDown, Clock, RefreshCw, Eye, CheckCircle2, XCircle, AlertTriangle, Bell } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader, PageContainer, KpiCard, KpiGrid } from "@/components/shared";
 
 interface AlertRecord {
     id: string;
@@ -194,63 +195,28 @@ const getSeverityBadge = (severity: string) => {
     }
 
     return (
-        <div className="space-y-6">
+        <PageContainer>
+            <PageHeader
+                title="Alertas de Inventario"
+                description="Historial y gestión de alertas de stock"
+                icon={Bell}
+            />
             {/* Summary Cards */}
             {summary && (
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    <Card>
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-medium">Total</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{summary.total}</div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-medium">Activas</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-red-600">{summary.active}</div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-medium">En Proceso</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-blue-600">{summary.inProgress}</div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-medium">Resueltas</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-green-600">{summary.resolved}</div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-medium">Descartadas</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-muted-foreground">{summary.dismissed}</div>
-                        </CardContent>
-                    </Card>
-                </div>
+                <KpiGrid columns={5}>
+                    <KpiCard title="Total" value={summary.total} icon={<AlertCircle />} />
+                    <KpiCard title="Activas" value={summary.active} icon={<AlertCircle />} valueClassName="text-red-600" />
+                    <KpiCard title="En Proceso" value={summary.inProgress} icon={<Clock />} valueClassName="text-blue-600" />
+                    <KpiCard title="Resueltas" value={summary.resolved} icon={<CheckCircle2 />} valueClassName="text-green-600" />
+                    <KpiCard title="Descartadas" value={summary.dismissed} icon={<XCircle />} valueClassName="text-muted-foreground" />
+                </KpiGrid>
             )}
 
             {/* Filters */}
             <Card>
                 <CardHeader>
                     <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle>Alertas de Inventario</CardTitle>
-                            <CardDescription>
-                                Historial y gestión de alertas de stock
-                            </CardDescription>
-                        </div>
+                        <div />
                         <Button
                             variant="outline"
                             onClick={() => fetchAlerts()}
@@ -421,6 +387,6 @@ const getSeverityBadge = (severity: string) => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </PageContainer>
     );
 }

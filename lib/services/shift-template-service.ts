@@ -80,6 +80,7 @@ export class ShiftTemplateService {
       for (const employeeId of operation.employeeIds) {
         try {
           const shift = await plannedShiftService.createPlannedShift({
+            companyId: (operation as any).companyId || "",
             userId: employeeId,
             branchId: "", // Will be determined by context
             role: "", // Will be determined by context
@@ -171,6 +172,7 @@ export class ShiftTemplateService {
     employeeId: string
   ): Promise<Shift> {
     return plannedShiftService.createPlannedShift({
+      companyId: (template as any).companyId || "",
       userId: employeeId,
       branchId: template.branchId,
       role: template.role,

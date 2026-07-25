@@ -3,6 +3,17 @@ import { OpenAIProvider } from '../ai/providers/openai';
 import { VerificationRule, VerificationResult, AIAnalysisResult, VerificationType } from '../types/ai-verification';
 import { VerificationEngine } from './verification-engine';
 
+function tryParseJSON(text: string): Record<string, any> | null {
+    try {
+        const start = text.indexOf('{');
+        const end = text.lastIndexOf('}');
+        if (start === -1 || end === -1 || end <= start) return null;
+        return JSON.parse(text.slice(start, end + 1));
+    } catch {
+        return null;
+    }
+}
+
 // Configuration interface
 interface AIConfig {
     provider?: 'moondream' | 'openai';
@@ -178,16 +189,124 @@ export class AIService {
         context?: Record<string, unknown>,
         config: AIConfig = {}
     ): Promise<import('../types/ai-verification').AIAnalysisResult> {
+        if (type === VerificationType.DETECCION_OBJETOS) {
+            return this.detectObjects(photoUrl, context, config);
+        }
+
         const prompt = this.getPromptForType(type, context);
         const result = await this.verifyPhoto(photoUrl, prompt, config);
 
-        // Map basic verifyPhoto result to richer AIAnalysisResult
-        return {
+        const analysisResult = {
             passed: result.passed,
             reason: result.reason,
             confidence: (result.details?.confidence as number) || 0,
             provider: result.details?.provider as string | undefined,
-            metadata: result.details
+            metadata: { ...result.details } as Record<string, any> | undefined
+        };
+
+        const parsed = tryParseJSON(result.reason);
+        if (parsed) {
+            if (type === VerificationType.CLASIFICACION && parsed.category) {
+                analysisResult.reason = parsed.category;
+                analysisResult.metadata = { ...analysisResult.metadata, classification: parsed.category };
+            }
+            if ((type === VerificationType.OCR || type === VerificationType.RECONOCIMIENTO_TEXTOS) && parsed.text) {
+                analysisResult.reason = parsed.text;
+                analysisResult.metadata = { ...analysisResult.metadata, extractedText: parsed.text };
+            }
+        }
+
+        const lowerReason = result.reason.toLowerCase();
+        if (lowerReason.includes('i cannot') || lowerReason.includes('not visible') || lowerReason.includes('not clear')) {
+            analysisResult.confidence = 0.3;
+        } else if (result.details) {
+            const raw = (result.details as Record<string, any>).raw as Record<string, any> | undefined;
+            const metrics = raw?.metrics as Record<string, number> | undefined;
+            if (metrics && typeof metrics.output_tokens === 'number' && typeof metrics.input_tokens === 'number') {
+                const ratio = Math.min(1, metrics.output_tokens / Math.max(1, metrics.input_tokens));
+                analysisResult.confidence = Math.max(0.5, ratio);
+            } else {
+                analysisResult.confidence = 0.85;
+            }
+        } else {
+            analysisResult.confidence = 0.85;
+        }
+
+        return analysisResult;
+    }
+
+    private static async detectObjects(
+        photoUrl: string,
+        context?: Record<string, unknown>,
+        config: AIConfig = {}
+    ): Promise<import('../types/ai-verification').AIAnalysisResult> {
+        const expectedObjects = (context?.expectedObjects as string[]) || [];
+        const forbiddenObjects = (context?.forbiddenObjects as string[]) || [];
+        const defaultProvider = process.env.AI_PROVIDER_DEFAULT || 'moondream';
+        const targetProvider = config.provider || defaultProvider;
+
+        // Fall back to query-based approach for non-moondream providers
+        if (targetProvider !== 'moondream') {
+            const prompt = this.getPromptForType(VerificationType.DETECCION_OBJETOS, context);
+            const result = await this.verifyPhoto(photoUrl, prompt, config);
+            return {
+                passed: result.passed,
+                reason: result.reason,
+                confidence: (result.details?.confidence as number) || 0,
+                provider: result.details?.provider as string | undefined,
+                metadata: result.details
+            };
+        }
+
+        const client = this.getMoondreamClient();
+        const detections: { object: string; count: number }[] = [];
+        let allFound = true;
+        const forbiddenDetected: string[] = [];
+
+        for (const obj of expectedObjects) {
+            try {
+                const result = await client.detect(photoUrl, obj);
+                detections.push({ object: obj, count: result.count });
+                if (result.count === 0) allFound = false;
+            } catch {
+                detections.push({ object: obj, count: 0 });
+                allFound = false;
+            }
+        }
+
+        for (const obj of forbiddenObjects) {
+            try {
+                const result = await client.detect(photoUrl, obj);
+                if (result.count > 0) forbiddenDetected.push(obj);
+            } catch {
+                // Ignore detect errors for forbidden checks
+            }
+        }
+
+        const forbiddenFound = forbiddenDetected.length > 0;
+        const passed = allFound && !forbiddenFound;
+        const detectedCount = detections.filter(d => d.count > 0).length;
+        const totalExpected = expectedObjects.length;
+        const confidence = totalExpected > 0
+            ? Math.max(0.5, detectedCount / totalExpected)
+            : 0.5;
+
+        let reason: string;
+        if (!allFound) {
+            const missing = detections.filter(d => d.count === 0).map(d => d.object);
+            reason = `Missing required objects: ${missing.join(', ')}`;
+        } else if (forbiddenFound) {
+            reason = `Forbidden objects detected: ${forbiddenDetected.join(', ')}`;
+        } else {
+            reason = `All required objects detected: ${expectedObjects.join(', ')}`;
+        }
+
+        return {
+            passed,
+            reason,
+            confidence,
+            provider: 'moondream',
+            metadata: { detections, forbiddenDetected }
         };
     }
 
@@ -197,19 +316,29 @@ export class AIService {
     ): string {
         switch (type) {
             case 'OCR':
-                return "Extract all visible text from this image. Return ONLY the text.";
+                return "Extract all visible text from this image. " +
+                    "Respond with ONLY valid JSON in this exact format, no other text: " +
+                    '{"text": "<extracted text>"}';
             case 'CLASIFICACION':
                 const categories = (context?.categories as string[])?.join(', ') || 'Unknown';
-                return `Classify this image into exactly one of these categories: [${categories}]. Return only the category name.`;
+                return `Classify this image into exactly one of these categories: [${categories}]. ` +
+                    "Respond with ONLY valid JSON in this exact format, no other text: " +
+                    '{"category": "<category name>"}';
             case 'DETECCION_OBJETOS':
                 const expected = (context?.expectedObjects as string[])?.join(', ') || 'Any';
                 return `List all visible objects from this list: [${expected}]. Return as a comma-separated list.`;
             case 'ANALISIS_CALIDAD':
-                return "Analyze the quality and cleanliness shown in this image. Rate on scale 1-10. Describe any defects or dirtiness detected. Valid example: 'Score: 8/10. Cleanliness acceptable but minor dust on shelf.'";
+                return "Analyze the quality and cleanliness in this image. " +
+                    "Respond with ONLY valid JSON in this exact format, no other text: " +
+                    '{"score": <number 1-10>, "defects": ["<defect1>", "<defect2>"], "summary": "<brief summary>"}';
             case 'ANALISIS_SEGURIDAD':
-                return "Analyze this image for safety hazards. Check for blocked exits, fire hazards, or unsafe equipment. Return 'SAFE' if compliant, or 'UNSAFE: [reason]' if issues found.";
+                return "Analyze this image for safety hazards. Check for blocked exits, fire hazards, or unsafe equipment. " +
+                    "Respond with ONLY valid JSON in this exact format, no other text: " +
+                    '{"is_safe": <true|false>, "hazards": ["<hazard1>", "<hazard2>"], "risk_level": "low"|"medium"|"high"}';
             case 'RECONOCIMIENTO_TEXTOS':
-                return "Read the specific label text or numbers shown. Be precise.";
+                return "Read the specific label text or numbers shown. Be precise. " +
+                    "Respond with ONLY valid JSON in this exact format, no other text: " +
+                    '{"text": "<extracted label text or numbers>"}';
             default:
                 return "Analyze this image and describe what you see.";
         }

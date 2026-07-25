@@ -16,12 +16,12 @@ interface ProfessionalTabProps {
 }
 
 const statusLabels: Record<string, string> = {
-  ONBOARDING: "Onboarding",
-  ACTIVE: "Active",
-  ON_LEAVE: "On Leave",
-  SUSPENDED: "Suspended",
-  TERMINATED: "Terminated",
-  RESIGNED: "Resigned",
+  ONBOARDING: "En Onboarding",
+  ACTIVE: "Activo",
+  ON_LEAVE: "Licencia / Permiso",
+  SUSPENDED: "Suspendido",
+  TERMINATED: "Baja / Finiquitado",
+  RESIGNED: "Renuncia Voluntaria",
 };
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -34,14 +34,14 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 const terminationReasonLabels: Record<string, string> = {
-  VOLUNTARY_RESIGNATION: "Voluntary Resignation",
-  TERMINATION_WITH_CAUSE: "Termination with Cause",
-  TERMINATION_WITHOUT_CAUSE: "Termination without Cause",
-  CONTRACT_EXPIRED: "Contract Expired",
-  RETIREMENT: "Retirement",
-  DEATH: "Death",
-  MUTUAL_AGREEMENT: "Mutual Agreement",
-  OTHER: "Other",
+  VOLUNTARY_RESIGNATION: "Renuncia Voluntaria",
+  TERMINATION_WITH_CAUSE: "Rescisión con Causa Justificada",
+  TERMINATION_WITHOUT_CAUSE: "Despido Injustificado / Finiquito",
+  CONTRACT_EXPIRED: "Vencimiento de Contrato",
+  RETIREMENT: "Jubilación / Retiro",
+  DEATH: "Fallecimiento",
+  MUTUAL_AGREEMENT: "Mutuo Acuerdo",
+  OTHER: "Otro",
 };
 
 function InfoField({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -49,7 +49,7 @@ function InfoField({ label, value }: { label: string; value: string | number | n
     <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <div className="text-sm font-medium">
-        {value || <span className="text-muted-foreground italic">Not provided</span>}
+        {value || <span className="text-muted-foreground italic">No proporcionado</span>}
       </div>
     </div>
   );
@@ -61,9 +61,9 @@ function DateField({ label, date }: { label: string; date: any }) {
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <div className="text-sm font-medium">
         {date ? (
-          format(new Date(date), "MMM d, yyyy", { locale: es })
+          format(new Date(date), "d 'de' MMM, yyyy", { locale: es })
         ) : (
-          <span className="text-muted-foreground italic">Not provided</span>
+          <span className="text-muted-foreground italic">No proporcionado</span>
         )}
       </div>
     </div>
@@ -94,28 +94,28 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Employment Details</CardTitle>
-              <CardDescription>Position, department, and employment information.</CardDescription>
+              <CardTitle>Detalles Laborales</CardTitle>
+              <CardDescription>Puesto, departamento e información de contratación.</CardDescription>
             </div>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Edit className="mr-2 h-4 w-4" />
-                Edit
+                Editar
               </Button>
             )}
           </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <InfoField label="Employee Number" value={profile.employeeNumber} />
-            <InfoField label="Position" value={profile.position} />
-            <InfoField label="Department" value={profile.department} />
-            <DateField label="Hire Date" date={profile.hireDate} />
-            <DateField label="Seniority Date" date={profile.seniorityDate} />
+            <InfoField label="Número de Empleado" value={profile.employeeNumber} />
+            <InfoField label="Puesto / Cargo" value={profile.position} />
+            <InfoField label="Departamento / Área" value={profile.department} />
+            <DateField label="Fecha de Ingreso" date={profile.hireDate} />
+            <DateField label="Fecha de Antigüedad" date={profile.seniorityDate} />
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Seniority</Label>
+              <Label className="text-xs text-muted-foreground">Antigüedad</Label>
               <div className="text-sm font-medium">
-                {seniorityYears > 0 ? `${seniorityYears} year${seniorityYears !== 1 ? "s" : ""}` : "Less than 1 year"}
+                {seniorityYears > 0 ? `${seniorityYears} año${seniorityYears !== 1 ? "s" : ""}` : "Menos de 1 año"}
               </div>
             </div>
           </div>
@@ -125,11 +125,11 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
               <Separator className="my-4" />
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-xs text-muted-foreground">Probation Period:</Label>
+                <Label className="text-xs text-muted-foreground">Periodo de Prueba:</Label>
                 <Badge variant={isProbationActive ? "secondary" : "outline"}>
                   {isProbationActive
-                    ? `Ends ${format(probationEndDate, "MMM d, yyyy", { locale: es })}`
-                    : `Completed ${format(probationEndDate, "MMM d, yyyy", { locale: es })}`}
+                    ? `Concluye el ${format(probationEndDate, "d 'de' MMM, yyyy", { locale: es })}`
+                    : `Concluido el ${format(probationEndDate, "d 'de' MMM, yyyy", { locale: es })}`}
                 </Badge>
               </div>
             </>
@@ -142,13 +142,13 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Employment Status</CardTitle>
-              <CardDescription>Current employment status and history.</CardDescription>
+              <CardTitle>Estado Laboral</CardTitle>
+              <CardDescription>Estatus laboral actual e historial.</CardDescription>
             </div>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Edit className="mr-2 h-4 w-4" />
-                Update Status
+                Actualizar Estatus
               </Button>
             )}
           </div>
@@ -156,7 +156,7 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Status</Label>
+              <Label className="text-xs text-muted-foreground">Estatus</Label>
               <div>
                 {profile.employeeStatus && (
                   <Badge variant={statusColors[profile.employeeStatus] || "outline"}>
@@ -166,19 +166,19 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Active</Label>
+              <Label className="text-xs text-muted-foreground">Activo</Label>
               <div className="text-sm font-medium">
                 <Badge variant={profile.isActive ? "default" : "destructive"}>
-                  {profile.isActive ? "Yes" : "No"}
+                  {profile.isActive ? "Sí" : "No"}
                 </Badge>
               </div>
             </div>
             <InfoField
-              label="Rehire Eligible"
+              label="Elegible para Recontratación"
               value={
                 profile.rehireEligible !== null && profile.rehireEligible !== undefined
                   ? profile.rehireEligible
-                    ? "Yes"
+                    ? "Sí"
                     : "No"
                   : null
               }
@@ -189,9 +189,9 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
             <>
               <Separator className="my-4" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <DateField label="Termination Date" date={profile.terminationDate} />
+                <DateField label="Fecha de Baja" date={profile.terminationDate} />
                 <InfoField
-                  label="Termination Reason"
+                  label="Motivo de Baja"
                   value={
                     profile.terminationReason
                       ? terminationReasonLabels[profile.terminationReason]
@@ -209,13 +209,13 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Work Schedule</CardTitle>
-              <CardDescription>Standard work hours and shift assignment.</CardDescription>
+              <CardTitle>Jornada y Horario</CardTitle>
+              <CardDescription>Horas de trabajo estándar y asignación de turno.</CardDescription>
             </div>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Edit className="mr-2 h-4 w-4" />
-                Edit
+                Editar
               </Button>
             )}
           </div>
@@ -223,8 +223,8 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <InfoField
-              label="Standard Hours per Week"
-              value={profile.standardHoursPerWeek || "Not specified"}
+              label="Horas Estándar por Semana"
+              value={profile.standardHoursPerWeek ? `${profile.standardHoursPerWeek} hrs/semana` : "No especificado"}
             />
           </div>
         </CardContent>
@@ -235,13 +235,13 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Skills & Languages</CardTitle>
-              <CardDescription>Employee skills and language proficiencies.</CardDescription>
+              <CardTitle>Habilidades e Idiomas</CardTitle>
+              <CardDescription>Competencias del colaborador e idiomas comprobados.</CardDescription>
             </div>
             {canEdit && (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Edit className="mr-2 h-4 w-4" />
-                Edit
+                Editar
               </Button>
             )}
           </div>
@@ -249,7 +249,7 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Skills</Label>
+              <Label className="text-xs text-muted-foreground">Habilidades y Competencias</Label>
               <div className="flex flex-wrap gap-2">
                 {profile.skills && profile.skills.length > 0 ? (
                   profile.skills.map((skill: string, index: number) => (
@@ -258,13 +258,13 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-sm text-muted-foreground italic">No skills added</span>
+                  <span className="text-sm text-muted-foreground italic">Sin habilidades registradas</span>
                 )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Languages</Label>
+              <Label className="text-xs text-muted-foreground">Idiomas</Label>
               <div className="flex flex-wrap gap-2">
                 {profile.languages && profile.languages.length > 0 ? (
                   profile.languages.map((lang: string, index: number) => (
@@ -273,7 +273,7 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-sm text-muted-foreground italic">No languages added</span>
+                  <span className="text-sm text-muted-foreground italic">Sin idiomas registrados</span>
                 )}
               </div>
             </div>
@@ -283,7 +283,7 @@ export function ProfessionalTab({ profile, onEdit, canEdit }: ProfessionalTabPro
             <>
               <Separator className="my-4" />
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">HR Notes</Label>
+                <Label className="text-xs text-muted-foreground">Notas de Recursos Humanos</Label>
                 <div className="text-sm bg-muted p-3 rounded">
                   {profile.notes}
                 </div>

@@ -79,6 +79,10 @@ export async function GET(request: NextRequest) {
             eq(branches.companyId, session.user.companyId)
         ];
 
+        if (userId) {
+            incidentConditions.push(eq(incidents.detectedBy, userId));
+        }
+
         if (branchId) {
             incidentConditions.push(eq(incidents.branchId, branchId));
         }
@@ -125,8 +129,8 @@ export async function GET(request: NextRequest) {
         let filteredLogs = allLogs;
         if (resourceType && resourceType !== "all") {
             filteredLogs = allLogs.filter(log => {
-                if (resourceType === "WORKFLOW") return log.resourceType === "'WORKFLOW'";
-                if (resourceType === "INCIDENT") return log.resourceType === "'INCIDENT'";
+                if (resourceType === "WORKFLOW") return log.resourceType === "WORKFLOW";
+                if (resourceType === "INCIDENT") return log.resourceType === "INCIDENT";
                 return true;
             });
         }

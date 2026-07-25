@@ -284,12 +284,32 @@ export class InventoryService {
     }
 
     static async getTransfer(id: string) {
-        return db.query.inventoryTransfers.findFirst({
-            where: eq(inventoryTransfers.id, id),
-            with: {
-                items: true,
-            }
-        });
+        const [transfer] = await db.select()
+            .from(inventoryTransfers)
+            .where(eq(inventoryTransfers.id, id))
+            .limit(1);
+
+        if (!transfer) return null;
+
+        const items = await db.select({
+            id: inventoryTransferItems.id,
+            itemId: inventoryTransferItems.itemId,
+            requestedQuantity: inventoryTransferItems.requestedQuantity,
+            approvedQuantity: inventoryTransferItems.approvedQuantity,
+            shippedQuantity: inventoryTransferItems.shippedQuantity,
+            receivedQuantity: inventoryTransferItems.receivedQuantity,
+            itemName: inventoryItems.name,
+            itemSku: inventoryItems.sku,
+            itemUnit: inventoryItems.unit,
+        })
+        .from(inventoryTransferItems)
+        .leftJoin(inventoryItems, eq(inventoryTransferItems.itemId, inventoryItems.id))
+        .where(eq(inventoryTransferItems.transferId, id));
+
+        return {
+            ...transfer,
+            items,
+        };
     }
 
     static async getTransfersByBranch(branchId: string, role: 'from' | 'to' | 'both' = 'both') {
@@ -305,16 +325,36 @@ export class InventoryService {
             );
         }
 
-  return db.select({
-    transfer: inventoryTransfers,
-    items: sql<Array<any>>`ARRAY_AGG(ROW(${inventoryTransferItems.id}, ${inventoryTransferItems.itemId}, ${inventoryTransferItems.requestedQuantity}, ${inventoryTransferItems.approvedQuantity}, ${inventoryTransferItems.shippedQuantity}, ${inventoryTransferItems.receivedQuantity})) FILTER (WHERE ${inventoryTransferItems.id} IS NOT NULL)`,
-  })
-  .from(inventoryTransfers)
-  .leftJoin(inventoryTransferItems, eq(inventoryTransfers.id, inventoryTransferItems.transferId))
-  .where(and(...conditions))
-  .groupBy(inventoryTransfers.id)
-  .orderBy(desc(inventoryTransfers.requestedAt));
-}
+        const transfers = await db.select()
+            .from(inventoryTransfers)
+            .where(and(...conditions))
+            .orderBy(desc(inventoryTransfers.requestedAt));
+
+        if (transfers.length === 0) return [];
+
+        const transferIds = transfers.map(t => t.id);
+
+        const items = await db.select({
+            id: inventoryTransferItems.id,
+            transferId: inventoryTransferItems.transferId,
+            itemId: inventoryTransferItems.itemId,
+            requestedQuantity: inventoryTransferItems.requestedQuantity,
+            approvedQuantity: inventoryTransferItems.approvedQuantity,
+            shippedQuantity: inventoryTransferItems.shippedQuantity,
+            receivedQuantity: inventoryTransferItems.receivedQuantity,
+            itemName: inventoryItems.name,
+            itemSku: inventoryItems.sku,
+            itemUnit: inventoryItems.unit,
+        })
+        .from(inventoryTransferItems)
+        .leftJoin(inventoryItems, eq(inventoryTransferItems.itemId, inventoryItems.id))
+        .where(inArray(inventoryTransferItems.transferId, transferIds));
+
+        return transfers.map(t => ({
+            transfer: t,
+            items: items.filter(item => item.transferId === t.id)
+        }));
+    }
 
     static async approveTransfer(transferId: string, approvedBy: string, items?: Array<{ id: string; approvedQuantity: number }>) {
         return await db.transaction(async (tx) => {

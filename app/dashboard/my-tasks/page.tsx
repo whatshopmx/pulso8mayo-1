@@ -42,7 +42,7 @@ export default function MyTasksPage() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Mis Tareas</h1>
                     <p className="text-muted-foreground">
-                        Gestiona tus workflows asignados
+                        Gestiona tus flujos de trabajo asignados
                     </p>
                 </div>
             </div>

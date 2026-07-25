@@ -5,56 +5,90 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/db';
 import { incidents, branches } from '@/lib/db/schema';
-import { eq, desc, and, inArray } from 'drizzle-orm';
-import { IncidentList } from '@/components/incidents/incident-list';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { eq, desc, and, inArray, sql } from 'drizzle-orm';
+import { IncidentList, IncidentListSkeleton } from '@/components/incidents/incident-list';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, AlertTriangle, XCircle, CheckCircle2, Building2 } from 'lucide-react';
 import { BRANCH_COOKIE_NAME } from '@/lib/tenant-context';
 
-async function getIncidents(companyId: string, branchId?: string) {
-  const conditions = [];
+// ── Constants ────────────────────────────────────────────────────────
 
-  if (branchId) {
-    // Filter by specific branch
-    conditions.push(eq(incidents.branchId, branchId));
-  }
+const PAGE_SIZE = 50;
 
-  // Always filter by company (via user's companyId) for security
-  if (companyId) {
-    // Get all branches for this company
+// ── Data layer ──────────────────────────────────────────────────────
+
+interface IncidentRow {
+  id: string;
+  severity: 'CRITICAL' | 'WARNING' | 'FATAL';
+  title: string;
+  status: 'DETECTED' | 'IN_REMEDIATION' | 'AWAITING_EXTERNAL' | 'CONFIRMED' | 'RESOLVED' | 'ESCALATED';
+  createdAt: Date;
+  instanceId: string;
+  branchId: string;
+}
+
+function buildConditions(companyId: string, branchId?: string) {
+  return async () => {
     const companyBranches = await db
       .select({ id: branches.id })
       .from(branches)
       .where(eq(branches.companyId, companyId));
 
     const branchIds = companyBranches.map(b => b.id);
-    if (branchIds.length > 0) {
-      conditions.push(inArray(incidents.branchId, branchIds));
+    if (branchIds.length === 0) return null;
+
+    const conditions = [inArray(incidents.branchId, branchIds)];
+    if (branchId) {
+      conditions.push(eq(incidents.branchId, branchId));
     }
-  }
-
-  const query = db
-    .select()
-    .from(incidents)
-    .orderBy(desc(incidents.createdAt))
-    .limit(100);
-
-  if (conditions.length > 0) {
-    return await query.where(and(...conditions));
-  }
-
-  return await query;
+    return conditions;
+  };
 }
 
-async function getIncidentStats(allIncidents: any[]) {
-  const total = allIncidents.length;
-  const active = allIncidents.filter(i => i.status !== 'RESOLVED').length;
-  const critical = allIncidents.filter(i => i.severity === 'CRITICAL' || i.severity === 'FATAL').length;
-  const resolved = allIncidents.filter(i => i.status === 'RESOLVED').length;
+async function getTotalCount(companyId: string, branchId?: string): Promise<number> {
+  const build = buildConditions(companyId, branchId);
+  const conditions = await build();
+  if (!conditions) return 0;
 
-  return { total, active, critical, resolved };
+  const [result] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(incidents)
+    .where(and(...conditions));
+
+  return Number(result?.count ?? 0);
+}
+
+async function getIncidentsPage(companyId: string, branchId: string | undefined, page: number): Promise<IncidentRow[]> {
+  const build = buildConditions(companyId, branchId);
+  const conditions = await build();
+  if (!conditions) return [];
+
+  return await db
+    .select()
+    .from(incidents)
+    .where(and(...conditions))
+    .orderBy(desc(incidents.createdAt))
+    .limit(PAGE_SIZE)
+    .offset((page - 1) * PAGE_SIZE) as IncidentRow[];
+}
+
+async function getStats(companyId: string, branchId?: string) {
+  const build = buildConditions(companyId, branchId);
+  const conditions = await build();
+  if (!conditions) return { total: 0, active: 0, critical: 0, resolved: 0 };
+
+  const rows = await db
+    .select()
+    .from(incidents)
+    .where(and(...conditions))
+    .limit(500) as IncidentRow[];
+
+  return {
+    total: rows.length,
+    active: rows.filter(i => i.status !== 'RESOLVED').length,
+    critical: rows.filter(i => i.severity === 'CRITICAL' || i.severity === 'FATAL').length,
+    resolved: rows.filter(i => i.status === 'RESOLVED').length,
+  };
 }
 
 async function getBranchName(branchId: string) {
@@ -65,7 +99,12 @@ async function getBranchName(branchId: string) {
   return branch?.name;
 }
 
-export default async function IncidentsPage() {
+// ── Page ────────────────────────────────────────────────────────────
+
+export default async function IncidentsPage(props: { searchParams: Promise<{ page?: string }> }) {
+  const searchParams = await props.searchParams;
+  const page = Math.max(1, parseInt(searchParams.page ?? '1'));
+
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -74,98 +113,81 @@ export default async function IncidentsPage() {
     redirect('/sign-in');
   }
 
-  // Get selected branch from cookie (user's active selection)
   const cookieStore = await cookies();
   const selectedBranchId = cookieStore.get(BRANCH_COOKIE_NAME)?.value;
 
-  // Get company ID from user
   const companyId = session.user.companyId;
   if (!companyId) {
     redirect('/onboarding');
   }
 
-  const allIncidents = await getIncidents(companyId, selectedBranchId);
-  const stats = await getIncidentStats(allIncidents);
-  const branchName = selectedBranchId ? await getBranchName(selectedBranchId) : null;
+  const [allIncidents, totalCount, stats, branchName] = await Promise.all([
+    getIncidentsPage(companyId, selectedBranchId, page),
+    getTotalCount(companyId, selectedBranchId),
+    getStats(companyId, selectedBranchId),
+    selectedBranchId ? getBranchName(selectedBranchId) : Promise.resolve(null),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Incidents</h1>
-            <p className="text-muted-foreground">
-              Monitor and manage workflow incidents
-            </p>
-          </div>
-          {branchName && (
-            <Badge variant="outline" className="gap-1">
-              <Building2 className="h-3 w-3" />
-              {branchName}
-            </Badge>
-          )}
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Incidentes</h1>
+          <p className="text-muted-foreground">
+            Monitorea y gestiona los incidentes de flujos de trabajo
+          </p>
         </div>
+        {branchName && (
+          <Badge variant="outline" className="gap-1">
+            <Building2 className="h-3 w-3" />
+            {branchName}
+          </Badge>
+        )}
       </div>
 
-            {/* Stats Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Incidents</CardTitle>
-                        <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats.total}</div>
-                    </CardContent>
-                </Card>
+      {/* Inline summary strip */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+          <AlertCircle className="h-3.5 w-3.5" />
+          <span className="font-medium text-foreground">{stats.total}</span> totales
+        </span>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Active</CardTitle>
-                        <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats.active}</div>
-                    </CardContent>
-                </Card>
+        <span className="text-border">·</span>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Critical</CardTitle>
-                        <XCircle className="h-4 w-4 text-red-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-red-600">{stats.critical}</div>
-                    </CardContent>
-                </Card>
+        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+          <span className="font-medium text-foreground">{stats.active}</span> activos
+        </span>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Resolved</CardTitle>
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-green-600">{stats.resolved}</div>
-                    </CardContent>
-                </Card>
-            </div>
+        <span className="text-border">·</span>
 
-            {/* Incidents List */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>All Incidents</CardTitle>
-                    <CardDescription>
-                        View and manage incidents from workflow executions
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Suspense fallback={<div>Loading incidents...</div>}>
-                        <IncidentList
-                            incidents={allIncidents}
-                        />
-                    </Suspense>
-                </CardContent>
-            </Card>
-        </div>
-    );
+        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+          <XCircle className="h-3.5 w-3.5 text-destructive" />
+          <span className={`font-medium ${stats.critical > 0 ? 'text-destructive' : 'text-foreground'}`}>
+            {stats.critical}
+          </span> críticos
+        </span>
+
+        <span className="text-border">·</span>
+
+        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+          <span className="font-medium text-foreground">{stats.resolved}</span> resueltos
+        </span>
+      </div>
+
+      {/* Incidents table */}
+      <Suspense fallback={<IncidentListSkeleton />}>
+        <IncidentList
+          incidents={allIncidents}
+          totalCount={totalCount}
+          page={page}
+          totalPages={totalPages}
+        />
+      </Suspense>
+    </div>
+  );
 }

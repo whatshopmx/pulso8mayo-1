@@ -26,6 +26,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useTenant } from "@/hooks/use-tenant";
 import { Loader2, X } from "lucide-react";
 import { complianceServiceTypes, maintenanceFrequencies, complianceServiceAreas } from "@/lib/equipment-constants";
 
@@ -36,6 +37,7 @@ interface ServiceProvider {
 }
 
 const formSchema = z.object({
+  branchId: z.string().min(1, "La sucursal es requerida"),
   serviceType: z.string().min(1, "El tipo de servicio es requerido"),
   serviceName: z.string().min(1, "El nombre del servicio es requerido"),
   regulationReference: z.string().optional(),
@@ -60,14 +62,17 @@ interface ComplianceServiceFormProps {
 
 export function ComplianceServiceForm({ initialData, onSuccess }: ComplianceServiceFormProps) {
   const { toast } = useToast();
+  const { tenant } = useTenant();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [isLoadingProviders, setIsLoadingProviders] = useState(true);
   const [selectedAreas, setSelectedAreas] = useState<string[]>(initialData?.serviceAreas || []);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      branchId: initialData?.branchId || tenant?.branchId || "",
       serviceType: initialData?.serviceType || "",
       serviceName: initialData?.serviceName || "",
       regulationReference: initialData?.regulationReference || "",
@@ -86,7 +91,26 @@ export function ComplianceServiceForm({ initialData, onSuccess }: ComplianceServ
 
   useEffect(() => {
     fetchProviders();
+    fetchBranches();
   }, []);
+
+  const fetchBranches = async () => {
+    try {
+      const res = await fetch("/api/branches");
+      if (res.ok) {
+        const result = await res.json();
+        const branchList = result.data || result || [];
+        setBranches(branchList);
+        if (!form.getValues("branchId") && tenant?.branchId) {
+          form.setValue("branchId", tenant.branchId);
+        } else if (!form.getValues("branchId") && branchList.length > 0) {
+          form.setValue("branchId", branchList[0].id);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching branches:", err);
+    }
+  };
 
   const fetchProviders = async () => {
     try {
@@ -124,6 +148,7 @@ export function ComplianceServiceForm({ initialData, onSuccess }: ComplianceServ
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          branchId: data.branchId,
           serviceType: data.serviceType,
           serviceName: data.serviceName,
           regulationReference: data.regulationReference,
@@ -178,6 +203,34 @@ export function ComplianceServiceForm({ initialData, onSuccess }: ComplianceServ
           {/* Service Information */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Información del Servicio</h3>
+
+            <FormField
+              control={form.control}
+              name="branchId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sucursal *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona la sucursal" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {branches.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Sucursal asignada para recibir este servicio normativo
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

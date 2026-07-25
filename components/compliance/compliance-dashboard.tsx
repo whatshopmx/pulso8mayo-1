@@ -120,8 +120,8 @@ export function ComplianceDashboard() {
         
         // Period
         doc.setFontSize(10);
-        doc.text(`Period: Last ${data.period.days} days`, 14, 28);
-        doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 33);
+        doc.text(`Período: Últimos ${data.period.days} días`, 14, 28);
+        doc.text(`Generado: ${new Date().toLocaleDateString("es-MX")}`, 14, 33);
 
         // Overall Compliance Rate
         const overallRate = data.scorecards.length > 0
@@ -129,7 +129,7 @@ export function ComplianceDashboard() {
             : 0;
         
         doc.setFontSize(12);
-        doc.text(`Overall Compliance Rate: ${overallRate}%`, 14, 45);
+        doc.text(`Cumplimiento General: ${overallRate}%`, 14, 45);
 
         // Scorecards Table
         const scorecardData = data.scorecards.map(s => [
@@ -142,7 +142,7 @@ export function ComplianceDashboard() {
 
         autoTable(doc, {
             startY: 50,
-            head: [['Category', 'Type', 'Compliance Rate', 'Total Workflows', 'Critical']],
+            head: [['Categoría', 'Tipo', 'Cumplimiento', 'Flujos Totales', 'Críticos']],
             body: scorecardData,
             theme: 'striped',
             headStyles: { fillColor: [59, 130, 246] },
@@ -151,7 +151,7 @@ export function ComplianceDashboard() {
         // Alerts Section
         let finalY = (doc as any).lastAutoTable.finalY + 10;
         doc.setFontSize(14);
-        doc.text("Active Alerts", 14, finalY);
+        doc.text("Alertas Activas", 14, finalY);
         
         if (data.alerts.length > 0) {
             const alertData = data.alerts.map(a => [
@@ -159,7 +159,7 @@ export function ComplianceDashboard() {
                 a.severity,
                 a.status,
                 a.workflowName || 'N/A',
-                new Date(a.createdAt).toLocaleDateString()
+                new Date(a.createdAt).toLocaleDateString("es-MX")
             ]);
 
             autoTable(doc, {
@@ -211,7 +211,7 @@ export function ComplianceDashboard() {
                             <SelectValue placeholder="Period" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="7">Last 7 days</SelectItem>
+                            <SelectItem value="7">Últimos 7 días</SelectItem>
                             <SelectItem value="30">Last 30 days</SelectItem>
                             <SelectItem value="90">Last 90 days</SelectItem>
                         </SelectContent>
@@ -219,10 +219,10 @@ export function ComplianceDashboard() {
 
                     <Select value={selectedBranch} onValueChange={setSelectedBranch}>
                         <SelectTrigger className="w-[200px]">
-                            <SelectValue placeholder="All Branches" />
+                            <SelectValue placeholder="Todas las sucursales" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Branches</SelectItem>
+                            <SelectItem value="all">Todas las sucursales</SelectItem>
                             {data.branchBreakdown.map(branch => (
                                 <SelectItem key={branch.branchId} value={branch.branchId || ''}>
                                     {branch.branchName}
@@ -234,7 +234,7 @@ export function ComplianceDashboard() {
 
                 <Button onClick={exportToPDF} variant="outline" size="sm">
                     <Download className="h-4 w-4 mr-2" />
-                    Export PDF
+                        Exportar PDF
                 </Button>
             </div>
 
@@ -243,14 +243,14 @@ export function ComplianceDashboard() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">
-                            Overall Compliance
+                            Cumplimiento General
                         </CardTitle>
                         <Shield className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{overallComplianceRate}%</div>
                         <p className="text-xs text-muted-foreground">
-                            Average across all categories
+                            Promedio general de cumplimiento
                         </p>
                     </CardContent>
                 </Card>
@@ -275,7 +275,7 @@ export function ComplianceDashboard() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">
-                            Active Alerts
+                            Alertas Activas
                         </CardTitle>
                         <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
@@ -306,11 +306,11 @@ export function ComplianceDashboard() {
             {/* Main Dashboard Tabs */}
             <Tabs defaultValue="scorecards" className="space-y-4">
                 <TabsList>
-                    <TabsTrigger value="scorecards">Scorecards</TabsTrigger>
-                    <TabsTrigger value="trends">Historical Trends</TabsTrigger>
-                    <TabsTrigger value="deadlines">Deadlines</TabsTrigger>
-                    <TabsTrigger value="alerts">Alerts</TabsTrigger>
-                    <TabsTrigger value="branches">By Branch</TabsTrigger>
+                    <TabsTrigger value="scorecards">Evaluaciones</TabsTrigger>
+                    <TabsTrigger value="trends">Tendencias</TabsTrigger>
+                    <TabsTrigger value="deadlines">Vencimientos</TabsTrigger>
+                    <TabsTrigger value="alerts">Alertas</TabsTrigger>
+                    <TabsTrigger value="branches">Por Sucursal</TabsTrigger>
                 </TabsList>
 
                 {/* Scorecards Tab */}
@@ -335,11 +335,11 @@ export function ComplianceDashboard() {
                                 <CardContent>
                                     <div className="space-y-2 text-sm">
                                         <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Total Workflows</span>
+                                            <span className="text-muted-foreground">Flujos Totales</span>
                                             <span className="font-medium">{scorecard.totalWorkflows}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Critical Workflows</span>
+                                            <span className="text-muted-foreground">Flujos Críticos</span>
                                             <span className={`font-medium ${scorecard.criticalWorkflows > 0 ? 'text-destructive' : ''}`}>
                                                 {scorecard.criticalWorkflows}
                                             </span>
@@ -357,10 +357,10 @@ export function ComplianceDashboard() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <TrendingUp className="h-5 w-5" />
-                                Compliance Rate Trends
+                                Tendencias de Cumplimiento
                             </CardTitle>
                             <CardDescription>
-                                Daily compliance rate over the selected period
+                                Cumplimiento diario durante el período seleccionado
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -425,7 +425,7 @@ export function ComplianceDashboard() {
                                 </ChartContainer>
                             ) : (
                                 <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                                    No trend data available for this period
+                                    No hay datos de tendencia para este período
                                 </div>
                             )}
                         </CardContent>
@@ -438,10 +438,10 @@ export function ComplianceDashboard() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Calendar className="h-5 w-5" />
-                                Upcoming Deadlines
+                            Próximos Vencimientos
                             </CardTitle>
                             <CardDescription>
-                                Scheduled compliance activities for the next 30 days
+                                Actividades de cumplimiento programadas para los próximos 30 días
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -466,11 +466,11 @@ export function ComplianceDashboard() {
                                             <div className="flex items-center gap-2">
                                                 {deadline.isCritical && (
                                                     <Badge variant="destructive" className="text-xs">
-                                                        Critical
+                                                        Crítico
                                                     </Badge>
                                                 )}
                                                 <Badge variant="outline">
-                                                    {deadline.dueDate ? new Date(deadline.dueDate).toLocaleDateString() : 'TBD'}
+                                                    {deadline.dueDate ? new Date(deadline.dueDate).toLocaleDateString("es-MX") : 'Pendiente'}
                                                 </Badge>
                                             </div>
                                         </div>
@@ -479,7 +479,7 @@ export function ComplianceDashboard() {
                             ) : (
                                 <div className="text-center py-8 text-muted-foreground">
                                     <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                    <p>No upcoming deadlines</p>
+                                    <p>No hay vencimientos próximos</p>
                                 </div>
                             )}
                         </CardContent>
@@ -492,10 +492,10 @@ export function ComplianceDashboard() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <AlertTriangle className="h-5 w-5" />
-                                Compliance Alerts
+                                Alertas de Cumplimiento
                             </CardTitle>
                             <CardDescription>
-                                Active compliance issues requiring attention
+                                Problemas activos de cumplimiento que requieren atención
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -534,7 +534,7 @@ export function ComplianceDashboard() {
                                                     </div>
                                                 </div>
                                                 <div className="text-sm text-muted-foreground">
-                                                    {new Date(alert.createdAt).toLocaleDateString()}
+                                                    {new Date(alert.createdAt).toLocaleDateString("es-MX")}
                                                 </div>
                                             </div>
                                         </div>
@@ -543,8 +543,8 @@ export function ComplianceDashboard() {
                             ) : (
                                 <div className="text-center py-8 text-muted-foreground">
                                     <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50 text-green-500" />
-                                    <p className="text-lg font-medium">No active alerts</p>
-                                    <p className="text-sm">All compliance checks are passing</p>
+                                    <p className="text-lg font-medium">Sin alertas activas</p>
+                                    <p className="text-sm">Todos los controles están en orden</p>
                                 </div>
                             )}
                         </CardContent>
@@ -557,10 +557,10 @@ export function ComplianceDashboard() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Activity className="h-5 w-5" />
-                                Compliance by Branch
+                                Cumplimiento por Sucursal
                             </CardTitle>
                             <CardDescription>
-                                Drill-down view of compliance metrics per branch
+                                Vista detallada de cumplimiento por sucursal
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -575,18 +575,18 @@ export function ComplianceDashboard() {
                                                 <div>
                                                     <p className="font-medium">{branch.branchName}</p>
                                                     <p className="text-sm text-muted-foreground">
-                                                        {branch.totalWorkflows} workflows • {branch.criticalIssues} issues
+                                                        {branch.totalWorkflows} flujos • {branch.criticalIssues} incidencias
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-4">
                                                     <div className="text-right">
                                                         <p className="text-2xl font-bold">{branch.complianceRate}%</p>
-                                                        <p className="text-xs text-muted-foreground">Compliance</p>
+                                                        <p className="text-xs text-muted-foreground">Cumplimiento</p>
                                                     </div>
                                                     <Badge 
                                                         variant={branch.complianceRate >= 90 ? "default" : branch.complianceRate >= 70 ? "secondary" : "destructive"}
                                                     >
-                                                        {branch.complianceRate >= 90 ? 'Excellent' : branch.complianceRate >= 70 ? 'Good' : 'Needs Attention'}
+                                                        {branch.complianceRate >= 90 ? 'Excelente' : branch.complianceRate >= 70 ? 'Bueno' : 'Requiere Atención'}
                                                     </Badge>
                                                 </div>
                                             </div>
@@ -606,7 +606,7 @@ export function ComplianceDashboard() {
                                 </div>
                             ) : (
                                 <div className="text-center py-8 text-muted-foreground">
-                                    <p>No branch data available</p>
+                                    <p>No hay datos por sucursal</p>
                                 </div>
                             )}
                         </CardContent>

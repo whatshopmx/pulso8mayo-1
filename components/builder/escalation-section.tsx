@@ -14,8 +14,18 @@ interface EscalationSectionProps {
 }
 
 const ROLES = ['EMPLEADO', 'GERENTE', 'OWNER', 'SUPERVISOR'];
-const CHANNELS = ['whatsapp', 'call_priority', 'email', 'sms'];
-const TRIGGER_CONDITIONS = ['immediate', 'remediation_failed', 'no_response', 'no_technician_response'];
+const CHANNELS = [
+    { value: 'whatsapp', label: 'WhatsApp' },
+    { value: 'call_priority', label: 'Llamada Prioritaria' },
+    { value: 'email', label: 'Correo' },
+    { value: 'sms', label: 'SMS' }
+];
+const TRIGGER_CONDITIONS = [
+    { value: 'immediate', label: 'Inmediato' },
+    { value: 'remediation_failed', label: 'Remediación fallida' },
+    { value: 'no_response', label: 'Sin respuesta' },
+    { value: 'no_technician_response', label: 'Sin respuesta técnica' }
+];
 
 export function EscalationSection({ escalationChain, onUpdate }: EscalationSectionProps) {
     const [expanded, setExpanded] = useState(false);
@@ -68,7 +78,7 @@ export function EscalationSection({ escalationChain, onUpdate }: EscalationSecti
                 >
                     {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                     <Label className="text-xs font-semibold cursor-pointer">
-                        Escalation Chain ({escalationChain.length}/3)
+                        Cadena de Escalación ({escalationChain.length}/3)
                     </Label>
                 </div>
                 {escalationChain.length < 3 && (
@@ -79,7 +89,7 @@ export function EscalationSection({ escalationChain, onUpdate }: EscalationSecti
                         className="h-6 text-xs"
                     >
                         <Plus className="h-3 w-3 mr-1" />
-                        Add Level
+                        Agregar Nivel
                     </Button>
                 )}
             </div>
@@ -89,7 +99,7 @@ export function EscalationSection({ escalationChain, onUpdate }: EscalationSecti
                     {escalationChain.map((level, idx) => (
                         <div key={idx} className="border rounded p-2 space-y-2 bg-muted/20">
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-semibold">Level {level.level}</span>
+                                <span className="text-xs font-semibold">Nivel {level.level}</span>
                                 <Button
                                     size="sm"
                                     variant="ghost"
@@ -102,7 +112,7 @@ export function EscalationSection({ escalationChain, onUpdate }: EscalationSecti
 
                             <div className="grid grid-cols-2 gap-2">
                                 <div className="space-y-1">
-                                    <Label className="text-[10px]">Trigger After (min)</Label>
+                                    <Label className="text-xs">Disparar después (min)</Label>
                                     <Input
                                         type="number"
                                         value={level.triggerAfterMinutes}
@@ -111,7 +121,7 @@ export function EscalationSection({ escalationChain, onUpdate }: EscalationSecti
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label className="text-[10px]">Trigger Condition</Label>
+                                    <Label className="text-xs">Condición de Disparo</Label>
                                     <Select
                                         value={level.triggerCondition}
                                         onValueChange={(v) => updateLevel(idx, { triggerCondition: v })}
@@ -121,8 +131,8 @@ export function EscalationSection({ escalationChain, onUpdate }: EscalationSecti
                                         </SelectTrigger>
                                         <SelectContent>
                                             {TRIGGER_CONDITIONS.map(cond => (
-                                                <SelectItem key={cond} value={cond} className="text-xs">
-                                                    {cond.replace(/_/g, ' ')}
+                                                <SelectItem key={cond.value} value={cond.value} className="text-xs">
+                                                    {cond.label}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -131,13 +141,13 @@ export function EscalationSection({ escalationChain, onUpdate }: EscalationSecti
                             </div>
 
                             <div className="space-y-1">
-                                <Label className="text-[10px]">Notify Roles</Label>
+                                <Label className="text-xs">Notificar a Roles</Label>
                                 <div className="flex flex-wrap gap-1">
                                     {ROLES.map(role => (
                                         <button
                                             key={role}
                                             onClick={() => toggleRole(idx, role)}
-                                            className={`text-[10px] px-2 py-1 rounded border ${level.notifyRoles.includes(role)
+                                            className={`text-xs px-2 py-1 rounded border ${level.notifyRoles.includes(role)
                                                     ? 'bg-primary text-primary-foreground'
                                                     : 'bg-background'
                                                 }`}
@@ -149,7 +159,7 @@ export function EscalationSection({ escalationChain, onUpdate }: EscalationSecti
                             </div>
 
                             <div className="space-y-1">
-                                <Label className="text-[10px]">Channel</Label>
+                                <Label className="text-xs">Canal</Label>
                                 <Select
                                     value={level.channel}
                                     onValueChange={(v) => updateLevel(idx, { channel: v })}
@@ -159,8 +169,8 @@ export function EscalationSection({ escalationChain, onUpdate }: EscalationSecti
                                     </SelectTrigger>
                                     <SelectContent>
                                         {CHANNELS.map(ch => (
-                                            <SelectItem key={ch} value={ch} className="text-xs">
-                                                {ch}
+                                            <SelectItem key={ch.value} value={ch.value} className="text-xs">
+                                                {ch.label}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -168,9 +178,9 @@ export function EscalationSection({ escalationChain, onUpdate }: EscalationSecti
                             </div>
 
                             <div className="space-y-1">
-                                <Label className="text-[10px]">Message</Label>
+                                <Label className="text-xs">Mensaje</Label>
                                 <Input
-                                    placeholder="Alert message..."
+                                    placeholder="Mensaje de alerta..."
                                     value={level.message}
                                     onChange={(e) => updateLevel(idx, { message: e.target.value })}
                                     className="text-xs h-7"

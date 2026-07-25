@@ -335,7 +335,7 @@ export function WorkflowExecutor({
       if (step.id === 'confirm-count') {
         return <StockCountConfirmSummary steps={execution.steps} onConfirm={(val: string) => setStepData({ ...stepData, [step.id]: val })} value={stepData[step.id] || currentStepInstance?.value || ''} />;
       }
-      const options = step.config?.options || [];
+      const options = (step.config?.options || []) as any[];
         return (
           <Select
             value={stepValue || ''}
@@ -345,11 +345,15 @@ export function WorkflowExecutor({
               <SelectValue placeholder="Selecciona una opción..." />
             </SelectTrigger>
             <SelectContent>
-              {options.map((option: string) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
+              {options.map((option: any) => {
+                const optValue = typeof option === 'string' ? option : option.value;
+                const optLabel = typeof option === 'string' ? option : option.label;
+                return (
+                  <SelectItem key={optValue} value={optValue}>
+                    {optLabel}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         );
@@ -357,22 +361,26 @@ export function WorkflowExecutor({
       case 'CHECKBOX':
         return (
           <div className="space-y-3">
-            {(step.config?.options || []).map((option: string) => (
-              <div key={option} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`${step.id}-${option}`}
-                  checked={(stepValue || []).includes(option)}
-                  onCheckedChange={(checked) => {
-                    const currentValues = stepValue || [];
-                    const newValues = checked
-                      ? [...currentValues, option]
-                      : currentValues.filter((v: string) => v !== option);
-                    setStepData({ ...stepData, [step.id]: newValues });
-                  }}
-                />
-                <Label htmlFor={`${step.id}-${option}`}>{option}</Label>
-              </div>
-            ))}
+            {((step.config?.options || []) as any[]).map((option: any) => {
+              const optValue = typeof option === 'string' ? option : option.value;
+              const optLabel = typeof option === 'string' ? option : option.label;
+              return (
+                <div key={optValue} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`${step.id}-${optValue}`}
+                    checked={(stepValue || []).includes(optValue)}
+                    onCheckedChange={(checked) => {
+                      const currentValues = stepValue || [];
+                      const newValues = checked
+                        ? [...currentValues, optValue]
+                        : currentValues.filter((v: string) => v !== optValue);
+                      setStepData({ ...stepData, [step.id]: newValues });
+                    }}
+                  />
+                  <Label htmlFor={`${step.id}-${optValue}`}>{optLabel}</Label>
+                </div>
+              );
+            })}
           </div>
         );
 

@@ -78,7 +78,15 @@ const normalizeTemplate = (json: any): Template => {
         title: rawTitle,
         description: rawDesc || helperText,
         required: rawRequired,
-        aiVerification: step.aiVerification || step.verificacionIA,
+        aiVerification: (() => {
+          const rawAi = step.aiVerification || step.verificacionIA;
+          if (!rawAi) return undefined;
+          const { threshold, ...rest } = rawAi;
+          return {
+            ...rest,
+            ...(threshold !== undefined ? { confidenceThreshold: threshold } : {}),
+          } as any;
+        })(),
         logicRules: step.logicRules || step.reglasLogica,
         branches: step.branches || step.ramas,
         validation: step.validation || step.validacion,

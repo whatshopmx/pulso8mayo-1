@@ -42,11 +42,11 @@ const stepCategoryColors: Record<string, string> = {
 };
 
 const stepCategoryLabels: Record<string, string> = {
-  DOCUMENTS: "Documents",
-  TRAINING: "Training",
-  SETUP: "Setup",
-  COMPLIANCE: "Compliance",
-  ORIENTATION: "Orientation",
+  DOCUMENTS: "Documentación",
+  TRAINING: "Capacitación",
+  SETUP: "Equipamiento / Accesos",
+  COMPLIANCE: "Cumplimiento NOM",
+  ORIENTATION: "Inducción",
 };
 
 export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
@@ -56,11 +56,11 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
     return (
       <div className="text-center py-12">
         <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold mb-2">No Onboarding Record</h3>
+        <h3 className="text-lg font-semibold mb-2">Sin Registro de Onboarding</h3>
         <p className="text-muted-foreground text-sm mb-4">
-          This employee has not been enrolled in an onboarding process yet.
+          Este colaborador aún no ha sido inscrito en un proceso de inducción y onboarding.
         </p>
-        <Button>Create Onboarding</Button>
+        <Button>Iniciar Onboarding</Button>
       </div>
     );
   }
@@ -74,9 +74,9 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
       {/* Onboarding Progress */}
       <Card>
         <CardHeader>
-          <CardTitle>Onboarding Progress</CardTitle>
+          <CardTitle>Progreso del Onboarding</CardTitle>
           <CardDescription>
-            Track onboarding completion for this employee
+            Seguimiento al cumplimiento del plan de incorporación e inducción
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -84,12 +84,12 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-sm font-semibold">
-                  {completedSteps} of {totalSteps} steps completed
+                  {completedSteps} de {totalSteps} pasos completados
                 </Label>
                 <div className="text-xs text-muted-foreground mt-1">
-                  Started{" "}
+                  Iniciado el{" "}
                   {onboarding.startDate
-                    ? format(new Date(onboarding.startDate), "MMM d, yyyy", { locale: es })
+                    ? format(new Date(onboarding.startDate), "d 'de' MMM, yyyy", { locale: es })
                     : "N/A"}
                 </div>
               </div>
@@ -103,9 +103,9 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
                 }
               >
                 {onboarding.status === "COMPLETED"
-                  ? "Completed"
+                  ? "Completado"
                   : onboarding.status === "IN_PROGRESS"
-                    ? "In Progress"
+                    ? "En Progreso"
                     : onboarding.status || "N/A"}
               </Badge>
             </div>
@@ -113,8 +113,8 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
 
             {onboarding.targetEndDate && (
               <div className="text-sm text-muted-foreground">
-                Target end date:{" "}
-                {format(new Date(onboarding.targetEndDate), "MMM d, yyyy", { locale: es })}
+                Fecha objetivo de conclusión:{" "}
+                {format(new Date(onboarding.targetEndDate), "d 'de' MMM, yyyy", { locale: es })}
               </div>
             )}
 
@@ -123,7 +123,7 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
               <>
                 <Separator className="my-4" />
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Assigned Support</Label>
+                  <Label className="text-sm font-semibold">Acompañamiento Asignado</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {onboarding.assignedBuddyId && (
                       <div className="flex items-center gap-3 p-3 border rounded-lg">
@@ -133,9 +133,9 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="text-sm font-medium">Buddy</div>
+                          <div className="text-sm font-medium">Buddy (Compañero de Apoyo)</div>
                           <div className="text-xs text-muted-foreground">
-                            User ID: {onboarding.assignedBuddyId}
+                            ID Usuario: {onboarding.assignedBuddyId}
                           </div>
                         </div>
                       </div>
@@ -148,9 +148,9 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="text-sm font-medium">Mentor</div>
+                          <div className="text-sm font-medium">Mentor Asignado</div>
                           <div className="text-xs text-muted-foreground">
-                            User ID: {onboarding.assignedMentorId}
+                            ID Usuario: {onboarding.assignedMentorId}
                           </div>
                         </div>
                       </div>
@@ -166,9 +166,9 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
       {/* Step Checklist */}
       <Card>
         <CardHeader>
-          <CardTitle>Step Checklist</CardTitle>
+          <CardTitle>Lista de Pasos e Inducción</CardTitle>
           <CardDescription>
-            All onboarding steps for this employee
+            Tareas y evidencias del expediente de onboarding
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -213,16 +213,16 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             {step.dueDate && (
                               <span>
-                                Due:{" "}
-                                {format(new Date(step.dueDate), "MMM d, yyyy", {
+                                Vencimiento:{" "}
+                                {format(new Date(step.dueDate), "d 'de' MMM, yyyy", {
                                   locale: es,
                                 })}
                               </span>
                             )}
                             {step.completedDate && (
                               <span>
-                                Completed:{" "}
-                                {format(new Date(step.completedDate), "MMM d, yyyy", {
+                                Completado:{" "}
+                                {format(new Date(step.completedDate), "d 'de' MMM, yyyy", {
                                   locale: es,
                                 })}
                               </span>
@@ -245,7 +245,7 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
                                 onClick={() => setUploadingStepId(uploadingStepId === step.id ? null : step.id)}
                               >
                                 <FileUp className="h-4 w-4 mr-2" />
-                                {uploadingStepId === step.id ? "Cancel" : "Upload"}
+                                {uploadingStepId === step.id ? "Cancelar" : "Subir Evidencia"}
                               </Button>
                             )}
                             <Button
@@ -265,7 +265,6 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
                                     }
                                   );
                                   if (response.ok) {
-                                    // Reload page or update state
                                     window.location.reload();
                                   }
                                 } catch (error) {
@@ -273,7 +272,7 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
                                 }
                               }}
                             >
-                              Mark Complete
+                              Marcar Completado
                             </Button>
                           </div>
                           
@@ -300,9 +299,9 @@ export function OnboardingTab({ onboarding, steps }: OnboardingTabProps) {
           ) : (
             <div className="text-center py-12">
               <Circle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Steps Defined</h3>
+              <h3 className="text-lg font-semibold mb-2">Sin Pasos Configurados</h3>
               <p className="text-muted-foreground text-sm">
-                No onboarding steps have been created for this employee.
+                No se han registrado pasos de onboarding para este colaborador.
               </p>
             </div>
           )}

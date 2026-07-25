@@ -218,7 +218,7 @@ export function NOM035Report({ branchId, defaultStartDate, defaultEndDate }: NOM
 
             lines.push('REPORTE NOM-035 - RIESGOS PSICOSOCIALES');
             lines.push(`Sucursal,${reportData.companyInfo.branchName}`);
-            lines.push(`Período,${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
+            lines.push(`Período,${startDate.toLocaleDateString("es-MX")} - ${endDate.toLocaleDateString("es-MX")}`);
             lines.push('');
 
             lines.push('RESUMEN EJECUTIVO');

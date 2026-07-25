@@ -18,8 +18,11 @@ import {
   ShiftTemplate,
 } from "@/lib/types/shifts";
 
-export { DEFAULT_TEMPLATES };
 import { revalidatePath } from "next/cache";
+
+export async function getDefaultTemplates() {
+  return DEFAULT_TEMPLATES;
+}
 
 export async function getShifts(filters: ShiftFilters = {}): Promise<Shift[]> {
   return plannedShiftService.getPlannedShifts(filters);

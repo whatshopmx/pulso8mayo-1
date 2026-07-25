@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageHeader, PageContainer } from "@/components/shared";
-import { Plus, Download, Filter, RefreshCw, Store, TrendingUp } from "lucide-react";
+import { Plus, Download, Filter, RefreshCw, Store, TrendingUp, ArrowLeft, History, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { KpiCard } from "@/components/analytics/kpi-card";
@@ -61,6 +61,7 @@ export default function AnalyticsDashboard() {
     const [lastRefresh, setLastRefresh] = React.useState<Date>(new Date());
     const [isAutoRefreshing, setIsAutoRefreshing] = React.useState(true);
     const [userActive, setUserActive] = React.useState(false);
+    const [drillDownKpi, setDrillDownKpi] = React.useState<KpiData | null>(null);
     const fetchKpis = React.useCallback(async () => {
         try {
             setIsLoading(true);
@@ -81,7 +82,7 @@ export default function AnalyticsDashboard() {
         } catch (error) {
             toast({
                 title: "Error",
-                description: "Failed to fetch KPI data",
+                description: "No se pudieron obtener los datos de KPI",
                 variant: "destructive",
             });
         } finally {
@@ -148,8 +149,8 @@ export default function AnalyticsDashboard() {
     const handleExport = async () => {
         try {
             toast({
-                title: "Export Started",
-                description: "Your dashboard is being exported to PDF...",
+                title: "Exportación iniciada",
+                description: "Tu tablero se está exportando a PDF...",
             });
 
             const doc = new jsPDF();
@@ -227,25 +228,28 @@ export default function AnalyticsDashboard() {
             doc.save(`analytics-dashboard-${Date.now()}.pdf`);
 
             toast({
-                title: "Export Complete",
-                description: "Dashboard exported successfully to PDF",
+                title: "Exportación completada",
+                description: "El tablero se exportó correctamente a PDF",
             });
         } catch (error) {
             console.error('PDF Export Error:', error);
             toast({
-                title: "Export Failed",
-                description: "Failed to export dashboard to PDF",
+                title: "Error al exportar",
+                description: "No se pudo exportar el tablero a PDF",
                 variant: "destructive",
             });
         }
     };
 
     const handleDrillDown = (kpiId: string) => {
-        toast({
-            title: "Drill Down",
-            description: `Drilling down into KPI: ${kpiId}`,
-        });
-        // Implement drill-down logic
+        const kpi = kpis.find((k) => k.id === kpiId);
+        if (kpi) {
+            setDrillDownKpi(kpi);
+        }
+    };
+
+    const handleBackToOverview = () => {
+        setDrillDownKpi(null);
     };
 
     const categories = ["all", ...Array.from(new Set(kpis.map((k) => k.category)))];
@@ -253,8 +257,8 @@ export default function AnalyticsDashboard() {
     return (
         <PageContainer>
             <PageHeader
-                title="Analytics Dashboard"
-                description="Track your key performance indicators in real-time"
+                title="Tablero de Analíticas"
+                description="Monitorea tus indicadores clave de rendimiento en tiempo real"
                 icon={TrendingUp}
                 actions={
                     <>
@@ -269,7 +273,7 @@ export default function AnalyticsDashboard() {
                                 className="h-6 px-2 text-xs"
                                 onClick={() => setIsAutoRefreshing(!isAutoRefreshing)}
                             >
-                                {isAutoRefreshing ? 'Pause' : 'Resume'}
+                                {isAutoRefreshing ? 'Pausar' : 'Reanudar'}
                             </Button>
                         </div>
                         
@@ -278,12 +282,12 @@ export default function AnalyticsDashboard() {
                         </Button>
                         <Button variant="outline" onClick={handleExport}>
                             <Download className="h-4 w-4 mr-2" />
-                            Export PDF
+                            Exportar PDF
                         </Button>
                         <Button asChild>
                             <Link href="/dashboard/analytics/kpi-builder">
                                 <Plus className="h-4 w-4 mr-2" />
-                                New KPI
+                                Nuevo KPI
                             </Link>
                         </Button>
                     </>
@@ -295,33 +299,33 @@ export default function AnalyticsDashboard() {
                 <CardHeader className="pb-3">
                     <div className="flex items-center gap-2">
                         <Filter className="h-4 w-4" />
-                        <CardTitle className="text-base">Filters</CardTitle>
+                        <CardTitle className="text-base">Filtros</CardTitle>
                     </div>
                 </CardHeader>
                 <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Period</label>
+                            <label className="text-sm font-medium">Período</label>
                             <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="24h">Last 24 hours</SelectItem>
-                                    <SelectItem value="7d">Last 7 days</SelectItem>
-                                    <SelectItem value="30d">Last 30 days</SelectItem>
-                                    <SelectItem value="90d">Last 90 days</SelectItem>
+                                    <SelectItem value="24h">Últimas 24 horas</SelectItem>
+                                    <SelectItem value="7d">Últimos 7 días</SelectItem>
+                                    <SelectItem value="30d">Últimos 30 días</SelectItem>
+                                    <SelectItem value="90d">Últimos 90 días</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Category</label>
+                            <label className="text-sm font-medium">Categoría</label>
                             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Categories</SelectItem>
+                                    <SelectItem value="all">Todas las Categorías</SelectItem>
                                     {categories.filter(c => c !== "all").map((category) => (
                                         <SelectItem key={category} value={category}>
                                             {category}
@@ -331,13 +335,13 @@ export default function AnalyticsDashboard() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Branch</label>
+                            <label className="text-sm font-medium">Sucursal</label>
                             <Select value={selectedBranch} onValueChange={setSelectedBranch}>
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Branches</SelectItem>
+                                    <SelectItem value="all">Todas las Sucursales</SelectItem>
                                     {branches.map((b) => (
                                         <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                                     ))}
@@ -356,13 +360,13 @@ export default function AnalyticsDashboard() {
       {/* Summary Stats */}
       <Card>
         <CardHeader>
-          <CardTitle>Summary</CardTitle>
-          <CardDescription>Overall performance metrics</CardDescription>
+          <CardTitle>Resumen</CardTitle>
+          <CardDescription>Métricas de desempeño general</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">Total KPIs</div>
+              <div className="text-sm text-muted-foreground">KPIs Totales</div>
               <div className="text-2xl font-bold">{kpis.length}</div>
             </div>
             <div className="space-y-1">
@@ -372,13 +376,13 @@ export default function AnalyticsDashboard() {
               </div>
             </div>
             <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">Warnings</div>
+              <div className="text-sm text-muted-foreground">Advertencias</div>
               <div className="text-2xl font-bold text-yellow-600">
                 {kpis.filter((k) => k.status === "WARNING").length}
               </div>
             </div>
             <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">Critical</div>
+              <div className="text-sm text-muted-foreground">Crítico</div>
               <div className="text-2xl font-bold text-red-600">
                 {kpis.filter((k) => k.status === "CRITICAL").length}
               </div>
@@ -387,26 +391,100 @@ export default function AnalyticsDashboard() {
         </CardContent>
       </Card>
 
-      {/* KPI Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {filteredKpis.map((kpi) => (
-                    <KpiCard
-                        key={kpi.id}
-                        kpi={kpi}
-                        currentValue={kpi.currentValue}
-                        previousValue={kpi.previousValue}
-                        history={kpi.history}
-                        status={kpi.status}
-                        onDrillDown={handleDrillDown}
-                    />
-                ))}
+      {/* Drill-Down View */}
+      {drillDownKpi && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" onClick={handleBackToOverview}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div>
+                  <CardTitle>{drillDownKpi.name}</CardTitle>
+                  <CardDescription>
+                    {drillDownKpi.description} · {drillDownKpi.category}
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge variant={drillDownKpi.status === 'NORMAL' ? 'secondary' : drillDownKpi.status === 'WARNING' ? 'warning' : 'destructive'}>
+                {drillDownKpi.status}
+              </Badge>
             </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-3">Historial</h4>
+                <div className="h-[250px]">
+                  <KpiChart
+                    title="Tendencia"
+                    data={drillDownKpi.history.map((h) => ({
+                      date: h.date,
+                      value: h.value,
+                      target: drillDownKpi.target,
+                    }))}
+                    chartType="line"
+                    metricType={drillDownKpi.metricType}
+                    unit={drillDownKpi.unit}
+                    showTarget
+                  />
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-3">Detalle</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between p-3 rounded-lg bg-card border">
+                    <span className="text-sm">Valor Actual</span>
+                    <span className="text-lg font-bold">{drillDownKpi.currentValue.toFixed(drillDownKpi.decimalPlaces || 2)}{drillDownKpi.unit}</span>
+                  </div>
+                  <div className="flex justify-between p-3 rounded-lg bg-card border">
+                    <span className="text-sm">Valor Anterior</span>
+                    <span className="text-lg font-medium">{drillDownKpi.previousValue?.toFixed(drillDownKpi.decimalPlaces || 2) || 'N/A'}{drillDownKpi.unit}</span>
+                  </div>
+                  <div className="flex justify-between p-3 rounded-lg bg-card border">
+                    <span className="text-sm">Meta</span>
+                    <span className="text-lg font-medium">{drillDownKpi.target?.toFixed(2) || 'Sin meta'}{drillDownKpi.unit}</span>
+                  </div>
+                  <div className="flex justify-between p-3 rounded-lg bg-card border">
+                    <span className="text-sm">Tipo</span>
+                    <span className="text-lg font-medium capitalize">{drillDownKpi.metricType.toLowerCase()}</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-card border">
+                    <History className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      {drillDownKpi.history.length} registros en el período
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* KPI Cards */}
+      {!drillDownKpi && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {filteredKpis.map((kpi) => (
+            <KpiCard
+              key={kpi.id}
+              kpi={kpi}
+              currentValue={kpi.currentValue}
+              previousValue={kpi.previousValue}
+              history={kpi.history}
+              status={kpi.status}
+              onDrillDown={handleDrillDown}
+            />
+          ))}
+        </div>
+      )}
 
             {/* Charts */}
             <Tabs defaultValue="trends" className="space-y-4">
                 <TabsList>
-                    <TabsTrigger value="trends">Trends</TabsTrigger>
-                    <TabsTrigger value="comparison">Comparison</TabsTrigger>
+                    <TabsTrigger value="trends">Tendencias</TabsTrigger>
+                    <TabsTrigger value="comparison">Comparativa</TabsTrigger>
                 </TabsList>
                 <TabsContent value="trends" className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
@@ -429,7 +507,7 @@ export default function AnalyticsDashboard() {
                 </TabsContent>
                 <TabsContent value="comparison" className="space-y-4">
                     <KpiChart
-                        title="KPI Comparison by Category"
+                        title="Comparativa de KPIs por Categoría"
                         data={filteredKpis.map((kpi) => ({
                             date: kpi.category,
                             value: kpi.currentValue,

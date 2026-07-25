@@ -23,6 +23,8 @@ import { AlertTriangle, Calendar, Download, Package } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { KpiCard, KpiGrid } from "@/components/shared";
+import { useExportCsv } from "@/components/shared/use-export-csv";
 
 interface ExpirationItem {
   itemId: string;
@@ -53,6 +55,7 @@ export function ExpirationReport({ branchId }: ExpirationReportProps) {
   const [loading, setLoading] = useState(true);
   const [daysAhead, setDaysAhead] = useState('7');
   const [includeExpired, setIncludeExpired] = useState(false);
+  const { exportToCsv } = useExportCsv();
 
   useEffect(() => {
     fetchExpirations();
@@ -82,32 +85,19 @@ export function ExpirationReport({ branchId }: ExpirationReportProps) {
   };
 
   const exportToCSV = () => {
-    if (items.length === 0) {
-      toast.error('No hay datos para exportar');
-      return;
-    }
-
-    const headers = ['Producto', 'Lote', 'Cantidad', 'Unidad', 'Vencimiento', 'Días Restantes', 'Sucursal'];
-    const csvRows = items.map(item => [
-      item.itemName,
-      item.lotNumber,
-      item.currentQuantity,
-      item.unit,
-      new Date(item.expirationDate).toLocaleDateString('es-MX'),
-      item.daysUntilExpiration,
-      item.branchName,
-    ]);
-
-    const csv = [headers.join(','), ...csvRows.map(row => row.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `vencimientos-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-
-    toast.success('Reporte exportado exitosamente');
+    exportToCsv({
+      headers: ['Producto', 'Lote', 'Cantidad', 'Unidad', 'Vencimiento', 'Días Restantes', 'Sucursal'],
+      rows: items.map(item => [
+        item.itemName,
+        item.lotNumber,
+        item.currentQuantity,
+        item.unit,
+        new Date(item.expirationDate).toLocaleDateString('es-MX'),
+        item.daysUntilExpiration,
+        item.branchName,
+      ]),
+      filename: 'vencimientos',
+    });
   };
 
   const getDaysBadge = (days: number) => {
@@ -154,61 +144,34 @@ export function ExpirationReport({ branchId }: ExpirationReportProps) {
     <div className="space-y-6">
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Productos</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.totalItems}</div>
-              <p className="text-xs text-muted-foreground">
-                Próximos a vencer
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Vencen Pronto</CardTitle>
-              <Calendar className="h-4 w-4 text-amber-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">{summary.expiringSoon}</div>
-              <p className="text-xs text-muted-foreground">
-                En los próximos 7 días
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Ya Vencidos</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{summary.alreadyExpired}</div>
-              <p className="text-xs text-muted-foreground">
-                Requieren acción inmediata
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pérdida Estimada</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                ${summary.estimatedLoss.toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Valor del inventario en riesgo
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <KpiGrid columns={4}>
+          <KpiCard
+            title="Total Productos"
+            value={summary.totalItems}
+            icon={<Package />}
+            description="Próximos a vencer"
+          />
+          <KpiCard
+            title="Vencen Pronto"
+            value={summary.expiringSoon}
+            icon={<Calendar className="text-amber-600" />}
+            description="En los próximos 7 días"
+            valueClassName="text-amber-600"
+          />
+          <KpiCard
+            title="Ya Vencidos"
+            value={summary.alreadyExpired}
+            icon={<AlertTriangle className="text-red-600" />}
+            description="Requieren acción inmediata"
+            valueClassName="text-red-600"
+          />
+          <KpiCard
+            title="Pérdida Estimada"
+            value={`$${summary.estimatedLoss.toFixed(2)}`}
+            icon={<Package />}
+            description="Valor del inventario en riesgo"
+          />
+        </KpiGrid>
       )}
 
       {/* Filters */}

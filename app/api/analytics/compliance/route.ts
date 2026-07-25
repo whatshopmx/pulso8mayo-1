@@ -1,4 +1,3 @@
-
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { incidents, workflowInstances, workflowTemplates, branches } from "@/lib/db/schema";
@@ -12,65 +11,95 @@ export async function GET(req: Request) {
             headers: await headers()
         });
 
-    if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
+        if (!session?.user?.id || !session?.user?.companyId) {
+            return new NextResponse("Unauthorized", { status: 401 });
+        }
 
-    const companyId = session.user.companyId;
+        const companyId = session.user.companyId;
 
-    // Get params for date range (optional)
-    const { searchParams } = new URL(req.url);
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
+        // Get params for date range and branch filtering
+        const { searchParams } = new URL(req.url);
+        const startDate = searchParams.get('startDate');
+        const endDate = searchParams.get('endDate');
+        const requestedBranchId = searchParams.get('branch') || searchParams.get('branchId');
 
-    const companyBranches = await db
-      .select({ id: branches.id })
-      .from(branches)
-      .where(eq(branches.companyId, companyId));
+        const companyBranches = await db
+            .select({ id: branches.id })
+            .from(branches)
+            .where(eq(branches.companyId, companyId));
 
-    const branchIds = companyBranches.map(b => b.id);
+        const companyBranchIds = companyBranches.map(b => b.id);
+        
+        // Determine effective target branch IDs
+        const targetBranchIds = (requestedBranchId && requestedBranchId !== 'all' && companyBranchIds.includes(requestedBranchId))
+            ? [requestedBranchId]
+            : companyBranchIds;
 
-        // 1. Average Score (Compliance Rate)
-        // 2. Total Inspections (Completed Instances)
-        // 3. Open Incidents
+        if (targetBranchIds.length === 0) {
+            return NextResponse.json({
+                complianceRate: 0,
+                complianceSentiment: "Sin datos",
+                totalInspections: 0,
+                openIncidents: 0,
+                openIncidentsSentiment: "Bajo",
+                activeStaff: 0,
+                activeStaffSentiment: "Bajo",
+                workflowsByStatus: [],
+                complianceByCategory: [],
+                dailyTrend: [],
+                criticalIncidents: [],
+                period: "Custom"
+            });
+        }
 
+        // Build date conditions helper
+        const dateConditions: any[] = [];
+        if (startDate) {
+            dateConditions.push(gte(workflowInstances.createdAt, new Date(startDate)));
+        }
+        if (endDate) {
+            dateConditions.push(lte(workflowInstances.createdAt, new Date(endDate)));
+        }
+
+        // 1. Average Score & Total Inspections
         const scoreResult = await db
             .select({
                 avgScore: sql<number>`avg(${workflowInstances.score})`,
                 count: sql<number>`count(*)`
             })
             .from(workflowInstances)
-      .where(
-        and(
-          eq(workflowInstances.status, 'COMPLETED'),
-          inArray(workflowInstances.branchId, branchIds)
-        )
-      );
+            .where(
+                and(
+                    eq(workflowInstances.status, 'COMPLETED'),
+                    inArray(workflowInstances.branchId, targetBranchIds),
+                    ...dateConditions
+                )
+            );
 
+        // 2. Open Incidents
         const openIncidentsResult = await db
             .select({
                 count: sql<number>`count(*)`
             })
             .from(incidents)
-      .where(
-        and(
-          eq(incidents.status, 'DETECTED'),
-          inArray(incidents.branchId, branchIds),
-        )
-      );
+            .where(
+                and(
+                    eq(incidents.status, 'DETECTED'),
+                    inArray(incidents.branchId, targetBranchIds),
+                )
+            );
 
-        // EXTRA: Workflows by Status
-        // @ts-ignore - status exists but TS might be picky
+        // Workflows by Status
         const statusResult = await db
             .select({
                 status: workflowInstances.status,
                 count: sql<number>`count(*)`
             })
-    .from(workflowInstances)
-    .where(inArray(workflowInstances.branchId, branchIds))
-    .groupBy(workflowInstances.status);
+            .from(workflowInstances)
+            .where(and(inArray(workflowInstances.branchId, targetBranchIds), ...dateConditions))
+            .groupBy(workflowInstances.status);
 
-        // EXTRA: Compliance by Category (Radial Chart)
+        // Compliance by Category (Radial Chart)
         const categoriesResult = await db
             .select({
                 category: workflowTemplates.complianceType,
@@ -78,18 +107,18 @@ export async function GET(req: Request) {
             })
             .from(workflowInstances)
             .innerJoin(workflowTemplates, eq(workflowInstances.workflowTemplateId, sql`cast(${workflowTemplates.id} as text)`))
-            .where(and(eq(workflowInstances.status, 'COMPLETED'), inArray(workflowInstances.branchId, branchIds)))
+            .where(and(eq(workflowInstances.status, 'COMPLETED'), inArray(workflowInstances.branchId, targetBranchIds), ...dateConditions))
             .groupBy(workflowTemplates.complianceType);
 
-        // EXTRA: Labor Stats (Shifts)
+        // Labor Stats (Active Shifts)
         const activeShiftsResult = await db
             .select({
                 count: sql<number>`count(*)`
             })
-    .from(workflowInstances)
-    .where(and(eq(workflowInstances.status, 'IN_PROGRESS'), inArray(workflowInstances.branchId, branchIds)));
+            .from(workflowInstances)
+            .where(and(eq(workflowInstances.status, 'IN_PROGRESS'), inArray(workflowInstances.branchId, targetBranchIds)));
 
-        // EXTRA: 7-Day Trend
+        // 7-Day Trend
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const trendResult = await db
@@ -98,17 +127,17 @@ export async function GET(req: Request) {
                 count: sql<number>`count(*)`
             })
             .from(workflowInstances)
-      .where(
-        and(
-          eq(workflowInstances.status, 'COMPLETED'),
-          gte(workflowInstances.completedAt, sevenDaysAgo),
-          inArray(workflowInstances.branchId, branchIds)
-        )
-      )
+            .where(
+                and(
+                    eq(workflowInstances.status, 'COMPLETED'),
+                    gte(workflowInstances.completedAt, sevenDaysAgo),
+                    inArray(workflowInstances.branchId, targetBranchIds)
+                )
+            )
             .groupBy(sql`DATE(${workflowInstances.completedAt})`)
             .orderBy(sql`DATE(${workflowInstances.completedAt})`);
 
-        // EXTRA: Critical Incidents
+        // Critical Incidents
         const criticalIncidentsResult = await db
             .select({
                 id: incidents.id,
@@ -118,13 +147,13 @@ export async function GET(req: Request) {
                 status: incidents.status
             })
             .from(incidents)
-      .where(
-        and(
-          sql`${incidents.severity} IN ('CRITICAL', 'WARNING')`,
-          sql`${incidents.status} != 'RESOLVED'`,
-          inArray(incidents.branchId, branchIds),
-        )
-      )
+            .where(
+                and(
+                    sql`${incidents.severity} IN ('CRITICAL', 'WARNING')`,
+                    sql`${incidents.status} != 'RESOLVED'`,
+                    inArray(incidents.branchId, targetBranchIds),
+                )
+            )
             .orderBy(desc(incidents.createdAt))
             .limit(3);
 
@@ -153,7 +182,7 @@ export async function GET(req: Request) {
                 count: Number(t.count)
             })),
             criticalIncidents: criticalIncidentsResult,
-            period: "All Time"
+            period: startDate || endDate ? "Custom" : "All Time"
         });
 
     } catch (error) {

@@ -62,7 +62,7 @@ export function ExitInterviewForm({ onNotesChange, onConductedByChange }: ExitIn
             </div>
           </div>
 
-          <div className="space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-100 italic text-[11px] text-muted-foreground flex items-start gap-2">
+          <div className="space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-100 italic text-xs text-muted-foreground flex items-start gap-2">
             <Flag className="h-3.5 w-3.5 mt-0.5" />
             Esta información es confidencial y solo accesible por el departamento de Capital Humano para análisis de rotación.
           </div>

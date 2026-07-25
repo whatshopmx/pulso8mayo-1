@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Scan, PackagePlus, CheckCircle, Loader2, AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Scan, PackagePlus, CheckCircle, Loader2, AlertCircle, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 
 interface ReceivingFormProps {
@@ -19,14 +20,23 @@ interface ReceivingFormProps {
 
 export function ReceivingForm({ itemId, itemName, itemUnit = "UNIT", suppliers = [], onSuccess }: ReceivingFormProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [locations, setLocations] = useState<Array<{ id: string; name: string; type: string }>>([]);
     const [formData, setFormData] = useState({
         quantity: "",
         batchNumber: `BATCH-${Date.now()}`,
         expirationDate: "",
         supplierId: suppliers[0]?.id || "",
         unitCost: "",
+        storageLocationId: "",
         notes: "",
     });
+
+    useEffect(() => {
+        fetch("/api/inventory/storage-locations?active=true")
+            .then(res => res.ok && res.json())
+            .then(data => setLocations(data.locations || []))
+            .catch(() => {});
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -70,6 +80,7 @@ export function ReceivingForm({ itemId, itemName, itemUnit = "UNIT", suppliers =
                 expirationDate: "",
                 supplierId: suppliers[0]?.id || "",
                 unitCost: "",
+                storageLocationId: "",
                 notes: "",
             });
 
@@ -164,14 +175,39 @@ export function ReceivingForm({ itemId, itemName, itemUnit = "UNIT", suppliers =
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="notes">Notas</Label>
-                            <Input
-                                id="notes"
-                                value={formData.notes}
-                                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                placeholder="Notas opcionales"
-                            />
+                            <Label htmlFor="storageLocation">Ubicación de Almacenamiento</Label>
+                            <Select value={formData.storageLocationId} onValueChange={(v) => setFormData({ ...formData, storageLocationId: v })}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccionar ubicación..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {locations.length > 0 ? (
+                                        locations.map((loc) => (
+                                            <SelectItem key={loc.id} value={loc.id}>
+                                                <div className="flex items-center gap-2">
+                                                    <Warehouse className="w-3 h-3" />
+                                                    {loc.name}
+                                                </div>
+                                            </SelectItem>
+                                        ))
+                                    ) : (
+                                        <div className="p-2 text-sm text-muted-foreground text-center">
+                                            No hay ubicaciones registradas
+                                        </div>
+                                    )}
+                                </SelectContent>
+                            </Select>
                         </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="notes">Notas</Label>
+                        <Input
+                            id="notes"
+                            value={formData.notes}
+                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                            placeholder="Notas opcionales"
+                        />
                     </div>
 
                     <Button

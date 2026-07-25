@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { workflowInstances, workflowAssignments, inventoryBatches, inventoryMovements, incidents } from "../db/schema";
+import { workflowInstances, workflowAssignments, inventoryBatches, inventoryMovements, incidents, temperatureLogs } from "../db/schema";
 import { eq, and, gte, lte, sql, count, avg, isNull } from "drizzle-orm";
 import { subDays, startOfDay, endOfDay } from "date-fns";
 
@@ -131,11 +131,23 @@ export class KpiCalculator {
   }
 
   private async countTotalTempReadings(companyId: string, branchId?: string): Promise<number> {
-    return 0;
+    const conditions = [];
+    if (branchId && branchId !== 'all') conditions.push(eq(temperatureLogs.branchId, branchId));
+    const [result] = await db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(temperatureLogs)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+    return Number(result?.count || 0);
   }
 
   private async countCompliantTempReadings(companyId: string, branchId?: string): Promise<number> {
-    return 0;
+    const conditions = [eq(temperatureLogs.isCompliant, true)];
+    if (branchId && branchId !== 'all') conditions.push(eq(temperatureLogs.branchId, branchId));
+    const [result] = await db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(temperatureLogs)
+      .where(and(...conditions));
+    return Number(result?.count || 0);
   }
 }
 

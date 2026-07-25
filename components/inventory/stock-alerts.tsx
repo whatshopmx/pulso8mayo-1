@@ -14,6 +14,14 @@ import {
 } from "@/components/ui/table";
 import { AlertCircle, Package, TrendingDown, Clock, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { KpiCard, KpiGrid } from "@/components/shared";
+
+const formatUnit = (unit?: string | null) => {
+    if (!unit) return "unidades";
+    const u = unit.toLowerCase();
+    if (u === "units" || u === "unit") return "unidades";
+    return unit;
+};
 
 interface StockAlertData {
     itemId: string;
@@ -123,59 +131,32 @@ export function StockAlerts({ branchId, onRefresh }: StockAlertsProps) {
     return (
         <div className="space-y-6">
             {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Stock Bajo</CardTitle>
-                        <TrendingDown className="h-4 w-4 text-yellow-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{alerts.summary.lowStockCount}</div>
-                        <p className="text-xs text-muted-foreground">
-                            Items por debajo del mínimo
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Agotados</CardTitle>
-                        <Package className="h-4 w-4 text-red-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{alerts.summary.outOfStockCount}</div>
-                        <p className="text-xs text-muted-foreground">
-                            Items sin stock
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Por Vencer</CardTitle>
-                        <Clock className="h-4 w-4 text-orange-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{alerts.summary.expiringSoonCount}</div>
-                        <p className="text-xs text-muted-foreground">
-                            Vencen en 7 días
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Vencidos</CardTitle>
-                        <AlertCircle className="h-4 w-4 text-red-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{alerts.summary.expiredCount}</div>
-                        <p className="text-xs text-muted-foreground">
-                            Items vencidos
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
+            <KpiGrid columns={4}>
+                <KpiCard
+                    title="Stock Bajo"
+                    value={alerts.summary.lowStockCount}
+                    icon={<TrendingDown className="text-yellow-600" />}
+                    description="Items por debajo del mínimo"
+                />
+                <KpiCard
+                    title="Agotados"
+                    value={alerts.summary.outOfStockCount}
+                    icon={<Package className="text-red-600" />}
+                    description="Items sin stock"
+                />
+                <KpiCard
+                    title="Por Vencer"
+                    value={alerts.summary.expiringSoonCount}
+                    icon={<Clock className="text-orange-600" />}
+                    description="Vencen en 7 días"
+                />
+                <KpiCard
+                    title="Vencidos"
+                    value={alerts.summary.expiredCount}
+                    icon={<AlertCircle className="text-red-600" />}
+                    description="Items vencidos"
+                />
+            </KpiGrid>
 
             {/* Action Bar */}
             <div className="flex justify-between items-center">
@@ -193,10 +174,10 @@ export function StockAlerts({ branchId, onRefresh }: StockAlertsProps) {
 
             {/* Out of Stock */}
             {alerts.outOfStock.length > 0 && (
-                <Card className="border-red-200 bg-red-50 dark:bg-red-950/20">
+                <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
-                            <Package className="h-5 w-5" />
+                        <CardTitle className="flex items-center gap-2">
+                            <Package className="h-5 w-5 text-red-500" />
                             Productos Agotados
                         </CardTitle>
                         <CardDescription>
@@ -266,11 +247,11 @@ export function StockAlerts({ branchId, onRefresh }: StockAlertsProps) {
                                             <TableCell className="font-medium">{item.itemName}</TableCell>
                                             <TableCell>
                                                 <Badge variant={percentage <= 25 ? "destructive" : "secondary"}>
-                                                    {item.currentStock} {item.unit}
+                                                    {item.currentStock} {formatUnit(item.unit)}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell>{item.minLevel} {item.unit}</TableCell>
-                                            <TableCell>{item.maxLevel || "-"} {item.unit}</TableCell>
+                                            <TableCell>{item.minLevel} {formatUnit(item.unit)}</TableCell>
+                                            <TableCell>{item.maxLevel || "-"} {formatUnit(item.unit)}</TableCell>
                                             <TableCell>
                                                 <Badge variant={percentage <= 25 ? "destructive" : percentage <= 50 ? "secondary" : "outline"}>
                                                     {percentage}%
@@ -288,10 +269,10 @@ export function StockAlerts({ branchId, onRefresh }: StockAlertsProps) {
 
             {/* Expiring Soon */}
             {alerts.expiringSoon.length > 0 && (
-                <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
+                <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
-                            <Clock className="h-5 w-5" />
+                        <CardTitle className="flex items-center gap-2">
+                            <Clock className="h-5 w-5 text-orange-500" />
                             Por Vencer Pronto
                         </CardTitle>
                         <CardDescription>
@@ -318,7 +299,7 @@ export function StockAlerts({ branchId, onRefresh }: StockAlertsProps) {
                                         <TableRow key={item.itemId}>
                                             <TableCell className="font-medium">{item.itemName}</TableCell>
                                             <TableCell>{item.lotNumber || "-"}</TableCell>
-                                            <TableCell>{item.currentStock} {item.unit}</TableCell>
+                                            <TableCell>{item.currentStock} {formatUnit(item.unit)}</TableCell>
                                             <TableCell>
                                                 {new Date(item.expirationDate!).toLocaleDateString("es-MX")}
                                             </TableCell>
@@ -338,10 +319,10 @@ export function StockAlerts({ branchId, onRefresh }: StockAlertsProps) {
 
             {/* Expired */}
             {alerts.expired.length > 0 && (
-                <Card className="border-red-200 bg-red-50 dark:bg-red-950/20">
+                <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
-                            <AlertCircle className="h-5 w-5" />
+                        <CardTitle className="flex items-center gap-2">
+                            <AlertCircle className="h-5 w-5 text-red-500" />
                             Productos Vencidos
                         </CardTitle>
                         <CardDescription>
@@ -368,7 +349,7 @@ export function StockAlerts({ branchId, onRefresh }: StockAlertsProps) {
                                         <TableRow key={item.itemId}>
                                             <TableCell className="font-medium">{item.itemName}</TableCell>
                                             <TableCell>{item.lotNumber || "-"}</TableCell>
-                                            <TableCell>{item.currentStock} {item.unit}</TableCell>
+                                            <TableCell>{item.currentStock} {formatUnit(item.unit)}</TableCell>
                                             <TableCell>
                                                 {new Date(item.expirationDate!).toLocaleDateString("es-MX")}
                                             </TableCell>

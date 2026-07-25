@@ -20,6 +20,7 @@ import {
   complianceServiceTypeEnum,
 } from '@/lib/db/schema/equipment';
 import { eq, and, desc, asc, gte, lte, isNull, or, sql } from 'drizzle-orm';
+import { branches } from '@/lib/db/schema';
 import { v4 as uuidv4 } from 'uuid';
 
 // Types
@@ -492,6 +493,8 @@ export class EquipmentService {
   async createComplianceService(data: CreateComplianceServiceInput, createdBy: string) {
     const serviceData: Record<string, unknown> = {
       ...data,
+      providerId: data.providerId || null,
+      workflowTemplateId: data.workflowTemplateId || null,
       createdBy,
     };
     const [service] = await db
@@ -502,23 +505,35 @@ export class EquipmentService {
   }
 
   /**
-   * Get compliance services by branch
+   * Get compliance services by branch or company
    */
-  async getComplianceServicesByBranch(branchId: string) {
+  async getComplianceServicesByBranch(branchId?: string, companyId?: string) {
+    const conditions = [eq(branchComplianceServices.isActive, true)];
+
+    if (companyId) {
+      conditions.push(eq(branchComplianceServices.companyId, companyId));
+    }
+
+    if (branchId && branchId !== "ALL") {
+      conditions.push(eq(branchComplianceServices.branchId, branchId));
+    }
+
     return db
       .select({
         service: branchComplianceServices,
         provider: serviceProviders,
+        branch: branches,
       })
       .from(branchComplianceServices)
       .leftJoin(
         serviceProviders,
         eq(branchComplianceServices.providerId, serviceProviders.id)
       )
-      .where(and(
-        eq(branchComplianceServices.branchId, branchId),
-        eq(branchComplianceServices.isActive, true)
-      ))
+      .leftJoin(
+        branches,
+        eq(branchComplianceServices.branchId, branches.id)
+      )
+      .where(and(...conditions))
       .orderBy(asc(branchComplianceServices.nextServiceDate));
   }
 

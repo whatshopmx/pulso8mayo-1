@@ -6,9 +6,10 @@ import { eq, and, sql, gte, isNull, inArray, count } from "drizzle-orm"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, Users, MapPin, TrendingUp, FileText, ArrowLeftRight, Flag, CheckSquare, Coffee, FolderOpen, UserCheck, AlertTriangle, CheckCircle, BarChart3, ClipboardList, Shield, Zap } from "lucide-react"
+import { Calendar, Clock, Users, MapPin, TrendingUp, FileText, ArrowLeftRight, Flag, CheckSquare, Coffee, FolderOpen, UserCheck, AlertTriangle, CheckCircle, BarChart3, ClipboardList, Shield, Zap, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { requireManagementRole } from "@/lib/rbac/require-role"
+import { LaborQuickActionDrawer } from "@/components/labor/labor-quick-action-drawer"
 
 export default async function LaborManagementPage() {
   await requireManagementRole();
@@ -181,557 +182,334 @@ export default async function LaborManagementPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Gestión de Personal</h1>
-                    <p className="text-muted-foreground">
-                        Administra turnos, asistencia, horas extras, breaks y expediente laboral de tu equipo
+                    <h1 className="text-2xl font-bold tracking-tight">Gestión de Personal</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Administra turnos, asistencia, horas extras, descansos y expedientes laborales
                     </p>
                 </div>
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    <CheckCircle className="w-3 h-3 mr-1" />
+                <Badge variant="outline" className="gap-1 px-2.5 py-1 text-xs font-medium">
+                    <Shield className="w-3.5 h-3.5 text-emerald-600" />
                     Cumplimiento LFT
                 </Badge>
             </div>
 
-            {/* KPI Summary Cards - PRD 8.1.1 */}
+            {/* Operational Command Banner & Quick Action Drawer */}
+            <LaborQuickActionDrawer
+                pendingApprovalsCount={pendingApprovalsCount}
+                pendingSwapsCount={pendingSwapsCount}
+                pendingLeaveCount={pendingLeaveCount}
+                incidentCount={incidentCount}
+            />
+
+            {/* Top Operational Metrics Ribbon */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200">
+                <Card className="bg-card border-border shadow-none">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-blue-700">Empleados Activos</CardTitle>
-                        <Users className="h-4 w-4 text-blue-600" />
+                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Empleados Activos</CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-3xl font-bold text-blue-900">{activeCount}</div>
-                        <p className="text-xs text-blue-600">
+                        <div className="text-2xl font-bold tracking-tight">{activeCount}</div>
+                        <p className="text-xs text-muted-foreground mt-1">
                             +{newEmployeesCount} nuevos esta semana
                         </p>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-green-50 to-green-100/50 border-green-200">
+                <Card className="bg-card border-border shadow-none">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-green-700">Horas Semanales</CardTitle>
-                        <Clock className="h-4 w-4 text-green-600" />
+                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Horas Semanales</CardTitle>
+                        <Clock className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-3xl font-bold text-green-900">{weeklyHours}</div>
-                        <p className="text-xs text-green-600">
+                        <div className="text-2xl font-bold tracking-tight">{weeklyHours}h</div>
+                        <p className="text-xs text-muted-foreground mt-1">
                             Últimos 7 días
                         </p>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100/50 border-yellow-200">
+                <Card className="bg-card border-border shadow-none">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-yellow-700">Pendientes</CardTitle>
-                        <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Aprobaciones Pendientes</CardTitle>
+                        <AlertTriangle className={`h-4 w-4 ${pendingApprovalsCount > 0 ? 'text-amber-500' : 'text-muted-foreground'}`} />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-3xl font-bold text-yellow-900">{pendingApprovalsCount}</div>
-                        <p className="text-xs text-yellow-600">
-                            Requieren aprobación
+                        <div className="text-2xl font-bold tracking-tight">{pendingApprovalsCount}</div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            {pendingApprovalsCount > 0 ? 'Requieren acción inmediata' : 'Sin pendientes'}
                         </p>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200">
+                <Card className="bg-card border-border shadow-none">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-purple-700">Cumplimiento</CardTitle>
-                        <Shield className="h-4 w-4 text-purple-600" />
+                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cumplimiento General</CardTitle>
+                        <Shield className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-3xl font-bold text-purple-900">{complianceRate}%</div>
-                        <p className="text-xs text-purple-600">
+                        <div className="text-2xl font-bold tracking-tight">{complianceRate}%</div>
+                        <p className="text-xs text-muted-foreground mt-1">
                             Semana actual
                         </p>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Quick Actions Grid - Organized by Category */}
-            <div className="space-y-6">
-                {/* Sección 1: Gestión de Empleados */}
-                <div>
-                    <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <UserCheck className="h-5 w-5" />
-                        Gestión de Empleados
-                    </h2>
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-blue-500 group">
-                            <Link href="/dashboard/employees">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Directorio</CardTitle>
-                                    <UserCheck className="h-4 w-4 text-blue-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{totalCount}</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Perfiles activos
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
-
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-yellow-500 group">
-                            <Link href="/dashboard/labor/documents">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Expediente</CardTitle>
-                                    <FolderOpen className="h-4 w-4 text-yellow-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{dossierPercent}%</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Documentos Core
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
-
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-purple-500 group">
-                            <Link href="/dashboard/labor/leave">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Permisos</CardTitle>
-                                    <Calendar className="h-4 w-4 text-purple-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{pendingLeaveCount}</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Solicitudes activas
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
-
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-red-500 group">
-                            <Link href="/dashboard/labor/vacations">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Vacaciones</CardTitle>
-                                    <Flag className="h-4 w-4 text-red-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{futureVacationsCount}</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Programadas
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
-                    </div>
-                </div>
-
-                {/* Sección 2: Control de Asistencia */}
-                <div>
-                    <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <Clock className="h-5 w-5" />
-                        Control de Asistencia
-                    </h2>
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-green-500 group">
-                            <Link href="/dashboard/labor/attendance">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Asistencia</CardTitle>
-                                    <FileText className="h-4 w-4 text-green-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
+            {/* Asymmetric Command Center Grid (2 Columns) */}
+            <div className="grid gap-6 lg:grid-cols-12">
+                {/* Main Operational Column (Col-span 8) */}
+                <div className="lg:col-span-8 space-y-6">
+                    {/* Control de Asistencia y Turnos */}
+                    <div className="space-y-3">
+                        <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            Operación Diaria de Personal
+                        </h2>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/30 transition-colors group">
+                                <Link href="/dashboard/labor/attendance" className="block p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-semibold text-foreground">Asistencia del Día</span>
+                                        <FileText className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                                    </div>
                                     <div className="text-2xl font-bold">{attendancePercent}%</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Hoy: {actualCount}/{scheduledCount} empleados
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
+                                    <p className="text-xs text-muted-foreground mt-1">Hoy: {actualCount}/{scheduledCount} empleados en turno</p>
+                                </Link>
+                            </Card>
 
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-orange-500 group">
-                            <Link href="/dashboard/labor/breaks">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Breaks</CardTitle>
-                                    <Coffee className="h-4 w-4 text-orange-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/30 transition-colors group">
+                                <Link href="/dashboard/labor/breaks" className="block p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-semibold text-foreground">Descansos (Breaks)</span>
+                                        <Coffee className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                                    </div>
                                     <div className="text-2xl font-bold">{breakComplianceRate}%</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        NOM-035 Compliance
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
+                                    <p className="text-xs text-muted-foreground mt-1">Cumplimiento NOM-035 en pausa laboral</p>
+                                </Link>
+                            </Card>
 
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-red-500 group">
-                            <Link href="/dashboard/labor/overtime">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Horas Extras</CardTitle>
-                                    <TrendingUp className="h-4 w-4 text-red-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{weeklyOvertimeHours}h</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Esta semana
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
-
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-cyan-500 group">
-                            <Link href="/dashboard/labor/geolocation">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Geolocalización</CardTitle>
-                                    <MapPin className="h-4 w-4 text-cyan-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">GPS</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Verificación activa
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
-                    </div>
-                </div>
-
-                {/* Sección 3: Gestión de Turnos */}
-                <div>
-                    <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <Calendar className="h-5 w-5" />
-                        Gestión de Turnos
-                    </h2>
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-indigo-500 group">
-                            <Link href="/dashboard/labor/shifts">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Turnos</CardTitle>
-                                    <Calendar className="h-4 w-4 text-indigo-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/30 transition-colors group">
+                                <Link href="/dashboard/labor/shifts" className="block p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-semibold text-foreground">Plantillas de Turnos</span>
+                                        <Calendar className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                                    </div>
                                     <div className="text-2xl font-bold">{templateCount}</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Tipos activos
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
+                                    <p className="text-xs text-muted-foreground mt-1">Tipos de horario configurados</p>
+                                </Link>
+                            </Card>
 
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-pink-500 group">
-                            <Link href="/dashboard/labor/schedule-builder">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Constructor</CardTitle>
-                                    <Clock className="h-4 w-4 text-pink-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">+</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Crear nuevo horario
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
-
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-teal-500 group">
-                            <Link href="/dashboard/labor/shift-changes">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Cambios</CardTitle>
-                                    <ArrowLeftRight className="h-4 w-4 text-teal-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{pendingSwapsCount}</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Intercambios pendientes
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
-
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-amber-500 group">
-                            <Link href="/dashboard/labor/holidays">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Festivos</CardTitle>
-                                    <Flag className="h-4 w-4 text-amber-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{holidayCount}</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Del año
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/30 transition-colors group">
+                                <Link href="/dashboard/labor/schedule-builder" className="block p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-semibold text-foreground">Constructor de Horarios</span>
+                                        <Clock className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                                    </div>
+                                    <div className="text-2xl font-bold text-primary">+</div>
+                                    <p className="text-xs text-muted-foreground mt-1">Crear o publicar nuevo cuadrante</p>
+                                </Link>
+                            </Card>
+                        </div>
                     </div>
+
+                    {/* Quick Access Grid: Overtime, Geolocation, Swaps, Approvals */}
+                    <div className="space-y-3">
+                        <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+                            <CheckSquare className="h-4 w-4 text-muted-foreground" />
+                            Control de Horas & Incidencias
+                        </h2>
+                        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/40 transition-colors group">
+                                <Link href="/dashboard/labor/overtime" className="block p-3">
+                                    <span className="text-xs font-medium text-foreground block mb-1">Horas Extras</span>
+                                    <div className="text-lg font-bold">{weeklyOvertimeHours}h</div>
+                                    <p className="text-xs text-muted-foreground">Esta semana</p>
+                                </Link>
+                            </Card>
+
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/40 transition-colors group">
+                                <Link href="/dashboard/labor/geolocation" className="block p-3">
+                                    <span className="text-xs font-medium text-foreground block mb-1">GPS Verificación</span>
+                                    <div className="text-lg font-bold">Activo</div>
+                                    <p className="text-xs text-muted-foreground">Geocerca branch</p>
+                                </Link>
+                            </Card>
+
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/40 transition-colors group">
+                                <Link href="/dashboard/labor/shift-changes" className="block p-3">
+                                    <span className="text-xs font-medium text-foreground block mb-1">Intercambios</span>
+                                    <div className="text-lg font-bold">{pendingSwapsCount}</div>
+                                    <p className="text-xs text-muted-foreground">Pendientes</p>
+                                </Link>
+                            </Card>
+
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/40 transition-colors group">
+                                <Link href="/dashboard/labor/violations" className="block p-3">
+                                    <span className="text-xs font-medium text-foreground block mb-1">Incidencias</span>
+                                    <div className={`text-lg font-bold ${incidentCount > 0 ? 'text-amber-600' : ''}`}>{incidentCount}</div>
+                                    <p className="text-xs text-muted-foreground">En revisión</p>
+                                </Link>
+                            </Card>
+                        </div>
+                    </div>
+
+                    {/* PRD 8.3 - KPI Tracking Horizontal Bar */}
+                    <Card className="bg-card border-border shadow-none">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                                Indicadores Clave de Rendimiento (KPIs)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-5">
+                                <div className="p-3 border rounded bg-muted/20">
+                                    <span className="text-xs text-muted-foreground block mb-1">Completion</span>
+                                    <div className="text-lg font-bold">{attendancePercent}%</div>
+                                    <span className="text-xs text-muted-foreground">Asistencia hoy</span>
+                                </div>
+                                <div className="p-3 border rounded bg-muted/20">
+                                    <span className="text-xs text-muted-foreground block mb-1">Puntualidad</span>
+                                    <div className="text-lg font-bold">{onTimeRate}%</div>
+                                    <span className="text-xs text-muted-foreground">Llegada a tiempo</span>
+                                </div>
+                                <div className="p-3 border rounded bg-muted/20">
+                                    <span className="text-xs text-muted-foreground block mb-1">Breaks</span>
+                                    <div className="text-lg font-bold">{breakComplianceRate}%</div>
+                                    <span className="text-xs text-muted-foreground">NOM-035</span>
+                                </div>
+                                <div className="p-3 border rounded bg-muted/20">
+                                    <span className="text-xs text-muted-foreground block mb-1">Overtime</span>
+                                    <div className="text-lg font-bold">{weeklyOvertimeHours}h</div>
+                                    <span className="text-xs text-muted-foreground">Horas extra</span>
+                                </div>
+                                <div className="p-3 border rounded bg-muted/20">
+                                    <span className="text-xs text-muted-foreground block mb-1">Retraso Avg</span>
+                                    <div className="text-lg font-bold">{avgLateness}m</div>
+                                    <span className="text-xs text-muted-foreground">Minutos promedio</span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                {/* Sección 4: Aprobaciones y Cumplimiento */}
-                <div>
-                    <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <CheckSquare className="h-5 w-5" />
-                        Aprobaciones y Cumplimiento
-                    </h2>
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-yellow-500 group">
-                            <Link href="/dashboard/labor/approvals">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Aprobaciones</CardTitle>
-                                    <CheckSquare className="h-4 w-4 text-yellow-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{pendingApprovalsCount}</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Pendientes
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
+                {/* Sidebar Column (Col-span 4) */}
+                <div className="lg:col-span-4 space-y-6">
+                    {/* Expediente & Permisos */}
+                    <div className="space-y-3">
+                        <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+                            <UserCheck className="h-4 w-4 text-muted-foreground" />
+                            Personal & Expediente
+                        </h2>
+                        <div className="grid gap-3">
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/40 transition-colors group">
+                                <Link href="/dashboard/employees" className="block p-3.5">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="text-xs font-semibold text-foreground block">Directorio de Empleados</span>
+                                            <span className="text-xs text-muted-foreground">{totalCount} perfiles en sistema</span>
+                                        </div>
+                                        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                                    </div>
+                                </Link>
+                            </Card>
 
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-red-500 group">
-                            <Link href="/dashboard/labor/violations">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Incidencias</CardTitle>
-                                    <AlertTriangle className="h-4 w-4 text-red-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold text-red-600">{incidentCount}</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Activas
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/40 transition-colors group">
+                                <Link href="/dashboard/labor/documents" className="block p-3.5">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="text-xs font-semibold text-foreground block">Expediente Digital</span>
+                                            <span className="text-xs text-muted-foreground">{dossierPercent}% cumplimiento core</span>
+                                        </div>
+                                        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                                    </div>
+                                </Link>
+                            </Card>
 
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-blue-500 group">
-                            <Link href="/dashboard/labor/attendance">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Reportes</CardTitle>
-                                    <BarChart3 className="h-4 w-4 text-blue-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">+</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Ver análisis
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/40 transition-colors group">
+                                <Link href="/dashboard/labor/leave" className="block p-3.5">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="text-xs font-semibold text-foreground block">Permisos & Licencias</span>
+                                            <span className="text-xs text-muted-foreground">{pendingLeaveCount} por autorizar</span>
+                                        </div>
+                                        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                                    </div>
+                                </Link>
+                            </Card>
 
-                        <Card className="hover:shadow-md transition-shadow cursor-pointer border-l-4 border-l-emerald-500 group">
-                            <Link href="/dashboard/labor/leave">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">Reportes Labor</CardTitle>
-                                    <ClipboardList className="h-4 w-4 text-emerald-600 group-hover:scale-110 transition-transform" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold text-emerald-900">LFT</div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Cumplimiento {complianceRate}%
-                                    </p>
-                                </CardContent>
-                            </Link>
-                        </Card>
+                            <Card className="bg-card border-border shadow-none hover:bg-muted/40 transition-colors group">
+                                <Link href="/dashboard/labor/vacations" className="block p-3.5">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="text-xs font-semibold text-foreground block">Vacaciones Programadas</span>
+                                            <span className="text-xs text-muted-foreground">{futureVacationsCount} en calendario</span>
+                                        </div>
+                                        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                                    </div>
+                                </Link>
+                            </Card>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            {/* PRD 8.3 - KPI Tracking Section */}
-            <Card className="bg-gradient-to-r from-slate-50 to-slate-100/50">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5" />
-                        Indicadores Clave de Rendimiento (KPIs)
-                    </CardTitle>
-                    <CardDescription>
-                        Métricas principales para seguimiento operativo - PRD Section 8.3
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                        <div className="p-4 border rounded-lg bg-white">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-muted-foreground">Tasa de Completion</span>
-                                <CheckCircle className="h-4 w-4 text-green-500" />
+                    {/* PRD 7.2.3 - Compliance Reports Info (Compact List) */}
+                    <Card className="bg-card border-border shadow-none">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                                <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                                Marco Legal LFT / NOM-035
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-xs">
+                            <div className="p-2 border rounded bg-muted/20">
+                                <p className="font-semibold text-foreground">Jornada Laboral</p>
+                                <p className="text-xs text-muted-foreground">8h diurnas / 7h nocturnas (Art. 58 LFT)</p>
                             </div>
-                            <div className="text-2xl font-bold">{attendancePercent}%</div>
-                            <p className="text-xs text-muted-foreground">Sesión hoy</p>
-                        </div>
-                        <div className="p-4 border rounded-lg bg-white">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-muted-foreground">On-Time Arrival</span>
-                                <Clock className="h-4 w-4 text-blue-500" />
+                            <div className="p-2 border rounded bg-muted/20">
+                                <p className="font-semibold text-foreground">Descanso Obligatorio</p>
+                                <p className="text-xs text-muted-foreground">30 min después de 5h (Art. 63 LFT)</p>
                             </div>
-                            <div className="text-2xl font-bold">{onTimeRate}%</div>
-                            <p className="text-xs text-muted-foreground">Semanal</p>
-                        </div>
-                        <div className="p-4 border rounded-lg bg-white">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-muted-foreground">Cumpl. Break</span>
-                                <Coffee className="h-4 w-4 text-purple-500" />
+                            <div className="p-2 border rounded bg-muted/20">
+                                <p className="font-semibold text-foreground">Horas Extras</p>
+                                <p className="text-xs text-muted-foreground">2x primeras 9h, 3x excedente (Art. 65 LFT)</p>
                             </div>
-                            <div className="text-2xl font-bold">{breakComplianceRate}%</div>
-                            <p className="text-xs text-muted-foreground">NOM-035</p>
-                        </div>
-                        <div className="p-4 border rounded-lg bg-white">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-muted-foreground">Overtime</span>
-                                <TrendingUp className="h-4 w-4 text-red-500" />
+                            <div className="p-2 border rounded bg-muted/20">
+                                <p className="font-semibold text-foreground">NOM-035 Compliance</p>
+                                <p className="text-xs text-muted-foreground">Factores de riesgo psicosocial</p>
                             </div>
-                            <div className="text-2xl font-bold">{weeklyOvertimeHours}h</div>
-                            <p className="text-xs text-muted-foreground">Semanal</p>
-                        </div>
-                        <div className="p-4 border rounded-lg bg-white">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-muted-foreground">Aprox. Tiempo</span>
-                                <Zap className="h-4 w-4 text-orange-500" />
-                            </div>
-                            <div className="text-2xl font-bold">{avgLateness}m</div>
-                            <p className="text-xs text-muted-foreground text-orange-600">Delay promedio</p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+                        </CardContent>
+                    </Card>
 
-            {/* PRD 7.2.3 - Compliance Reports Info */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Shield className="h-5 w-5" />
-                        Cumplimiento Laboral - Ley Federal del Trabajo
-                    </CardTitle>
-                    <CardDescription>
-                        Reportes y normativas applicability - PRD Section 7.2
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <div className="flex items-start gap-3 p-4 border rounded-lg bg-green-50">
-                        <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                        </div>
-                        <div>
-                            <p className="font-medium text-green-900">Jornada Laboral</p>
-                            <p className="text-sm text-green-700">
-                                8 horas diurnas / 7 horas nocturnas - Art. 58 LFT
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 border rounded-lg bg-blue-50">
-                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                            <Coffee className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                            <p className="font-medium text-blue-900">Descanso Obligatorio</p>
-                            <p className="text-sm text-blue-700">
-                                30 min mínimo después de 5h - Art. 63 LFT
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 border rounded-lg bg-purple-50">
-                        <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                            <TrendingUp className="h-5 w-5 text-purple-600" />
-                        </div>
-                        <div>
-                            <p className="font-medium text-purple-900">Horas Extras</p>
-                            <p className="text-sm text-purple-700">
-                                2x primeras 9h, 3x excedente semanal - Art. 65 LFT
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 border rounded-lg bg-orange-50">
-                        <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                            <Flag className="h-5 w-5 text-orange-600" />
-                        </div>
-                        <div>
-                            <p className="font-medium text-orange-900">Días de Descanso</p>
-                            <p className="text-sm text-orange-700">
-                                1 día por cada 6 lavorados - Art. 69 LFT
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 border rounded-lg bg-cyan-50">
-                        <div className="h-10 w-10 rounded-full bg-cyan-100 flex items-center justify-center flex-shrink-0">
-                            <Shield className="h-5 w-5 text-cyan-600" />
-                        </div>
-                        <div>
-                            <p className="font-medium text-cyan-900">NOM-035</p>
-                            <p className="text-sm text-cyan-700">
-                                Factores de riesgo psicosocial laborales
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 border rounded-lg bg-red-50">
-                        <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                            <AlertTriangle className="h-5 w-5 text-red-600" />
-                        </div>
-                        <div>
-                            <p className="font-medium text-red-900">Prestaciones</p>
-                            <p className="text-sm text-red-700">
-                                Aguinaldo, vacaciones, prima vacacional - Art. 80 LFT
-                            </p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Quick Access */}
-            <div className="grid gap-4 md:grid-cols-2">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Atajos Rápidos</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                        <div className="flex gap-2 flex-wrap">
-                            <Button variant="default" size="sm" asChild>
+                    {/* Atajos Rápidos */}
+                    <Card className="bg-card border-border shadow-none">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-xs font-semibold uppercase tracking-wider">Acciones Rápidas</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <Button variant="default" size="sm" asChild className="w-full justify-start text-xs">
                                 <Link href="/dashboard/labor/schedule-builder">
-                                    <Calendar className="h-4 w-4 mr-1" />
-                                    Nuevo Horario
+                                    <Calendar className="h-3.5 w-3.5 mr-2" />
+                                    Crear Nuevo Horario
                                 </Link>
                             </Button>
-                            <Button variant="default" size="sm" asChild>
+                            <Button variant="outline" size="sm" asChild className="w-full justify-start text-xs">
                                 <Link href="/dashboard/employees">
-                                    <Users className="h-4 w-4 mr-1" />
+                                    <Users className="h-3.5 w-3.5 mr-2" />
                                     Agregar Empleado
                                 </Link>
                             </Button>
-                            <Button variant="default" size="sm" asChild>
+                            <Button variant="outline" size="sm" asChild className="w-full justify-start text-xs">
                                 <Link href="/dashboard/labor/approvals">
-                                    <CheckSquare className="h-4 w-4 mr-1" />
-                                    Revisar Aprobaciones
+                                    <CheckSquare className="h-3.5 w-3.5 mr-2" />
+                                    Centro de Aprobaciones
                                 </Link>
                             </Button>
-                        </div>
-                        <div className="flex gap-2 flex-wrap">
-                            <Button variant="outline" size="sm" asChild>
-                                <Link href="/dashboard/labor/attendance">
-                                    <FileText className="h-4 w-4 mr-1" />
-                                    Reporte Asistencia
-                                </Link>
-                            </Button>
-                            <Button variant="outline" size="sm" asChild>
-                                <Link href="/dashboard/labor/overtime">
-                                    <TrendingUp className="h-4 w-4 mr-1" />
-                                    Reporte Overtime
-                                </Link>
-                            </Button>
-                            <Button variant="outline" size="sm" asChild>
-                                <Link href="/dashboard/labor/breaks">
-                                    <Coffee className="h-4 w-4 mr-1" />
-                                    Cumplimiento NOM-035
-                                </Link>
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Características del Sistema</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm text-muted-foreground">
-                        <div className="grid grid-cols-2 gap-2">
-                            <p>✓ Calendarización visual</p>
-                            <p>✓ Verificación GPS</p>
-                            <p>✓ Cálculo LFT automático</p>
-                            <p>✓ Cambios de turno</p>
-                            <p>✓ Días festivos</p>
-                            <p>✓ Reportes CSV/PDF</p>
-                            <p>✓ Notificaciones WhatsApp</p>
-                            <p>✓ NOM-035 compliance</p>
-                        </div>
-                    </CardContent>
-                </Card>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </div>
     )
 }
+

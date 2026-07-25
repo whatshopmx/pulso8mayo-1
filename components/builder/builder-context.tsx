@@ -28,15 +28,6 @@ export interface ValidationConfig {
     message?: string;
 }
 
-export interface ValidationConfig {
-    min?: number;
-    max?: number;
-    minTime?: string;
-    maxTime?: string;
-    radiusMeters?: number;
-    message?: string;
-}
-
 export interface ConditionalBranch {
     id: string;
     condition: string;
@@ -108,6 +99,7 @@ export interface WorkflowStep {
     readOnly?: boolean;
     branches?: ConditionalBranch[];
     conditionalLogic?: Record<string, any>;
+    actions?: string[] | RuleAction[];
 }
 
 interface TemplateMeta {
@@ -125,14 +117,20 @@ interface BuilderContextType {
   removeStep: (id: string) => void;
   selectStep: (id: string | null) => void;
   moveStep: (activeId: string, overId: string) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
   templateMeta: TemplateMeta;
   updateTemplateMeta: (updates: Partial<TemplateMeta>) => void;
 }
 
 const BuilderContext = createContext<BuilderContextType | undefined>(undefined);
 
+const MAX_HISTORY = 50;
+
 export function BuilderProvider({ children, initialSteps = [], initialMeta }: { children: ReactNode, initialSteps?: WorkflowStep[], initialMeta?: Partial<TemplateMeta> }) {
-  console.log('[BuilderProvider] Initializing with steps:', initialSteps.length, initialSteps);
+
   const [steps, setSteps] = useState<WorkflowStep[]>(initialSteps);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [templateMeta, setTemplateMeta] = useState<TemplateMeta>({
@@ -142,11 +140,51 @@ export function BuilderProvider({ children, initialSteps = [], initialMeta }: { 
     id: initialMeta?.id,
   });
 
+  // Undo/redo history
+  const [history, setHistory] = useState<WorkflowStep[][]>([]);
+  const [future, setFuture] = useState<WorkflowStep[][]>([]);
+
+  const pushHistory = (currentSteps: WorkflowStep[]) => {
+    setHistory(prev => {
+      const next = [...prev, JSON.parse(JSON.stringify(currentSteps))];
+      return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
+    });
+    setFuture([]); // Clear redo stack on new action
+  };
+
+  const undo = () => {
+    setHistory(prev => {
+      if (prev.length === 0) return prev;
+      const newHistory = [...prev];
+      const previousState = newHistory.pop()!;
+      setFuture(f => [...f, JSON.parse(JSON.stringify(steps))]);
+      setSteps(previousState);
+      setSelectedStepId(null);
+      return newHistory;
+    });
+  };
+
+  const redo = () => {
+    setFuture(prev => {
+      if (prev.length === 0) return prev;
+      const newFuture = [...prev];
+      const nextState = newFuture.pop()!;
+      setHistory(h => [...h, JSON.parse(JSON.stringify(steps))]);
+      setSteps(nextState);
+      setSelectedStepId(null);
+      return newFuture;
+    });
+  };
+
+  const canUndo = history.length > 0;
+  const canRedo = future.length > 0;
+
   // Sync initialSteps prop changes with state (e.g. when navigating between templates)
   useEffect(() => {
-    console.log('[BuilderProvider] useEffect triggered - initialSteps changed:', initialSteps.length, initialSteps);
     setSteps(initialSteps);
-    setSelectedStepId(null); // Reset selection when template changes
+    setSelectedStepId(null);
+    setHistory([]);
+    setFuture([]);
   }, [initialSteps]);
 
   const updateTemplateMeta = (updates: Partial<TemplateMeta>) => {
@@ -157,19 +195,22 @@ export function BuilderProvider({ children, initialSteps = [], initialMeta }: { 
         const newStep: WorkflowStep = {
             id: uuidv4(),
             type,
-            title: `New ${type} step`,
+            title: `Nuevo paso de ${type}`,
             required: false,
             config: {}
         };
+        pushHistory(steps);
         setSteps(prev => [...prev, newStep]);
         setSelectedStepId(newStep.id);
     };
 
     const updateStep = (id: string, updates: Partial<WorkflowStep>) => {
+        pushHistory(steps);
         setSteps(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
     };
 
     const removeStep = (id: string) => {
+        pushHistory(steps);
         setSteps(prev => prev.filter(s => s.id !== id));
         if (selectedStepId === id) setSelectedStepId(null);
     };
@@ -179,6 +220,7 @@ export function BuilderProvider({ children, initialSteps = [], initialMeta }: { 
     };
 
     const moveStep = (activeId: string, overId: string) => {
+        pushHistory(steps);
         setSteps((items) => {
             const oldIndex = items.findIndex(i => i.id === activeId);
             const newIndex = items.findIndex(i => i.id === overId);
@@ -191,7 +233,7 @@ export function BuilderProvider({ children, initialSteps = [], initialMeta }: { 
     };
 
   return (
-    <BuilderContext.Provider value={{ steps, selectedStepId, addStep, updateStep, removeStep, selectStep, moveStep, templateMeta, updateTemplateMeta }}>
+    <BuilderContext.Provider value={{ steps, selectedStepId, addStep, updateStep, removeStep, selectStep, moveStep, undo, redo, canUndo, canRedo, templateMeta, updateTemplateMeta }}>
       {children}
     </BuilderContext.Provider>
   );

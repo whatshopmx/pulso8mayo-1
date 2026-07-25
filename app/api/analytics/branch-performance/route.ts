@@ -165,6 +165,23 @@ export async function GET(req: NextRequest) {
         .where(eq(inventoryBatches.branchId, branchId));
     } catch { inventoryStats = [{ totalBatches: 0, lowStock: 0, expiringSoon: 0 }]; }
 
+    let costStats: any[] = [];
+    try {
+      costStats = await db
+        .select({
+          category: costRecords.category,
+          total: sql<number>`coalesce(sum(${costRecords.amount}), 0)`,
+        })
+        .from(costRecords)
+        .where(
+          and(
+            eq(costRecords.branchId, branchId),
+            gte(costRecords.recordedAt, startDate)
+          )
+        )
+        .groupBy(costRecords.category);
+    } catch { costStats = []; }
+
     const total = Number(workflowStats[0]?.total || 0);
     const completed = Number(workflowStats[0]?.completed || 0);
     const completionRate = total > 0 ? (completed / total) * 100 : 0;
@@ -225,6 +242,10 @@ export async function GET(req: NextRequest) {
         totalBatches: Number(inventoryStats[0]?.totalBatches || 0),
         lowStock: Number(inventoryStats[0]?.lowStock || 0),
         expiringSoon: Number(inventoryStats[0]?.expiringSoon || 0),
+      },
+      costMetrics: {
+        total: costStats.reduce((sum: number, r: any) => sum + Number(r.total), 0),
+        byCategory: Object.fromEntries(costStats.map((r: any) => [r.category, Number(r.total)])),
       },
       performanceIndex: Math.round(performanceIndex * 10) / 10,
     };

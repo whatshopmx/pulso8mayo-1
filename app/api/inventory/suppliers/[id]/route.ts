@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { AuditService } from "@/lib/services/audit-service";
 import { db } from "@/lib/db";
 import { suppliers } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -105,6 +106,18 @@ export async function PATCH(
             .where(eq(suppliers.id, id))
             .returning();
 
+        AuditService.logInventoryAction({
+            companyId: session.user.companyId,
+            branchId: session.user.branchId || '',
+            action: 'UPDATE',
+            entityType: 'SUPPLIER',
+            entityId: id,
+            oldValue: existingSupplier,
+            newValue: updatedSupplier,
+            performedBy: session.user.id,
+            reason: 'Supplier updated',
+        });
+
         return NextResponse.json({
             success: true,
             supplier: updatedSupplier,
@@ -168,6 +181,17 @@ export async function DELETE(
                 updatedAt: new Date(),
             })
             .where(eq(suppliers.id, id));
+
+        AuditService.logInventoryAction({
+            companyId: session.user.companyId,
+            branchId: session.user.branchId || '',
+            action: 'DELETE',
+            entityType: 'SUPPLIER',
+            entityId: id,
+            oldValue: existingSupplier,
+            performedBy: session.user.id,
+            reason: 'Supplier soft-deleted',
+        });
 
         return NextResponse.json({
             success: true,

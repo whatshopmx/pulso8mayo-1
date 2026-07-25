@@ -10,7 +10,19 @@
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "seed": "npx tsx scripts/seed-full.ts",
+    "seed:1": "npx tsx scripts/seed-01-foundation.ts",
+    "seed:2": "npx tsx scripts/seed-02-hr-profiles.ts",
+    "seed:3": "npx tsx scripts/seed-03-equipment.ts",
+    "seed:4": "npx tsx scripts/seed-04-inventory.ts",
+    "seed:5": "npx tsx scripts/seed-05-workflows.ts",
+    "seed:6": "npx tsx scripts/seed-06-labor.ts",
+    "seed:7": "npx tsx scripts/seed-07-compliance-kpi.ts",
+    "seed:8": "npx tsx scripts/seed-08-hr-advanced.ts",
+    "seed:9": "npx tsx scripts/seed-09-whatsapp.ts",
+    "seed:10": "npx tsx scripts/seed-10-final.ts",
+    "seed:pass": "npx tsx scripts/seed-passwords.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1029.0",
@@ -81,6 +93,7 @@
     "uuid": "^13.0.0",
     "vaul": "^1.1.2",
     "workflow": "4.1.0-beta.52",
+    "inngest": "^4.1.0",
     "ws": "^8.19.0",
     "zod": "^4.3.6"
   },

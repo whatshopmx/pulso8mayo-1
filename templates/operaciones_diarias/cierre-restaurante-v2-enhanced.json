@@ -129,6 +129,53 @@
       }
     },
     {
+      "id": "paso-inspeccion-plagas",
+      "type": "YesNo",
+      "titulo": "¿Detectaste plagas o evidencia de insectos/roedores durante el turno?",
+      "obligatorio": true,
+      "logicRules": [
+        {
+          "id": "rule-plaga-detectada",
+          "condition": "value == 'Sí' || value == true || value == 'true'",
+          "severity": "HIGH",
+          "message": "Plaga detectada en la sucursal. Se requiere protocolo de fumigación y servicio externo.",
+          "actions": ["BLOCK", "SCHEDULE_COMPLIANCE_SERVICE"],
+          "remediationProtocol": {
+            "enabled": true,
+            "maxAttempts": 2,
+            "steps": [
+              {
+                "type": "instruction",
+                "instruction": "Aislar y desinfectar inmediatamente el área afectada, cubrir alimentos y notificar al gerente de turno.",
+                "waitSeconds": 60
+              },
+              {
+                "type": "external_service",
+                "complianceServiceType": "FUMIGATION",
+                "instruction": "Coordinar visita urgente de servicio externo de fumigación y control de plagas."
+              }
+            ]
+          },
+          "escalationChain": [
+            {
+              "level": 1,
+              "triggerAfterMinutes": 0,
+              "notifyRoles": ["GERENTE"],
+              "channel": "whatsapp",
+              "message": "🚨 Plaga detectada en la sucursal. Se requiere coordinar fumigación urgente."
+            },
+            {
+              "level": 2,
+              "triggerAfterMinutes": 1440,
+              "notifyRoles": ["ADMIN", "OWNER"],
+              "channel": "whatsapp",
+              "message": "🔥 Transcurrieron 24h sin confirmación de fumigación para la plaga reportada."
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "paso-6",
       "type": "NumberField",
       "titulo": "Temperatura Final Refrigerador (°C)",

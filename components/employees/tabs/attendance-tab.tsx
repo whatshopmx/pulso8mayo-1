@@ -14,10 +14,10 @@ interface AttendanceTabProps {
 }
 
 const attendanceStatusLabels: Record<string, string> = {
-  ON_TIME: "On Time",
-  LATE: "Late",
-  EARLY_DEPARTURE: "Early Departure",
-  ABSENT: "Absent",
+  ON_TIME: "Puntual",
+  LATE: "Retardo",
+  EARLY_DEPARTURE: "Salida Anticipada",
+  ABSENT: "Falta",
 };
 
 const attendanceStatusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -40,37 +40,37 @@ export function AttendanceTab({ attendanceRecords, vacationBalance }: Attendance
       {/* Attendance Summary */}
       <Card>
         <CardHeader>
-          <CardTitle>Attendance Summary</CardTitle>
+          <CardTitle>Resumen de Asistencia</CardTitle>
           <CardDescription>
-            Overview of attendance statistics
+            Vista general del registro de asistencia y jornada laboral
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div className="p-4 border rounded-lg text-center">
-              <Label className="text-xs text-muted-foreground">Current Week</Label>
+              <Label className="text-xs text-muted-foreground">Semana Actual</Label>
               <div className="text-2xl font-bold mt-1">{currentWeekHours}h</div>
-              <div className="text-xs text-muted-foreground">hours worked</div>
+              <div className="text-xs text-muted-foreground">horas trabajadas</div>
             </div>
             <div className="p-4 border rounded-lg text-center">
-              <Label className="text-xs text-muted-foreground">Month to Date</Label>
+              <Label className="text-xs text-muted-foreground">Acumulado Mes</Label>
               <div className="text-2xl font-bold mt-1">{monthToDateHours}h</div>
-              <div className="text-xs text-muted-foreground">total hours</div>
+              <div className="text-xs text-muted-foreground">horas totales</div>
             </div>
             <div className="p-4 border rounded-lg text-center">
-              <Label className="text-xs text-muted-foreground">Overtime</Label>
+              <Label className="text-xs text-muted-foreground">Horas Extra</Label>
               <div className="text-2xl font-bold mt-1">{overtimeHours}h</div>
-              <div className="text-xs text-muted-foreground">this month</div>
+              <div className="text-xs text-muted-foreground">este mes</div>
             </div>
             <div className="p-4 border rounded-lg text-center">
-              <Label className="text-xs text-muted-foreground">Absences</Label>
+              <Label className="text-xs text-muted-foreground">Faltas</Label>
               <div className="text-2xl font-bold mt-1">{absencesThisMonth}</div>
-              <div className="text-xs text-muted-foreground">this month</div>
+              <div className="text-xs text-muted-foreground">este mes</div>
             </div>
             <div className="p-4 border rounded-lg text-center">
-              <Label className="text-xs text-muted-foreground">Tardiness</Label>
+              <Label className="text-xs text-muted-foreground">Retardos</Label>
               <div className="text-2xl font-bold mt-1">{tardinessThisMonth}</div>
-              <div className="text-xs text-muted-foreground">this month</div>
+              <div className="text-xs text-muted-foreground">este mes</div>
             </div>
           </div>
 
@@ -80,9 +80,9 @@ export function AttendanceTab({ attendanceRecords, vacationBalance }: Attendance
               <div className="p-4 border rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label className="text-sm font-semibold">Vacation Balance</Label>
-                    <div className="text-3xl font-bold mt-1">{vacationBalance} days</div>
-                    <div className="text-xs text-muted-foreground">available</div>
+                    <Label className="text-sm font-semibold">Saldo de Vacaciones</Label>
+                    <div className="text-3xl font-bold mt-1">{vacationBalance} días</div>
+                    <div className="text-xs text-muted-foreground">disponibles</div>
                   </div>
                 </div>
               </div>
@@ -94,9 +94,9 @@ export function AttendanceTab({ attendanceRecords, vacationBalance }: Attendance
       {/* Recent Activity */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+          <CardTitle>Registro Reciente</CardTitle>
           <CardDescription>
-            Last 10 clock-in/out records
+            Últimos 10 registros de checada de entrada y salida
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -112,7 +112,7 @@ export function AttendanceTab({ attendanceRecords, vacationBalance }: Attendance
                     <div>
                       <div className="font-medium text-sm">
                         {record.clockIn
-                          ? format(new Date(record.clockIn), "MMM d, yyyy", { locale: es })
+                          ? format(new Date(record.clockIn), "d 'de' MMM, yyyy", { locale: es })
                           : "N/A"}
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -145,9 +145,9 @@ export function AttendanceTab({ attendanceRecords, vacationBalance }: Attendance
           ) : (
             <div className="text-center py-12">
               <Clock className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Attendance Records</h3>
+              <h3 className="text-lg font-semibold mb-2">Sin Registros de Asistencia</h3>
               <p className="text-muted-foreground text-sm">
-                Attendance records will appear here once the employee clocks in/out.
+                Las checadas de entrada y salida aparecerán aquí conforme el colaborador las registre.
               </p>
             </div>
           )}
@@ -157,19 +157,19 @@ export function AttendanceTab({ attendanceRecords, vacationBalance }: Attendance
       {/* Schedule Calendar Placeholder */}
       <Card>
         <CardHeader>
-          <CardTitle>Schedule Calendar</CardTitle>
+          <CardTitle>Calendario de Turnos</CardTitle>
           <CardDescription>
-            Upcoming scheduled shifts
+            Próximos turnos programados y cuadrante laboral
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
             <Clock className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground text-sm">
-              Schedule calendar view coming soon.
+              Módulo de cuadrante de turnos en sincronización activa.
             </p>
             <p className="text-xs text-muted-foreground mt-2">
-              This will show scheduled shifts vs. actual attendance with discrepancies highlighted.
+              Muestra la comparación entre turnos programados y checadas reales con alertas de tolerancia.
             </p>
           </div>
         </CardContent>

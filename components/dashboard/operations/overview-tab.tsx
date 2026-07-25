@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CompletionRateChart } from "./completion-rate-chart";
 import { ActiveWorkflowsList } from "./active-workflows-list";
 import { EmployeeLeaderboard } from "./employee-leaderboard";
+import { InventoryActivityFeed } from "./inventory-activity-feed";
 
-export function OverviewTab() {
+export function OverviewTab({ branchId, period }: { branchId?: string; period?: string }) {
     return (
         <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
@@ -33,6 +34,14 @@ export function OverviewTab() {
                     </CardHeader>
                     <CardContent>
                         <EmployeeLeaderboard />
+                    </CardContent>
+                </Card>
+                <Card className="col-span-3">
+                    <CardHeader>
+                        <CardTitle>Inventory Activity</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <InventoryActivityFeed branchId={branchId} />
                     </CardContent>
                 </Card>
             </div>

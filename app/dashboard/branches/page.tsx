@@ -39,6 +39,10 @@ interface BranchDetail {
     lowStock: number;
     expiringSoon: number;
   };
+  costMetrics: {
+    total: number;
+    byCategory: Record<string, number>;
+  };
   performanceIndex: number;
 }
 
@@ -214,6 +218,15 @@ export default function BranchesPage() {
                       <p>Stock bajo: <span className="font-medium text-orange-600">{selectedBranch.inventoryMetrics.lowStock}</span></p>
                       <p>Por expirar: <span className="font-medium text-red-600">{selectedBranch.inventoryMetrics.expiringSoon}</span></p>
                       <p>Temp. compliance: <span className="font-medium">{selectedBranch.temperatureMetrics.complianceRate}%</span></p>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold mb-2 text-sm text-muted-foreground uppercase">Costos</h4>
+                    <div className="space-y-1 text-sm">
+                      <p>Total: <span className="font-medium">${selectedBranch.costMetrics.total.toLocaleString()}</span></p>
+                      {Object.entries(selectedBranch.costMetrics.byCategory).slice(0, 4).map(([cat, amt]) => (
+                        <p key={cat} className="capitalize">{cat}: <span className="font-medium">${Number(amt).toLocaleString()}</span></p>
+                      ))}
                     </div>
                   </div>
                 </div>

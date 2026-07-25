@@ -11,10 +11,18 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Loader2, Calendar, Clock, Users, Zap, Plus, X, Trash2 } from 'lucide-react';
+import { Loader2, Calendar, Clock, Users, Zap, Plus, X, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import {
+    COMPLETION_ACTION_TYPES,
+    ACTION_GROUP_LABELS,
+    getCompletionActionType,
+    getDefaultActionFields,
+    type ActionGroup,
+} from '@/lib/workflow-actions';
 
 interface WorkflowSettingsModalProps {
     open: boolean;
@@ -78,43 +86,43 @@ const TAGS_SUGGESTIONS = [
 ];
 
 const FREQUENCIES = [
-    { value: 'daily', label: 'Daily' },
-    { value: 'weekly', label: 'Weekly' },
-    { value: 'monthly', label: 'Monthly' },
-    { value: 'on_demand', label: 'On Demand' }
+    { value: 'daily', label: 'Diario' },
+    { value: 'weekly', label: 'Semanal' },
+    { value: 'monthly', label: 'Mensual' },
+    { value: 'on_demand', label: 'Bajo Demanda' }
 ];
 
 const DAYS_OF_WEEK = [
-    { value: 'monday', label: 'Monday' },
-    { value: 'tuesday', label: 'Tuesday' },
-    { value: 'wednesday', label: 'Wednesday' },
-    { value: 'thursday', label: 'Thursday' },
-    { value: 'friday', label: 'Friday' },
-    { value: 'saturday', label: 'Saturday' },
-    { value: 'sunday', label: 'Sunday' }
+    { value: 'monday', label: 'Lunes' },
+    { value: 'tuesday', label: 'Martes' },
+    { value: 'wednesday', label: 'Miércoles' },
+    { value: 'thursday', label: 'Jueves' },
+    { value: 'friday', label: 'Viernes' },
+    { value: 'saturday', label: 'Sábado' },
+    { value: 'sunday', label: 'Domingo' }
 ];
 
 const ROLES = [
-    { value: 'EMPLEADO', label: 'Employee' },
+    { value: 'EMPLEADO', label: 'Empleado' },
     { value: 'CHEF', label: 'Chef' },
-    { value: 'GERENTE', label: 'Manager' },
+    { value: 'GERENTE', label: 'Gerente' },
     { value: 'SUPERVISOR', label: 'Supervisor' },
-    { value: 'OWNER', label: 'Owner' }
+    { value: 'OWNER', label: 'Dueño' }
 ];
 
 const SHIFTS = [
-    { value: 'morning', label: 'Morning (6AM - 2PM)' },
-    { value: 'afternoon', label: 'Afternoon (2PM - 10PM)' },
-    { value: 'night', label: 'Night (10PM - 6AM)' },
-    { value: 'all', label: 'All Shifts' }
+    { value: 'morning', label: 'Matutino (6AM - 2PM)' },
+    { value: 'afternoon', label: 'Vespertino (2PM - 10PM)' },
+    { value: 'night', label: 'Nocturno (10PM - 6AM)' },
+    { value: 'all', label: 'Todos los Turnos' }
 ];
 
 const EVENTS = [
-    { value: 'INVENTORY_LOW', label: 'Low Inventory Alert' },
-    { value: 'SHIFT_ENDED', label: 'Shift Ended' },
-    { value: 'TEMPERATURE_ALERT', label: 'Critical Temperature' },
-    { value: 'ONBOARDING_REQUIRED', label: 'New Employee Onboarding' },
-    { value: 'INCIDENT_REPORTED', label: 'Incident Reported' }
+    { value: 'INVENTORY_LOW', label: 'Alerta de Inventario Bajo' },
+    { value: 'SHIFT_ENDED', label: 'Turno Finalizado' },
+    { value: 'TEMPERATURE_ALERT', label: 'Temperatura Crítica' },
+    { value: 'ONBOARDING_REQUIRED', label: 'Nuevo Empleado' },
+    { value: 'INCIDENT_REPORTED', label: 'Incidente Reportado' }
 ];
 
 // Compliance types for Mexican regulations
@@ -355,10 +363,10 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
 
             if (!response.ok) throw new Error('Failed to save settings');
 
-            toast.success('Workflow settings saved successfully!');
+            toast.success('Configuración guardada correctamente');
             onClose();
         } catch (error) {
-            toast.error('Failed to save settings');
+            toast.error('Error al guardar la configuración');
             console.error(error);
         } finally {
             setSaving(false);
@@ -411,18 +419,8 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
     };
 
     const addCompletionAction = (type: string) => {
-        const action: CompletionAction = { type };
-        if (type === 'SEND_NOTIFICATION') {
-            action.target = ['GERENTE'];
-            action.channel = 'whatsapp';
-            action.message = 'Workflow completed';
-        } else if (type === 'UPDATE_EMPLOYEE_STATUS') {
-            action.status = 'VERIFIED';
-            action.validFor = 480;
-        } else if (type === 'GENERATE_PDF_REPORT') {
-            action.template = 'default';
-            action.includePhotos = true;
-        }
+        const defaults = getDefaultActionFields(type);
+        const action: CompletionAction = { type, ...defaults };
         setCompletionActions(prev => [...prev, action]);
     };
 
@@ -442,9 +440,9 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Workflow Settings</DialogTitle>
+                    <DialogTitle>Configuración del Flujo</DialogTitle>
                     <DialogDescription>
-                        Configure scheduling and role assignments for this workflow
+                        Configura la programación y asignación de roles para este flujo de trabajo
                     </DialogDescription>
                 </DialogHeader>
 
@@ -457,9 +455,9 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                         {/* Enable/Disable */}
                         <div className="flex items-center justify-between rounded-lg border p-4">
                             <div className="space-y-0.5">
-                                <Label className="text-base">Enable Workflow</Label>
+                                <Label className="text-base">Activar Flujo</Label>
                                 <p className="text-sm text-muted-foreground">
-                                    Activate this workflow for automatic scheduling
+                                    Activa este flujo para programación automática
                                 </p>
                             </div>
                             <Switch checked={enabled} onCheckedChange={setEnabled} />
@@ -467,28 +465,28 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
 
                         {/* Workflow Metadata */}
                         <div className="space-y-4 border-t pt-4">
-                            <h3 className="font-semibold">Workflow Metadata</h3>
+                            <h3 className="font-semibold">Metadatos del Flujo</h3>
                             <div className="grid grid-cols-4 gap-4">
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Version</Label>
+                                    <Label className="text-xs">Versión</Label>
                                     <Input type="number" value={version} onChange={(e) => setVersion(parseInt(e.target.value))} className="text-sm" />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Duration (est.)</Label>
+                                    <Label className="text-xs">Duración (est.)</Label>
                                     <Input value={duracionEstimada} onChange={(e) => setDuracionEstimada(e.target.value)} placeholder="5-10 min" className="text-sm" />
                                 </div>
                                 <div className="flex items-center justify-between rounded-lg border p-2">
-                                    <Label className="text-xs">Active</Label>
+                                    <Label className="text-xs">Activo</Label>
                                     <Switch checked={activo} onCheckedChange={setActivo} />
                                 </div>
                                 <div className="flex items-center justify-between rounded-lg border p-2">
-                                    <Label className="text-xs">Requires AI</Label>
+                                    <Label className="text-xs">Requiere IA</Label>
                                     <Switch checked={requiereIA} onCheckedChange={setRequiereIA} />
                                 </div>
                             </div>
 
                             <div className="space-y-2">
-                                <Label className="text-xs">Compliance Standards (NOM-XXX)</Label>
+                                <Label className="text-xs">Estándares de Cumplimiento (NOM-XXX)</Label>
                                 <div className="flex flex-wrap gap-2">
                                     {['NOM-251', 'NOM-035', 'NOM-030', 'NOM-019', 'NOM-017', 'LFT'].map(norm => (
                                         <button key={norm} onClick={() => {
@@ -501,7 +499,7 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                             </div>
 
                             <div className="space-y-2">
-                                <Label className="text-xs">Tags</Label>
+                                <Label className="text-xs">Etiquetas</Label>
                                 <div className="flex flex-wrap gap-2 mb-2">
                                     {TAGS_SUGGESTIONS.map(tag => (
                                         <button key={tag} onClick={() => toggleTag(tag)} className={`px-2 py-1 rounded-md text-xs border ${tags.includes(tag) ? 'bg-primary text-primary-foreground' : 'bg-background'}`}>
@@ -510,18 +508,18 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                                     ))}
                                 </div>
                                 <div className="flex gap-2">
-                                    <Input value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="Add custom tag..." className="text-sm" />
-                                    <Button size="sm" onClick={addCustomTag} className="h-8">Add</Button>
+                                    <Input value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="Agregar etiqueta..." className="text-sm" />
+                                    <Button size="sm" onClick={addCustomTag} className="h-8">Agregar</Button>
                                 </div>
                             </div>
                         </div>
 
                         {/* AI Configuration */}
                         <div className="space-y-4 border-t pt-4">
-                            <h3 className="font-semibold">AI Configuration</h3>
+                            <h3 className="font-semibold">Configuración de IA</h3>
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Provider</Label>
+                                    <Label className="text-xs">Proveedor</Label>
                                     <Select value={aiProvider} onValueChange={setAiProvider}>
                                         <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                                         <SelectContent>
@@ -532,7 +530,7 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Fallback Provider</Label>
+                                    <Label className="text-xs">Proveedor de Respaldo</Label>
                                     <Select value={aiFallbackProvider} onValueChange={setAiFallbackProvider}>
                                         <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                                         <SelectContent>
@@ -543,7 +541,7 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Max Retries</Label>
+                                    <Label className="text-xs">Máx. Reintentos</Label>
                                     <Input type="number" value={aiMaxRetries} onChange={(e) => setAiMaxRetries(parseInt(e.target.value))} className="text-sm" />
                                 </div>
                             </div>
@@ -551,12 +549,12 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
 
                         {/* Compliance Configuration */}
                         <div className="space-y-4 border-t pt-4">
-                            <h3 className="font-semibold">Compliance Configuration</h3>
+                            <h3 className="font-semibold">Configuración de Cumplimiento</h3>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Compliance Type</Label>
+                                    <Label className="text-xs">Tipo de Cumplimiento</Label>
                                     <Select value={complianceType} onValueChange={setComplianceType}>
-                                        <SelectTrigger className="text-sm"><SelectValue placeholder="Select..." /></SelectTrigger>
+                                        <SelectTrigger className="text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                                         <SelectContent>
                                             {COMPLIANCE_TYPES.map(c => (
                                                 <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
@@ -565,9 +563,9 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Regulation Section</Label>
+                                    <Label className="text-xs">Sección Regulatoria</Label>
                                     <Select value={regulationSection} onValueChange={setRegulationSection}>
-                                        <SelectTrigger className="text-sm"><SelectValue placeholder="Select..." /></SelectTrigger>
+                                        <SelectTrigger className="text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                                         <SelectContent>
                                             {REGULATION_SECTIONS.map(s => (
                                                 <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
@@ -578,9 +576,9 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Required Frequency</Label>
+                                    <Label className="text-xs">Frecuencia Requerida</Label>
                                     <Select value={requiredFrequency} onValueChange={setRequiredFrequency}>
-                                        <SelectTrigger className="text-sm"><SelectValue placeholder="Select..." /></SelectTrigger>
+                                        <SelectTrigger className="text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                                         <SelectContent>
                                             {FREQUENCIES_COMPLIANCE.map(f => (
                                                 <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
@@ -596,83 +594,133 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Switch checked={evidenceRequired} onCheckedChange={setEvidenceRequired} />
-                                    <Label className="text-xs">Evidence Required</Label>
+                                    <Label className="text-xs">Requiere Evidencia</Label>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Switch checked={criticalForCompliance} onCheckedChange={setCriticalForCompliance} />
-                                    <Label className="text-xs">Critical for Compliance</Label>
+                                    <Label className="text-xs">Crítico para Cumplimiento</Label>
                                 </div>
                             </div>
                         </div>
 
                         {/* Completion Actions */}
                         <div className="space-y-4 border-t pt-4">
-                            <h3 className="font-semibold">Completion Actions</h3>
-                            <p className="text-xs text-muted-foreground">Actions executed when workflow is completed</p>
+                            <h3 className="font-semibold">Acciones al Completar</h3>
+                            <p className="text-xs text-muted-foreground">Acciones ejecutadas cuando el flujo se completa</p>
 
                             <div className="space-y-2">
                                 <Select onValueChange={(v) => { addCompletionAction(v); }} value="">
-                                    <SelectTrigger className="text-sm"><SelectValue placeholder="Add completion action..." /></SelectTrigger>
+                                    <SelectTrigger className="text-sm"><SelectValue placeholder="Agregar acción..." /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="SEND_NOTIFICATION">Send Notification</SelectItem>
-                                        <SelectItem value="UPDATE_EMPLOYEE_STATUS">Update Employee Status</SelectItem>
-                                        <SelectItem value="GENERATE_PDF_REPORT">Generate PDF Report</SelectItem>
-                                        <SelectItem value="UPDATE_BRANCH_STATUS">Update Branch Status</SelectItem>
-                                        <SelectItem value="TRIGGER_NEXT_WORKFLOW">Trigger Next Workflow</SelectItem>
+                                        {(Object.keys(ACTION_GROUP_LABELS) as ActionGroup[]).map(group => (
+                                            <SelectGroup key={group}>
+                                                <SelectLabel className="text-xs font-semibold text-muted-foreground">
+                                                    {ACTION_GROUP_LABELS[group]}
+                                                </SelectLabel>
+                                                {COMPLETION_ACTION_TYPES
+                                                    .filter(a => a.group === group)
+                                                    .map(actionType => (
+                                                        <SelectItem key={actionType.type} value={actionType.type}>
+                                                            {actionType.label}
+                                                        </SelectItem>
+                                                    ))}
+                                            </SelectGroup>
+                                        ))}
                                     </SelectContent>
                                 </Select>
 
-                                {completionActions.map((action, idx) => (
-                                    <div key={idx} className="border rounded p-3 space-y-2 bg-muted/20">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm font-medium">{action.type}</span>
-                                            <Button size="sm" variant="ghost" onClick={() => removeCompletionAction(idx)} className="h-6 w-6 p-0"><Trash2 className="h-3 w-3" /></Button>
+                                {completionActions.map((action, idx) => {
+                                    const actionDef = getCompletionActionType(action.type);
+                                    return (
+                                        <div key={idx} className="border rounded p-3 space-y-2 bg-muted/20">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm font-medium">{actionDef?.label || action.type}</span>
+                                                <Button size="sm" variant="ghost" onClick={() => removeCompletionAction(idx)} className="h-6 w-6 p-0"><Trash2 className="h-3 w-3" /></Button>
+                                            </div>
+                                            {actionDef && actionDef.fields.length > 0 ? (
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {actionDef.fields.map(field => (
+                                                        <div key={field.name} className={field.type === 'multiline' || field.type === 'tags' ? 'col-span-2 space-y-1' : 'space-y-1'}>
+                                                            <Label className="text-xs">
+                                                                {field.label}
+                                                                {field.required && <span className="text-destructive ml-0.5">*</span>}
+                                                            </Label>
+                                                            {field.type === 'text' && (
+                                                                <Input
+                                                                    value={(action as any)[field.name] || ''}
+                                                                    onChange={(e) => updateCompletionAction(idx, { [field.name]: e.target.value } as any)}
+                                                                    className="text-xs"
+                                                                    placeholder={field.placeholder}
+                                                                />
+                                                            )}
+                                                            {field.type === 'number' && (
+                                                                <Input
+                                                                    type="number"
+                                                                    value={(action as any)[field.name] ?? field.defaultValue ?? ''}
+                                                                    onChange={(e) => updateCompletionAction(idx, { [field.name]: parseFloat(e.target.value) } as any)}
+                                                                    className="text-xs"
+                                                                />
+                                                            )}
+                                                            {field.type === 'multiline' && (
+                                                                <Textarea
+                                                                    value={(action as any)[field.name] || ''}
+                                                                    onChange={(e) => updateCompletionAction(idx, { [field.name]: e.target.value } as any)}
+                                                                    className="text-xs min-h-[60px]"
+                                                                    placeholder={field.placeholder}
+                                                                />
+                                                            )}
+                                                            {field.type === 'boolean' && (
+                                                                <div className="flex items-center gap-2 pt-1">
+                                                                    <Switch
+                                                                        checked={(action as any)[field.name] ?? field.defaultValue ?? false}
+                                                                        onCheckedChange={(c) => updateCompletionAction(idx, { [field.name]: c } as any)}
+                                                                    />
+                                                                    <span className="text-xs text-muted-foreground">{(action as any)[field.name] ? 'Sí' : 'No'}</span>
+                                                                </div>
+                                                            )}
+                                                            {field.type === 'tags' && (
+                                                                <Input
+                                                                    value={(() => {
+                                                                        const v = (action as any)[field.name];
+                                                                        return Array.isArray(v) ? v.join(', ') : v || '';
+                                                                    })()}
+                                                                    onChange={(e) => updateCompletionAction(idx, {
+                                                                        [field.name]: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean)
+                                                                    } as any)}
+                                                                    className="text-xs"
+                                                                    placeholder={field.placeholder || 'Valores separados por coma'}
+                                                                />
+                                                            )}
+                                                            {field.type === 'select' && field.options && (
+                                                                <Select
+                                                                    value={(action as any)[field.name] || field.defaultValue || ''}
+                                                                    onValueChange={(v) => updateCompletionAction(idx, { [field.name]: v } as any)}
+                                                                >
+                                                                    <SelectTrigger className="text-xs h-7">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {field.options.map(opt => (
+                                                                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-muted-foreground">Sin configuración adicional requerida</p>
+                                            )}
                                         </div>
-                                        {action.type === 'SEND_NOTIFICATION' && (
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px]">Target Roles</Label>
-                                                    <Input value={action.target?.join(', ') || ''} onChange={(e) => updateCompletionAction(idx, { target: e.target.value.split(',').map(s => s.trim()) })} className="text-xs" placeholder="GERENTE, OWNER" />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px]">Channel</Label>
-                                                    <Select value={action.channel || 'whatsapp'} onValueChange={(v) => updateCompletionAction(idx, { channel: v })}>
-                                                        <SelectTrigger className="text-xs h-7"><SelectValue /></SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                                                            <SelectItem value="email">Email</SelectItem>
-                                                            <SelectItem value="sms">SMS</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {action.type === 'UPDATE_EMPLOYEE_STATUS' && (
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px]">Status</Label>
-                                                    <Input value={action.status || ''} onChange={(e) => updateCompletionAction(idx, { status: e.target.value })} className="text-xs" placeholder="VERIFIED" />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px]">Valid For (min)</Label>
-                                                    <Input type="number" value={action.validFor || 480} onChange={(e) => updateCompletionAction(idx, { validFor: parseInt(e.target.value) })} className="text-xs" />
-                                                </div>
-                                            </div>
-                                        )}
-                                        {action.type === 'GENERATE_PDF_REPORT' && (
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px]">Template</Label>
-                                                    <Input value={action.template || ''} onChange={(e) => updateCompletionAction(idx, { template: e.target.value })} className="text-xs" placeholder="default" />
-                                                </div>
-                                                <div className="flex items-center gap-2 pt-4">
-                                                    <Switch checked={action.includePhotos || false} onCheckedChange={(c) => updateCompletionAction(idx, { includePhotos: c })} />
-                                                    <Label className="text-[10px]">Include Photos</Label>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
+                                    );
+                                })}
+
+                                {completionActions.length === 0 && (
+                                    <p className="text-xs text-muted-foreground text-center py-4">
+                                        No hay acciones configuradas. Agrega una desde el menú superior.
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -680,11 +728,11 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                         <div className="space-y-4 border-t pt-4">
                             <div className="flex items-center gap-2">
                                 <Calendar className="h-5 w-5 text-muted-foreground" />
-                                <h3 className="font-semibold">Scheduling</h3>
+                                <h3 className="font-semibold">Programación</h3>
                             </div>
 
                             <div className="space-y-2">
-                                <Label>Frequency</Label>
+                                <Label>Frecuencia</Label>
                                 <Select value={frequency} onValueChange={setFrequency}>
                                     <SelectTrigger>
                                         <SelectValue />
@@ -701,7 +749,7 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
 
                             {frequency === 'weekly' && (
                                 <div className="space-y-2">
-                                    <Label>Days of Week</Label>
+                                    <Label>Días de la Semana</Label>
                                     <div className="flex flex-wrap gap-2">
                                         {DAYS_OF_WEEK.map(day => (
                                             <button
@@ -724,16 +772,16 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                         <div className="space-y-4 border-t pt-4">
                             <div className="flex items-center gap-2">
                                 <Users className="h-5 w-5 text-muted-foreground" />
-                                <h3 className="font-semibold">Role Assignment</h3>
+                                <h3 className="font-semibold">Asignación de Roles</h3>
                             </div>
 
                             <div className="flex items-center justify-between rounded-lg border p-3">
-                                <Label className="text-sm">Auto-assign to available employees</Label>
+                                <Label className="text-sm">Auto-asignar a empleados disponibles</Label>
                                 <Switch checked={autoAssign} onCheckedChange={setAutoAssign} />
                             </div>
 
                             <div className="space-y-2">
-                                <Label>Assigned Roles</Label>
+                                <Label>Roles Asignados</Label>
                                 <div className="flex flex-wrap gap-2">
                                     {ROLES.map(role => (
                                         <button
@@ -751,9 +799,9 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                             </div>
 
                             <div className="space-y-2">
-                                <Label>Assigned Shifts</Label>
+                                <Label>Turnos Asignados</Label>
                                 <p className="text-xs text-muted-foreground mb-3">
-                                    Select shifts and set execution time for each
+                                    Selecciona turnos y establece la hora de ejecución
                                 </p>
                                 <div className="space-y-3">
                                     {SHIFTS.map(shift => {
@@ -794,11 +842,11 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                         <div className="space-y-4 border-t pt-4">
                             <div className="flex items-center gap-2">
                                 <Zap className="h-5 w-5 text-muted-foreground" />
-                                <h3 className="font-semibold">Event Triggers</h3>
+                                <h3 className="font-semibold">Disparadores de Eventos</h3>
                             </div>
 
                             <p className="text-sm text-muted-foreground">
-                                Automatically start this workflow when specific events occur.
+                                Inicia este flujo automáticamente cuando ocurran eventos específicos.
                             </p>
 
                             <div className="space-y-3">
@@ -824,7 +872,7 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                                 <div className="flex gap-2">
                                     <Select value={newTriggerEvent} onValueChange={setNewTriggerEvent}>
                                         <SelectTrigger className="w-full">
-                                            <SelectValue placeholder="Select event..." />
+                                            <SelectValue placeholder="Seleccionar evento..." />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {EVENTS.map(e => (
@@ -836,7 +884,7 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                                     </Select>
                                     <Button onClick={addTrigger} disabled={!newTriggerEvent}>
                                         <Plus className="h-4 w-4 mr-2" />
-                                        Add
+                                        Agregar
                                     </Button>
                                 </div>
                             </div>
@@ -844,11 +892,11 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
 
                         {/* Summary */}
                         <div className="rounded-lg bg-muted p-4 space-y-2">
-                            <p className="text-sm font-medium">Summary</p>
+                                <p className="text-sm font-medium">Resumen</p>
                             <p className="text-xs text-muted-foreground">
-                                This workflow will run <strong>{frequency}</strong>
-                                {frequency === 'weekly' && ` on ${selectedDays.join(', ')}`}.
-                                It will be assigned to <strong>{assignedRoles.join(', ')}</strong> during:
+                                Este flujo se ejecutará <strong>{frequency === 'daily' ? 'diario' : frequency === 'weekly' ? 'semanal' : frequency === 'monthly' ? 'mensual' : 'bajo demanda'}</strong>
+                                {frequency === 'weekly' && ` los ${selectedDays.join(', ')}`}.
+                                Será asignado a <strong>{assignedRoles.join(', ')}</strong> durante:
                             </p>
                             <ul className="text-xs text-muted-foreground list-disc list-inside pl-2">
                                 {assignedShifts.map(shift => {
@@ -866,16 +914,16 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                         {/* Actions */}
                         <div className="flex justify-end gap-2">
                             <Button variant="outline" onClick={onClose}>
-                                Cancel
+                                Cancelar
                             </Button>
                             <Button onClick={handleSave} disabled={saving}>
                                 {saving ? (
                                     <>
                                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        Saving...
+                                        Guardando...
                                     </>
                                 ) : (
-                                    'Save Settings'
+                                    'Guardar Configuración'
                                 )}
                             </Button>
                         </div>

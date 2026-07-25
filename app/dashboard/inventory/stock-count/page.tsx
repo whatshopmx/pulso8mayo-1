@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { StockCountService, DEFAULT_CATEGORIES } from "@/lib/services/stock-count-service";
+import { StockCountService } from "@/lib/services/stock-count-service";
+import { CATEGORIES } from "@/lib/inventory/constants";
 import { db } from "@/lib/db";
 import { branches } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -10,6 +11,35 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardList, History } from "lucide-react";
+import { PageHeader, PageContainer } from "@/components/shared";
+
+async function createStockCount(formData: FormData) {
+  "use server";
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) return;
+
+  const branchId = formData.get("branchId") as string;
+  const category = formData.get("category") as string;
+  if (!branchId || !category) return;
+
+  try {
+    const result = await StockCountService.createStockCountInstance({
+      companyId: session.user.companyId || "",
+      branchId,
+      assigneeId: session.user.id,
+      categoryValue: category,
+    });
+    if (result.instance?.id) {
+      redirect(`/dashboard/workflows/${result.instance.id}/execute`);
+    }
+  } catch (error: any) {
+    const match = error.message?.match(/ID:\s*([a-f0-9-]+)/i);
+    if (match) {
+      redirect(`/dashboard/workflows/${match[1]}/execute`);
+    }
+    console.error("Stock count error:", error);
+  }
+}
 
 export default async function StockCountPage() {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -34,16 +64,12 @@ export default async function StockCountPage() {
     };
 
     return (
-        <div className="container mx-auto py-8 max-w-2xl space-y-8">
-            <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <ClipboardList className="h-6 w-6" />
-                    Conteo de Inventario
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                    Inicia un conteo físico de inventario por categoría
-                </p>
-            </div>
+        <PageContainer className="max-w-2xl">
+            <PageHeader
+                title="Conteo de Inventario"
+                description="Inicia un conteo físico de inventario por categoría"
+                icon={ClipboardList}
+            />
 
             {userBranches.length === 0 ? (
                 <Card>
@@ -61,64 +87,40 @@ export default async function StockCountPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <form action={async (formData) => {
-                                "use server";
-                                const branchId = formData.get("branchId");
-                                const category = formData.get("category");
-                                const res = await fetch(process.env.NEXT_PUBLIC_APP_URL + "/api/inventory/stock-count", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ branchId, category }),
-                                });
-            const result = await res.json();
-            if (result.instance?.id) {
-              redirect(`/dashboard/workflows/${result.instance.id}/execute`);
-            }
-            if (result.error) {
-              const activeIdMatch = result.error.match(/ID:\s*([a-f0-9-]+)/i);
-              if (activeIdMatch) {
-                redirect(`/dashboard/workflows/${activeIdMatch[1]}/execute`);
-              }
-              console.error(result.error);
-            }
-                            }}>
-                                <div className="grid gap-4">
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="branchId">Sucursal</Label>
-                                        <select
-                                            id="branchId"
-                                            name="branchId"
-                                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                            required
-                                        >
-                                            {userBranches.map(branch => (
-                                                <option key={branch.id} value={branch.id}>
-                                                    {branch.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="category">Categoría</Label>
-                                        <select
-                                            id="category"
-                                            name="category"
-                                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                            required
-                                        >
-                                            {DEFAULT_CATEGORIES.map(c => (
-                                                <option key={c.id} value={c.value}>
-                                                    {c.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <Button type="submit" className="w-full mt-2">
-                                        Iniciar Conteo
-                                    </Button>
+                            <form action={createStockCount} className="grid gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="branchId">Sucursal</Label>
+                                    <select
+                                        id="branchId"
+                                        name="branchId"
+                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                        required
+                                    >
+                                        <option value="">Seleccionar sucursal</option>
+                                        {userBranches.map((b) => (
+                                            <option key={b.id} value={b.id}>{b.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="category">Categoría</Label>
+                                    <select
+                                        id="category"
+                                        name="category"
+                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                        required
+                                    >
+                                        <option value="">Seleccionar categoría</option>
+                                        {CATEGORIES.map((c) => (
+                                            <option key={c.value} value={c.value}>{c.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <Button type="submit" className="w-full mt-2">
+                                    Iniciar Conteo
+                                </Button>
                             </form>
                         </CardContent>
                     </Card>
@@ -158,6 +160,6 @@ export default async function StockCountPage() {
                     )}
                 </>
             )}
-        </div>
+        </PageContainer>
     );
 }

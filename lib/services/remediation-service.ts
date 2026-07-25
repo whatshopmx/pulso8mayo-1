@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
-import { incidents } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { incidents, remediationActions, branchComplianceServices, complianceServiceHistory } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 
 /**
  * RemediationService - Manages guided self-fix remediation protocols
@@ -49,8 +49,12 @@ export class RemediationService {
                 })
                 .where(eq(incidents.id, incident.id));
 
-            // Return first step instructions
+            // Check if first step is external_service
             const firstStep = protocol.steps[0];
+            if (firstStep.type === 'external_service') {
+                return await this.handleExternalServiceStep(incident, firstStep);
+            }
+
             console.log('[RemediationService] Remediation started, first step:', firstStep.instruction);
 
             return {
@@ -64,6 +68,81 @@ export class RemediationService {
         } catch (error) {
             console.error('[RemediationService] Error starting remediation:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Handles an external_service step by pausing remediation, looking up
+     * the branch compliance service config, creating a remediation action,
+     * and notifying the manager.
+     */
+    static async handleExternalServiceStep(incident: any, step: any) {
+        try {
+            console.log(`[RemediationService] External service required: ${step.complianceServiceType}`);
+
+            const [serviceConfig] = await db
+                .select()
+                .from(branchComplianceServices)
+                .where(and(
+                    eq(branchComplianceServices.branchId, incident.branchId),
+                    eq(branchComplianceServices.serviceType, step.complianceServiceType),
+                    eq(branchComplianceServices.isActive, true)
+                ))
+                .limit(1);
+
+            const [action] = await db
+                .insert(remediationActions)
+                .values({
+                    incidentId: incident.id,
+                    serviceConfigId: serviceConfig?.id,
+                    branchId: incident.branchId,
+                    companyId: serviceConfig?.companyId || '',
+                    actionType: 'SCHEDULE_COMPLIANCE_SERVICE',
+                    serviceType: step.complianceServiceType,
+                    workflowTemplateId: step.workflowTemplateId || serviceConfig?.workflowTemplateId,
+                    status: 'PENDING',
+                })
+                .returning();
+
+            await db
+                .update(incidents)
+                .set({ status: 'AWAITING_EXTERNAL' })
+                .where(eq(incidents.id, incident.id));
+
+            await this.notifyManagerExternalService(incident, step, serviceConfig);
+
+            console.log(`[RemediationService] External service action created: ${action.id}`);
+
+            return {
+                incidentId: incident.id,
+                requiresExternalService: true,
+                remediationActionId: action.id,
+                serviceType: step.complianceServiceType,
+                instruction: step.instruction,
+                message: `Se requiere coordinar servicio externo: ${step.complianceServiceType}`,
+            };
+        } catch (error) {
+            console.error('[RemediationService] Error handling external service step:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Notifies the manager about an external service requirement
+     */
+    static async notifyManagerExternalService(incident: any, step: any, serviceConfig: any) {
+        try {
+            const { EscalationService } = await import('./escalation-service');
+            const branchName = serviceConfig?.serviceName || step.complianceServiceType;
+
+            await EscalationService.notifyRoles(
+                incident.branchId,
+                ['GERENTE', 'ADMIN'],
+                `🚨 Se requiere coordinar ${branchName} en la sucursal.\n\n${step.instruction}`,
+                'whatsapp'
+            );
+        } catch (error) {
+            console.error('[RemediationService] Error notifying manager:', error);
         }
     }
 
@@ -147,6 +226,11 @@ export class RemediationService {
                             },
                         })
                         .where(eq(incidents.id, incidentId));
+
+                    // Check if next step requires external service
+                    if (nextStep.type === 'external_service') {
+                        return await this.handleExternalServiceStep(incident, nextStep);
+                    }
 
                     console.log('[RemediationService] Moving to next step:', nextStepIndex);
 
@@ -372,4 +456,111 @@ export class RemediationService {
             failedAt: metadata.remediationFailedAt,
         };
     }
+
+    /**
+     * Completes an external service remediation, resolves the linked incident,
+     * updates compliance service history, and notifies management.
+     */
+    static async completeExternalServiceRemediation(instanceId: string, scheduleId?: string) {
+        try {
+            console.log(`[RemediationService] Completing external service remediation for instance ${instanceId}`);
+
+            // Find remediation action linked to workflow instance or schedule
+            let action;
+            if (scheduleId) {
+                [action] = await db
+                    .select()
+                    .from(remediationActions)
+                    .where(eq(remediationActions.scheduleId, scheduleId))
+                    .limit(1);
+            }
+
+            if (!action) {
+                [action] = await db
+                    .select()
+                    .from(remediationActions)
+                    .where(eq(remediationActions.workflowInstanceId, instanceId))
+                    .limit(1);
+            }
+
+            if (!action) {
+                console.log(`[RemediationService] No remediation action found for instance ${instanceId} / schedule ${scheduleId}`);
+                return null;
+            }
+
+            const now = new Date();
+
+            // 1. Update remediation action
+            await db
+                .update(remediationActions)
+                .set({
+                    status: 'COMPLETED',
+                    workflowInstanceId: instanceId,
+                    completedAt: now,
+                    result: 'PASSED',
+                    updatedAt: now,
+                })
+                .where(eq(remediationActions.id, action.id));
+
+            // 2. Resolve linked incident
+            await db
+                .update(incidents)
+                .set({
+                    status: 'RESOLVED',
+                    resolvedAt: now,
+                    resolvedBy: 'system',
+                    resolution: `Servicio externo de remediación (${action.serviceType}) completado exitosamente via workflow.`,
+                    updatedAt: now,
+                })
+                .where(eq(incidents.id, action.incidentId));
+
+            // 3. Cancel escalations
+            try {
+                const { EscalationService } = await import('./escalation-service');
+                await EscalationService.cancelEscalation(action.incidentId);
+            } catch (err) {
+                console.error('[RemediationService] Error cancelling escalation:', err);
+            }
+
+            // 4. Update compliance service history & config if applicable
+            if (action.serviceConfigId) {
+                await db
+                    .update(complianceServiceHistory)
+                    .set({
+                        completedDate: now,
+                        result: 'PASSED',
+                        workflowInstanceId: instanceId,
+                        updatedAt: now,
+                    })
+                    .where(eq(complianceServiceHistory.serviceConfigId, action.serviceConfigId));
+
+                await db
+                    .update(branchComplianceServices)
+                    .set({
+                        lastServiceDate: now,
+                        updatedAt: now,
+                    })
+                    .where(eq(branchComplianceServices.id, action.serviceConfigId));
+            }
+
+            // 5. Notify Manager
+            try {
+                const { EscalationService } = await import('./escalation-service');
+                await EscalationService.notifyRoles(
+                    action.branchId,
+                    ['GERENTE', 'ADMIN'],
+                    `✅ Servicio de remediación (*${action.serviceType}*) completado exitosamente.\n\nIncidente resuelto automáticamente.`,
+                    'whatsapp'
+                );
+            } catch (err) {
+                console.error('[RemediationService] Error notifying manager of completion:', err);
+            }
+
+            return { success: true, incidentId: action.incidentId, actionId: action.id };
+        } catch (error) {
+            console.error('[RemediationService] Error completing external service remediation:', error);
+            throw error;
+        }
+    }
 }
+

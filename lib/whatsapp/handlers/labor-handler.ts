@@ -15,11 +15,7 @@ export interface LaborCommandResult {
     data?: any;
 }
 
-import { start } from "workflow/api";
-import { handleClockInWorkflow } from "@/app/workflows/handle-clock-in";
-import { handleClockOutWorkflow } from "@/app/workflows/handle-clock-out";
-import { handleBreakStartWorkflow } from "@/app/workflows/handle-break-start";
-import { handleBreakEndWorkflow } from "@/app/workflows/handle-break-end";
+import { inngest } from "@/lib/inngest/client";
 
 export interface GeolocationData {
     latitude: number;
@@ -55,9 +51,10 @@ Si quieres registrar salida, envía: *salida*`,
                 };
             }
 
-            // Trigger Durable Workflow
-            // Args: userId, branchId, phoneNumber, geolocation (optional)
-            await start(handleClockInWorkflow, [userId, branchId, phoneNumber, geolocation]);
+            await inngest.send({
+                name: "shift/clock-in.requested",
+                data: { userId, branchId, phoneNumber, geolocation },
+            });
 
             return {
                 success: true,
@@ -83,8 +80,10 @@ Te enviaremos confirmación en un momento.`,
         geolocation?: GeolocationData
     ): Promise<LaborCommandResult> {
         try {
-            // Trigger Durable Workflow
-            await start(handleClockOutWorkflow, [userId, phoneNumber, geolocation]);
+            await inngest.send({
+                name: "shift/clock-out.requested",
+                data: { userId, phoneNumber, geolocation },
+            });
 
             return {
                 success: true,
@@ -109,8 +108,10 @@ Te enviaremos confirmación en un momento.`,
         geolocation?: GeolocationData
     ): Promise<LaborCommandResult> {
         try {
-            // Trigger Durable Workflow
-            await start(handleBreakStartWorkflow, [userId, phoneNumber, geolocation]);
+            await inngest.send({
+                name: "shift/break.start.requested",
+                data: { userId, phoneNumber, geolocation },
+            });
 
             return {
                 success: true,
@@ -135,8 +136,10 @@ Te enviaremos confirmación en un momento.`,
         geolocation?: GeolocationData
     ): Promise<LaborCommandResult> {
         try {
-            // Trigger Durable Workflow
-            await start(handleBreakEndWorkflow, [userId, phoneNumber, geolocation]);
+            await inngest.send({
+                name: "shift/break.end.requested",
+                data: { userId, phoneNumber, geolocation },
+            });
 
             return {
                 success: true,

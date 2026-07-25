@@ -56,64 +56,25 @@
   ],
   "pasos": [
     {
-      "id": "paso-1",
+      "id": "category-select",
       "type": "Select",
-      "titulo": "Tipo de Conteo",
+      "titulo": "Área / Categoría a Contar",
+      "descripcion": "Selecciona la categoría de productos a contar en este procedimiento",
       "obligatorio": true,
       "options": [
-        "Parcial",
-        "Completo",
-        "Cíclico"
+        "Materia Prima",
+        "Producto Terminado",
+        "Insumo",
+        "Embalaje",
+        "Otro"
       ]
     },
     {
-      "id": "paso-2",
-      "type": "Select",
-      "titulo": "Área",
-      "obligatorio": true,
-      "options": [
-        "Almacén General",
-        "Refrigerados",
-        "Congelados",
-        "Secos",
-        "Bar",
-        "Despensa"
-      ]
-    },
-    {
-      "id": "paso-3",
-      "type": "TextField",
-      "titulo": "Producto",
-      "obligatorio": true
-    },
-    {
-      "id": "paso-4",
-      "type": "NumberField",
-      "titulo": "Cantidad Física",
-      "obligatorio": true,
-      "validation": {
-        "min": 0
-      }
-    },
-    {
-      "id": "paso-5",
-      "type": "Select",
-      "titulo": "Unidad",
-      "obligatorio": true,
-      "options": [
-        "Piezas",
-        "Kilogramos",
-        "Litros",
-        "Cajas",
-        "Bolsas",
-        "Paquetes"
-      ]
-    },
-    {
-      "id": "paso-6",
+      "id": "foto-estanteria-ai",
       "type": "PhotoField",
-      "titulo": "Foto de Estantería (AI)",
-      "obligatorio": true,
+      "titulo": "Foto de Estantería (Verificación AI)",
+      "descripcion": "Toma una fotografía del área o estantería para auditoría visual con IA",
+      "obligatorio": false,
       "aiVerification": {
         "enabled": true,
         "prompt": "Detectar y contar los productos visibles en la estantería. Estimar el nivel de stock visualmente. Identificar si hay productos vencidos o en mal estado. Verificar orden y organización del área.",
@@ -127,59 +88,15 @@
       }
     },
     {
-      "id": "paso-7",
-      "type": "NumberField",
-      "titulo": "Cantidad en Sistema",
-      "obligatorio": false
-    },
-    {
-      "id": "paso-8",
-      "type": "NumberField",
-      "titulo": "Diferencia",
-      "readOnly": true,
-      "logicRules": [
-        {
-          "id": "rule-diferencia-mayor-20",
-          "condition": "diferencia_porcentual > 20",
-          "severity": "WARNING",
-          "message": "Diferencia mayor al 20% entre cantidad física y sistema - Se requiere revisión del gerente",
-          "escalationChain": ["Gerente"],
-          "actions": [
-            {
-              "type": "SEND_NOTIFICATION",
-              "target": "Gerente",
-              "channel": "in-app",
-              "message": "ALERTA: Diferencia de inventario mayor al 20% detectada"
-            }
-          ]
-        },
-        {
-          "id": "rule-producto-vencido",
-          "condition": "producto_vencido == true",
-          "severity": "CRITICAL",
-          "message": "Producto vencido encontrado - Retirar inmediatamente y registrar disposición",
-          "actions": [
-            {
-              "type": "SEND_NOTIFICATION",
-              "target": "Gerente",
-              "channel": "whatsapp",
-              "message": "CRÍTICO: Producto vencido detectado en inventario - Requiere disposición inmediata"
-            }
-          ]
-        }
+      "id": "confirm-count",
+      "type": "Select",
+      "titulo": "¿Confirmas que el conteo está correcto?",
+      "descripcion": "Una vez confirmado, se generarán los ajustes automáticamente",
+      "obligatorio": true,
+      "options": [
+        { "value": "yes", "label": "Sí, confirmar y generar ajustes" },
+        { "value": "no", "label": "No, revisar conteo" }
       ]
-    },
-    {
-      "id": "paso-9",
-      "type": "TextField",
-      "titulo": "Motivo de la Diferencia",
-      "obligatorio": false
-    },
-    {
-      "id": "paso-10",
-      "type": "YesNo",
-      "titulo": "¿Conteo completado?",
-      "obligatorio": true
     }
   ]
 }

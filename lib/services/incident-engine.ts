@@ -221,18 +221,12 @@ export class IncidentEngine {
 
             // Trigger escalation if chain exists
             if (rule.escalationChain && Array.isArray(rule.escalationChain)) {
-                // Import dynamically to avoid circular dependency
-                // const { EscalationService } = await import('./escalation-service');
-                // await EscalationService.triggerEscalation(incident, rule.escalationChain);
+                const { inngest } = await import("@/lib/inngest/client");
 
-                // Trigger Vercel Workflow for durable escalation
-                const { start } = await import("workflow/api");
-                const { incidentEscalationWorkflow } = await import("@/app/workflows/incident-escalation");
-
-                await start(incidentEscalationWorkflow, [
-                    incident.id,
-                    rule.escalationChain
-                ]);
+                await inngest.send({
+                    name: "incident/escalation.requested",
+                    data: { incidentId: incident.id, chain: rule.escalationChain },
+                });
             }
 
             // Start remediation if protocol exists

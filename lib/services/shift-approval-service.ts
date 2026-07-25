@@ -325,7 +325,7 @@ export class ShiftApprovalService {
                 db.query.users.findMany({
                     where: and(
                         eq(users.branchId, approval.branchId),
-                        inArray(users.role, MANAGER_ROLES as readonly string[])
+                        inArray(users.role, MANAGER_ROLES as any)
                     )
                 }),
             ]);

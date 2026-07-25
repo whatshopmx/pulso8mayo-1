@@ -44,9 +44,9 @@ export default function IMSSPage() {
                     overdueAltas = altasData.summary?.overdue || 0;
                 }
                 if (bajasRes.ok) {
-                    const bassesData = await bajasRes.json();
-                    pendingBajas = (bassesData.summary?.ready || 0) + (bassesData.summary?.pending || 0);
-                    overdueBajas = bassesData.summary?.overdue || 0;
+                    const bajasData = await bajasRes.json();
+                    pendingBajas = (bajasData.summary?.ready || 0) + (bajasData.summary?.pending || 0);
+                    overdueBajas = bajasData.summary?.overdue || 0;
                 }
                 if (employeesRes.ok) {
                     const empData = await employeesRes.json();
@@ -72,9 +72,9 @@ export default function IMSSPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold">IMSS Integration</h1>
+                <h1 className="text-3xl font-bold">Integración IMSS</h1>
                 <p className="text-muted-foreground">
-                    Mexican Social Security Institute (IMSS) compliance and reporting
+                    Cumplimiento y reportes ante el Instituto Mexicano del Seguro Social
                 </p>
             </div>
 
@@ -86,13 +86,13 @@ export default function IMSSPage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Active Employees</CardTitle>
+                            <CardTitle className="text-sm font-medium">Empleados Activos</CardTitle>
                             <Users className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{stats.totalEmployees}</div>
                             <p className="text-xs text-muted-foreground">
-                                Registered with IMSS
+                                Registrados ante IMSS
                             </p>
                         </CardContent>
                     </Card>
@@ -125,8 +125,8 @@ export default function IMSSPage() {
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Compliance Status</CardTitle>
-                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <CardTitle className="text-sm font-medium">Estado de Cumplimiento</CardTitle>
+                            <CheckCircle className="h-4 w-4 text-success" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-green-600">
@@ -135,7 +135,7 @@ export default function IMSSPage() {
                                     : 100}%
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                Employees compliant
+                                Empleados en cumplimiento
                             </p>
                         </CardContent>
                     </Card>
@@ -144,26 +144,26 @@ export default function IMSSPage() {
 
             <Tabs defaultValue="overview" className="space-y-4">
                 <TabsList>
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="altas">Altas (Registro)</TabsTrigger>
-                    <TabsTrigger value="bajas">Bajas (Desregistro)</TabsTrigger>
-                    <TabsTrigger value="reports">Reports & Files</TabsTrigger>
-                    <TabsTrigger value="settings">Settings</TabsTrigger>
+                    <TabsTrigger value="overview">Resumen</TabsTrigger>
+                    <TabsTrigger value="altas">Altas</TabsTrigger>
+                    <TabsTrigger value="bajas">Bajas</TabsTrigger>
+                    <TabsTrigger value="reports">Reportes y Archivos</TabsTrigger>
+                    <TabsTrigger value="settings">Configuración</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>IMSS Compliance Overview</CardTitle>
+                            <CardTitle>Resumen de Cumplimiento IMSS</CardTitle>
                             <CardDescription>
-                                Current status of IMSS registrations and contributions
+                                Estado actual de registros y contribuciones ante el IMSS
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="font-medium">Employee Registrations (Altas)</p>
+                                        <p className="font-medium">Altas de Empleados</p>
                                         <p className="text-sm text-muted-foreground">
                                             Registro de empleados nuevos ante IMSS
                                         </p>
@@ -178,9 +178,9 @@ export default function IMSSPage() {
 
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="font-medium">Employee Deregistrations (Bajas)</p>
+                                        <p className="font-medium">Bajas de Empleados</p>
                                         <p className="text-sm text-muted-foreground">
-                                            Desregistro de empleados terminated
+                                            Desregistro de empleados ante IMSS
                                         </p>
                                     </div>
                                     <Link href="/dashboard/compliance/imss/bajas">
@@ -193,9 +193,9 @@ export default function IMSSPage() {
 
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="font-medium">SUA Files (Salary Updates)</p>
+                                        <p className="font-medium">Archivos SUA</p>
                                         <p className="text-sm text-muted-foreground">
-                                            Actualización salarial mensual
+                                            Actualización salarial mensual ante IMSS
                                         </p>
                                     </div>
                                     <Button size="sm" variant="outline" disabled>
@@ -205,9 +205,9 @@ export default function IMSSPage() {
 
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="font-medium">IDSE Files (Movements)</p>
+                                        <p className="font-medium">Archivos IDSE</p>
                                         <p className="text-sm text-muted-foreground">
-                                            Movimientos batch ante IMSS
+                                            Reporte de movimientos ante IMSS
                                         </p>
                                     </div>
                                     <Button size="sm" variant="outline" disabled>
@@ -222,9 +222,9 @@ export default function IMSSPage() {
                 <TabsContent value="altas" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Employee Registration (Altas)</CardTitle>
+                            <CardTitle>Altas IMSS</CardTitle>
                             <CardDescription>
-                                Register new employees with IMSS
+                                Registro de nuevos empleados ante el IMSS
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -234,7 +234,7 @@ export default function IMSSPage() {
                             <Link href="/dashboard/compliance/imss/altas">
                                 <Button>
                                     <PlusCircle className="h-4 w-4 mr-2" />
-                                    Ir a Altas IMS S
+                                    Ir a Altas IMSS
                                 </Button>
                             </Link>
                         </CardContent>
@@ -244,14 +244,14 @@ export default function IMSSPage() {
                 <TabsContent value="bajas" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Employee Deregistration (Bajas)</CardTitle>
+                            <CardTitle>Bajas IMSS</CardTitle>
                             <CardDescription>
-                                Deregister terminated employees from IMSS
+                                Desregistro de empleados dados de baja ante el IMSS
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <p className="text-muted-foreground mb-4">
-                                Genera archivos de desregistro para empleados terminated.
+                                Genera archivos de desregistro para empleados dados de baja.
                             </p>
                             <Link href="/dashboard/compliance/imss/bajas">
                                 <Button>
@@ -266,53 +266,53 @@ export default function IMSSPage() {
                 <TabsContent value="reports" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>IMSS Reports & Files</CardTitle>
+                            <CardTitle>Reportes y Archivos IMSS</CardTitle>
                             <CardDescription>
-                                Generate and download IMSS compliance files
+                                Genera y descarga archivos de cumplimiento IMSS
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="p-4 border rounded-lg">
-                                        <h4 className="font-medium">SUA Files (Salary Updates)</h4>
+                                        <h4 className="font-medium">Archivos SUA</h4>
                                         <p className="text-sm text-muted-foreground mb-2">
-                                            Monthly salary reporting to IMSS
+                                            Reporte salarial mensual al IMSS
                                         </p>
                                         <Button size="sm" variant="outline" disabled>
-                                            Generate SUA File
+                                            Generar SUA
                                         </Button>
                                     </div>
 
                                     <div className="p-4 border rounded-lg">
-                                        <h4 className="font-medium">IDSE Files (Employee Movements)</h4>
+                                        <h4 className="font-medium">Archivos IDSE</h4>
                                         <p className="text-sm text-muted-foreground mb-2">
-                                            Report employee changes and movements
+                                            Reporta cambios y movimientos de empleados
                                         </p>
                                         <Link href="/dashboard/compliance/imss/altas">
                                             <Button size="sm" variant="outline">
-                                                Generate IDSE File
+                                                Generar IDSE
                                             </Button>
                                         </Link>
                                     </div>
 
                                     <div className="p-4 border rounded-lg">
-                                        <h4 className="font-medium">SIPARE Files (Contributions)</h4>
+                                        <h4 className="font-medium">Archivos SIPARE</h4>
                                         <p className="text-sm text-muted-foreground mb-2">
-                                            Contribution calculations and reporting
+                                            Cálculo y reporte de contribuciones
                                         </p>
                                         <Button size="sm" variant="outline" disabled>
-                                            Generate SIPARE File
+                                            Generar SIPARE
                                         </Button>
                                     </div>
 
                                     <div className="p-4 border rounded-lg">
-                                        <h4 className="font-medium">Compliance Reports</h4>
+                                        <h4 className="font-medium">Reportes de Cumplimiento</h4>
                                         <p className="text-sm text-muted-foreground mb-2">
-                                            Monthly IMSS compliance summary
+                                            Resumen mensual de cumplimiento IMSS
                                         </p>
                                         <Button size="sm" variant="outline" disabled>
-                                            Generate Report
+                                            Generar Reporte
                                         </Button>
                                     </div>
                                 </div>
@@ -324,9 +324,9 @@ export default function IMSSPage() {
                 <TabsContent value="settings" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>IMSS Settings</CardTitle>
+                            <CardTitle>Configuración IMSS</CardTitle>
                             <CardDescription>
-                                Configure IMSS integration settings
+                                Configura la integración con el IMSS
                             </CardDescription>
                         </CardHeader>
                         <CardContent>

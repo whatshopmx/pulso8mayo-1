@@ -58,6 +58,13 @@ const priorityColors = {
     URGENT: 'border-l-red-500',
 };
 
+const priorityLabels = {
+    LOW: 'Baja',
+    MEDIUM: 'Media',
+    HIGH: 'Alta',
+    URGENT: 'Urgente',
+};
+
 export function AssignmentCard({
     assignment,
     instance,
@@ -181,7 +188,7 @@ export function AssignmentCard({
                     </Badge>
 
                     <Badge variant="outline">
-                        {assignment.priority}
+                        {priorityLabels[assignment.priority] || assignment.priority}
                     </Badge>
                 </div>
 

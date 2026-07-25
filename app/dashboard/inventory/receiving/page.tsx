@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { PageHeader, PageContainer } from "@/components/shared";
 
 interface Supplier {
     id: string;
@@ -85,30 +86,9 @@ export default function ReceivingPage() {
     };
 
     const handleReceivingComplete = async (receivingData: any) => {
-        try {
-            const response = await fetch("/api/inventory/receiving", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(receivingData),
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                
-                // Refresh history
-                await fetchData();
-                
-                // Switch to history tab
-                setActiveTab("history");
-                
-                return { success: true, data: result.receiving };
-            } else {
-                const error = await response.json();
-                return { success: false, error: error.error };
-            }
-        } catch (error: any) {
-            return { success: false, error: error.message };
-        }
+        await fetchData();
+        setActiveTab("history");
+        return { success: true, data: receivingData };
     };
 
     if (loading) {
@@ -120,19 +100,12 @@ export default function ReceivingPage() {
     }
 
     return (
-        <div className="container mx-auto py-8 space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <PackagePlus className="h-8 w-8 text-primary" />
-                    <div>
-                        <h1 className="text-3xl font-bold">Recepción de Inventario</h1>
-                        <p className="text-muted-foreground">
-                            Registra la entrada de mercancía de proveedores
-                        </p>
-                    </div>
-                </div>
-            </div>
+        <PageContainer>
+            <PageHeader
+                title="Recepción de Inventario"
+                description="Registra la entrada de mercancía de proveedores"
+                icon={PackagePlus}
+            />
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -236,6 +209,6 @@ export default function ReceivingPage() {
                     </Card>
                 </TabsContent>
             </Tabs>
-        </div>
+        </PageContainer>
     );
 }

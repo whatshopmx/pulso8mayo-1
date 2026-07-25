@@ -8,9 +8,11 @@ import { workflowInstances, workflowTemplates, users, employeeCommunications } f
 import { eq, desc, and, sql } from "drizzle-orm";
 import { RecentWorkflowsTable } from "@/components/dashboard/recent-workflows-table";
 import { ComplianceReportGenerator } from "@/components/compliance/report-generator";
+import { AlertDistributionChart } from "@/components/dashboard/alert-distribution-chart";
 import { getTranslations } from "next-intl/server";
 import { KpiSummaryCards } from "@/components/dashboard/kpi-summary-cards"
 import { ExecutiveSummary } from "@/components/dashboard/executive-summary"
+import { PendingRemediationActionsCard } from "@/components/dashboard/pending-actions"
 import { Suspense } from "react"
 import {
   KpiCardsSkeleton,
@@ -78,10 +80,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
           {/* Executive Header Section */}
           <div className="border-b bg-card">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-4 lg:px-6 py-6 gap-4 max-w-7xl mx-auto w-full">
-            <div>
-              <h2 className="text-3xl font-bold tracking-tight text-foreground">{t("title")}</h2>
-              <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
-            </div>
+              <div>
+                <h2 className="text-3xl font-bold tracking-tight text-foreground">{t("title")}</h2>
+                <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
+              </div>
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
                 <DashboardFilters />
                 <div className="hidden sm:block h-8 w-px bg-border mx-1" />
@@ -91,17 +93,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
           </div>
 
           <div className="max-w-7xl mx-auto w-full flex flex-col gap-6 py-6">
-            {/* Pinned Announcements */}
+            {/* Pinned Announcements (Flat-by-default, no side-stripe, text-xs badge) */}
             {pinnedAnnouncements.length > 0 && (
               <div className="px-4 lg:px-6">
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {pinnedAnnouncements.map((announcement) => (
-                    <div key={announcement.id} className="bg-primary/5 border border-primary/10 rounded-xl p-4 relative overflow-hidden group hover:bg-primary/10 transition-all cursor-pointer shadow-sm">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-primary/40"></div>
+                    <div key={announcement.id} className="bg-card border border-border rounded-xl p-4 relative overflow-hidden group hover:bg-muted/50 transition-colors">
                       <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                      {announcement.communicationType === 'ANNOUNCEMENT' ? t("announcement") : announcement.communicationType === 'NOTIFICATION' ? t("notification") : t("message")}
-                    </span>
+                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                          {announcement.communicationType === 'ANNOUNCEMENT' ? t("announcement") : announcement.communicationType === 'NOTIFICATION' ? t("notification") : t("message")}
+                        </span>
                       </div>
                       <h3 className="font-bold text-base mb-1 group-hover:text-primary transition-colors">{announcement.title}</h3>
                       <p className="text-sm text-muted-foreground line-clamp-2">{announcement.content}</p>
@@ -111,41 +112,53 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
               </div>
             )}
 
-      {/* KPI Cards section */}
-      <Suspense fallback={<KpiCardsSkeleton />}>
-        <ComplianceMetrics />
-      </Suspense>
+            {/* Primary KPI Metrics */}
+            <Suspense fallback={<KpiCardsSkeleton />}>
+              <ComplianceMetrics branch={selectedBranch} startDate={startDate} endDate={endDate} />
+            </Suspense>
 
-      {/* Executive Summary: Alerts + Branch Overview + Cost Trends */}
-      <Suspense fallback={<KpiCardsSkeleton count={2} />}>
-        <ExecutiveSummary />
-      </Suspense>
+            {/* Operational Alerts & Executive Overview */}
+            <Suspense fallback={<KpiCardsSkeleton count={2} />}>
+              <ExecutiveSummary branch={selectedBranch} startDate={startDate} endDate={endDate} />
+            </Suspense>
 
-      {/* KPI Summary Cards */}
-      <div className="px-4 lg:px-6">
-        <Suspense fallback={<KpiCardsSkeleton />}>
-          <KpiSummaryCards />
-        </Suspense>
-      </div>
+            {/* Pending External Remediation Actions for Management */}
+            <div className="px-4 lg:px-6">
+              <PendingRemediationActionsCard />
+            </div>
 
-      {/* Charts Section */}
+            {/* KPI Summary Cards */}
+            <div className="px-4 lg:px-6">
+              <Suspense fallback={<KpiCardsSkeleton />}>
+                <KpiSummaryCards branchId={selectedBranch} startDate={startDate} endDate={endDate} />
+              </Suspense>
+            </div>
+
+            {/* Charts Section */}
             <div className="px-4 lg:px-6">
               <Suspense fallback={<ChartSkeleton />}>
-                <DashboardCharts />
+                <DashboardCharts branch={selectedBranch} startDate={startDate} endDate={endDate} />
+              </Suspense>
+            </div>
+
+            {/* Alert Distribution */}
+            <div className="px-4 lg:px-6">
+              <Suspense fallback={<ChartSkeleton />}>
+                <AlertDistributionChart branch={selectedBranch} startDate={startDate} endDate={endDate} />
               </Suspense>
             </div>
 
             {/* Recent Activity Section */}
             <div className="px-4 lg:px-6">
               <Suspense fallback={<DataTableSkeleton columns={5} rows={5} />}>
-            <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b bg-muted/30">
-                <h3 className="text-lg font-bold">{t("recentActivity")}</h3>
-              </div>
-                <div className="p-0">
-                  <RecentWorkflowsTable workflows={formattedWorkflows} />
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <div className="px-6 py-4 border-b bg-muted/30">
+                    <h3 className="text-lg font-bold">{t("recentActivity")}</h3>
+                  </div>
+                  <div className="p-0">
+                    <RecentWorkflowsTable workflows={formattedWorkflows} />
+                  </div>
                 </div>
-              </div>
               </Suspense>
             </div>
           </div>

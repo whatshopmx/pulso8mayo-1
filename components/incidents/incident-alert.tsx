@@ -3,7 +3,7 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, AlertTriangle, XCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, XCircle } from 'lucide-react';
 
 interface IncidentAlertProps {
     incident: {
@@ -12,56 +12,64 @@ interface IncidentAlertProps {
         title: string;
         description?: string;
         status: 'DETECTED' | 'IN_REMEDIATION' | 'RESOLVED' | 'ESCALATED';
-        remediationProtocol?: any;
+        remediationProtocol?: unknown;
     };
     onRemediate?: () => void;
     onDismiss?: () => void;
 }
 
+const SEVERITY_LABELS: Record<string, string> = {
+    CRITICAL: 'Crítico',
+    WARNING: 'Advertencia',
+    FATAL: 'Fatal',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+    DETECTED: 'Detectado',
+    IN_REMEDIATION: 'En remediación',
+    RESOLVED: 'Resuelto',
+    ESCALATED: 'Escalado',
+};
+
 const severityConfig = {
     CRITICAL: {
         icon: XCircle,
         variant: 'destructive' as const,
-        color: 'text-red-600',
-        bgColor: 'bg-red-50',
     },
     WARNING: {
         icon: AlertTriangle,
         variant: 'default' as const,
-        color: 'text-yellow-600',
-        bgColor: 'bg-yellow-50',
     },
     FATAL: {
         icon: AlertCircle,
         variant: 'destructive' as const,
-        color: 'text-red-800',
-        bgColor: 'bg-red-100',
     },
 };
 
-const statusConfig = {
-    DETECTED: { label: 'Detected', color: 'bg-red-100 text-red-800' },
-    IN_REMEDIATION: { label: 'In Remediation', color: 'bg-yellow-100 text-yellow-800' },
-    RESOLVED: { label: 'Resolved', color: 'bg-green-100 text-green-800' },
-    ESCALATED: { label: 'Escalated', color: 'bg-orange-100 text-orange-800' },
+const statusVariants: Record<string, string> = {
+    DETECTED: 'bg-destructive/10 text-destructive border-destructive/20',
+    IN_REMEDIATION: 'bg-warning/10 text-warning-foreground border-warning/20',
+    RESOLVED: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+    ESCALATED: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
 };
 
 export function IncidentAlert({ incident, onRemediate, onDismiss }: IncidentAlertProps) {
     const config = severityConfig[incident.severity];
     const Icon = config.icon;
-    const statusInfo = statusConfig[incident.status];
 
     return (
-        <Alert variant={config.variant} className={`${config.bgColor} border-l-4 border-l-current`}>
+        <Alert variant={config.variant}>
             <Icon className="h-5 w-5" />
             <div className="flex items-start justify-between w-full">
                 <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                         <AlertTitle className="mb-0">{incident.title}</AlertTitle>
-                        <Badge variant="outline" className={statusInfo.color}>
-                            {statusInfo.label}
+                        <Badge variant="outline" className={statusVariants[incident.status] || ''}>
+                            {STATUS_LABELS[incident.status] || incident.status}
                         </Badge>
-                        <Badge variant="outline">{incident.severity}</Badge>
+                        <Badge variant="outline">
+                            {SEVERITY_LABELS[incident.severity] || incident.severity}
+                        </Badge>
                     </div>
                     {incident.description && (
                         <AlertDescription className="mt-2 text-sm">
@@ -72,12 +80,12 @@ export function IncidentAlert({ incident, onRemediate, onDismiss }: IncidentAler
                 <div className="flex gap-2 ml-4">
                     {incident.remediationProtocol && incident.status !== 'RESOLVED' && onRemediate && (
                         <Button size="sm" variant="outline" onClick={onRemediate}>
-                            Start Remediation
+                            Iniciar remediación
                         </Button>
                     )}
                     {onDismiss && (
                         <Button size="sm" variant="ghost" onClick={onDismiss}>
-                            Dismiss
+                            Descartar
                         </Button>
                     )}
                 </div>

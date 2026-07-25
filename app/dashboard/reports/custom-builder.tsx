@@ -137,11 +137,10 @@ export default function CustomReportBuilder() {
 
         setIsGenerating(true);
         try {
-            const response = await fetch('/api/reports/employee-analytics', {
+            const response = await fetch('/api/reports/execute', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    companyId: 'temp-company-id', // Get from session/context
                     dataSource,
                     fields: selectedFields,
                     filters,
@@ -152,7 +151,7 @@ export default function CustomReportBuilder() {
 
             if (response.ok) {
                 const result = await response.json();
-                setPreviewData(result.data.slice(0, 10)); // Show first 10 rows
+                setPreviewData(result.data.slice(0, 10));
                 toast({
                     title: "Preview Generated",
                     description: `Showing ${result.data.length} records`,
@@ -183,27 +182,42 @@ export default function CustomReportBuilder() {
 
         setIsGenerating(true);
         try {
-            const response = await fetch(`/api/reports/employee-analytics?format=${format}`, {
+            const url = format === 'csv'
+                ? '/api/reports/execute?format=csv'
+                : '/api/reports/execute';
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    companyId: 'temp-company-id',
                     dataSource,
                     fields: selectedFields,
                     filters,
                     dateFrom,
                     dateTo,
+                    format,
                 }),
             });
 
             if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `report-${Date.now()}.${format === 'csv' ? 'csv' : 'json'}`;
-                a.click();
-                window.URL.revokeObjectURL(url);
+                if (format === 'csv') {
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = downloadUrl;
+                    a.download = `report-${Date.now()}.csv`;
+                    a.click();
+                    window.URL.revokeObjectURL(downloadUrl);
+                } else {
+                    const result = await response.json();
+                    const jsonStr = JSON.stringify(result.data, null, 2);
+                    const blob = new Blob([jsonStr], { type: "application/json" });
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = downloadUrl;
+                    a.download = `report-${Date.now()}.json`;
+                    a.click();
+                    window.URL.revokeObjectURL(downloadUrl);
+                }
                 toast({
                     title: "Export Complete",
                     description: `Report exported as ${format.toUpperCase()}`,
@@ -237,10 +251,8 @@ export default function CustomReportBuilder() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    companyId: 'temp-company-id',
                     name: reportName,
                     description: reportDescription,
-                    reportType: 'CUSTOM',
                     dataSource,
                     fields: selectedFields,
                     filters,

@@ -221,7 +221,7 @@ export function SettlementCalculator({
             </span>
             <span className="text-2xl text-primary">${calculation.total.toLocaleString()} MXN</span>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-4 italic">
+          <p className="text-xs text-muted-foreground mt-4 italic">
             * Este cálculo es informativo y proporcional a la fecha seleccionada. El monto final puede variar según IMSS/ISR y horas extra pendientes.
           </p>
         </div>

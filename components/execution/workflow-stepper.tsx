@@ -145,8 +145,8 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
 
     // Force-set the initial step on mount (stepperize v6 may not apply initialStep reliably)
     useEffect(() => {
-        if (!stepper.current && initialStep && stepper.goTo) {
-            stepper.goTo(initialStep);
+        if (!stepper.state.current && initialStep && stepper.navigation.goTo) {
+            stepper.navigation.goTo(initialStep);
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -174,8 +174,8 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
         stepIndex?: number;
     }>({ active: false });
 
-    // Get current step definition — fallback to first step if stepper.current is null
-    const currentStepDef = steps.find((s) => s.id === stepper.current?.id) || steps[0];
+    // Get current step definition — fallback to first step if stepper.state.current is null
+    const currentStepDef = steps.find((s) => s.id === stepper.state.current?.id) || steps[0];
 
     // Auto-save effect
     const performAutoSave = useCallback(async () => {
@@ -241,9 +241,9 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
     // Progress calculation
     const progress = useMemo(() => {
         const total = steps.length;
-        const currentIdx = steps.findIndex((s) => s.id === stepper.current?.id);
+        const currentIdx = steps.findIndex((s) => s.id === stepper.state.current?.id);
         return total > 0 ? ((currentIdx) / total) * 100 : 0;
-    }, [stepper.current?.id, steps]);
+    }, [stepper.state.current?.id, steps]);
 
     // Validation: can the current step be submitted?
     const canSubmit = useMemo(() => {
@@ -327,7 +327,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
   }, [uploadPhotos]);
 
     // Early return AFTER all hooks — only if we don't even have steps to fallback to
-    if (!stepper.current && !currentStepDef) {
+    if (!stepper.state.current && !currentStepDef) {
         return (
             <div className="max-w-md mx-auto p-4">
                 <Card>
@@ -355,11 +355,11 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
             await new Promise(resolve => setTimeout(resolve, 500));
             toast.success("Paso verificado (Modo Preview)");
 
-            if (stepper.isLast) {
+            if (stepper.state.isLast) {
                 toast.success("Workflow Completado (Preview)");
-                stepper.goTo(steps[0].id);
+                stepper.navigation.goTo(steps[0].id);
             } else {
-                stepper.next();
+                stepper.navigation.next();
             }
 
             setValue("");
@@ -445,7 +445,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
             setCheckboxValues({});
             setRemediation({ active: false });
 
-        if (stepper.isLast) {
+        if (stepper.state.isLast) {
           const instanceId = instance?.id;
           if (instanceId) {
             try {
@@ -458,7 +458,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
           }
           window.location.reload();
         } else {
-                stepper.next();
+                stepper.navigation.next();
             }
 
         } catch (error) {
@@ -477,7 +477,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
         toast.info("Corrige el problema e intenta de nuevo.");
     };
 
-    const currentIdx = steps.findIndex((s: any) => s.id === (stepper.current?.id || steps[0]?.id));
+    const currentIdx = steps.findIndex((s: any) => s.id === (stepper.state.current?.id || steps[0]?.id));
 
     return (
         <div className="max-w-md mx-auto p-4 space-y-6">
@@ -495,7 +495,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
                 {steps.map((s: any) => {
                     const existing = existingSteps.find((es: any) => es.stepId === s.id);
                     const isCompleted = existing?.status === 'COMPLETED';
-                    const isCurrent = s.id === (stepper.current?.id || steps[0]?.id);
+                    const isCurrent = s.id === (stepper.state.current?.id || steps[0]?.id);
                     return (
                         <div
                             key={s.id}
@@ -796,12 +796,12 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
 
                 </CardContent>
                 <CardFooter className="flex justify-between gap-3">
-                    <Button variant="ghost" onClick={stepper.prev} disabled={stepper.isFirst}>
+                    <Button variant="ghost" onClick={stepper.navigation.prev} disabled={stepper.state.isFirst}>
                         Atrás
                     </Button>
                     <Button onClick={handleNext} disabled={loading || !canSubmit} className="flex-1">
                         {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
-                        {stepper.isLast ? "Completar Workflow" : "Siguiente Paso"} <ArrowRight className="ml-2 h-4 w-4" />
+                        {stepper.state.isLast ? "Completar Workflow" : "Siguiente Paso"} <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                 </CardFooter>
             </Card>

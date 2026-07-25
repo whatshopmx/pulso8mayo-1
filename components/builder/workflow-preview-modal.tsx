@@ -375,7 +375,7 @@ export function WorkflowPreviewModal({ open, onClose, steps, title }: WorkflowPr
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Eye className="h-4 w-4" />
-                        Preview: {title}
+                        Vista Previa: {title}
                     </DialogTitle>
                     <DialogDescription>
                         Prueba tu workflow. Las acciones aquí no se guardan.
@@ -411,7 +411,7 @@ export function WorkflowPreviewModal({ open, onClose, steps, title }: WorkflowPr
 
                         {/* Step card */}
                         {currentStep && (
-                            <Card className="border-2 shadow-md">
+                            <Card className="border-2">
                                 <CardHeader className="pb-3">
                                     <div className="flex items-start gap-3">
                                         <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">

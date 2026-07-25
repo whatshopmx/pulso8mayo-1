@@ -29,18 +29,27 @@ const statusIcons = {
 };
 
 const statusColors = {
-  NORMAL: 'text-green-600',
-  WARNING: 'text-yellow-600',
-  CRITICAL: 'text-red-600',
+  NORMAL: 'text-emerald-600 dark:text-emerald-400',
+  WARNING: 'text-amber-600 dark:text-amber-400',
+  CRITICAL: 'text-destructive',
 };
 
-export function KpiSummaryCards({ branchId }: { branchId?: string }) {
+interface KpiSummaryCardsProps {
+  branchId?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export function KpiSummaryCards({ branchId, startDate, endDate }: KpiSummaryCardsProps) {
   const [kpis, setKpis] = useState<KpiSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const params = new URLSearchParams({ period: '7d' });
     if (branchId && branchId !== 'all') params.set('branchId', branchId);
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+
     fetch(`/api/kpi/dashboard?${params}`)
       .then(res => res.json())
       .then(data => {
@@ -48,13 +57,13 @@ export function KpiSummaryCards({ branchId }: { branchId?: string }) {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [branchId]);
+  }, [branchId, startDate, endDate]);
 
   if (loading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[1, 2, 3, 4].map(i => (
-          <Card key={i} className="animate-pulse">
+          <Card key={i} className="animate-pulse border border-border">
             <CardContent className="p-6">
               <div className="h-16 bg-muted rounded" />
             </CardContent>
@@ -74,10 +83,10 @@ export function KpiSummaryCards({ branchId }: { branchId?: string }) {
           : ((kpi.currentValue - kpi.previousValue) / kpi.previousValue) * 100;
         const TrendIcon = trend > 0 ? TrendingUp : trend < 0 ? TrendingDown : Minus;
         const StatusIcon = statusIcons[kpi.status as keyof typeof statusIcons] || CheckCircle2;
-        const statusColor = statusColors[kpi.status as keyof typeof statusColors] || 'text-gray-600';
+        const statusColor = statusColors[kpi.status as keyof typeof statusColors] || 'text-muted-foreground';
 
         return (
-          <Card key={kpi.id} className="hover:shadow-md transition-shadow">
+          <Card key={kpi.id} className="border border-border hover:bg-muted/20 transition-colors">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -90,11 +99,11 @@ export function KpiSummaryCards({ branchId }: { branchId?: string }) {
               </p>
               <p className="text-sm text-muted-foreground mt-1 truncate">{kpi.name}</p>
               <div className="flex items-center gap-1 mt-2">
-                <TrendIcon className={`h-3 w-3 ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`} />
-                <span className={`text-xs font-medium ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <TrendIcon className={`h-3 w-3 ${trend >= 0 ? 'text-emerald-600' : 'text-destructive'}`} />
+                <span className={`text-xs font-medium ${trend >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
                   {trend >= 0 ? '+' : ''}{trend.toFixed(1)}%
                 </span>
-                <span className="text-xs text-muted-foreground ml-1">vs. periodo anterior</span>
+                <span className="text-xs text-muted-foreground ml-1">vs. período anterior</span>
               </div>
               {kpi.target && (
                 <div className="mt-2">
@@ -104,7 +113,7 @@ export function KpiSummaryCards({ branchId }: { branchId?: string }) {
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${kpi.status === 'NORMAL' ? 'bg-green-500' : kpi.status === 'WARNING' ? 'bg-yellow-500' : 'bg-red-500'}`}
+                      className={`h-full rounded-full ${kpi.status === 'NORMAL' ? 'bg-emerald-500' : kpi.status === 'WARNING' ? 'bg-amber-500' : 'bg-destructive'}`}
                       style={{ width: `${Math.min(100, Math.round((kpi.currentValue / kpi.target) * 100))}%` }}
                     />
                   </div>

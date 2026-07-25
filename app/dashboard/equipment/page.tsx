@@ -309,7 +309,7 @@ export default function EquipmentPage() {
                               <div className="flex items-center gap-2">
                                 {item.name}
                                 {item.isCritical && (
-                                  <Badge variant="destructive" className="text-[10px]">
+                                  <Badge variant="destructive" className="text-xs">
                                     Crítico
                                   </Badge>
                                 )}

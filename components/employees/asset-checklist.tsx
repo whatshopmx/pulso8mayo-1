@@ -130,7 +130,7 @@ export function AssetChecklist({ initialAssets = [], onAssetsChange }: AssetChec
 
 function Badge({ children, variant, className }: any) {
   return (
-    <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${className}`}>
+    <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${className}`}>
       {children}
     </div>
   );

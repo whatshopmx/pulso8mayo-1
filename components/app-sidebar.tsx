@@ -10,6 +10,8 @@ import {
   Package,
   TrendingUp,
   Wrench,
+  BarChart3,
+  FileText,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -42,6 +44,16 @@ const navMain = [
       {
         title: "Constructor KPIs",
         url: "/dashboard/analytics/kpi-builder",
+      },
+      {
+        title: "Performance por Sucursal",
+        url: "/dashboard/analytics/branches",
+        icon: BarChart3,
+      },
+      {
+        title: "Tendencias",
+        url: "/dashboard/analytics/trends",
+        icon: TrendingUp,
       },
     ],
   },
@@ -90,6 +102,10 @@ const navMain = [
         url: "/dashboard/inventory",
       },
       {
+        title: "Órdenes de Compra",
+        url: "/dashboard/inventory/purchase-orders",
+      },
+      {
         title: "Recepción",
         url: "/dashboard/inventory/receiving",
       },
@@ -98,12 +114,28 @@ const navMain = [
         url: "/dashboard/inventory/transfers",
       },
       {
+        title: "Ubicaciones",
+        url: "/dashboard/inventory/locations",
+      },
+      {
         title: "Proveedores",
         url: "/dashboard/inventory/suppliers",
       },
       {
         title: "Alertas de Stock",
         url: "/dashboard/inventory/alerts",
+      },
+      {
+        title: "Recetas & BOM",
+        url: "/dashboard/inventory/recipes",
+      },
+      {
+        title: "Carga Facturas XML",
+        url: "/dashboard/inventory/invoices",
+      },
+      {
+        title: "Reporte Mermas",
+        url: "/dashboard/inventory/reports",
       },
     ],
   },
@@ -150,6 +182,11 @@ const navMain = [
       {
         title: "Reportes",
         url: "/dashboard/reports",
+      },
+      {
+        title: "Constructor de Reportes",
+        url: "/dashboard/reports/custom",
+        icon: FileText,
       },
       {
         title: "Verificaciones AI",

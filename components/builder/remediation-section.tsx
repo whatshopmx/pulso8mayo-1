@@ -63,7 +63,7 @@ export function RemediationSection({ remediation, onUpdate }: RemediationSection
     return (
         <div className="border-t pt-3 space-y-2">
             <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold">Remediation Protocol</Label>
+                <Label className="text-xs font-semibold">Protocolo de Remedio</Label>
                 <Switch
                     checked={remediation?.enabled || false}
                     onCheckedChange={handleToggle}
@@ -77,14 +77,14 @@ export function RemediationSection({ remediation, onUpdate }: RemediationSection
                         onClick={() => setExpanded(!expanded)}
                     >
                         {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                        Configure Remediation
+                        Configurar Remedio
                     </div>
 
                     {expanded && (
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-2">
                                 <div className="space-y-1">
-                                    <Label className="text-[10px]">Max Attempts</Label>
+                                    <Label className="text-xs">Máx. Intentos</Label>
                                     <Input
                                         type="number"
                                         value={remediation.maxAttempts}
@@ -93,7 +93,7 @@ export function RemediationSection({ remediation, onUpdate }: RemediationSection
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label className="text-[10px]">Timeout (min)</Label>
+                                    <Label className="text-xs">Tiempo límite (min)</Label>
                                     <Input
                                         type="number"
                                         value={remediation.timeoutMinutes}
@@ -106,17 +106,17 @@ export function RemediationSection({ remediation, onUpdate }: RemediationSection
                             {/* Remediation Steps */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <Label className="text-[10px]">Steps</Label>
+                                    <Label className="text-xs">Pasos</Label>
                                     <Button size="sm" variant="outline" onClick={addStep} className="h-6 text-xs">
                                         <Plus className="h-3 w-3 mr-1" />
-                                        Add Step
+                                        Agregar Paso
                                     </Button>
                                 </div>
 
                                 {remediation.steps.map((step, idx) => (
                                     <div key={idx} className="border rounded p-2 space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-medium">Step {idx + 1}</span>
+                                            <span className="text-xs font-medium">Paso {idx + 1}</span>
                                             <Button
                                                 size="sm"
                                                 variant="ghost"
@@ -127,14 +127,14 @@ export function RemediationSection({ remediation, onUpdate }: RemediationSection
                                             </Button>
                                         </div>
                                         <Textarea
-                                            placeholder="Instruction for employee..."
+                                            placeholder="Instrucción para el empleado..."
                                             value={step.instruction}
                                             onChange={(e) => updateStep(idx, { instruction: e.target.value })}
                                             className="text-xs h-16"
                                         />
                                         <Input
                                             type="number"
-                                            placeholder="Wait seconds"
+                                            placeholder="Espera en segundos"
                                             value={step.waitSeconds}
                                             onChange={(e) => updateStep(idx, { waitSeconds: parseInt(e.target.value) })}
                                             className="text-xs h-7"

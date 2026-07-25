@@ -20,7 +20,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, MoreHorizontal, User, Edit, MessageSquare, FileText } from "lucide-react";
+import { Loader2, MoreHorizontal, User, Edit, MessageSquare, FileText, Plus, X } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Employee } from "./employee-directory";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -36,6 +37,8 @@ interface EmployeeTableProps {
   selectedEmployees?: string[];
   onSelectEmployee?: (employeeId: string, selected: boolean) => void;
   onSelectAll?: (selected: boolean) => void;
+  onAddEmployee?: () => void;
+  onClearFilters?: () => void;
 }
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -65,6 +68,8 @@ export function EmployeeTable({
   selectedEmployees = [],
   onSelectEmployee,
   onSelectAll,
+  onAddEmployee,
+  onClearFilters,
 }: EmployeeTableProps) {
   const { session } = useSession();
   const userRole = session?.user?.role;
@@ -74,20 +79,71 @@ export function EmployeeTable({
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="animate-spin text-primary h-8 w-8" />
+      <div className="border rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10"><Skeleton className="h-4 w-4" /></TableHead>
+              <TableHead>Employee</TableHead>
+              <TableHead>Employee #</TableHead>
+              <TableHead>Position</TableHead>
+              <TableHead>Department</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Hire Date</TableHead>
+              <TableHead>Contact</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <TableRow key={i}>
+                <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                <TableCell className="flex items-center gap-3">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </TableCell>
+                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                <TableCell className="text-right"><Skeleton className="h-8 w-8 rounded-md ml-auto" /></TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     );
   }
 
   if (employees.length === 0) {
     return (
-      <div className="text-center py-12 border rounded-lg">
-        <User className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-lg font-semibold mb-2">No employees found</h3>
-        <p className="text-muted-foreground">
-          Try adjusting your search or filters, or add a new employee.
-        </p>
+      <div className="text-center py-12 border rounded-lg space-y-4">
+        <User className="mx-auto h-12 w-12 text-muted-foreground" />
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold">No employees found</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            Try adjusting your search or filters, or add a new team member to your organization.
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-2 pt-2">
+          {onClearFilters && (
+            <Button variant="outline" size="sm" onClick={onClearFilters}>
+              <X className="mr-2 h-4 w-4" />
+              Clear Filters
+            </Button>
+          )}
+          {canEdit && onAddEmployee && (
+            <Button size="sm" onClick={onAddEmployee}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Employee
+            </Button>
+          )}
+        </div>
       </div>
     );
   }

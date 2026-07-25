@@ -24,7 +24,7 @@ export function OperationsTabs({ recentWorkflows, period = "30d", branchId }: Op
                 <TabsTrigger value="templates">Templates</TabsTrigger>
             </TabsList>
     <TabsContent value="overview" className="space-y-4">
-      <OverviewTab />
+      <OverviewTab branchId={branchId} period={period} />
       <TemperatureMonitor period={period} branchId={branchId} />
     </TabsContent>
             <TabsContent value="activity" className="space-y-4">

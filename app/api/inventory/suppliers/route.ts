@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { InventoryService } from "@/lib/services/inventory-service";
+import { AuditService } from "@/lib/services/audit-service";
 import { db } from "@/lib/db";
 import { suppliers } from "@/lib/db/schema";
 import { eq, and, sql, or } from "drizzle-orm";
@@ -91,6 +92,17 @@ export async function POST(req: NextRequest) {
             companyId: session.user.companyId,
             ...validatedData,
         }).returning();
+
+        AuditService.logInventoryAction({
+            companyId: session.user.companyId,
+            branchId: session.user.branchId || '',
+            action: 'CREATE',
+            entityType: 'SUPPLIER',
+            entityId: supplier.id,
+            newValue: validatedData,
+            performedBy: session.user.id,
+            reason: 'Supplier created',
+        });
 
         return NextResponse.json({
             success: true,

@@ -53,7 +53,7 @@ export default async function DashboardLayout({
             branchId: (session.user as any).branchId as string | undefined,
           }}
             company={{
-              name: company?.name || "My Company",
+              name: company?.name || "Mi Empresa",
               plan: company?.plan || "FREE"
             }}
             branches={branches}

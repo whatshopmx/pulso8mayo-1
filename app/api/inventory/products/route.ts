@@ -1,19 +1,24 @@
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { inventoryItems, inventoryBatches } from "@/lib/db/schema";
+import { inventoryItems, inventoryBatches, inventoryPriceHistory } from "@/lib/db/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
-import { hasPermission, type Role } from "@/lib/permissions";
+import { hasPermission } from "@/lib/permissions";
 
-const productSchema = z.object({
+const createProductSchema = z.object({
   name: z.string().min(1),
   sku: z.string().optional(),
+  barcode: z.string().optional(),
   category: z.string().optional(),
   minLevel: z.number().optional(),
+  maxLevel: z.number().optional(),
   unit: z.string().default('UNIT'),
+  supplierId: z.string().uuid().optional(),
+  lastCost: z.number().optional(),
+  allergenInfo: z.string().optional(),
+  storageRequirements: z.string().optional(),
+  typicalShelfLifeDays: z.number().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -37,15 +42,19 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get branchId from query or from tenant (selected branch)
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get("branchId") || tenant.branchId;
+    const category = searchParams.get("category");
 
-    // Get all products for the company
+    const whereConditions = [eq(inventoryItems.companyId, tenant.id)];
+    if (category) {
+      whereConditions.push(eq(inventoryItems.category, category));
+    }
+
     const items = await db
       .select()
       .from(inventoryItems)
-      .where(eq(inventoryItems.companyId, tenant.id))
+      .where(and(...whereConditions))
       .orderBy(desc(inventoryItems.createdAt));
 
     // If branchId is provided, get stock levels for that branch
@@ -111,16 +120,20 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { name, sku, category, minLevel, unit } = productSchema.parse(body);
+    const data = createProductSchema.parse(body);
 
     const newItem = await db.insert(inventoryItems).values({
       companyId: user.companyId,
-      name,
-      sku,
-      category,
-      minLevel,
-      unit
+      ...data,
     }).returning();
+
+    if (data.lastCost) {
+      await db.insert(inventoryPriceHistory).values({
+        itemId: newItem[0].id,
+        newCost: data.lastCost,
+        changedBy: user.id,
+      });
+    }
 
     return NextResponse.json(newItem[0]);
   } catch (error) {

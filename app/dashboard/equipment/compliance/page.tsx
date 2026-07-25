@@ -33,27 +33,61 @@ interface ComplianceService {
   nextServiceDate?: string;
   lastServiceDate?: string;
   providerName?: string;
+  branchName?: string;
   isMandatory: boolean;
   isActive: boolean;
 }
 
 export default function EquipmentCompliancePage() {
   const [services, setServices] = useState<ComplianceService[]>([]);
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("ALL");
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchServices();
+    fetchBranches();
   }, []);
+
+  useEffect(() => {
+    fetchServices();
+  }, [selectedBranchId]);
+
+  const fetchBranches = async () => {
+    try {
+      const res = await fetch("/api/branches");
+      if (res.ok) {
+        const result = await res.json();
+        setBranches(result.data || result || []);
+      }
+    } catch (error) {
+      console.error("Error loading branches:", error);
+    }
+  };
 
   const fetchServices = async () => {
     try {
-      const res = await fetch("/api/compliance-services");
+      setLoading(true);
+      const url = selectedBranchId && selectedBranchId !== "ALL"
+        ? `/api/compliance-services?branchId=${selectedBranchId}`
+        : `/api/compliance-services?branchId=ALL`;
+      const res = await fetch(url);
       if (res.ok) {
-      const data = await res.json();
-      setServices(data.data || []);
+        const result = await res.json();
+        const rawData = result.data || [];
+        const formatted = rawData.map((item: any) => {
+          if (item.service) {
+            return {
+              ...item.service,
+              providerName: item.provider?.name || item.service.providerName,
+              branchName: item.branch?.name,
+            };
+          }
+          return item;
+        });
+        setServices(formatted);
       }
     } catch (error) {
       toast({ title: "Error", description: "No se pudieron cargar los servicios" });
@@ -65,7 +99,8 @@ export default function EquipmentCompliancePage() {
   const filteredServices = services.filter(
     (service) =>
       service.serviceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.serviceType.toLowerCase().includes(searchTerm.toLowerCase())
+      service.serviceType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (service.branchName && service.branchName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const getServiceTypeLabel = (type: string) => getComplianceServiceTypeLabel(type);
@@ -81,7 +116,7 @@ export default function EquipmentCompliancePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Servicios Normativos</h1>
-          <p className="text-muted-foreground">Gestión de servicios de cumplimiento y normativas</p>
+          <p className="text-muted-foreground">Gestión de servicios de cumplimiento y normativas por sucursal</p>
         </div>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogTrigger asChild>
@@ -142,15 +177,29 @@ export default function EquipmentCompliancePage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar servicios..."
+                placeholder="Buscar por servicio, tipo o sucursal..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
+            </div>
+            <div className="w-56">
+              <select
+                className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+              >
+                <option value="ALL">Todas las Sucursales</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </CardHeader>
@@ -159,6 +208,7 @@ export default function EquipmentCompliancePage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Servicio</TableHead>
+                <TableHead>Sucursal</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Frecuencia</TableHead>
                 <TableHead>Próxima Fecha</TableHead>
@@ -170,7 +220,7 @@ export default function EquipmentCompliancePage() {
             <TableBody>
               {filteredServices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={8} className="text-center py-8">
                     <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">No hay servicios configurados</p>
                   </TableCell>
@@ -187,6 +237,11 @@ export default function EquipmentCompliancePage() {
                           </Badge>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {service.branchName || "Sucursal"}
+                      </Badge>
                     </TableCell>
                     <TableCell>{getServiceTypeLabel(service.serviceType)}</TableCell>
                     <TableCell>{getFrequencyLabel(service.frequency)}</TableCell>

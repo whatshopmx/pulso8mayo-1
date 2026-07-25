@@ -16,12 +16,7 @@ export function WasteClient({ branchId, preselectedItemId }: WasteClientProps) {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleSuccess = () => {
-    // Refresh the component to show updated data
     setRefreshKey(prev => prev + 1);
-    // Also reload the page after a short delay to refresh the history
-    setTimeout(() => {
-      window.location.reload();
-    }, 500);
   };
 
   return (

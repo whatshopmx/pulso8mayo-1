@@ -5,8 +5,8 @@ import {
   getTemplatesForBranch,
   applyBulkOperation,
   previewBulkOperation,
-  DEFAULT_TEMPLATES,
 } from "@/app/actions/shifts";
+import { DEFAULT_TEMPLATES } from "@/lib/services";
 import { Shift, BulkShiftOperation, ApplyTemplateResult, TemplatePreview, ShiftTemplate } from "@/lib/types/shifts";
 
 export interface UseShiftTemplatesReturn {

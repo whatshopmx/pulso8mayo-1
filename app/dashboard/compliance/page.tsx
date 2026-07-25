@@ -99,7 +99,7 @@ export default function CompliancePage() {
                         Nómina
                     </TabsTrigger>
                     <TabsTrigger value="info">
-                        <Shield className="h-4 w-4 mr-2" />
+                        <FileText className="h-4 w-4 mr-2" />
                         Info
                     </TabsTrigger>
                 </TabsList>
@@ -143,7 +143,7 @@ export default function CompliancePage() {
                 <TabsContent value="nom035" className="space-y-4">
                     <section className="space-y-4">
                         <div className="flex items-center gap-2">
-                            <Brain className="h-5 w-5 text-purple-600" />
+                            <Brain className="h-5 w-5 text-info" />
                             <h2 className="text-2xl font-semibold">Reporte NOM-035 - Riesgos Psicosociales</h2>
                         </div>
                         <p className="text-muted-foreground">
@@ -192,7 +192,7 @@ export default function CompliancePage() {
                 </TabsContent>
 
                 <TabsContent value="nomina" className="space-y-4">
-                    <PayrollExport companyId={selectedBranch ? '' : ''} />
+                    <PayrollExport companyId={selectedBranch || ''} />
                 </TabsContent>
 
                 <TabsContent value="info">
@@ -269,60 +269,36 @@ export default function CompliancePage() {
                                     Funciones de seguridad e higiene - Establecimientos de alimentos y bebidas
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-3">
+                            <CardContent>
                                 <p className="text-sm text-muted-foreground">
-                                    Esta norma establece los requisitos mínimos de seguridad e higiene que deben
-                                    cumplir los establecimientos donde se preparan y sirven alimentos y bebidas.
+                                    Requisitos mínimos de seguridad e higiene para establecimientos de alimentos y bebidas.
                                 </p>
-                                <div className="bg-muted p-3 rounded-lg">
-                                    <h4 className="font-semibold text-sm mb-2">Aspectos que cubre:</h4>
-                                    <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                                        <li>Limpieza y sanitización de instalaciones</li>
-                                        <li>Control de higiene del personal</li>
-                                        <li>Recepción y almacenamiento de mercancías</li>
-                                        <li>Control de temperaturas</li>
-                                        <li>Mantenimiento de equipos</li>
-                                        <li>Control de accesos y seguridad</li>
-                                    </ul>
-                                </div>
                             </CardContent>
                         </Card>
 
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <Brain className="h-5 w-5 text-purple-600" />
+                                    <Brain className="h-5 w-5 text-info" />
                                     NOM-035-STPS-2018
                                 </CardTitle>
                                 <CardDescription>
                                     Factores de riesgo psicosocial en el trabajo
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-3">
+                            <CardContent>
                                 <p className="text-sm text-muted-foreground">
-                                    Esta norma establece los elementos para identificar, analizar y prevenir los
-                                    factores de riesgo psicosocial en el trabajo.
+                                    Identifica, analiza y previene factores de riesgo psicosocial en el trabajo.
                                 </p>
-                                <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
-                                    <h4 className="font-semibold text-sm mb-2 text-purple-900">Factores que evalúa:</h4>
-                                    <ul className="text-xs text-purple-800 space-y-1 list-disc list-inside">
-                                        <li>Entorno organizacional</li>
-                                        <li>Cargas de trabajo</li>
-                                        <li>Liderazgo</li>
-                                        <li>Comunicación</li>
-                                        <li>Desarrollo profesional</li>
-                                        <li>Clima laboral</li>
-                                    </ul>
-                                </div>
                             </CardContent>
                         </Card>
                     </div>
 
                     <Card className="mt-6">
                         <CardHeader>
-                            <CardTitle>Importancia del Compliance</CardTitle>
+                            <CardTitle>Beneficios Operativos</CardTitle>
                             <CardDescription>
-                                Beneficios de mantener el cumplimiento normativo
+                                El cumplimiento normativo como ventaja operativa
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -330,16 +306,16 @@ export default function CompliancePage() {
                                 <div>
                                     <h4 className="font-semibold mb-2">Beneficios NOM-251:</h4>
                                     <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                                        <li>Evita multas de COFEPRIS (hasta 16,000 UMAS)</li>
+                                        <li>Operaciones más seguras y estandarizadas</li>
                                         <li>Mejora la seguridad alimentaria</li>
-                                        <li>Demuestra compromiso con la calidad</li>
-                                        <li>Facilita auditorías sanitarias</li>
+                                        <li>Confianza y reputación ante clientes</li>
+                                        <li>Auditorías sanitarias siempre listas</li>
                                     </ul>
                                 </div>
                                 <div>
                                     <h4 className="font-semibold mb-2">Beneficios NOM-035:</h4>
                                     <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                                        <li>Evita sanciones de STPS</li>
+                                        <li>Entorno laboral saludable y productivo</li>
                                         <li>Mejora el bienestar del personal</li>
                                         <li>Reduce rotación de empleados</li>
                                         <li>Previene riesgos psicosociales</li>

@@ -42,15 +42,15 @@ export function TrainingTab({ training, skills, employeeId, companyId, onSuccess
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Award className="h-5 w-5 text-primary" />
-                  Certifications & Training
+                  Capacitación y Certificaciones
                 </CardTitle>
                 <CardDescription>
-                  Professional training history and active certifications
+                  Historial de capacitación profesional, cursos STPS y certificaciones vigentes.
                 </CardDescription>
               </div>
               <Button size="sm" variant="outline" onClick={() => setShowTrainingDialog(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Add Training
+                Registrar Capacitación
               </Button>
             </div>
           </CardHeader>
@@ -74,11 +74,11 @@ export function TrainingTab({ training, skills, employeeId, companyId, onSuccess
                           
                           <div className="flex flex-wrap gap-2 mt-2">
                             <Badge variant={item.status === 'COMPLETED' ? 'default' : 'secondary'}>
-                              {item.status}
+                              {item.status === 'COMPLETED' ? 'Completado' : item.status === 'IN_PROGRESS' ? 'En Curso' : item.status}
                             </Badge>
-                            <Badge variant="outline">{item.trainingType}</Badge>
+                            <Badge variant="outline">{item.trainingType === 'CERTIFICATION' ? 'Certificación' : item.trainingType === 'COURSE' ? 'Curso STPS' : item.trainingType}</Badge>
                             {item.isMandatory && (
-                              <Badge variant="destructive" className="text-[10px]">MANDATORY</Badge>
+                              <Badge variant="destructive" className="text-xs">OBLIGATORIO</Badge>
                             )}
                           </div>
                         </div>
@@ -86,11 +86,11 @@ export function TrainingTab({ training, skills, employeeId, companyId, onSuccess
                       <div className="text-right text-xs text-muted-foreground">
                         <div className="flex items-center gap-1 justify-end">
                           <Calendar className="h-3 w-3" />
-                          {item.completionDate ? format(new Date(item.completionDate), 'MMM d, yyyy', { locale: es }) : 'In Progress'}
+                          {item.completionDate ? format(new Date(item.completionDate), "d 'de' MMM, yyyy", { locale: es }) : 'En Curso'}
                         </div>
                         {item.expirationDate && (
                           <div className="text-destructive mt-1">
-                            Expires: {format(new Date(item.expirationDate), 'MMM d, yyyy', { locale: es })}
+                            Vence: {format(new Date(item.expirationDate), "d 'de' MMM, yyyy", { locale: es })}
                           </div>
                         )}
                       </div>
@@ -101,9 +101,9 @@ export function TrainingTab({ training, skills, employeeId, companyId, onSuccess
             ) : (
               <div className="text-center py-12 border-2 border-dashed rounded-lg">
                 <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4 opacity-20" />
-                <h3 className="text-lg font-semibold">No Training Recorded</h3>
+                <h3 className="text-lg font-semibold">Sin Capacitaciones Registradas</h3>
                 <p className="text-muted-foreground text-sm max-w-xs mx-auto">
-                  This employee hasn't completed any tracked training yet.
+                  Este colaborador no cuenta con registros de cursos o certificaciones STPS.
                 </p>
               </div>
             )}
@@ -117,7 +117,7 @@ export function TrainingTab({ training, skills, employeeId, companyId, onSuccess
           <CardHeader>
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
-              Skills & Competencies
+              Habilidades y Competencias
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -126,25 +126,25 @@ export function TrainingTab({ training, skills, employeeId, companyId, onSuccess
                 <div key={index} className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="font-medium">{skill.name || skill}</span>
-                    <span className="text-muted-foreground">{skill.level || 'Professional'}</span>
+                    <span className="text-muted-foreground">{skill.level || 'Profesional'}</span>
                   </div>
                   <Progress value={skill.progress || 80} className="h-2" />
                 </div>
               ))
             ) : (
               <div className="text-sm text-muted-foreground italic">
-                No skills listed in profile.
+                Sin competencias registradas en el perfil.
               </div>
             )}
 
             <div className="pt-4">
               <h4 className="text-xs font-semibold mb-3 flex items-center gap-2">
                 <Clock className="h-3 w-3" />
-                Next Required Training
+                Próxima Capacitación Requerida
               </h4>
               <div className="p-3 bg-orange-50 border border-orange-100 rounded-lg text-xs">
-                <div className="font-bold text-orange-800">Safety Refresher 2026</div>
-                <div className="text-orange-600 mt-1">Due in 45 days</div>
+                <div className="font-bold text-orange-800">Reforzamiento de Seguridad e Higiene NOM-251</div>
+                <div className="text-orange-600 mt-1">Vence en 45 días</div>
               </div>
             </div>
           </CardContent>
@@ -153,16 +153,16 @@ export function TrainingTab({ training, skills, employeeId, companyId, onSuccess
         {/* Training Resources */}
         <Card className="bg-primary/5 border-primary/10">
           <CardHeader>
-            <CardTitle className="text-sm">Quick Links</CardTitle>
+            <CardTitle className="text-sm">Enlaces Rápidos</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <Button variant="ghost" size="sm" className="w-full justify-start text-xs">
               <ExternalLink className="mr-2 h-3 w-3" />
-              LMS Portal
+              Portal de Capacitación (LMS)
             </Button>
             <Button variant="ghost" size="sm" className="w-full justify-start text-xs">
               <ExternalLink className="mr-2 h-3 w-3" />
-              Internal Knowledge Base
+              Base de Conocimientos Interna
             </Button>
           </CardContent>
         </Card>

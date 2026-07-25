@@ -15,22 +15,34 @@ export async function createProduct(formData: FormData) {
 
     const name = formData.get("name") as string;
     const sku = formData.get("sku") as string;
+    const barcode = formData.get("barcode") as string;
     const category = formData.get("category") as string;
     const minLevel = Number(formData.get("minLevel") || 0);
+    const maxLevel = formData.get("maxLevel") ? Number(formData.get("maxLevel")) : undefined;
     const unit = formData.get("unit") as string;
     const supplierId = formData.get("supplierId") as string || undefined;
-    const lastCost = formData.get("lastCost") ? Math.round(Number(formData.get("lastCost")) * 100) : undefined; // Store in cents if integer, or just number if decimal allowed. Schema says integer. Let's assume cents.
+    const lastCost = formData.get("lastCost") ? Math.round(Number(formData.get("lastCost")) * 100) : undefined;
+    const allergenInfo = formData.get("allergenInfo") as string;
+    const storageRequirements = formData.get("storageRequirements") as string;
+    const typicalShelfLifeDays = formData.get("typicalShelfLifeDays") ? Number(formData.get("typicalShelfLifeDays")) : undefined;
+    const photoUrl = formData.get("photoUrl") as string;
 
     await InventoryService.createItem({
-        companyId: session.user.companyId as string, // Cast as it's added by schema
+        companyId: session.user.companyId as string,
         name,
         sku,
+        barcode,
         category,
         minLevel,
+        maxLevel,
         unit,
         active: true,
         supplierId,
         lastCost,
+        allergenInfo,
+        storageRequirements,
+        typicalShelfLifeDays,
+        photoUrl: photoUrl || undefined,
         userId: session.user.id
     });
 
@@ -47,20 +59,32 @@ export async function updateProduct(id: string, formData: FormData) {
 
     const name = formData.get("name") as string;
     const sku = formData.get("sku") as string;
+    const barcode = formData.get("barcode") as string;
     const category = formData.get("category") as string;
     const minLevel = Number(formData.get("minLevel") || 0);
+    const maxLevel = formData.get("maxLevel") ? Number(formData.get("maxLevel")) : undefined;
     const unit = formData.get("unit") as string;
     const supplierId = formData.get("supplierId") as string || undefined;
     const lastCost = formData.get("lastCost") ? Math.round(Number(formData.get("lastCost")) * 100) : undefined;
+    const allergenInfo = formData.get("allergenInfo") as string;
+    const storageRequirements = formData.get("storageRequirements") as string;
+    const typicalShelfLifeDays = formData.get("typicalShelfLifeDays") ? Number(formData.get("typicalShelfLifeDays")) : undefined;
+    const photoUrl = formData.get("photoUrl") as string;
 
     await InventoryService.updateItem(id, {
         name,
         sku,
+        barcode,
         category,
         minLevel,
+        maxLevel,
         unit,
         supplierId,
-        lastCost
+        lastCost,
+        allergenInfo,
+        storageRequirements,
+        typicalShelfLifeDays,
+        photoUrl: photoUrl || null,
     }, session.user.id);
 
     revalidatePath("/dashboard/inventory");

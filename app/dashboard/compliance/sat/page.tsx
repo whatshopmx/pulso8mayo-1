@@ -68,9 +68,9 @@ export default function SATPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold">SAT Integration</h1>
+                <h1 className="text-3xl font-bold">Integración SAT</h1>
                 <p className="text-muted-foreground">
-                    Servicio de Administración Tributaria (SAT) compliance and reporting
+                    Cumplimiento y reportes ante el Servicio de Administración Tributaria
                 </p>
             </div>
 
@@ -82,46 +82,46 @@ export default function SATPage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Valid RFCs</CardTitle>
-                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <CardTitle className="text-sm font-medium">RFC Válidos</CardTitle>
+                            <CheckCircle className="h-4 w-4 text-green-600" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{stats.validRFCs}</div>
                             <p className="text-xs text-muted-foreground">
-                                Of {stats.totalEmployees} employees
+                                De {stats.totalEmployees} empleados
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Invalid/Expired</CardTitle>
-                            <AlertTriangle className="h-4 w-4 text-red-500" />
+                            <CardTitle className="text-sm font-medium">Inválidos/Expirados</CardTitle>
+                            <AlertTriangle className="h-4 w-4 text-destructive" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-red-600">{stats.invalidRFCs}</div>
                             <p className="text-xs text-muted-foreground">
-                                Need attention
+                                Requieren atención
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Annual Certificates</CardTitle>
+                            <CardTitle className="text-sm font-medium">Constancias Anuales</CardTitle>
                             <FileText className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{stats.certificatesGenerated}</div>
                             <p className="text-xs text-muted-foreground">
-                                Generated this year
+                                Generadas este año
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Withholding Tax</CardTitle>
+                            <CardTitle className="text-sm font-medium">ISR Retenido</CardTitle>
                             <Calculator className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
@@ -129,7 +129,7 @@ export default function SATPage() {
                                 ${(stats.monthlyWithholding / 100).toLocaleString("es-MX")}
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                Monthly average
+                                Promedio mensual
                             </p>
                         </CardContent>
                     </Card>
@@ -138,28 +138,28 @@ export default function SATPage() {
 
             <Tabs defaultValue="overview" className="space-y-4">
                 <TabsList>
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="validation">RFC/CURP Validation</TabsTrigger>
-                    <TabsTrigger value="certificates">Salary Certificates</TabsTrigger>
-                    <TabsTrigger value="reports">Tax Reports</TabsTrigger>
-                    <TabsTrigger value="settings">Settings</TabsTrigger>
+                    <TabsTrigger value="overview">Resumen</TabsTrigger>
+                    <TabsTrigger value="validation">Validación RFC/CURP</TabsTrigger>
+                    <TabsTrigger value="certificates">Constancias</TabsTrigger>
+                    <TabsTrigger value="reports">Reportes</TabsTrigger>
+                    <TabsTrigger value="settings">Configuración</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>SAT Compliance Overview</CardTitle>
+                            <CardTitle>Resumen de Cumplimiento SAT</CardTitle>
                             <CardDescription>
-                                Current status of SAT validations and reporting
+                                Estado actual de validaciones y reportes ante el SAT
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="font-medium">RFC Validation</p>
+                                        <p className="font-medium">Validación RFC</p>
                                         <p className="text-sm text-muted-foreground">
-                                            All employees must have valid RFC for tax purposes
+                                            Todos los empleados deben tener RFC válido para efectos fiscales
                                         </p>
                                     </div>
                                     <Link href="/dashboard/compliance/sat/validation">
@@ -171,9 +171,9 @@ export default function SATPage() {
 
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="font-medium">Salary Certificates</p>
+                                        <p className="font-medium">Constancias de Retenciones</p>
                                         <p className="text-sm text-muted-foreground">
-                                            Constancia de Retenciones e Ingresos
+                                            Constancia de Retenciones e Ingresos para empleados
                                         </p>
                                     </div>
                                     <Link href="/dashboard/compliance/sat/certificates">
@@ -185,13 +185,13 @@ export default function SATPage() {
 
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="font-medium">Annual Tax Summary</p>
+                                        <p className="font-medium">Resumen Fiscal Anual</p>
                                         <p className="text-sm text-muted-foreground">
-                                            Complete tax year summary
+                                            Resumen completo del año fiscal
                                         </p>
                                     </div>
                                     <Button size="sm" variant="outline" disabled>
-                                        Generate Report
+                                        Generar Reporte
                                     </Button>
                                 </div>
                             </div>
@@ -202,7 +202,7 @@ export default function SATPage() {
                 <TabsContent value="validation" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>RFC/CURP Validation</CardTitle>
+                            <CardTitle>Validación RFC/CURP</CardTitle>
                             <CardDescription>
                                 Valida RFC y CURP de empleados
                             </CardDescription>
@@ -224,9 +224,9 @@ export default function SATPage() {
                 <TabsContent value="certificates" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Salary Certificates (Constancia de Retenciones)</CardTitle>
+                            <CardTitle>Constancias de Retenciones</CardTitle>
                             <CardDescription>
-                                Generate annual salary certificates for employees
+                                Genera constancias anuales de retenciones para empleados
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -246,21 +246,21 @@ export default function SATPage() {
                 <TabsContent value="reports" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>SAT Tax Reports</CardTitle>
+                            <CardTitle>Reportes SAT</CardTitle>
                             <CardDescription>
-                                Generate reports for SAT compliance
+                                Genera reportes para cumplimiento fiscal
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="p-4 border rounded-lg">
-                                        <h4 className="font-medium">Monthly ISR Report</h4>
+                                        <h4 className="font-medium">Reporte ISR Mensual</h4>
                                         <p className="text-sm text-muted-foreground mb-2">
-                                            Income tax withholding summary
+                                            Resumen de retenciones de ISR
                                         </p>
                                         <Button size="sm" variant="outline" disabled>
-                                            Generate Report
+                                            Generar Reporte
                                         </Button>
                                     </div>
 
@@ -282,9 +282,9 @@ export default function SATPage() {
                 <TabsContent value="settings" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>SAT Settings</CardTitle>
+                            <CardTitle>Configuración SAT</CardTitle>
                             <CardDescription>
-                                Configure SAT integration settings
+                                Configura la integración con el SAT
                             </CardDescription>
                         </CardHeader>
                         <CardContent>

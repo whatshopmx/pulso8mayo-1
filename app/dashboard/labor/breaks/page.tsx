@@ -87,10 +87,10 @@ export default function LaborBreaksPage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Cumplimiento</CardTitle>
-                        <CheckCircle className="h-4 w-4 text-purple-600" />
+                        <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-purple-600">{stats.complianceRate}%</div>
+                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.complianceRate}%</div>
                         <p className="text-xs text-muted-foreground">
                             NOM-035 hoy
                         </p>

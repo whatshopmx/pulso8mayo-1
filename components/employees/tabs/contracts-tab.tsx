@@ -23,12 +23,12 @@ interface ContractsTabProps {
 }
 
 const contractTypeLabels: Record<string, string> = {
-  DETERMINATE: "Determinate Duration",
-  INDETERMINATE: "Indeterminate Duration",
-  PROBATION: "Probation Period",
-  TRAINING: "Training",
-  SEASONAL: "Seasonal",
-  PART_TIME: "Part Time",
+  DETERMINATE: "Duración Determinada",
+  INDETERMINATE: "Tiempo Indeterminado",
+  PROBATION: "Periodo de Prueba",
+  TRAINING: "Capacitación Inicial",
+  SEASONAL: "Por Temporada",
+  PART_TIME: "Media Jornada",
 };
 
 const contractTypeColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -41,18 +41,18 @@ const contractTypeColors: Record<string, "default" | "secondary" | "destructive"
 };
 
 const workRegimeLabels: Record<string, string> = {
-  DAILY: "Daily",
-  MIXED: "Mixed",
-  NIGHT: "Night",
-  SPLIT_SHIFT: "Split Shift",
-  ON_CALL: "On Call",
+  DAILY: "Jornada Diurna",
+  MIXED: "Jornada Mixta",
+  NIGHT: "Jornada Nocturna",
+  SPLIT_SHIFT: "Turno Quebrado",
+  ON_CALL: "Por Disponibilidad / Guardia",
 };
 
 const statusLabels: Record<string, string> = {
-  ACTIVE: "Active",
-  EXPIRED: "Expired",
-  TERMINATED: "Terminated",
-  RENEWED: "Renewed",
+  ACTIVE: "Vigente",
+  EXPIRED: "Vencido",
+  TERMINATED: "Rescindido",
+  RENEWED: "Renovado",
 };
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -63,13 +63,13 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 const salaryChangeTypeLabels: Record<string, string> = {
-  INITIAL: "Initial",
-  ADJUSTMENT: "Adjustment",
-  PROMOTION: "Promotion",
-  DEMOTION: "Demotion",
-  COLA: "Cost of Living",
-  MERIT: "Merit",
-  OTHER: "Other",
+  INITIAL: "Sueldo Inicial",
+  ADJUSTMENT: "Ajuste Salarial",
+  PROMOTION: "Promoción / Ascenso",
+  DEMOTION: "Reajuste",
+  COLA: "Ajuste Inflacionario",
+  MERIT: "Desempeño / Mérito",
+  OTHER: "Otro",
 };
 
 function formatCurrency(amount: number): string {
@@ -135,15 +135,15 @@ export function ContractsTab({
       {/* Header with Create Button */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Contracts</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Contratos y Convenios</h2>
           <p className="text-muted-foreground">
-            Manage employment contracts and salary information
+            Gestión de contratos laborales, vigencia e historial de percepciones
           </p>
         </div>
         {canEdit && employeeId && companyId && (
           <Button onClick={handleCreateContract}>
             <Plus className="mr-2 h-4 w-4" />
-            Create Contract
+            Nuevo Contrato
           </Button>
         )}
       </div>
@@ -156,10 +156,10 @@ export function ContractsTab({
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Active Contract
+                  Contrato Vigente
                 </CardTitle>
                 <CardDescription>
-                  Contract #{activeContract.contractNumber}
+                  Contrato #{activeContract.contractNumber}
                 </CardDescription>
               </div>
               {canEdit && (
@@ -169,7 +169,7 @@ export function ContractsTab({
                   onClick={() => handleEditContract(activeContract)}
                 >
                   <Edit className="mr-2 h-4 w-4" />
-                  Edit Contract
+                  Editar Contrato
                 </Button>
               )}
             </div>
@@ -177,7 +177,7 @@ export function ContractsTab({
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Contract Type</Label>
+                <Label className="text-xs text-muted-foreground">Tipo de Contrato</Label>
                 <Badge
                   variant={contractTypeColors[activeContract.contractType] || "outline"}
                 >
@@ -185,38 +185,38 @@ export function ContractsTab({
                 </Badge>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Status</Label>
+                <Label className="text-xs text-muted-foreground">Estatus</Label>
                 <Badge variant={statusColors[activeContract.status] || "outline"}>
                   {statusLabels[activeContract.status] || activeContract.status}
                 </Badge>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Work Regime</Label>
+                <Label className="text-xs text-muted-foreground">Jornada Laboral</Label>
                 <div className="text-sm font-medium">
                   {workRegimeLabels[activeContract.workRegime] || activeContract.workRegime}
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Start Date</Label>
+                <Label className="text-xs text-muted-foreground">Fecha de Inicio</Label>
                 <div className="text-sm font-medium">
                   {activeContract.startDate
-                    ? format(new Date(activeContract.startDate), "MMM d, yyyy", { locale: es })
+                    ? format(new Date(activeContract.startDate), "d 'de' MMM, yyyy", { locale: es })
                     : "N/A"}
                 </div>
               </div>
               {activeContract.endDate && (
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">End Date</Label>
+                  <Label className="text-xs text-muted-foreground">Fecha de Término</Label>
                   <div className="text-sm font-medium">
-                    {format(new Date(activeContract.endDate), "MMM d, yyyy", { locale: es })}
+                    {format(new Date(activeContract.endDate), "d 'de' MMM, yyyy", { locale: es })}
                   </div>
                 </div>
               )}
               {activeContract.probationPeriodDays && (
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Probation Period</Label>
+                  <Label className="text-xs text-muted-foreground">Periodo de Prueba</Label>
                   <div className="text-sm font-medium">
-                    {activeContract.probationPeriodDays} days
+                    {activeContract.probationPeriodDays} días
                   </div>
                 </div>
               )}
@@ -225,51 +225,51 @@ export function ContractsTab({
             {/* Benefits */}
             <Separator className="my-4" />
             <div className="space-y-2">
-              <Label className="text-sm font-semibold">Benefits</Label>
+              <Label className="text-sm font-semibold">Prestaciones Contractuales</Label>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="text-sm">
-                  <span className="text-muted-foreground">Health Insurance:</span>
+                  <span className="text-muted-foreground">Seguro de Salud:</span>
                   <Badge
                     variant={activeContract.hasHealthInsurance ? "default" : "outline"}
                     className="ml-2"
                   >
-                    {activeContract.hasHealthInsurance ? "Yes" : "No"}
+                    {activeContract.hasHealthInsurance ? "Sí" : "No"}
                   </Badge>
                 </div>
                 <div className="text-sm">
-                  <span className="text-muted-foreground">Life Insurance:</span>
+                  <span className="text-muted-foreground">Seguro de Vida:</span>
                   <Badge
                     variant={activeContract.hasLifeInsurance ? "default" : "outline"}
                     className="ml-2"
                   >
-                    {activeContract.hasLifeInsurance ? "Yes" : "No"}
+                    {activeContract.hasLifeInsurance ? "Sí" : "No"}
                   </Badge>
                 </div>
                 <div className="text-sm">
-                  <span className="text-muted-foreground">Savings Fund:</span>
+                  <span className="text-muted-foreground">Fondo de Ahorro:</span>
                   <Badge
                     variant={activeContract.hasSavingsFund ? "default" : "outline"}
                     className="ml-2"
                   >
-                    {activeContract.hasSavingsFund ? "Yes" : "No"}
+                    {activeContract.hasSavingsFund ? "Sí" : "No"}
                   </Badge>
                 </div>
                 <div className="text-sm">
-                  <span className="text-muted-foreground">Food Vouchers:</span>
+                  <span className="text-muted-foreground">Vales de Despensa:</span>
                   <Badge
                     variant={activeContract.hasFoodVouchers ? "default" : "outline"}
                     className="ml-2"
                   >
-                    {activeContract.hasFoodVouchers ? "Yes" : "No"}
+                    {activeContract.hasFoodVouchers ? "Sí" : "No"}
                   </Badge>
                 </div>
                 <div className="text-sm">
-                  <span className="text-muted-foreground">Transport Bonus:</span>
+                  <span className="text-muted-foreground">Bono de Transporte:</span>
                   <Badge
                     variant={activeContract.hasTransportationBonus ? "default" : "outline"}
                     className="ml-2"
                   >
-                    {activeContract.hasTransportationBonus ? "Yes" : "No"}
+                    {activeContract.hasTransportationBonus ? "Sí" : "No"}
                   </Badge>
                 </div>
               </div>
@@ -280,25 +280,25 @@ export function ContractsTab({
               <>
                 <Separator className="my-4" />
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Work Schedule</Label>
+                  <Label className="text-sm font-semibold">Horario de Trabajo</Label>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="text-sm">
-                      <span className="text-muted-foreground">Start Time:</span>
+                      <span className="text-muted-foreground">Hora de Entrada:</span>
                       <span className="ml-2 font-medium">
                         {activeContract.workStartTime || "N/A"}
                       </span>
                     </div>
                     <div className="text-sm">
-                      <span className="text-muted-foreground">End Time:</span>
+                      <span className="text-muted-foreground">Hora de Salida:</span>
                       <span className="ml-2 font-medium">
                         {activeContract.workEndTime || "N/A"}
                       </span>
                     </div>
                     {activeContract.breakDurationMinutes && (
                       <div className="text-sm">
-                        <span className="text-muted-foreground">Break:</span>
+                        <span className="text-muted-foreground">Descanso:</span>
                         <span className="ml-2 font-medium">
-                          {activeContract.breakDurationMinutes} minutes
+                          {activeContract.breakDurationMinutes} minutos
                         </span>
                       </div>
                     )}
@@ -317,9 +317,9 @@ export function ContractsTab({
             <div>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                Compensation
+                Percepciones y Salario
               </CardTitle>
-              <CardDescription>Current salary breakdown and history.</CardDescription>
+              <CardDescription>Desglose salarial actual e historial de ajustes.</CardDescription>
             </div>
             {canEdit && (
               <Badge variant="outline">Ajuste salarial pendiente</Badge>
@@ -329,25 +329,25 @@ export function ContractsTab({
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div className="p-4 border rounded-lg">
-              <Label className="text-xs text-muted-foreground">Daily Salary</Label>
+              <Label className="text-xs text-muted-foreground">Salario Diario</Label>
               <div className="text-2xl font-bold mt-1">
                 {formatCurrency(dailySalary / 100)}
               </div>
-              <div className="text-xs text-muted-foreground mt-1">per day</div>
+              <div className="text-xs text-muted-foreground mt-1">por día</div>
             </div>
             <div className="p-4 border rounded-lg">
-              <Label className="text-xs text-muted-foreground">Weekly Salary</Label>
+              <Label className="text-xs text-muted-foreground">Salario Semanal</Label>
               <div className="text-2xl font-bold mt-1">
                 {formatCurrency(weeklySalary / 100)}
               </div>
-              <div className="text-xs text-muted-foreground mt-1">per week</div>
+              <div className="text-xs text-muted-foreground mt-1">por semana</div>
             </div>
             <div className="p-4 border rounded-lg">
-              <Label className="text-xs text-muted-foreground">Monthly Salary</Label>
+              <Label className="text-xs text-muted-foreground">Salario Mensual</Label>
               <div className="text-2xl font-bold mt-1">
                 {formatCurrency(monthlySalary / 100)}
               </div>
-              <div className="text-xs text-muted-foreground mt-1">per month</div>
+              <div className="text-xs text-muted-foreground mt-1">por mes</div>
             </div>
           </div>
 
@@ -358,7 +358,7 @@ export function ContractsTab({
             <>
               <Separator className="my-4" />
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">Salary History</Label>
+                <Label className="text-sm font-semibold">Historial Salarial</Label>
                 <div className="space-y-2">
                   {salaryHistory.map((change: any, index: number) => (
                     <div
@@ -371,12 +371,12 @@ export function ContractsTab({
                             {salaryChangeTypeLabels[change.changeType] || change.changeType}
                           </Badge>
                           <span className="text-sm text-muted-foreground">
-                            {change.reason || "No reason provided"}
+                            {change.reason || "Sin motivo registrado"}
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {change.effectiveDate
-                            ? format(new Date(change.effectiveDate), "MMM d, yyyy", {
+                            ? format(new Date(change.effectiveDate), "d 'de' MMM, yyyy", {
                                 locale: es,
                               })
                             : "N/A"}
@@ -414,8 +414,8 @@ export function ContractsTab({
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Contract History</CardTitle>
-                <CardDescription>All contracts for this employee.</CardDescription>
+                <CardTitle>Historial de Contratos</CardTitle>
+                <CardDescription>Histórico de contratos registrados para este colaborador.</CardDescription>
               </div>
               {canEdit && <Badge variant="outline">Alta de contrato pendiente</Badge>}
             </div>
@@ -432,7 +432,7 @@ export function ContractsTab({
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">
-                          Contract #{contract.contractNumber}
+                          Contrato #{contract.contractNumber}
                         </span>
                         <Badge
                           variant={contractTypeColors[contract.contractType] || "outline"}
@@ -445,19 +445,19 @@ export function ContractsTab({
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
                         {contract.startDate
-                          ? format(new Date(contract.startDate), "MMM d, yyyy", { locale: es })
+                          ? format(new Date(contract.startDate), "d 'de' MMM, yyyy", { locale: es })
                           : "N/A"}
                         {contract.endDate
-                          ? ` - ${format(new Date(contract.endDate), "MMM d, yyyy", {
+                          ? ` - ${format(new Date(contract.endDate), "d 'de' MMM, yyyy", {
                               locale: es,
                             })}`
-                          : " - Present"}
+                          : " - Presente"}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
                         <div className="font-medium">
-                          {formatCurrency((contract.baseSalary || 0) / 100)}/day
+                          {formatCurrency((contract.baseSalary || 0) / 100)}/día
                         </div>
                       </div>
                       {canEdit && (

@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
 
+import { toast } from "sonner";
+
 interface EmployeeHeaderProps {
   employee: {
     id: string;
@@ -27,6 +29,10 @@ interface EmployeeHeaderProps {
   };
   onBack: () => void;
   onEdit?: () => void;
+  onExport?: () => void;
+  onMessage?: () => void;
+  onSelectTab?: (tab: string) => void;
+  onArchive?: () => void;
   canEdit?: boolean;
 }
 
@@ -41,38 +47,73 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 const statusLabels: Record<string, string> = {
-  ONBOARDING: "Onboarding",
-  ACTIVE: "Active",
-  ON_LEAVE: "On Leave",
-  SUSPENDED: "Suspended",
-  TERMINATED: "Terminated",
-  RESIGNED: "Resigned",
+  ONBOARDING: "En Onboarding",
+  ACTIVE: "Activo",
+  ON_LEAVE: "Licencia / Permiso",
+  SUSPENDED: "Suspendido",
+  TERMINATED: "Baja / Finiquitado",
+  RESIGNED: "Renuncia Voluntaria",
 };
 
-export function EmployeeHeader({ employee, onBack, onEdit, canEdit }: EmployeeHeaderProps) {
+export function EmployeeHeader({
+  employee,
+  onBack,
+  onEdit,
+  onExport,
+  onMessage,
+  onSelectTab,
+  onArchive,
+  canEdit,
+}: EmployeeHeaderProps) {
   const router = useRouter();
+
+  const handleMessage = () => {
+    if (onMessage) {
+      onMessage();
+    } else if (employee.userEmail) {
+      window.location.href = `mailto:${employee.userEmail}`;
+    } else {
+      toast.info("No hay correo electrónico disponible para enviar mensaje.");
+    }
+  };
+
+  const handleExport = () => {
+    if (onExport) {
+      onExport();
+    } else {
+      // Export profile JSON summary
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(employee, null, 2));
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `colaborador_${employee.employeeNumber || employee.id}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      toast.success("Expediente del colaborador exportado correctamente.");
+    }
+  };
 
   return (
     <div className="space-y-4">
       {/* Back button & actions */}
       <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={onBack} className="gap-2">
+        <Button variant="ghost" onClick={onBack} className="gap-2 text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
-          Back to Directory
+          Volver al Directorio
         </Button>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleMessage}>
             <MessageSquare className="mr-2 h-4 w-4" />
-            Message
+            Mensaje
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />
-            Export
+            Exportar
           </Button>
           {canEdit && (
             <Button size="sm" onClick={onEdit}>
               <Edit className="mr-2 h-4 w-4" />
-              Edit
+              Editar
             </Button>
           )}
 
@@ -83,12 +124,27 @@ export function EmployeeHeader({ employee, onBack, onEdit, canEdit }: EmployeeHe
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>View Documents</DropdownMenuItem>
-              <DropdownMenuItem>View Contracts</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                Archive Employee
+              <DropdownMenuItem onClick={() => onSelectTab?.("documents")}>
+                Ver Documentos
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onSelectTab?.("contracts")}>
+                Ver Contratos
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {canEdit && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    if (onArchive) {
+                      onArchive();
+                    } else {
+                      toast.info("La función de archivar está reservada para administradores.");
+                    }
+                  }}
+                >
+                  Archivar Colaborador
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -96,37 +152,37 @@ export function EmployeeHeader({ employee, onBack, onEdit, canEdit }: EmployeeHe
 
       {/* Profile header */}
       <div className="flex items-start gap-6">
-        <Avatar className="h-20 w-20">
-          <AvatarImage src={employee.profilePhotoUrl || undefined} />
-          <AvatarFallback className="text-2xl">
-            {employee.userName?.charAt(0) || "U"}
+        <Avatar className="h-20 w-20 border border-border/60 shadow-xs">
+          <AvatarImage src={employee.profilePhotoUrl || undefined} alt={employee.userName || "Colaborador"} />
+          <AvatarFallback className="text-2xl font-semibold text-muted-foreground bg-muted">
+            {employee.userName?.charAt(0)?.toUpperCase() || "C"}
           </AvatarFallback>
         </Avatar>
 
         <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-3xl font-bold">{employee.userName || "N/A"}</h1>
+          <div className="flex flex-wrap items-center gap-3 mb-1.5">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">{employee.userName || "Sin Nombre"}</h1>
             {employee.employeeStatus && (
-              <Badge variant={statusColors[employee.employeeStatus] || "outline"}>
+              <Badge variant={statusColors[employee.employeeStatus] || "outline"} className="text-xs font-semibold tracking-wide px-2.5 py-0.5">
                 {statusLabels[employee.employeeStatus] || employee.employeeStatus}
               </Badge>
             )}
           </div>
 
-          <div className="flex items-center gap-4 text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
             {employee.position && (
-              <span className="text-sm">{employee.position}</span>
+              <span className="text-sm font-medium">{employee.position}</span>
             )}
             {employee.department && (
               <>
                 <Separator orientation="vertical" className="h-4" />
-                <span className="text-sm">{employee.department}</span>
+                <span className="text-sm text-muted-foreground">{employee.department}</span>
               </>
             )}
             {employee.employeeNumber && (
               <>
                 <Separator orientation="vertical" className="h-4" />
-                <span className="text-sm font-mono">#{employee.employeeNumber}</span>
+                <span className="text-sm font-mono tracking-tight tabular-nums text-muted-foreground">#{employee.employeeNumber}</span>
               </>
             )}
           </div>

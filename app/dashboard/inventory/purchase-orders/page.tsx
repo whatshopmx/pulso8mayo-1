@@ -1,0 +1,443 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { PageHeader, PageContainer, EmptyState } from "@/components/shared";
+import { useBranch } from "@/lib/branch-context";
+import { usePurchaseOrders, useCreatePurchaseOrder, useInventory, usePriceCheck } from "@/hooks/queries";
+import { Plus, FileText, Loader2, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+const STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "warning" }> = {
+  DRAFT: { label: "Borrador", variant: "secondary" },
+  PENDING_APPROVAL: { label: "Por Aprobar", variant: "warning" },
+  APPROVED: { label: "Aprobada", variant: "default" },
+  REJECTED: { label: "Rechazada", variant: "destructive" },
+  SENT: { label: "Enviada", variant: "default" },
+  PARTIALLY_RECEIVED: { label: "Recibida Parcial", variant: "warning" },
+  CLOSED: { label: "Cerrada", variant: "outline" },
+  CANCELLED: { label: "Cancelada", variant: "destructive" },
+};
+
+function formatCurrency(cents: number | null | undefined) {
+  if (!cents) return "$0.00";
+  return `$${(cents / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+}
+
+function formatDate(date: string | Date | null | undefined) {
+  if (!date) return "-";
+  return new Date(date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+export default function PurchaseOrdersPage() {
+  const { selectedBranchId, selectedBranch } = useBranch();
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const pageSize = 20;
+
+  const { data, isLoading } = usePurchaseOrders({
+    branchId: selectedBranchId || undefined,
+    status: statusFilter !== "ALL" ? statusFilter : undefined,
+    limit: pageSize,
+    offset: page * pageSize,
+  });
+
+  const orders = data?.orders || [];
+  const total = data?.total || 0;
+  const totalPages = Math.ceil(total / pageSize);
+
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Órdenes de Compra"
+        description="Gestiona las órdenes de compra a proveedores"
+        icon={FileText}
+        branchName={selectedBranch?.name}
+        actions={
+          <Button onClick={() => setDialogOpen(true)} size="sm">
+            <Plus className="mr-2 h-4 w-4" /> Nueva Orden
+          </Button>
+        }
+      />
+
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-4">
+            <div className="w-48">
+              <Label className="text-xs">Estado</Label>
+              <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); }}>
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Todos</SelectItem>
+                  {Object.entries(STATUS_LABELS).map(([key, { label }]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+          ) : orders.length === 0 ? (
+            <div className="py-16">
+              <EmptyState
+                icon={FileText}
+                title="Sin órdenes de compra"
+                description="Crea tu primera orden de compra para comenzar."
+                action={{ label: "Nueva Orden", onClick: () => setDialogOpen(true) }}
+              />
+            </div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>PO #</TableHead>
+                    <TableHead>Proveedor</TableHead>
+                    <TableHead>Sucursal</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead className="text-right">Acción</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orders.map((row: any) => {
+                    const po = row.po || row;
+                    const statusConfig = STATUS_LABELS[po.status] || { label: po.status, variant: "outline" as const };
+                    return (
+                      <TableRow key={po.id as string}>
+                        <TableCell className="font-mono text-sm font-medium">{po.poNumber}</TableCell>
+                        <TableCell>{row.supplierName || "—"}</TableCell>
+                        <TableCell>{row.branchName || "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">{formatCurrency(po.totalAmount)}</TableCell>
+                        <TableCell>{row.itemCount || 0}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{formatDate(po.createdAt)}</TableCell>
+                        <TableCell className="text-right">
+                          <Link href={`/dashboard/inventory/purchase-orders/${po.id}`}>
+                            <Button variant="ghost" size="sm">Ver</Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between p-4 border-t">
+                  <p className="text-sm text-muted-foreground">{total} órdenes (pág. {page + 1} de {totalPages})</p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Anterior</Button>
+                    <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>Siguiente</Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <CreatePODialog open={dialogOpen} onOpenChange={setDialogOpen} />
+    </PageContainer>
+  );
+}
+
+function CreatePODialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const { selectedBranchId } = useBranch();
+  const { data: products = [] } = useInventory(selectedBranchId || undefined);
+  const createPO = useCreatePurchaseOrder();
+  const priceCheck = usePriceCheck();
+  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
+
+  const [supplierId, setSupplierId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [dateRequired, setDateRequired] = useState("");
+  const [items, setItems] = useState<Array<{ itemId: string; quantity: string; unitCost: string }>>([
+    { itemId: "", quantity: "", unitCost: "" },
+  ]);
+  const [priceAlerts, setPriceAlerts] = useState<Record<number, { avgCost: number; increasePercentage: number; exceedsThreshold: boolean } | null>>({});
+
+  useEffect(() => {
+    if (open) {
+      fetch("/api/inventory/suppliers")
+        .then((res) => res.ok && res.json())
+        .then((data) => setSuppliers(data.suppliers || []))
+        .catch(() => {});
+    }
+  }, [open]);
+
+  const handlePriceCheck = async (idx: number, itemId: string, costStr: string) => {
+    if (!supplierId || !itemId || !costStr) {
+      setPriceAlerts(prev => {
+        const next = { ...prev };
+        delete next[idx];
+        return next;
+      });
+      return;
+    }
+    const costInCents = Math.round(Number(costStr) * 100);
+    if (isNaN(costInCents) || costInCents <= 0) return;
+
+    try {
+      const res = await priceCheck.mutateAsync({
+        supplierId,
+        items: [{ itemId, unitCost: costInCents }],
+      });
+      const alert = res.alerts?.find((a: any) => a.itemId === itemId);
+      if (alert && alert.avgCost !== null) {
+        setPriceAlerts(prev => ({
+          ...prev,
+          [idx]: {
+            avgCost: alert.avgCost,
+            increasePercentage: alert.increasePercentage,
+            exceedsThreshold: alert.exceedsThreshold,
+          }
+        }));
+      } else {
+        setPriceAlerts(prev => {
+          const next = { ...prev };
+          delete next[idx];
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    items.forEach((item, idx) => {
+      if (item.itemId && item.unitCost) {
+        handlePriceCheck(idx, item.itemId, item.unitCost);
+      }
+    });
+  }, [supplierId]);
+
+  const resetForm = () => {
+    setSupplierId("");
+    setNotes("");
+    setDateRequired("");
+    setItems([{ itemId: "", quantity: "", unitCost: "" }]);
+    setPriceAlerts({});
+  };
+
+  const addItem = () => {
+    setItems([...items, { itemId: "", quantity: "", unitCost: "" }]);
+  };
+
+  const removeItem = (idx: number) => {
+    if (items.length > 1) {
+      setItems(items.filter((_, i) => i !== idx));
+      setPriceAlerts(prev => {
+        const next = { ...prev };
+        delete next[idx];
+        const shifted: typeof priceAlerts = {};
+        Object.entries(next).forEach(([k, v]) => {
+          const keyNum = Number(k);
+          if (keyNum > idx) {
+            shifted[keyNum - 1] = v;
+          } else {
+            shifted[keyNum] = v;
+          }
+        });
+        return shifted;
+      });
+    }
+  };
+
+  const updateItem = (idx: number, field: string, value: string) => {
+    const updatedItems = items.map((item, i) => i === idx ? { ...item, [field]: value } : item);
+    setItems(updatedItems);
+
+    const currentItem = updatedItems[idx];
+    if (field === "itemId" || field === "unitCost") {
+      handlePriceCheck(idx, currentItem.itemId, currentItem.unitCost);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!supplierId) {
+      toast.error("Selecciona un proveedor");
+      return;
+    }
+    if (!selectedBranchId) {
+      toast.error("Selecciona una sucursal");
+      return;
+    }
+
+    const validItems = items.filter(i => i.itemId && Number(i.quantity) > 0 && Number(i.unitCost) >= 0);
+    if (validItems.length === 0) {
+      toast.error("Agrega al menos un producto con cantidad válida");
+      return;
+    }
+
+    createPO.mutate({
+      supplierId,
+      branchId: selectedBranchId,
+      notes: notes || undefined,
+      dateRequired: dateRequired || undefined,
+      items: validItems.map(i => ({
+        itemId: i.itemId,
+        orderedQuantity: Number(i.quantity),
+        unitCost: Math.round(Number(i.unitCost) * 100),
+      })),
+    }, {
+      onSuccess: () => {
+        toast.success("Orden de compra creada");
+        onOpenChange(false);
+        resetForm();
+      },
+      onError: (error) => {
+        toast.error(error instanceof Error ? error.message : "Error al crear orden");
+      },
+    });
+  };
+
+  const supplierList = Array.isArray(suppliers) ? suppliers : [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Nueva Orden de Compra</DialogTitle>
+          <DialogDescription>
+            Ingresa los datos de la orden y los productos a solicitar
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>Proveedor *</Label>
+              <Select value={supplierId} onValueChange={setSupplierId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar proveedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {supplierList.map((s: { id: string; name: string }) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Fecha Requerida</Label>
+              <Input type="date" value={dateRequired} onChange={(e) => setDateRequired(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Notas</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notas para el proveedor..." />
+          </div>
+
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-base font-semibold">Productos</Label>
+              <Button variant="outline" size="sm" onClick={addItem}>
+                <Plus className="h-3 w-3 mr-1" /> Agregar
+              </Button>
+            </div>
+
+            {items.map((item, idx) => (
+              <div key={idx} className="flex flex-col gap-1 mb-3">
+                <div className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-5">
+                    <Label className="text-xs">{idx === 0 ? "Producto" : ""}</Label>
+                    <Select value={item.itemId} onValueChange={(v) => updateItem(idx, "itemId", v)}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Seleccionar..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(products as Array<{ id: string; name: string }>).map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-xs">{idx === 0 ? "Cantidad" : ""}</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="h-8 text-sm"
+                      value={item.quantity}
+                      onChange={(e) => updateItem(idx, "quantity", e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <Label className="text-xs">{idx === 0 ? "Costo Unit." : ""}</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="h-8 text-sm"
+                      value={item.unitCost}
+                      onChange={(e) => updateItem(idx, "unitCost", e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="col-span-2 flex gap-1">
+                    <Label className="text-xs invisible">_</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-red-500"
+                      onClick={() => removeItem(idx)}
+                      disabled={items.length === 1}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                </div>
+                {priceAlerts[idx] && (
+                  <div className={cn(
+                    "text-xs flex items-center gap-1.5 px-2 py-1 rounded-sm mt-1",
+                    priceAlerts[idx]?.exceedsThreshold ? "text-amber-700 bg-amber-50" : "text-muted-foreground bg-slate-50"
+                  )}>
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                    <span>Promedio histórico: {formatCurrency(priceAlerts[idx]?.avgCost)}</span>
+                    {priceAlerts[idx]?.exceedsThreshold && (
+                      <span className="font-semibold">
+                        (Aumento de {priceAlerts[idx]?.increasePercentage}%)
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { onOpenChange(false); resetForm(); }}>Cancelar</Button>
+          <Button onClick={handleSubmit} disabled={createPO.isPending}>
+            {createPO.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Crear Orden
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

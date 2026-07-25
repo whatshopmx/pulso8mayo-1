@@ -60,6 +60,14 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
       };
     }
 
+    const attachments = options.attachments?.map((a) => ({
+      filename: a.filename,
+      content:
+        typeof a.content === "string"
+          ? a.content
+          : a.content.toString("base64"),
+    }));
+
     const { data, error } = await client.emails.send({
       from: options.from || 'Pulso HORECA <notifications@pulso.app>',
       to: options.to,
@@ -69,6 +77,7 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
       replyTo: options.replyTo,
       cc: options.cc,
       bcc: options.bcc,
+      attachments,
     });
 
     if (error) {

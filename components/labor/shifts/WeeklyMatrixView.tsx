@@ -13,9 +13,10 @@ interface WeeklyMatrixViewProps {
   branches: { id: string; name: string }[];
   roles: string[];
   employees: { id: string; name: string }[];
+  companyId?: string;
 }
 
-export function WeeklyMatrixView({ branches, roles, employees }: WeeklyMatrixViewProps) {
+export function WeeklyMatrixView({ branches, roles, employees, companyId }: WeeklyMatrixViewProps) {
   const [filters, setFilters] = useState<ShiftFilters>({});
   const [editingShift, setEditingShift] = useState<Shift | undefined>();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -65,6 +66,7 @@ export function WeeklyMatrixView({ branches, roles, employees }: WeeklyMatrixVie
       endTime: shift.endTime,
       notes: shift.notes || undefined,
       status: "DRAFT",
+      companyId: shift.companyId,
     });
   };
 
@@ -145,6 +147,7 @@ export function WeeklyMatrixView({ branches, roles, employees }: WeeklyMatrixVie
         branches={branches}
         roles={roles}
         selectedDate={selectedDate}
+        companyId={companyId || ""}
       />
     </div>
   );

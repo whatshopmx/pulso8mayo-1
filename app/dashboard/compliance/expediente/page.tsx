@@ -240,6 +240,18 @@ export default function ExpedientePage() {
                                                     : emp.userId
                                             )
                                         }
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                                e.preventDefault();
+                                                setExpandedEmployee(
+                                                    expandedEmployee === emp.userId
+                                                        ? null
+                                                        : emp.userId
+                                                );
+                                            }
+                                        }}
+                                        tabIndex={0}
+                                        role="button"
                                     >
                                         <TableCell>
                                             {expandedEmployee === emp.userId ? (

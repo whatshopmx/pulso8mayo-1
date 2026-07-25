@@ -1,0 +1,163 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { AlertCircle, Calendar, Clock, CheckCircle2, ShieldAlert, ArrowRight, RefreshCw } from "lucide-react";
+import { ConfirmRemediationDialog } from "./confirm-remediation-dialog";
+
+interface RemediationAction {
+  id: string;
+  incidentId: string;
+  serviceConfigId?: string | null;
+  branchId: string;
+  companyId: string;
+  actionType: string;
+  serviceType: string;
+  workflowTemplateId?: string | null;
+  status: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+  confirmedBy?: string | null;
+  confirmedAt?: string | null;
+  scheduledDate?: string | null;
+  createdAt: string;
+  incidentTitle?: string | null;
+  incidentDescription?: string | null;
+  incidentSeverity?: string | null;
+  incidentStatus?: string | null;
+  serviceName?: string | null;
+}
+
+export function PendingRemediationActionsCard() {
+  const [actions, setActions] = useState<RemediationAction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedAction, setSelectedAction] = useState<RemediationAction | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const fetchActions = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/remediation/actions?status=PENDING,CONFIRMED");
+      if (res.ok) {
+        const data = await res.json();
+        setActions(data);
+      }
+    } catch (err) {
+      console.error("Error loading remediation actions:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchActions();
+  }, [fetchActions]);
+
+  const pendingCount = actions.filter((a) => a.status === "PENDING").length;
+
+  return (
+    <>
+      <Card className="border-amber-200/60 dark:border-amber-900/50 shadow-sm">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-amber-600" />
+                Acciones de Remediación Externa
+              </CardTitle>
+              {pendingCount > 0 && (
+                <Badge variant="secondary" className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded-full text-xs">
+                  {pendingCount} Pendiente{pendingCount > 1 ? "s" : ""}
+                </Badge>
+              )}
+            </div>
+            <CardDescription className="text-xs text-muted-foreground mt-0.5">
+              Incidentes que requieren coordinar visita de un proveedor normativo o especializado
+            </CardDescription>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={fetchActions} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </CardHeader>
+
+        <CardContent className="space-y-3 pt-0">
+          {loading ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">Cargando acciones pendientes...</div>
+          ) : actions.length === 0 ? (
+            <div className="py-6 text-center rounded-lg border border-dashed p-4 space-y-1">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+              <p className="text-sm font-medium">Todo al día</p>
+              <p className="text-xs text-muted-foreground">No hay incidentes pendientes de servicio externo.</p>
+            </div>
+          ) : (
+            actions.map((action) => {
+              const isPending = action.status === "PENDING";
+              return (
+                <div
+                  key={action.id}
+                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 rounded-xl border bg-card hover:bg-muted/40 transition-colors gap-3"
+                >
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge
+                        variant="outline"
+                        className={
+                          isPending
+                            ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-300"
+                            : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-300"
+                        }
+                      >
+                        {isPending ? "REQUIERE ACCIÓN" : "PROGRAMADO"}
+                      </Badge>
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {action.serviceName || action.serviceType}
+                      </span>
+                    </div>
+
+                    <p className="text-sm font-medium truncate text-foreground">
+                      {action.incidentTitle || `Incidente en ${action.serviceType}`}
+                    </p>
+
+                    {action.scheduledDate && (
+                      <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                        <Calendar className="w-3.5 h-3.5" />
+                        Visita: {new Date(action.scheduledDate).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    {isPending ? (
+                      <Button
+                        size="sm"
+                        className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5 text-xs font-semibold"
+                        onClick={() => {
+                          setSelectedAction(action);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        Confirmar Visita
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs font-normal">
+                        Esperando ejecución de workflow
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      <ConfirmRemediationDialog
+        action={selectedAction}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSuccess={fetchActions}
+      />
+    </>
+  );
+}

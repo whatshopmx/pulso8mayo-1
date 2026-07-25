@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { InventoryService } from "@/lib/services/inventory-service";
+import { AuditService } from "@/lib/services/audit-service";
+import { PurchaseOrderService } from "@/lib/services/purchase-order-service";
 import { db } from "@/lib/db";
-import { inventoryBatches, inventoryItems, suppliers, incidents } from "@/lib/db/schema";
+import { inventoryBatches, inventoryItems, suppliers, incidents, receivingReports, receivingReportItems, purchaseOrders, purchaseOrderItems, invoices, invoiceLines } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
+import { InvoiceMatchingService } from "@/lib/services/invoice-matching-service";
+import { StockAlertService } from "@/lib/services/stock-alert-service";
 
 const receivingSchema = z.object({
     items: z.array(z.object({
@@ -18,8 +22,12 @@ const receivingSchema = z.object({
         temperature: z.number().optional(),
     })),
     supplierId: z.string().uuid().optional(),
-    purchaseOrderId: z.string().optional(),
+    purchaseOrderId: z.string().uuid().optional(),
+    invoiceId: z.string().uuid().optional(),
+    storageLocationId: z.string().uuid().optional(),
     notes: z.string().optional(),
+    signatureUrl: z.string().optional(),
+    photoUrls: z.array(z.string()).optional(),
 });
 
 /**
@@ -39,7 +47,27 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const validatedData = receivingSchema.parse(body);
 
+        // 1. Create receiving report
+        const [report] = await db.insert(receivingReports).values({
+            companyId: session.user.companyId || "",
+            branchId: session.user.branchId,
+            supplierId: validatedData.supplierId || null,
+            purchaseOrderId: validatedData.purchaseOrderId || null,
+            receivedBy: session.user.id,
+            notes: validatedData.notes || null,
+            signatureUrl: validatedData.signatureUrl || null,
+            photoUrls: validatedData.photoUrls || null,
+        }).returning();
+
         const receivingResults = [];
+
+        // Fetch PO items if purchaseOrderId exists
+        let poItems: any[] = [];
+        if (validatedData.purchaseOrderId) {
+            poItems = await db.select()
+                .from(purchaseOrderItems)
+                .where(eq(purchaseOrderItems.poId, validatedData.purchaseOrderId));
+        }
 
         // Process each item in the receiving
         for (const itemData of validatedData.items) {
@@ -54,12 +82,39 @@ export async function POST(req: NextRequest) {
                 );
             }
 
-            // If purchase order exists, verify quantity
-            if (validatedData.purchaseOrderId) {
-                // TODO: Implement PO verification logic
-                // For now, just log it
-                console.log(`PO verification for ${itemId} - quantity: ${quantity}`);
+            // Check for PO discrepancy
+            let orderedQty = null;
+            let poUnitCost = null;
+            let discrepancyType: 'NONE' | 'QUANTITY' | 'PRICE' | 'QUALITY' | 'SUBSTITUTION' = 'NONE';
+            let discrepancyQty = 0;
+
+            if (validatedData.purchaseOrderId && poItems.length > 0) {
+                const poItem = poItems.find(p => p.itemId === itemId);
+                if (poItem) {
+                    orderedQty = poItem.orderedQuantity;
+                    poUnitCost = poItem.unitCost;
+                    
+                    const remainingQty = poItem.orderedQuantity - (poItem.receivedQuantity || 0);
+                    if (quantity !== remainingQty) {
+                        discrepancyType = 'QUANTITY';
+                        discrepancyQty = remainingQty - quantity; // positive = under-received, negative = over-received
+                    }
+
+                    const costInCents = unitCost ? Math.round(unitCost * 100) : null;
+                    if (costInCents !== null && poItem.unitCost !== costInCents) {
+                        discrepancyType = 'PRICE';
+                    }
+                } else {
+                    discrepancyType = 'SUBSTITUTION';
+                }
             }
+
+            if (temperature !== undefined && temperature > 4) {
+                discrepancyType = 'QUALITY';
+            }
+
+            // Convert unitCost from decimal float to integer cents
+            const finalUnitCostCents = unitCost ? Math.round(unitCost * 100) : (poUnitCost || item.lastCost || null);
 
             // Create batch with expiration date and batch number
             const batch = await InventoryService.createBatch({
@@ -71,7 +126,7 @@ export async function POST(req: NextRequest) {
                 expirationDate: expirationDate ? new Date(expirationDate) : undefined,
                 productionDate: productionDate ? new Date(productionDate) : undefined,
                 supplierId: validatedData.supplierId || item.supplierId || null,
-                unitCost: unitCost ? Math.round(unitCost * 100) : null, // Store in cents
+                unitCost: finalUnitCostCents,
                 status: (temperature !== undefined && temperature > 4) ? 'QUARANTINED' : 'AVAILABLE',
                 supplierBatchInfo: {
                     receivedBy: session.user.id,
@@ -88,14 +143,56 @@ export async function POST(req: NextRequest) {
                 batchId: batch.id,
                 type: 'RECEIVING',
                 quantityChange: quantity,
+                toLocationId: validatedData.storageLocationId,
                 reason: validatedData.notes || 'Receiving workflow',
                 performedBy: session.user.id,
             });
 
+            // Save report item in database
+            await db.insert(receivingReportItems).values({
+                receivingReportId: report.id,
+                itemId,
+                orderedQuantity: orderedQty,
+                receivedQuantity: quantity,
+                unitCost: finalUnitCostCents,
+                lineTotal: quantity * (finalUnitCostCents || 0),
+                discrepancyType,
+                discrepancyQty,
+                notes: validatedData.notes || null,
+            });
+
+            // If purchase order exists, record the received quantity
+            if (validatedData.purchaseOrderId) {
+                await PurchaseOrderService.recordReceivedQuantity(
+                    validatedData.purchaseOrderId,
+                    itemId,
+                    quantity,
+                    session.user.id
+                );
+            }
+
+            // Update lastCost of item and trigger price alerts
+            if (finalUnitCostCents) {
+                await InventoryService.updateItem(itemId, { 
+                    lastCost: finalUnitCostCents,
+                    supplierId: validatedData.supplierId || item.supplierId || undefined
+                }, session.user.id);
+
+                // Check for price alert
+                await StockAlertService.checkPriceIncrease(
+                    itemId, 
+                    finalUnitCostCents, 
+                    validatedData.supplierId || item.supplierId || null, 
+                    session.user.companyId || "", 
+                    session.user.branchId, 
+                    session.user.id
+                );
+            }
+
             // If the item is quarantined due to high temperature, automatically trigger an incident
             if (temperature !== undefined && temperature > 4) {
                 await db.insert(incidents).values({
-                    instanceId: uuidv4(), // Placeholder since it's not a generic workflow
+                    instanceId: uuidv4(),
                     stepId: `RECEIVING_QA_${item.id}`,
                     branchId: session.user.branchId,
                     severity: 'WARNING',
@@ -125,9 +222,9 @@ export async function POST(req: NextRequest) {
 
         // Generate receiving report data
         const receivingReport = {
-            id: `REC-${Date.now()}`,
+            id: report.id,
             branchId: session.user.branchId,
-            receivedAt: new Date().toISOString(),
+            receivedAt: report.receivedAt,
             receivedBy: session.user.id,
             supplierId: validatedData.supplierId,
             purchaseOrderId: validatedData.purchaseOrderId,
@@ -135,6 +232,80 @@ export async function POST(req: NextRequest) {
             totalItems: receivingResults.length,
             notes: validatedData.notes,
         };
+
+        for (const result of receivingResults) {
+            AuditService.logInventoryAction({
+                companyId: session.user.companyId || '',
+                branchId: session.user.branchId,
+                action: 'CREATE',
+                entityType: 'RECEIVING',
+                entityId: result.batchId,
+                newValue: result,
+                performedBy: session.user.id,
+                reason: validatedData.notes || 'Receiving completed',
+                metadata: { supplierId: validatedData.supplierId, purchaseOrderId: validatedData.purchaseOrderId },
+            });
+        }
+
+        // If invoice is associated, run 3-way match
+        if (validatedData.invoiceId) {
+            await db.update(invoices)
+                .set({
+                    purchaseOrderId: validatedData.purchaseOrderId || null,
+                    receivingReportId: report.id,
+                    updatedAt: new Date()
+                })
+                .where(eq(invoices.id, validatedData.invoiceId));
+
+            // Map and update each line item's itemId on the invoice lines
+            const invLines = await db.select().from(invoiceLines).where(eq(invoiceLines.invoiceId, validatedData.invoiceId));
+            for (const itemData of validatedData.items) {
+                const line = invLines.find(l => 
+                    (!l.itemId || l.itemId === itemData.itemId) && 
+                    Math.abs(parseFloat(l.cantidad) - itemData.quantity) < 0.0001 &&
+                    l.valorUnitario === Math.round((itemData.unitCost || 0) * 100)
+                );
+                if (line) {
+                    await db.update(invoiceLines)
+                        .set({ itemId: itemData.itemId })
+                        .where(eq(invoiceLines.id, line.id));
+                } else {
+                    const fallbackLine = invLines.find(l => !l.itemId);
+                    if (fallbackLine) {
+                        await db.update(invoiceLines)
+                            .set({ itemId: itemData.itemId })
+                            .where(eq(invoiceLines.id, fallbackLine.id));
+                    }
+                }
+            }
+
+            // Run 3-Way Match
+            if (validatedData.purchaseOrderId) {
+                const updatedLines = await db.select().from(invoiceLines).where(eq(invoiceLines.invoiceId, validatedData.invoiceId));
+                const parsedInvoiceItems = updatedLines
+                    .filter(l => !!l.itemId)
+                    .map(l => ({
+                        itemId: l.itemId!,
+                        quantity: parseFloat(l.cantidad),
+                        unitCostCents: l.valorUnitario
+                    }));
+
+                const matchResult = await InvoiceMatchingService.perform3WayMatch(
+                    validatedData.purchaseOrderId,
+                    report.id,
+                    parsedInvoiceItems
+                );
+
+                await db.update(invoices)
+                    .set({
+                        matchStatus: matchResult.isPerfectMatch ? 'MATCHED' : 'DISCREPANCY',
+                        hasPriceDiscrepancy: matchResult.priceDiscrepancy,
+                        hasQtyDiscrepancy: matchResult.quantityDiscrepancy,
+                        updatedAt: new Date()
+                    })
+                    .where(eq(invoices.id, validatedData.invoiceId));
+            }
+        }
 
         return NextResponse.json({
             success: true,
@@ -144,15 +315,15 @@ export async function POST(req: NextRequest) {
     } catch (error) {
         console.error("Receiving workflow error:", error);
         
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid data", details: error.issues },
-        { status: 400 }
-      );
-    }
+        if (error instanceof z.ZodError) {
+          return NextResponse.json(
+            { error: "Invalid data", details: error.issues },
+            { status: 400 }
+          );
+        }
 
         return NextResponse.json(
-            { error: "Failed to process receiving" },
+            { error: error instanceof Error ? error.message : "Failed to process receiving" },
             { status: 500 }
         );
     }

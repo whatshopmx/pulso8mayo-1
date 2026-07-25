@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ShiftWorkflowService } from "@/lib/services/shift-workflow-service";
-import { start } from "workflow/api";
-import { handleClockOutWorkflow } from "@/app/workflows/handle-clock-out";
+import { inngest } from "@/lib/inngest/client";
 import { auth } from "@/lib/auth";
 
 export interface ClockOutRequest {
@@ -41,12 +40,10 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Trigger clock-out workflow
-        await start(handleClockOutWorkflow, [
-            userId, 
-            session.user.phone || "", 
-            geolocation
-        ]);
+        await inngest.send({
+            name: "shift/clock-out.requested",
+            data: { userId, phoneNumber: session.user.phone || "", geolocation },
+        });
 
         return NextResponse.json({
             success: true,

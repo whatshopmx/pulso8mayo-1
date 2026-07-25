@@ -5,6 +5,7 @@ import { requireTenant, requireAuth } from "@/lib/tenant-context";
 import { z } from "zod";
 
 const createComplianceServiceSchema = z.object({
+  branchId: z.string().optional(),
   serviceType: z.string().min(1, "El tipo de servicio es requerido"),
   serviceName: z.string().min(1, "El nombre del servicio es requerido"),
   regulationReference: z.string().optional(),
@@ -20,14 +21,18 @@ const createComplianceServiceSchema = z.object({
   workflowTemplateId: z.string().optional(),
 });
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const tenant = await requireTenant();
-    if (!tenant.id || !tenant.branchId) {
+    if (!tenant.id) {
       return ApiHandler.error(new Error("Unauthorized"), 401);
     }
 
-    const services = await equipmentService.getComplianceServicesByBranch(tenant.branchId);
+    const { searchParams } = new URL(request.url);
+    const branchIdParam = searchParams.get("branchId");
+    const targetBranchId = branchIdParam || tenant.branchId || undefined;
+
+    const services = await equipmentService.getComplianceServicesByBranch(targetBranchId, tenant.id);
 
     return ApiHandler.success(services);
   } catch (error) {
@@ -40,29 +45,34 @@ export async function POST(request: NextRequest) {
     const { user } = await requireAuth();
     const tenant = await requireTenant();
 
-    if (!tenant.id || !tenant.branchId) {
+    if (!tenant.id) {
       return ApiHandler.error(new Error("Unauthorized"), 401);
     }
 
     const body = await request.json();
     const validatedData = createComplianceServiceSchema.parse(body);
 
+    const targetBranchId = validatedData.branchId || tenant.branchId;
+    if (!targetBranchId) {
+      return ApiHandler.error(new Error("Sucursal requerida"), 400);
+    }
+
     const service = await equipmentService.createComplianceService({
       companyId: tenant.id,
-      branchId: tenant.branchId,
+      branchId: targetBranchId,
       serviceType: validatedData.serviceType,
       serviceName: validatedData.serviceName,
       regulationReference: validatedData.regulationReference,
       isMandatory: validatedData.isMandatory ?? true,
       frequency: validatedData.frequency,
       customDays: validatedData.customDays,
-      providerId: validatedData.providerId,
+      providerId: validatedData.providerId || undefined,
       providerName: validatedData.providerName,
       providerContact: validatedData.providerContact,
       nextServiceDate: validatedData.nextServiceDate ? new Date(validatedData.nextServiceDate) : undefined,
       serviceAreas: validatedData.serviceAreas || [],
       specialInstructions: validatedData.specialInstructions,
-      workflowTemplateId: validatedData.workflowTemplateId,
+      workflowTemplateId: validatedData.workflowTemplateId || undefined,
     }, user.id);
 
     return ApiHandler.success(service, 201);

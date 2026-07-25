@@ -114,9 +114,6 @@ export function CorporateComplianceGrid() {
         }),
       });
 
-      // Simple mock fallback if API route is not fully ready
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
       toast.success(
         `Recordatorio enviado con éxito a ${branch.managerName} (${branch.branchName}) vía WhatsApp`
       );
@@ -167,11 +164,10 @@ export function CorporateComplianceGrid() {
     "Cumplimiento %": b.complianceRate,
   }));
 
-  // HSL Dynamic Colors
   const getComplianceColor = (rate: number) => {
-    if (rate >= 90) return "hsl(142, 72%, 29%)"; // Green
-    if (rate >= 70) return "hsl(43, 96%, 35%)"; // Orange/Yellow
-    return "hsl(0, 72%, 51%)"; // Red
+    if (rate >= 90) return "oklch(0.60 0.16 150)";
+    if (rate >= 70) return "oklch(0.72 0.15 80)";
+    return "oklch(0.50 0.22 22)";
   };
 
   const getComplianceBg = (rate: number) => {
@@ -183,7 +179,7 @@ export function CorporateComplianceGrid() {
   return (
     <div className="space-y-6">
       {/* Control bar */}
-      <div className="flex items-center justify-between bg-muted/30 p-4 rounded-xl border backdrop-blur-sm">
+      <div className="flex items-center justify-between bg-muted/30 p-4 rounded-xl border">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium text-muted-foreground">Período de Análisis:</span>
@@ -194,7 +190,7 @@ export function CorporateComplianceGrid() {
             </span>
           )}
         </div>
-        <div className="flex gap-1 bg-background p-1 rounded-lg border shadow-sm">
+        <div className="flex gap-1 bg-background p-1 rounded-lg border">
           {[7, 30, 90].map((days) => (
             <Button
               key={days}
@@ -212,7 +208,7 @@ export function CorporateComplianceGrid() {
       {/* KPI Cards Grid */}
       <div className="grid gap-4 md:grid-cols-4">
         {/* Card 1: Corporate Average */}
-        <Card className="relative overflow-hidden border-primary/10 shadow-md transition-all hover:shadow-lg">
+        <Card className="relative overflow-hidden border-primary/10">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 pointer-events-none" />
           <CardHeader className="pb-2">
             <CardDescription className="text-xs uppercase tracking-wider font-semibold">
@@ -233,7 +229,7 @@ export function CorporateComplianceGrid() {
         </Card>
 
         {/* Card 2: Best Branch */}
-        <Card className="border-green-500/10 shadow-md transition-all hover:shadow-lg">
+        <Card className="border-green-500/10">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs uppercase tracking-wider font-semibold">
               Mayor Cumplimiento
@@ -252,7 +248,7 @@ export function CorporateComplianceGrid() {
         </Card>
 
         {/* Card 3: Worst Branch */}
-        <Card className="border-red-500/10 shadow-md transition-all hover:shadow-lg">
+        <Card className="border-red-500/10">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs uppercase tracking-wider font-semibold">
               Menor Cumplimiento
@@ -273,7 +269,7 @@ export function CorporateComplianceGrid() {
         </Card>
 
         {/* Card 4: Incidents */}
-        <Card className="border-yellow-500/10 shadow-md transition-all hover:shadow-lg">
+        <Card className="border-yellow-500/10">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs uppercase tracking-wider font-semibold">
               Desviaciones y Alertas
@@ -300,7 +296,7 @@ export function CorporateComplianceGrid() {
       </div>
 
       {/* Comparison Chart */}
-      <Card className="shadow-md">
+      <Card>
         <CardHeader>
           <CardTitle className="text-md font-bold flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
@@ -319,7 +315,7 @@ export function CorporateComplianceGrid() {
                   cursor={{ fill: "rgba(0,0,0,0.03)" }}
                   contentStyle={{
                     background: "white",
-                    border: "1px solid rgba(0,0,0,0.1)",
+                    border: "1px solid var(--border)",
                     borderRadius: "8px",
                     boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
                   }}
@@ -340,7 +336,7 @@ export function CorporateComplianceGrid() {
       </Card>
 
       {/* Branches Table */}
-      <Card className="shadow-md">
+      <Card>
         <CardHeader>
           <CardTitle className="text-md font-bold flex items-center gap-2">
             <Building2 className="h-4 w-4 text-primary" />

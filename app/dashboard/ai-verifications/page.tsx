@@ -101,7 +101,7 @@ export default function AIVerificationsPage() {
 
     const handleExport = () => {
         exportToCSV(verifications as any[], [
-            { key: "workflowName", label: "Workflow" },
+            { key: "workflowName", label: "Flujo" },
             { key: "instanceId", label: "Instancia" },
             { key: "stepId", label: "Paso" },
             { key: "status", label: "Estado" },
@@ -221,7 +221,7 @@ export default function AIVerificationsPage() {
                 <p className="text-muted-foreground mb-4">
                   {filter !== 'all'
                     ? 'No se encontraron verificaciones con el filtro seleccionado'
-                    : 'Las verificaciones de IA aparecerán aquí cuando se ejecuten workflows con análisis de evidencia'}
+                    : 'Las verificaciones de IA aparecerán aquí cuando se ejecuten flujos de trabajo con análisis de evidencia'}
                 </p>
               </div>
             ) : (
@@ -281,13 +281,13 @@ export default function AIVerificationsPage() {
                                             <span className="font-medium font-mono text-xs">{selectedVerification.instanceId}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Step:</span>
+                                            <span className="text-muted-foreground">Paso:</span>
                                             <span className="font-medium font-mono text-xs">{selectedVerification.stepId}</span>
                                         </div>
                                     </div>
                                     <div className="flex gap-2 pt-4">
                                         <Button variant="outline" className="flex-1">
-                                            Ver Workflow
+                                            Ver Flujo
                                         </Button>
                                         <Button variant="outline" className="flex-1">
                                             Ver Incidente
