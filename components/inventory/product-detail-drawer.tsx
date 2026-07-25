@@ -171,7 +171,7 @@ export function ProductDetailDrawer({ productId, branchId, open, onOpenChange }:
                             {batch.lotNumber || "Sin lote"}
                           </div>
                           {batch.expirationDate && (
-                            <div className={`text-[10px] mt-0.5 flex items-center gap-1 ${isExpiring ? "text-red-500 font-semibold" : "text-muted-foreground"}`}>
+                            <div className={`text-xs mt-0.5 flex items-center gap-1 ${isExpiring ? "text-red-500 font-semibold" : "text-muted-foreground"}`}>
                               <Clock className="h-2.5 w-2.5" />
                               Expira: {new Date(batch.expirationDate).toLocaleDateString()}
                             </div>
@@ -180,7 +180,7 @@ export function ProductDetailDrawer({ productId, branchId, open, onOpenChange }:
                         <div className="text-right">
                           <span className="font-bold text-foreground">{batch.currentQuantity} {product.unit}</span>
                           {batch.unitCost && (
-                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                            <div className="text-xs text-muted-foreground mt-0.5">
                               Costo: ${(batch.unitCost / 100).toFixed(2)}
                             </div>
                           )}

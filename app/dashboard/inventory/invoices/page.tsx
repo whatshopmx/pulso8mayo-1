@@ -910,11 +910,11 @@ export default function InvoiceUploadPage() {
                                 <div className="pt-8 flex justify-between">
                                     <div className="border-t border-slate-300 w-48 text-center pt-2">
                                         <p className="font-semibold text-xs">Firma Sucursal</p>
-                                        <p className="text-[10px] text-muted-foreground">Recibido de Almacén</p>
+                                        <p className="text-xs text-muted-foreground">Recibido de Almacén</p>
                                     </div>
                                     <div className="border-t border-slate-300 w-48 text-center pt-2">
                                         <p className="font-semibold text-xs">Firma Autorizada</p>
-                                        <p className="text-[10px] text-muted-foreground">Control de Inventarios</p>
+                                        <p className="text-xs text-muted-foreground">Control de Inventarios</p>
                                     </div>
                                 </div>
                             </div>

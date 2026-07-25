@@ -303,7 +303,7 @@ export default function InventoryPage() {
                 >
                   Bajo Stock 
                   {products.filter(p => p.isLowStock).length > 0 && (
-                    <Badge variant="destructive" className="h-4 px-1 min-w-[16px] flex items-center justify-center text-[10px] rounded-full">
+                    <Badge variant="destructive" className="h-4 px-1 min-w-[16px] flex items-center justify-center text-xs rounded-full">
                       {products.filter(p => p.isLowStock).length}
                     </Badge>
                   )}
@@ -316,7 +316,7 @@ export default function InventoryPage() {
                 >
                   Por Vencer
                   {(dashboardData?.topExpiring || []).length > 0 && (
-                    <Badge variant="outline" className="h-4 px-1 min-w-[16px] flex items-center justify-center text-[10px] rounded-full border-orange-500 text-orange-600">
+                    <Badge variant="warning" className="h-4 px-1 min-w-[16px] flex items-center justify-center text-xs rounded-full">
                       {(dashboardData?.topExpiring || []).length}
                     </Badge>
                   )}
@@ -353,14 +353,14 @@ export default function InventoryPage() {
                     <TableHead>SKU</TableHead>
                     <TableHead>Categoría</TableHead>
                     <TableHead>Unidad</TableHead>
-                    {selectedBranchId && <TableHead>Stock Actual</TableHead>}
+                    <TableHead>Stock Actual</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {tabFilteredProducts.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={selectedBranchId ? 6 : 5} className="text-center py-16">
+                      <TableCell colSpan={6} className="text-center py-16">
                         {searchQuery.trim() && products.length > 0 ? (
                           <EmptyState
                             icon={Search}
@@ -396,13 +396,15 @@ export default function InventoryPage() {
                         <TableCell className="font-mono text-xs">{product.sku || "N/A"}</TableCell>
                         <TableCell className="capitalize">{product.category || "General"}</TableCell>
                         <TableCell>{product.unit}</TableCell>
-                        {selectedBranchId && (
-                          <TableCell className="font-mono">
+                        <TableCell className="font-mono">
+                          {selectedBranchId ? (
                             <span className={product.isLowStock ? "text-amber-600 font-bold" : ""}>
                               {product.currentStock || 0}
                             </span>
-                          </TableCell>
-                        )}
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Button 
                             variant="ghost" 

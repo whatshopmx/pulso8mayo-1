@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Camera, Upload, X, Loader2 } from "lucide-react";
 import { usePhotoUpload } from "@/components/shared/use-photo-upload";
 import { CameraCapture } from "@/components/shared/camera-capture";
@@ -106,6 +107,4 @@ export function ProductPhotoUpload({ currentPhotoUrl, onPhotoChange }: ProductPh
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{children}</label>;
-}
+

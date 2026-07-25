@@ -373,7 +373,7 @@ export default function InventoryReportsPage() {
                                 />
                                 <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
                                 <span className="text-xs font-semibold text-slate-600 block">Subir archivo CSV</span>
-                                <span className="text-[10px] text-muted-foreground block mt-1">Soporta columnas: Receta, Cantidad, Total</span>
+                                <span className="text-xs text-muted-foreground block mt-1">Soporta columnas: Receta, Cantidad, Total</span>
                             </div>
                         </CardContent>
                     </Card>
@@ -534,7 +534,7 @@ export default function InventoryReportsPage() {
                                                             </SelectContent>
                                                         </Select>
                                                         {!isMapped && (
-                                                            <span className="text-[10px] text-amber-600 flex items-center gap-1 font-medium">
+                                                            <span className="text-xs text-amber-600 flex items-center gap-1 font-medium">
                                                                 <AlertCircle className="w-3 h-3" /> Requiere vinculación manual
                                                             </span>
                                                         )}
