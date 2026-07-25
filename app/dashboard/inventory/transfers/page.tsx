@@ -1,29 +1,37 @@
+"use client";
+
+import { useEffect } from "react";
 import { TransferList } from "@/components/inventory/transfer-list";
-import { db } from "@/lib/db";
-import { branches } from "@/lib/db/schema";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { TransferRequest } from "@/components/inventory/transfer-request";
+import { PageHeader, PageContainer } from "@/components/shared";
+import { useBranch } from "@/lib/branch-context";
+import { useBranches } from "@/hooks/queries/use-branches";
+import { ArrowRight } from "lucide-react";
 
-export default async function TransfersPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+export default function TransfersPage() {
+  const { selectedBranchId, selectedBranch, branches, setBranches } = useBranch();
+  const { data: fetchedBranches } = useBranches();
 
-  if (!session?.user) {
-    redirect("/sign-in");
-  }
-
-  const branchId = (session.user as any).branchId || "";
-  
-  const allBranches = await db.select({
-    id: branches.id,
-    name: branches.name,
-  }).from(branches);
+  useEffect(() => {
+    if (fetchedBranches && branches.length === 0) {
+      setBranches(fetchedBranches);
+    }
+  }, [fetchedBranches, branches.length, setBranches]);
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <TransferList branchId={branchId} branches={allBranches} />
-    </div>
+    <PageContainer>
+      <PageHeader
+        title="Transferencias"
+        description="Solicita, aprueba y gestiona transferencias de inventario entre sucursales."
+        icon={ArrowRight}
+        branchName={selectedBranch?.name}
+        actions={
+          branches.length > 0 && (
+            <TransferRequest branches={branches} />
+          )
+        }
+      />
+      <TransferList branchId={selectedBranchId || ""} branches={branches} />
+    </PageContainer>
   );
 }
