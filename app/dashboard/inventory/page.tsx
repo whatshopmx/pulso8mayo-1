@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Loader2, Package, PackagePlus, ArrowRight, AlertTriangle, ClipboardList, FileText, ChefHat, Upload, Building2 } from "lucide-react";
+import { Plus, Search, Loader2, Package, PackagePlus, ArrowRight, AlertTriangle, ClipboardList, FileText, ChefHat, Upload, Building2, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useBranch } from "@/lib/branch-context";
@@ -159,102 +159,114 @@ export default function InventoryPage() {
       />
 
       {/* Hub de Operaciones */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
-          <Link href="/dashboard/inventory/receiving" className="h-full flex flex-col justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                <PackagePlus className="h-5 w-5" />
+      <div className="space-y-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="border-primary/30 bg-primary/[0.02] hover:border-primary hover:scale-[1.02] transition-all cursor-pointer">
+            <Link href="/dashboard/inventory/receiving" className="h-full flex flex-col justify-between p-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+                  <PackagePlus className="h-5 w-5" />
+                </div>
+                <span className="font-semibold">Recepción</span>
               </div>
-              <span className="font-semibold text-sm">Recepción</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">Registra entradas de stock con lectura de código de barras.</p>
-          </Link>
-        </Card>
+              <p className="text-xs text-muted-foreground mt-2">Registra entradas de stock con lectura de código de barras.</p>
+            </Link>
+          </Card>
 
-        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
-          <Link href="/dashboard/inventory/transfers" className="h-full flex flex-col justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                <ArrowRight className="h-5 w-5" />
+          <Card className="border-primary/30 bg-primary/[0.02] hover:border-primary hover:scale-[1.02] transition-all cursor-pointer">
+            <Link href="/dashboard/inventory/stock-count" className="h-full flex flex-col justify-between p-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+                  <ClipboardList className="h-5 w-5" />
+                </div>
+                <span className="font-semibold">Auditorías / Conteo</span>
               </div>
-              <span className="font-semibold text-sm">Transferencias</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">Envía o recibe mercancías entre tus sucursales.</p>
-          </Link>
-        </Card>
+              <p className="text-xs text-muted-foreground mt-2">Realiza conteos físicos regulares (soporta Conteo sin Stock Esperado).</p>
+            </Link>
+          </Card>
 
-        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
-          <Link href="/dashboard/inventory/waste" className="h-full flex flex-col justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                <AlertTriangle className="h-5 w-5" />
+          <Card className="border-primary/30 bg-primary/[0.02] hover:border-primary hover:scale-[1.02] transition-all cursor-pointer">
+            <Link href="/dashboard/inventory/purchase-orders" className="h-full flex flex-col justify-between p-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <span className="font-semibold">Órdenes de Compra</span>
               </div>
-              <span className="font-semibold text-sm">Mermas y Consumos</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">Reporta mermas por caducidad, mermas de tránsito o consumo de staff.</p>
-          </Link>
-        </Card>
+              <p className="text-xs text-muted-foreground mt-2">Genera solicitudes de compra en PDF y compártelas en WhatsApp.</p>
+            </Link>
+          </Card>
+        </div>
 
-        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
-          <Link href="/dashboard/inventory/stock-count" className="h-full flex flex-col justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                <ClipboardList className="h-5 w-5" />
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+            <Link href="/dashboard/inventory/transfers" className="h-full flex flex-col justify-between p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  <ArrowRight className="h-5 w-5" />
+                </div>
+                <span className="font-semibold text-sm">Transferencias</span>
               </div>
-              <span className="font-semibold text-sm">Auditorías / Conteo</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">Realiza conteos físicos regulares (soporta Conteo sin Stock Esperado).</p>
-          </Link>
-        </Card>
+              <p className="text-xs text-muted-foreground mt-2">Envía o recibe mercancías entre tus sucursales.</p>
+            </Link>
+          </Card>
 
-        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
-          <Link href="/dashboard/inventory/purchase-orders" className="h-full flex flex-col justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                <FileText className="h-5 w-5" />
+          <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+            <Link href="/dashboard/inventory/waste" className="h-full flex flex-col justify-between p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <span className="font-semibold text-sm">Mermas y Consumos</span>
               </div>
-              <span className="font-semibold text-sm">Órdenes de Compra</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">Genera solicitudes de compra en PDF y compártelas en WhatsApp.</p>
-          </Link>
-        </Card>
+              <p className="text-xs text-muted-foreground mt-2">Reporta mermas por caducidad, mermas de tránsito o consumo de staff.</p>
+            </Link>
+          </Card>
 
-        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
-          <Link href="/dashboard/inventory/invoices" className="h-full flex flex-col justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                <Upload className="h-5 w-5" />
+          <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+            <Link href="/dashboard/inventory/invoices" className="h-full flex flex-col justify-between p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  <Upload className="h-5 w-5" />
+                </div>
+                <span className="font-semibold text-sm">Cargar Factura XML</span>
               </div>
-              <span className="font-semibold text-sm">Cargar Factura XML</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">Carga archivos CFDI para realizar la conciliación de 3 vías.</p>
-          </Link>
-        </Card>
+              <p className="text-xs text-muted-foreground mt-2">Carga archivos CFDI para realizar la conciliación de 3 vías.</p>
+            </Link>
+          </Card>
+        </div>
 
-        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
-          <Link href="/dashboard/inventory/recipes" className="h-full flex flex-col justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                <ChefHat className="h-5 w-5" />
-              </div>
-              <span className="font-semibold text-sm">Recetas & Fórmulas</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">Monitorea el costeo de ingredientes y fórmulas de recetas.</p>
-          </Link>
-        </Card>
+        <details className="group">
+          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors list-none flex items-center gap-1 py-1 select-none">
+            <ChevronRight className="h-3.5 w-3.5 group-open:rotate-90 transition-transform" />
+            Más operaciones
+          </summary>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+            <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+              <Link href="/dashboard/inventory/recipes" className="h-full flex flex-col justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                    <ChefHat className="h-5 w-5" />
+                  </div>
+                  <span className="font-semibold text-sm">Recetas & Fórmulas</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Monitorea el costeo de ingredientes y fórmulas de recetas.</p>
+              </Link>
+            </Card>
 
-        <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
-          <Link href="/dashboard/inventory/suppliers" className="h-full flex flex-col justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                <Building2 className="h-5 w-5" />
-              </div>
-              <span className="font-semibold text-sm">Proveedores</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">Administra contactos comerciales e historiales de precios.</p>
-          </Link>
-        </Card>
+            <Card className="hover:border-primary/40 hover:scale-[1.01] transition-all cursor-pointer bg-card">
+              <Link href="/dashboard/inventory/suppliers" className="h-full flex flex-col justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                    <Building2 className="h-5 w-5" />
+                  </div>
+                  <span className="font-semibold text-sm">Proveedores</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Administra contactos comerciales e historiales de precios.</p>
+              </Link>
+            </Card>
+          </div>
+        </details>
       </div>
 
       <div className="space-y-6">
