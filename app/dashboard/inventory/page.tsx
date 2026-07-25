@@ -39,6 +39,7 @@ export default function InventoryPage() {
   const [formStorage, setFormStorage] = useState("");
   const [formAllergenInfo, setFormAllergenInfo] = useState("");
   const [formPhotoUrl, setFormPhotoUrl] = useState<string | null>(null);
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
   
   // Dashboard Refactor State variables
   const [activeTab, setActiveTab] = useState<"all" | "low" | "expiring" | "inactive">("all");
@@ -50,6 +51,8 @@ export default function InventoryPage() {
   const { data: products = [], isLoading: loading } = useInventory(selectedBranchId || undefined);
   const { data: dashboardData, isLoading: dashboardLoading } = useDashboard(selectedBranchId || undefined);
   const createProduct = useCreateProduct();
+
+  const isDirty = formName !== "" || formSku !== "" || formBarcode !== "" || formCategory !== "" || formUnit !== "KG" || formMinLevel !== "" || formMaxLevel !== "" || formSupplierId !== "" || formLastCost !== "" || formShelfLife !== "" || formStorage !== "" || formAllergenInfo !== "" || formPhotoUrl !== null;
 
   useEffect(() => {
     fetch("/api/inventory/suppliers")
@@ -412,7 +415,7 @@ export default function InventoryPage() {
         </Card>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open && isDirty) { setConfirmDiscardOpen(true); } else { setDialogOpen(open); } }}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-background">
           <DialogHeader>
             <DialogTitle>Agregar Producto</DialogTitle>
@@ -586,6 +589,25 @@ export default function InventoryPage() {
             <Button onClick={handleCreateProduct} disabled={createProduct.isPending}>
               {createProduct.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Crear Producto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmDiscardOpen} onOpenChange={setConfirmDiscardOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>¿Descartar cambios?</DialogTitle>
+            <DialogDescription>
+              Los datos ingresados se perderán si cierras el formulario.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDiscardOpen(false)}>
+              Seguir editando
+            </Button>
+            <Button variant="destructive" onClick={() => { setConfirmDiscardOpen(false); setDialogOpen(false); resetForm(); }}>
+              Descartar
             </Button>
           </DialogFooter>
         </DialogContent>
