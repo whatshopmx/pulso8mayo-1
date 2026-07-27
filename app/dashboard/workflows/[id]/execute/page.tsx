@@ -19,7 +19,7 @@ export default async function ExecuteWorkflowPage(props: PageProps) {
     });
 
     if (!session?.user) {
-        redirect("/auth/login");
+        redirect("/sign-in");
     }
 
     // 2. Fetch Execution

@@ -15,6 +15,7 @@ import {
 import { AlertCircle, Package, TrendingDown, Clock, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { KpiCard, KpiGrid } from "@/components/shared";
+import { KpiCardsSkeleton, DataTableSkeleton } from "@/components/shared/skeletons";
 
 const formatUnit = (unit?: string | null) => {
     if (!unit) return "unidades";
@@ -113,8 +114,9 @@ export function StockAlerts({ branchId, onRefresh }: StockAlertsProps) {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center p-8">
-                <RefreshCw className="h-6 w-6 animate-spin" />
+            <div className="space-y-6">
+                <KpiCardsSkeleton count={4} />
+                <DataTableSkeleton columns={5} rows={8} />
             </div>
         );
     }

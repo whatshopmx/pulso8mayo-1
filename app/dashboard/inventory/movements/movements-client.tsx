@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader, PageContainer, EmptyState } from "@/components/shared";
 import { useBranch } from "@/lib/branch-context";
 import { useMovements } from "@/hooks/queries";
-import { ChevronLeft, Download, Loader2, Package, Search } from "lucide-react";
+import { ChevronLeft, Download, Package, Search } from "lucide-react";
+import { DataTableSkeleton } from "@/components/shared/skeletons";
 import { useExportCsv } from "@/components/shared/use-export-csv";
 
 const TYPE_OPTIONS = [
@@ -24,12 +25,12 @@ const TYPE_OPTIONS = [
 ];
 
 const TYPE_BADGE: Record<string, { variant: "default" | "destructive" | "secondary" | "outline" | "warning"; className?: string }> = {
-  RECEIVING: { variant: "default", className: "bg-green-100 text-green-800 hover:bg-green-100" },
+  RECEIVING: { variant: "default" },
   USAGE: { variant: "destructive" },
   ADJUSTMENT: { variant: "secondary" },
   TRANSFER: { variant: "outline" },
   WASTE: { variant: "warning" },
-  RETURN: { variant: "outline", className: "bg-blue-100 text-blue-800 hover:bg-blue-100" },
+  RETURN: { variant: "outline" },
 };
 
 function formatCurrency(cents: number | null | undefined) {
@@ -160,7 +161,7 @@ export function MovementsClient() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+            <DataTableSkeleton columns={6} rows={8} />
           ) : movements.length === 0 ? (
             <div className="py-16">
               <EmptyState
@@ -203,7 +204,7 @@ export function MovementsClient() {
                           {m.itemSku && <span className="text-xs text-muted-foreground ml-1">({m.itemSku})</span>}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{m.batchNumber || "-"}</TableCell>
-                        <TableCell className={`text-right font-medium tabular-nums ${m.quantityChange > 0 ? "text-green-600" : "text-red-600"}`}>
+                        <TableCell className={`text-right font-medium tabular-nums ${m.quantityChange > 0 ? "text-success" : "text-destructive"}`}>
                           {m.quantityChange > 0 ? "+" : ""}{m.quantityChange}
                         </TableCell>
                         <TableCell className="text-right text-xs text-muted-foreground tabular-nums">

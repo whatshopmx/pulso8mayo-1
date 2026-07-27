@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, AlertTriangle, CheckCircle2, Package, ClipboardList } from "lucide-react";
 import Link from "next/link";
+import { ApproveAdjustments } from "./approve-adjustments";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -17,7 +18,7 @@ interface PageProps {
 
 export default async function StockCountResultsPage({ params }: PageProps) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) redirect("/auth/login");
+  if (!session?.user) redirect("/sign-in");
 
   const { id } = await params;
 
@@ -69,12 +70,18 @@ export default async function StockCountResultsPage({ params }: PageProps) {
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <ClipboardList className="h-6 w-6" />
-          Resultados del Conteo
+          Revisión del Conteo
         </h1>
         <p className="text-muted-foreground mt-1">
           {branchName} • {formatDate(result.completedAt)}
         </p>
       </div>
+
+      <ApproveAdjustments
+        instanceId={result.instanceId}
+        adjustmentsStatus={result.adjustmentsStatus as "PENDING" | "APPLIED" | "NONE"}
+        totalAdjustments={result.summary.totalAdjustments}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
@@ -90,11 +97,13 @@ export default async function StockCountResultsPage({ params }: PageProps) {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Ajustes Generados</CardDescription>
+            <CardDescription>
+              {result.adjustmentsStatus === "PENDING" ? "Ajustes Pendientes" : "Ajustes Aplicados"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
+              <CheckCircle2 className={`h-5 w-5 ${result.adjustmentsStatus === "PENDING" ? "text-amber-500" : "text-green-500"}`} />
               {result.summary.totalAdjustments}
             </div>
           </CardContent>

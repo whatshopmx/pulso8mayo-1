@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { purchaseOrders, purchaseOrderItems, requisitions, requisitionItems, suppliers, branches, inventoryBatches, inventoryItems } from "@/lib/db/schema";
+import { purchaseOrders, purchaseOrderItems, requisitions, requisitionItems, suppliers, branches, inventoryBatches, inventoryItems, companies } from "@/lib/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { AuditService } from "./audit-service";
 
@@ -165,6 +165,13 @@ export class PurchaseOrderService {
   }) {
     const tx = db;
     const poNumber = await this.generatePONumber(data.companyId);
+
+    // Fetch company taxRate
+    const company = await tx.query.companies.findFirst({
+      where: eq(companies.id, data.companyId),
+    });
+    const taxRate = (company?.taxRate ?? 16) / 100;
+
     const itemsTotal = data.items.reduce((sum, item) => sum + (item.orderedQuantity * item.unitCost), 0);
 
     const [po] = await tx.insert(purchaseOrders).values({
@@ -179,8 +186,8 @@ export class PurchaseOrderService {
       notes: data.notes,
       termsConditions: data.termsConditions,
       subtotal: itemsTotal,
-      taxAmount: Math.round(itemsTotal * 0.16),
-      totalAmount: Math.round(itemsTotal * 1.16),
+      taxAmount: Math.round(itemsTotal * taxRate),
+      totalAmount: Math.round(itemsTotal * (1 + taxRate)),
     }).returning();
 
     const itemsData = data.items.map(item => ({
@@ -326,11 +333,17 @@ export class PurchaseOrderService {
     const newItems = await tx.insert(purchaseOrderItems).values(itemsData).returning();
 
     const itemsTotal = itemsData.reduce((sum, i) => sum + (i.lineTotal || 0), 0);
+
+    const company = await tx.query.companies.findFirst({
+      where: eq(companies.id, po.companyId),
+    });
+    const taxRate = (company?.taxRate ?? 16) / 100;
+
     await tx.update(purchaseOrders)
       .set({
         subtotal: itemsTotal,
-        taxAmount: Math.round(itemsTotal * 0.16),
-        totalAmount: Math.round(itemsTotal * 1.16),
+        taxAmount: Math.round(itemsTotal * taxRate),
+        totalAmount: Math.round(itemsTotal * (1 + taxRate)),
         updatedAt: new Date(),
       })
       .where(eq(purchaseOrders.id, poId));

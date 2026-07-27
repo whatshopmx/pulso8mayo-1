@@ -30,16 +30,6 @@ export function BarcodeScannerComponent({ onScan, onClose }: BarcodeScannerProps
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
 
-    const checkPermissions = useCallback(async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            setHasPermission(true);
-            stream.getTracks().forEach(track => track.stop());
-        } catch {
-            setHasPermission(false);
-        }
-    }, []);
-
     const requestPermissions = useCallback(async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -79,7 +69,8 @@ export function BarcodeScannerComponent({ onScan, onClose }: BarcodeScannerProps
 
     const startBrowserScanning = useCallback(() => {
         if ('BarcodeDetector' in window) {
-            const barcodeDetector = new (window as unknown as { BarcodeDetector: new (options: { formats: string[] }) => { detect: (image: ImageBitmap | ImageData | HTMLVideoElement) => Promise<{ rawValue: string }[]> } }).BarcodeDetector({
+            // @ts-expect-error - BarcodeDetector not in lib.dom types
+            const barcodeDetector = new window.BarcodeDetector({
                 formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'qr_code']
             });
 
@@ -130,10 +121,6 @@ export function BarcodeScannerComponent({ onScan, onClose }: BarcodeScannerProps
         stopScanning();
         setHasPermission(null);
     }, [stopScanning]);
-
-    useCallback(() => {
-        checkPermissions();
-    }, [checkPermissions]);
 
     return (
         <Dialog open onOpenChange={(open) => !open && onClose()}>

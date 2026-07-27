@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { SupplierList } from "@/components/inventory/supplier-list";
-import { Loader2 } from "lucide-react";
+import { DataTableSkeleton } from "@/components/shared/skeletons";
 
 export default function SuppliersPage() {
     return (
@@ -8,11 +8,7 @@ export default function SuppliersPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-lg font-semibold md:text-2xl">Proveedores</h1>
             </div>
-            <Suspense fallback={
-                <div className="flex justify-center p-8">
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                </div>
-            }>
+            <Suspense fallback={<DataTableSkeleton columns={4} rows={6} />}>
                 <SupplierList />
             </Suspense>
         </div>

@@ -3,6 +3,8 @@ import { getPriceHistory } from "@/app/actions/inventory";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { StockManager } from "@/components/inventory/stock-manager";
+import { UnitConversionManager } from "@/components/inventory/unit-conversion-manager";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
@@ -22,7 +24,7 @@ export default async function ProductDetailPage({ params }: Props) {
     const session = await getSession();
 
     if (!session?.user) {
-        redirect("/login");
+        redirect("/sign-in");
     }
 
     // Default to first branch if not set? Or require branch context.
@@ -72,14 +74,25 @@ export default async function ProductDetailPage({ params }: Props) {
                 <img src={item.photoUrl} alt={item.name} className="h-20 w-20 rounded-lg object-cover border shrink-0" />
             )}
 
-            <StockManager
-                branchId={branchId}
-                item={item}
-                batches={batches}
-                movements={movements}
-                totalStock={stock}
-                priceHistory={priceHistory}
-            />
+            <Tabs defaultValue="stock" className="mt-6">
+                <TabsList>
+                    <TabsTrigger value="stock">Stock y Movimientos</TabsTrigger>
+                    <TabsTrigger value="conversions">Conversiones de Unidad</TabsTrigger>
+                </TabsList>
+                <TabsContent value="stock">
+                    <StockManager
+                        branchId={branchId}
+                        item={item}
+                        batches={batches}
+                        movements={movements}
+                        totalStock={stock}
+                        priceHistory={priceHistory}
+                    />
+                </TabsContent>
+                <TabsContent value="conversions">
+                    <UnitConversionManager />
+                </TabsContent>
+            </Tabs>
         </PageContainer>
     );
 }

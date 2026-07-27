@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DataTableSkeleton } from "@/components/shared/skeletons";
 import { 
     Plus, 
     Search, 
-    Loader2, 
     Building2, 
     Mail, 
     Phone, 
@@ -161,12 +161,7 @@ export function SupplierList({ companyId }: SupplierListProps) {
 
             {/* Suppliers List */}
             {loading ? (
-                <Card>
-                    <CardContent className="p-8 text-center text-muted-foreground">
-                        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-                        Cargando proveedores...
-                    </CardContent>
-                </Card>
+                <DataTableSkeleton columns={4} rows={6} />
             ) : suppliers.length === 0 ? (
                 <Card>
                     <CardContent className="p-8 text-center">

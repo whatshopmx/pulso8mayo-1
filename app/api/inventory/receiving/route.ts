@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { InventoryService } from "@/lib/services/inventory-service";
 import { AuditService } from "@/lib/services/audit-service";
 import { PurchaseOrderService } from "@/lib/services/purchase-order-service";
+import { UnitConversionService } from "@/lib/services/unit-conversion-service";
 import { db } from "@/lib/db";
 import { inventoryBatches, inventoryItems, suppliers, incidents, receivingReports, receivingReportItems, purchaseOrders, purchaseOrderItems, invoices, invoiceLines } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -15,6 +16,7 @@ const receivingSchema = z.object({
     items: z.array(z.object({
         itemId: z.string().uuid(),
         quantity: z.number().positive(),
+        unit: z.string().optional(), // Unit of the received quantity (converts if different from item base unit)
         batchNumber: z.string().optional(),
         expirationDate: z.string().optional(),
         productionDate: z.string().optional(),
@@ -69,9 +71,12 @@ export async function POST(req: NextRequest) {
                 .where(eq(purchaseOrderItems.poId, validatedData.purchaseOrderId));
         }
 
+        // Ensure there's an open period for this branch
+        await InventoryService.ensureOpenPeriod(session.user.companyId || "", session.user.branchId);
+
         // Process each item in the receiving
         for (const itemData of validatedData.items) {
-            const { itemId, quantity, batchNumber, expirationDate, productionDate, unitCost, temperature } = itemData;
+            let { itemId, quantity, unit, batchNumber, expirationDate, productionDate, unitCost, temperature } = itemData;
 
             // Get item details
             const item = await InventoryService.getItem(itemId);
@@ -80,6 +85,18 @@ export async function POST(req: NextRequest) {
                     { error: `Item not found: ${itemId}` },
                     { status: 404 }
                 );
+            }
+
+            // Unit conversion: if received unit differs from item base unit, convert
+            if (unit && item.unit && unit !== item.unit) {
+                const convertedQty = await UnitConversionService.convert(quantity, unit, item.unit, session.user.companyId || "");
+                if (convertedQty !== null) {
+                    quantity = convertedQty;
+                    // Adjust unitCost inversely (if 2x quantity, half the unit cost)
+                    if (unitCost !== undefined) {
+                        unitCost = unitCost * (quantity / convertedQty);
+                    }
+                }
             }
 
             // Check for PO discrepancy

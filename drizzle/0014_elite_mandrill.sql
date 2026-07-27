@@ -1,0 +1,2 @@
+CREATE TYPE "public"."storage_location_org_type" AS ENUM('CENTRAL', 'BRANCH', 'VIRTUAL', 'TRANSIT');--> statement-breakpoint
+ALTER TABLE "storage_locations" ADD COLUMN "org_type" "storage_location_org_type" DEFAULT 'CENTRAL';

@@ -373,7 +373,7 @@ export class WorkflowExecutionService {
             // -----------------------------------
 
             // Check if we should auto-advance currentStepId or status of instance
-            await this.checkProgress(instanceId);
+            await this.checkProgress(instanceId, userId);
         }
 
         // Check if any incident triggers remediation
@@ -391,7 +391,7 @@ export class WorkflowExecutionService {
     }
 
 
-    private static async checkProgress(instanceId: string) {
+    private static async checkProgress(instanceId: string, userId?: string) {
         // Logic to update instance status or calculate score
         const allSteps = await db.query.workflowInstanceSteps.findMany({
             where: eq(workflowInstanceSteps.instanceId, instanceId)
@@ -421,33 +421,17 @@ export class WorkflowExecutionService {
         const complianceScore = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0;
 
         if (allCompleted) {
-            // Check if this is a stock count workflow and execute completion
+            // Trigger completion actions (including inventory updates, notifications, etc.)
             const instance = await db.query.workflowInstances.findFirst({
                 where: eq(workflowInstances.id, instanceId)
             });
             
             if (instance) {
-                const template = await db.query.workflowTemplates.findFirst({
-                    where: sql`${workflowTemplates.id}::text = ${instance.workflowTemplateId}::text`
-                });
-
-                // If Stock Count and confirmed, execute completion
-                if (template && template.name === STOCK_COUNT_TEMPLATE_NAME) {
-                    const confirmStep = allSteps.find(s => s.stepId === "confirm-count");
-                    const confirmValue = confirmStep?.value;
-                    const isConfirmed = confirmValue === "yes"
-                        || confirmValue === '{"value":"yes"}'
-                        || (typeof confirmValue === 'string' && (confirmValue.toLowerCase().includes("yes") || confirmValue.toLowerCase().includes("sí") || confirmValue.toLowerCase().includes("si")));
-                    
-                    if (isConfirmed) {
-                        try {
-                            const { StockCountService } = await import("./stock-count-service");
-                            await StockCountService.completeStockCount(instanceId, instance.assigneeId || "");
-                            console.log("[StockCount] AJUSTE movements generated successfully");
-                        } catch (error) {
-                            console.error("[StockCount] Error generating AJUSTE:", error);
-                        }
-                    }
+                try {
+                    const { WorkflowActionRunner } = await import("./workflow-action-runner");
+                    await WorkflowActionRunner.runCompletionActions(instanceId, userId || instance.assigneeId || "");
+                } catch (error) {
+                    console.error("[WorkflowExecution] Error running completion actions:", error);
                 }
             }
 

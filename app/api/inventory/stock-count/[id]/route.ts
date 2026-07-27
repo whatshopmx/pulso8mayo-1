@@ -58,6 +58,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json(result);
         }
 
+        if (action === "applyAdjustments") {
+            const result = await StockCountService.applyStockCountAdjustments(id, session.user.id);
+            return NextResponse.json(result);
+        }
+
       if (action === "updateStep" && stepId && value !== undefined) {
         const stepData = stepMetadata ? JSON.stringify(stepMetadata) : undefined;
 

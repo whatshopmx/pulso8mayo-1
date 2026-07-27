@@ -1,249 +1,89 @@
-# Plan de Implementación: Inventario + Transferencias
+# Plan de Implementación — Módulo de Inventario Completo (sin POS)
 
-Basado en crítica de diseño (`/impeccable critique`) y análisis del módulo de transferencias.
+> Basado en `inventory.md` (PRD) y el código existente en `app/dashboard/inventory/`.
 
----
+## Estado actual: ~55% construido
 
-## Resumen
-
-- **Score actual:** 25/40 (Good — banda Acceptable)
-- **Pendientes:** 2 P0, 2 P1, 3 P2, 2 P3 (dashboard) + 6 issues nuevos (transferencias)
-- **Prioridad acordada:** Confianza en datos → Español claro → Todo
+- **18 rutas de UI**, **24+ APIs**, **18 tablas DB**, **6 servicios**, **componentes robustos**
+- CRUD completo: productos, proveedores, lotes, ubicaciones, recetas
+- Flujos complejos: órdenes de compra (con aprobaciones), recepción 3-way (CFDI), transferencias entre sucursales, conteos ciegos, mermas, alertas, auditoría
 
 ---
 
-## Fase 1: Confianza y Datos Reales (P0)
+## Fase 0 — Reparaciones críticas (1-2 días)
 
-### 1.1 Eliminar datos mock del DashboardKPI
-
-**Archivos:**
-- `components/inventory/dashboard-kpis.tsx`
-
-**Qué hacer:**
-- Eliminar `mockValueHistory` (líneas 36-45) — el sparkline solo debe renderizarse cuando existan datos reales de serie temporal
-- Reemplazar `94.2%` hardcodeado con un valor calculado desde `dashboardData`
-- Reemplazar `2.8%` hardcodeado con un valor calculado desde `dashboardData`
-- Si los datos reales no están disponibles, mostrar skeleton en lugar del valor
-
-**API/servicio requerido:**
-- Verificar que `useDashboard` devuelva `threeWayMatchRate` y `wasteLossRatio`
-- Si no existen, agregarlos al endpoint de dashboard y al servicio
-
-### 1.2 Eliminar animaciones decorativas en alertas
-
-**Archivos:**
-- `components/inventory/dashboard-kpis.tsx`
-
-**Qué hacer:**
-- Reemplazar `animate-ping` (línea 97-99) con indicador estático (círculo rojo relleno)
-- Reemplazar `animate-pulse` (línea 88) con transición breve en cambio de estado (0→>0), no loop perpetuo
-- Agregar `@media (prefers-reduced-motion: reduce)` para suprimir cualquier animación restante
-
-### 1.3 Protección de datos en formulario de producto
-
-**Archivos:**
-- `app/dashboard/inventory/page.tsx`
-
-**Qué hacer:**
-- Agregar estado `isDirty` que compare valores del formulario con el estado inicial vacío
-- En `onOpenChange` del Dialog, si `isDirty` es true, mostrar confirmación: "¿Descartar cambios? Los datos ingresados se perderán."
-- Solo el botón "Cancelar" del diálogo de confirmación debe resetear sin preguntar
-
-### 1.4 Error silencioso en fetch de proveedores
-
-**Archivos:**
-- `app/dashboard/inventory/page.tsx`
-
-**Qué hacer:**
-- Reemplazar `.catch(() => {})` (línea 58) con:
-  - Toast de error: "Error al cargar proveedores"
-  - Estado local `suppliersError` para mostrar mensaje inline en el select
-  - Botón de reintento
+| # | Archivos | Descripción |
+|---|---|---|
+| 0.1 | `lib/cron/inventory-checks.ts`, `lib/inngest/functions/cron-inventory-checks.ts` | Reactivar cron de alertas (stock bajo, vencimientos, price increase) — hoy está hardcodeado a `skipped` |
+| 0.2 | `app/dashboard/inventory/invoices/` + API | Conectar tabla `creditNotes` a UI — existe la tabla pero no hay pantalla para ver/crear notas de crédito |
+| 0.3 | `app/api/inventory/ocr/`, `components/inventory/receiving-workflow.tsx` | Integrar OCR existente en el flujo de recepción |
 
 ---
 
-## Fase 2: Consistencia del Sistema de Diseño (P2-P3)
+## Fase 1 — Núcleo operativo (1 semana)
 
-### 2.1 Unificar estilos de badges en tabs
-
-**Archivos:**
-- `app/dashboard/inventory/page.tsx`
-
-**Qué hacer:**
-- Badge "Bajo Stock" (línea 293) usa `variant="destructive"` — correcto
-- Badge "Por Vencer" (línea 306) usa clases inline `border-orange-500 text-orange-600` — migrar a variante `warning` del Badge
-- Si no existe variante `warning`, crearla en `components/ui/badge.tsx`
-
-### 2.2 Columna condicional "Stock Actual"
-
-**Archivos:**
-- `app/dashboard/inventory/page.tsx`
-
-**Qué hacer:**
-- Renderizar siempre la columna Stock Actual
-- Sin sucursal seleccionada: mostrar "—" o "N/A"
-- Eliminar condicional en header (línea 343) y en body (línea 386-392)
-- Simplificar `colSpan` en empty state (línea 350)
-
-### 2.3 Reemplazar `text-[10px]` por tokens del sistema
-
-**Archivos:**
-- `app/dashboard/inventory/page.tsx` (líneas 293, 306)
-- `app/dashboard/inventory/invoices/page.tsx` (líneas 913, 917)
-- `app/dashboard/inventory/reports/page.tsx` (líneas 376, 537)
-- `components/inventory/dashboard-kpis.tsx` (líneas 119, 134)
-- `components/inventory/product-detail-drawer.tsx` (líneas 175, 183)
-
-**Qué hacer:**
-- Reemplazar `text-[10px]` con la clase más cercana del type ramp: `text-xs` (12px) o crear un token `text-2xs` si 10px es intencional
-- Actualizar DESIGN.md si se agrega un nuevo escalón al type ramp
-
-### 2.4 Label duplicado en product-photo-upload
-
-**Archivos:**
-- `components/inventory/product-photo-upload.tsx`
-
-**Qué hacer:**
-- Eliminar definición inline de Label (línea ~109)
-- Importar `Label` desde `@/components/ui/label`
+| # | Archivos | Descripción |
+|---|---|---|
+| 1.1 | Schema `storageLocations.type`, `lib/services/inventory-service.ts` | Agregar `type` ('CENTRAL', 'BRANCH', 'VIRTUAL', 'TRANSIT') a almacenes. Separar lógica central vs sucursal |
+| 1.2 | `app/dashboard/inventory/production/`, schema `productionOrders`, `productionResults`, service `production-service.ts` | **Módulo de Producción**: planear batch cooking, registrar insumos usados, producto terminado. Producción sugerida basada en ventas históricas (manuales o CSV) |
+| 1.3 | Schema: columna `yieldPercent` en `inventoryItems` + `recipeItems` | **Rendimientos**: modelar que 10kg carne → 8.4kg útiles (84%). Afecta consumo teórico y costeo de recetas |
+| 1.4 | Nueva tabla `inventoryKnowledgeGraph`, service `knowledge-service.ts` | Base analítica por par ingrediente-sucursal: merma promedio, variación, tendencia, consumo. Se alimenta de movimientos, mermas, conteos |
 
 ---
 
-## Fase 3: Onboarding y Estados Vacíos (P2)
+## Fase 2 — Automatización inteligente (1 semana)
 
-### 3.1 Acciones en empty states
-
-**Archivos:**
-- `app/dashboard/inventory/page.tsx`
-
-**Qué hacer:**
-- Empty state de productos vacío (línea 358): agregar `action` prop con botón "Agregar Producto" que abra el diálogo
-- Empty state por búsqueda sin resultados (línea 352): agregar "Limpiar búsqueda"
-
-### 3.2 QuickAlerts sin CTA
-
-**Archivos:**
-- `components/inventory/quick-alerts.tsx`
-
-**Qué hacer:**
-- Estados "Sin alertas" (líneas 41-43, 68-70): agregar link a la página completa de alertas
+| # | Archivos | Descripción |
+|---|---|---|
+| 2.1 | `app/dashboard/inventory/suggested-orders/`, service `suggested-order-service.ts` | **PAR Levels + Compras sugeridas**: punto de reorden, cantidad sugerida basada en min/max/objetivo, consumo histórico manual, lead time |
+| 2.2 | `lib/services/forecast-service.ts`, Inngest semanal | **Forecast**: media móvil ponderada sobre ventas manuales/CSV + día de semana + estacionalidad. Predice demanda próxima semana |
+| 2.3 | `lib/services/theoretical-consumption-service.ts`, Inngest | **Consumo Teórico**: cuando se registra una venta manual/CSV, descontar ingredientes vía recetas automáticamente |
+| 2.4 | Service `alert-service.ts` — nuevos tipos de alerta | **Alertas avanzadas**: `HIGH_VARIANCE`, `ANOMALOUS_WASTE`, `YIELD_DROP`. Basadas en desviación estadística vs umbrales fijos |
 
 ---
 
-## Fase 4: Arquitectura de Información (P1)
+## Fase 3 — Dashboard ejecutivo e Ingeniería de Menú (3-4 días)
 
-### 4.1 Jerarquía en el hub de operaciones
-
-**Archivos:**
-- `app/dashboard/inventory/page.tsx`
-
-**Qué hacer:**
-- Identificar top-3 operaciones de mayor frecuencia (Recepción, Conteo, Órdenes de Compra)
-- Promoverlas visualmente: cards ligeramente más grandes o sección destacada
-- Mover operaciones de baja frecuencia (Recetas, Proveedores) a fila secundaria o menú "Más"
-- Reducir de 8 a 5-6 cards visibles
+| # | Archivos | Descripción |
+|---|---|---|
+| 3.1 | `app/dashboard/inventory/reports/executive/`, service `executive-report-service.ts` | **Dashboard por rol**: vistas CEO, COO, Compras con KPIs (Food Cost %, COGS, Inventory Turnover, Stock Days, Shrinkage, Fill Rate, Exactitud) |
+| 3.2 | `app/dashboard/inventory/menu-engineering/`, component `MenuEngineeringMatrix` | **Matriz Estrellas/Vacas/Incógnitas/Pesos**: popularidad vs rentabilidad. Basado en ventas manuales + food cost real |
+| 3.3 | `lib/services/costing-service.ts`, UI en recetas | **Costeo Avanzado**: costo estándar vs real por sucursal, variación. Permitir cambiar método (LAST_PRICE / AVERAGE_COST) por sucursal |
 
 ---
 
-## Fase 5: Módulo de Transferencias
+## Fase 4 — Pulso Intelligence (1 semana)
 
-### 5.1 Adoptar PageHeader + PageContainer
-
-**Archivos:**
-- `app/dashboard/inventory/transfers/page.tsx`
-
-**Qué hacer:**
-- Reemplazar `<div className="container mx-auto py-6 space-y-6">` por `PageContainer`
-- Agregar `PageHeader` con título "Transferencias", icono `ArrowRight`, descripción, branch name
-- Agregar botón "Solicitar Transferencia" como action del header
-
-### 5.2 Integrar TransferRequest en la página
-
-**Archivos:**
-- `app/dashboard/inventory/transfers/page.tsx`
-- `components/inventory/transfer-list.tsx`
-
-**Qué hacer:**
-- En `page.tsx`, importar y renderizar `TransferRequest` pasándole `branches={allBranches}`
-- Trigger del diálogo desde el botón en PageHeader actions
-
-### 5.3 Filtro por rol (origen vs destino)
-
-**Archivos:**
-- `components/inventory/transfer-list.tsx`
-
-**Qué hacer:**
-- Agregar state `roleFilter: 'from' | 'to' | 'both'` (default: 'both')
-- Agregar tabs o toggle para cambiar el role
-- Pasar `role` a la API (`/api/inventory/transfers?role=${roleFilter}`)
-- Separar lógica de "Pendientes" (origen) vs "Por Aprobar" (destino) según el role activo
-
-### 5.4 Estado vacío enseñante
-
-**Archivos:**
-- `components/inventory/transfer-list.tsx`
-
-**Qué hacer:**
-- Reemplazar `Alert` con "No hay transferencias en esta categoría" por `EmptyState` del design system
-- Incluir acción "Solicitar primera transferencia" en el empty state
-
-### 5.5 Número de transferencia legible
-
-**Archivos:**
-- `lib/services/inventory-service.ts` (línea 263)
-
-**Qué hacer:**
-- Reemplazar `TRF-{Date.now()}-{random}` por formato secuencial: `TRF-{año}{mes}-{correlativo}` ej: `TRF-202607-0001`
-- Requiere agregar columna `sequentialNumber` o consultar COUNT del mes
-
-### 5.6 Branch Context en transfers
-
-**Archivos:**
-- `app/dashboard/inventory/transfers/page.tsx`
-
-**Qué hacer:**
-- Usar `useBranch()` en lugar de `(session.user as any).branchId`
-- Pasar `selectedBranchId` a `TransferList`
+| # | Archivos | Descripción |
+|---|---|---|
+| 4.1 | Componente `PulsoIntelligence`, API `/api/ai/inventory-insights` | **Q&A en lenguaje natural**: "¿Por qué subió mi Food Cost?", "¿Qué sucursal pierde más aguacate?". Consulta knowledge graph + datos en tiempo real |
+| 4.2 | Inngest semanal `weekly-insights` | **Insights automáticos**: "San Pedro desperdicia 18% más queso", "La carne subió 7%". Se notifican por WhatsApp/email |
+| 4.3 | Extender simulador de recetas | **Simulación de escenarios**: "¿Qué pasa si el tomate sube 20%?" — impacto en food cost de cada receta, margen por sucursal |
 
 ---
 
-## Fase 6: Claridad de Copia
+## Fase 5 — Integraciones y pulido (2-3 días)
 
-### 6.1 Reemplazar jerga inglesa/técnica
-
-**Archivos:**
-- `components/inventory/dashboard-kpis.tsx`
-- `components/inventory/quick-alerts.tsx`
-- `app/dashboard/inventory/page.tsx`
-
-**Qué hacer:**
-| Término actual | Reemplazo sugerido |
-|---|---|
-| "3-Way Match" | "Conciliación de Facturas" |
-| "Efectividad 3-Way Match" | "Facturas Conciliadas" |
-| "Conteo Ciego" | "Conteo sin Stock Esperado" |
-| "Recepción Física" | "Recepción" |
-| "Merma / Consumo" | "Mermas y Consumos" |
-| "BOM" | "Fórmulas" |
-| "Ratio de Pérdidas por Merma" | "Pérdida por Merma" |
+| # | Archivos | Descripción |
+|---|---|---|
+| 5.1 | `app/dashboard/inventory/credit-notes/`, APIs | UI completa para notas de crédito / devoluciones a proveedores |
+| 5.2 | Flujo de recepción + schema `temperatureLogs` | Capturar temperatura al recibir perecederos (manual) |
+| 5.3 | PO schema + UI | **Backorders**: cuando proveedor no entrega todo, generar backorder automático |
+| 5.4 | `NotificationDispatcher` | Alertas por rol: gerente ve sucursal, COO ve consolidado |
 
 ---
 
-## Prioridad de Ejecución
+## Resumen de nuevo código
 
-```
-Fase 1 (confianza) ─────── → pnpm run build ✓
-Fase 2 (consistencia) ──── → pnpm run build ✓
-Fase 5 (transferencias) ── → pnpm run build ✓
-Fase 3 (onboarding) ────── → pnpm run build ✓
-Fase 4 (IA) ────────────── → pnpm run build ✓
-Fase 6 (copia) ─────────── → pnpm run build ✓
-                            → pnpm run lint ✓
-```
+| Tipo | Cantidad | Ejemplos |
+|---|---|---|
+| Rutas UI nuevas | ~7 | production/, suggested-orders/, executive/, menu-engineering/, credit-notes/ |
+| Servicios nuevos | ~6 | production-service, forecast-service, suggested-order-service, costing-service, intelligence-service, knowledge-service |
+| Componentes nuevos | ~6 | PulsoIntelligence, ProductionPlanner, MenuEngineeringMatrix, ExecutiveDashboard, YieldManager, SuggestedOrderBuilder |
+| Tablas/columnas nuevas | ~6 | productionOrders, productionResults, inventoryKnowledgeGraph, yieldPercent, storageLocation.type |
+| APIs nuevas | ~8 | /production, /forecast, /suggested-orders, /menu-engineering, /intelligence, /costing |
+| Funciones Inngest | ~3 | weekly-insights, forecast-calculation, auto-theoretical-consumption |
 
-Cada fase puede ejecutarse independientemente. Recomiendo orden F1 → F5 → F2 → F3 → F6 → F4, priorizando confianza y transferencias antes de pulido fino.
+**Estimado: ~3-4 semanas full-time.**
 
----
-
-Archivo generado por `/impeccable critique` + análisis manual.
-Última actualización: 2026-07-25
+> El consumo teórico y forecast se alimentan de ventas registradas manualmente o por CSV (lo que ya existe en `salesEntries` y el importador CSV en reports). Sin POS, el usuario captura sus ventas del día o sube el CSV, y el sistema descuenta ingredientes y genera sugerencias.

@@ -33,3 +33,12 @@ export const LOCATION_TYPES = [
 export type Category = (typeof CATEGORIES)[number]["value"];
 export type Unit = (typeof UNITS)[number]["value"];
 export type LocationType = (typeof LOCATION_TYPES)[number]["value"];
+
+export const ORG_TYPES = [
+    { value: "CENTRAL", label: "Central / Almacén General" },
+    { value: "BRANCH", label: "Sucursal" },
+    { value: "VIRTUAL", label: "Virtual" },
+    { value: "TRANSIT", label: "Tránsito" },
+] as const;
+
+export type OrgType = (typeof ORG_TYPES)[number]["value"];

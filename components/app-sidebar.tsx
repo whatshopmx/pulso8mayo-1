@@ -98,44 +98,96 @@ const navMain = [
     icon: Package,
     items: [
       {
-        title: "Dashboard",
+        title: "Panel de Inventario",
         url: "/dashboard/inventory",
       },
-      {
-        title: "Órdenes de Compra",
-        url: "/dashboard/inventory/purchase-orders",
-      },
+      { groupLabel: "Operar" },
       {
         title: "Recepción",
         url: "/dashboard/inventory/receiving",
+      },
+      {
+        title: "Conteo de Inventario",
+        url: "/dashboard/inventory/stock-count",
+      },
+      {
+        title: "Mermas",
+        url: "/dashboard/inventory/waste",
       },
       {
         title: "Transferencias",
         url: "/dashboard/inventory/transfers",
       },
       {
-        title: "Ubicaciones",
-        url: "/dashboard/inventory/locations",
+        title: "Producción",
+        url: "/dashboard/inventory/production",
+      },
+      { groupLabel: "Comprar" },
+      {
+        title: "Órdenes de Compra",
+        url: "/dashboard/inventory/purchase-orders",
+      },
+      {
+        title: "Órdenes Sugeridas",
+        url: "/dashboard/inventory/suggested-orders",
       },
       {
         title: "Proveedores",
         url: "/dashboard/inventory/suppliers",
       },
       {
+        title: "Facturas (XML)",
+        url: "/dashboard/inventory/invoices",
+      },
+      {
+        title: "Reclamos",
+        url: "/dashboard/inventory/claims",
+      },
+      { groupLabel: "Analizar" },
+      {
         title: "Alertas de Stock",
         url: "/dashboard/inventory/alerts",
       },
       {
-        title: "Recetas & BOM",
+        title: "Vencimientos",
+        url: "/dashboard/inventory/expirations",
+      },
+      {
+        title: "Movimientos",
+        url: "/dashboard/inventory/movements",
+      },
+      {
+        title: "Auditoría",
+        url: "/dashboard/inventory/audit",
+      },
+      {
+        title: "Reportes",
+        url: "/dashboard/inventory/reports",
+      },
+      {
+        title: "Dashboard Ejecutivo",
+        url: "/dashboard/inventory/reports/executive",
+      },
+      {
+        title: "Ingeniería de Menú",
+        url: "/dashboard/inventory/menu-engineering",
+      },
+      {
+        title: "Costeo",
+        url: "/dashboard/inventory/costing",
+      },
+      {
+        title: "Pulso Intelligence",
+        url: "/dashboard/inventory/intelligence",
+      },
+      { groupLabel: "Configurar" },
+      {
+        title: "Recetas y Costeo",
         url: "/dashboard/inventory/recipes",
       },
       {
-        title: "Carga Facturas XML",
-        url: "/dashboard/inventory/invoices",
-      },
-      {
-        title: "Reporte Mermas",
-        url: "/dashboard/inventory/reports",
+        title: "Ubicaciones",
+        url: "/dashboard/inventory/locations",
       },
     ],
   },
@@ -328,12 +380,14 @@ export function AppSidebar({ user, company, branches, currentBranchId, ...props 
     return true;
   }).map(section => {
     const filteredItems = section.items?.filter(item => {
+      const anyItem = item as any;
+      if (anyItem.groupLabel || !anyItem.url) return true;
       if (userRole === 'EMPLEADO') {
-        return !item.url.includes('/builder') &&
-        !item.url.includes('/history');
+        return !anyItem.url.includes('/builder') &&
+        !anyItem.url.includes('/history');
       }
       if (userRole === 'READONLY') {
-        return !item.url.includes('/builder');
+        return !anyItem.url.includes('/builder');
       }
       return true;
     });
@@ -356,7 +410,7 @@ export function AppSidebar({ user, company, branches, currentBranchId, ...props 
         />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={filteredNavMain} />
+        <NavMain items={filteredNavMain as any} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

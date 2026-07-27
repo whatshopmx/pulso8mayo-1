@@ -1,7 +1,10 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, DollarSign, ShieldCheck, TrendingDown, Loader2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { AlertTriangle, DollarSign, ShieldCheck, TrendingDown, Info } from "lucide-react";
+import { KpiCardsSkeleton } from "@/components/shared/skeletons";
+import Link from "next/link";
 
 interface DashboardKpisProps {
   data?: {
@@ -17,20 +20,7 @@ interface DashboardKpisProps {
 
 export function DashboardKpis({ data, loading }: DashboardKpisProps) {
   if (loading) {
-    return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[...Array(4)].map((_, i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">&nbsp;</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
+    return <KpiCardsSkeleton />;
   }
 
   const stockValue = data?.totalStockValue ?? 0;
@@ -51,31 +41,45 @@ export function DashboardKpis({ data, loading }: DashboardKpisProps) {
         </CardContent>
       </Card>
 
-      {/* 2. Alertas activas */}
-      <Card className="flex flex-col justify-between">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Alertas Críticas</CardTitle>
-          <AlertTriangle className={`h-4 w-4 transition-colors duration-300 ${activeAlerts > 0 ? "text-primary" : "text-muted-foreground"}`} />
-        </CardHeader>
-        <CardContent className="pb-4">
-          <div className="flex items-baseline gap-2">
-            <div className={`text-2xl font-bold font-mono ${activeAlerts > 0 ? "text-primary" : ""}`}>
-              {activeAlerts}
+      {/* 2. Alertas activas — clickeable hacia la bandeja de alertas */}
+      <Link href="/dashboard/inventory/alerts" className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl">
+        <Card className="flex flex-col justify-between h-full transition-colors hover:border-primary cursor-pointer">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Alertas Críticas</CardTitle>
+            <AlertTriangle className={`h-4 w-4 transition-colors duration-300 ${activeAlerts > 0 ? "text-primary" : "text-muted-foreground"}`} />
+          </CardHeader>
+          <CardContent className="pb-4">
+            <div className="flex items-baseline gap-2">
+              <div className={`text-2xl font-bold font-mono ${activeAlerts > 0 ? "text-primary" : ""}`}>
+                {activeAlerts}
+              </div>
+              {activeAlerts > 0 && (
+                <span className="inline-flex rounded-full h-2 w-2 bg-red-500 mb-1"></span>
+              )}
             </div>
-            {activeAlerts > 0 && (
-              <span className="inline-flex rounded-full h-2 w-2 bg-red-500 mb-1"></span>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {activeAlerts > 0 ? "Requieren revisión urgente" : "Operación sin incidencias"}
-          </p>
-        </CardContent>
-      </Card>
+            <p className="text-xs text-muted-foreground mt-1">
+              {activeAlerts > 0 ? "Requieren revisión urgente — toca para atender" : "Operación sin incidencias"}
+            </p>
+          </CardContent>
+        </Card>
+      </Link>
 
       {/* 3. Tasa de Match 3-Way */}
       <Card className="flex flex-col justify-between">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Facturas Conciliadas</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+            Facturas Conciliadas
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground/60 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[240px]">
+                  Porcentaje de facturas cuyo importe y productos coinciden con la orden de compra y lo que llegó a almacén.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </CardTitle>
           <ShieldCheck className="h-4 w-4 text-green-600" />
         </CardHeader>
         <CardContent className="pb-4">
@@ -98,7 +102,19 @@ export function DashboardKpis({ data, loading }: DashboardKpisProps) {
       {/* 4. Ratio de Pérdidas por Merma */}
       <Card className="flex flex-col justify-between">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Pérdida por Merma</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+            Pérdida por Merma
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground/60 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[240px]">
+                  Porcentaje del valor del inventario que se perdió este mes por caducidad, daño o derrame.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </CardTitle>
           <TrendingDown className="h-4 w-4 text-amber-500" />
         </CardHeader>
         <CardContent className="pb-4">

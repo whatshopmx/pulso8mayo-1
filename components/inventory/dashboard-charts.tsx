@@ -114,14 +114,6 @@ export function DashboardCharts({ stockByCategory, recentMovements }: DashboardC
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={movementChartData}>
-                <defs>
-                  {movementTypes.map((type, i) => (
-                    <linearGradient key={type} id={`color-${type}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0}/>
-                    </linearGradient>
-                  ))}
-                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                 <XAxis 
                   dataKey="date" 
@@ -152,8 +144,8 @@ export function DashboardCharts({ stockByCategory, recentMovements }: DashboardC
                     dataKey={type}
                     stroke={COLORS[i % COLORS.length]}
                     strokeWidth={2}
-                    fillOpacity={1}
-                    fill={`url(#color-${type})`}
+                    fill={COLORS[i % COLORS.length]}
+                    fillOpacity={0.15}
                   />
                 ))}
               </AreaChart>

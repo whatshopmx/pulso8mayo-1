@@ -4,11 +4,13 @@ import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDialogDesc, AlertDialogFooter as AlertDialogFt, AlertDialogHeader as AlertDialogHd, AlertDialogTitle as AlertDialogTl } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Scan, PackagePlus, Trash2, CheckCircle, AlertCircle, Loader2, Barcode, Package } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -36,7 +38,6 @@ interface ReceivingWorkflowProps {
 }
 
 export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: ReceivingWorkflowProps) {
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isOCRing, setIsOCRing] = useState(false);
     const [receivingItems, setReceivingItems] = useState<ReceivingItem[]>([]);
@@ -47,6 +48,20 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: Re
     const [scanMode, setScanMode] = useState(false);
     const [scannedBarcode, setScannedBarcode] = useState("");
     const [step, setStep] = useState<"supplier-po" | "items-scan" | "review-submit">("supplier-po");
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+    const handleOpenChange = (open: boolean) => {
+        if (!open) {
+            handleReset();
+        } else {
+            setIsDialogOpen(true);
+        }
+    };
+
+    const handleClose = () => {
+        handleReset();
+    };
 
     const resetForm = () => {
         setReceivingItems([]);
@@ -55,50 +70,39 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: Re
         setNotes("");
         setStep("supplier-po");
         setIsDialogOpen(false);
+        setShowCloseConfirm(false);
     };
 
-    const handleClose = () => {
+    const handleReset = () => {
         if (receivingItems.length > 0 || selectedSupplier || selectedPOId || notes) {
-            if (window.confirm("¿Estás seguro de que deseas salir? Perderás todos los datos de esta recepción.")) {
-                resetForm();
-            }
+            setShowCloseConfirm(true);
         } else {
             resetForm();
         }
     };
 
-    const handleOpenChange = (open: boolean) => {
-        if (!open) {
-            handleClose();
-        } else {
-            setIsDialogOpen(true);
-        }
-    };
-
-    // Fetch POs when dialog opens
+    // Fetch open POs on mount
     useEffect(() => {
-        if (isDialogOpen) {
-            fetch("/api/inventory/purchase-orders")
-                .then(res => res.ok && res.json())
-                .then(data => {
-                    const poList = data.orders || [];
-                    const filtered = poList.filter((row: any) => {
-                        const po = row.po || row;
-                        return ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED'].includes(po.status);
-                    }).map((row: any) => {
-                        const po = row.po || row;
-                        return {
-                             id: po.id,
-                             poNumber: po.poNumber,
-                             supplierName: row.supplierName,
-                             supplierId: po.supplierId,
-                        };
-                    });
-                    setPurchaseOrdersList(filtered);
-                })
-                .catch(() => {});
-        }
-    }, [isDialogOpen]);
+        fetch("/api/inventory/purchase-orders")
+            .then(res => res.ok && res.json())
+            .then(data => {
+                const poList = data.orders || [];
+                const filtered = poList.filter((row: any) => {
+                    const po = row.po || row;
+                    return ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED'].includes(po.status);
+                }).map((row: any) => {
+                    const po = row.po || row;
+                    return {
+                         id: po.id,
+                         poNumber: po.poNumber,
+                         supplierName: row.supplierName,
+                         supplierId: po.supplierId,
+                    };
+                });
+                setPurchaseOrdersList(filtered);
+            })
+            .catch(() => {});
+    }, []);
 
     const handlePOChange = async (poId: string) => {
         setSelectedPOId(poId === "none" ? "" : poId);
@@ -301,6 +305,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: Re
                     items: receivingItems.map(item => ({
                         itemId: item.itemId,
                         quantity: item.quantity,
+                        unit: item.unit || undefined,
                         batchNumber: item.batchNumber,
                         expirationDate: item.expirationDate || undefined,
                         productionDate: item.productionDate || undefined,
@@ -457,7 +462,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: Re
                                     className="gap-2"
                                 >
                                     <Barcode className="w-4 h-4" />
-                                    Modo Escaneo: {scanMode ? "ON" : "OFF"}
+                                    Modo Escaneo: {scanMode ? "Activado" : "Desactivado"}
                                 </Button>
                                 {scanMode && (
                                     <Input
@@ -516,6 +521,11 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: Re
                                                 <div className="space-y-1">
                                                     <Label className="flex justify-between items-center text-xs w-full">
                                                         <span>Cantidad ({item.unit || 'unidades'}) *</span>
+                                                        {item.ocrData && (
+                                                            <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                                                OCR
+                                                            </Badge>
+                                                        )}
                                                         {item.orderedQuantity !== undefined && (
                                                             <span className="text-xs text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-mono">
                                                                 Ord: {item.orderedQuantity} (Rec: {item.receivedQuantity || 0})
@@ -574,7 +584,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: Re
 
                                             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
                                                 <div className="space-y-1">
-                                                    <Label className="text-xs">Batch / Lote</Label>
+                                                    <Label className="text-xs">Lote</Label>
                                                     <Input
                                                         value={item.batchNumber}
                                                         onChange={(e) => updateItem(index, "batchNumber", e.target.value)}
@@ -645,9 +655,8 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: Re
 
                             <div className="space-y-2 pt-2">
                                 <Label htmlFor="notes" className="text-xs">Notas / Comentarios</Label>
-                                <textarea
+                                <Textarea
                                     id="notes"
-                                    className="w-full min-h-[80px] p-3 border rounded-md bg-background text-sm resize-y"
                                     placeholder="Notas adicionales sobre esta recepción..."
                                     value={notes}
                                     onChange={(e) => setNotes(e.target.value)}
@@ -713,6 +722,21 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: Re
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+                <AlertDialogContent>
+                    <AlertDialogHd>
+                        <AlertDialogTl>¿Salir de la recepción?</AlertDialogTl>
+                        <AlertDialogDesc>
+                            Perderás todos los datos ingresados en esta recepción si cierras sin confirmar.
+                        </AlertDialogDesc>
+                    </AlertDialogHd>
+                    <AlertDialogFt>
+                        <AlertDialogCancel>Seguir editando</AlertDialogCancel>
+                        <AlertDialogAction onClick={resetForm}>Salir y descartar</AlertDialogAction>
+                    </AlertDialogFt>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }

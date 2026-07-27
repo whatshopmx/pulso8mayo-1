@@ -11,6 +11,10 @@ export { cronDocumentExpirationCheck } from "./cron-document-expiration-check";
 export { cronBreakReminders } from "./cron-break-reminders";
 export { cronKpiSnapshotsDaily, cronKpiSnapshotsWeekly, cronKpiSnapshotsMonthly } from "./cron-kpi-snapshots";
 
+export { cronForecastCalculation } from "./cron-forecast-calculation";
+export { cronAdvancedAlerts } from "./cron-advanced-alerts";
+export { weeklyInsights } from "./weekly-insights";
+
 // Migrated workflow functions (replacing workflow-sdk)
 export { handleClockInWorkflowFn } from "./labor-workflows";
 export { handleClockOutWorkflowFn } from "./labor-workflows";

@@ -1,71 +1,64 @@
-# Plan de Implementación: Completar Módulo de Inventario y Compras (Brechas del PRD)
+# Implementation Plan: Inventory Dashboard Refinement
 
 ## Overview
 
-Este plan detalla los pasos para cerrar la brecha entre la especificación en [inventory.md](file:///c:/Users/david/pulso29/inventory.md) y el código actual. El sistema ya cuenta con la base de productos, proveedores, órdenes de compra, mermas, recetas y varianzas, pero carece de persistencia de facturas (CFDI), conciliación automática de 3 vías (3-way match), control detallado al recibir transferencias, y carga masiva de ventas.
+Address the 6 critique findings from the design audit (`app/dashboard/inventory` — score 21/40) across 9 tasks in 3 phases. The work covers replacing spinners with skeletons, standardizing form patterns, fixing hardcoded colors, removing gradient chart fills, fixing dead code in barcode-scanner, and distilling the cluttered main dashboard into a focused command center.
 
-## Decisiones de Arquitectura
+## Architecture Decisions
 
-- **Base de Datos:** Agregar tablas de Drizzle en [schema.ts](file:///c:/Users/david/pulso29/lib/db/schema.ts) para `invoices`, `invoiceLines`, y `creditNotes`.
-- **Servicios:** Integrar el servicio existente `InvoiceMatchingService` con la base de datos y endpoints de API.
-- **Interfaz de Usuario:** Modificar componentes de diálogo existentes para capturar cantidades reales e incluir links de compartición.
-- **Lógica de Ajustes:** Integrar las mermas de transferencias e ingresos por ventas CSV al ledger de movimientos FIFO.
+- **Form pattern**: Standardize on `react-hook-form` + zod (currently used only by `waste-form.tsx`). Server actions remain for simple create/edit pages that don't need complex validation, but all new/modified forms use RHF+zod.
+- **Skeletons**: Use existing `KpiCardsSkeleton`, `DataTableSkeleton`, `ChartSkeleton`, `CardSkeleton`, `PageHeaderSkeleton` from `components/shared/skeletons.tsx`
+- **Colors**: Use CSS variable tokens (`--primary`, `--muted-foreground`, etc.) defined in `globals.css` and DESIGN.md. No Tailwind utility colors (e.g., `bg-slate-50`, `text-emerald-700`).
+- **Charts**: Solid tonal fills with `fillOpacity` instead of `linearGradient` defs, per flat-by-default design rule.
+- **No shadcn `Form` wrapper on server components**: Server action pages (stock-count) that don't need complex validation stay with server actions but use shadcn form controls (Select, Textarea).
 
----
+## Task List
 
-## Lista de Tareas (Task List)
+### Phase 1: Low-Risk Mechanical Fixes
 
-### Fase 1: Persistencia de Facturas (CFDI) y Conciliación de 3 Vías (Prioridad Alta)
-*   **Task 1: Esquema de base de datos para Facturas y Notas de Crédito**
-    *   Definir tablas `invoices`, `invoiceLines` y `creditNotes` en Drizzle para persistir los CFDI XML parseados.
-*   **Task 2: Guardado de Facturas y validación de UUID único**
-    *   Modificar el endpoint `/api/inventory/invoices/upload` para persistir la factura y validar duplicidad de UUID.
-*   **Task 3: Servicio de Conciliación de 3 Vías (3-Way Match)**
-    *   Llamar a `InvoiceMatchingService.perform3WayMatch` al recibir una factura, registrando el estatus de discrepancia y actualizando el historial de costos.
-*   **Task 4: Interfaz de Facturas y Dashboard de Match**
-    *   Actualizar [invoices/page.tsx](file:///c:/Users/david/pulso29/app/dashboard/inventory/invoices/page.tsx) para listar facturas anteriores, mostrar estatus de coincidencia y ver diferencias contra la PO y la Recepción física.
+- [ ] Task 1: Replace chart gradients with solid tonal fills
+- [ ] Task 2: Fix barcode-scanner dead code and fragile type assertion
+- [ ] Task 3: Replace hardcoded colors with CSS variable tokens
 
-### Fase 2: Recepción Detallada de Transferencias y Ajustes de UI (Prioridad Media)
-*   **Task 5: Recepción interactiva de transferencias**
-    *   Actualizar [transfer-list.tsx](file:///c:/Users/david/pulso29/components/inventory/transfer-list.tsx) para que el destinatario capture la cantidad real recibida, notas y fotos en caso de mermas.
-    *   Agregar validación en el backend (`receiveTransfer` en [inventory-service.ts](file:///c:/Users/david/pulso29/lib/services/inventory-service.ts)) para bloquear la recepción de cantidades superiores a las enviadas (FR-62) e insertar la merma de transporte en el ledger.
-*   **Task 6: Corrección de nombres de productos en Transferencias**
-    *   Modificar la consulta del detalle de transferencias en la UI para mostrar el nombre y SKU del insumo en lugar de su UUID.
+### Checkpoint: After Tasks 1-3
+- [ ] `pnpm run build` succeeds
+- [ ] No visual regressions on charts or pages
+- [ ] Review with human
 
-### Fase 3: Carga Masiva de Ventas y Alertas de Precios (Prioridad Media)
-*   **Task 7: Importador CSV/Excel de Ventas Diarias**
-    *   Agregar un botón y diálogo de subida de CSV en [reports/page.tsx](file:///c:/Users/david/pulso29/app/dashboard/inventory/reports/page.tsx) para procesar múltiples platillos y realizar la desconsolidación de ingredientes en masa.
-*   **Task 8: Alertas de Aumento de Precios de Proveedores**
-    *   Agregar lógica en `StockAlertService` para comparar el costo unitario nuevo contra el promedio móvil histórico de 30/60/90 días (FR-22) y mostrar la alerta en la pantalla principal.
+### Phase 2: Loading & Form Consistency
 
-### Fase 4: Documentos de Salida y Operación Plus (Prioridad Baja)
-*   **Task 9: PDF de Orden de Compra y Compartir por WhatsApp**
-    *   Crear ruta API para exportar un PDF limpio de la PO y agregar un botón para compartir el enlace o archivo directamente en WhatsApp.
-*   **Task 10: Generador de "Reclamo a Proveedor"**
-    *   Generar un formato de reclamo exportable con el desglose de discrepancias (faltantes, piezas dañadas) registradas durante la recepción de mercancía.
-*   **Task 11: Conteo Ciego y Consumo de Personal**
-    *   Implementar una opción para ocultar el stock del sistema en el conteo físico, y habilitar un flujo de "Consumo de Personal" en el módulo de mermas.
+- [ ] Task 4: Replace all Loader2 spinners with skeleton components (10 files)
+- [ ] Task 5: Standardize inventory page product form to react-hook-form + zod
+- [ ] Task 6: Replace remaining raw HTML elements with shadcn equivalents
+- [ ] Task 7: Add error handling in createStockCount and remove shadow-sm
 
----
+### Checkpoint: After Tasks 4-7
+- [ ] All loading states use skeletons, no Loader2 remains in inventory module
+- [ ] All forms use consistent pattern (RHF+zod or server actions + shadcn controls)
+- [ ] `pnpm run build` succeeds
 
-## Puntos de Control (Checkpoints)
+### Phase 3: Information Architecture & Polish
 
-### Checkpoint 1: Después de Fase 1
-- [ ] La aplicación compila correctamente (`pnpm run build`).
-- [ ] Las facturas se guardan en la base de datos y se muestra el estatus del 3-way match.
-- [ ] Las diferencias de precio/cantidad quedan guardadas para auditoría.
+- [ ] Task 8: Distill main inventory dashboard (reduce cognitive load)
+- [ ] Task 9: Final quality pass (lint, build, manual verification)
 
-### Checkpoint 2: Después de Fase 2 & 3
-- [ ] Se pueden recibir transferencias con cantidad parcial y se registra la merma de transporte.
-- [ ] La carga de ventas mediante archivo CSV descuenta correctamente los insumos mediante FIFO.
-- [ ] Se disparan alertas si un proveedor sube sus costos más del porcentaje establecido.
+### Checkpoint: Complete
+- [ ] All acceptance criteria met across all 9 tasks
+- [ ] Critique score improves from 21/40
+- [ ] `pnpm run build` succeeds with no errors
+- [ ] Ready for human review
 
----
+## Risks and Mitigations
 
-## Riesgos y Mitigaciones
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Task 5 form refactor (inventory page dialog) breaks product creation | High | Work in isolation on the dialog; test create flow after |
+| Task 6 replacing window.confirm() changes UX behavior | Med | Keep same dialog text and button labels; test keyboard nav |
+| Task 8 dashboard distill removes cards users rely on | Med | Move to "Más operaciones" section, don't delete; make reversible |
+| Skeleton replacements miss a loading state | Low | Search for all Loader2 instances in inventory module before starting |
+| Color replacement misses a hardcoded instance | Low | Grep for Tailwind color classes in inventory directory |
 
-| Riesgo | Impacto | Mitigación |
-| :--- | :---: | :--- |
-| Discrepancias en formatos de CSV de venta | Medio | Definir una plantilla clara de descarga con validación de columnas antes de procesar el archivo. |
-| Fórmulas de promedio móvil lentas en DB | Bajo | Almacenar costos consolidados o indexar correctamente la tabla `inventory_price_history`. |
-| Múltiples mermas al recibir transferencias | Bajo | Registrar automáticamente la merma de tránsito en la sucursal de destino o en una cuenta de pérdida global. |
+## Open Questions
+
+- Should the dashboard distill include role-based visibility (receiving clerk sees different cards than manager)? — Deferred, beyond current scope.
+- The critique mentions 4 form patterns but `react-hook-form` + zod is only used in waste-form; should we also migrate the server-action-based product-form? — No, server actions are fine for simple create/edit.

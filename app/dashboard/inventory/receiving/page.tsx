@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { ReceivingWorkflow } from "@/components/inventory/receiving-workflow";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PackagePlus, History, Loader2 } from "lucide-react";
+import { PackagePlus, History } from "lucide-react";
+import { DataTableSkeleton, PageHeaderSkeleton } from "@/components/shared/skeletons";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -93,8 +94,9 @@ export default function ReceivingPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-full">
-                <Loader2 className="h-8 w-8 animate-spin" />
+            <div className="p-6 space-y-6">
+                <PageHeaderSkeleton />
+                <DataTableSkeleton columns={5} rows={6} />
             </div>
         );
     }

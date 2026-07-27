@@ -43,21 +43,8 @@ export class RecipeService {
                 if (method === 'LAST_COST') {
                     itemUnitCost = invItem.lastCost || 0;
                 } else {
-                    // Calculate average cost from inventory batches
-                    const batches = await db.select()
-                        .from(inventoryBatches)
-                        .where(
-                            and(
-                                eq(inventoryBatches.itemId, item.itemId),
-                                eq(inventoryBatches.status, 'AVAILABLE')
-                            )
-                        );
-                    if (batches.length > 0) {
-                        const sum = batches.reduce((acc, b) => acc + (b.unitCost || 0), 0);
-                        itemUnitCost = Math.round(sum / batches.length);
-                    } else {
-                        itemUnitCost = invItem.lastCost || 0;
-                    }
+                    // Use averageCost from item (pre-calculated on receiving)
+                    itemUnitCost = invItem.averageCost || invItem.lastCost || 0;
                 }
 
                 totalCostCents += Math.round(qty * itemUnitCost);

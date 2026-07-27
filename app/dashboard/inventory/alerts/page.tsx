@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle, Package, TrendingDown, Clock, RefreshCw, Eye, CheckCircle2, XCircle, AlertTriangle, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, PageContainer, KpiCard, KpiGrid } from "@/components/shared";
+import { KpiCardsSkeleton, DataTableSkeleton, PageHeaderSkeleton } from "@/components/shared/skeletons";
 
 interface AlertRecord {
     id: string;
@@ -186,11 +187,10 @@ const getSeverityBadge = (severity: string) => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center">
-                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
-                    <p className="text-muted-foreground">Cargando alertas...</p>
-                </div>
+            <div className="p-6 space-y-6">
+                <PageHeaderSkeleton />
+                <KpiCardsSkeleton count={5} />
+                <DataTableSkeleton columns={6} rows={8} />
             </div>
         );
     }
@@ -198,7 +198,7 @@ const getSeverityBadge = (severity: string) => {
     return (
         <PageContainer>
             <PageHeader
-                title="Alertas de Inventario"
+                title="Alertas de Stock"
                 description="Historial y gestión de alertas de stock"
                 icon={Bell}
             />
@@ -216,8 +216,7 @@ const getSeverityBadge = (severity: string) => {
             {/* Filters */}
             <Card>
                 <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div />
+                    <div className="flex items-center justify-end">
                         <Button
                             variant="outline"
                             onClick={() => fetchAlerts()}

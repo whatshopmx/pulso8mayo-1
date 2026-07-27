@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
         batchId: batchId || null,
         type: reason === 'STAFF' ? 'USAGE' : 'WASTE',
         quantityChange: -quantity, // Negative because we're removing stock
-        reason: reason === 'STAFF' ? 'Consumo de Personal (Staff)' : `WASTE: ${reason}`,
+        reason: reason === 'STAFF' ? 'Consumo de Personal' : `WASTE: ${reason}`,
         performedBy: session.user.id,
         timestamp: new Date(),
       });

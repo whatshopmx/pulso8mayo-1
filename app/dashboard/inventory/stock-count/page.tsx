@@ -11,7 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardList, History, Settings } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ClipboardList, History, Settings, AlertCircle } from "lucide-react";
+import Link from "next/link";
 import { PageHeader, PageContainer } from "@/components/shared";
 
 async function toggleBlindCountSetting(formData: FormData) {
@@ -33,7 +35,9 @@ async function createStockCount(formData: FormData) {
 
   const branchId = formData.get("branchId") as string;
   const category = formData.get("category") as string;
-  if (!branchId || !category) return;
+  if (!branchId || !category) {
+    return redirect("/dashboard/inventory/stock-count?error=missing-fields");
+  }
 
   try {
     const result = await StockCountService.createStockCountInstance({
@@ -45,18 +49,23 @@ async function createStockCount(formData: FormData) {
     if (result.instance?.id) {
       redirect(`/dashboard/workflows/${result.instance.id}/execute`);
     }
-  } catch (error: any) {
-    const match = error.message?.match(/ID:\s*([a-f0-9-]+)/i);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    const match = message.match(/ID:\s*([a-f0-9-]+)/i);
     if (match) {
       redirect(`/dashboard/workflows/${match[1]}/execute`);
     }
     console.error("Stock count error:", error);
+    redirect("/dashboard/inventory/stock-count?error=create-failed");
   }
 }
 
-export default async function StockCountPage() {
+export default async function StockCountPage(props: { searchParams?: Promise<{ error?: string }> }) {
+    const searchParams = await props.searchParams;
+    const errorType = searchParams?.error;
+
     const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) redirect("/auth/login");
+    if (!session?.user) redirect("/sign-in");
 
     const companyId = session.user.companyId || "";
 
@@ -85,6 +94,11 @@ export default async function StockCountPage() {
         });
     };
 
+    const errorMessages: Record<string, string> = {
+        "missing-fields": "Selecciona una sucursal y una categoría para iniciar el conteo.",
+        "create-failed": "Error al crear el conteo. Intenta de nuevo más tarde.",
+    };
+
     return (
         <PageContainer className="max-w-2xl">
             <PageHeader
@@ -92,6 +106,13 @@ export default async function StockCountPage() {
                 description="Inicia un conteo físico de inventario por categoría y configura sus opciones"
                 icon={ClipboardList}
             />
+
+            {errorType && errorMessages[errorType] && (
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{errorMessages[errorType]}</AlertDescription>
+                </Alert>
+            )}
 
             {userBranches.length === 0 ? (
                 <Card>
@@ -115,7 +136,7 @@ export default async function StockCountPage() {
                                     <select
                                         id="branchId"
                                         name="branchId"
-                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                         required
                                     >
                                         <option value="">Seleccionar sucursal</option>
@@ -130,7 +151,7 @@ export default async function StockCountPage() {
                                     <select
                                         id="category"
                                         name="category"
-                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                         required
                                     >
                                         <option value="">Seleccionar categoría</option>
@@ -181,25 +202,38 @@ export default async function StockCountPage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-3">
-                                    {history.map((item) => (
-                                        <div
-                                            key={item.id}
-                                            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                                        >
-                                            <div className="flex flex-col gap-1">
-                                                <div className="font-medium">
-                                                    {(item.data as any)?.category || "Conteo de Inventario"}
+                                    {history.map((item) => {
+                                        const pendingApproval = item.status === "COMPLETED" && (item.data as any)?.adjustmentsStatus === "PENDING";
+                                        const content = (
+                                            <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="font-medium">
+                                                        {(item.data as any)?.category || "Conteo de Inventario"}
+                                                    </div>
+                                                    <div className="text-sm text-muted-foreground">
+                                                        {(item.data as any)?.productCount || 0} productos •{" "}
+                                                        {formatDate(item.completedAt)}
+                                                    </div>
                                                 </div>
-                                                <div className="text-sm text-muted-foreground">
-                                                    {(item.data as any)?.productCount || 0} productos •{" "}
-                                                    {formatDate(item.completedAt)}
-                                                </div>
+                                                {pendingApproval ? (
+                                                    <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400">
+                                                        Pendiente de aprobación
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant={item.status === "COMPLETED" ? "default" : "secondary"}>
+                                                        {item.status === "COMPLETED" ? "Completado" : "En progreso"}
+                                                    </Badge>
+                                                )}
                                             </div>
-                                            <Badge variant={item.status === "COMPLETED" ? "default" : "secondary"}>
-                                                {item.status === "COMPLETED" ? "Completado" : "En progreso"}
-                                            </Badge>
-                                        </div>
-                                    ))}
+                                        );
+                                        return item.status === "COMPLETED" ? (
+                                            <Link key={item.id} href={`/dashboard/inventory/stock-count/${item.id}/results`}>
+                                                {content}
+                                            </Link>
+                                        ) : (
+                                            <div key={item.id}>{content}</div>
+                                        );
+                                    })}
                                 </div>
                             </CardContent>
                         </Card>

@@ -89,7 +89,7 @@ export function StockManager({ item, batches, movements, priceHistory, totalStoc
                                 <Input type="number" name="quantity" required min="1" />
                             </div>
                             <div className="space-y-2">
-                                <Label>Número de Lote / Batch</Label>
+                                <Label>Número de Lote</Label>
                                 <Input name="lotNumber" placeholder="L-2024-001" />
                             </div>
                             <div className="space-y-2">
@@ -150,7 +150,7 @@ export function StockManager({ item, batches, movements, priceHistory, totalStoc
 
     <Tabs defaultValue="batches" className="w-full">
                 <TabsList>
-                    <TabsTrigger value="batches">Lotes (Batches)</TabsTrigger>
+                    <TabsTrigger value="batches">Lotes</TabsTrigger>
                     <TabsTrigger value="movements">Historial de Movimientos</TabsTrigger>
                     <TabsTrigger value="prices">Historial de Costos</TabsTrigger>
                 </TabsList>

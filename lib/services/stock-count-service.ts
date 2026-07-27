@@ -169,7 +169,7 @@ export class StockCountService {
   static async getActiveCountForBranch(branchId: string) {
     const active = await db.select({ id: workflowInstances.id })
       .from(workflowInstances)
-      .innerJoin(workflowTemplates, sql`${workflowInstances.workflowTemplateId}::text = ${workflowTemplates.id}::text`)
+      .innerJoin(workflowTemplates, eq(workflowInstances.workflowTemplateId, workflowTemplates.id))
       .where(and(
         eq(workflowInstances.branchId, branchId),
         eq(workflowInstances.status, "IN_PROGRESS"),
@@ -286,18 +286,6 @@ export class StockCountService {
                 const physicalQty = stepData.inputValue ? parseInt(String(stepData.inputValue), 10) : 0;
                 const variance = physicalQty - systemQty;
 
-                if (variance !== 0) {
-                    await InventoryService.recordAdjustment({
-                        branchId: instance.branchId,
-                        itemId,
-                        quantityChange: variance,
-                        reason: `Stock count variance: sistema=${systemQty}, físico=${physicalQty}`,
-                        performedBy: userId,
-                        referenceId: instanceId,
-                        metadata: { systemQuantity: systemQty, physicalQuantity: physicalQty },
-                    });
-                }
-
   const variancePercent = systemQty > 0 ? Math.abs(variance) / systemQty * 100 : (physicalQty > 0 ? 100 : 0);
 
         results.push({
@@ -319,6 +307,9 @@ export class StockCountService {
         data: {
           ...instanceData,
           results,
+          // Adjustments are NOT applied here: they require explicit approval
+          // from the results page (see applyStockCountAdjustments).
+          adjustmentsStatus: results.some(r => r.variance !== 0) ? "PENDING" : "NONE",
           completedAt: new Date().toISOString(),
         },
       })
@@ -366,6 +357,63 @@ export class StockCountService {
     return { instanceId, results };
     }
 
+    /**
+     * Applies the pending stock adjustments for a completed count.
+     * Idempotent: no-ops if adjustments were already applied or there is nothing to apply.
+     */
+    static async applyStockCountAdjustments(instanceId: string, userId: string) {
+        const instance = await db.query.workflowInstances.findFirst({
+            where: eq(workflowInstances.id, instanceId),
+        });
+
+        if (!instance) throw new Error("Instance not found");
+        if (instance.status !== "COMPLETED") throw new Error("Count not completed");
+
+        const instanceData = instance.data as Record<string, any> || {};
+        const adjustmentsStatus = instanceData.adjustmentsStatus as string | undefined;
+
+        // Legacy counts (completed before approval flow) already had adjustments applied.
+        if (adjustmentsStatus === "APPLIED" || adjustmentsStatus === "NONE" || adjustmentsStatus === undefined) {
+            return { instanceId, applied: 0, alreadyApplied: true };
+        }
+
+        const results = (instanceData.results || []) as Array<{
+            itemId: string;
+            systemQuantity: number;
+            physicalQuantity: number;
+            variance: number;
+        }>;
+
+        let applied = 0;
+        for (const r of results) {
+            if (r.variance !== 0) {
+                await InventoryService.recordAdjustment({
+                    branchId: instance.branchId,
+                    itemId: r.itemId,
+                    quantityChange: r.variance,
+                    reason: `Stock count variance: sistema=${r.systemQuantity}, físico=${r.physicalQuantity}`,
+                    performedBy: userId,
+                    referenceId: instanceId,
+                    metadata: { systemQuantity: r.systemQuantity, physicalQuantity: r.physicalQuantity },
+                });
+                applied++;
+            }
+        }
+
+        await db.update(workflowInstances)
+            .set({
+                data: {
+                    ...instanceData,
+                    adjustmentsStatus: "APPLIED",
+                    adjustmentsAppliedAt: new Date().toISOString(),
+                    adjustmentsAppliedBy: userId,
+                },
+            })
+            .where(eq(workflowInstances.id, instanceId));
+
+        return { instanceId, applied, alreadyApplied: false };
+    }
+
   static async getStockCountHistory(companyId: string, branchId?: string) {
     const conditions: any[] = [
       sql`${workflowTemplates.name} = ${STOCK_COUNT_TEMPLATE_NAME}`,
@@ -384,7 +432,7 @@ export class StockCountService {
       completedAt: workflowInstances.completedAt,
     })
       .from(workflowInstances)
-      .innerJoin(workflowTemplates, sql`${workflowInstances.workflowTemplateId}::text = ${workflowTemplates.id}::text`)
+      .innerJoin(workflowTemplates, eq(workflowInstances.workflowTemplateId, workflowTemplates.id))
       .where(and(...conditions))
       .orderBy(desc(workflowInstances.completedAt));
 
@@ -450,6 +498,10 @@ export class StockCountService {
     const alertCount = enrichedResults.filter(r => r.isAlert).length;
     const totalAdjustments = enrichedResults.filter(r => r.variance !== 0).length;
 
+    // Legacy counts completed before the approval flow applied adjustments immediately.
+    const rawStatus = instanceData.adjustmentsStatus as string | undefined;
+    const adjustmentsStatus = rawStatus ?? (totalAdjustments > 0 ? "APPLIED" : "NONE");
+
     return {
       instanceId: instance.id,
       status: instance.status,
@@ -461,6 +513,7 @@ export class StockCountService {
       templateName: template?.name || "",
       results: enrichedResults,
       summary: { totalProducts, alertCount, totalAdjustments },
+      adjustmentsStatus,
     };
   }
 }

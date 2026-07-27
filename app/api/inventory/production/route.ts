@@ -1,0 +1,99 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { productionOrders, productionResults, productionIngredients, recipes } from "@/lib/db/schema";
+import { eq, and, desc } from "drizzle-orm";
+import { z } from "zod";
+import { ProductionService } from "@/lib/services/production-service";
+
+const createOrderSchema = z.object({
+    recipeId: z.string().min(1),
+    plannedQuantity: z.number().int().positive(),
+    unit: z.string().default("PORTION"),
+    plannedDate: z.string().transform(s => new Date(s)),
+    notes: z.string().optional(),
+});
+
+const recordProductionSchema = z.object({
+    orderId: z.string().optional(),
+    recipeId: z.string().min(1),
+    producedQuantity: z.number().int().positive(),
+    unit: z.string().default("PORTION"),
+    notes: z.string().optional(),
+    ingredients: z.array(z.object({
+        itemId: z.string().min(1),
+        batchId: z.string().optional(),
+        expectedQuantity: z.number().int(),
+        actualQuantity: z.number().int(),
+        unit: z.string(),
+        unitCost: z.number().int().optional(),
+        yieldPercent: z.number().int().min(0).max(100).optional(),
+    })),
+});
+
+export async function GET(req: NextRequest) {
+    try {
+        const session = await getSession();
+        if (!session?.user?.companyId) {
+            return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+        }
+
+        const { searchParams } = new URL(req.url);
+        const branchId = searchParams.get("branchId") || session.user.branchId;
+
+        if (!branchId) {
+            return NextResponse.json({ error: "branchId requerido" }, { status: 400 });
+        }
+
+        const orders = await ProductionService.getOrders(session.user.companyId, branchId);
+        return NextResponse.json({ success: true, orders });
+    } catch (error) {
+        console.error("Get production orders error:", error);
+        return NextResponse.json({ error: "Error al obtener órdenes" }, { status: 500 });
+    }
+}
+
+export async function POST(req: NextRequest) {
+    try {
+        const session = await getSession();
+        if (!session?.user?.companyId || !session?.user?.branchId) {
+            return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+        }
+
+        const body = await req.json();
+        const { action } = body;
+
+        if (action === "record") {
+            const validated = recordProductionSchema.parse(body);
+
+            const result = await ProductionService.recordProduction({
+                companyId: session.user.companyId,
+                branchId: session.user.branchId,
+                ...validated,
+                recordedBy: session.user.id,
+            });
+
+            return NextResponse.json({ success: true, result });
+        }
+
+        const validated = createOrderSchema.parse(body);
+        const order = await ProductionService.createOrder({
+            companyId: session.user.companyId,
+            branchId: session.user.branchId,
+            recipeId: validated.recipeId,
+            plannedQuantity: validated.plannedQuantity,
+            unit: validated.unit,
+            plannedDate: validated.plannedDate,
+            notes: validated.notes,
+            createdBy: session.user.id,
+        });
+
+        return NextResponse.json({ success: true, order });
+    } catch (error) {
+        console.error("Create production order error:", error);
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ error: "Datos inválidos", details: error.issues }, { status: 400 });
+        }
+        return NextResponse.json({ error: "Error al crear orden" }, { status: 500 });
+    }
+}

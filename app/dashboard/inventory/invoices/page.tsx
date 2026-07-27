@@ -88,6 +88,11 @@ export default function InvoiceUploadPage() {
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [isClaimOpen, setIsClaimOpen] = useState(false);
 
+    // Credit Notes State
+    const [creditNotesList, setCreditNotesList] = useState<any[]>([]);
+    const [isLoadingCreditNotes, setIsLoadingCreditNotes] = useState(false);
+    const [isCreatingCreditNote, setIsCreatingCreditNote] = useState(false);
+
     useEffect(() => {
         // Fetch inventory products for manual mapping dropdown
         fetch("/api/inventory/products")
@@ -114,9 +119,27 @@ export default function InvoiceUploadPage() {
         }
     };
 
+    const fetchCreditNotes = async () => {
+        setIsLoadingCreditNotes(true);
+        try {
+            const res = await fetch("/api/inventory/credit-notes");
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setCreditNotesList(data.data);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsLoadingCreditNotes(false);
+        }
+    };
+
     useEffect(() => {
         if (activeTab === "history") {
             fetchInvoices();
+        }
+        if (activeTab === "credit-notes") {
+            fetchCreditNotes();
         }
     }, [activeTab]);
 
@@ -256,6 +279,33 @@ export default function InvoiceUploadPage() {
         setIsClaimOpen(true);
     };
 
+    const handleCreateCreditNote = async () => {
+        if (!selectedInvoiceDetail) return;
+        setIsCreatingCreditNote(true);
+        try {
+            const res = await fetch("/api/inventory/credit-notes", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    invoiceId: selectedInvoiceDetail.invoice.id,
+                    reason: "Discrepancias detectadas en conciliación 3-way",
+                }),
+            });
+            const result = await res.json();
+            if (res.ok && result.success) {
+                toast.success("Nota de crédito generada correctamente");
+                setIsClaimOpen(false);
+                fetchCreditNotes();
+            } else {
+                throw new Error(result.error || "Error al generar nota de crédito");
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Error al generar nota de crédito");
+        } finally {
+            setIsCreatingCreditNote(false);
+        }
+    };
+
     const handleShareClaimWhatsApp = () => {
         if (!selectedInvoiceDetail) return;
         const supplierName = selectedInvoiceDetail.supplier?.name || selectedInvoiceDetail.invoice.nombreEmisor || "Proveedor";
@@ -293,12 +343,15 @@ export default function InvoiceUploadPage() {
             />
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
-                <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsList className="grid w-full max-w-lg grid-cols-3">
                     <TabsTrigger value="upload" className="gap-2">
                         <Upload className="w-4 h-4" /> Cargar Factura (XML)
                     </TabsTrigger>
                     <TabsTrigger value="history" className="gap-2">
                         <FileText className="w-4 h-4" /> Historial y Conciliación
+                    </TabsTrigger>
+                    <TabsTrigger value="credit-notes" className="gap-2">
+                        <FileText className="w-4 h-4" /> Notas de Crédito
                     </TabsTrigger>
                 </TabsList>
 
@@ -623,6 +676,64 @@ export default function InvoiceUploadPage() {
                         </CardContent>
                     </Card>
                 </TabsContent>
+
+                {/* TAB 3: CREDIT NOTES */}
+                <TabsContent value="credit-notes" className="mt-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Notas de Crédito</CardTitle>
+                            <CardDescription>
+                                Notas de crédito generadas a partir de discrepancias en conciliación de facturas.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {isLoadingCreditNotes ? (
+                                <div className="flex items-center justify-center p-8">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                </div>
+                            ) : creditNotesList.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground border border-dashed rounded-lg">
+                                    <FileText className="w-10 h-10 mb-2 opacity-50" />
+                                    <p className="font-medium">No hay notas de crédito registradas</p>
+                                    <p className="text-xs mt-1">Las notas de crédito se generan automáticamente al reportar una discrepancia en una factura.</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Folio</TableHead>
+                                                <TableHead>Fecha</TableHead>
+                                                <TableHead>Proveedor</TableHead>
+                                                <TableHead>Factura Relacionada</TableHead>
+                                                <TableHead>Motivo</TableHead>
+                                                <TableHead className="text-right">Monto Total</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {creditNotesList.map((note) => (
+                                                <TableRow key={note.id}>
+                                                    <TableCell className="font-medium">
+                                                        {note.serie && `${note.serie}-`}{note.folio || 'S/F'}
+                                                    </TableCell>
+                                                    <TableCell>{new Date(note.fecha).toLocaleDateString()}</TableCell>
+                                                    <TableCell>{note.supplierName || '—'}</TableCell>
+                                                    <TableCell className="text-xs font-mono">
+                                                        {note.invoiceSerie && `${note.invoiceSerie}-`}{note.invoiceFolio || 'S/F'}
+                                                    </TableCell>
+                                                    <TableCell className="max-w-xs truncate">{note.reason || '—'}</TableCell>
+                                                    <TableCell className="text-right font-medium">
+                                                        ${(note.total / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })} {note.currency}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
             </Tabs>
 
             {/* DETALLADO DIALOG (3-WAY MATCH COMPARE) */}
@@ -925,6 +1036,14 @@ export default function InvoiceUploadPage() {
                                 </Button>
                                 <Button variant="outline" onClick={() => window.print()} className="gap-2">
                                     <Printer className="w-4 h-4" /> Imprimir Documento
+                                </Button>
+                                <Button onClick={handleCreateCreditNote} disabled={isCreatingCreditNote} className="gap-2">
+                                    {isCreatingCreditNote ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <FileText className="w-4 h-4" />
+                                    )}
+                                    {isCreatingCreditNote ? "Generando..." : "Generar Nota de Crédito"}
                                 </Button>
                                 <Button onClick={handleShareClaimWhatsApp} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
                                     <svg className="h-4 w-4 fill-white" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

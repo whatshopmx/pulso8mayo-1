@@ -1,24 +1,30 @@
 import { db } from "@/lib/db";
-import { inventoryItems, inventoryBatches, inventoryMovements, suppliers, inventoryPriceHistory, inventoryTransfers, inventoryTransferItems, inventoryWaste } from "@/lib/db/schema";
-import { eq, and, sql, desc, inArray, gte, lte } from "drizzle-orm";
+import { inventoryItems, inventoryBatches, inventoryMovements, suppliers, inventoryPriceHistory, inventoryTransfers, inventoryTransferItems, inventoryWaste, inventoryPeriods, companies } from "@/lib/db/schema";
+import { eq, and, sql, desc, inArray, gte, lte, or, ilike } from "drizzle-orm";
 
 export class InventoryService {
 
     // --- Items ---
 
     static async getItems(companyId: string, search?: string) {
-        // Basic list with search
-        // Ideally we would join with batches to get total stock, 
-        // but for now let's just return items
-        return db.select()
-            .from(inventoryItems)
-            .where(
-                and(
-                    eq(inventoryItems.companyId, companyId),
-                    eq(inventoryItems.active, true),
-                    // Add search logic if needed
+        const conditions = [
+            eq(inventoryItems.companyId, companyId),
+            eq(inventoryItems.active, true),
+        ];
+
+        if (search) {
+            conditions.push(
+                or(
+                    ilike(inventoryItems.name, `%${search}%`),
+                    ilike(inventoryItems.sku, `%${search}%`),
+                    ilike(inventoryItems.barcode, `%${search}%`),
                 )
             );
+        }
+
+        return db.select()
+            .from(inventoryItems)
+            .where(and(...conditions));
     }
 
     static async getItem(id: string) {
@@ -121,18 +127,75 @@ export class InventoryService {
                     .where(eq(inventoryBatches.id, data.batchId));
             }
 
-            // 3. Update Item total (if we stored it, but we calculate it dynamically or just rely on batches)
-            // For now, we rely on batches for specific stock, but maybe we want a cache on the item or a separate inventory_stock table?
-            // "Inventory tracking by branch" -> We might need a table `inventory_stock` (itemId, branchId, quantity)
-            // for non-batch items or aggregated view.
+            // 3. Recalculate averageCost for RECEIVING
+            if (data.type === 'RECEIVING') {
+             const batches = await tx.select({
+              unitCost: inventoryBatches.unitCost,
+              currentQuantity: inventoryBatches.currentQuantity,
+             })
+              .from(inventoryBatches)
+              .where(
+               and(
+                eq(inventoryBatches.itemId, data.itemId),
+                eq(inventoryBatches.branchId, data.branchId),
+                eq(inventoryBatches.status, 'AVAILABLE'),
+                sql`${inventoryBatches.unitCost} IS NOT NULL`,
+               )
+              );
 
-            // NOTE: For MVP, if everything has a batch, we sum batches. 
-            // If we allow non-batched items, we need `inventory_stock`.
-            // Let's assume for now we might need `inventory_stock` or just sum batches.
-            // Requirement says "Batch/lot tracking". 
+             if (batches.length > 0) {
+              const totalQty = batches.reduce((s, b) => s + Number(b.currentQuantity), 0);
+              const totalCost = batches.reduce((s, b) => s + Number(b.currentQuantity) * Number(b.unitCost), 0);
+              const avgCost = totalQty > 0 ? Math.round(totalCost / totalQty) : 0;
+
+              await tx.update(inventoryItems)
+               .set({
+                averageCost: avgCost,
+                averageCostUpdatedAt: new Date(),
+                lastCost: batches[batches.length - 1]?.unitCost ?? avgCost,
+                updatedAt: new Date(),
+               })
+               .where(eq(inventoryItems.id, data.itemId));
+             }
+            }
 
             return movement;
         });
+    }
+
+    // --- Period Validation ---
+
+    static async ensureOpenPeriod(companyId: string, branchId: string, tx?: any) {
+     const dbTx = tx || db;
+     const openPeriod = await dbTx.query.inventoryPeriods.findFirst({
+      where: and(
+       eq(inventoryPeriods.branchId, branchId),
+       eq(inventoryPeriods.status, 'OPEN'),
+       gte(inventoryPeriods.periodEnd, new Date()),
+      ),
+      orderBy: desc(inventoryPeriods.periodStart),
+     });
+
+     if (openPeriod) return openPeriod;
+
+     const lastClosed = await dbTx.query.inventoryPeriods.findFirst({
+      where: and(
+       eq(inventoryPeriods.branchId, branchId),
+       eq(inventoryPeriods.status, 'CLOSED'),
+      ),
+      orderBy: desc(inventoryPeriods.periodEnd),
+     });
+
+     const periodStart = lastClosed ? lastClosed.periodEnd : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+     const [period] = await dbTx.insert(inventoryPeriods).values({
+      companyId,
+      branchId,
+      periodStart,
+      periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      status: 'OPEN',
+     }).returning();
+
+     return period;
     }
 
     static async getStockLevel(itemId: string, branchId: string) {

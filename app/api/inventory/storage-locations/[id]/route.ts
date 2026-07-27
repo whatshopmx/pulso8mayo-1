@@ -8,6 +8,7 @@ import { z } from "zod";
 const locationSchema = z.object({
     name: z.string().min(1).optional(),
     type: z.enum(['DRY_STORAGE', 'REFRIGERATOR', 'FREEZER', 'BAR', 'KITCHEN', 'PRODUCTION', 'PACKAGING', 'OTHER']).optional(),
+    orgType: z.enum(['CENTRAL', 'BRANCH', 'VIRTUAL', 'TRANSIT']).optional(),
     active: z.boolean().optional(),
 });
 

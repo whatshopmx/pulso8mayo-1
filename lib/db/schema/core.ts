@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, uuid, jsonb, uniqueIndex, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, jsonb, uniqueIndex, foreignKey, integer } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./auth";
 
@@ -11,6 +11,8 @@ export const companies = pgTable("companies", {
   billingStatus: text("billing_status").default('ACTIVE'),
   stripeCustomerId: text("stripe_customer_id"),
   blindStockCount: boolean("blind_stock_count").default(false),
+  costingMethod: text("costing_method").default('LAST_PRICE'), // 'LAST_PRICE' | 'AVERAGE_COST'
+  taxRate: integer("tax_rate").default(16), // IVA percentage default 16%
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -28,6 +30,7 @@ export const branches = pgTable("branches", {
   inviteToken: uuid("invite_token").default(sql`gen_random_uuid()`),
   managerInviteToken: uuid("manager_invite_token").default(sql`gen_random_uuid()`),
   active: boolean("active").default(true),
+  costingMethod: text("costing_method"), // 'LAST_COST' | 'AVERAGE_COST' — overrides company default
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => {
   return {

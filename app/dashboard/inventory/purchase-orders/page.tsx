@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,9 +40,19 @@ function formatDate(date: string | Date | null | undefined) {
 }
 
 export default function PurchaseOrdersPage() {
+  return (
+    <Suspense>
+      <PurchaseOrdersContent />
+    </Suspense>
+  );
+}
+
+function PurchaseOrdersContent() {
   const { selectedBranchId, selectedBranch } = useBranch();
+  const searchParams = useSearchParams();
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(searchParams.get("new") === "1");
+  const initialItemId = searchParams.get("item") || undefined;
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
@@ -156,12 +167,12 @@ export default function PurchaseOrdersPage() {
         </CardContent>
       </Card>
 
-      <CreatePODialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <CreatePODialog open={dialogOpen} onOpenChange={setDialogOpen} initialItemId={initialItemId} />
     </PageContainer>
   );
 }
 
-function CreatePODialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; onOpenChange: (v: boolean) => void; initialItemId?: string }) {
   const { selectedBranchId } = useBranch();
   const { data: products = [] } = useInventory(selectedBranchId || undefined);
   const createPO = useCreatePurchaseOrder();
@@ -172,7 +183,7 @@ function CreatePODialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
   const [notes, setNotes] = useState("");
   const [dateRequired, setDateRequired] = useState("");
   const [items, setItems] = useState<Array<{ itemId: string; quantity: string; unitCost: string }>>([
-    { itemId: "", quantity: "", unitCost: "" },
+    { itemId: initialItemId || "", quantity: "", unitCost: "" },
   ]);
   const [priceAlerts, setPriceAlerts] = useState<Record<number, { avgCost: number; increasePercentage: number; exceedsThreshold: boolean } | null>>({});
 

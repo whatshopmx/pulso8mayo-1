@@ -17,10 +17,10 @@ import {
     Package, 
     Clock, 
     AlertCircle,
-    Loader2,
     Eye,
     Search
 } from "lucide-react";
+import { DataTableSkeleton } from "@/components/shared/skeletons";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -463,7 +463,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
 
                 <TabsContent value="pending">
                     {loading ? (
-                        <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+                        <DataTableSkeleton columns={5} rows={4} />
                     ) : (
                         renderTransferTable(pendingTransfers)
                     )}
@@ -471,7 +471,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
 
                 <TabsContent value="to-approve">
                     {loading ? (
-                        <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+                        <DataTableSkeleton columns={5} rows={4} />
                     ) : (
                         renderTransferTable(toApproveTransfers)
                     )}
@@ -479,7 +479,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
 
                 <TabsContent value="transit">
                     {loading ? (
-                        <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+                        <DataTableSkeleton columns={5} rows={4} />
                     ) : (
                         renderTransferTable(inTransitTransfers)
                     )}
@@ -487,7 +487,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
 
                 <TabsContent value="completed">
                     {loading ? (
-                        <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+                        <DataTableSkeleton columns={5} rows={4} />
                     ) : (
                         renderTransferTable(completedTransfers)
                     )}

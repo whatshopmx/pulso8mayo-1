@@ -20,6 +20,10 @@ import {
 } from "@/components/ui/sidebar"
 import Link from "next/link"
 
+export type NavSubItem =
+  | { title: string; url: string; groupLabel?: never }
+  | { groupLabel: string; title?: never; url?: never }
+
 export function NavMain({
   items,
 }: {
@@ -28,10 +32,7 @@ export function NavMain({
     url: string
     icon?: LucideIcon
     isActive?: boolean
-    items?: {
-      title: string
-      url: string
-    }[]
+    items?: NavSubItem[]
   }[]
 }) {
   const t = useTranslations("navigation")
@@ -57,15 +58,24 @@ export function NavMain({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <SidebarMenuSub>
-                  {item.items?.map((subItem) => (
-                    <SidebarMenuSubItem key={subItem.title}>
-                      <SidebarMenuSubButton asChild>
-                        <Link href={subItem.url}>
-                          <span>{subItem.title}</span>
-                        </Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  ))}
+                  {item.items?.map((subItem, idx) =>
+                    subItem.groupLabel ? (
+                      <li
+                        key={`group-${idx}`}
+                        className="px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground first:pt-1"
+                      >
+                        {subItem.groupLabel}
+                      </li>
+                    ) : (
+                      <SidebarMenuSubItem key={subItem.title}>
+                        <SidebarMenuSubButton asChild>
+                          <Link href={subItem.url}>
+                            <span>{subItem.title}</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    )
+                  )}
                 </SidebarMenuSub>
               </CollapsibleContent>
             </SidebarMenuItem>

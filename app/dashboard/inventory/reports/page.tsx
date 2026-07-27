@@ -364,15 +364,15 @@ export default function InventoryReportsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="border-2 border-dashed rounded-lg p-6 bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer relative text-center">
+                            <div className="border-2 border-dashed rounded-lg p-6 bg-muted/50 hover:bg-muted transition-colors cursor-pointer relative text-center">
                                 <input
                                     type="file"
                                     accept=".csv"
                                     onChange={handleCSVUpload}
                                     className="absolute inset-0 opacity-0 cursor-pointer"
                                 />
-                                <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                                <span className="text-xs font-semibold text-slate-600 block">Subir archivo CSV</span>
+                                <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                                <span className="text-xs font-semibold text-muted-foreground block">Subir archivo CSV</span>
                                 <span className="text-xs text-muted-foreground block mt-1">Soporta columnas: Receta, Cantidad, Total</span>
                             </div>
                         </CardContent>
@@ -398,9 +398,9 @@ export default function InventoryReportsPage() {
                                         <YAxis />
                                         <Tooltip />
                                         <Legend />
-                                        <Bar dataKey="Teorico" fill="#94a3b8" name="Teórico" />
-                                        <Bar dataKey="Real" fill="#f43f5e" name="Real" />
-                                        <Bar dataKey="Merma" fill="#f97316" name="Diferencia/Merma" />
+                                        <Bar dataKey="Teorico" fill="var(--muted-foreground)" name="Teórico" />
+                                        <Bar dataKey="Real" fill="var(--destructive)" name="Real" />
+                                        <Bar dataKey="Merma" fill="var(--warning)" name="Diferencia/Merma" />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </CardContent>
@@ -424,59 +424,59 @@ export default function InventoryReportsPage() {
                                 <div className="text-center py-12 text-muted-foreground">
                                     <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
                                     <p>No se encontraron datos de variación para este rango.</p>
-                                    <p className="text-xs text-slate-500">Registra ventas y movimientos de inventario para poblar el reporte.</p>
+                                    <p className="text-xs text-muted-foreground">Registra ventas y movimientos de inventario para poblar el reporte.</p>
                                 </div>
                             ) : (
                                 <div className="border rounded-lg overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-border text-sm">
-                                        <thead className="bg-slate-50">
-                                            <tr>
-                                                <th className="px-4 py-3 text-left font-semibold text-slate-700">Insumo</th>
-                                                <th className="px-4 py-3 text-right font-semibold text-slate-700">Teórico (Recetas)</th>
-                                                <th className="px-4 py-3 text-right font-semibold text-slate-700">Real (Movimientos)</th>
-                                                <th className="px-4 py-3 text-right font-semibold text-slate-700">Variación</th>
-                                                <th className="px-4 py-3 text-right font-semibold text-slate-700">Estado</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border">
+                                    <Table>
+                                        <TableHeader className="bg-muted">
+                                            <TableRow>
+                                                <TableHead>Insumo</TableHead>
+                                                <TableHead className="text-right">Teórico (Recetas)</TableHead>
+                                                <TableHead className="text-right">Real (Movimientos)</TableHead>
+                                                <TableHead className="text-right">Variación</TableHead>
+                                                <TableHead className="text-right">Estado</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
                                             {reportRows.map(row => {
                                                 const varianceVal = row.varianceQty;
                                                 const isAlert = varianceVal > 0;
 
                                                 return (
-                                                    <tr key={row.itemId} className="hover:bg-slate-50/50">
-                                                        <td className="px-4 py-3">
-                                                            <p className="font-medium text-slate-800">{row.itemName}</p>
-                                                            {row.sku && <p className="text-xs text-slate-400 font-mono">{row.sku}</p>}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right font-mono text-slate-600">
+                                                    <TableRow key={row.itemId}>
+                                                        <TableCell>
+                                                            <p className="font-medium text-foreground">{row.itemName}</p>
+                                                            {row.sku && <p className="text-xs text-muted-foreground font-mono">{row.sku}</p>}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-mono text-muted-foreground">
                                                             {row.theoreticalQty.toFixed(2)} {row.unit}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right font-mono text-slate-600">
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-mono text-muted-foreground">
                                                             {row.actualQty.toFixed(2)} {row.unit}
-                                                        </td>
-                                                        <td className={cn(
-                                                            "px-4 py-3 text-right font-mono font-semibold",
-                                                            varianceVal > 0 ? "text-destructive" : (varianceVal < 0 ? "text-emerald-600" : "text-slate-600")
+                                                        </TableCell>
+                                                        <TableCell className={cn(
+                                                            "text-right font-mono font-semibold",
+                                                            varianceVal > 0 ? "text-destructive" : (varianceVal < 0 ? "text-success" : "text-muted-foreground")
                                                         )}>
                                                             {varianceVal > 0 ? `+${varianceVal.toFixed(2)}` : varianceVal.toFixed(2)} {row.unit}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right">
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
                                                             {isAlert ? (
                                                                 <Badge variant="destructive" className="gap-1">
                                                                     <AlertCircle className="w-3 h-3" /> Merma: {row.variancePercent.toFixed(0)}%
                                                                 </Badge>
                                                             ) : (
-                                                                <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                                <Badge variant="secondary" className="bg-success/10 text-success">
                                                                     <Check className="w-3 h-3" /> Conforme
                                                                 </Badge>
                                                             )}
-                                                        </td>
-                                                    </tr>
+                                                        </TableCell>
+                                                    </TableRow>
                                                 );
                                             })}
-                                        </tbody>
-                                    </table>
+                                        </TableBody>
+                                    </Table>
                                 </div>
                             )}
                         </CardContent>
@@ -497,7 +497,7 @@ export default function InventoryReportsPage() {
                     <div className="space-y-4 py-4">
                         <div className="border rounded-lg overflow-hidden">
                             <Table>
-                                <TableHeader className="bg-slate-50/50">
+                                <TableHeader className="bg-muted/50">
                                     <TableRow>
                                         <TableHead>Nombre en CSV</TableHead>
                                         <TableHead>Receta de Sistema</TableHead>
@@ -509,8 +509,8 @@ export default function InventoryReportsPage() {
                                     {csvRows.map((row, idx) => {
                                         const isMapped = !!row.matchedRecipeId;
                                         return (
-                                            <TableRow key={idx} className={cn(!isMapped && "bg-amber-50/10")}>
-                                                <TableCell className="font-medium text-slate-800">
+                                            <TableRow key={idx} className={cn(!isMapped && "bg-warning/10")}>
+                                                <TableCell className="font-medium text-foreground">
                                                     {row.csvName}
                                                 </TableCell>
                                                 <TableCell>
@@ -534,7 +534,7 @@ export default function InventoryReportsPage() {
                                                             </SelectContent>
                                                         </Select>
                                                         {!isMapped && (
-                                                            <span className="text-xs text-amber-600 flex items-center gap-1 font-medium">
+                                                            <span className="text-xs text-warning flex items-center gap-1 font-medium">
                                                                 <AlertCircle className="w-3 h-3" /> Requiere vinculación manual
                                                             </span>
                                                         )}

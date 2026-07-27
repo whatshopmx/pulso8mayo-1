@@ -25,3 +25,13 @@ export {
   DEFAULT_TEMPLATES,
   SHIFT_TYPE_SCHEDULES,
 } from "./shift-template-service";
+
+// Inventory services
+export { TheoreticalConsumptionService } from "./theoretical-consumption-service";
+export { ForecastService } from "./forecast-service";
+export { SuggestedOrderService } from "./suggested-order-service";
+export { AdvancedAlertService } from "./advanced-alert-service";
+export { ExecutiveReportService } from "./executive-report-service";
+export { CostingService } from "./costing-service";
+export { IntelligenceService } from "./intelligence-service";
+export { InsightGeneratorService } from "./insight-generator-service";

@@ -4,7 +4,7 @@
  * All tables will be moved to domain-specific modules in lib/db/schema/
  */
 
-import { pgTable, text, timestamp, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // Import auth tables and enums for internal use within this file
@@ -255,8 +255,57 @@ export const remediationActions = pgTable("remediation_actions", {
   completedAt: timestamp("completed_at"),
   result: text("result"),
 
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Production / Batch Cooking
+export const productionOrderStatusEnum = pgEnum("production_order_status", ['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']);
+
+export const productionOrders = pgTable("production_orders", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    recipeId: uuid("recipe_id").notNull(),
+    plannedQuantity: integer("planned_quantity").notNull(),
+    unit: text("unit").notNull().default("PORTION"),
+    plannedDate: timestamp("planned_date").notNull(),
+    status: productionOrderStatusEnum("status").default('PLANNED').notNull(),
+    notes: text("notes"),
+    createdBy: text("created_by"),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const productionResults = pgTable("production_results", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    orderId: uuid("order_id"), // Optional FK to productionOrders
+    recipeId: uuid("recipe_id").notNull(),
+    producedQuantity: integer("produced_quantity").notNull(),
+    unit: text("unit").notNull().default("PORTION"),
+    ingredientCost: integer("ingredient_cost").default(0), // Sum of consumed ingredients in cents
+    notes: text("notes"),
+    recordedBy: text("recorded_by").notNull(),
+    productionDate: timestamp("production_date").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const productionIngredients = pgTable("production_ingredients", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    resultId: uuid("result_id").notNull(),
+    itemId: uuid("item_id").notNull(),
+    batchId: uuid("batch_id"),
+    expectedQuantity: integer("expected_quantity").notNull(),
+    actualQuantity: integer("actual_quantity").notNull(),
+    unit: text("unit").notNull(),
+    unitCost: integer("unit_cost"), // In cents
+    totalCost: integer("total_cost"), // In cents
+    yieldPercent: integer("yield_percent").default(100),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Note: magicLinks, users, sessions, verifications tables re-exported from auth.ts
@@ -588,6 +637,7 @@ export const inventoryTransactionTypeEnum = pgEnum("inventory_transaction_type",
 export const inventoryBatchStatusEnum = pgEnum("inventory_batch_status", ['AVAILABLE', 'RESERVED', 'EXPIRED', 'QUARANTINED', 'DEPLETED']);
 export const inventoryTransferStatusEnum = pgEnum("inventory_transfer_status", ['PENDING', 'APPROVED', 'REJECTED', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED']);
 export const storageLocationTypeEnum = pgEnum("storage_location_type", ['DRY_STORAGE', 'REFRIGERATOR', 'FREEZER', 'BAR', 'KITCHEN', 'PRODUCTION', 'PACKAGING', 'OTHER']);
+export const storageLocationOrgTypeEnum = pgEnum("storage_location_org_type", ['CENTRAL', 'BRANCH', 'VIRTUAL', 'TRANSIT']);
 
 export const suppliers = pgTable("suppliers", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -599,6 +649,7 @@ export const suppliers = pgTable("suppliers", {
     address: text("address"),
     taxId: text("tax_id"),
     active: boolean("active").default(true),
+    matchTolerancePercent: integer("match_tolerance_percent").default(5), // Tolerance for 3-way match
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -609,6 +660,7 @@ export const storageLocations = pgTable("storage_locations", {
     branchId: uuid("branch_id").notNull(),
     name: text("name").notNull(),
     type: storageLocationTypeEnum("type").notNull().default('DRY_STORAGE'),
+    orgType: storageLocationOrgTypeEnum("org_type").default('CENTRAL'),
     active: boolean("active").default(true),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
@@ -624,6 +676,7 @@ export const inventoryItems = pgTable("inventory_items", {
     unit: text("unit").notNull().default('UNIT'), // e.g., KG, L, UNIT, BOX
     minLevel: integer("min_level").default(0),
     maxLevel: integer("max_level"),
+    leadTimeDays: integer("lead_time_days").default(3),
     storageArea: text("storage_area"),
     allergenInfo: text("allergen_info"),
     storageRequirements: text("storage_requirements"), // Temp/Humidity text
@@ -634,6 +687,12 @@ export const inventoryItems = pgTable("inventory_items", {
     supplierId: uuid("supplier_id"), // Preferred Supplier
     lastCost: integer("last_cost"), // Unit cost in cents/decimals
     photoUrl: text("photo_url"),
+
+    // Average costing
+    averageCost: integer("average_cost"), // Weighted average cost in cents
+    averageCostUpdatedAt: timestamp("average_cost_updated_at"),
+
+    yieldPercent: integer("yield_percent").default(100), // 0-100, e.g., 84 = 84% yield
 
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
@@ -691,7 +750,9 @@ export const inventoryMovements = pgTable("inventory_movements", {
     referenceId: text("reference_id"), // Could be workflow instance ID or order ID
     performedBy: text("performed_by"), // User ID
     timestamp: timestamp("timestamp").defaultNow().notNull(),
-});
+}, (table) => ({
+    movementsBranchItemIdx: index("movements_branch_item_idx").on(table.branchId, table.itemId, table.timestamp),
+}));
 
 // Temperature Monitoring Logs
 export const temperatureLogs = pgTable("temperature_logs", {
@@ -922,7 +983,7 @@ export const inventoryAuditLog = pgTable("inventory_audit_log", {
 
 // Inventory Alerts table
 export const inventoryAlertStatusEnum = pgEnum("inventory_alert_status", ['ACTIVE', 'VIEWED', 'IN_PROGRESS', 'RESOLVED', 'DISMISSED']);
-export const inventoryAlertTypeEnum = pgEnum("inventory_alert_type", ['LOW_STOCK', 'OUT_OF_STOCK', 'EXPIRING_SOON', 'EXPIRED', 'PRICE_INCREASE']);
+export const inventoryAlertTypeEnum = pgEnum("inventory_alert_type", ['LOW_STOCK', 'OUT_OF_STOCK', 'EXPIRING_SOON', 'EXPIRED', 'PRICE_INCREASE', 'HIGH_VARIANCE', 'ANOMALOUS_WASTE', 'YIELD_DROP']);
 export const inventoryWasteReasonEnum = pgEnum("inventory_waste_reason", ['EXPIRED', 'DAMAGED', 'QUALITY', 'SPILLAGE', 'OTHER', 'STAFF']);
 
 export const inventoryAlerts = pgTable("inventory_alerts", {
@@ -952,6 +1013,41 @@ export const inventoryAlerts = pgTable("inventory_alerts", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Inventory Knowledge Graph — aggregated metrics per item per branch
+export const inventoryKnowledgeGraph = pgTable("inventory_knowledge_graph", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    itemId: uuid("item_id").notNull(),
+
+    // Consumption metrics
+    avgDailyConsumption: integer("avg_daily_consumption"),
+    consumptionTrend: integer("consumption_trend"), // Positive = increasing, negative = decreasing
+    consumptionVolatility: integer("consumption_volatility"), // Std dev of daily consumption
+
+    // Waste metrics
+    avgWastePercent: integer("avg_waste_percent"), // Basis points (0-10000)
+    wasteTrend: integer("waste_trend"),
+    totalWasteLoss: integer("total_waste_loss"), // In cents
+
+    // Stock metrics
+    avgStockLevel: integer("avg_stock_level"),
+    stockoutCount: integer("stockout_count"),
+    avgLeadTimeDays: integer("avg_lead_time_days"),
+
+    // Period
+    period: text("period").notNull().default('DAILY'), // DAILY, WEEKLY, MONTHLY
+    periodStart: timestamp("period_start").notNull(),
+    periodEnd: timestamp("period_end").notNull(),
+
+    lastMovementAt: timestamp("last_movement_at"),
+    computedAt: timestamp("computed_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    kgBranchItemIdx: index("kg_branch_item_idx").on(table.branchId, table.itemId),
+}));
 
 // Inventory Waste Tracking table
 export const inventoryWaste = pgTable("inventory_waste", {
@@ -2214,6 +2310,7 @@ export const recipeItems = pgTable("recipe_items", {
     quantity: numeric("quantity", { precision: 10, scale: 4 }).notNull(),
     unit: text("unit").notNull(),
     isSubRecipe: boolean("is_sub_recipe").default(false).notNull(),
+    yieldPercent: integer("yield_percent").default(100), // 0-100, overrides item default if set
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -2293,6 +2390,64 @@ export const creditNotes = pgTable("credit_notes", {
     currency: text("currency").default("MXN").notNull(),
     reason: text("reason"),
     xmlContent: text("xml_content"),
+    
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const supplierClaimStatusEnum = pgEnum("supplier_claim_status", ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']);
+export const supplierClaimTypeEnum = pgEnum("supplier_claim_type", ['SHORTAGE', 'DAMAGE', 'PRICE_DIFFERENCE', 'QUALITY']);
+
+export const supplierClaims = pgTable("supplier_claims", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    invoiceId: uuid("invoice_id").references(() => invoices.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    claimNumber: text("claim_number").notNull().unique(),
+    supplierId: uuid("supplier_id").notNull().references(() => suppliers.id),
+    
+    status: supplierClaimStatusEnum("status").default('OPEN').notNull(),
+    type: supplierClaimTypeEnum("type").notNull(),
+    
+    description: text("description"),
+    totalAmount: integer("total_amount"), // Claim amount in cents
+    resolution: text("resolution"),
+    resolvedBy: text("resolved_by"),
+    resolvedAt: timestamp("resolved_at"),
+    notes: text("notes"),
+    
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const forecastResults = pgTable("forecast_results", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id"),
+    recipeId: uuid("recipe_id").notNull(),
+    forecastDate: timestamp("forecast_date").notNull(),
+    predictedQuantity: integer("predicted_quantity").notNull(),
+    confidenceScore: integer("confidence_score").default(0),
+    actualQuantity: integer("actual_quantity"),
+    metadata: jsonb("metadata").default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const inventoryPeriodStatusEnum = pgEnum("inventory_period_status", ['OPEN', 'LOCKED', 'CLOSED']);
+
+export const inventoryPeriods = pgTable("inventory_periods", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    
+    periodStart: timestamp("period_start").notNull(),
+    periodEnd: timestamp("period_end").notNull(),
+    status: inventoryPeriodStatusEnum("status").default('OPEN').notNull(),
+    
+    closedBy: text("closed_by"),
+    closedAt: timestamp("closed_at"),
+    notes: text("notes"),
     
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

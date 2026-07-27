@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { RefreshCw, ClipboardList, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, PageContainer } from "@/components/shared";
+import { DataTableSkeleton } from "@/components/shared/skeletons";
 
 interface AuditRecord {
   id: string;
@@ -165,9 +166,7 @@ export default function InventoryAuditPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <RefreshCw className="h-6 w-6 animate-spin" />
-            </div>
+            <DataTableSkeleton columns={5} rows={8} />
           ) : !data || data.logs.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Eye className="h-12 w-12 mx-auto mb-4 opacity-40" />

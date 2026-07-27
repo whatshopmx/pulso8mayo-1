@@ -19,7 +19,7 @@ export default async function WastePage({ searchParams }: Props) {
   const preselectedItemId = params.item;
 
   if (!session?.user) {
-    redirect('/login');
+    redirect("/sign-in");
   }
 
   const branchId = session.user.branchId;

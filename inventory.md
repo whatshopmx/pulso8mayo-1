@@ -1,283 +1,586 @@
-# PRD — Sistema de Gestión de Inventario y Compras (sin integración directa a POS)  
-**Target:** Grupos QSR (3–15 sucursales) en Monterrey, MX (pizza, burgers, sushi)  
-**Versión:** v1 (MVP + roadmap)  
-**Objetivo comercial:** Reducir fugas y variación de costos mediante control de compras/recepción, disciplina de inventarios y costeo de recetas; sin depender de POS.
+Sí. De hecho creo que el módulo de inventario puede convertirse en **el corazón de Pulso**. No como un simple inventario, sino como un **Inventory Operating System** para grupos restauranteros mexicanos de **3 a 15 sucursales** (tacos, hamburguesas, sushi, pizza, cafeterías, pollos, etc.).
+
+El documento que haría sería mucho más parecido a un **PRD (Product Requirements Document)** que a una lista de funciones.
+
+La filosofía sería:
+
+> **"Si el POS registra lo que se vendió, Pulso entiende por qué desapareció cada ingrediente y qué debe hacer la empresa al respecto."**
+
+Tomaría como referencia mejores prácticas de la industria (PAR Levels, COGS, variaciones, FIFO, recetas, mermas, ingeniería de menú, forecasting, etc.) descritas en la guía que compartiste , pero adaptándolo completamente al flujo operativo de cadenas mexicanas.
 
 ---
 
-## 1) Resumen del producto
-Sistema back-office para **compras, recepción, inventarios físicos/cíclicos, transferencias, mermas y costeo de recetas** con enfoque multi-sucursal.  
-No busca “decrementar inventario por venta en tiempo real”; en su lugar, habilita el control con el método financiero-operativo:
+# Estructura del documento
 
-**Inventario Inicial + Compras – Inventario Final = Consumo (Costo real)**  
-y, opcionalmente, una capa ligera de ventas (CSV/OCR/captura) para aproximar teórico.
+## 1. Visión
 
----
+¿Por qué existe el módulo?
 
-## 2) Problema a resolver (Jobs-to-be-done)
-1) **Pagos incorrectos a proveedores:** cobran más caro, facturan cantidades distintas, entregas incompletas.  
-2) **Fugas en almacén/cocina:** ajustes sin evidencia, mermas no registradas, transferencias “fantasma”.  
-3) **Falta de estandarización:** recetas y rendimientos inconsistentes por sucursal.  
-4) **Ceguera ante inflación de insumos:** no se detectan aumentos rápido → margen se erosiona.
+Problema actual.
+
+Dolores.
+
+Cómo Pulso lo resuelve.
 
 ---
 
-## 3) Objetivos (Outcomes medibles)
-- Reducir discrepancias en recepción (cantidad/precio) en **30–60%** en 90 días.
-- Reducir ajustes manuales sin justificación en **>50%**.
-- Disminuir variaciones de inventario (conteo vs libro) por sucursal en **10–25%**.
-- Tener costeo actualizado de menú (por últimas compras) en **<24h** tras nuevo CFDI/factura.
-- Centralizar historial de precios y generar alertas de aumentos **en el día**.
+## 2. Objetivos del sistema
+
+Ejemplo
+
+* Reducir mermas
+* Reducir compras urgentes
+* Reducir capital detenido
+* Automatizar inventarios
+* Tener costos reales por sucursal
+* Detectar robos
+* Detectar desperdicios
+* Detectar errores de producción
 
 ---
 
-## 4) No-objetivos (lo que se EXCLUYE)
-**Excluido del MVP / producto base (por definición “sin POS”):**
-- Integración API bidireccional en tiempo real con POS (ventas por ticket, modifiers, voids).
-- Descuento automático perpetuo por cada ítem vendido.
-- Planeación avanzada de demanda (forecast ML), programación de producción compleja.
-- Nómina, RRHH, scheduling de personal.
-- Facturación al cliente final (emisión CFDI de venta).
-- MRP industrial; control de manufactura avanzado.
+## 3. Arquitectura General
 
-**Puede existir como add-on futuro:** conectores POS, predicción avanzada, BI warehouse, etc.
+Toda la cadena.
 
----
+Proveedor
 
-## 5) Alcance (qué SÍ incluye)
-### Alcance MVP (recomendado para vender e implementar rápido)
-1) Catálogo (insumos/UOM/proveedores)  
-2) Compras (requisiciones/PO/aprobaciones)  
-3) Recepción contra PO + discrepancias + evidencia  
-4) Facturas + **CFDI XML/PDF** + validación básica + historial de precios  
-5) Inventarios: movimientos + transferencias + conteos cíclicos  
-6) Mermas + consumo interno  
-7) Recetas/BOM + rendimientos + costeo de menú  
-8) Reportes multi-sucursal + auditoría
+↓
 
-### Alcance “Plus” (post-MVP)
-- OCR de corte Z (foto → ventas) y/o parser de reportes
-- Módulo de comisariato/CEDIS (producción por lotes + rutas)
-- 3-way match más robusto (PO–recepción–factura con tolerancias)
-- Exportación contable avanzada (polizas por centro de costo)
+Orden de compra
 
----
+↓
 
-## 6) Usuarios y permisos (Personas)
-- **Dueño/Director:** ve KPIs, alertas de precio, variaciones por sucursal.
-- **Compras corporativo:** crea POs, consolida demanda, gestiona proveedores.
-- **Gerente de sucursal:** solicita, recibe, autoriza conteos, registra mermas.
-- **Almacenista/Receiver:** recepción, evidencia, etiquetas, devoluciones.
-- **Auditor interno/Finanzas:** revisa discrepancias, ajustes, valuación, reportes.
-- **Administrador sistema:** catálogos, UOM, permisos, configuración.
+Recepción
 
-Permisos por rol con: crear/editar PO, aprobar, recibir, ajustar inventario, editar costos, ver márgenes.
+↓
 
----
+Almacén central
 
-## 7) Mapa de módulos (incluye/excluye)
-| Módulo | Incluido MVP | Propósito | Dependencias |
-|---|---:|---|---|
-| Multi-sucursal + roles + bitácora | Sí | Base operativa y auditoría | Ninguna |
-| Catálogo de insumos + UOM/Conversiones | Sí | Datos maestros confiables | Ninguna |
-| Proveedores + listas de precio | Sí | Control de costos por proveedor | Catálogo |
-| Compras (Requisición → PO → Aprobación) | Sí | Control de gasto y orden | Proveedores |
-| Recepción contra PO + discrepancias | Sí | Evitar pagar de más | Compras |
-| Evidencia (fotos, firma, documentos) | Sí | Soporte a reclamos | Recepción |
-| Facturas + CFDI XML/PDF (captura/validación) | Sí | Control fiscal-operativo, precios | Proveedores |
-| Devoluciones / notas de crédito (tracking) | Sí (básico) | Cerrar discrepancias | Recepción/CFDI |
-| Inventario (ledger) | Sí | Control de existencias | Recepción/Transfer |
-| Transferencias sucursal–sucursal | Sí | Logística interna controlada | Inventario |
-| Conteos cíclicos y cierres | Sí | Disciplina y variaciones | Inventario |
-| Mermas/consumo interno | Sí | Visibilidad de fugas | Inventario |
-| Recetas/BOM + rendimientos | Sí | Estandarizar y costear | Catálogo |
-| Costeo de menú + simulador margen | Sí | Decisiones de precio | Recetas + precios |
-| Carga ventas “ligera” (CSV/manual) | Opcional MVP | Aproximar teórico vs real | Recetas |
-| OCR corte Z | No (Plus) | Automatizar carga ventas | Ventas ligera |
-| Integración contable (export CSV) | Sí (básico) | Cierre financiero | Facturas/Compras |
-| Integración POS API | No | Fuera de estrategia | — |
+↓
+
+Transferencias
+
+↓
+
+Sucursal
+
+↓
+
+Producción
+
+↓
+
+Venta POS
+
+↓
+
+Consumo Teórico
+
+↓
+
+Conteo Físico
+
+↓
+
+Variaciones
+
+↓
+
+Compras sugeridas
 
 ---
 
-## 8) Requerimientos funcionales por módulo (MVP)
+## 4. Catálogo Maestro
 
-### 8.1 Multi-sucursal, roles y auditoría
-**FR-1:** Crear organización → marcas → sucursales → áreas de almacén (seco/cámara/congelador/línea).  
-**FR-2:** Roles con permisos granulares (ver/editar/aprobar).  
-**FR-3:** Bitácora completa (quién, qué, cuándo) para PO, recepción, ajustes, conteos, recetas, costos.  
-**FR-4:** Soporte multi-moneda opcional (MXN base) y multi-IVA (campos para reporteo).
+Ingredientes
 
-### 8.2 Catálogo de insumos + UOM
-**FR-10:** Alta de insumos con: categoría, unidad base, conversiones (caja→pieza→gramo), foto opcional.  
-**FR-11:** Múltiples presentaciones por proveedor (ej. “Mozzarella 10kg”, “Mozzarella 2kg”).  
-**FR-12:** Configurar por sucursal: par mínimo/máximo (opcional MVP), frecuencia de conteo, área default.
+Productos
 
-### 8.3 Proveedores + precios
-**FR-20:** Alta de proveedor: contactos, días de entrega, mínimos, términos.  
-**FR-21:** Historial de “último precio pagado” por insumo/proveedor/sucursal.  
-**FR-22:** Alertas: aumento > X% vs promedio 30/60/90 días.
+Presentaciones
 
-### 8.4 Compras: requisiciones, PO y aprobaciones
-**FR-30:** Requisición por sucursal (lista de insumos + cantidades + fecha requerida).  
-**FR-31:** Generación de PO desde requisiciones o manual.  
-**FR-32:** Flujo de aprobación por monto/categoría/sucursal.  
-**FR-33:** Estados: Borrador → En aprobación → Aprobada → Enviada → Parcialmente recibida → Cerrada/Cancelada.  
-**FR-34:** Envío de PO por correo/WhatsApp share (PDF).
+Marcas
 
-### 8.5 Recepción contra PO + discrepancias + evidencia
-**FR-40:** Recepción móvil/tablet: seleccionar PO, capturar recibido, faltantes, sustituciones.  
-**FR-41:** Discrepancias por: cantidad, precio, producto distinto, calidad.  
-**FR-42:** Evidencia: foto de entrega, foto de factura, firma receptor y opcional proveedor.  
-**FR-43:** Generar “reclamo a proveedor” (documento con diferencias).  
-**FR-44:** Entrada automática al inventario por cantidades recibidas (por área default o seleccionable).
+Unidades
 
-### 8.6 Facturas + CFDI XML/PDF (México)
-**FR-50:** Cargar CFDI XML y PDF (drag&drop o correo dedicado).  
-**FR-51:** Parsear XML: emisor, receptor, UUID, fecha, conceptos, cantidades, precios, impuestos.  
-**FR-52:** Validación básica: estructura, UUID único, RFC emisor/receptor, estatus (si se implementa consulta) *opcional según complejidad*.  
-**FR-53:** Match factura ↔ recepción/PO:  
-- Por proveedor + fecha + conceptos (con tolerancias configurables)  
-- Identificar diferencias de precio/cantidad vs recibido  
-**FR-54:** Registrar notas de crédito (manual o carga CFDI si aplica) para cerrar discrepancias.
+Conversión
 
-> Nota PRD: el sistema **no emite CFDI**; solo captura/valida/conciliación operativa.
+Categorías
 
-### 8.7 Inventario (ledger) + transferencias
-**FR-60:** Kardex por insumo/sucursal/área con tipos de movimiento: recepción, transferencia envío, transferencia recepción, merma, consumo interno, ajuste, conteo.  
-**FR-61:** Transferencia flujo: Crear → Aprobar (opcional) → Enviar (sale de origen) → En tránsito → Recibir (entra a destino).  
-**FR-62:** Bloqueos: no permitir recibir > enviado sin autorización; bitácora.
+Alergenos
 
-### 8.8 Conteos cíclicos y cierre
-**FR-70:** Plantillas de conteo por área (orden recomendado).  
-**FR-71:** Conteo ciego (no mostrar “sistema” al contador) configurable.  
-**FR-72:** Reconteo si variación > umbral.  
-**FR-73:** Cierre de inventario semanal/mensual con reporte de variaciones por insumo y por sucursal.  
-**FR-74:** Ajustes generados por conteo quedan auditados y requieren motivo.
+Costo estándar
 
-### 8.9 Mermas y consumo interno
-**FR-80:** Registrar merma: insumo, cantidad, motivo (caducidad, error preparación, daño, devolución cliente, etc.), evidencia opcional.  
-**FR-81:** Consumo interno/staff meal: salida controlada con motivo y responsable.  
-**FR-82:** Reporte de mermas por sucursal/categoría/turno (si capturan hora).
+Costo promedio
 
-### 8.10 Recetas/BOM + rendimientos + costeo de menú
-**FR-90:** Receta: lista de insumos con cantidades en unidad base + merma esperada/yield.  
-**FR-91:** Sub-recetas (salsa, arroz, masa) y rendimiento por batch.  
-**FR-92:** Costeo automático con: último precio pagado / promedio móvil (config).  
-**FR-93:** “Simulador”: si insumo sube X%, impacto en costo del platillo y food cost vs precio de venta (precio manual).  
-**FR-94:** Versionado de recetas (histórico) y aprobación corporativa.
+Costo último
 
 ---
 
-## 9) “Ventas sin POS” (módulo opcional MVP)
-**Objetivo:** acercarse a “teórico vs real” sin integración.
+## 5. Proveedores
 
-### Métodos soportados
-- **CSV/Excel upload** (plantilla definida por cliente): ventas por SKU de menú o por categoría (p.ej. pizzas 12”, 14”, burgers, rolls).  
-- **Captura manual**: pantalla de “corte diario” por sucursal.  
-- **(Plus)** OCR foto de corte Z.
+Alta
 
-### Requerimientos
-**FR-100:** Importador con mapeo a “items de menú” internos.  
-**FR-101:** Reporte: consumo teórico estimado (recetas × ventas) vs consumo real (inventario).  
-**FR-102:** Advertencias por calidad de datos (días sin ventas cargadas).
+Catálogo
 
----
+Productos
 
-## 10) Reportes (MVP)
-### Operación/Compras
-- Compras por proveedor/sucursal/periodo
-- Discrepancias recepción: top proveedores, top insumos, $ impacto
-- Historial de precio + alertas por aumentos
-- Backorders/pendientes por PO
+Precios
 
-### Inventario/Auditoría
-- Valuación de inventario por sucursal y área
-- Variaciones por conteo (top 20) y tendencia
-- Transferencias: en tránsito, diferencias origen vs destino
-- Mermas: por motivo/categoría/sucursal
+Lead Time
 
-### Costeo/Margen
-- Costo actual por platillo (según últimas compras)
-- Impacto por incremento de insumo
-- Food cost estimado (si capturan ventas) por sucursal
+Múltiples listas de precio
 
-Exportables: CSV/Excel/PDF; programación por correo.
+Historial
+
+Evaluación
 
 ---
 
-## 11) Requerimientos no funcionales (NFR)
-- **Mobile-first** para recepción y conteos (Android/iPad web app).  
-- **Offline tolerante** (cache y sync) deseable para conteos/recepción.  
-- **Seguridad:** 2FA opcional, cifrado en tránsito, control por rol, logs inmutables.  
-- **Rendimiento:** reportes <5s para 15 sucursales / 5k movimientos diarios (referencia).  
-- **Disponibilidad:** 99.5% mensual (MVP).  
-- **Trazabilidad:** ninguna edición crítica sin registro.
+## 6. Compras
+
+Solicitud
+
+Autorización
+
+Orden de compra
+
+Recepción
+
+Facturación
+
+Notas de crédito
+
+Recepción parcial
+
+Backorders
 
 ---
 
-## 12) Flujos clave (end-to-end)
+## 7. Recepción Inteligente
 
-### Flujo A: Compra → Recepción → Factura (CFDI) → Cierre de discrepancias
-1) Sucursal crea requisición → compras crea PO → aprobación → envío a proveedor  
-2) Receiver recibe contra PO (captura faltantes/sustituciones + evidencia)  
-3) Se actualiza inventario (entrada)  
-4) Se carga CFDI XML/PDF → sistema concilia vs PO/recepción  
-5) Si hay diferencias → se genera reclamo / nota de crédito esperada
+Comparar
 
-### Flujo B: Conteo cíclico → variación → acciones
-1) Auditor asigna conteo por área → conteo ciego → reconteo si aplica  
-2) Sistema calcula variación y genera ajuste auditado  
-3) Reporte compara variaciones por sucursal → acciones (capacitaciones, controles)
+OC
 
-### Flujo C: Transferencia
-1) Origen crea transferencia → envía → queda “en tránsito”  
-2) Destino recibe (puede reportar diferencias)  
-3) Kardex completo + firma/evidencia
+vs
 
----
+Factura
 
-## 13) Datos (modelo conceptual mínimo)
-- Organization, Brand, Location, StorageArea  
-- User, Role, Permission  
-- Item, UOM, Conversion, ItemVendorPack  
-- Vendor, PriceHistory  
-- Requisition, PurchaseOrder, POItem, Approval  
-- Receipt, ReceiptItem, Discrepancy, EvidenceAttachment  
-- Invoice (CFDI), InvoiceLine, CreditNote  
-- InventoryLedgerEntry, CountSession, CountLine, Adjustment  
-- Transfer, TransferLine  
-- WasteEntry  
-- Recipe, RecipeLine, SubRecipe, Yield  
-- (Opcional) DailySales, MenuItem
+vs
+
+Producto recibido
+
+vs
+
+Peso
+
+vs
+
+Temperatura
+
+vs
+
+Caducidad
+
+Incluso con IA usando fotografías.
 
 ---
 
-## 14) Métricas de éxito (telemetría)
-- % POs recibidas con discrepancia
-- $ recuperado por notas de crédito/reclamos
-- # ajustes manuales / sucursal / semana
-- Variación absoluta de inventario (MXN) por cierre
-- Tiempo promedio de recepción (min) y de cierre de conteo
-- Adopción: % días con recepciones registradas vs entregas reales
+## 8. Almacenes
+
+Central
+
+Sucursal
+
+Virtual
+
+En tránsito
+
+Merma
+
+Producción
 
 ---
 
-## 15) Riesgos y mitigaciones
-- **Datos maestros malos (UOM/Conversiones):** incluir asistente de configuración + validaciones + “bloqueo de edición” con aprobaciones.  
-- **Resistencia operativa (conteos/recepción):** UX móvil simple + evidencias + KPIs por gerente.  
-- **Proveedores con CFDI inconsistente:** tolerancias + reglas por proveedor + carga manual fallback.  
-- **Sin POS, “teórico” limitado:** vender explícitamente el enfoque de control por compras/recepción/conteos + ventas ligera opcional.
+## 9. Transferencias
+
+Sucursal → Sucursal
+
+Central → Sucursal
+
+Sucursal → Central
+
+Con aprobación.
 
 ---
 
-## 16) Roadmap sugerido
-**MVP (12–16 semanas):** módulos 1–8 + reportes base + export contable simple.  
-**Plus (8–12 semanas):** ventas ligera robusta + OCR + comisariato básico + 3-way match avanzado.  
-**Futuro:** conectores POS, BI, forecasting, automatización de pagos.
+## 10. Recetas Inteligentes
+
+Aquí estaría uno de los motores más importantes.
+
+Cada platillo tendría
+
+Ingredientes
+
+Cantidad
+
+Unidad
+
+Merma
+
+Rendimiento
+
+Tiempo
+
+Costo
+
+Preparaciones hijas
+
+Subrecetas
+
+Ejemplo
+
+Taco Pastor
+
+↓
+
+Carne
+
+↓
+
+Marinado
+
+↓
+
+Piña
+
+↓
+
+Tortilla
+
+↓
+
+Salsa Verde
+
+Cada una puede ser otra receta.
 
 ---
 
-Si quieres, lo convierto a un PRD “listo para desarrollo” con: **user stories + criterios de aceptación + pantallas (wireframe checklist) + prioridades MoSCoW**, pero necesito 3 decisiones:  
-1) ¿Habrá **comisariato/CEDIS** desde el inicio? (sí/no)  
-2) ¿Los clientes usan **CFDI** de todos los proveedores siempre, o también tickets/remisiones sin XML?  
-3) ¿Quieres que el MVP sea **web responsive** o **app móvil** (con offline real) desde el día 1?
+## 11. Producción
+
+Preparaciones
+
+Batch Cooking
+
+Producción diaria
+
+Producción sugerida
+
+Producción planeada
+
+---
+
+## 12. Consumo Teórico
+
+Ventas POS
+
+↓
+
+Recetas
+
+↓
+
+Ingredientes
+
+↓
+
+Descuento automático
+
+---
+
+## 13. Conteos
+
+Parciales
+
+Cíclicos
+
+Mensuales
+
+Semanales
+
+Por categoría
+
+Por zona
+
+Por almacén
+
+Con celular.
+
+---
+
+## 14. Variaciones
+
+Teórico
+
+vs
+
+Real
+
+%
+
+$
+
+Por ingrediente
+
+Por sucursal
+
+Por turno
+
+Por gerente
+
+---
+
+## 15. Mermas
+
+Caducidad
+
+Quemado
+
+Preparación
+
+Cliente
+
+Caídas
+
+Personal
+
+Producción
+
+Donación
+
+---
+
+## 16. Rendimientos
+
+Ejemplo
+
+10 kg Carne
+
+↓
+
+8.4 kg útiles
+
+↓
+
+84%
+
+Cada ingrediente tendría su Yield.
+
+---
+
+## 17. PAR Levels
+
+Inventario mínimo
+
+Inventario máximo
+
+Inventario objetivo
+
+Reposición automática
+
+---
+
+## 18. Forecast Inteligente
+
+Con IA.
+
+Usando
+
+Ventas
+
+Clima
+
+Eventos
+
+Historial
+
+Temporadas
+
+Promociones
+
+Vacaciones
+
+Festivos
+
+Calcular:
+
+Compra sugerida
+
+Producción sugerida
+
+Inventario esperado
+
+---
+
+## 19. Costeo
+
+Costo promedio
+
+Último costo
+
+Costo estándar
+
+Costo dinámico
+
+Costo real por receta
+
+Costo real por sucursal
+
+---
+
+## 20. Ingeniería de Menú
+
+Popularidad
+
+Rentabilidad
+
+Food Cost
+
+Margen
+
+ABC
+
+Stars
+
+Dogs
+
+Puzzles
+
+Plow Horses
+
+---
+
+## 21. Dashboard Ejecutivo
+
+CEO
+
+Director Operaciones
+
+Compras
+
+Finanzas
+
+Gerentes
+
+Cada uno diferente.
+
+---
+
+## 22. Alertas Inteligentes
+
+Ejemplos
+
+"Tu sucursal San Pedro desperdicia 18% más queso."
+
+"La carne aumentó 7%."
+
+"Hay riesgo de quedarse sin tortillas mañana."
+
+"Existe un posible robo de cerveza."
+
+"El rendimiento del pollo cayó."
+
+---
+
+#
+## 24. Roles
+
+Director
+
+Compras
+
+Auditor
+
+Gerente
+
+Chef
+
+Almacenista
+
+Supervisor
+
+Franquiciatario
+
+---
+
+## 25. KPIs
+
+Food Cost %
+
+Prime Cost
+
+COGS
+
+Inventory Turnover
+
+Stock Days
+
+Shrinkage
+
+Waste
+
+Yield
+
+Fill Rate
+
+OTIF
+
+Variación
+
+Exactitud Inventario
+
+Rotación
+
+---
+
+# Lo que yo agregaría (que no existe en casi ningún ERP)
+
+## Pulso Intelligence
+
+En lugar de mostrar únicamente tablas, Pulso respondería preguntas.
+
+Ejemplos:
+
+> ¿Por qué subió mi Food Cost esta semana?
+
+---
+
+> ¿Qué sucursal pierde más aguacate?
+
+---
+
+> ¿Qué proveedor genera más mermas?
+
+---
+
+> ¿Qué recetas ya no son rentables?
+
+---
+
+> ¿Qué ingredientes debería comprar mañana?
+
+---
+
+> ¿Qué pasará si el tomate aumenta 20%?
+
+---
+
+
+---
+
+## Mi propuesta
+
+Este módulo no lo diseñaría como un simple "Inventario", sino como un **Inventory Intelligence Platform** integrada al resto de Pulso. El inventario sería el origen de otros módulos: Compras, Producción, Auditoría, Inteligencia, Misiones, Handoff, Costeo, Forecast, IA y Dashboard Ejecutivo. Para una cadena de 3 a 15 sucursales, esto crea una ventaja competitiva porque el sistema no solo registra existencias, sino que coordina la operación diaria y ayuda a tomar decisiones antes de que ocurran pérdidas.
+
+Con esta visión, Pulso se diferenciaría de ERPs tradicionales como SoftRestaurant o Restaurant365 al incorporar automatización operativa e inteligencia basada en IA desde el núcleo del inventario.

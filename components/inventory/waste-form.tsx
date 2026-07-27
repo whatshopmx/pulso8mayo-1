@@ -23,8 +23,44 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { AlertTriangle, Package, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
+
+const reasonLabels: Record<string, string> = {
+  EXPIRED: 'Caducidad',
+  DAMAGED: 'Dañado',
+  QUALITY: 'Calidad',
+  SPILLAGE: 'Derrame',
+  STAFF: 'Consumo de personal',
+  OTHER: 'Otro',
+};
+
+function humanizeWasteError(message: string): string {
+  if (/insufficient batch stock/i.test(message)) {
+    return 'El lote seleccionado ya no tiene suficiente stock. Actualiza la página e intenta de nuevo.';
+  }
+  if (/batch not found/i.test(message)) {
+    return 'No se encontró el lote seleccionado. Vuelve a elegirlo.';
+  }
+  if (/missing required fields/i.test(message)) {
+    return 'Faltan datos obligatorios. Revisa el formulario.';
+  }
+  if (/unauthorized/i.test(message)) {
+    return 'Tu sesión expiró. Vuelve a iniciar sesión.';
+  }
+  return 'No se pudo registrar la merma. Revisa tu conexión e intenta de nuevo.';
+}
 
 const wasteFormSchema = z.object({
   itemId: z.string().min(1, 'Selecciona un producto'),
@@ -66,6 +102,8 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingBatches, setLoadingBatches] = useState(false);
+  const [pendingSubmission, setPendingSubmission] = useState<WasteFormValues | null>(null);
+  const router = useRouter();
 
   const form = useForm({
     resolver: zodResolver(wasteFormSchema),
@@ -159,7 +197,16 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
     }
   }, [selectedBatchId, batches, form]);
 
-  async function onSubmit(data: WasteFormValues) {
+  // Step 1: intercept submit and ask for confirmation (irreversible write-off)
+  function onSubmit(data: WasteFormValues) {
+    setPendingSubmission(data);
+  }
+
+  // Step 2: user confirmed — post the waste
+  async function confirmAndPost() {
+    const data = pendingSubmission;
+    if (!data) return;
+
     try {
       setSubmitting(true);
 
@@ -174,22 +221,26 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
         throw new Error(error.error || 'Error al registrar merma');
       }
 
-      const result = await response.json();
-
-      toast.success('Merma registrada exitosamente', {
-        description: `Se registraron ${data.quantity} ${data.unit} como merma`,
+      setPendingSubmission(null);
+      toast.success('Merma registrada', {
+        description: `Se dieron de baja ${data.quantity} ${data.unit} de ${selectedProduct?.name ?? 'producto'}.`,
+        action: {
+          label: 'Ver registro',
+          onClick: () => router.push('/dashboard/inventory/movements'),
+        },
       });
 
       form.reset();
       onSuccess?.();
     } catch (error) {
       console.error('Error submitting waste form:', error);
-      toast.error('Error al registrar merma', {
-        description: error instanceof Error ? error.message : 'No se pudo completar el registro. Intenta de nuevo.',
+      setPendingSubmission(null);
+      toast.error('No se registró la merma', {
+        description: humanizeWasteError(error instanceof Error ? error.message : ''),
       });
     } finally {
       setSubmitting(false);
@@ -378,7 +429,7 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
                     <SelectItem value="DAMAGED">Dañado</SelectItem>
                     <SelectItem value="QUALITY">Calidad</SelectItem>
                     <SelectItem value="SPILLAGE">Derrame</SelectItem>
-                    <SelectItem value="STAFF">Consumo de Personal (Staff)</SelectItem>
+                    <SelectItem value="STAFF">Consumo de Personal</SelectItem>
                     <SelectItem value="OTHER">Otro</SelectItem>
                   </SelectContent>
                 </Select>
@@ -458,6 +509,62 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
           </Button>
         </div>
       </form>
+
+      <AlertDialog
+        open={pendingSubmission !== null}
+        onOpenChange={(open) => {
+          if (!open && !submitting) setPendingSubmission(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Confirmar baja por merma?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Se darán de baja{' '}
+                  <strong>
+                    {pendingSubmission?.quantity} {pendingSubmission?.unit}
+                  </strong>{' '}
+                  de <strong>{selectedProduct?.name}</strong>
+                  {selectedBatch?.lotNumber && (
+                    <> (lote {selectedBatch.lotNumber})</>
+                  )}
+                  {' '}por <strong>{reasonLabels[pendingSubmission?.reason ?? 'OTHER']}</strong>.
+                </p>
+                {totalLoss > 0 && (
+                  <p className="text-amber-700 dark:text-amber-400 font-medium">
+                    Pérdida estimada: ${totalLoss.toFixed(2)} MXN
+                  </p>
+                )}
+                <p className="text-xs">
+                  Esta acción descuenta el stock de inmediato y no se puede deshacer.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submitting}>Revisar de nuevo</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                confirmAndPost();
+              }}
+              disabled={submitting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Registrando...
+                </>
+              ) : (
+                'Sí, dar de baja'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Form>
   );
 }

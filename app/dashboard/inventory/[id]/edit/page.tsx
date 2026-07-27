@@ -13,7 +13,7 @@ export default async function EditProductPage({ params }: Props) {
     const session = await getSession();
 
     if (!session?.user?.companyId) {
-        redirect("/login");
+        redirect("/sign-in");
     }
 
     const item = await InventoryService.getItem(id);

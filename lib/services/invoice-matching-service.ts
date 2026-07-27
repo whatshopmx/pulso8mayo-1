@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { purchaseOrders, purchaseOrderItems, receivingReports, receivingReportItems } from "@/lib/db/schema";
+import { purchaseOrders, purchaseOrderItems, receivingReports, receivingReportItems, suppliers } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export interface MatchResult {
@@ -27,7 +27,8 @@ export class InvoiceMatchingService {
     static async perform3WayMatch(
         poId: string,
         receivingReportId: string,
-        parsedInvoiceItems: Array<{ itemId: string; quantity: number; unitCostCents: number }>
+        parsedInvoiceItems: Array<{ itemId: string; quantity: number; unitCostCents: number }>,
+        tolerancePercent?: number,
     ): Promise<MatchResult> {
         // 1. Fetch PO items
         const poItems = await db.select()
@@ -38,6 +39,21 @@ export class InvoiceMatchingService {
         const recItems = await db.select()
             .from(receivingReportItems)
             .where(eq(receivingReportItems.receivingReportId, receivingReportId));
+
+        // 3. Get PO to find supplier tolerance if not provided
+        if (tolerancePercent === undefined) {
+            const po = await db.query.purchaseOrders.findFirst({
+                where: eq(purchaseOrders.id, poId),
+            });
+            if (po) {
+                const supplier = await db.query.suppliers.findFirst({
+                    where: eq(suppliers.id, po.supplierId),
+                });
+                tolerancePercent = supplier?.matchTolerancePercent ?? 5;
+            } else {
+                tolerancePercent = 5;
+            }
+        }
 
         let isPerfectMatch = true;
         let priceDiscrepancy = false;
@@ -66,17 +82,21 @@ export class InvoiceMatchingService {
 
             let discType: 'NONE' | 'QUANTITY' | 'PRICE' | 'BOTH' = 'NONE';
             
-            // Check quantity discrepancy
-            const qtyDiff = orderedQty !== receivedQty || receivedQty !== invoicedQty;
-            if (qtyDiff) {
+            // Check quantity discrepancy with tolerance
+            const qtyDiffPct = orderedQty > 0
+                ? Math.abs(orderedQty - invoicedQty) / orderedQty * 100
+                : (invoicedQty > 0 ? 100 : 0);
+            if (qtyDiffPct > tolerancePercent) {
                 quantityDiscrepancy = true;
                 isPerfectMatch = false;
                 discType = 'QUANTITY';
             }
 
-            // Check price discrepancy
-            const priceDiff = poUnitCost !== invoiceUnitCost || receivingUnitCost !== invoiceUnitCost;
-            if (priceDiff) {
+            // Check price discrepancy with tolerance
+            const priceDiffPct = poUnitCost > 0
+                ? Math.abs(poUnitCost - invoiceUnitCost) / poUnitCost * 100
+                : (invoiceUnitCost > 0 ? 100 : 0);
+            if (priceDiffPct > tolerancePercent) {
                 priceDiscrepancy = true;
                 isPerfectMatch = false;
                 discType = discType === 'QUANTITY' ? 'BOTH' : 'PRICE';

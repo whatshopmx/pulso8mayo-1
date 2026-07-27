@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Loader2, Package, Calendar, Tag, Clock, ShieldAlert } from "lucide-react";
+import { Package, Calendar, Tag, Clock, ShieldAlert, RefreshCw, ShoppingCart, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
 
 interface Batch {
   id: string;
@@ -41,42 +44,62 @@ export function ProductDetailDrawer({ productId, branchId, open, onOpenChange }:
   const [product, setProduct] = useState<ProductDetails | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    if (!productId) return;
+    setLoading(true);
+    setError(false);
+    try {
+      const prodRes = await fetch(`/api/inventory/products/${productId}`);
+      if (!prodRes.ok) throw new Error("Error al cargar producto");
+      const prodData = await prodRes.json();
+      setProduct(prodData);
+
+      if (branchId) {
+        const batchRes = await fetch(`/api/inventory/batches?itemId=${productId}&branchId=${branchId}`);
+        if (batchRes.ok) {
+          const batchData = await batchRes.json();
+          setBatches(batchData.batches || []);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading product detail in drawer:", err);
+      setProduct(null);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [productId, branchId]);
 
   useEffect(() => {
     if (!open || !productId) return;
-
-    async function fetchData() {
-      setLoading(true);
-      try {
-        const prodRes = await fetch(`/api/inventory/products/${productId}`);
-        if (prodRes.ok) {
-          const prodData = await prodRes.json();
-          setProduct(prodData);
-        }
-
-        if (branchId) {
-          const batchRes = await fetch(`/api/inventory/batches?itemId=${productId}&branchId=${branchId}`);
-          if (batchRes.ok) {
-            const batchData = await batchRes.json();
-            setBatches(batchData.batches || []);
-          }
-        }
-      } catch (error) {
-        console.error("Error loading product detail in drawer:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchData();
-  }, [productId, branchId, open]);
+  }, [productId, branchId, open, fetchData]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-lg w-full flex flex-col gap-6 overflow-y-auto bg-background p-6">
         {loading ? (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="space-y-6" aria-busy="true" aria-label="Cargando producto">
+            <div className="space-y-3">
+              <Skeleton className="h-5 w-24" />
+              <Skeleton className="h-7 w-3/4" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </div>
           </div>
         ) : product ? (
           <>
@@ -191,10 +214,34 @@ export function ProductDetailDrawer({ productId, branchId, open, onOpenChange }:
                 </div>
               )}
             </div>
+
+            <Separator />
+
+            <div className="flex gap-2 pb-2">
+              <Button asChild className="flex-1 min-h-[44px] gap-2">
+                <Link href={`/dashboard/inventory/purchase-orders?new=1&item=${product.id}`}>
+                  <ShoppingCart className="h-4 w-4" />
+                  Crear OC
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="flex-1 min-h-[44px] gap-2">
+                <Link href={`/dashboard/inventory/waste?item=${product.id}`}>
+                  <Trash2 className="h-4 w-4" />
+                  Registrar merma
+                </Link>
+              </Button>
+            </div>
           </>
         ) : (
-          <div className="text-center text-muted-foreground py-12">
-            No se pudo cargar la información del producto.
+          <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+            <Package className="h-10 w-10 text-muted-foreground/50" />
+            <p className="text-muted-foreground">
+              No se pudo cargar la información del producto.
+            </p>
+            <Button variant="outline" onClick={fetchData} className="gap-2 min-h-[44px]">
+              <RefreshCw className="h-4 w-4" />
+              Reintentar
+            </Button>
           </div>
         )}
       </SheetContent>

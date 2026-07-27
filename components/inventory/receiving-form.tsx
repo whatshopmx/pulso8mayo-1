@@ -121,7 +121,7 @@ export function ReceivingForm({ itemId, itemName, itemUnit = "UNIT", suppliers =
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="batchNumber">Batch / Lote</Label>
+                            <Label htmlFor="batchNumber">Lote</Label>
                             <Input
                                 id="batchNumber"
                                 value={formData.batchNumber}
@@ -144,19 +144,19 @@ export function ReceivingForm({ itemId, itemName, itemUnit = "UNIT", suppliers =
 
                         <div className="space-y-2">
                             <Label htmlFor="supplierId">Proveedor</Label>
-                            <select
-                                id="supplierId"
-                                className="w-full border rounded-md p-2 text-sm bg-background"
-                                value={formData.supplierId}
-                                onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
-                            >
-                                <option value="">Seleccionar proveedor</option>
-                                {suppliers.map(supplier => (
-                                    <option key={supplier.id} value={supplier.id}>
-                                        {supplier.name}
-                                    </option>
-                                ))}
-                            </select>
+                            <Select value={formData.supplierId} onValueChange={(val) => setFormData({ ...formData, supplierId: val })}>
+                                <SelectTrigger id="supplierId">
+                                    <SelectValue placeholder="Seleccionar proveedor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">Sin proveedor</SelectItem>
+                                    {suppliers.map(supplier => (
+                                        <SelectItem key={supplier.id} value={supplier.id}>
+                                            {supplier.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 

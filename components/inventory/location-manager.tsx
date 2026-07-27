@@ -17,13 +17,14 @@ import {
     Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { LOCATION_TYPES } from "@/lib/inventory/constants";
+import { LOCATION_TYPES, ORG_TYPES } from "@/lib/inventory/constants";
 import { useBranch } from "@/lib/branch-context";
 
 interface StorageLocation {
     id: string;
     name: string;
     type: string;
+    orgType: string | null;
     active: boolean;
     createdAt: string;
     updatedAt: string;
@@ -37,6 +38,7 @@ export function LocationManager() {
     const [editingLocation, setEditingLocation] = useState<StorageLocation | null>(null);
     const [formName, setFormName] = useState("");
     const [formType, setFormType] = useState("DRY_STORAGE");
+    const [formOrgType, setFormOrgType] = useState("CENTRAL");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { selectedBranchId } = useBranch();
 
@@ -67,12 +69,14 @@ export function LocationManager() {
     const resetForm = () => {
         setFormName("");
         setFormType("DRY_STORAGE");
+        setFormOrgType("CENTRAL");
     };
 
     const openEdit = (location: StorageLocation) => {
         setEditingLocation(location);
         setFormName(location.name);
         setFormType(location.type);
+        setFormOrgType(location.orgType || "CENTRAL");
         setIsFormOpen(true);
     };
 
@@ -93,7 +97,7 @@ export function LocationManager() {
             const response = await fetch(url, {
                 method,
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: formName.trim(), type: formType }),
+                body: JSON.stringify({ name: formName.trim(), type: formType, orgType: formOrgType }),
             });
 
             const result = await response.json();
@@ -206,6 +210,21 @@ export function LocationManager() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                            <div className="space-y-2">
+                                <Label>Ámbito</Label>
+                                <Select value={formOrgType} onValueChange={setFormOrgType}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {ORG_TYPES.map((t) => (
+                                            <SelectItem key={t.value} value={t.value}>
+                                                {t.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             <DialogFooter>
                                 <Button type="button" variant="outline" onClick={() => { setIsFormOpen(false); setEditingLocation(null); resetForm(); }}>
                                     Cancelar
@@ -263,9 +282,16 @@ export function LocationManager() {
                                 </div>
                             </CardHeader>
                             <CardContent>
-                                <Badge variant={typeBadgeVariant(location.type)}>
-                                    {getTypeLabel(location.type)}
-                                </Badge>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <Badge variant={typeBadgeVariant(location.type)}>
+                                        {getTypeLabel(location.type)}
+                                    </Badge>
+                                    {location.orgType && (
+                                        <Badge variant="outline">
+                                            {ORG_TYPES.find(t => t.value === location.orgType)?.label || location.orgType}
+                                        </Badge>
+                                    )}
+                                </div>
                                 <div className="flex items-center gap-2 pt-4">
                                     <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(location)}>
                                         <Edit className="w-3 h-3 mr-1" /> Editar
