@@ -215,7 +215,7 @@ export default function InventoryPage() {
       </div>
 
       <div className="space-y-6">
-        <DashboardKpis data={dashboardData} loading={dashboardLoading} isError={dashboardError} onRetry={() => refetchDashboard()} />
+        <DashboardKpis data={dashboardData} loading={dashboardLoading} isError={dashboardError} onRetry={() => refetchDashboard()} scopeLabel={branchFilter === "all" ? "todas las sucursales" : activeBranch?.name} />
 
         <DashboardCharts
           stockByCategory={dashboardData?.stockByCategory}

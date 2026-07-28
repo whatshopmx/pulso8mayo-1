@@ -19,9 +19,11 @@ interface DashboardKpisProps {
   loading: boolean;
   isError?: boolean;
   onRetry?: () => void;
+  /** Scope suffix for subtitles, e.g. "todas las sucursales" or a branch name. */
+  scopeLabel?: string;
 }
 
-export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpisProps) {
+export function DashboardKpis({ data, loading, isError, onRetry, scopeLabel }: DashboardKpisProps) {
   if (isError) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -61,6 +63,9 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
           <div className="text-xl font-bold font-mono">
             ${(stockValue / 100).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
+          {scopeLabel && (
+            <p className="text-xs text-muted-foreground mt-1">Valor · {scopeLabel}</p>
+          )}
         </CardContent>
       </Card>
 
@@ -85,7 +90,7 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {activeAlerts > 0 ? "Requieren revisión urgente" : "Operación sin incidencias"}
+              {activeAlerts > 0 ? "Requieren revisión urgente" : "Operación sin incidencias"}{scopeLabel ? ` · ${scopeLabel}` : ""}
             </p>
             {/* Persistent affordance: visible without hover (touch/keyboard/SR) */}
             <div className="mt-2 flex items-center gap-1 text-xs font-medium text-primary">
@@ -129,7 +134,7 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
               <span className="text-sm text-muted-foreground">—</span>
             </div>
           )}
-          <p className="text-xs text-muted-foreground mt-2">Facturas conciliadas sin discrepancias</p>
+          <p className="text-xs text-muted-foreground mt-2">Facturas conciliadas{scopeLabel ? ` · ${scopeLabel}` : ""}</p>
         </CardContent>
       </Card>
 
@@ -166,7 +171,7 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
               <span className="text-sm text-muted-foreground">—</span>
             </div>
           )}
-          <p className="text-xs text-muted-foreground mt-2">Pérdida mensual sobre inventario</p>
+          <p className="text-xs text-muted-foreground mt-2">Pérdida mensual{scopeLabel ? ` · ${scopeLabel}` : " sobre inventario"}</p>
         </CardContent>
       </Card>
     </div>
