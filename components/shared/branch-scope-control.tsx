@@ -59,7 +59,7 @@ function inferDateRangeKey(startDate: string | null): DateRangeKey {
  * - Branch: cookie-backed truth via `BranchProvider.setSelectedBranchId`
  *   ("Todas" ⇒ null ⇒ chain-wide rollup). Propagates across tabs/sections.
  * - Date range: URL-encoded (`?startDate=&endDate=`) so links are shareable
- *   and per-page, ported verbatim from the retired `DashboardFilters`.
+ *   and per-page, ported verbatim from the retired home/dashboard filter component (T4).
  *
  * See AD-1 in tasks/plan.md.
  */
