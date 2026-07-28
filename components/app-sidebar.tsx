@@ -101,6 +101,10 @@ const navMain = [
         title: "Panel de Inventario",
         url: "/dashboard/inventory",
       },
+      {
+        title: "Catálogo de Productos",
+        url: "/dashboard/inventory/products",
+      },
       { groupLabel: "Operar" },
       {
         title: "Recepción",

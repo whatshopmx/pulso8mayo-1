@@ -145,7 +145,7 @@ export async function GET(req: NextRequest) {
           eq(inventoryBatches.status, 'AVAILABLE')
         ))
         .groupBy(inventoryItems.id, inventoryItems.name, inventoryItems.minLevel, inventoryItems.unit, inventoryBatches.branchId, branches.name)
-        .having(sql`coalesce(sum(${inventoryBatches.currentQuantity}), 0) < ${inventoryItems.minLevel}`)
+        .having(sql`(coalesce(sum(${inventoryBatches.currentQuantity}), 0) < coalesce(${inventoryItems.minLevel}, 0)) or (coalesce(sum(${inventoryBatches.currentQuantity}), 0) = 0)`)
         .orderBy(sql`coalesce(sum(${inventoryBatches.currentQuantity}), 0)`)
         .limit(5)
       : await db.select({
@@ -167,7 +167,7 @@ export async function GET(req: NextRequest) {
           eq(inventoryBatches.status, 'AVAILABLE')
         ))
         .groupBy(inventoryItems.id, inventoryItems.name, inventoryItems.minLevel, inventoryItems.unit, inventoryBatches.branchId, branches.name)
-        .having(sql`coalesce(sum(${inventoryBatches.currentQuantity}), 0) < ${inventoryItems.minLevel}`)
+        .having(sql`(coalesce(sum(${inventoryBatches.currentQuantity}), 0) < coalesce(${inventoryItems.minLevel}, 0)) or (coalesce(sum(${inventoryBatches.currentQuantity}), 0) = 0)`)
         .orderBy(sql`coalesce(sum(${inventoryBatches.currentQuantity}), 0)`)
         .limit(10);
 

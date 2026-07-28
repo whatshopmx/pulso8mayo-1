@@ -1,32 +1,20 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Plus, Search, Package, PackagePlus, ClipboardList, AlertTriangle, FileText,
-  ArrowRight, Trash2, Factory, ShoppingCart, Lightbulb, Building2, Upload,
-  MessageSquareWarning, Bell, Clock, History, ScrollText, BarChart3,
-  PieChart, TrendingUp, Sparkles, ChefHat, MapPin, ChevronRight,
+  Plus, Package, PackagePlus, ClipboardList, Trash2, ShoppingCart,
+  ChevronRight, ArrowRight,
 } from "lucide-react";
-import { DataTableSkeleton } from "@/components/shared/skeletons";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useBranch } from "@/lib/branch-context";
-import { PageHeader, PageContainer, EmptyState, ErrorState } from "@/components/shared";
-import { useInventory, useDashboard } from "@/hooks/queries";
+import { PageHeader, PageContainer } from "@/components/shared";
+import { useDashboard } from "@/hooks/queries";
 import { useRelativeTime } from "@/hooks/use-relative-time";
 import { DashboardKpis } from "@/components/inventory/dashboard-kpis";
-import { DashboardCharts } from "@/components/inventory/dashboard-charts";
 import { QuickAlerts } from "@/components/inventory/quick-alerts";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ProductDetailDrawer } from "@/components/inventory/product-detail-drawer";
 
-// Acciones diarias del gerente — un tap desde el home
+// Acciones del día — el gerente abre aquí para empezar a operar
 const DAILY_ACTIONS = [
   {
     href: "/dashboard/inventory/receiving",
@@ -54,96 +42,20 @@ const DAILY_ACTIONS = [
   },
 ];
 
-// Mapa completo del módulo, agrupado por tarea
-const NAV_GROUPS: {
-  title: string;
-  items: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; description: string }[];
-}[] = [
-  {
-    title: "Operar",
-    items: [
-      { href: "/dashboard/inventory/receiving", icon: PackagePlus, label: "Recepción", description: "Entradas de mercancía" },
-      { href: "/dashboard/inventory/stock-count", icon: ClipboardList, label: "Conteo de Inventario", description: "Conteos físicos y ajustes" },
-      { href: "/dashboard/inventory/waste", icon: Trash2, label: "Mermas", description: "Bajas por caducidad o daño" },
-      { href: "/dashboard/inventory/transfers", icon: ArrowRight, label: "Transferencias", description: "Movimientos entre sucursales" },
-      { href: "/dashboard/inventory/production", icon: Factory, label: "Producción", description: "Preparaciones y transformación" },
-    ],
-  },
-  {
-    title: "Comprar",
-    items: [
-      { href: "/dashboard/inventory/purchase-orders", icon: FileText, label: "Órdenes de Compra", description: "Pedidos a proveedores" },
-      { href: "/dashboard/inventory/suggested-orders", icon: Lightbulb, label: "Órdenes Sugeridas", description: "Qué comprar según tus mínimos" },
-      { href: "/dashboard/inventory/suppliers", icon: Building2, label: "Proveedores", description: "Contactos y precios" },
-      { href: "/dashboard/inventory/invoices", icon: Upload, label: "Facturas (XML)", description: "Compara factura vs. lo recibido" },
-      { href: "/dashboard/inventory/claims", icon: MessageSquareWarning, label: "Reclamos", description: "Problemas con entregas" },
-    ],
-  },
-  {
-    title: "Analizar",
-    items: [
-      { href: "/dashboard/inventory/alerts", icon: Bell, label: "Alertas de Stock", description: "Bajo stock y por vencer" },
-      { href: "/dashboard/inventory/expirations", icon: Clock, label: "Vencimientos", description: "Lotes próximos a caducar" },
-      { href: "/dashboard/inventory/movements", icon: History, label: "Movimientos", description: "Historial de entradas y salidas" },
-      { href: "/dashboard/inventory/audit", icon: ScrollText, label: "Auditoría", description: "Quién cambió qué" },
-      { href: "/dashboard/inventory/reports", icon: BarChart3, label: "Reportes", description: "Mermas y variaciones" },
-      { href: "/dashboard/inventory/reports/executive", icon: PieChart, label: "Dashboard Ejecutivo", description: "Visión financiera" },
-      { href: "/dashboard/inventory/menu-engineering", icon: TrendingUp, label: "Ingeniería de Menú", description: "Platillos rentables" },
-      { href: "/dashboard/inventory/costing", icon: TrendingUp, label: "Costeo", description: "Configuración de costos" },
-      { href: "/dashboard/inventory/intelligence", icon: Sparkles, label: "Pulso Intelligence", description: "Análisis inteligente" },
-    ],
-  },
-  {
-    title: "Configurar",
-    items: [
-      { href: "/dashboard/inventory/recipes", icon: ChefHat, label: "Recetas y Costeo", description: "Ingredientes por platillo" },
-      { href: "/dashboard/inventory/locations", icon: MapPin, label: "Ubicaciones", description: "Almacenes y áreas" },
-    ],
-  },
-];
-
 export default function InventoryPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "out">("all");
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const { branches, selectedBranchId } = useBranch();
 
-  const { branches } = useBranch();
+  // Scope now comes from the header BranchScopeControl (AD-1).
+  // selectedBranchId = null => "Todas" => chain-wide rollup (Mariana's morning brief);
+  // a specific id => per-branch view for the gerente.
+  const isAll = selectedBranchId == null;
+  const activeBranchId = isAll ? undefined : selectedBranchId;
+  const activeBranch = branches.find((b) => b.id === selectedBranchId) ?? null;
 
-  // Local branch filter: "all" = tenant-level rollup (the Mariana morning
-  // brief); a specific branchId = single-branch view. Default to "all" for
-  // multi-branch users; single-branch users default to their branch and the
-  // filter is hidden. Follows the executive-dashboard precedent.
-  const isMultiBranch = branches.length > 1;
-  const [branchFilter, setBranchFilter] = useState<string>(
-    isMultiBranch ? "all" : (branches[0]?.id ?? "all"),
-  );
-  const activeBranchId = branchFilter === "all" ? undefined : branchFilter;
-  const activeBranch = branches.find((b) => b.id === branchFilter) ?? null;
-
-  const { data: products = [], isLoading: loading, isError: productsError, refetch: refetchProducts } = useInventory(activeBranchId);
   const { data: dashboardData, isLoading: dashboardLoading, isError: dashboardError, refetch: refetchDashboard } = useDashboard(activeBranchId);
 
-  const filteredProducts = products.filter((product) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      product.name?.toLowerCase().includes(q) ||
-      product.sku?.toLowerCase().includes(q) ||
-      product.category?.toLowerCase().includes(q)
-    );
-  });
-
-  const tabFilteredProducts = filteredProducts.filter((product) => {
-    if (activeTab === "out") {
-      return (product.currentStock || 0) === 0;
-    }
-    return true;
-  });
-
-  const outOfStockCount = products.filter((p) => (p.currentStock || 0) === 0).length;
-
   const updatedAt = useRelativeTime(dashboardData?.generatedAt);
+  const retry = () => refetchDashboard();
 
   return (
     <PageContainer>
@@ -151,23 +63,11 @@ export default function InventoryPage() {
         title="Gestión de Inventario"
         description="Panel operativo y control de stock"
         icon={Package}
-        badge={branchFilter === "all" && dashboardData && dashboardData.branchesWithStock > 0 ? `${dashboardData.branchesWithStock} sucursales con stock` : undefined}
+        badge={isAll && dashboardData && dashboardData.branchesWithStock > 0 ? `${dashboardData.branchesWithStock} sucursales con stock` : undefined}
         branchName={activeBranch?.name}
         actions={
           <div className="flex items-center gap-2">
-            {isMultiBranch && (
-              <Select value={branchFilter} onValueChange={setBranchFilter}>
-                <SelectTrigger className="w-44 h-9">
-                  <SelectValue placeholder="Sucursal" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las sucursales</SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            {/* Branch scope lives in the header BranchScopeControl (T1). */}
             <Button asChild size="sm">
               <Link href="/dashboard/inventory/new">
                 <Plus className="mr-2 h-4 w-4" /> Agregar Producto
@@ -185,7 +85,7 @@ export default function InventoryPage() {
                 type="button"
                 className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors -mt-3 mb-1"
               >
-                <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
                 <span>Actualizado · {updatedAt}</span>
               </button>
             </TooltipTrigger>
@@ -196,232 +96,54 @@ export default function InventoryPage() {
         </TooltipProvider>
       )}
 
-      {/* Acciones del día — un tap */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        {DAILY_ACTIONS.map((action) => (
-          <Link
-            key={action.href}
-            href={action.href}
-            className="group flex flex-col gap-1 rounded-lg border bg-card p-4 min-h-[88px] transition-colors hover:border-primary hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <div className="flex items-center gap-2">
-              <action.icon className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-sm">{action.label}</span>
-              <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" />
-            </div>
-            <p className="text-xs text-muted-foreground">{action.description}</p>
-          </Link>
-        ))}
-      </div>
-
       <div className="space-y-6">
-        <DashboardKpis data={dashboardData} loading={dashboardLoading} isError={dashboardError} onRetry={() => refetchDashboard()} scopeLabel={branchFilter === "all" ? "todas las sucursales" : activeBranch?.name} />
-
-        <DashboardCharts
-          stockByCategory={dashboardData?.stockByCategory}
-          recentMovements={dashboardData?.recentMovements}
+        {/* 1. El estado */}
+        <DashboardKpis
+          data={dashboardData}
+          loading={dashboardLoading}
           isError={dashboardError}
-          onRetry={() => refetchDashboard()}
+          onRetry={retry}
+          scopeLabel={isAll ? "todas las sucursales" : activeBranch?.name}
         />
 
+        {/* 2. Qué necesita atención — el corazón del brief */}
         <QuickAlerts
           topLowStock={dashboardData?.topLowStock}
           topExpiring={dashboardData?.topExpiring}
           isError={dashboardError}
-          onRetry={() => refetchDashboard()}
-          showBranchAttribution={branchFilter === "all"}
+          onRetry={retry}
+          showBranchAttribution={isAll}
         />
 
-        {/* Catálogo de productos */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Productos en Almacén</CardTitle>
-                <CardDescription>
-                  Consulta el catálogo de insumos
-                  {activeBranch && ` para ${activeBranch.name}`}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-              <div className="flex gap-2 p-1 bg-muted/40 rounded-lg border">
-                <Button
-                  variant={activeTab === "all" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setActiveTab("all")}
-                  className="text-xs font-semibold"
-                >
-                  Todos
-                </Button>
-                <Button
-                  variant={activeTab === "out" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setActiveTab("out")}
-                  className="text-xs font-semibold flex items-center gap-1.5"
-                >
-                  Sin stock
-                  {outOfStockCount > 0 && (
-                    <Badge variant="warning" className="h-4 px-1 min-w-[16px] flex items-center justify-center text-xs rounded-full">
-                      {outOfStockCount}
-                    </Badge>
-                  )}
-                </Button>
-              </div>
-
-              <div className="relative w-full sm:w-[250px]">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Buscar productos..."
-                  className="pl-8 h-9 text-xs"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {productsError ? (
-              <ErrorState
-                message="No se pudo cargar el catálogo de productos."
-                onRetry={() => refetchProducts()}
-              />
-            ) : loading ? (
-              <DataTableSkeleton columns={6} rows={8} className="border-0" />
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead>Unidad</TableHead>
-                    <TableHead>Stock Actual</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tabFilteredProducts.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-16">
-                        {searchQuery.trim() && products.length > 0 ? (
-                          <EmptyState
-                            icon={Search}
-                            title="Sin resultados"
-                            description={`No hay productos que coincidan con "${searchQuery}".`}
-                            action={{ label: "Limpiar búsqueda", onClick: () => setSearchQuery("") }}
-                          />
-                        ) : (
-                          <EmptyState
-                            icon={Package}
-                            title="No se encontraron productos"
-                            description="No hay insumos para mostrar en esta pestaña."
-                            action={{ label: "Agregar Producto", href: "/dashboard/inventory/new" }}
-                          />
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    tabFilteredProducts.map((product) => (
-                      <TableRow key={product.id} className="hover:bg-muted/30">
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-3">
-                            {product.photoUrl ? (
-                              <Image
-                                src={product.photoUrl}
-                                alt=""
-                                width={32}
-                                height={32}
-                                unoptimized
-                                className="h-8 w-8 rounded object-cover border"
-                              />
-                            ) : (
-                              <Package className="h-4 w-4 text-muted-foreground shrink-0" />
-                            )}
-                            <span>{product.name}</span>
-                            {product.isLowStock && activeBranchId && (
-                              <Badge variant="warning" className="gap-1">
-                                <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                                Bajo
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{product.sku || "—"}</TableCell>
-                        <TableCell className="capitalize">{product.category || "General"}</TableCell>
-                        <TableCell>{product.unit}</TableCell>
-                        <TableCell className="font-mono">
-                          {activeBranchId ? (
-                            <span className={product.isLowStock ? "text-amber-600 font-bold" : ""}>
-                              {product.currentStock || 0}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedProductId(product.id);
-                              setDrawerOpen(true);
-                            }}
-                          >
-                            Ver
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Mapa del módulo — todas las herramientas agrupadas */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Todas las herramientas</CardTitle>
-            <CardDescription>Cada rincón del módulo, agrupado por tarea</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {NAV_GROUPS.map((group) => (
-                <div key={group.title}>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                    {group.title}
-                  </h3>
-                  <ul className="space-y-1">
-                    {group.items.map((item) => (
-                      <li key={item.href}>
-                        <Link
-                          href={item.href}
-                          className="flex items-center gap-2 rounded-md px-2 py-2 min-h-[40px] text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          <item.icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="font-medium">{item.label}</span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
+        {/* 3. Dónde empiezo — strip delgado */}
+        <section aria-label="Acciones del día">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold">Empezar el día</h2>
+            <Link
+              href="/dashboard/inventory/products"
+              className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+            >
+              Catálogo completo <ArrowRight className="h-3 w-3" aria-hidden="true" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            {DAILY_ACTIONS.map((action) => (
+              <Link
+                key={action.href}
+                href={action.href}
+                className="group flex items-center gap-3 rounded-lg border bg-card p-3 min-h-[56px] transition-colors hover:border-primary hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <action.icon className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <span className="font-semibold text-sm block leading-tight">{action.label}</span>
+                  <span className="text-xs text-muted-foreground truncate block">{action.description}</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0" aria-hidden="true" />
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
-
-      {/* Side-over detail Drawer */}
-      <ProductDetailDrawer
-        productId={selectedProductId}
-        branchId={activeBranchId || null}
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-      />
     </PageContainer>
   );
 }
