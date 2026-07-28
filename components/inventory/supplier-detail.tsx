@@ -42,6 +42,7 @@ interface Supplier {
     address?: string;
     taxId?: string;
     active: boolean;
+    matchTolerancePercent?: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -176,14 +177,14 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
     // PO Status translates and colors
     const getPoStatusBadge = (status: string) => {
         const colors: Record<string, string> = {
-            DRAFT: "bg-gray-100 text-gray-800 border-gray-200",
-            PENDING_APPROVAL: "bg-blue-50 text-blue-700 border-blue-200",
-            APPROVED: "bg-purple-50 text-purple-700 border-purple-200",
-            SENT: "bg-indigo-50 text-indigo-700 border-indigo-200",
-            PARTIALLY_RECEIVED: "bg-amber-50 text-amber-700 border-amber-200",
-            CLOSED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-            RECEIVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-            CANCELLED: "bg-red-50 text-red-700 border-red-200",
+            DRAFT: "bg-muted text-muted-foreground border-border",
+            PENDING_APPROVAL: "bg-info/10 text-info border-info/20",
+            APPROVED: "bg-accent/15 text-accent-foreground border-accent/30",
+            SENT: "bg-accent/15 text-accent-foreground border-accent/30",
+            PARTIALLY_RECEIVED: "bg-warning/10 text-warning border-warning/20",
+            CLOSED: "bg-success/10 text-success border-success/20",
+            RECEIVED: "bg-success/10 text-success border-success/20",
+            CANCELLED: "bg-destructive/10 text-destructive border-destructive/20",
         };
         const labels: Record<string, string> = {
             DRAFT: "Borrador",
@@ -205,10 +206,10 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
     // Claim Status translates
     const getClaimStatusBadge = (status: string) => {
         const colors: Record<string, string> = {
-            OPEN: "bg-red-50 text-red-700 border-red-200",
-            IN_PROGRESS: "bg-amber-50 text-amber-700 border-amber-200",
-            RESOLVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-            CLOSED: "bg-gray-100 text-gray-800 border-gray-200",
+            OPEN: "bg-destructive/10 text-destructive border-destructive/20",
+            IN_PROGRESS: "bg-warning/10 text-warning border-warning/20",
+            RESOLVED: "bg-success/10 text-success border-success/20",
+            CLOSED: "bg-muted text-muted-foreground border-border",
         };
         const labels: Record<string, string> = {
             OPEN: "Abierto",
@@ -226,7 +227,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col p-6">
+                <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col p-6">
                     <DialogHeader>
                         <div className="flex items-start justify-between">
                             <div className="space-y-1">
@@ -254,7 +255,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                     </DialogHeader>
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4 flex-1">
-                        <TabsList className="grid grid-cols-4 w-full">
+                        <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full h-auto p-1">
                             <TabsTrigger value="general">Información General</TabsTrigger>
                             <TabsTrigger value="catalog">Catálogo de Insumos</TabsTrigger>
                             <TabsTrigger value="purchases">Historial de Compras</TabsTrigger>
@@ -284,6 +285,11 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                                 <span className="text-sm text-muted-foreground">{supplier.contactName}</span>
                                             </div>
                                         )}
+                                        <div className="flex items-center gap-2">
+                                            <ClipboardCheck className="w-4 h-4 text-muted-foreground" />
+                                            <span className="text-sm font-medium">Tolerancia de Desvío:</span>
+                                            <span className="text-sm text-muted-foreground font-mono">{supplier.matchTolerancePercent !== undefined ? `${supplier.matchTolerancePercent}%` : "5%"}</span>
+                                        </div>
                                     </CardContent>
                                 </Card>
 
@@ -299,7 +305,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                             <div className="flex items-center gap-2">
                                                 <Mail className="w-4 h-4 text-muted-foreground" />
                                                 <span className="text-sm font-medium">Email:</span>
-                                                <a href={`mailto:${supplier.email}`} className="text-sm text-blue-600 hover:underline">
+                                                <a href={`mailto:${supplier.email}`} className="text-sm text-primary hover:underline">
                                                     {supplier.email}
                                                 </a>
                                             </div>
@@ -308,7 +314,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                             <div className="flex items-center gap-2">
                                                 <Phone className="w-4 h-4 text-muted-foreground" />
                                                 <span className="text-sm font-medium">Teléfono:</span>
-                                                <a href={`tel:${supplier.phone}`} className="text-sm text-blue-600 hover:underline">
+                                                <a href={`tel:${supplier.phone}`} className="text-sm text-primary hover:underline">
                                                     {supplier.phone}
                                                 </a>
                                             </div>
@@ -457,58 +463,54 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                 <>
                                     {/* Dashboard metrics widgets */}
                                     {metrics && (
-                                        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-                                            <Card className="bg-muted/10">
-                                                <CardHeader className="pb-1">
-                                                    <span className="text-xs text-muted-foreground">Efectividad de Entrega</span>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <div className="text-2xl font-bold flex items-center gap-2">
-                                                        <ClipboardCheck className={`w-5 h-5 ${metrics.accuracyRate > 90 ? "text-emerald-500" : metrics.accuracyRate > 75 ? "text-amber-500" : "text-destructive"}`} />
-                                                        {metrics.accuracyRate}%
-                                                    </div>
-                                                    <p className="text-[10px] text-muted-foreground mt-1">Órdenes sin incidencias</p>
-                                                </CardContent>
-                                            </Card>
+                                        <div className="border rounded-lg bg-card/40 divide-y divide-border font-sans">
+                                            <div className="flex items-center justify-between p-4">
+                                                <div className="flex items-center gap-2">
+                                                    <ClipboardCheck className={`w-4 h-4 ${metrics.accuracyRate > 90 ? "text-success" : metrics.accuracyRate > 75 ? "text-warning" : "text-destructive"}`} />
+                                                    <span className="text-sm font-medium text-foreground">Efectividad de Entrega</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="font-mono text-base font-bold text-foreground">{metrics.accuracyRate}%</span>
+                                                    <span className="text-[10px] text-muted-foreground block">Órdenes sin incidencias</span>
+                                                </div>
+                                            </div>
 
-                                            <Card className="bg-muted/10">
-                                                <CardHeader className="pb-1">
-                                                    <span className="text-xs text-muted-foreground">Monto de Compra Total</span>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <div className="text-2xl font-bold flex items-center gap-2 text-primary">
-                                                        <TrendingUp className="w-5 h-5" />
+                                            <div className="flex items-center justify-between p-4">
+                                                <div className="flex items-center gap-2">
+                                                    <TrendingUp className="w-4 h-4 text-primary" />
+                                                    <span className="text-sm font-medium text-foreground">Monto de Compra Total</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="font-mono text-base font-bold text-foreground">
                                                         ${metrics.totalSpend.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                    </div>
-                                                    <p className="text-[10px] text-muted-foreground mt-1">Excluye canceladas</p>
-                                                </CardContent>
-                                            </Card>
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground block">Excluye canceladas</span>
+                                                </div>
+                                            </div>
 
-                                            <Card className="bg-muted/10">
-                                                <CardHeader className="pb-1">
-                                                    <span className="text-xs text-muted-foreground">Reclamos Registrados</span>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <div className="text-2xl font-bold flex items-center gap-2">
-                                                        <ShieldAlert className={`w-5 h-5 ${metrics.totalClaims > 0 ? "text-amber-500" : "text-muted-foreground"}`} />
-                                                        {metrics.totalClaims}
-                                                    </div>
-                                                    <p className="text-[10px] text-muted-foreground mt-1">{metrics.resolvedClaims} resueltos</p>
-                                                </CardContent>
-                                            </Card>
+                                            <div className="flex items-center justify-between p-4">
+                                                <div className="flex items-center gap-2">
+                                                    <ShieldAlert className={`w-4 h-4 ${metrics.totalClaims > 0 ? "text-warning" : "text-muted-foreground"}`} />
+                                                    <span className="text-sm font-medium text-foreground">Reclamos Registrados</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="font-mono text-base font-bold text-foreground">{metrics.totalClaims}</span>
+                                                    <span className="text-[10px] text-muted-foreground block">{metrics.resolvedClaims} resueltos</span>
+                                                </div>
+                                            </div>
 
-                                            <Card className="bg-muted/10">
-                                                <CardHeader className="pb-1">
-                                                    <span className="text-xs text-muted-foreground">Impacto Financiero de Reclamos</span>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <div className="text-2xl font-bold flex items-center gap-2 text-destructive">
-                                                        <TrendingDown className="w-5 h-5" />
+                                            <div className="flex items-center justify-between p-4">
+                                                <div className="flex items-center gap-2">
+                                                    <TrendingDown className="w-4 h-4 text-destructive" />
+                                                    <span className="text-sm font-medium text-foreground">Impacto Financiero de Reclamos</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="font-mono text-base font-bold text-destructive">
                                                         ${metrics.totalClaimImpact.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                    </div>
-                                                    <p className="text-[10px] text-muted-foreground mt-1">Pérdidas acumuladas</p>
-                                                </CardContent>
-                                            </Card>
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground block">Pérdidas acumuladas</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
 

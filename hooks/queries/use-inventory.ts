@@ -193,6 +193,11 @@ export function usePurchaseOrders(params?: {
   branchId?: string;
   supplierId?: string;
   status?: string;
+  search?: string;
+  sortField?: string;
+  sortOrder?: 'asc' | 'desc';
+  dateFrom?: string;
+  dateTo?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -203,8 +208,13 @@ export function usePurchaseOrders(params?: {
       if (params?.branchId) searchParams.set("branchId", params.branchId);
       if (params?.supplierId) searchParams.set("supplierId", params.supplierId);
       if (params?.status) searchParams.set("status", params.status);
-      if (params?.limit) searchParams.set("limit", String(params.limit));
-      if (params?.offset) searchParams.set("offset", String(params.offset));
+      if (params?.search) searchParams.set("search", params.search);
+      if (params?.sortField) searchParams.set("sortField", params.sortField);
+      if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
+      if (params?.dateFrom) searchParams.set("dateFrom", params.dateFrom);
+      if (params?.dateTo) searchParams.set("dateTo", params.dateTo);
+      if (params?.limit !== undefined) searchParams.set("limit", String(params.limit));
+      if (params?.offset !== undefined) searchParams.set("offset", String(params.offset));
       const res = await fetch(`/api/inventory/purchase-orders?${searchParams.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch purchase orders");
       return res.json();

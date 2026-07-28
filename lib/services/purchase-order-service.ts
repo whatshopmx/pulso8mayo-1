@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { purchaseOrders, purchaseOrderItems, requisitions, requisitionItems, suppliers, branches, inventoryBatches, inventoryItems, companies } from "@/lib/db/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { purchaseOrders, purchaseOrderItems, requisitions, requisitionItems, suppliers, branches, inventoryBatches, inventoryItems, companies, users } from "@/lib/db/schema";
+import { eq, and, desc, sql, inArray, or, asc, ilike } from "drizzle-orm";
 import { AuditService } from "./audit-service";
 
 type POStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SENT' | 'PARTIALLY_RECEIVED' | 'CLOSED' | 'CANCELLED';
@@ -253,14 +253,41 @@ export class PurchaseOrderService {
   }
 
   static async getPO(id: string) {
-    const po = await db.query.purchaseOrders.findFirst({
-      where: eq(purchaseOrders.id, id),
-    });
-    if (!po) return null;
-    const items = await db.select()
+    const [row] = await db.select({
+      po: purchaseOrders,
+      supplierName: suppliers.name,
+      branchName: branches.name,
+      requestedByName: users.name,
+    })
+      .from(purchaseOrders)
+      .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+      .leftJoin(branches, eq(purchaseOrders.branchId, branches.id))
+      .leftJoin(users, eq(purchaseOrders.requestedBy, users.id))
+      .where(eq(purchaseOrders.id, id))
+      .limit(1);
+
+    if (!row) return null;
+
+    const itemRows = await db.select({
+      item: purchaseOrderItems,
+      itemName: inventoryItems.name,
+    })
       .from(purchaseOrderItems)
+      .leftJoin(inventoryItems, eq(purchaseOrderItems.itemId, inventoryItems.id))
       .where(eq(purchaseOrderItems.poId, id));
-    return { ...po, items };
+
+    const items = itemRows.map(r => ({
+      ...r.item,
+      itemName: r.itemName || r.item.itemId,
+    }));
+
+    return {
+      ...row.po,
+      supplierName: row.supplierName || row.po.supplierId,
+      branchName: row.branchName || row.po.branchId,
+      requestedBy: row.requestedByName || row.po.requestedBy,
+      items,
+    };
   }
 
   static async listPOs(params: {
@@ -270,6 +297,9 @@ export class PurchaseOrderService {
     status?: POStatus;
     dateFrom?: Date;
     dateTo?: Date;
+    search?: string;
+    sortField?: string;
+    sortOrder?: 'asc' | 'desc';
     limit?: number;
     offset?: number;
   }) {
@@ -280,8 +310,40 @@ export class PurchaseOrderService {
     if (params.dateFrom) conditions.push(sql`${purchaseOrders.createdAt} >= ${params.dateFrom}`);
     if (params.dateTo) conditions.push(sql`${purchaseOrders.createdAt} <= ${params.dateTo}`);
 
+    if (params.search) {
+      conditions.push(or(
+        ilike(purchaseOrders.poNumber, `%${params.search}%`),
+        ilike(suppliers.name, `%${params.search}%`)
+      ));
+    }
+
     const limit = params.limit ?? 50;
     const offset = params.offset ?? 0;
+
+    let orderByClause: any = desc(purchaseOrders.createdAt);
+    if (params.sortField) {
+      const orderFn = params.sortOrder === 'asc' ? asc : desc;
+      switch (params.sortField) {
+        case 'poNumber':
+          orderByClause = orderFn(purchaseOrders.poNumber);
+          break;
+        case 'supplierName':
+          orderByClause = orderFn(suppliers.name);
+          break;
+        case 'branchName':
+          orderByClause = orderFn(branches.name);
+          break;
+        case 'status':
+          orderByClause = orderFn(purchaseOrders.status);
+          break;
+        case 'totalAmount':
+          orderByClause = orderFn(purchaseOrders.totalAmount);
+          break;
+        case 'createdAt':
+          orderByClause = orderFn(purchaseOrders.createdAt);
+          break;
+      }
+    }
 
     const rows = await db.select({
       po: purchaseOrders,
@@ -296,7 +358,7 @@ export class PurchaseOrderService {
       .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
       .leftJoin(branches, eq(purchaseOrders.branchId, branches.id))
       .where(and(...conditions))
-      .orderBy(desc(purchaseOrders.createdAt))
+      .orderBy(orderByClause)
       .limit(limit)
       .offset(offset);
 
@@ -304,6 +366,8 @@ export class PurchaseOrderService {
       total: sql<number>`count(*)`,
     })
       .from(purchaseOrders)
+      .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+      .leftJoin(branches, eq(purchaseOrders.branchId, branches.id))
       .where(and(...conditions));
 
     return { orders: rows, total: countResult?.total ?? 0, limit, offset };

@@ -253,7 +253,7 @@ export function KpiTemplates({ onSelectTemplate, userRole = "GERENTE" }: KpiTemp
       </div>
 
       <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-1 h-auto p-1 sm:w-auto">
           <TabsTrigger value="all">Todos</TabsTrigger>
           <TabsTrigger value="operations">Operaciones</TabsTrigger>
           <TabsTrigger value="compliance">Cumplimiento</TabsTrigger>

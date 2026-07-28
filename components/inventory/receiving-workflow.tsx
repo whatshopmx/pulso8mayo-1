@@ -362,7 +362,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                         Nueva Recepción
                     </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Recepción de Inventario</DialogTitle>
                         <DialogDescription>

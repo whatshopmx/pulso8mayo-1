@@ -28,7 +28,7 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
 };
 
 function formatCurrency(cents: number | null | undefined) {
-  if (!cents) return "$0.00";
+  if (cents === null || cents === undefined) return "$0.00";
   return `$${(cents / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 }
 

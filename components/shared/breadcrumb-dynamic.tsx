@@ -64,6 +64,8 @@ const PATH_LABELS: Record<string, string> = {
   "stock-count": "Conteo de Stock",
   waste: "Merma",
   expirations: "Caducidades",
+  "purchase-orders": "Órdenes de Compra",
+  "suggested-orders": "Órdenes Sugeridas",
   sat: "SAT",
   imss: "IMSS",
   edit: "Editar",
@@ -73,7 +75,10 @@ const PATH_LABELS: Record<string, string> = {
   preview: "Vista Previa",
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function getLabel(segment: string): string {
+  if (UUID_RE.test(segment)) return "Detalle"
   return PATH_LABELS[segment] || segment.charAt(0).toUpperCase() + segment.slice(1)
 }
 

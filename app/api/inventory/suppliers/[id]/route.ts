@@ -14,6 +14,7 @@ const supplierSchema = z.object({
     address: z.string().optional(),
     taxId: z.string().optional(),
     active: z.boolean().default(true).optional(),
+    matchTolerancePercent: z.number().int().min(0).max(100).default(5).optional(),
 });
 
 /**

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
-import { CheckCircle2, Clock, XCircle, Search } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Search, Eye, Play, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -79,6 +79,52 @@ export function RecentWorkflowsTable({ workflows }: RecentWorkflowsTableProps) {
         return "text-destructive font-bold";
     };
 
+    const renderActionButton = (workflow: WorkflowInstance) => {
+        switch (workflow.status) {
+            case "COMPLETED":
+                return (
+                    <Link href={`/dashboard/workflows/review/${workflow.id}`}>
+                        <Button variant="ghost" size="sm" className="h-8 text-xs gap-1">
+                            <Eye className="w-3.5 h-3.5" /> Ver detalles
+                        </Button>
+                    </Link>
+                );
+            case "IN_PROGRESS":
+                return (
+                    <Link href={`/dashboard/workflows/${workflow.id}/execute`}>
+                        <Button variant="default" size="sm" className="h-8 text-xs gap-1">
+                            <Play className="w-3.5 h-3.5" /> Continuar
+                        </Button>
+                    </Link>
+                );
+            case "PENDING":
+                return (
+                    <Link href={`/dashboard/workflows/${workflow.id}/execute`}>
+                        <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                            <Play className="w-3.5 h-3.5" /> Iniciar
+                        </Button>
+                    </Link>
+                );
+            case "BLOCKED":
+            case "FAILED":
+                return (
+                    <Link href={`/dashboard/workflows/review/${workflow.id}`}>
+                        <Button variant="outline" size="sm" className="h-8 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10">
+                            <AlertCircle className="w-3.5 h-3.5" /> Revisar
+                        </Button>
+                    </Link>
+                );
+            default:
+                return (
+                    <Link href={`/dashboard/workflows/${workflow.id}/execute`}>
+                        <Button variant="ghost" size="sm" className="h-8 text-xs gap-1">
+                            <Eye className="w-3.5 h-3.5" /> Ver
+                        </Button>
+                    </Link>
+                );
+        }
+    };
+
     return (
         <div className="space-y-3">
             <div className="flex items-center px-4 pt-3 pb-1">
@@ -129,11 +175,7 @@ export function RecentWorkflowsTable({ workflows }: RecentWorkflowsTableProps) {
                                             : "-"}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <Link href={`/dashboard/workflows/${workflow.id}/execute`}>
-                                            <Button variant="ghost" size="sm" className="h-8 text-xs">
-                                                Ver detalles
-                                            </Button>
-                                        </Link>
+                                        {renderActionButton(workflow)}
                                     </TableCell>
                                 </TableRow>
                             ))

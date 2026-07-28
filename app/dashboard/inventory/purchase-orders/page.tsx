@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { PageHeader, PageContainer, EmptyState } from "@/components/shared";
 import { useBranch } from "@/lib/branch-context";
 import { usePurchaseOrders, useCreatePurchaseOrder, useInventory, usePriceCheck } from "@/hooks/queries";
-import { Plus, FileText, Loader2, AlertTriangle, Check, ChevronsUpDown, Search } from "lucide-react";
+import { Plus, FileText, Loader2, AlertTriangle, Check, ChevronsUpDown, Search, ArrowUp, ArrowDown, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +31,7 @@ const STATUS_LABELS: Record<string, { label: string; variant: "default" | "secon
 };
 
 function formatCurrency(cents: number | null | undefined) {
-  if (!cents) return "$0.00";
+  if (cents === null || cents === undefined) return "$0.00";
   return `$${(cents / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 }
 
@@ -57,9 +57,30 @@ function PurchaseOrdersContent() {
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [sortField, setSortField] = useState<string>("createdAt");
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>("desc");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // Debounce search input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [search]);
+
   const { data, isLoading } = usePurchaseOrders({
     branchId: selectedBranchId || undefined,
     status: statusFilter !== "ALL" ? statusFilter : undefined,
+    search: debouncedSearch || undefined,
+    sortField,
+    sortOrder,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
     limit: pageSize,
     offset: page * pageSize,
   });
@@ -67,6 +88,23 @@ function PurchaseOrdersContent() {
   const orders = data?.orders || [];
   const total = data?.total || 0;
   const totalPages = Math.ceil(total / pageSize);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("desc");
+    }
+    setPage(0);
+  };
+
+  const renderSortIcon = (field: string) => {
+    if (sortField !== field) return <ChevronsUpDown className="ml-1 h-3.5 w-3.5 text-muted-foreground/70" />;
+    return sortOrder === "asc" ? 
+      <ArrowUp className="ml-1 h-3.5 w-3.5 text-primary" /> : 
+      <ArrowDown className="ml-1 h-3.5 w-3.5 text-primary" />;
+  };
 
   return (
     <PageContainer>
@@ -84,11 +122,34 @@ function PurchaseOrdersContent() {
 
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center gap-4">
-            <div className="w-48">
-              <Label className="text-xs">Estado</Label>
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="flex-1 min-w-[240px]">
+              <Label className="text-xs font-semibold mb-1 block">Buscar</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por PO # o proveedor..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8 h-9"
+                />
+                {search && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSearch("")}
+                    className="absolute right-1 top-1 h-7 w-7"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            <div className="w-40">
+              <Label className="text-xs font-semibold mb-1 block">Estado</Label>
               <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); }}>
-                <SelectTrigger className="h-8">
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -99,18 +160,77 @@ function PurchaseOrdersContent() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="w-36">
+              <Label className="text-xs font-semibold mb-1 block">Desde</Label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setPage(0); }}
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="w-36">
+              <Label className="text-xs font-semibold mb-1 block">Hasta</Label>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setPage(0); }}
+                className="h-9 text-xs"
+              />
+            </div>
+
+            {(search || statusFilter !== "ALL" || dateFrom || dateTo) && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("ALL");
+                  setDateFrom("");
+                  setDateTo("");
+                  setPage(0);
+                }}
+                className="h-9 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Limpiar
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+            <div className="p-6 space-y-4">
+              <div className="h-10 bg-muted/60 animate-pulse rounded" />
+              <div className="h-12 bg-muted/40 animate-pulse rounded" />
+              <div className="h-12 bg-muted/40 animate-pulse rounded" />
+              <div className="h-12 bg-muted/40 animate-pulse rounded" />
+              <div className="h-12 bg-muted/40 animate-pulse rounded" />
+            </div>
           ) : orders.length === 0 ? (
             <div className="py-16">
               <EmptyState
                 icon={FileText}
                 title="Sin órdenes de compra"
-                description="Crea tu primera orden de compra para comenzar."
-                action={{ label: "Nueva Orden", onClick: () => setDialogOpen(true) }}
+                description={
+                  search || statusFilter !== "ALL" || dateFrom || dateTo
+                    ? "No se encontraron órdenes que coincidan con los filtros aplicados."
+                    : "Crea tu primera orden de compra para comenzar."
+                }
+                action={
+                  search || statusFilter !== "ALL" || dateFrom || dateTo
+                    ? {
+                        label: "Limpiar filtros",
+                        onClick: () => {
+                          setSearch("");
+                          setStatusFilter("ALL");
+                          setDateFrom("");
+                          setDateTo("");
+                          setPage(0);
+                        },
+                      }
+                    : { label: "Nueva Orden", onClick: () => setDialogOpen(true) }
+                }
               />
             </div>
           ) : (
@@ -118,13 +238,43 @@ function PurchaseOrdersContent() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>PO #</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead>Sucursal</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Total</TableHead>
+                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("poNumber")}>
+                      <div className="flex items-center">
+                        PO #
+                        {renderSortIcon("poNumber")}
+                      </div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("supplierName")}>
+                      <div className="flex items-center">
+                        Proveedor
+                        {renderSortIcon("supplierName")}
+                      </div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("branchName")}>
+                      <div className="flex items-center">
+                        Sucursal
+                        {renderSortIcon("branchName")}
+                      </div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("status")}>
+                      <div className="flex items-center">
+                        Estado
+                        {renderSortIcon("status")}
+                      </div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("totalAmount")}>
+                      <div className="flex items-center">
+                        Total
+                        {renderSortIcon("totalAmount")}
+                      </div>
+                    </TableHead>
                     <TableHead>Items</TableHead>
-                    <TableHead>Fecha</TableHead>
+                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("createdAt")}>
+                      <div className="flex items-center">
+                        Fecha
+                        {renderSortIcon("createdAt")}
+                      </div>
+                    </TableHead>
                     <TableHead className="text-right">Acción</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -155,11 +305,40 @@ function PurchaseOrdersContent() {
               </Table>
 
               {totalPages > 1 && (
-                <div className="flex items-center justify-between p-4 border-t">
-                  <p className="text-sm text-muted-foreground">{total} órdenes (pág. {page + 1} de {totalPages})</p>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Anterior</Button>
-                    <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>Siguiente</Button>
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t">
+                  <p className="text-sm text-muted-foreground">
+                    Mostrando {orders.length} de {total} órdenes (pág. {page + 1} de {totalPages})
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                      Anterior
+                    </Button>
+                    
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, idx) => {
+                      let pageNum = idx;
+                      if (page > 2 && totalPages > 5) {
+                        pageNum = page - 2 + idx;
+                        if (pageNum + (5 - idx) > totalPages) {
+                          pageNum = totalPages - 5 + idx;
+                        }
+                      }
+                      
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={page === pageNum ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => setPage(pageNum)}
+                        >
+                          {pageNum + 1}
+                        </Button>
+                      );
+                    })}
+
+                    <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+                      Siguiente
+                    </Button>
                   </div>
                 </div>
               )}

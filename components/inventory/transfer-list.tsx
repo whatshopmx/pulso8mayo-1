@@ -454,7 +454,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
 
             {/* Tabs */}
             <Tabs defaultValue="pending" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1 h-auto p-1">
                     <TabsTrigger value="pending">Pendientes ({pendingTransfers.length})</TabsTrigger>
                     <TabsTrigger value="to-approve">Por Aprobar ({toApproveTransfers.length})</TabsTrigger>
                     <TabsTrigger value="transit">En Tránsito ({inTransitTransfers.length})</TabsTrigger>

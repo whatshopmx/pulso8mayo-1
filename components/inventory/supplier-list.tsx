@@ -33,6 +33,7 @@ interface Supplier {
     address?: string;
     taxId?: string;
     active: boolean;
+    matchTolerancePercent?: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -53,7 +54,7 @@ export function SupplierList({ companyId }: SupplierListProps) {
     const fetchSuppliers = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`/api/inventory/suppliers?search=${searchTerm}`);
+            const response = await fetch(`/api/inventory/suppliers?search=${searchTerm}&active=false`);
             const result = await response.json();
 
             if (response.ok) {
@@ -70,8 +71,12 @@ export function SupplierList({ companyId }: SupplierListProps) {
     };
 
     useEffect(() => {
-        fetchSuppliers();
-    }, [companyId]);
+        const delayDebounceFn = setTimeout(() => {
+            fetchSuppliers();
+        }, 300);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchTerm, companyId]);
 
     const handleDelete = async (id: string, name: string) => {
         if (!confirm(`¿Estás seguro de que quieres eliminar a "${name}"?`)) {
@@ -126,9 +131,6 @@ export function SupplierList({ companyId }: SupplierListProps) {
                             className="pl-8"
                         />
                     </div>
-                    <Button variant="outline" onClick={fetchSuppliers} disabled={loading}>
-                        <Search className="w-4 h-4" />
-                    </Button>
                 </div>
                 <Dialog open={isFormOpen} onOpenChange={(open) => {
                     setIsFormOpen(open);
@@ -191,7 +193,7 @@ export function SupplierList({ companyId }: SupplierListProps) {
                                         <div className="flex items-center gap-2">
                                             <CardTitle className="text-lg">{supplier.name}</CardTitle>
                                             {!supplier.active && (
-                                                <Badge variant="destructive" className="text-xs">
+                                                <Badge variant="secondary" className="text-xs">
                                                     Inactivo
                                                 </Badge>
                                             )}

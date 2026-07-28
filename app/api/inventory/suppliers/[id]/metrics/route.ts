@@ -60,7 +60,7 @@ export async function GET(
 
         // 3. Compute Metrics
         const totalOrders = pos.length;
-        const completedOrders = pos.filter(po => po.status === 'CLOSED' || po.status === 'RECEIVED' || po.status === 'PARTIALLY_RECEIVED').length;
+        const completedOrders = pos.filter(po => po.status === 'CLOSED' || po.status === 'PARTIALLY_RECEIVED').length;
         
         const totalSpendCents = pos
             .filter(po => po.status !== 'CANCELLED')

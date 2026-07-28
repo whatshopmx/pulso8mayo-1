@@ -47,6 +47,13 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = parseInt(searchParams.get("offset") || "0");
     const type = searchParams.get("type") || "po";
+    const search = searchParams.get("search") || undefined;
+    const sortField = searchParams.get("sortField") || undefined;
+    const sortOrder = (searchParams.get("sortOrder") as 'asc' | 'desc') || undefined;
+    const dateFromStr = searchParams.get("dateFrom") || undefined;
+    const dateToStr = searchParams.get("dateTo") || undefined;
+    const dateFrom = dateFromStr ? new Date(dateFromStr) : undefined;
+    const dateTo = dateToStr ? new Date(dateToStr) : undefined;
 
     if (type === "requisition") {
       const requisitions = await PurchaseOrderService.listRequisitions(tenant.id!, branchId);
@@ -58,6 +65,11 @@ export async function GET(req: NextRequest) {
       branchId,
       supplierId,
       status: status as 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SENT' | 'PARTIALLY_RECEIVED' | 'CLOSED' | 'CANCELLED' | undefined,
+      search,
+      sortField,
+      sortOrder,
+      dateFrom,
+      dateTo,
       limit,
       offset,
     });

@@ -117,7 +117,7 @@ export function SupplierItemDialog({ supplierId, open, onOpenChange, onSuccess }
                     <div className="space-y-2">
                         <Label htmlFor="item-select">Insumo del Inventario *</Label>
                         <Select value={selectedItemId} onValueChange={setSelectedItemId}>
-                            <SelectTrigger className="w-full min-h-[44px]">
+                            <SelectTrigger className="w-full">
                                 <SelectValue placeholder={loadingProducts ? "Cargando..." : "Selecciona un insumo..."} />
                             </SelectTrigger>
                             <SelectContent className="max-h-[200px]">
@@ -138,7 +138,6 @@ export function SupplierItemDialog({ supplierId, open, onOpenChange, onSuccess }
                                 value={supplierSku}
                                 onChange={(e) => setSupplierSku(e.target.value)}
                                 placeholder="Ej: PROV-123"
-                                className="min-h-[44px]"
                             />
                         </div>
                         <div className="space-y-2">
@@ -151,7 +150,6 @@ export function SupplierItemDialog({ supplierId, open, onOpenChange, onSuccess }
                                 value={price}
                                 onChange={(e) => setPrice(e.target.value)}
                                 placeholder="0.00"
-                                className="min-h-[44px]"
                             />
                         </div>
                     </div>
@@ -164,7 +162,6 @@ export function SupplierItemDialog({ supplierId, open, onOpenChange, onSuccess }
                                 value={presentation}
                                 onChange={(e) => setPresentation(e.target.value)}
                                 placeholder="Ej: Saco 25kg, Caja 10L"
-                                className="min-h-[44px]"
                             />
                         </div>
                         <div className="space-y-2">
@@ -175,7 +172,6 @@ export function SupplierItemDialog({ supplierId, open, onOpenChange, onSuccess }
                                 min="0"
                                 value={leadTimeDays}
                                 onChange={(e) => setLeadTimeDays(e.target.value)}
-                                className="min-h-[44px]"
                             />
                         </div>
                     </div>

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,6 +17,7 @@ interface Supplier {
     address?: string;
     taxId?: string;
     active?: boolean;
+    matchTolerancePercent?: number;
 }
 
 interface SupplierFormProps {
@@ -34,11 +36,16 @@ export function SupplierForm({ supplier, onSuccess, onCancel }: SupplierFormProp
         address: "",
         taxId: "",
         active: true,
+        matchTolerancePercent: 5,
     });
 
     useEffect(() => {
         if (supplier) {
-            setFormData(supplier);
+            setFormData({
+                ...supplier,
+                active: supplier.active !== undefined ? supplier.active : true,
+                matchTolerancePercent: supplier.matchTolerancePercent !== undefined ? supplier.matchTolerancePercent : 5,
+            });
         }
     }, [supplier]);
 
@@ -144,6 +151,31 @@ export function SupplierForm({ supplier, onSuccess, onCancel }: SupplierFormProp
                         value={formData.address || ""}
                         onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                         placeholder="Ej. Av. Principal 123, Col. Centro, CDMX"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="matchTolerancePercent">Tolerancia de Desvío (%)</Label>
+                    <Input
+                        id="matchTolerancePercent"
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={formData.matchTolerancePercent !== undefined ? formData.matchTolerancePercent : 5}
+                        onChange={(e) => setFormData({ ...formData, matchTolerancePercent: Number(e.target.value) })}
+                        placeholder="Ej. 5"
+                    />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/10">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="active" className="text-sm font-medium">Estado del Proveedor</Label>
+                        <p className="text-xs text-muted-foreground">Surtir órdenes y compras</p>
+                    </div>
+                    <Switch
+                        id="active"
+                        checked={formData.active !== undefined ? formData.active : true}
+                        onCheckedChange={(checked) => setFormData({ ...formData, active: checked })}
                     />
                 </div>
             </div>
