@@ -17,10 +17,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useBranch } from "@/lib/branch-context";
 import { PageHeader, PageContainer, EmptyState, ErrorState } from "@/components/shared";
 import { useInventory, useDashboard } from "@/hooks/queries";
+import { useRelativeTime } from "@/hooks/use-relative-time";
 import { DashboardKpis } from "@/components/inventory/dashboard-kpis";
 import { DashboardCharts } from "@/components/inventory/dashboard-charts";
 import { QuickAlerts } from "@/components/inventory/quick-alerts";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProductDetailDrawer } from "@/components/inventory/product-detail-drawer";
 
 // Acciones diarias del gerente — un tap desde el home
@@ -129,6 +131,8 @@ export default function InventoryPage() {
 
   const outOfStockCount = products.filter((p) => (p.currentStock || 0) === 0).length;
 
+  const updatedAt = useRelativeTime(dashboardData?.generatedAt);
+
   return (
     <PageContainer>
       <PageHeader
@@ -144,6 +148,25 @@ export default function InventoryPage() {
           </Button>
         }
       />
+
+      {updatedAt && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors -mt-3 mb-1"
+              >
+                <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Actualizado · {updatedAt}</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[240px]">
+              Última actualización del panel (refresco de datos), no del último conteo físico de inventario.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
 
       {/* Acciones del día — un tap */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
