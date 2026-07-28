@@ -1,7 +1,6 @@
 "use server";
 
 import { InventoryService } from "@/lib/services/inventory-service";
-import { inventoryItems } from "@/lib/db/schema";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -26,6 +25,9 @@ export async function createProduct(formData: FormData) {
     const storageRequirements = formData.get("storageRequirements") as string;
     const typicalShelfLifeDays = formData.get("typicalShelfLifeDays") ? Number(formData.get("typicalShelfLifeDays")) : undefined;
     const photoUrl = formData.get("photoUrl") as string;
+    const brand = formData.get("brand") as string || undefined;
+    const presentation = formData.get("presentation") as string || undefined;
+    const standardCost = formData.get("standardCost") ? Math.round(Number(formData.get("standardCost")) * 100) : undefined;
 
     await InventoryService.createItem({
         companyId: session.user.companyId as string,
@@ -43,6 +45,9 @@ export async function createProduct(formData: FormData) {
         storageRequirements,
         typicalShelfLifeDays,
         photoUrl: photoUrl || undefined,
+        brand,
+        presentation,
+        standardCost,
         userId: session.user.id
     });
 
@@ -70,6 +75,9 @@ export async function updateProduct(id: string, formData: FormData) {
     const storageRequirements = formData.get("storageRequirements") as string;
     const typicalShelfLifeDays = formData.get("typicalShelfLifeDays") ? Number(formData.get("typicalShelfLifeDays")) : undefined;
     const photoUrl = formData.get("photoUrl") as string;
+    const brand = formData.get("brand") as string || undefined;
+    const presentation = formData.get("presentation") as string || undefined;
+    const standardCost = formData.get("standardCost") ? Math.round(Number(formData.get("standardCost")) * 100) : undefined;
 
     await InventoryService.updateItem(id, {
         name,
@@ -84,12 +92,15 @@ export async function updateProduct(id: string, formData: FormData) {
         allergenInfo,
         storageRequirements,
         typicalShelfLifeDays,
-        photoUrl: photoUrl || null,
+        photoUrl: photoUrl || undefined,
+        brand,
+        presentation,
+        standardCost,
     }, session.user.id);
 
     revalidatePath("/dashboard/inventory");
     revalidatePath(`/dashboard/inventory/${id}`);
-    redirect(`/dashboard/inventory/${id}`);
+    redirect("/dashboard/inventory");
 }
 
 export async function getCompanyProducts(companyId: string) {

@@ -35,9 +35,10 @@ interface ReceivingWorkflowProps {
     suppliers?: Array<{ id: string; name: string }>;
     items?: Array<{ id: string; name: string; sku?: string; unit?: string; barcode?: string }>;
     onComplete?: (receiving: any) => void;
+    initialPOId?: string;
 }
 
-export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: ReceivingWorkflowProps) {
+export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, initialPOId }: ReceivingWorkflowProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isOCRing, setIsOCRing] = useState(false);
     const [receivingItems, setReceivingItems] = useState<ReceivingItem[]>([]);
@@ -50,6 +51,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: Re
     const [step, setStep] = useState<"supplier-po" | "items-scan" | "review-submit">("supplier-po");
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [hasPreselected, setHasPreselected] = useState(false);
 
     const handleOpenChange = (open: boolean) => {
         if (!open) {
@@ -146,6 +148,16 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete }: Re
             toast.error("Error al cargar detalles de la orden de compra");
         }
     };
+
+    useEffect(() => {
+        if (initialPOId && items.length > 0 && !hasPreselected) {
+            setHasPreselected(true);
+            setSelectedPOId(initialPOId);
+            handlePOChange(initialPOId);
+            setIsDialogOpen(true);
+            setStep("items-scan");
+        }
+    }, [initialPOId, items, hasPreselected]);
 
     // Add item to receiving list
     const addItem = useCallback(() => {

@@ -19,6 +19,9 @@ const createProductSchema = z.object({
   allergenInfo: z.string().optional(),
   storageRequirements: z.string().optional(),
   typicalShelfLifeDays: z.number().optional(),
+  brand: z.string().optional(),
+  presentation: z.string().optional(),
+  standardCost: z.number().optional(),
 });
 
 export async function GET(req: NextRequest) {

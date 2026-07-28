@@ -1,3 +1,4 @@
+// Force Next.js Turbopack reload
 import { InventoryService } from "@/lib/services/inventory-service";
 import { getPriceHistory } from "@/app/actions/inventory";
 import { getSession } from "@/lib/auth";
@@ -55,7 +56,7 @@ export default async function ProductDetailPage({ params }: Props) {
         <PageContainer>
             <PageHeader
                 title={item.name}
-                description={`${item.category} • Unidad: ${item.unit}${item.lastCost ? ` • Costo Actual: $${(item.lastCost / 100).toFixed(2)}` : ""}`}
+                description={`${item.category} ${item.brand ? `• Marca: ${item.brand} ` : ""}${item.presentation ? `• ${item.presentation} ` : ""}• Unidad: ${item.unit}${item.lastCost ? ` • Costo Actual: $${(item.lastCost / 100).toFixed(2)}` : ""}`}
                 actions={
                     <div className="flex items-center gap-2">
                         <Link href="/dashboard/inventory">

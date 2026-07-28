@@ -31,6 +31,7 @@ interface ProductFormProps {
 export function ProductForm({ suppliers = [], initialData }: ProductFormProps) {
     const action = initialData ? updateProduct.bind(null, initialData.id) : createProduct;
     const defaultCost = initialData?.lastCost ? (initialData.lastCost / 100).toFixed(2) : "";
+    const defaultStandardCost = initialData?.standardCost ? (initialData.standardCost / 100).toFixed(2) : "";
     const [photoUrl, setPhotoUrl] = useState<string | null>(initialData?.photoUrl || null);
 
     return (
@@ -114,6 +115,17 @@ export function ProductForm({ suppliers = [], initialData }: ProductFormProps) {
                         </div>
                     </div>
 
+                    <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+                        <div className="space-y-2">
+                            <Label htmlFor="brand">Marca</Label>
+                            <Input id="brand" name="brand" placeholder="Ej: Maseca" defaultValue={initialData?.brand} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="presentation">Presentación</Label>
+                            <Input id="presentation" name="presentation" placeholder="Ej: Bolsa de 5 kg, Caja de 12 botellas" defaultValue={initialData?.presentation} />
+                        </div>
+                    </div>
+
                     <div className="space-y-2">
                         <Label htmlFor="allergenInfo">Información de Alérgenos</Label>
                         <Input id="allergenInfo" name="allergenInfo" placeholder="Ej: Contiene gluten, lácteos" defaultValue={initialData?.allergenInfo} />
@@ -125,7 +137,7 @@ export function ProductForm({ suppliers = [], initialData }: ProductFormProps) {
                     />
 
                     {/* Supplier and Cost Section */}
-                    <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+                    <div className="grid grid-cols-3 gap-4 pt-2 border-t">
                         <div className="space-y-2">
                             <Label htmlFor="supplierId">Proveedor Preferido</Label>
                             <Select name="supplierId" defaultValue={initialData?.supplierId}>
@@ -146,9 +158,14 @@ export function ProductForm({ suppliers = [], initialData }: ProductFormProps) {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="lastCost">Costo Unitario (Estándar)</Label>
+                            <Label htmlFor="lastCost">Último Costo de Compra</Label>
                             <Input id="lastCost" name="lastCost" type="number" step="0.01" min="0" placeholder="0.00" defaultValue={defaultCost} />
-                            <p className="text-xs text-muted-foreground">Se guardará en historial de precios.</p>
+                            <p className="text-xs text-muted-foreground">Último costo unitario registrado.</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="standardCost">Costo Estándar</Label>
+                            <Input id="standardCost" name="standardCost" type="number" step="0.01" min="0" placeholder="0.00" defaultValue={defaultStandardCost} />
+                            <p className="text-xs text-muted-foreground">Costo presupuestado u objetivo.</p>
                         </div>
                     </div>
 

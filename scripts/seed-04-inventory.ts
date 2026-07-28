@@ -41,40 +41,41 @@ interface ItemDef {
   minLevel: number; maxLevel: number; storageArea: string;
   shelfLifeDays: number; lastCost: number; supplierIdx: number;
   storageReq?: string; allergenInfo?: string;
+  taxRate?: number; iepsRate?: number;
 }
 
 const ITEMS: ItemDef[] = [
-  { name: "Pechuga de Pollo", sku: "CAR-001", category: "Carnes", unit: "KG", minLevel: 10, maxLevel: 50, storageArea: "REFRIGERATOR", shelfLifeDays: 7, lastCost: 8500, supplierIdx: 1 },
-  { name: "Filete de Res", sku: "CAR-002", category: "Carnes", unit: "KG", minLevel: 8, maxLevel: 40, storageArea: "REFRIGERATOR", shelfLifeDays: 10, lastCost: 19500, supplierIdx: 1 },
-  { name: "Costilla de Cerdo", sku: "CAR-003", category: "Carnes", unit: "KG", minLevel: 5, maxLevel: 30, storageArea: "REFRIGERATOR", shelfLifeDays: 8, lastCost: 12000, supplierIdx: 1 },
-  { name: "Carne Molida de Res", sku: "CAR-004", category: "Carnes", unit: "KG", minLevel: 5, maxLevel: 25, storageArea: "REFRIGERATOR", shelfLifeDays: 5, lastCost: 11000, supplierIdx: 1 },
-  { name: "Salchicha para Asar", sku: "CAR-005", category: "Carnes", unit: "KG", minLevel: 3, maxLevel: 20, storageArea: "REFRIGERATOR", shelfLifeDays: 14, lastCost: 6500, supplierIdx: 1 },
-  { name: "Leche Entera", sku: "LAC-001", category: "Lácteos", unit: "L", minLevel: 15, maxLevel: 60, storageArea: "REFRIGERATOR", shelfLifeDays: 7, lastCost: 2200, supplierIdx: 3 },
-  { name: "Crema Ácida", sku: "LAC-002", category: "Lácteos", unit: "KG", minLevel: 3, maxLevel: 15, storageArea: "REFRIGERATOR", shelfLifeDays: 14, lastCost: 4500, supplierIdx: 3 },
-  { name: "Queso Manchego", sku: "LAC-003", category: "Lácteos", unit: "KG", minLevel: 3, maxLevel: 15, storageArea: "REFRIGERATOR", shelfLifeDays: 30, lastCost: 14000, supplierIdx: 3 },
-  { name: "Mantequilla", sku: "LAC-004", category: "Lácteos", unit: "KG", minLevel: 2, maxLevel: 10, storageArea: "REFRIGERATOR", shelfLifeDays: 45, lastCost: 5200, supplierIdx: 3 },
-  { name: "Yogurt Natural", sku: "LAC-005", category: "Lácteos", unit: "KG", minLevel: 2, maxLevel: 12, storageArea: "REFRIGERATOR", shelfLifeDays: 10, lastCost: 3800, supplierIdx: 3 },
-  { name: "Tomate Saladet", sku: "VER-001", category: "Verduras", unit: "KG", minLevel: 10, maxLevel: 40, storageArea: "DRY_STORAGE", shelfLifeDays: 5, lastCost: 2800, supplierIdx: 4 },
-  { name: "Cebolla Blanca", sku: "VER-002", category: "Verduras", unit: "KG", minLevel: 10, maxLevel: 40, storageArea: "DRY_STORAGE", shelfLifeDays: 14, lastCost: 1800, supplierIdx: 4 },
-  { name: "Aguacate Hass", sku: "VER-003", category: "Verduras", unit: "KG", minLevel: 5, maxLevel: 25, storageArea: "DRY_STORAGE", shelfLifeDays: 4, lastCost: 5500, supplierIdx: 4 },
-  { name: "Lechuga Romana", sku: "VER-004", category: "Verduras", unit: "UNIT", minLevel: 10, maxLevel: 40, storageArea: "REFRIGERATOR", shelfLifeDays: 5, lastCost: 1500, supplierIdx: 4 },
-  { name: "Limón Verde", sku: "VER-005", category: "Verduras", unit: "KG", minLevel: 5, maxLevel: 20, storageArea: "DRY_STORAGE", shelfLifeDays: 7, lastCost: 2500, supplierIdx: 4 },
-  { name: "Agua Purificada", sku: "BEB-001", category: "Bebidas", unit: "L", minLevel: 20, maxLevel: 100, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 1000, supplierIdx: 0 },
-  { name: "Refresco Cola", sku: "BEB-002", category: "Bebidas", unit: "L", minLevel: 15, maxLevel: 80, storageArea: "DRY_STORAGE", shelfLifeDays: 180, lastCost: 1800, supplierIdx: 0 },
-  { name: "Cerveza Clara", sku: "BEB-003", category: "Bebidas", unit: "BOX", minLevel: 3, maxLevel: 20, storageArea: "DRY_STORAGE", shelfLifeDays: 180, lastCost: 24000, supplierIdx: 2 },
-  { name: "Vino Tinto", sku: "BEB-004", category: "Bebidas", unit: "UNIT", minLevel: 6, maxLevel: 30, storageArea: "DRY_STORAGE", shelfLifeDays: 730, lastCost: 15000, supplierIdx: 2 },
-  { name: "Jugo de Naranja", sku: "BEB-005", category: "Bebidas", unit: "L", minLevel: 5, maxLevel: 25, storageArea: "REFRIGERATOR", shelfLifeDays: 14, lastCost: 3200, supplierIdx: 0 },
-  { name: "Aceite Vegetal", sku: "DIS-001", category: "Diversos", unit: "L", minLevel: 5, maxLevel: 30, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 2800, supplierIdx: 0 },
-  { name: "Harina de Trigo", sku: "DIS-002", category: "Diversos", unit: "KG", minLevel: 10, maxLevel: 50, storageArea: "DRY_STORAGE", shelfLifeDays: 180, lastCost: 1500, supplierIdx: 0 },
-  { name: "Arroz Blanco", sku: "DIS-003", category: "Diversos", unit: "KG", minLevel: 10, maxLevel: 50, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 2200, supplierIdx: 0 },
-  { name: "Frijol Negro", sku: "DIS-004", category: "Diversos", unit: "KG", minLevel: 5, maxLevel: 30, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 2800, supplierIdx: 0 },
-  { name: "Huevo Blanco", sku: "DIS-005", category: "Diversos", unit: "DOZEN", minLevel: 5, maxLevel: 30, storageArea: "REFRIGERATOR", shelfLifeDays: 21, lastCost: 3500, supplierIdx: 0 },
-  { name: "Tortilla de Maíz", sku: "DIS-006", category: "Diversos", unit: "KG", minLevel: 5, maxLevel: 25, storageArea: "DRY_STORAGE", shelfLifeDays: 2, lastCost: 1600, supplierIdx: 0 },
-  { name: "Jabón Líquido", sku: "LIM-001", category: "Limpieza", unit: "L", minLevel: 2, maxLevel: 10, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 3500, supplierIdx: 5 },
-  { name: "Desinfectante", sku: "LIM-002", category: "Limpieza", unit: "L", minLevel: 2, maxLevel: 10, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 2800, supplierIdx: 5 },
-  { name: "Papel Higiénico", sku: "LIM-003", category: "Limpieza", unit: "UNIT", minLevel: 20, maxLevel: 100, storageArea: "DRY_STORAGE", shelfLifeDays: 730, lastCost: 800, supplierIdx: 5 },
-  { name: "Servilletas", sku: "DES-001", category: "Desechables", unit: "BOX", minLevel: 5, maxLevel: 30, storageArea: "DRY_STORAGE", shelfLifeDays: 730, lastCost: 4500, supplierIdx: 5 },
-];
+  { name: "Pechuga de Pollo", sku: "CAR-001", category: "Carnes", unit: "KG", minLevel: 10, maxLevel: 50, storageArea: "REFRIGERATOR", shelfLifeDays: 7, lastCost: 8500, supplierIdx: 1, taxRate: 0, iepsRate: 0 },
+  { name: "Filete de Res", sku: "CAR-002", category: "Carnes", unit: "KG", minLevel: 8, maxLevel: 40, storageArea: "REFRIGERATOR", shelfLifeDays: 10, lastCost: 19500, supplierIdx: 1, taxRate: 0, iepsRate: 0 },
+  { name: "Costilla de Cerdo", sku: "CAR-003", category: "Carnes", unit: "KG", minLevel: 5, maxLevel: 30, storageArea: "REFRIGERATOR", shelfLifeDays: 8, lastCost: 12000, supplierIdx: 1, taxRate: 0, iepsRate: 0 },
+  { name: "Carne Molida de Res", sku: "CAR-004", category: "Carnes", unit: "KG", minLevel: 5, maxLevel: 25, storageArea: "REFRIGERATOR", shelfLifeDays: 5, lastCost: 11000, supplierIdx: 1, taxRate: 0, iepsRate: 0 },
+  { name: "Salchicha para Asar", sku: "CAR-005", category: "Carnes", unit: "KG", minLevel: 3, maxLevel: 20, storageArea: "REFRIGERATOR", shelfLifeDays: 14, lastCost: 6500, supplierIdx: 1, taxRate: 0, iepsRate: 0 },
+  { name: "Leche Entera", sku: "LAC-001", category: "Lácteos", unit: "L", minLevel: 15, maxLevel: 60, storageArea: "REFRIGERATOR", shelfLifeDays: 7, lastCost: 2200, supplierIdx: 3, taxRate: 0, iepsRate: 0 },
+  { name: "Crema Ácida", sku: "LAC-002", category: "Lácteos", unit: "KG", minLevel: 3, maxLevel: 15, storageArea: "REFRIGERATOR", shelfLifeDays: 14, lastCost: 4500, supplierIdx: 3, taxRate: 0, iepsRate: 0 },
+  { name: "Queso Manchego", sku: "LAC-003", category: "Lácteos", unit: "KG", minLevel: 3, maxLevel: 15, storageArea: "REFRIGERATOR", shelfLifeDays: 30, lastCost: 14000, supplierIdx: 3, taxRate: 0, iepsRate: 0 },
+  { name: "Mantequilla", sku: "LAC-004", category: "Lácteos", unit: "KG", minLevel: 2, maxLevel: 10, storageArea: "REFRIGERATOR", shelfLifeDays: 45, lastCost: 5200, supplierIdx: 3, taxRate: 0, iepsRate: 0 },
+  { name: "Yogurt Natural", sku: "LAC-005", category: "Lácteos", unit: "KG", minLevel: 2, maxLevel: 12, storageArea: "REFRIGERATOR", shelfLifeDays: 10, lastCost: 3800, supplierIdx: 3, taxRate: 0, iepsRate: 0 },
+  { name: "Tomate Saladet", sku: "VER-001", category: "Verduras", unit: "KG", minLevel: 10, maxLevel: 40, storageArea: "DRY_STORAGE", shelfLifeDays: 5, lastCost: 2800, supplierIdx: 4, taxRate: 0, iepsRate: 0 },
+  { name: "Cebolla Blanca", sku: "VER-002", category: "Verduras", unit: "KG", minLevel: 10, maxLevel: 40, storageArea: "DRY_STORAGE", shelfLifeDays: 14, lastCost: 1800, supplierIdx: 4, taxRate: 0, iepsRate: 0 },
+  { name: "Aguacate Hass", sku: "VER-003", category: "Verduras", unit: "KG", minLevel: 5, maxLevel: 25, storageArea: "DRY_STORAGE", shelfLifeDays: 4, lastCost: 5500, supplierIdx: 4, taxRate: 0, iepsRate: 0 },
+  { name: "Lechuga Romana", sku: "VER-004", category: "Verduras", unit: "UNIT", minLevel: 10, maxLevel: 40, storageArea: "REFRIGERATOR", shelfLifeDays: 5, lastCost: 1500, supplierIdx: 4, taxRate: 0, iepsRate: 0 },
+  { name: "Limón Verde", sku: "VER-005", category: "Verduras", unit: "KG", minLevel: 5, maxLevel: 20, storageArea: "DRY_STORAGE", shelfLifeDays: 7, lastCost: 2500, supplierIdx: 4, taxRate: 0, iepsRate: 0 },
+  { name: "Agua Purificada", sku: "BEB-001", category: "Bebidas", unit: "L", minLevel: 20, maxLevel: 100, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 1000, supplierIdx: 0, taxRate: 0, iepsRate: 0 },
+  { name: "Refresco Cola", sku: "BEB-002", category: "Bebidas", unit: "L", minLevel: 15, maxLevel: 80, storageArea: "DRY_STORAGE", shelfLifeDays: 180, lastCost: 1800, supplierIdx: 0, taxRate: 16, iepsRate: 8 },
+  { name: "Cerveza Clara", sku: "BEB-003", category: "Bebidas", unit: "BOX", minLevel: 3, maxLevel: 20, storageArea: "DRY_STORAGE", shelfLifeDays: 180, lastCost: 24000, supplierIdx: 2, taxRate: 16, iepsRate: 26 },
+  { name: "Vino Tinto", sku: "BEB-004", category: "Bebidas", unit: "UNIT", minLevel: 6, maxLevel: 30, storageArea: "DRY_STORAGE", shelfLifeDays: 730, lastCost: 15000, supplierIdx: 2, taxRate: 16, iepsRate: 26 },
+  { name: "Jugo de Naranja", sku: "BEB-005", category: "Bebidas", unit: "L", minLevel: 5, maxLevel: 25, storageArea: "REFRIGERATOR", shelfLifeDays: 14, lastCost: 3200, supplierIdx: 0, taxRate: 0, iepsRate: 0 },
+  { name: "Aceite Vegetal", sku: "DIS-001", category: "Diversos", unit: "L", minLevel: 5, maxLevel: 30, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 2800, supplierIdx: 0, taxRate: 0, iepsRate: 0 },
+  { name: "Harina de Trigo", sku: "DIS-002", category: "Diversos", unit: "KG", minLevel: 10, maxLevel: 50, storageArea: "DRY_STORAGE", shelfLifeDays: 180, lastCost: 1500, supplierIdx: 0, taxRate: 0, iepsRate: 0 },
+  { name: "Arroz Blanco", sku: "DIS-003", category: "Diversos", unit: "KG", minLevel: 10, maxLevel: 50, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 2200, supplierIdx: 0, taxRate: 0, iepsRate: 0 },
+  { name: "Frijol Negro", sku: "DIS-004", category: "Diversos", unit: "KG", minLevel: 5, maxLevel: 30, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 2800, supplierIdx: 0, taxRate: 0, iepsRate: 0 },
+  { name: "Huevo Blanco", sku: "DIS-005", category: "Diversos", unit: "DOZEN", minLevel: 5, maxLevel: 30, storageArea: "REFRIGERATOR", shelfLifeDays: 21, lastCost: 3500, supplierIdx: 0, taxRate: 0, iepsRate: 0 },
+  { name: "Tortilla de Maíz", sku: "DIS-006", category: "Diversos", unit: "KG", minLevel: 5, maxLevel: 25, storageArea: "DRY_STORAGE", shelfLifeDays: 2, lastCost: 1600, supplierIdx: 0, taxRate: 0, iepsRate: 0 },
+  { name: "Jabón Líquido", sku: "LIM-001", category: "Limpieza", unit: "L", minLevel: 2, maxLevel: 10, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 3500, supplierIdx: 5, taxRate: 16, iepsRate: 0 },
+  { name: "Desinfectante", sku: "LIM-002", category: "Limpieza", unit: "L", minLevel: 2, maxLevel: 10, storageArea: "DRY_STORAGE", shelfLifeDays: 365, lastCost: 2800, supplierIdx: 5, taxRate: 16, iepsRate: 0 },
+  { name: "Papel Higiénico", sku: "LIM-003", category: "Limpieza", unit: "UNIT", minLevel: 20, maxLevel: 100, storageArea: "DRY_STORAGE", shelfLifeDays: 730, lastCost: 800, supplierIdx: 5, taxRate: 16, iepsRate: 0 },
+  { name: "Servilletas", sku: "DES-001", category: "Desechables", unit: "BOX", minLevel: 5, maxLevel: 30, storageArea: "DRY_STORAGE", shelfLifeDays: 730, lastCost: 4500, supplierIdx: 5, taxRate: 16, iepsRate: 0 },
+];;
 
 export async function main() {
   console.log("=== Phase 4: Inventory ===");
@@ -122,6 +123,8 @@ export async function main() {
     typicalShelfLifeDays: item.shelfLifeDays,
     supplierId: findSupplier(item.supplierIdx),
     lastCost: item.lastCost,
+    taxRate: item.taxRate ?? 16,
+    iepsRate: item.iepsRate ?? 0,
     active: true,
   }));
   const itemRows = await db.insert(inventoryItems).values(itemValues).returning({ id: inventoryItems.id });

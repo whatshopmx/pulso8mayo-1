@@ -11,10 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PageHeader, PageContainer, EmptyState } from "@/components/shared";
 import { useBranch } from "@/lib/branch-context";
 import { usePurchaseOrders, useCreatePurchaseOrder, useInventory, usePriceCheck } from "@/hooks/queries";
-import { Plus, FileText, Loader2, AlertTriangle } from "lucide-react";
+import { Plus, FileText, Loader2, AlertTriangle, Check, ChevronsUpDown, Search } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -186,6 +187,42 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
     { itemId: initialItemId || "", quantity: "", unitCost: "" },
   ]);
   const [priceAlerts, setPriceAlerts] = useState<Record<number, { avgCost: number; increasePercentage: number; exceedsThreshold: boolean } | null>>({});
+  const [searchQueries, setSearchQueries] = useState<Record<number, string>>({});
+  const [openPopovers, setOpenPopovers] = useState<Record<number, boolean>>({});
+
+  const calculateTotals = () => {
+    let subtotal = 0;
+    let taxAmount = 0;
+    let iepsAmount = 0;
+
+    items.forEach((item) => {
+      const qty = Number(item.quantity) || 0;
+      const cost = Number(item.unitCost) || 0;
+      const lineTotal = qty * cost;
+      
+      const product = (products as any[]).find(p => p.id === item.itemId);
+      const taxRate = product?.taxRate ?? 16;
+      const iepsRate = product?.iepsRate ?? 0;
+
+      const lineTax = lineTotal * (taxRate / 100);
+      const lineIeps = lineTotal * (iepsRate / 100);
+
+      subtotal += lineTotal;
+      taxAmount += lineTax;
+      iepsAmount += lineIeps;
+    });
+
+    const total = subtotal + taxAmount + iepsAmount;
+
+    return {
+      subtotal,
+      taxAmount,
+      iepsAmount,
+      total,
+    };
+  };
+
+  const totals = calculateTotals();
 
   useEffect(() => {
     if (open) {
@@ -249,6 +286,8 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
     setDateRequired("");
     setItems([{ itemId: "", quantity: "", unitCost: "" }]);
     setPriceAlerts({});
+    setSearchQueries({});
+    setOpenPopovers({});
   };
 
   const addItem = () => {
@@ -262,6 +301,34 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
         const next = { ...prev };
         delete next[idx];
         const shifted: typeof priceAlerts = {};
+        Object.entries(next).forEach(([k, v]) => {
+          const keyNum = Number(k);
+          if (keyNum > idx) {
+            shifted[keyNum - 1] = v;
+          } else {
+            shifted[keyNum] = v;
+          }
+        });
+        return shifted;
+      });
+      setSearchQueries(prev => {
+        const next = { ...prev };
+        delete next[idx];
+        const shifted: typeof searchQueries = {};
+        Object.entries(next).forEach(([k, v]) => {
+          const keyNum = Number(k);
+          if (keyNum > idx) {
+            shifted[keyNum - 1] = v;
+          } else {
+            shifted[keyNum] = v;
+          }
+        });
+        return shifted;
+      });
+      setOpenPopovers(prev => {
+        const next = { ...prev };
+        delete next[idx];
+        const shifted: typeof openPopovers = {};
         Object.entries(next).forEach(([k, v]) => {
           const keyNum = Number(k);
           if (keyNum > idx) {
@@ -374,16 +441,73 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
                 <div className="grid grid-cols-12 gap-2 items-end">
                   <div className="col-span-5">
                     <Label className="text-xs">{idx === 0 ? "Producto" : ""}</Label>
-                    <Select value={item.itemId} onValueChange={(v) => updateItem(idx, "itemId", v)}>
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue placeholder="Seleccionar..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(products as Array<{ id: string; name: string }>).map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {(() => {
+                      const selectedProduct = (products as Array<{ id: string; name: string }>).find(p => p.id === item.itemId);
+                      const query = (searchQueries[idx] || "").toLowerCase();
+                      const filteredProducts = (products as Array<{ id: string; name: string }>).filter(p => 
+                        p.name.toLowerCase().includes(query)
+                      );
+                      
+                      return (
+                        <Popover 
+                          open={openPopovers[idx] || false} 
+                          onOpenChange={(open) => setOpenPopovers(prev => ({ ...prev, [idx]: open }))}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={openPopovers[idx]}
+                              className="w-full justify-between h-8 text-sm px-2 font-normal border-input bg-background"
+                            >
+                              <span className="truncate">{selectedProduct ? selectedProduct.name : "Seleccionar..."}</span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 p-2 z-50 bg-popover border shadow-md rounded-md" align="start">
+                            <div className="flex items-center border-b pb-2 mb-2 px-1 gap-2">
+                              <Search className="h-4 w-4 shrink-0 opacity-50" />
+                              <input
+                                placeholder="Buscar producto..."
+                                className="flex h-8 w-full rounded-md bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                                value={searchQueries[idx] || ""}
+                                onChange={(e) => setSearchQueries(prev => ({ ...prev, [idx]: e.target.value }))}
+                              />
+                            </div>
+                            <div className="max-h-60 overflow-y-auto space-y-0.5">
+                              {filteredProducts.length === 0 ? (
+                                <p className="text-xs text-muted-foreground p-2 text-center">No se encontraron productos</p>
+                              ) : (
+                                filteredProducts.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    className={cn(
+                                      "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none hover:bg-accent hover:text-accent-foreground text-left transition-colors",
+                                      item.itemId === p.id && "bg-accent/50 font-medium"
+                                    )}
+                                    onClick={() => {
+                                      const costInCents = (p as any).lastCost ?? (p as any).averageCost;
+                                      const costPesos = costInCents !== undefined && costInCents !== null ? (costInCents / 100).toFixed(2) : "";
+                                      
+                                      const updatedItems = items.map((itm, i) => i === idx ? { ...itm, itemId: p.id, unitCost: costPesos } : itm);
+                                      setItems(updatedItems);
+                                      
+                                      handlePriceCheck(idx, p.id, costPesos);
+                                      setOpenPopovers(prev => ({ ...prev, [idx]: false }));
+                                      setSearchQueries(prev => ({ ...prev, [idx]: "" }));
+                                    }}
+                                  >
+                                    <Check className={cn("mr-2 h-3 w-3 shrink-0", item.itemId === p.id ? "opacity-100" : "opacity-0")} />
+                                    <span className="truncate">{p.name}</span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      );
+                    })()}
                   </div>
                   <div className="col-span-2">
                     <Label className="text-xs">{idx === 0 ? "Cantidad" : ""}</Label>
@@ -438,6 +562,30 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
                 )}
               </div>
             ))}
+          </div>
+          
+          {/* Summary section */}
+          <div className="border-t pt-3 mt-4 space-y-1.5 text-sm">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Subtotal</span>
+              <span className="font-mono">{formatCurrency(Math.round(totals.subtotal * 100))}</span>
+            </div>
+            {totals.taxAmount > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>IVA Detallado</span>
+                <span className="font-mono">{formatCurrency(Math.round(totals.taxAmount * 100))}</span>
+              </div>
+            )}
+            {totals.iepsAmount > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>IEPS Detallado</span>
+                <span className="font-mono">{formatCurrency(Math.round(totals.iepsAmount * 100))}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-semibold text-base border-t pt-1.5">
+              <span>Total Estimado</span>
+              <span className="font-mono text-emerald-700">{formatCurrency(Math.round(totals.total * 100))}</span>
+            </div>
           </div>
         </div>
 

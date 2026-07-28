@@ -687,12 +687,17 @@ export const inventoryItems = pgTable("inventory_items", {
     supplierId: uuid("supplier_id"), // Preferred Supplier
     lastCost: integer("last_cost"), // Unit cost in cents/decimals
     photoUrl: text("photo_url"),
+    brand: text("brand"),
+    presentation: text("presentation"),
+    standardCost: integer("standard_cost"),
 
     // Average costing
     averageCost: integer("average_cost"), // Weighted average cost in cents
     averageCostUpdatedAt: timestamp("average_cost_updated_at"),
 
     yieldPercent: integer("yield_percent").default(100), // 0-100, e.g., 84 = 84% yield
+    taxRate: integer("tax_rate").default(16).notNull(),
+    iepsRate: integer("ieps_rate").default(0).notNull(),
 
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
@@ -839,6 +844,7 @@ export const purchaseOrders = pgTable("purchase_orders", {
     expectedDeliveryDate: timestamp("expected_delivery_date"),
     subtotal: integer("subtotal"),
     taxAmount: integer("tax_amount"),
+    iepsAmount: integer("ieps_amount").default(0).notNull(),
     totalAmount: integer("total_amount"),
     currency: text("currency").default('MXN'),
     notes: text("notes"),
@@ -859,6 +865,10 @@ export const purchaseOrderItems = pgTable("purchase_order_items", {
     receivedQuantity: integer("received_quantity").default(0),
     unitCost: integer("unit_cost").notNull(),
     lineTotal: integer("line_total"),
+    taxRate: integer("tax_rate").default(16).notNull(),
+    taxAmount: integer("tax_amount").default(0).notNull(),
+    iepsRate: integer("ieps_rate").default(0).notNull(),
+    iepsAmount: integer("ieps_amount").default(0).notNull(),
     status: purchaseOrderItemStatusEnum("status").default('PENDING').notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -2452,3 +2462,18 @@ export const inventoryPeriods = pgTable("inventory_periods", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const supplierItems = pgTable("supplier_items", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    supplierId: uuid("supplier_id").notNull().references(() => suppliers.id),
+    itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
+    supplierSku: text("supplier_sku"),
+    price: integer("price"),
+    presentation: text("presentation"),
+    leadTimeDays: integer("lead_time_days").default(3),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    supplierItemUnique: uniqueIndex("supplier_item_unique").on(table.supplierId, table.itemId),
+}));

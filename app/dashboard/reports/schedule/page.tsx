@@ -17,6 +17,7 @@ import {
 import { Calendar, ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { PageHeader, PageContainer } from "@/components/shared";
 
 const REPORT_TYPES = [
   { id: "workflow-summary", name: "Resumen de Workflows", category: "WORKFLOWS" },
@@ -144,20 +145,20 @@ export default function ScheduleReportPage() {
   };
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/reports">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Programar Reporte</h1>
-          <p className="text-muted-foreground mt-1">
-            Configura un reporte automático con entrega periódica
-          </p>
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Programar Reporte"
+        description="Configura un reporte automático con entrega periódica"
+        icon={Calendar}
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/dashboard/reports">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Regresar
+            </Link>
+          </Button>
+        }
+      />
 
       <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
         <Card>
@@ -393,6 +394,6 @@ export default function ScheduleReportPage() {
           </Button>
         </div>
       </form>
-    </div>
+    </PageContainer>
   );
 }

@@ -307,6 +307,10 @@ export async function main() {
   await db.delete(holidays).where(eq(holidays.companyId, COMPANY_ID));
   await db.delete(branches).where(eq(branches.companyId, COMPANY_ID));
   await db.delete(serviceProviders).where(eq(serviceProviders.companyId, COMPANY_ID));
+  try {
+    await db.execute(sql`DELETE FROM "sessions"`);
+    await db.execute(sql`DELETE FROM "session"`);
+  } catch (e) {}
   await db.delete(users).where(eq(users.companyId, COMPANY_ID));
   await db.delete(companies).where(eq(companies.id, COMPANY_ID));
 

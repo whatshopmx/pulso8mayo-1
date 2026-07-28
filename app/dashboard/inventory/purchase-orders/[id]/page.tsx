@@ -172,6 +172,8 @@ export default function PODetailPage() {
                   <TableHead className="text-right">Cantidad</TableHead>
                   <TableHead className="text-right">Recibido</TableHead>
                   <TableHead className="text-right">Costo Unit.</TableHead>
+                  <TableHead className="text-right">IVA</TableHead>
+                  <TableHead className="text-right">IEPS</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -184,6 +186,8 @@ export default function PODetailPage() {
                     <TableCell className="text-right tabular-nums">{item.orderedQuantity as number}</TableCell>
                     <TableCell className="text-right tabular-nums">{(item.receivedQuantity as number) || 0}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatCurrency(item.unitCost as number)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground text-xs">{item.taxRate !== undefined && item.taxRate !== null ? `${item.taxRate}%` : "16%"}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground text-xs">{item.iepsRate !== undefined && item.iepsRate !== null ? `${item.iepsRate}%` : "0%"}</TableCell>
                     <TableCell className="text-right tabular-nums font-medium">{formatCurrency(item.lineTotal as number)}</TableCell>
                   </TableRow>
                 ))}
@@ -198,12 +202,18 @@ export default function PODetailPage() {
                 <span className="tabular-nums">{formatCurrency(po.subtotal)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">IVA (16%)</span>
+                <span className="text-muted-foreground">IVA Detallado</span>
                 <span className="tabular-nums">{formatCurrency(po.taxAmount)}</span>
               </div>
-              <div className="flex justify-between font-semibold text-base pt-1 border-t">
+              {(po.iepsAmount !== undefined && po.iepsAmount !== null && (po.iepsAmount as number) > 0) && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">IEPS Detallado</span>
+                  <span className="tabular-nums">{formatCurrency(po.iepsAmount as number)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-semibold text-base pt-1.5 border-t">
                 <span>Total</span>
-                <span className="tabular-nums">{formatCurrency(po.totalAmount)}</span>
+                <span className="tabular-nums text-emerald-700">{formatCurrency(po.totalAmount)}</span>
               </div>
             </div>
           </CardContent>
@@ -254,12 +264,19 @@ export default function PODetailPage() {
             </CardContent>
           </Card>
 
-          {availableActions.length > 0 && (
+          {(availableActions.length > 0 || ['SENT', 'PARTIALLY_RECEIVED'].includes(po.status as string)) && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Acciones</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
+                {['SENT', 'PARTIALLY_RECEIVED'].includes(po.status as string) && (
+                  <Link href={`/dashboard/inventory/receiving?poId=${po.id}`} className="w-full mb-1">
+                    <Button variant="default" size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium">
+                      Registrar Recepción
+                    </Button>
+                  </Link>
+                )}
                 {availableActions.map((action) => (
                   <Button
                     key={action.action}

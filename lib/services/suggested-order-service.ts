@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { inventoryItems, inventoryBatches, inventoryMovements, inventoryKnowledgeGraph } from "@/lib/db/schema";
+import { inventoryItems, inventoryBatches, inventoryMovements, inventoryKnowledgeGraph, suppliers } from "@/lib/db/schema";
 import { eq, and, sql, gte, inArray } from "drizzle-orm";
 import { PurchaseOrderService } from "./purchase-order-service";
 
@@ -14,12 +14,24 @@ interface SuggestedItem {
   avgDailyConsumption: number;
   reorderPoint: number;
   suggestedQty: number;
+  supplierId: string | null;
+  supplierName: string | null;
 }
 
 export class SuggestedOrderService {
   static async calculate(companyId: string, branchId: string): Promise<SuggestedItem[]> {
-    const items = await db.select()
+    const items = await db.select({
+      id: inventoryItems.id,
+      name: inventoryItems.name,
+      sku: inventoryItems.sku,
+      minLevel: inventoryItems.minLevel,
+      maxLevel: inventoryItems.maxLevel,
+      leadTimeDays: inventoryItems.leadTimeDays,
+      supplierId: inventoryItems.supplierId,
+      supplierName: suppliers.name,
+    })
       .from(inventoryItems)
+      .leftJoin(suppliers, eq(inventoryItems.supplierId, suppliers.id))
       .where(
         and(
           eq(inventoryItems.companyId, companyId),
@@ -56,6 +68,8 @@ export class SuggestedOrderService {
         avgDailyConsumption,
         reorderPoint,
         suggestedQty,
+        supplierId: item.supplierId,
+        supplierName: item.supplierName,
       });
     }
 

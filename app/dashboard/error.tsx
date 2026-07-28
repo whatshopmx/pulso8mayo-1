@@ -25,7 +25,7 @@ export default function DashboardError({
           </div>
           <CardTitle>Algo salió mal</CardTitle>
           <CardDescription>
-            Ocurrió un error inesperado al cargar esta página. Podés intentar de nuevo.
+            Ocurrió un error inesperado al cargar esta página. Puedes intentar de nuevo.
           </CardDescription>
         </CardHeader>
         <CardFooter className="justify-center">

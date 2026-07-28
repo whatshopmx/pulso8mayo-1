@@ -23,6 +23,7 @@ import {
     ClipboardList,
     Shield,
     Search,
+    Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -367,7 +368,7 @@ export default function ReportsPage() {
                                                                 }
                                                             >
                                                                 {generating === report.id ? (
-                                                                    <Calendar className="h-4 w-4 animate-spin" />
+                                                                    <Loader2 className="h-4 w-4 animate-spin" />
                                                                 ) : (
                                                                     <>
                                                                         <Download className="h-4 w-4 mr-1" />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { ReceivingWorkflow } from "@/components/inventory/receiving-workflow";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,9 @@ interface ReceivingRecord {
 }
 
 export default function ReceivingPage() {
+    const searchParams = useSearchParams();
+    const poId = searchParams.get("poId") || undefined;
+
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [items, setItems] = useState<InventoryItem[]>([]);
     const [receivings, setReceivings] = useState<ReceivingRecord[]>([]);
@@ -136,6 +140,7 @@ export default function ReceivingPage() {
                                 suppliers={suppliers}
                                 items={items}
                                 onComplete={handleReceivingComplete}
+                                initialPOId={poId}
                             />
                         </CardContent>
                     </Card>

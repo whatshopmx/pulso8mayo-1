@@ -21,6 +21,9 @@ const updateProductSchema = z.object({
   supplierId: z.string().uuid().optional(),
   lastCost: z.number().optional(),
   active: z.boolean().optional(),
+  brand: z.string().optional(),
+  presentation: z.string().optional(),
+  standardCost: z.number().optional(),
 });
 
 export async function GET(

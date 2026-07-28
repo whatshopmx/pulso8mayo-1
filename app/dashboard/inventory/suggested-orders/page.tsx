@@ -29,6 +29,8 @@ interface SuggestedItem {
   avgDailyConsumption: number;
   reorderPoint: number;
   suggestedQty: number;
+  supplierId?: string | null;
+  supplierName?: string | null;
 }
 
 export default function SuggestedOrdersPage() {
@@ -55,6 +57,18 @@ export default function SuggestedOrdersPage() {
     fetchSuggestions();
   }, [fetchSuggestions]);
 
+  const groupedSuggestions = React.useMemo(() => {
+    const groups: Record<string, SuggestedItem[]> = {};
+    suggestions.forEach(item => {
+      const supplier = item.supplierName || "Sin Proveedor";
+      if (!groups[supplier]) {
+        groups[supplier] = [];
+      }
+      groups[supplier].push(item);
+    });
+    return groups;
+  }, [suggestions]);
+
   const toggleItem = (itemId: string) => {
     const next = new Set(selectedIds);
     if (next.has(itemId)) {
@@ -71,6 +85,19 @@ export default function SuggestedOrdersPage() {
     } else {
       setSelectedIds(new Set(suggestions.map(s => s.itemId)));
     }
+  };
+
+  const toggleSupplierGroup = (supplierName: string, groupItems: SuggestedItem[]) => {
+    const next = new Set(selectedIds);
+    const itemIds = groupItems.map(i => i.itemId);
+    const allSelected = itemIds.every(id => next.has(id));
+
+    if (allSelected) {
+      itemIds.forEach(id => next.delete(id));
+    } else {
+      itemIds.forEach(id => next.add(id));
+    }
+    setSelectedIds(next);
   };
 
   const createPurchaseOrders = async () => {
@@ -130,14 +157,28 @@ export default function SuggestedOrdersPage() {
       </PageHeader>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Artículos por reordenar
-          </CardTitle>
-          <CardDescription>
-            Basado en niveles PAR, consumo promedio y lead time de proveedores
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Artículos por reordenar
+            </CardTitle>
+            <CardDescription>
+              Basado en niveles PAR, consumo promedio y lead time de proveedores
+            </CardDescription>
+          </div>
+          {!loading && suggestions.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 border rounded-md bg-muted/30">
+              <Checkbox
+                id="select-all-suggestions"
+                checked={selectedIds.size === suggestions.length && suggestions.length > 0}
+                onCheckedChange={toggleAll}
+              />
+              <label htmlFor="select-all-suggestions" className="text-xs font-medium cursor-pointer select-none">
+                Seleccionar todo ({suggestions.length})
+              </label>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -151,57 +192,79 @@ export default function SuggestedOrdersPage() {
               description="No hay artículos que necesiten reorden en este momento"
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={selectedIds.size === suggestions.length && suggestions.length > 0}
-                      onCheckedChange={toggleAll}
-                    />
-                  </TableHead>
-                  <TableHead>Artículo</TableHead>
-                  <TableHead className="text-right">Stock Actual</TableHead>
-                  <TableHead className="text-right">Min</TableHead>
-                  <TableHead className="text-right">Max</TableHead>
-                  <TableHead className="text-right">Consumo Prom.</TableHead>
-                  <TableHead className="text-right">Lead Time</TableHead>
-                  <TableHead className="text-right">Punto Reorden</TableHead>
-                  <TableHead className="text-right font-bold">Sugerido</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {suggestions.map((item) => (
-                  <TableRow key={item.itemId}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.has(item.itemId)}
-                        onCheckedChange={() => toggleItem(item.itemId)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{item.itemName}</div>
-                      {item.sku && (
-                        <div className="text-xs text-muted-foreground">{item.sku}</div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant={item.currentStock <= item.minLevel ? "destructive" : "secondary"}>
-                        {item.currentStock}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{item.minLevel}</TableCell>
-                    <TableCell className="text-right">{item.maxLevel ?? "—"}</TableCell>
-                    <TableCell className="text-right">{item.avgDailyConsumption}</TableCell>
-                    <TableCell className="text-right">{item.leadTimeDays}d</TableCell>
-                    <TableCell className="text-right">{item.reorderPoint}</TableCell>
-                    <TableCell className="text-right font-bold text-lg">
-                      {item.suggestedQty}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="space-y-8">
+              {Object.entries(groupedSuggestions).map(([supplierName, groupItems]) => {
+                const groupItemIds = groupItems.map(i => i.itemId);
+                const allGroupSelected = groupItemIds.every(id => selectedIds.has(id));
+                const someGroupSelected = groupItemIds.some(id => selectedIds.has(id)) && !allGroupSelected;
+
+                return (
+                  <div key={supplierName} className="border rounded-md overflow-hidden bg-card text-card-foreground shadow-sm">
+                    {/* Supplier Group Header */}
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-muted/40 border-b">
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={allGroupSelected ? true : someGroupSelected ? "indeterminate" : false}
+                          onCheckedChange={() => toggleSupplierGroup(supplierName, groupItems)}
+                        />
+                        <span className="font-semibold text-sm">{supplierName}</span>
+                        <Badge variant="outline" className="text-xs bg-background/50">
+                          {groupItems.length} {groupItems.length === 1 ? "artículo" : "artículos"}
+                        </Badge>
+                      </div>
+                    </div>
+                    
+                    {/* Supplier Items Table */}
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10"></TableHead>
+                          <TableHead>Artículo</TableHead>
+                          <TableHead className="text-right">Stock Actual</TableHead>
+                          <TableHead className="text-right">Min</TableHead>
+                          <TableHead className="text-right">Max</TableHead>
+                          <TableHead className="text-right">Consumo Prom.</TableHead>
+                          <TableHead className="text-right">Lead Time</TableHead>
+                          <TableHead className="text-right">Punto Reorden</TableHead>
+                          <TableHead className="text-right font-bold">Sugerido</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {groupItems.map((item) => (
+                          <TableRow key={item.itemId}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedIds.has(item.itemId)}
+                                onCheckedChange={() => toggleItem(item.itemId)}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium text-sm">{item.itemName}</div>
+                              {item.sku && (
+                                <div className="text-xs text-muted-foreground">{item.sku}</div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant={item.currentStock <= item.minLevel ? "destructive" : "secondary"}>
+                                {item.currentStock}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right text-sm">{item.minLevel}</TableCell>
+                            <TableCell className="text-right text-sm">{item.maxLevel ?? "—"}</TableCell>
+                            <TableCell className="text-right text-sm">{item.avgDailyConsumption}</TableCell>
+                            <TableCell className="text-right text-sm">{item.leadTimeDays}d</TableCell>
+                            <TableCell className="text-right text-sm">{item.reorderPoint}</TableCell>
+                            <TableCell className="text-right font-bold text-base">
+                              {item.suggestedQty}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>

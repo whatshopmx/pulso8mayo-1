@@ -31,6 +31,9 @@ interface ProductDetails {
   allergenInfo: string | null;
   typicalShelfLifeDays: number | null;
   totalStock: number;
+  brand: string | null;
+  presentation: string | null;
+  standardCost: number | null;
 }
 
 interface ProductDetailDrawerProps {
@@ -80,6 +83,37 @@ export function ProductDetailDrawer({ productId, branchId, open, onOpenChange }:
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-lg w-full flex flex-col gap-6 overflow-y-auto bg-background p-6">
+        <SheetHeader className={loading || !product ? "sr-only" : "p-0"}>
+          {loading ? (
+            <>
+              <SheetTitle>Cargando detalles...</SheetTitle>
+              <SheetDescription>Cargando información del producto</SheetDescription>
+            </>
+          ) : product ? (
+            <>
+              <div className="flex items-center gap-2">
+                <Badge variant={product.totalStock < (product.minLevel || 0) ? "destructive" : "secondary"}>
+                  {product.totalStock < (product.minLevel || 0) ? "Bajo Stock" : "Stock OK"}
+                </Badge>
+                {product.category && (
+                  <Badge variant="outline" className="capitalize">
+                    {product.category}
+                  </Badge>
+                )}
+              </div>
+              <SheetTitle className="text-xl mt-2">{product.name}</SheetTitle>
+              <SheetDescription className="font-mono text-xs">
+                SKU: {product.sku || "N/A"}
+              </SheetDescription>
+            </>
+          ) : (
+            <>
+              <SheetTitle>Error</SheetTitle>
+              <SheetDescription>No se pudo cargar el producto</SheetDescription>
+            </>
+          )}
+        </SheetHeader>
+
         {loading ? (
           <div className="space-y-6" aria-busy="true" aria-label="Cargando producto">
             <div className="space-y-3">
@@ -98,29 +132,11 @@ export function ProductDetailDrawer({ productId, branchId, open, onOpenChange }:
             <div className="space-y-2">
               <Skeleton className="h-4 w-40" />
               <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
             </div>
           </div>
         ) : product ? (
           <>
-            <SheetHeader className="p-0">
-              <div className="flex items-center gap-2">
-                <Badge variant={product.totalStock < (product.minLevel || 0) ? "destructive" : "secondary"}>
-                  {product.totalStock < (product.minLevel || 0) ? "Bajo Stock" : "Stock OK"}
-                </Badge>
-                {product.category && (
-                  <Badge variant="outline" className="capitalize">
-                    {product.category}
-                  </Badge>
-                )}
-              </div>
-              <SheetTitle className="text-xl mt-2">{product.name}</SheetTitle>
-              <SheetDescription className="font-mono text-xs">
-                SKU: {product.sku || "N/A"}
-              </SheetDescription>
-            </SheetHeader>
-
-            <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-lg border">
+            <div className="grid grid-cols-3 gap-4 bg-muted/20 p-4 rounded-lg border">
               <div>
                 <span className="text-xs text-muted-foreground block">Stock Actual</span>
                 <span className="text-2xl font-bold font-mono">
@@ -131,6 +147,12 @@ export function ProductDetailDrawer({ productId, branchId, open, onOpenChange }:
                 <span className="text-xs text-muted-foreground block">Último Costo</span>
                 <span className="text-2xl font-bold font-mono">
                   ${product.lastCost ? (product.lastCost / 100).toFixed(2) : "0.00"}
+                </span>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground block">Costo Estándar</span>
+                <span className="text-2xl font-bold font-mono">
+                  ${product.standardCost ? (product.standardCost / 100).toFixed(2) : "0.00"}
                 </span>
               </div>
             </div>
@@ -147,6 +169,16 @@ export function ProductDetailDrawer({ productId, branchId, open, onOpenChange }:
                 <div>
                   <dt className="text-muted-foreground text-xs">Stock Máximo</dt>
                   <dd className="font-medium font-mono">{product.maxLevel || "N/A"}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground text-xs">Marca</dt>
+                  <dd className="font-medium">{product.brand || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground text-xs">Presentación</dt>
+                  <dd className="font-medium truncate" title={product.presentation || "—"}>
+                    {product.presentation || "—"}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground text-xs">Vida Útil</dt>

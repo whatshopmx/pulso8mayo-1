@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { purchaseOrders, purchaseOrderItems, requisitions, requisitionItems, suppliers, branches, inventoryBatches, inventoryItems, companies } from "@/lib/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { AuditService } from "./audit-service";
 
 type POStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SENT' | 'PARTIALLY_RECEIVED' | 'CLOSED' | 'CANCELLED';
@@ -166,13 +166,47 @@ export class PurchaseOrderService {
     const tx = db;
     const poNumber = await this.generatePONumber(data.companyId);
 
-    // Fetch company taxRate
-    const company = await tx.query.companies.findFirst({
-      where: eq(companies.id, data.companyId),
-    });
-    const taxRate = (company?.taxRate ?? 16) / 100;
+    // Fetch product details for tax rates
+    const itemIds = data.items.map(i => i.itemId);
+    const dbItems = itemIds.length > 0 ? await tx.select({
+      id: inventoryItems.id,
+      taxRate: inventoryItems.taxRate,
+      iepsRate: inventoryItems.iepsRate,
+    })
+      .from(inventoryItems)
+      .where(inArray(inventoryItems.id, itemIds)) : [];
 
-    const itemsTotal = data.items.reduce((sum, item) => sum + (item.orderedQuantity * item.unitCost), 0);
+    const dbItemsMap = new Map(dbItems.map(i => [i.id, i]));
+
+    let totalSubtotal = 0;
+    let totalTaxAmount = 0;
+    let totalIepsAmount = 0;
+
+    const processedItems = data.items.map(item => {
+      const dbItem = dbItemsMap.get(item.itemId);
+      const itemTaxRate = dbItem?.taxRate ?? 16;
+      const itemIepsRate = dbItem?.iepsRate ?? 0;
+
+      const lineTotal = item.orderedQuantity * item.unitCost;
+      const lineTax = Math.round(lineTotal * (itemTaxRate / 100));
+      const lineIeps = Math.round(lineTotal * (itemIepsRate / 100));
+
+      totalSubtotal += lineTotal;
+      totalTaxAmount += lineTax;
+      totalIepsAmount += lineIeps;
+
+      return {
+        itemId: item.itemId,
+        orderedQuantity: item.orderedQuantity,
+        unitCost: item.unitCost,
+        lineTotal,
+        taxRate: itemTaxRate,
+        taxAmount: lineTax,
+        iepsRate: itemIepsRate,
+        iepsAmount: lineIeps,
+        notes: item.notes,
+      };
+    });
 
     const [po] = await tx.insert(purchaseOrders).values({
       companyId: data.companyId,
@@ -185,17 +219,15 @@ export class PurchaseOrderService {
       expectedDeliveryDate: data.expectedDeliveryDate,
       notes: data.notes,
       termsConditions: data.termsConditions,
-      subtotal: itemsTotal,
-      taxAmount: Math.round(itemsTotal * taxRate),
-      totalAmount: Math.round(itemsTotal * (1 + taxRate)),
+      subtotal: totalSubtotal,
+      taxAmount: totalTaxAmount,
+      iepsAmount: totalIepsAmount,
+      totalAmount: totalSubtotal + totalTaxAmount + totalIepsAmount,
     }).returning();
 
-    const itemsData = data.items.map(item => ({
+    const itemsData = processedItems.map(item => ({
       poId: po.id,
-      itemId: item.itemId,
-      orderedQuantity: item.orderedQuantity,
-      unitCost: item.unitCost,
-      lineTotal: item.orderedQuantity * item.unitCost,
+      ...item,
     }));
 
     const items = await tx.insert(purchaseOrderItems).values(itemsData).returning();
@@ -321,29 +353,57 @@ export class PurchaseOrderService {
     await tx.delete(purchaseOrderItems)
       .where(eq(purchaseOrderItems.poId, poId));
 
-    const itemsData = items.map(item => ({
-      poId,
-      itemId: item.itemId,
-      orderedQuantity: item.orderedQuantity,
-      unitCost: item.unitCost,
-      lineTotal: item.orderedQuantity * item.unitCost,
-      notes: item.notes,
-    }));
+    // Fetch product details for tax rates
+    const itemIds = items.map(i => i.itemId);
+    const dbItems = itemIds.length > 0 ? await tx.select({
+      id: inventoryItems.id,
+      taxRate: inventoryItems.taxRate,
+      iepsRate: inventoryItems.iepsRate,
+    })
+      .from(inventoryItems)
+      .where(inArray(inventoryItems.id, itemIds)) : [];
+
+    const dbItemsMap = new Map(dbItems.map(i => [i.id, i]));
+
+    let totalSubtotal = 0;
+    let totalTaxAmount = 0;
+    let totalIepsAmount = 0;
+
+    const itemsData = items.map(item => {
+      const dbItem = dbItemsMap.get(item.itemId);
+      const itemTaxRate = dbItem?.taxRate ?? 16;
+      const itemIepsRate = dbItem?.iepsRate ?? 0;
+
+      const lineTotal = item.orderedQuantity * item.unitCost;
+      const lineTax = Math.round(lineTotal * (itemTaxRate / 100));
+      const lineIeps = Math.round(lineTotal * (itemIepsRate / 100));
+
+      totalSubtotal += lineTotal;
+      totalTaxAmount += lineTax;
+      totalIepsAmount += lineIeps;
+
+      return {
+        poId,
+        itemId: item.itemId,
+        orderedQuantity: item.orderedQuantity,
+        unitCost: item.unitCost,
+        lineTotal,
+        taxRate: itemTaxRate,
+        taxAmount: lineTax,
+        iepsRate: itemIepsRate,
+        iepsAmount: lineIeps,
+        notes: item.notes,
+      };
+    });
 
     const newItems = await tx.insert(purchaseOrderItems).values(itemsData).returning();
 
-    const itemsTotal = itemsData.reduce((sum, i) => sum + (i.lineTotal || 0), 0);
-
-    const company = await tx.query.companies.findFirst({
-      where: eq(companies.id, po.companyId),
-    });
-    const taxRate = (company?.taxRate ?? 16) / 100;
-
     await tx.update(purchaseOrders)
       .set({
-        subtotal: itemsTotal,
-        taxAmount: Math.round(itemsTotal * taxRate),
-        totalAmount: Math.round(itemsTotal * (1 + taxRate)),
+        subtotal: totalSubtotal,
+        taxAmount: totalTaxAmount,
+        iepsAmount: totalIepsAmount,
+        totalAmount: totalSubtotal + totalTaxAmount + totalIepsAmount,
         updatedAt: new Date(),
       })
       .where(eq(purchaseOrders.id, poId));

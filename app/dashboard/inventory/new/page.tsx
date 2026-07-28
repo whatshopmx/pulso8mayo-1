@@ -31,6 +31,9 @@ const productSchema = z.object({
   shelfLife: z.coerce.number().min(0),
   storage: z.string(),
   allergenInfo: z.string(),
+  brand: z.string().optional(),
+  presentation: z.string().optional(),
+  standardCost: z.coerce.number().min(0).optional(),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -57,6 +60,9 @@ export default function NewProductPage() {
       shelfLife: 0,
       storage: "",
       allergenInfo: "",
+      brand: "",
+      presentation: "",
+      standardCost: 0,
     },
   });
 
@@ -88,6 +94,9 @@ export default function NewProductPage() {
     if (data.shelfLife > 0) body.typicalShelfLifeDays = data.shelfLife;
     if (data.storage) body.storageRequirements = data.storage;
     if (data.allergenInfo) body.allergenInfo = data.allergenInfo;
+    if (data.brand) body.brand = data.brand.trim();
+    if (data.presentation) body.presentation = data.presentation.trim();
+    if (data.standardCost && data.standardCost > 0) body.standardCost = Math.round(Number(data.standardCost) * 100);
     if (formPhotoUrl) body.photoUrl = formPhotoUrl;
 
     createProduct.mutate(body, {
@@ -292,6 +301,35 @@ export default function NewProductPage() {
                 />
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="brand"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Marca</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ej: Sello Rojo" className="min-h-[44px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="presentation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Presentación</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ej: Envase de 1L, Caja de 10 kg" className="min-h-[44px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={form.control}
                 name="allergenInfo"
@@ -320,7 +358,7 @@ export default function NewProductPage() {
               <CardDescription>Opcional — ayuda a las sugerencias de compra</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="supplierId"
@@ -361,7 +399,20 @@ export default function NewProductPage() {
                   name="lastCost"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Costo unitario</FormLabel>
+                      <FormLabel>Último costo de compra</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" min="0" placeholder="0.00" className="min-h-[44px]" {...field} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : 0)} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="standardCost"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Costo estándar</FormLabel>
                       <FormControl>
                         <Input type="number" step="0.01" min="0" placeholder="0.00" className="min-h-[44px]" {...field} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : 0)} />
                       </FormControl>
