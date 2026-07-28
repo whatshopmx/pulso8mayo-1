@@ -22,6 +22,7 @@ import { DashboardKpis } from "@/components/inventory/dashboard-kpis";
 import { DashboardCharts } from "@/components/inventory/dashboard-charts";
 import { QuickAlerts } from "@/components/inventory/quick-alerts";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProductDetailDrawer } from "@/components/inventory/product-detail-drawer";
 
@@ -107,10 +108,21 @@ export default function InventoryPage() {
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const { selectedBranchId, selectedBranch } = useBranch();
+  const { branches } = useBranch();
 
-  const { data: products = [], isLoading: loading, isError: productsError, refetch: refetchProducts } = useInventory(selectedBranchId || undefined);
-  const { data: dashboardData, isLoading: dashboardLoading, isError: dashboardError, refetch: refetchDashboard } = useDashboard(selectedBranchId || undefined);
+  // Local branch filter: "all" = tenant-level rollup (the Mariana morning
+  // brief); a specific branchId = single-branch view. Default to "all" for
+  // multi-branch users; single-branch users default to their branch and the
+  // filter is hidden. Follows the executive-dashboard precedent.
+  const isMultiBranch = branches.length > 1;
+  const [branchFilter, setBranchFilter] = useState<string>(
+    isMultiBranch ? "all" : (branches[0]?.id ?? "all"),
+  );
+  const activeBranchId = branchFilter === "all" ? undefined : branchFilter;
+  const activeBranch = branches.find((b) => b.id === branchFilter) ?? null;
+
+  const { data: products = [], isLoading: loading, isError: productsError, refetch: refetchProducts } = useInventory(activeBranchId);
+  const { data: dashboardData, isLoading: dashboardLoading, isError: dashboardError, refetch: refetchDashboard } = useDashboard(activeBranchId);
 
   const filteredProducts = products.filter((product) => {
     if (!searchQuery.trim()) return true;
@@ -139,13 +151,28 @@ export default function InventoryPage() {
         title="Gestión de Inventario"
         description="Panel operativo y control de stock"
         icon={Package}
-        branchName={selectedBranch?.name}
+        branchName={activeBranch?.name}
         actions={
-          <Button asChild size="sm">
-            <Link href="/dashboard/inventory/new">
-              <Plus className="mr-2 h-4 w-4" /> Agregar Producto
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {isMultiBranch && (
+              <Select value={branchFilter} onValueChange={setBranchFilter}>
+                <SelectTrigger className="w-44 h-9">
+                  <SelectValue placeholder="Sucursal" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las sucursales</SelectItem>
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button asChild size="sm">
+              <Link href="/dashboard/inventory/new">
+                <Plus className="mr-2 h-4 w-4" /> Agregar Producto
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -211,7 +238,7 @@ export default function InventoryPage() {
                 <CardTitle>Productos en Almacén</CardTitle>
                 <CardDescription>
                   Consulta el catálogo de insumos
-                  {selectedBranch && ` para ${selectedBranch.name}`}
+                  {activeBranch && ` para ${activeBranch.name}`}
                 </CardDescription>
               </div>
             </div>
@@ -312,7 +339,7 @@ export default function InventoryPage() {
                               <Package className="h-4 w-4 text-muted-foreground shrink-0" />
                             )}
                             <span>{product.name}</span>
-                            {product.isLowStock && selectedBranchId && (
+                            {product.isLowStock && activeBranchId && (
                               <Badge variant="warning" className="gap-1">
                                 <AlertTriangle className="h-3 w-3" aria-hidden="true" />
                                 Bajo
@@ -324,7 +351,7 @@ export default function InventoryPage() {
                         <TableCell className="capitalize">{product.category || "General"}</TableCell>
                         <TableCell>{product.unit}</TableCell>
                         <TableCell className="font-mono">
-                          {selectedBranchId ? (
+                          {activeBranchId ? (
                             <span className={product.isLowStock ? "text-amber-600 font-bold" : ""}>
                               {product.currentStock || 0}
                             </span>
@@ -389,7 +416,7 @@ export default function InventoryPage() {
       {/* Side-over detail Drawer */}
       <ProductDetailDrawer
         productId={selectedProductId}
-        branchId={selectedBranchId || null}
+        branchId={activeBranchId || null}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
       />
