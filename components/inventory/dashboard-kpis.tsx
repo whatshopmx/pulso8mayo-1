@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertTriangle, DollarSign, ShieldCheck, TrendingDown, Info } from "lucide-react";
+import { AlertTriangle, DollarSign, ShieldCheck, TrendingDown, Info, ChevronRight } from "lucide-react";
 import { KpiCardsSkeleton } from "@/components/shared/skeletons";
 import { ErrorState } from "@/components/shared/error-state";
 import Link from "next/link";
@@ -65,7 +65,7 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
       </Card>
 
       {/* 2. Alertas activas — clickeable hacia la bandeja de alertas */}
-      <Link href="/dashboard/inventory/alerts" className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl">
+      <Link href="/dashboard/inventory/alerts" className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl" aria-label={`Alertas críticas: ${activeAlerts} ${activeAlerts === 1 ? "alerta activa" : "alertas activas"}. Ver detalle.`}>
         <Card className="flex flex-col justify-between h-full transition-colors hover:border-primary cursor-pointer">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Alertas Críticas</CardTitle>
@@ -77,12 +77,21 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
                 {activeAlerts}
               </div>
               {activeAlerts > 0 && (
-                <span className="inline-flex rounded-full h-2 w-2 bg-red-500 mb-1"></span>
+                <span
+                  className="inline-flex rounded-full h-2 w-2 bg-red-500 mb-1"
+                  role="img"
+                  aria-label="Hay alertas activas"
+                ></span>
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {activeAlerts > 0 ? "Requieren revisión urgente — toca para atender" : "Operación sin incidencias"}
+              {activeAlerts > 0 ? "Requieren revisión urgente" : "Operación sin incidencias"}
             </p>
+            {/* Persistent affordance: visible without hover (touch/keyboard/SR) */}
+            <div className="mt-2 flex items-center gap-1 text-xs font-medium text-primary">
+              Ver detalle
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </div>
           </CardContent>
         </Card>
       </Link>
@@ -95,7 +104,9 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Info className="h-3.5 w-3.5 text-muted-foreground/60 cursor-help" />
+                  <button type="button" aria-label="Qué son las facturas conciliadas" className="cursor-help">
+                    <Info className="h-3.5 w-3.5 text-muted-foreground/60" />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-[240px]">
                   Porcentaje de facturas cuyo importe y productos coinciden con la orden de compra y lo que llegó a almacén.
@@ -130,7 +141,9 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Info className="h-3.5 w-3.5 text-muted-foreground/60 cursor-help" />
+                  <button type="button" aria-label="Qué es la pérdida por merma" className="cursor-help">
+                    <Info className="h-3.5 w-3.5 text-muted-foreground/60" />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-[240px]">
                   Porcentaje del valor del inventario que se perdió este mes por caducidad, daño o derrame.
