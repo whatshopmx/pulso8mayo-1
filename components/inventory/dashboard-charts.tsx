@@ -5,6 +5,7 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   AreaChart, Area, CartesianGrid, XAxis, YAxis, Legend,
 } from "recharts";
+import { ErrorState } from "@/components/shared/error-state";
 
 interface StockByCategory {
   category: string | null;
@@ -20,9 +21,11 @@ interface RecentMovement {
 interface DashboardChartsProps {
   stockByCategory?: StockByCategory[];
   recentMovements?: RecentMovement[];
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
-export function DashboardCharts({ stockByCategory, recentMovements }: DashboardChartsProps) {
+export function DashboardCharts({ stockByCategory, recentMovements, isError, onRetry }: DashboardChartsProps) {
   // Category Donut Chart Data Mapping
   const categoryData = (stockByCategory || []).map((c) => ({
     name: c.category || "Sin categoría",
@@ -55,6 +58,35 @@ export function DashboardCharts({ stockByCategory, recentMovements }: DashboardC
     "oklch(0.52 0.08 240)",  // Chart 4: Soft Slate Blue
     "oklch(0.56 0.15 0)"     // Chart 5: Dark Rose
   ];
+
+  if (isError) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="flex flex-col justify-between">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Distribución por Categorías</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 flex items-center justify-center min-h-[300px]">
+            <ErrorState
+              message="No se pudieron cargar las categorías."
+              onRetry={onRetry}
+            />
+          </CardContent>
+        </Card>
+        <Card className="flex flex-col justify-between">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Movimientos Recientes (7 días)</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 min-h-[300px] flex items-center justify-center">
+            <ErrorState
+              message="No se pudieron cargar los movimientos."
+              onRetry={onRetry}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-4 md:grid-cols-2">

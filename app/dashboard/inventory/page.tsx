@@ -15,7 +15,7 @@ import {
 import { DataTableSkeleton } from "@/components/shared/skeletons";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useBranch } from "@/lib/branch-context";
-import { PageHeader, PageContainer, EmptyState } from "@/components/shared";
+import { PageHeader, PageContainer, EmptyState, ErrorState } from "@/components/shared";
 import { useInventory, useDashboard } from "@/hooks/queries";
 import { DashboardKpis } from "@/components/inventory/dashboard-kpis";
 import { DashboardCharts } from "@/components/inventory/dashboard-charts";
@@ -107,7 +107,7 @@ export default function InventoryPage() {
 
   const { selectedBranchId, selectedBranch } = useBranch();
 
-  const { data: products = [], isLoading: loading } = useInventory(selectedBranchId || undefined);
+  const { data: products = [], isLoading: loading, isError: productsError, refetch: refetchProducts } = useInventory(selectedBranchId || undefined);
   const { data: dashboardData, isLoading: dashboardLoading, isError: dashboardError, refetch: refetchDashboard } = useDashboard(selectedBranchId || undefined);
 
   const filteredProducts = products.filter((product) => {
@@ -169,11 +169,15 @@ export default function InventoryPage() {
         <DashboardCharts
           stockByCategory={dashboardData?.stockByCategory}
           recentMovements={dashboardData?.recentMovements}
+          isError={dashboardError}
+          onRetry={() => refetchDashboard()}
         />
 
         <QuickAlerts
           topLowStock={dashboardData?.topLowStock}
           topExpiring={dashboardData?.topExpiring}
+          isError={dashboardError}
+          onRetry={() => refetchDashboard()}
         />
 
         {/* Catálogo de productos */}
@@ -227,7 +231,12 @@ export default function InventoryPage() {
               </div>
             </div>
 
-            {loading ? (
+            {productsError ? (
+              <ErrorState
+                message="No se pudo cargar el catálogo de productos."
+                onRetry={() => refetchProducts()}
+              />
+            ) : loading ? (
               <DataTableSkeleton columns={6} rows={8} className="border-0" />
             ) : (
               <Table>

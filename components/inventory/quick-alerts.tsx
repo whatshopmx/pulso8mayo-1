@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, Clock } from "lucide-react";
 import Link from "next/link";
+import { ErrorState } from "@/components/shared/error-state";
 
 interface LowStockItem {
   itemId: string;
@@ -25,9 +26,22 @@ interface ExpiringItem {
 interface QuickAlertsProps {
   topLowStock?: LowStockItem[];
   topExpiring?: ExpiringItem[];
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
-export function QuickAlerts({ topLowStock, topExpiring }: QuickAlertsProps) {
+export function QuickAlerts({ topLowStock, topExpiring, isError, onRetry }: QuickAlertsProps) {
+  if (isError) {
+    return (
+      <Card>
+        <ErrorState
+          message="No se pudieron cargar las alertas de inventario."
+          onRetry={onRetry}
+        />
+      </Card>
+    );
+  }
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
