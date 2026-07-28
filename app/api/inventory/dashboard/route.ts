@@ -154,6 +154,7 @@ export async function GET(req: NextRequest) {
       .limit(5) : [];
 
     return NextResponse.json({
+      generatedAt: new Date().toISOString(),
       totalProducts,
       activeAlertsCount,
       totalStockValue,

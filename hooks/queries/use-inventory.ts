@@ -92,10 +92,38 @@ export function useDeleteProduct() {
   })
 }
 
+export type InventoryDashboardData = {
+  generatedAt: string
+  totalProducts: number
+  activeAlertsCount: number
+  totalStockValue: number
+  branchesWithStock: number
+  threeWayMatchRate: number | null
+  wasteLossRatio: number | null
+  stockByCategory: Array<{ category: string | null; count: number }>
+  recentMovements: Array<{ date: string; type: string; count: number }>
+  topLowStock: Array<{
+    itemId: string
+    itemName: string
+    minLevel: number
+    unit: string
+    totalStock: number
+  }>
+  topExpiring: Array<{
+    id: string
+    itemId: string
+    itemName: string
+    lotNumber: string | null
+    expirationDate: string
+    currentQuantity: number
+    unit: string
+  }>
+}
+
 export function useDashboard(branchId?: string) {
   return useQuery({
     queryKey: ["inventory", "dashboard", branchId],
-    queryFn: async () => {
+    queryFn: async (): Promise<InventoryDashboardData> => {
       const url = branchId
         ? `/api/inventory/dashboard?branchId=${branchId}`
         : "/api/inventory/dashboard"

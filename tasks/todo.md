@@ -1,271 +1,351 @@
-# Task List: Inventory Dashboard Refinement
+# Task List: Inventory Dashboard — 2026-07-28 Critique (26/40)
 
-## Phase 1: Low-Risk Mechanical Fixes
+Source: `.impeccable/critique/2026-07-28T19-07-38Z__app-dashboard-inventory.md`
 
-### Task 1: Replace chart gradients with solid tonal fills
+## Phase 1: Truthfulness & Hardening (P1 safety)
 
-**Description:** Replace `linearGradient` defs in `dashboard-charts.tsx` area charts with solid fill colors at reduced opacity, per the flat-by-default design rule. Gradients violate the design system and don't work in dark mode.
+### Task 1: Add `generatedAt` to dashboard API + thread through `useDashboard`
+
+**Description:** The dashboard API returns no timestamp, so the UI cannot show data recency. Add a
+`generatedAt` (response time) to the `/api/inventory/dashboard` JSON and include it in the typed return
+of `useDashboard`. This is the foundation for Task 5 (recency indicator) — no UI rendering yet.
 
 **Acceptance criteria:**
-- [ ] Area charts use solid `fill` with `fillOpacity={0.15}` instead of `url(#color-xxx)`
-- [ ] `linearGradient` `<defs>` are removed from the component
-- [ ] Chart stroke colors remain unchanged (use same OKLCH COLORS array)
-- [ ] All chart functionality preserved (tooltip, legend, responsive container)
+- [ ] `GET /api/inventory/dashboard` response includes `generatedAt: ISO-8601 string`
+- [ ] `useDashboard` return type includes `generatedAt: string` on the data shape
+- [ ] Existing consumers compile unchanged (additive only)
 
 **Verification:**
 - [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check: area chart renders with solid fill, tooltips work
+- [ ] Manual check: `curl`/browser shows `generatedAt` in the JSON response
 
 **Dependencies:** None
 
 **Files likely touched:**
-- `components/inventory/dashboard-charts.tsx`
+- `app/api/inventory/dashboard/route.ts`
+- `hooks/queries/use-inventory.ts`
 
-**Estimated scope:** XS (1 file)
+**Estimated scope:** S (2 files)
 
 ---
 
-### Task 2: Fix barcode-scanner dead code and fragile type assertion
+### Task 2: Add reusable `ErrorState` to `components/shared/`
 
-**Description:** Remove the orphan `useCallback` at `barcode-scanner.tsx:134-136` whose return value is discarded. Simplify the fragile triple-nested type assertion for `BarcodeDetector` with a `// @ts-ignore` or a proper guard.
+**Description:** Add one shared error-state component (icon + message + retry button) so KPIs, charts,
+alerts, and the table share a single error pattern with consistent a11y. Export it from
+`components/shared/index.ts`.
 
 **Acceptance criteria:**
-- [ ] Orphan `useCallback(...)` removed (lines 134-136)
-- [ ] `BarcodeDetector` type assertion simplified (no `window as unknown as ...`)
-- [ ] All scanner functionality preserved (open, scan, close, permissions)
+- [ ] `ErrorState` accepts `message`, `onRetry`, optional `icon`, optional `className`
+- [ ] Retry button is keyboard-focusable with a visible focus ring
+- [ ] Role/aria: container has `role="alert"` and message is announced
+- [ ] Exported from `components/shared/index.ts`
 
 **Verification:**
 - [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check: scanner component renders, camera permissions work
+- [ ] Lint clean: `pnpm run lint`
 
 **Dependencies:** None
 
 **Files likely touched:**
-- `components/inventory/barcode-scanner.tsx`
+- `components/shared/error-state.tsx`
+- `components/shared/index.ts`
 
-**Estimated scope:** XS (1 file)
+**Estimated scope:** S (2 files)
 
 ---
 
-### Task 3: Replace hardcoded colors with CSS variable tokens
+### Task 3: Tri-state KPI block — error/loading/success, no `?? 0` on success-critical metrics
 
-**Description:** Replace all Tailwind utility color classes (e.g., `bg-slate-50`, `text-emerald-700`, `bg-green-100 text-green-800`) with CSS variable tokens (`--muted`, `--success`, `--warning`, etc.) across reports, movements-client, and other pages. Bump `text-[10px]` in `pulso-intelligence.tsx` to `text-xs` (12px) per WCAG 1.4.4.
+**Description:** `DashboardKpis` currently does `data?.totalStockValue ?? 0` and
+`data?.activeAlertsCount ?? 0`, so a failed fetch renders "$0.00 / 0 alertas / Operación sin
+incidencias" — a clean bill of health that is actually a broken state. Accept `isError` and `refetch`
+props; render `ErrorState` on error, `KpiCardsSkeleton` on loading, real numbers only on success.
 
 **Acceptance criteria:**
-- [ ] `reports/page.tsx`: all `bg-slate-*`, `text-slate-*`, `bg-emerald-*`, `text-emerald-*`, `text-amber-*`, `bg-amber-*` replaced with CSS variable equivalents
-- [ ] `movements-client.tsx:27`: `bg-green-100 text-green-800` replaced with shadcn badge or CSS variable tokens
-- [ ] `pulso-intelligence.tsx:122`: `text-[10px]` changed to `text-xs`
-- [ ] No Tailwind utility color classes remain in reviewed files
+- [ ] `DashboardKpis` accepts `loading: boolean`, `isError: boolean`, `onRetry: () => void`
+- [ ] On `isError`, renders `ErrorState` (retry wired to `refetch`) — never renders `$0.00` or `0`
+- [ ] On `loading`, renders `KpiCardsSkeleton` (unchanged)
+- [ ] On success, numbers render exactly as today (no behavior change on the happy path)
+- [ ] `stockValue` / `activeAlerts` read from a non-null `data` only (no `?? 0` fallback on the success path)
 
 **Verification:**
 - [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check: pages render with correct colors, no broken styles
+- [ ] Manual check: force a 500 (e.g. stop DB / bad branchId) → KPI block shows error + retry, not zeros
+- [ ] Manual check: healthy load → numbers match pre-change
 
-**Dependencies:** None
-
-**Files likely touched:**
-- `app/dashboard/inventory/reports/page.tsx`
-- `components/inventory/movements-client.tsx`
-- `components/inventory/pulso-intelligence.tsx`
-
-**Estimated scope:** S (3 files)
-
----
-
-## Checkpoint: After Tasks 1-3
-- [ ] `pnpm run build` succeeds
-- [ ] No visual regressions on charts, scanner, or styled pages
-- [ ] Review with human before proceeding
-
----
-
-## Phase 2: Loading & Form Consistency
-
-### Task 4: Replace all Loader2 spinners with skeleton components
-
-**Description:** Replace every `Loader2` loading state in the inventory module with the appropriate skeleton from `components/shared/skeletons.tsx` (`KpiCardsSkeleton`, `DataTableSkeleton`, `ChartSkeleton`, `CardSkeleton`, `PageHeaderSkeleton`). Also replace `Suspense` fallback spinners.
-
-**Acceptance criteria:**
-- [ ] `dashboard-kpis.tsx`: loading state uses `KpiCardsSkeleton` instead of 4 Loader2 cards
-- [ ] `inventory/page.tsx`: loading state uses `DataTableSkeleton` instead of centered Loader2
-- [ ] `stock-alerts.tsx`: loading state uses appropriate skeleton
-- [ ] `alerts/page.tsx`: loading state uses `CardSkeleton` or `DataTableSkeleton`
-- [ ] `transfer-list.tsx`: loading state uses `DataTableSkeleton`
-- [ ] `supplier-list.tsx`: loading state uses `DataTableSkeleton`
-- [ ] `movements-client.tsx`: loading state uses appropriate skeleton
-- [ ] `receiving/page.tsx`: loading state uses `DataTableSkeleton`
-- [ ] `audit/page.tsx`: loading state uses `DataTableSkeleton`
-- [ ] `suppliers/page.tsx`: `Suspense` fallback uses `<CardSkeleton />` instead of Loader2
-- [ ] No `Loader2` usage remains in the inventory module (except submit button loading states, which are different UX)
-
-**Verification:**
-- [ ] Build succeeds: `pnpm run build`
-- [ ] Grep for Loader2 in app/dashboard/inventory/ and components/inventory/ — only button submit states remain
-- [ ] Manual check: each page shows skeleton loading state on slow network
-
-**Dependencies:** None
+**Dependencies:** Task 2 (ErrorState)
 
 **Files likely touched:**
 - `components/inventory/dashboard-kpis.tsx`
-- `app/dashboard/inventory/page.tsx` (loading section)
-- `components/inventory/stock-alerts.tsx`
-- `app/dashboard/inventory/alerts/page.tsx`
-- `components/inventory/transfer-list.tsx`
-- `components/inventory/supplier-list.tsx`
-- `components/inventory/movements-client.tsx`
-- `app/dashboard/inventory/receiving/page.tsx`
-- `app/dashboard/inventory/audit/page.tsx`
-- `app/dashboard/inventory/suppliers/page.tsx`
+- `app/dashboard/inventory/page.tsx` (pass `isError`/`refetch`)
 
-**Estimated scope:** M (10 files, each change is small)
+**Estimated scope:** S (2 files)
 
 ---
 
-### Task 5: Standardize inventory page product form to react-hook-form + zod
+### Task 4: Tri-state QuickAlerts + DashboardCharts + product table — error branches with retry
 
-**Description:** Replace the raw `useState`-based 16-field product creation dialog in `inventory/page.tsx` with `react-hook-form` + zod using shadcn `Form` components (matching the pattern in `waste-form.tsx`). Keep all existing fields, validation, and behavior.
+**Description:** Extend the tri-state pattern to the remaining dashboard surfaces. `QuickAlerts` and
+`DashboardCharts` accept `isError`/`onRetry`; the product table in `page.tsx` branches on
+`useInventory`'s `isError` (currently only `isLoading` is destructured). On error, render `ErrorState`
+with retry — never empty lists that read as "no problems".
 
 **Acceptance criteria:**
-- [ ] All 16 form fields migrated from `useState` to `react-hook-form` + zod
-- [ ] Zod schema validates required fields (name) and types (numbers, strings)
-- [ ] Dialog open/close/discard behavior preserved
-- [ ] Product photo upload integration preserved
-- [ ] Form submits correctly and shows toast on success/error
-- [ ] No Loader2 used for submit button loading (keep inline spinner)
+- [ ] `QuickAlerts` accepts `isError`, `onRetry`; on error renders one `ErrorState` spanning both cards
+- [ ] `DashboardCharts` accepts `isError`, `onRetry`; on error renders `ErrorState` in each chart card
+- [ ] Product table: `useInventory` destructures `isError` + `refetch`; error → `ErrorState` with retry
+      (not the "No se encontraron productos" empty state, which currently masks a fetch failure)
+- [ ] Loading and success paths unchanged
+- [ ] Empty-state ("sin resultados" vs "no products at all") still distinguishes from error-state
 
 **Verification:**
 - [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check: open dialog, fill fields, create product, verify it appears in table
-- [ ] Manual check: discard confirmation works when closing dirty form
+- [ ] Manual check: with dashboard fetch failing, alerts/charts show error+retry, not "Sin alertas"
+- [ ] Manual check: with inventory fetch failing, table shows error+retry, not "No se encontraron productos"
 
-**Dependencies:** None (isolated to dialog within page.tsx)
+**Dependencies:** Task 2 (ErrorState)
+
+**Files likely touched:**
+- `components/inventory/quick-alerts.tsx`
+- `components/inventory/dashboard-charts.tsx`
+- `app/dashboard/inventory/page.tsx`
+
+**Estimated scope:** M (3 files)
+
+---
+
+## Checkpoint: Foundation — Truthfulness
+- [ ] `pnpm run build` succeeds
+- [ ] Forced 500 → page shows error states, not reassuring zeros
+- [ ] Healthy load → numbers/lists render as before
+- [ ] No metric can render a hard-coded `0` from an `undefined` payload
+- [ ] Review with human before Phase 2
+
+## Phase 2: Affordance, A11y & Polish (P2)
+
+### Task 5: Data-recency indicator ("Actualizado · {relative time}")
+
+**Description:** Add a subtle recency line using `generatedAt` from Task 1. Place a single "Actualizado
+· hace X min" near the PageHeader (scoped to the dashboard data), and a per-KPI footer timestamp is
+optional. Add a small `useRelativeTime(iso)` helper that re-renders on a timer (every 60s) and stops
+when hidden. Label honestly as last dashboard fetch, not last physical count.
+
+**Acceptance criteria:**
+- [ ] PageHeader area shows "Actualizado · {relative time}" when `dashboardData.generatedAt` is present
+- [ ] Relative time updates at least once per minute while visible
+- [ ] Hidden/undefined `generatedAt` renders nothing (no "Actualizado · —")
+- [ ] Tooltip clarifies this is the last dashboard refresh, not the last stock count
+
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check: indicator appears after load and ticks up over time
+
+**Dependencies:** Task 1 (generatedAt)
 
 **Files likely touched:**
 - `app/dashboard/inventory/page.tsx`
+- `hooks/use-relative-time.ts` (new, small)
 
-**Estimated scope:** M (1 file, moderate-size refactor)
-
----
-
-### Task 6: Replace remaining raw HTML elements with shadcn equivalents
-
-**Description:** Replace all remaining raw HTML form controls across the inventory module with their shadcn counterparts. Affected: raw `<select>` in stock-count page and receiving-form, raw `<textarea>` in receiving-workflow, raw `<table>` in reports page. Replace `window.confirm()` in receiving-workflow with a shadcn `Dialog`.
-
-**Acceptance criteria:**
-- [ ] `stock-count/page.tsx`: raw `<select>` replaced with shadcn `Select`
-- [ ] `receiving-form.tsx`: raw `<select>` replaced with shadcn `Select`
-- [ ] `receiving-workflow.tsx`: raw `<textarea>` replaced with shadcn `Textarea`
-- [ ] `receiving-workflow.tsx`: `window.confirm()` replaced with shadcn `AlertDialog`
-- [ ] `reports/page.tsx`: raw `<table>` replaced with shadcn `Table` component
-- [ ] No raw `<select>`, `<textarea>`, or `window.confirm()` remains in inventory module
-- [ ] All focus rings, disabled states, and keyboard accessibility preserved
-
-**Verification:**
-- [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check: stock-count form works, receiving workflow works, reports table renders
-- [ ] Manual check: keyboard navigation works on replaced controls
-
-**Dependencies:** None
-
-**Files likely touched:**
-- `app/dashboard/inventory/stock-count/page.tsx`
-- `components/inventory/receiving-form.tsx`
-- `components/inventory/receiving-workflow.tsx`
-- `app/dashboard/inventory/reports/page.tsx`
-
-**Estimated scope:** M (4 files)
+**Estimated scope:** S (2 files)
 
 ---
 
-### Task 7: Add error handling in createStockCount and remove shadow-sm
+### Task 6: KPI clickable affordance + a11y
 
-**Description:** Fix the `createStockCount` server action in `stock-count/page.tsx` to provide user-facing error feedback instead of silently logging to console. Remove `shadow-sm` from the raw `<select>` element (which will be replaced in Task 6, but ensure the replacement has no shadow either).
+**Description:** The "Alertas Críticas" KPI is a `Link` but is visually indistinguishable from the three
+non-clickable KPI cards (hover-only `border-primary`, invisible on touch/SR). Add a persistent
+affordance: a trailing chevron and a "Ver detalle →" text link in the card footer. Add `aria-label` to
+the alert `bg-red-500` dot (currently unlabeled) and to the `cursor-help` Info tooltip triggers.
 
 **Acceptance criteria:**
-- [ ] `createStockCount` shows error toast or form-level feedback on failure
-- [ ] `error: any` catch clause replaced with proper typed error handling
-- [ ] No `shadow-sm` class exists on any element in stock-count/page.tsx
-- [ ] Stock count creation flow still works (redirect to workflow execution)
+- [ ] Clickable KPI card shows a persistent chevron + "Ver detalle →" (not hover-only)
+- [ ] Non-clickable KPI cards show no such affordance (visual distinction without hover)
+- [ ] Alert dot has an `aria-label` (e.g. "hay alertas activas") or a visually-hidden text label
+- [ ] All Info tooltip triggers have `aria-label` describing their KPI
+- [ ] Focus-visible ring on the Link is preserved (already present)
 
 **Verification:**
 - [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check: trigger stock count creation with invalid data, see error feedback
-- [ ] Grep for `shadow-sm` in stock-count/page.tsx — returns no matches
+- [ ] Manual check (keyboard Tab): the clickable card is identifiable without hover
+- [ ] Manual check (touch / coarse pointer): affordance visible without hover
 
-**Dependencies:** Task 6 (shadcn Select replacement removes the raw select that had shadow-sm)
+**Dependencies:** Task 3 (so KPI props are stable)
 
 **Files likely touched:**
-- `app/dashboard/inventory/stock-count/page.tsx`
+- `components/inventory/dashboard-kpis.tsx`
 
 **Estimated scope:** S (1 file)
 
 ---
 
-## Checkpoint: After Tasks 4-7
-- [ ] All loading states use skeletons, no Loader2 remains in inventory module (except submit buttons)
-- [ ] All forms use consistent pattern (RHF+zod or server actions + shadcn controls)
-- [ ] No raw HTML elements remain in inventory module
-- [ ] `pnpm run build` succeeds
-- [ ] Review with human before proceeding to Phase 3
+### Task 7: Color-blindness — shape+label for low-stock/expiring; "Sin stock" badge → warning
 
----
-
-## Phase 3: Information Architecture & Polish
-
-### Task 8: Distill main inventory dashboard
-
-**Description:** Reduce cognitive load on the main inventory page. Show 4-6 most-used operation cards prominently, move the rest under "Más operaciones" (which currently only hides 2 cards). Surface critical alerts (low stock, expiring items) more prominently — consider merging QuickAlerts into a single prominent alert bar above the fold. Remove decorative hover scale transforms that cause layout on `transition-all`.
+**Description:** Low-stock (amber) and expiring (orange) are hue-adjacent and indistinguishable for
+deuteranopia/protanopia; the table row carries meaning by amber text alone. Differentiate by **shape +
+text label**, color as reinforcement. Add a text badge ("Bajo" / "Vence") to table rows; QuickAlerts
+already uses triangle vs clock icons (keep). Change the "Sin stock" tab badge from `variant="destructive"`
+to `variant="warning"` (already exists in `badge.tsx`) — out-of-stock is a warning, not an error.
 
 **Acceptance criteria:**
-- [ ] Top row shows only 4-6 primary operation cards (Recepción, Auditorías/Conteo, Órdenes de Compra, Transferencias, Mermas)
-- [ ] Remaining operations moved under "Más operaciones" expandable section
-- [ ] Critical alerts (low stock + expiring) merged into a single prominent alert bar or moved above the product table
-- [ ] Hover scale transforms removed from operation cards (or use `transform` without `transition-all` and respect `prefers-reduced-motion`)
-- [ ] Empty state and product table functionality preserved
-- [ ] All existing page navigation still works
+- [ ] Product table low-stock row shows a "Bajo" text badge alongside the amber icon/text (not color alone)
+- [ ] QuickAlerts already differentiates by icon (triangle vs clock) — verified, no regression
+- [ ] "Sin stock" tab count badge uses `warning` variant, not `destructive`
+- [ ] Color remains as reinforcement; meaning survives grayscale
 
 **Verification:**
 - [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check: dashboard displays 4-6 primary cards, rest under "Más operaciones"
-- [ ] Manual check: all links on operation cards navigate correctly
-- [ ] Manual check: alert section shows critical items prominently
+- [ ] Manual check: grayscale/colour-blind simulation — low-stock vs expiring still distinguishable
 
-**Dependencies:** Task 4 (skeletons for loading state), Task 5 (form standardization — same file)
+**Dependencies:** None (independent of Phase 1)
 
 **Files likely touched:**
-- `app/dashboard/inventory/page.tsx`
+- `app/dashboard/inventory/page.tsx` (table row + tab badge)
 
-**Estimated scope:** M (1 file, significant layout changes)
+**Estimated scope:** S (1 file)
 
 ---
 
-### Task 9: Final quality pass
+### Task 8: Minor polish bundle
 
-**Description:** Run lint, build, and manual verification across the entire inventory module. Confirm no regression in any of the 14 sub-pages. Verify that all critique findings are addressed.
+**Description:** Roll up the critique's minor observations into one mechanical pass:
+1. `ChevronRight` on daily-action cards is `opacity-0 group-hover:opacity-100` — never appears on touch.
+   Scope to `sm:opacity-0` so it's always visible on mobile/coarse-pointer.
+2. KPI numerals `text-2xl` → `text-xl` for a tighter, less shouty hierarchy next to `text-sm` labels.
+3. Remove `text-balance` on single-line table cells (no-op there).
+4. `QuickAlerts`: each card's empty state links to `/dashboard/inventory/alerts` — keep one footer link
+   per card (already one each, but verify no duplication after Phase 1 changes).
+5. `DashboardCharts`: replace hardcoded OKLCH `COLORS` literals with `var(--chart-1..5)` CSS vars.
 
 **Acceptance criteria:**
-- [ ] `pnpm run lint` passes with no new errors
-- [ ] `pnpm run build` succeeds
-- [ ] All 14 inventory sub-pages load without errors
-- [ ] Product creation, stock count, waste reporting, receiving, and transfers flows work
-- [ ] All critique findings from the audit are addressed
+- [ ] Daily-action chevron visible on mobile (always), hover-reveal only on `sm:`
+- [ ] KPI numerals use `text-xl` consistently across all four cards
+- [ ] No `text-balance` on table cells
+- [ ] Charts use `var(--chart-1)` … `var(--chart-5)` instead of literal OKLCH strings
+- [ ] Dark mode: chart colors track theme tokens (no washed-out hardcoded values)
 
 **Verification:**
-- [ ] Lint: `pnpm run lint`
-- [ ] Build: `pnpm run build`
-- [ ] Manual walkthrough of all inventory pages
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check: mobile viewport shows chevrons; dark mode charts consistent
 
-**Dependencies:** Tasks 1-8
+**Dependencies:** Task 4 (charts may have been touched for error states)
 
-**Files likely touched:** None (inspection only)
+**Files likely touched:**
+- `app/dashboard/inventory/page.tsx`
+- `components/inventory/dashboard-charts.tsx`
+- `components/inventory/dashboard-kpis.tsx`
+- `components/inventory/quick-alerts.tsx`
 
-**Estimated scope:** S (verification only)
+**Estimated scope:** M (4 files, all small mechanical edits)
+
+---
+
+### Task 9: Surface `branchesWithStock` in PageHeader (and flag the rollup product question)
+
+**Description:** The API returns `branchesWithStock` but the UI never renders it — a multi-branch signal
+(Mariana persona, 8 branches) built in the API and dropped in the UI. This is evidence the multi-sucursal
+"morning brief" was the original intent and got half-built. **This task is the cheap, honest surface** —
+show "X sucursales con stock" as a PageHeader badge when no single branch is selected (cross-branch
+context), hide it when a single branch is selected. The deeper question (is a full cross-branch rollup
+the north star?) is logged as an open product question and may spawn a follow-up epic beyond this plan.
+
+**Acceptance criteria:**
+- [ ] When no single branch selected: PageHeader shows "X sucursales con stock" badge
+- [ ] When a single branch is selected: badge hidden (count would be misleading)
+- [ ] Open product question logged in `tasks/plan.md`: is cross-branch rollup the north star?
+- [ ] If team decides rollup is a non-goal: `branchesWithStock` removed from API + hook type, task closes with that note
+
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check: badge appears in cross-branch context, hidden in single-branch context
+
+**Dependencies:** Task 1 (data shape), Task 5 (PageHeader area already touched)
+
+**Files likely touched:**
+- `app/dashboard/inventory/page.tsx`
+- `components/shared/page-header.tsx` (optional: add `meta` slot) — or render inline in page
+
+**Estimated scope:** S (1-2 files)
+
+---
+
+## Checkpoint: Polish
+- [ ] `pnpm run build` + `pnpm run lint` clean
+- [ ] Keyboard-only: clickable KPI identifiable without hover; alert dot announced
+- [ ] Color-blind simulation: low-stock vs expiring distinguishable without hue
+- [ ] Dark mode: charts use theme tokens
+- [ ] Review with human before Phase 3
+
+## Phase 3: Power + Distill (P1 cognitive load, P2 table power)
+
+### Task 10: Product table — sortable headers, "low stock first" default sort, pagination, row count
+
+**Description:** The "Productos en Almacén" table has only search + a 2-tab filter; no sort, no
+pagination, no row count — a wall of SKUs for a branch with hundreds. Add sortable headers (name,
+category, stock), default to "low stock first" (ascending stock) so the power user sees what needs
+attention, paginate above ~50 rows, and show a row count. Reuse the existing `Table` primitives; keep
+data client-side (already filtered client-side).
+
+**Acceptance criteria:**
+- [ ] Name / Category / Stock headers are sortable (click toggles asc/desc, default low-stock-first on stock)
+- [ ] Default sort: stock ascending (lowest first)
+- [ ] Pagination at 50 rows/row count shown ("Mostrando X–Y de Z")
+- [ ] Search + tab filter compose with sort and pagination
+- [ ] Sort indicator is not color-only (icon + aria-sort on `<th>`)
+
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check: >50 products paginate; clicking "Stock" sorts ascending then descending
+- [ ] Manual check: search + sort + pagination compose without losing state
+
+**Dependencies:** Task 4 (table error state already in place)
+
+**Files likely touched:**
+- `app/dashboard/inventory/page.tsx`
+- `hooks/use-table-sort.ts` (new, small) or inline
+
+**Estimated scope:** M (1-2 files)
+
+---
+
+### Task 11: Distill page IA to STATUS BOARD — remove sitemap, demote daily-actions, merge alerts, ≤4 sections
+
+**Description:** The page stacks 8 sections (~35 interactive items): PageHeader → 4 daily-action cards
+→ 4 KPI cards → 2 charts → 2 quick-alert cards → product table → 21-link sitemap. **Page identity is
+decided: STATUS BOARD** (confirmed by code — `components/app-sidebar.tsx` L96–192 already exposes the
+same 21 inventory links with the same 4-group IA, so the sitemap is a duplicate, not compensation for a
+weak sidebar; the launchpad job is already covered by the sidebar). Distill to a status board: remove
+the 21-link "Todas las herramientas" card entirely, demote daily-actions from a 4-card grid into a slim
+"Acciones rápidas" row between header and KPIs, and merge QuickAlerts (Stock Bajo + Vencimientos) into a
+single alerts section feeding the exception table. Target ≤4 sections above the fold: PageHeader → KPIs
+→ Alerts → Exception table (charts move below the fold or to a secondary tab). Mostly deletions +
+restructure in `page.tsx`.
+
+**Acceptance criteria:**
+- [ ] "Todas las herramientas" sitemap card removed (sidebar remains the nav source — verified it covers all 21 links)
+- [ ] Daily-actions demoted to a slim "Acciones rápidas" row (no longer a full 4-card grid competing with KPIs)
+- [ ] QuickAlerts merged into a single alerts section (Stock Bajo + Vencimientos) feeding the exception table
+- [ ] Above-the-fold section count ≤4 (PageHeader + KPIs + Alerts + Exception table)
+- [ ] Charts remain reachable (below the fold or a tab) — not deleted
+- [ ] No working feature removed without a replacement path (sidebar covers all removed sitemap links)
+
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check: above-the-fold shows ≤4 sections; daily actions still one tap away
+- [ ] Manual check: every removed sitemap link is reachable via the sidebar (spot-check Operar/Comprar/Analizar/Configurar)
+
+**Dependencies:** Tasks 3, 4, 10 (error states + table power already in place)
+
+**Files likely touched:**
+- `app/dashboard/inventory/page.tsx` (mostly deletions + restructure)
+
+**Estimated scope:** M (1 file, but structurally significant)
 
 ---
 
 ## Checkpoint: Complete
-- [ ] All 9 tasks complete
-- [ ] `pnpm run build` succeeds
-- [ ] `pnpm run lint` passes
-- [ ] Critique score improves from 21/40
-- [ ] Ready for human review
+- [ ] All acceptance criteria met
+- [ ] `pnpm run build` + `pnpm run lint` clean
+- [ ] Above-the-fold section count ≤4
+- [ ] Forced 500 shows error states; healthy load shows recency + real numbers
+- [ ] Ready for review
