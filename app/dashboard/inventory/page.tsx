@@ -151,6 +151,7 @@ export default function InventoryPage() {
         title="Gestión de Inventario"
         description="Panel operativo y control de stock"
         icon={Package}
+        badge={branchFilter === "all" && dashboardData && dashboardData.branchesWithStock > 0 ? `${dashboardData.branchesWithStock} sucursales con stock` : undefined}
         branchName={activeBranch?.name}
         actions={
           <div className="flex items-center gap-2">
@@ -228,6 +229,7 @@ export default function InventoryPage() {
           topExpiring={dashboardData?.topExpiring}
           isError={dashboardError}
           onRetry={() => refetchDashboard()}
+          showBranchAttribution={branchFilter === "all"}
         />
 
         {/* Catálogo de productos */}

@@ -11,6 +11,8 @@ interface LowStockItem {
   totalStock: number;
   minLevel: number | null;
   unit: string;
+  branchId?: string | null;
+  branchName?: string | null;
 }
 
 interface ExpiringItem {
@@ -21,6 +23,8 @@ interface ExpiringItem {
   expirationDate: string | null;
   currentQuantity: number;
   unit: string | null;
+  branchId?: string | null;
+  branchName?: string | null;
 }
 
 interface QuickAlertsProps {
@@ -28,9 +32,10 @@ interface QuickAlertsProps {
   topExpiring?: ExpiringItem[];
   isError?: boolean;
   onRetry?: () => void;
+  showBranchAttribution?: boolean;
 }
 
-export function QuickAlerts({ topLowStock, topExpiring, isError, onRetry }: QuickAlertsProps) {
+export function QuickAlerts({ topLowStock, topExpiring, isError, onRetry, showBranchAttribution }: QuickAlertsProps) {
   if (isError) {
     return (
       <Card>
@@ -64,7 +69,12 @@ export function QuickAlerts({ topLowStock, topExpiring, isError, onRetry }: Quic
               {topLowStock.map((item) => (
                 <li key={item.itemId}>
                   <Link href={`/dashboard/inventory/${item.itemId}`} className="flex items-center justify-between p-2 rounded hover:bg-muted transition-colors">
-                    <span className="text-sm font-medium truncate mr-2">{item.itemName}</span>
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium truncate mr-2">{item.itemName}</span>
+                      {showBranchAttribution && item.branchName && (
+                        <span className="block text-xs text-muted-foreground truncate">{item.branchName}</span>
+                      )}
+                    </div>
                     <span className="text-sm text-amber-600 font-medium whitespace-nowrap">
                       {item.totalStock} / {item.minLevel ?? 0} {item.unit}
                     </span>
@@ -98,7 +108,7 @@ export function QuickAlerts({ topLowStock, topExpiring, isError, onRetry }: Quic
                   <Link href={`/dashboard/inventory/${batch.itemId}`} className="flex items-center justify-between p-2 rounded hover:bg-muted transition-colors">
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{batch.itemName}</p>
-                      <p className="text-xs text-muted-foreground">Lote: {batch.lotNumber ?? "N/A"}</p>
+                      <p className="text-xs text-muted-foreground">Lote: {batch.lotNumber ?? "N/A"}{showBranchAttribution && batch.branchName ? ` · ${batch.branchName}` : ""}</p>
                     </div>
                     <span className="text-sm text-orange-600 font-medium whitespace-nowrap ml-2">
                       {batch.expirationDate ? new Date(batch.expirationDate).toLocaleDateString() : "N/A"}
