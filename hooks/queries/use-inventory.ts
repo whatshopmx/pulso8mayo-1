@@ -107,6 +107,8 @@ export type InventoryDashboardData = {
     itemName: string
     minLevel: number
     unit: string
+    branchId: string | null
+    branchName: string | null
     totalStock: number
   }>
   topExpiring: Array<{
@@ -117,6 +119,8 @@ export type InventoryDashboardData = {
     expirationDate: string
     currentQuantity: number
     unit: string
+    branchId: string | null
+    branchName: string | null
   }>
 }
 
@@ -132,7 +136,6 @@ export function useDashboard(branchId?: string) {
       return res.json()
     },
     staleTime: 30 * 1000,
-    enabled: !!branchId,
   })
 }
 
