@@ -28,11 +28,14 @@ interface RemediationAction {
   serviceName?: string | null;
 }
 
+const PREVIEW_COUNT = 3;
+
 export function PendingRemediationActionsCard() {
   const [actions, setActions] = useState<RemediationAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAction, setSelectedAction] = useState<RemediationAction | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const fetchActions = useCallback(async () => {
     try {
@@ -54,6 +57,15 @@ export function PendingRemediationActionsCard() {
   }, [fetchActions]);
 
   const pendingCount = actions.filter((a) => a.status === "PENDING").length;
+
+  // Ranked attention queue: pending actions first, then scheduled; show top 3
+  // by default with a "ver todo" expansion (see AD-3 in tasks/plan.md).
+  const ranked = [...actions].sort((a, b) => {
+    const rank = (s: string) => (s === "PENDING" ? 0 : 1);
+    return rank(a.status) - rank(b.status);
+  });
+  const visibleActions = expanded ? ranked : ranked.slice(0, PREVIEW_COUNT);
+  const remainingCount = ranked.length - visibleActions.length;
 
   return (
     <>
@@ -90,7 +102,8 @@ export function PendingRemediationActionsCard() {
               <p className="text-xs text-muted-foreground">No hay incidentes pendientes de servicio externo.</p>
             </div>
           ) : (
-            actions.map((action) => {
+            <>
+            {visibleActions.map((action) => {
               const isPending = action.status === "PENDING";
               return (
                 <div
@@ -147,7 +160,28 @@ export function PendingRemediationActionsCard() {
                   </div>
                 </div>
               );
-            })
+            })}
+            {!expanded && remainingCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setExpanded(true)}
+              >
+                Ver todo ({remainingCount} más)
+              </Button>
+            )}
+            {expanded && ranked.length > PREVIEW_COUNT && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setExpanded(false)}
+              >
+                Ver menos
+              </Button>
+            )}
+            </>
           )}
         </CardContent>
       </Card>
