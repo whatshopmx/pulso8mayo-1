@@ -45,10 +45,10 @@ complete — e.g. chart gradients are already solid fills).
 
 ### Phase 1: Truthfulness & Hardening (P1 safety)
 
-- [ ] Task 1: Add `generatedAt` to dashboard API + thread through `useDashboard`
-- [ ] Task 2: Add reusable `ErrorState` to `components/shared/`
-- [ ] Task 3: Tri-state KPI block — error/loading/success, no `?? 0` on success-critical metrics
-- [ ] Task 4: Tri-state QuickAlerts + DashboardCharts + product table — error branches with retry
+- [x] Task 1: Add `generatedAt` to dashboard API + thread through `useDashboard`
+- [x] Task 2: Add reusable `ErrorState` to `components/shared/`
+- [x] Task 3: Tri-state KPI block — error/loading/success, no `?? 0` on success-critical metrics
+- [x] Task 4: Tri-state QuickAlerts + DashboardCharts + product table — error branches with retry
 
 ### Checkpoint: Foundation — Truthfulness
 - [ ] `pnpm run build` succeeds
