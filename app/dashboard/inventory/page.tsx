@@ -235,7 +235,7 @@ export default function InventoryPage() {
                 >
                   Sin stock
                   {outOfStockCount > 0 && (
-                    <Badge variant="destructive" className="h-4 px-1 min-w-[16px] flex items-center justify-center text-xs rounded-full">
+                    <Badge variant="warning" className="h-4 px-1 min-w-[16px] flex items-center justify-center text-xs rounded-full">
                       {outOfStockCount}
                     </Badge>
                   )}
@@ -313,7 +313,10 @@ export default function InventoryPage() {
                             )}
                             <span className="text-balance">{product.name}</span>
                             {product.isLowStock && selectedBranchId && (
-                              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                              <Badge variant="warning" className="gap-1">
+                                <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                                Bajo
+                              </Badge>
                             )}
                           </div>
                         </TableCell>
