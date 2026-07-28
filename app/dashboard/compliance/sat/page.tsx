@@ -1,28 +1,19 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, CheckCircle, AlertTriangle, Calculator, Loader2, Users } from "lucide-react";
+import { FileText, Calculator, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
 interface SATStats {
-    validRFCs: number;
-    invalidRFCs: number;
-    totalEmployees: number;
     certificatesGenerated: number;
-    monthlyWithholding: number;
 }
 
 export default function SATPage() {
     const [stats, setStats] = useState<SATStats>({
-        validRFCs: 0,
-        invalidRFCs: 0,
-        totalEmployees: 0,
         certificatesGenerated: 0,
-        monthlyWithholding: 0,
     });
     const [loading, setLoading] = useState(true);
 
@@ -30,32 +21,16 @@ export default function SATPage() {
         const fetchStats = async () => {
             setLoading(true);
             try {
-                const [empRes, certRes] = await Promise.all([
-                    fetch("/api/employees"),
-                    fetch("/api/sat/certificates"),
-                ]);
+                const certRes = await fetch("/api/sat/certificates");
 
-                let validRFCs = 0, invalidRFCs = 0, totalEmployees = 0;
                 let certificatesGenerated = 0;
 
-                if (empRes.ok) {
-                    const empData = await empRes.json();
-                    totalEmployees = empData.pagination?.total || 0;
-                }
                 if (certRes.ok) {
                     const certData = await certRes.json();
                     certificatesGenerated = certData.generated || 0;
-                    validRFCs = certData.generated || 0;
-                    invalidRFCs = certData.pending || 0;
                 }
 
-                setStats({
-                    validRFCs,
-                    invalidRFCs,
-                    totalEmployees,
-                    certificatesGenerated,
-                    monthlyWithholding: 0,
-                });
+                setStats({ certificatesGenerated });
             } catch (e) {
                 console.error("Error loading stats", e);
             } finally {
@@ -79,30 +54,22 @@ export default function SATPage() {
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">RFC Válidos</CardTitle>
-                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <CardTitle className="text-sm font-medium">Validación RFC/CURP</CardTitle>
+                            <Calculator className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{stats.validRFCs}</div>
-                            <p className="text-xs text-muted-foreground">
-                                De {stats.totalEmployees} empleados
+                            <div className="text-2xl font-bold text-muted-foreground">Sin datos</div>
+                            <p className="text-xs text-muted-foreground mb-3">
+                                Valida los RFC/CURP de tus empleados para ver el estado aquí
                             </p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Inválidos/Expirados</CardTitle>
-                            <AlertTriangle className="h-4 w-4 text-destructive" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-red-600">{stats.invalidRFCs}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Requieren atención
-                            </p>
+                            <Link href="/dashboard/compliance/sat/validation">
+                                <Button size="sm" variant="outline">
+                                    Validar RFC/CURP
+                                </Button>
+                            </Link>
                         </CardContent>
                     </Card>
 
@@ -115,21 +82,6 @@ export default function SATPage() {
                             <div className="text-2xl font-bold">{stats.certificatesGenerated}</div>
                             <p className="text-xs text-muted-foreground">
                                 Generadas este año
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">ISR Retenido</CardTitle>
-                            <Calculator className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">
-                                ${(stats.monthlyWithholding / 100).toLocaleString("es-MX")}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                Promedio mensual
                             </p>
                         </CardContent>
                     </Card>
