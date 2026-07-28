@@ -50,13 +50,13 @@ export function DashboardCharts({ stockByCategory, recentMovements, isError, onR
 
   const movementTypes = [...new Set((recentMovements || []).map((m) => m.type))];
 
-  // Curated Design System Color Palette (OKLCH mapping to HEX variables)
+  // Design-system chart tokens (track theme, consistent in dark mode)
   const COLORS = [
-    "oklch(0.52 0.17 25)",   // Chart 1: Brand Red/Crimson
-    "oklch(0.62 0.16 70)",   // Chart 2: Orange/Warm
-    "oklch(0.55 0.10 160)",  // Chart 3: Teal/Sage
-    "oklch(0.52 0.08 240)",  // Chart 4: Soft Slate Blue
-    "oklch(0.56 0.15 0)"     // Chart 5: Dark Rose
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
   ];
 
   if (isError) {

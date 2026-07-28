@@ -58,7 +58,7 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
           <DollarSign className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent className="pb-4">
-          <div className="text-2xl font-bold font-mono">
+          <div className="text-xl font-bold font-mono">
             ${(stockValue / 100).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </CardContent>
@@ -73,7 +73,7 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
           </CardHeader>
           <CardContent className="pb-4">
             <div className="flex items-baseline gap-2">
-              <div className={`text-2xl font-bold font-mono ${activeAlerts > 0 ? "text-primary" : ""}`}>
+              <div className={`text-xl font-bold font-mono ${activeAlerts > 0 ? "text-primary" : ""}`}>
                 {activeAlerts}
               </div>
               {activeAlerts > 0 && (
@@ -119,7 +119,7 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
         <CardContent className="pb-4">
           {data?.threeWayMatchRate !== null && data?.threeWayMatchRate !== undefined ? (
             <>
-              <div className="text-2xl font-bold font-mono text-green-600">{data.threeWayMatchRate}%</div>
+              <div className="text-xl font-bold font-mono text-green-600">{data.threeWayMatchRate}%</div>
               <div className="w-full bg-muted h-1.5 rounded-full mt-3 overflow-hidden">
                 <div className="bg-green-600 h-full rounded-full" style={{ width: `${data.threeWayMatchRate}%` }} />
               </div>
@@ -156,7 +156,7 @@ export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpis
         <CardContent className="pb-4">
           {data?.wasteLossRatio !== null && data?.wasteLossRatio !== undefined ? (
             <>
-              <div className="text-2xl font-bold font-mono text-amber-600">{data.wasteLossRatio}%</div>
+              <div className="text-xl font-bold font-mono text-amber-600">{data.wasteLossRatio}%</div>
               <div className="w-full bg-muted h-1.5 rounded-full mt-3 overflow-hidden">
                 <div className="bg-amber-500 h-full rounded-full" style={{ width: `${Math.min(data.wasteLossRatio, 100)}%` }} />
               </div>

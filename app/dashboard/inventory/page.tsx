@@ -179,7 +179,7 @@ export default function InventoryPage() {
             <div className="flex items-center gap-2">
               <action.icon className="h-4 w-4 text-primary" />
               <span className="font-semibold text-sm">{action.label}</span>
-              <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" />
             </div>
             <p className="text-xs text-muted-foreground">{action.description}</p>
           </Link>
@@ -311,7 +311,7 @@ export default function InventoryPage() {
                             ) : (
                               <Package className="h-4 w-4 text-muted-foreground shrink-0" />
                             )}
-                            <span className="text-balance">{product.name}</span>
+                            <span>{product.name}</span>
                             {product.isLowStock && selectedBranchId && (
                               <Badge variant="warning" className="gap-1">
                                 <AlertTriangle className="h-3 w-3" aria-hidden="true" />
