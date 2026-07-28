@@ -1,10 +1,8 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, FileText, AlertTriangle, CheckCircle, PlusCircle, Loader2 } from "lucide-react";
+import { Users, AlertTriangle, CheckCircle, PlusCircle, FileText, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
@@ -142,202 +140,77 @@ export default function IMSSPage() {
                 </div>
             )}
 
-            <Tabs defaultValue="overview" className="space-y-4">
-                <TabsList>
-                    <TabsTrigger value="overview">Resumen</TabsTrigger>
-                    <TabsTrigger value="altas">Altas</TabsTrigger>
-                    <TabsTrigger value="bajas">Bajas</TabsTrigger>
-                    <TabsTrigger value="reports">Reportes y Archivos</TabsTrigger>
-                    <TabsTrigger value="settings">Configuración</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="overview" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Resumen de Cumplimiento IMSS</CardTitle>
-                            <CardDescription>
-                                Estado actual de registros y contribuciones ante el IMSS
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="font-medium">Altas de Empleados</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            Registro de empleados nuevos ante IMSS
-                                        </p>
-                                    </div>
-                                    <Link href="/dashboard/compliance/imss/altas">
-                                        <Button size="sm" variant="outline">
-                                            <PlusCircle className="h-4 w-4 mr-2" />
-                                            Gestionar Altas
-                                        </Button>
-                                    </Link>
-                                </div>
-
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="font-medium">Bajas de Empleados</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            Desregistro de empleados ante IMSS
-                                        </p>
-                                    </div>
-                                    <Link href="/dashboard/compliance/imss/bajas">
-                                        <Button size="sm" variant="outline">
-                                            <PlusCircle className="h-4 w-4 mr-2" />
-                                            Gestionar Bajas
-                                        </Button>
-                                    </Link>
-                                </div>
-
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="font-medium">Archivos SUA</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            Actualización salarial mensual ante IMSS
-                                        </p>
-                                    </div>
-                                    <Button size="sm" variant="outline" disabled>
-                                        Generate SUA File
-                                    </Button>
-                                </div>
-
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="font-medium">Archivos IDSE</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            Reporte de movimientos ante IMSS
-                                        </p>
-                                    </div>
-                                    <Button size="sm" variant="outline" disabled>
-                                        Generate IDSE File
-                                    </Button>
-                                </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Gestión IMSS</CardTitle>
+                    <CardDescription>
+                        Administración de movimientos y archivos ante el IMSS
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="font-medium">Altas de Empleados</p>
+                                <p className="text-sm text-muted-foreground">
+                                    Registro de empleados nuevos ante IMSS
+                                </p>
                             </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                <TabsContent value="altas" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Altas IMSS</CardTitle>
-                            <CardDescription>
-                                Registro de nuevos empleados ante el IMSS
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-muted-foreground mb-4">
-                                Esta sección permite gestionar el registro de nuevos empleados ante el IMSS.
-                            </p>
                             <Link href="/dashboard/compliance/imss/altas">
-                                <Button>
+                                <Button size="sm" variant="outline">
                                     <PlusCircle className="h-4 w-4 mr-2" />
-                                    Ir a Altas IMSS
+                                    Gestionar Altas
                                 </Button>
                             </Link>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                        </div>
 
-                <TabsContent value="bajas" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Bajas IMSS</CardTitle>
-                            <CardDescription>
-                                Desregistro de empleados dados de baja ante el IMSS
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-muted-foreground mb-4">
-                                Genera archivos de desregistro para empleados dados de baja.
-                            </p>
-                            <Link href="/dashboard/compliance/imss/bajas">
-                                <Button>
-                                    <PlusCircle className="h-4 w-4 mr-2" />
-                                    Ir a Bajas IMSS
-                                </Button>
-                            </Link>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                <TabsContent value="reports" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Reportes y Archivos IMSS</CardTitle>
-                            <CardDescription>
-                                Genera y descarga archivos de cumplimiento IMSS
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-4 border rounded-lg">
-                                        <h4 className="font-medium">Archivos SUA</h4>
-                                        <p className="text-sm text-muted-foreground mb-2">
-                                            Reporte salarial mensual al IMSS
-                                        </p>
-                                        <Button size="sm" variant="outline" disabled>
-                                            Generar SUA
-                                        </Button>
-                                    </div>
-
-                                    <div className="p-4 border rounded-lg">
-                                        <h4 className="font-medium">Archivos IDSE</h4>
-                                        <p className="text-sm text-muted-foreground mb-2">
-                                            Reporta cambios y movimientos de empleados
-                                        </p>
-                                        <Link href="/dashboard/compliance/imss/altas">
-                                            <Button size="sm" variant="outline">
-                                                Generar IDSE
-                                            </Button>
-                                        </Link>
-                                    </div>
-
-                                    <div className="p-4 border rounded-lg">
-                                        <h4 className="font-medium">Archivos SIPARE</h4>
-                                        <p className="text-sm text-muted-foreground mb-2">
-                                            Cálculo y reporte de contribuciones
-                                        </p>
-                                        <Button size="sm" variant="outline" disabled>
-                                            Generar SIPARE
-                                        </Button>
-                                    </div>
-
-                                    <div className="p-4 border rounded-lg">
-                                        <h4 className="font-medium">Reportes de Cumplimiento</h4>
-                                        <p className="text-sm text-muted-foreground mb-2">
-                                            Resumen mensual de cumplimiento IMSS
-                                        </p>
-                                        <Button size="sm" variant="outline" disabled>
-                                            Generar Reporte
-                                        </Button>
-                                    </div>
-                                </div>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="font-medium">Bajas de Empleados</p>
+                                <p className="text-sm text-muted-foreground">
+                                    Desregistro de empleados ante IMSS
+                                </p>
                             </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                            <Link href="/dashboard/compliance/imss/bajas">
+                                <Button size="sm" variant="outline">
+                                    <PlusCircle className="h-4 w-4 mr-2" />
+                                    Gestionar Bajas
+                                </Button>
+                            </Link>
+                        </div>
 
-                <TabsContent value="settings" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Configuración IMSS</CardTitle>
-                            <CardDescription>
-                                Configura la integración con el IMSS
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-muted-foreground">
-                                Configura tu número de registro patronal y preferencias de reporte.
-                                Esta funcionalidad estará disponible en la siguiente versión.
-                            </p>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="font-medium">Archivos SUA</p>
+                                <p className="text-sm text-muted-foreground">
+                                    Actualización salarial mensual ante IMSS
+                                </p>
+                            </div>
+                            <Link href="/dashboard/compliance/imss/sua">
+                                <Button size="sm" variant="outline">
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Generar SUA
+                                </Button>
+                            </Link>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="font-medium">Archivos IDSE y Reportes</p>
+                                <p className="text-sm text-muted-foreground">
+                                    Reporte de movimientos y resumen mensual de cumplimiento
+                                </p>
+                            </div>
+                            <Link href="/dashboard/compliance/imss/reports">
+                                <Button size="sm" variant="outline">
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Generar IDSE y Reportes
+                                </Button>
+                            </Link>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }
