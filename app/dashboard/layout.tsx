@@ -2,6 +2,7 @@ import { AppSidebarClient } from "@/components/app-sidebar-client"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { ModeToggle } from "@/components/mode-toggle"
+import { BranchScopeControl } from "@/components/shared/branch-scope-control"
 import { DashboardSessionProvider } from "@/components/dashboard-session-provider"
 import { BranchProvider } from "@/lib/branch-context"
 import { BreadcrumbDynamic } from "@/components/shared/breadcrumb-dynamic"
@@ -67,7 +68,10 @@ export default async function DashboardLayout({
                             <Separator orientation="vertical" className="mr-2 h-4" />
                             <BreadcrumbDynamic companyName={company?.name || "Pulso"} />
                         </div>
-                            <ModeToggle />
+                            <div className="flex items-center gap-2">
+                                <BranchScopeControl />
+                                <ModeToggle />
+                            </div>
                         </div>
                     </header>
                     <div className="flex flex-1 flex-col gap-4 p-4 pt-0 bg-muted/20">
