@@ -108,7 +108,7 @@ export default function InventoryPage() {
   const { selectedBranchId, selectedBranch } = useBranch();
 
   const { data: products = [], isLoading: loading } = useInventory(selectedBranchId || undefined);
-  const { data: dashboardData, isLoading: dashboardLoading } = useDashboard(selectedBranchId || undefined);
+  const { data: dashboardData, isLoading: dashboardLoading, isError: dashboardError, refetch: refetchDashboard } = useDashboard(selectedBranchId || undefined);
 
   const filteredProducts = products.filter((product) => {
     if (!searchQuery.trim()) return true;
@@ -164,7 +164,7 @@ export default function InventoryPage() {
       </div>
 
       <div className="space-y-6">
-        <DashboardKpis data={dashboardData} loading={dashboardLoading} />
+        <DashboardKpis data={dashboardData} loading={dashboardLoading} isError={dashboardError} onRetry={() => refetchDashboard()} />
 
         <DashboardCharts
           stockByCategory={dashboardData?.stockByCategory}

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, DollarSign, ShieldCheck, TrendingDown, Info } from "lucide-react";
 import { KpiCardsSkeleton } from "@/components/shared/skeletons";
+import { ErrorState } from "@/components/shared/error-state";
 import Link from "next/link";
 
 interface DashboardKpisProps {
@@ -16,15 +17,37 @@ interface DashboardKpisProps {
     wasteLossRatio?: number | null;
   } | null;
   loading: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
-export function DashboardKpis({ data, loading }: DashboardKpisProps) {
+export function DashboardKpis({ data, loading, isError, onRetry }: DashboardKpisProps) {
+  if (isError) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="md:col-span-2 lg:col-span-4">
+          <ErrorState
+            message="No se pudo cargar el resumen del inventario."
+            onRetry={onRetry}
+          />
+        </Card>
+      </div>
+    );
+  }
+
   if (loading) {
     return <KpiCardsSkeleton />;
   }
 
-  const stockValue = data?.totalStockValue ?? 0;
-  const activeAlerts = data?.activeAlertsCount ?? 0;
+  // On success, read from a non-null data object only — never fall back to 0
+  // from an undefined payload (that would mask a silent fetch failure as
+  // a clean bill of health).
+  if (!data) {
+    return <KpiCardsSkeleton />;
+  }
+
+  const stockValue = data.totalStockValue;
+  const activeAlerts = data.activeAlertsCount;
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
