@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { inventoryItems, inventoryBatches, inventoryMovements, inventoryAlerts, inventoryWaste, invoices } from "@/lib/db/schema";
+import { inventoryItems, inventoryBatches, inventoryMovements, inventoryAlerts, inventoryWaste, invoices, branches } from "@/lib/db/schema";
 import { eq, and, sql, desc, lte, gte } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
@@ -29,31 +29,56 @@ export async function GET(req: NextRequest) {
       ))
       .then(r => r[0]?.count || 0);
 
-    const activeAlertsCount = branchId ? await db.select({ count: sql<number>`count(*)` })
+    // Tenant-level rollup: when branchId is absent, scope branch-only tables
+    // (inventoryBatches / inventoryMovements have no companyId) via JOIN to
+    // branches.companyId. Tables with their own companyId (inventoryAlerts /
+    // inventoryWaste) just drop the branch guard.
+
+    const activeAlertsCount = await db.select({ count: sql<number>`count(*)` })
       .from(inventoryAlerts)
       .where(and(
         eq(inventoryAlerts.companyId, tenant.id),
-        eq(inventoryAlerts.branchId, branchId),
+        ...(branchId ? [eq(inventoryAlerts.branchId, branchId)] : []),
         eq(inventoryAlerts.status, 'ACTIVE')
       ))
-      .then(r => r[0]?.count || 0) : 0;
+      .then(r => r[0]?.count || 0);
 
-    const totalStockValue = branchId ? await db.select({
-      value: sql<number>`coalesce(sum(${inventoryBatches.currentQuantity} * ${inventoryBatches.unitCost}), 0)`
-    })
-      .from(inventoryBatches)
-      .where(and(
-        eq(inventoryBatches.branchId, branchId),
-        eq(inventoryBatches.status, 'AVAILABLE')
-      ))
-      .then(r => r[0]?.value || 0) : 0;
+    const totalStockValue = branchId
+      ? await db.select({
+          value: sql<number>`coalesce(sum(${inventoryBatches.currentQuantity} * ${inventoryBatches.unitCost}), 0)`
+        })
+          .from(inventoryBatches)
+          .where(and(
+            eq(inventoryBatches.branchId, branchId),
+            eq(inventoryBatches.status, 'AVAILABLE')
+          ))
+          .then(r => r[0]?.value || 0)
+      : await db.select({
+          value: sql<number>`coalesce(sum(${inventoryBatches.currentQuantity} * ${inventoryBatches.unitCost}), 0)`
+        })
+        .from(inventoryBatches)
+        .innerJoin(branches, eq(inventoryBatches.branchId, branches.id))
+        .where(and(
+          eq(branches.companyId, tenant.id),
+          eq(inventoryBatches.status, 'AVAILABLE')
+        ))
+        .then(r => r[0]?.value || 0);
 
-    const branchesWithStock = branchId ? await db.select({
+    // Cross-branch signal: distinct branches with available stock, tenant-scoped.
+    // Meaningful in both modes (in single-branch mode it tells you whether the
+    // selected branch is among those with stock; in all-branches mode it's the
+    // "how many of my branches have stock" morning-brief number).
+    const branchesWithStock = await db.select({
       branchId: inventoryBatches.branchId,
     })
       .from(inventoryBatches)
+      .innerJoin(branches, eq(inventoryBatches.branchId, branches.id))
+      .where(and(
+        eq(branches.companyId, tenant.id),
+        eq(inventoryBatches.status, 'AVAILABLE')
+      ))
       .groupBy(inventoryBatches.branchId)
-      .then(r => r.length) : 0;
+      .then(r => r.length);
 
     const stockByCategory = await db.select({
       category: inventoryItems.category,
@@ -70,38 +95,81 @@ export async function GET(req: NextRequest) {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const recentMovements = branchId ? await db.select({
-      date: sql<string>`date_trunc('day', ${inventoryMovements.timestamp})::text`,
-      type: inventoryMovements.type,
-      count: sql<number>`count(*)`,
-    })
-      .from(inventoryMovements)
-      .where(and(
-        eq(inventoryMovements.branchId, branchId),
-        gte(inventoryMovements.timestamp, sevenDaysAgo)
-      ))
-      .groupBy(sql`date_trunc('day', ${inventoryMovements.timestamp})`, inventoryMovements.type)
-      .orderBy(sql`date_trunc('day', ${inventoryMovements.timestamp})`) : [];
+    const recentMovements = branchId
+      ? await db.select({
+          date: sql<string>`date_trunc('day', ${inventoryMovements.timestamp})::text`,
+          type: inventoryMovements.type,
+          count: sql<number>`count(*)`,
+        })
+        .from(inventoryMovements)
+        .where(and(
+          eq(inventoryMovements.branchId, branchId),
+          gte(inventoryMovements.timestamp, sevenDaysAgo)
+        ))
+        .groupBy(sql`date_trunc('day', ${inventoryMovements.timestamp})`, inventoryMovements.type)
+        .orderBy(sql`date_trunc('day', ${inventoryMovements.timestamp})`)
+      : await db.select({
+          date: sql<string>`date_trunc('day', ${inventoryMovements.timestamp})::text`,
+          type: inventoryMovements.type,
+          count: sql<number>`count(*)`,
+        })
+        .from(inventoryMovements)
+        .innerJoin(branches, eq(inventoryMovements.branchId, branches.id))
+        .where(and(
+          eq(branches.companyId, tenant.id),
+          gte(inventoryMovements.timestamp, sevenDaysAgo)
+        ))
+        .groupBy(sql`date_trunc('day', ${inventoryMovements.timestamp})`, inventoryMovements.type)
+        .orderBy(sql`date_trunc('day', ${inventoryMovements.timestamp})`);
 
-    const topLowStock = branchId ? await db.select({
-      itemId: inventoryItems.id,
-      itemName: inventoryItems.name,
-      minLevel: inventoryItems.minLevel,
-      unit: inventoryItems.unit,
-      totalStock: sql<number>`coalesce(sum(${inventoryBatches.currentQuantity}), 0)`,
-    })
-      .from(inventoryItems)
-      .leftJoin(inventoryBatches, eq(inventoryItems.id, inventoryBatches.itemId))
-      .where(and(
-        eq(inventoryItems.companyId, tenant.id),
-        eq(inventoryItems.active, true),
-        eq(inventoryBatches.branchId, branchId),
-        eq(inventoryBatches.status, 'AVAILABLE')
-      ))
-      .groupBy(inventoryItems.id, inventoryItems.name, inventoryItems.minLevel, inventoryItems.unit)
-      .having(sql`coalesce(sum(${inventoryBatches.currentQuantity}), 0) < ${inventoryItems.minLevel}`)
-      .orderBy(sql`coalesce(sum(${inventoryBatches.currentQuantity}), 0)`)
-      .limit(5) : [];
+    // Per-item-per-branch so each row is actionable ("which branch needs me").
+    // Single-branch mode groups by item (branch fixed); all-branches groups by
+    // item + branch and raises the limit so one branch's lows don't crowd others.
+    const topLowStock = branchId
+      ? await db.select({
+          itemId: inventoryItems.id,
+          itemName: inventoryItems.name,
+          minLevel: inventoryItems.minLevel,
+          unit: inventoryItems.unit,
+          branchId: inventoryBatches.branchId,
+          branchName: branches.name,
+          totalStock: sql<number>`coalesce(sum(${inventoryBatches.currentQuantity}), 0)`,
+        })
+        .from(inventoryItems)
+        .leftJoin(inventoryBatches, eq(inventoryItems.id, inventoryBatches.itemId))
+        .leftJoin(branches, eq(inventoryBatches.branchId, branches.id))
+        .where(and(
+          eq(inventoryItems.companyId, tenant.id),
+          eq(inventoryItems.active, true),
+          eq(inventoryBatches.branchId, branchId),
+          eq(inventoryBatches.status, 'AVAILABLE')
+        ))
+        .groupBy(inventoryItems.id, inventoryItems.name, inventoryItems.minLevel, inventoryItems.unit, inventoryBatches.branchId, branches.name)
+        .having(sql`coalesce(sum(${inventoryBatches.currentQuantity}), 0) < ${inventoryItems.minLevel}`)
+        .orderBy(sql`coalesce(sum(${inventoryBatches.currentQuantity}), 0)`)
+        .limit(5)
+      : await db.select({
+          itemId: inventoryItems.id,
+          itemName: inventoryItems.name,
+          minLevel: inventoryItems.minLevel,
+          unit: inventoryItems.unit,
+          branchId: inventoryBatches.branchId,
+          branchName: branches.name,
+          totalStock: sql<number>`coalesce(sum(${inventoryBatches.currentQuantity}), 0)`,
+        })
+        .from(inventoryItems)
+        .leftJoin(inventoryBatches, eq(inventoryItems.id, inventoryBatches.itemId))
+        .leftJoin(branches, eq(inventoryBatches.branchId, branches.id))
+        .where(and(
+          eq(inventoryItems.companyId, tenant.id),
+          eq(inventoryItems.active, true),
+          eq(branches.companyId, tenant.id),
+          eq(inventoryBatches.status, 'AVAILABLE')
+        ))
+        .groupBy(inventoryItems.id, inventoryItems.name, inventoryItems.minLevel, inventoryItems.unit, inventoryBatches.branchId, branches.name)
+        .having(sql`coalesce(sum(${inventoryBatches.currentQuantity}), 0) < ${inventoryItems.minLevel}`)
+        .orderBy(sql`coalesce(sum(${inventoryBatches.currentQuantity}), 0)`)
+        .limit(10);
 
     const threeWayMatchRate = await db.select({
       total: sql<number>`count(*)`,
@@ -120,38 +188,64 @@ export async function GET(req: NextRequest) {
     currentMonthStart.setDate(1);
     currentMonthStart.setHours(0, 0, 0, 0);
 
-    const wasteLossTotal = branchId ? await db.select({
+    const wasteLossTotal = await db.select({
       total: sql<number>`coalesce(sum(${inventoryWaste.totalLoss}), 0)`,
     })
       .from(inventoryWaste)
       .where(and(
         eq(inventoryWaste.companyId, tenant.id),
-        eq(inventoryWaste.branchId, branchId),
+        ...(branchId ? [eq(inventoryWaste.branchId, branchId)] : []),
         gte(inventoryWaste.recordedAt, currentMonthStart)
       ))
-      .then(r => r[0]?.total || 0) : 0;
+      .then(r => r[0]?.total || 0);
 
     const wasteLossRatio = totalStockValue > 0 ? Math.round((wasteLossTotal / totalStockValue) * 100 * 10) / 10 : null;
 
-    const topExpiring = branchId ? await db.select({
-      id: inventoryBatches.id,
-      itemId: inventoryBatches.itemId,
-      itemName: inventoryItems.name,
-      lotNumber: inventoryBatches.lotNumber,
-      expirationDate: inventoryBatches.expirationDate,
-      currentQuantity: inventoryBatches.currentQuantity,
-      unit: inventoryItems.unit,
-    })
-      .from(inventoryBatches)
-      .leftJoin(inventoryItems, eq(inventoryBatches.itemId, inventoryItems.id))
-      .where(and(
-        eq(inventoryBatches.branchId, branchId),
-        eq(inventoryBatches.status, 'AVAILABLE'),
-        sql`${inventoryBatches.expirationDate} IS NOT NULL`,
-        sql`${inventoryBatches.expirationDate} >= now()`
-      ))
-      .orderBy(inventoryBatches.expirationDate)
-      .limit(5) : [];
+    const topExpiring = branchId
+      ? await db.select({
+          id: inventoryBatches.id,
+          itemId: inventoryBatches.itemId,
+          itemName: inventoryItems.name,
+          lotNumber: inventoryBatches.lotNumber,
+          expirationDate: inventoryBatches.expirationDate,
+          currentQuantity: inventoryBatches.currentQuantity,
+          unit: inventoryItems.unit,
+          branchId: inventoryBatches.branchId,
+          branchName: branches.name,
+        })
+        .from(inventoryBatches)
+        .leftJoin(inventoryItems, eq(inventoryBatches.itemId, inventoryItems.id))
+        .leftJoin(branches, eq(inventoryBatches.branchId, branches.id))
+        .where(and(
+          eq(inventoryBatches.branchId, branchId),
+          eq(inventoryBatches.status, 'AVAILABLE'),
+          sql`${inventoryBatches.expirationDate} IS NOT NULL`,
+          sql`${inventoryBatches.expirationDate} >= now()`
+        ))
+        .orderBy(inventoryBatches.expirationDate)
+        .limit(5)
+      : await db.select({
+          id: inventoryBatches.id,
+          itemId: inventoryBatches.itemId,
+          itemName: inventoryItems.name,
+          lotNumber: inventoryBatches.lotNumber,
+          expirationDate: inventoryBatches.expirationDate,
+          currentQuantity: inventoryBatches.currentQuantity,
+          unit: inventoryItems.unit,
+          branchId: inventoryBatches.branchId,
+          branchName: branches.name,
+        })
+        .from(inventoryBatches)
+        .leftJoin(inventoryItems, eq(inventoryBatches.itemId, inventoryItems.id))
+        .leftJoin(branches, eq(inventoryBatches.branchId, branches.id))
+        .where(and(
+          eq(branches.companyId, tenant.id),
+          eq(inventoryBatches.status, 'AVAILABLE'),
+          sql`${inventoryBatches.expirationDate} IS NOT NULL`,
+          sql`${inventoryBatches.expirationDate} >= now()`
+        ))
+        .orderBy(inventoryBatches.expirationDate)
+        .limit(10);
 
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
