@@ -92,6 +92,18 @@ export function NOM035Report({ branchId, defaultStartDate, defaultEndDate }: NOM
     );
     const [endDate, setEndDate] = useState(defaultEndDate || new Date());
 
+    // Validación del período (T6): sin fechas futuras y fin >= inicio
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const startStr = startDate.toISOString().split("T")[0];
+    const endStr = endDate.toISOString().split("T")[0];
+    const dateError =
+        startStr > todayStr || endStr > todayStr
+            ? "Las fechas no pueden ser posteriores a hoy"
+            : endStr < startStr
+              ? "La fecha de fin debe ser igual o posterior a la fecha de inicio"
+              : null;
+
     const fetchReportData = async () => {
         setLoading(true);
         try {
@@ -296,34 +308,48 @@ export function NOM035Report({ branchId, defaultStartDate, defaultEndDate }: NOM
                 <CardContent>
                     <div className="flex flex-wrap gap-4 items-end">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Fecha de Inicio</label>
+                            <label htmlFor="nom035-start-date" className="text-sm font-medium">Fecha de Inicio</label>
                             <div className="relative">
                                 <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <input
+                                    id="nom035-start-date"
                                     type="date"
+                                    max={todayStr}
                                     value={startDate.toISOString().split('T')[0]}
-                                    onChange={(e) => setStartDate(new Date(e.target.value))}
+                                    onChange={(e) => {
+                                        const next = new Date(e.target.value);
+                                        if (e.target.value && !Number.isNaN(next.getTime())) setStartDate(next);
+                                    }}
                                     className="pl-10 h-10 px-3 py-2 border rounded-md bg-background text-sm"
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Fecha de Fin</label>
+                            <label htmlFor="nom035-end-date" className="text-sm font-medium">Fecha de Fin</label>
                             <div className="relative">
                                 <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <input
+                                    id="nom035-end-date"
                                     type="date"
+                                    max={todayStr}
                                     value={endDate.toISOString().split('T')[0]}
-                                    onChange={(e) => setEndDate(new Date(e.target.value))}
+                                    onChange={(e) => {
+                                        const next = new Date(e.target.value);
+                                        if (e.target.value && !Number.isNaN(next.getTime())) setEndDate(next);
+                                    }}
                                     className="pl-10 h-10 px-3 py-2 border rounded-md bg-background text-sm"
                                 />
                             </div>
                         </div>
 
+                        {dateError && (
+                            <p className="w-full text-sm text-destructive">{dateError}</p>
+                        )}
+
                         <Button
                             onClick={fetchReportData}
-                            disabled={loading}
+                            disabled={loading || !!dateError}
                             className="gap-2"
                             variant="default"
                         >
@@ -343,7 +369,7 @@ export function NOM035Report({ branchId, defaultStartDate, defaultEndDate }: NOM
                         {reportData && (
                             <Button
                                 onClick={downloadPDF}
-                                disabled={generatingPdf}
+                                disabled={generatingPdf || !!dateError}
                                 variant="outline"
                                 className="gap-2"
                             >
@@ -364,6 +390,7 @@ export function NOM035Report({ branchId, defaultStartDate, defaultEndDate }: NOM
                         {reportData && (
                             <Button
                                 onClick={downloadExcel}
+                                disabled={!!dateError}
                                 variant="outline"
                                 className="gap-2"
                             >
