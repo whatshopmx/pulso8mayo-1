@@ -14,7 +14,7 @@ Open questions (responder antes de T16/T21/T22 — ver `plan.md`):
 
 ## Fase 0 — Trust breakers
 
-- [ ] **T1** Limpiar página IMSS: eliminar UI muerta y arreglar link IDSE. *Files: `app/dashboard/compliance/imss/page.tsx`. Size S.*
+- [x] **T1** Limpiar página IMSS: eliminar UI muerta y arreglar link IDSE. *Files: `app/dashboard/compliance/imss/page.tsx`. Size S.*
   - **Acceptance:**
     - [ ] Cero botones permanentemente `disabled` (los 6 actuales eliminados o conectados)
     - [ ] Tabs stub Altas/Bajas (que solo enlazan) eliminados o reemplazados por navegación real
@@ -23,7 +23,7 @@ Open questions (responder antes de T16/T21/T22 — ver `plan.md`):
   - **Verify:** `pnpm run build`; recorrido manual de la página — todo control visible hace algo.
   - **Deps:** None.
 
-- [ ] **T2** Eliminar stats falsos de SAT. *Files: `app/dashboard/compliance/sat/page.tsx`. Size XS.*
+- [x] **T2** Eliminar stats falsos de SAT. *Files: `app/dashboard/compliance/sat/page.tsx`. Size XS.*
   - **Acceptance:**
     - [ ] `validRFCs = certData.generated` eliminado → "Sin datos" + CTA a conectar fuente
     - [ ] `monthlyWithholding: 0` hardcodeado eliminado
@@ -31,7 +31,7 @@ Open questions (responder antes de T16/T21/T22 — ver `plan.md`):
   - **Verify:** `pnpm run build`; inspección visual — cards sin fuente muestran "Sin datos".
   - **Deps:** None.
 
-- [ ] **T3** Eliminar Info tab de la página principal. *Files: `app/dashboard/compliance/page.tsx`. Size XS.* **⏸ BLOQUEADA TEMPORALMENTE (2026-07-28): el workstream paralelo Dashboard Consistency Pass está migrando esta página a Server Component + `useBranch()` (commit `cab090d`, working tree activo). Re-aplicar sobre `app/dashboard/compliance/compliance-page-client.tsx` cuando su trabajo aterrice. Contenido de ayuda ya rescatado en `components/compliance/nom-help-content.tsx`.*
+- [x] **T3** Eliminar Info tab de la página principal. *Files: `app/dashboard/compliance/page.tsx`. Size XS.* (aplicada sobre `compliance-page-client.tsx` tras la migración AD-2 del workstream paralelo — commit `95f9dd5`).*
   - **Acceptance:**
     - [ ] Tab "info" y su `TabsContent` eliminados (cards vanity "100% Cumple", "Oficial", "PDF", "Beneficios Operativos")
     - [ ] Grid de TabsList ajustado (`grid-cols-3 lg:grid-cols-7` → columnas correctas)
@@ -39,7 +39,7 @@ Open questions (responder antes de T16/T21/T22 — ver `plan.md`):
   - **Verify:** `pnpm run build`; la página ya no muestra el tab Info.
   - **Deps:** None.
 
-- [ ] **T4** Bug toast WA + limpieza decorativa en corporate grid. *Files: `components/compliance/corporate-compliance-grid.tsx`. Size S.*
+- [x] **T4** Bug toast WA + limpieza decorativa en corporate grid. *Files: `components/compliance/corporate-compliance-grid.tsx`. Size S.*
   - **Acceptance:**
     - [ ] `sendWhatsAppReminder` verifica `response.ok`: éxito → `toast.success`, fallo → `toast.error` con mensaje de la API
     - [ ] Blob decorativo `bg-primary/5` eliminado
@@ -48,13 +48,13 @@ Open questions (responder antes de T16/T21/T22 — ver `plan.md`):
   - **Verify:** `pnpm run build`; prueba manual con API caída (o mock) → toast de error visible.
   - **Deps:** None.
 
-- [ ] **T5** Explicar el WA reminder deshabilitado ≥95%. *Files: ~~`components/compliance/compliance-dashboard.tsx`~~ → corrección durante implementación: el botón y la regla ≥95% viven en `components/compliance/corporate-compliance-grid.tsx:444` (el dashboard no tiene reminder). Size XS.*
+- [x] **T5** Explicar el WA reminder deshabilitado ≥95%. *Files: ~~`components/compliance/compliance-dashboard.tsx`~~ → corrección durante implementación: el botón y la regla ≥95% viven en `components/compliance/corporate-compliance-grid.tsx:444` (el dashboard no tiene reminder). Size XS.*
   - **Acceptance:**
     - [ ] Botón deshabilitado ≥95% muestra tooltip "Cumplimiento óptimo — no requiere recordatorio" (o la regla oculta se elimina y el botón siempre habilita — decisión del implementador, documentar en el PR)
   - **Verify:** inspección visual en estado ≥95%; tooltip presente y en español.
   - **Deps:** None.
 
-- [ ] **T6** Validación de fechas en reportes NOM. *Files: `components/compliance/nom251-report.tsx`, `components/compliance/nom035-report.tsx`. Size S.*
+- [x] **T6** Validación de fechas en reportes NOM. *Files: `components/compliance/nom251-report.tsx`, `components/compliance/nom035-report.tsx`. Size S.*
   - **Acceptance:**
     - [ ] `fin >= inicio` validado con mensaje inline en español
     - [ ] Fechas futuras bloqueadas con mensaje inline
@@ -63,7 +63,7 @@ Open questions (responder antes de T16/T21/T22 — ver `plan.md`):
   - **Verify:** `pnpm run build`; manual: fin < inicio y fecha futura muestran error inline sin reload.
   - **Deps:** None.
 
-- [ ] **T2b** Limpiar página SAT: eliminar UI muerta (mismo patrón que T1). *Files: `app/dashboard/compliance/sat/page.tsx`. Size S. — **Agregada durante implementación: hallada en T2, requerida por el Checkpoint: Trust (3 botones disabled sin ruta de activación).***
+- [x] **T2b** Limpiar página SAT: eliminar UI muerta (mismo patrón que T1). *Files: `app/dashboard/compliance/sat/page.tsx`. Size S. — **Agregada durante implementación: hallada en T2, requerida por el Checkpoint: Trust (3 botones disabled sin ruta de activación).***
   - **Acceptance:**
     - [ ] Cero botones permanentemente `disabled` ("Resumen Fiscal Anual", "Reporte ISR Mensual", "Annual Tax Summary" — ninguno tiene feature detrás)
     - [ ] Tabs stub Validación/Constancias (que solo enlazan) eliminados o reemplazados por navegación real
@@ -72,12 +72,12 @@ Open questions (responder antes de T16/T21/T22 — ver `plan.md`):
   - **Verify:** `pnpm run build`; recorrido manual — todo control visible hace algo.
   - **Deps:** T2.
 
-### ⛔ Checkpoint: Trust
-- [ ] Cero botones permanentemente deshabilitados sin ruta de activación
-- [ ] Cero números sin fuente de datos
-- [ ] Envío WA reporta resultado real de la API
-- [ ] `pnpm run build` limpio
-- [ ] **Gate:** Fase 3 bloqueada hasta cerrar este checkpoint
+### ✅ Checkpoint: Trust — CERRADO 2026-07-28
+- [x] Cero botones permanentemente deshabilitados sin ruta de activación — grep `disabled` en `app/dashboard/compliance/` + `components/compliance/`: todos condicionales (loading/generating/input) o con tooltip explicativo (T5)
+- [x] Cero números sin fuente de datos — T2 (SAT), T3 (Info vanity); grep de verificación limpio
+- [x] Envío WA reporta resultado real de la API — T4 (`response.ok` + mensaje de la API en toast.error)
+- [x] `pnpm run build` limpio — **EXIT 0** (build completo a `.next-verify` vía `PULSO_DIST_DIR` temporal; el dev server del workstream paralelo ocupa `.next`. Repetir este método en cada checkpoint mientras el dev server esté activo)
+- [x] **Gate:** Fase 3 DESBLOQUEADA
 
 ---
 
