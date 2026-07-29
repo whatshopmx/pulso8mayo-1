@@ -7,11 +7,11 @@ import { CorporateComplianceGrid } from "@/components/compliance/corporate-compl
 import { SUAGenerator } from "@/components/compliance/imss/sua-generator";
 import { IDSEGenerator } from "@/components/compliance/imss/idse-generator";
 import { PayrollExport } from "@/components/compliance/payroll-export";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState, PageHeader } from "@/components/shared";
 import { useBranch } from "@/lib/branch-context";
-import { FileText, Shield, TrendingUp, ClipboardCheck, Brain, Building2, DollarSign, ShieldCheck, MapPin } from "lucide-react";
+import { FileText, Shield, ClipboardCheck, Brain, Building2, DollarSign, ShieldCheck, MapPin } from "lucide-react";
 
 interface BranchLite {
   id: string;
@@ -73,7 +73,7 @@ export function CompliancePageClient({ branches }: CompliancePageClientProps) {
       />
 
       <Tabs defaultValue="dashboard" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7">
+        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
           <TabsTrigger value="dashboard">
             <ClipboardCheck className="h-4 w-4 mr-2" />
             Dashboard
@@ -99,10 +99,6 @@ export function CompliancePageClient({ branches }: CompliancePageClientProps) {
           <TabsTrigger value="nomina">
             <DollarSign className="h-4 w-4 mr-2" />
             Nómina
-          </TabsTrigger>
-          <TabsTrigger value="info">
-            <FileText className="h-4 w-4 mr-2" />
-            Info
           </TabsTrigger>
         </TabsList>
 
@@ -183,136 +179,6 @@ export function CompliancePageClient({ branches }: CompliancePageClientProps) {
           <PayrollExport companyId={selectedBranchId || ''} />
         </TabsContent>
 
-        <TabsContent value="info">
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Reportes Disponibles
-                </CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">2</div>
-                <p className="text-xs text-muted-foreground">
-                  NOM-251 y NOM-035
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Requisitos Oficiales
-                </CardTitle>
-                <Shield className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">100%</div>
-                <p className="text-xs text-muted-foreground">
-                  Cumple con normativa vigente
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Validez Legal
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">Oficial</div>
-                <p className="text-xs text-muted-foreground">
-                  Firma digital incluida
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Generación
-                </CardTitle>
-                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">PDF</div>
-                <p className="text-xs text-muted-foreground">
-                  Descarga inmediata
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  NOM-251-STPS-2015
-                </CardTitle>
-                <CardDescription>
-                  Funciones de seguridad e higiene - Establecimientos de alimentos y bebidas
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Requisitos mínimos de seguridad e higiene para establecimientos de alimentos y bebidas.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="h-5 w-5 text-info" />
-                  NOM-035-STPS-2018
-                </CardTitle>
-                <CardDescription>
-                  Factores de riesgo psicosocial en el trabajo
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Identifica, analiza y previene factores de riesgo psicosocial en el trabajo.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Beneficios Operativos</CardTitle>
-              <CardDescription>
-                El cumplimiento normativo como ventaja operativa
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <h4 className="font-semibold mb-2">Beneficios NOM-251:</h4>
-                  <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>Operaciones más seguras y estandarizadas</li>
-                    <li>Mejora la seguridad alimentaria</li>
-                    <li>Confianza y reputación ante clientes</li>
-                    <li>Auditorías sanitarias siempre listas</li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-semibold mb-2">Beneficios NOM-035:</h4>
-                  <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>Entorno laboral saludable y productivo</li>
-                    <li>Mejora el bienestar del personal</li>
-                    <li>Reduce rotación de empleados</li>
-                    <li>Previene riesgos psicosociales</li>
-                  </ul>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </>
   );
