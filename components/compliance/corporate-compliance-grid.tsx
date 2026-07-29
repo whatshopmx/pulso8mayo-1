@@ -25,7 +25,8 @@ import {
   Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, Cell } from "recharts";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -190,6 +191,7 @@ export function CorporateComplianceGrid() {
   };
 
   return (
+    <TooltipProvider>
     <div className="space-y-6">
       {/* Control bar */}
       <div className="flex items-center justify-between bg-muted/30 p-4 rounded-xl border">
@@ -323,7 +325,7 @@ export function CorporateComplianceGrid() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                 <XAxis dataKey="name" fontSize={11} tickLine={false} />
                 <YAxis domain={[0, 100]} fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip
+                <ChartTooltip
                   cursor={{ fill: "rgba(0,0,0,0.03)" }}
                   contentStyle={{
                     background: "white",
@@ -438,20 +440,37 @@ export function CorporateComplianceGrid() {
                     )}
                   </TableCell>
                   <TableCell className="pr-6 text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={sendingReminder === branch.branchId || branch.complianceRate >= 95}
-                      onClick={() => sendWhatsAppReminder(branch)}
-                      className="h-8 text-xs font-semibold hover:bg-green-50 hover:text-green-700 hover:border-green-300"
-                    >
-                      {sendingReminder === branch.branchId ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                      ) : (
-                        <MessageSquare className="h-3.5 w-3.5 mr-1 text-green-600" />
-                      )}
-                      Recordatorio WA
-                    </Button>
+                    {branch.complianceRate >= 95 ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          {/* span wrapper: los botones disabled no emiten eventos de puntero */}
+                          <span className="inline-flex">
+                            <Button variant="outline" size="sm" disabled className="h-8 text-xs font-semibold">
+                              <MessageSquare className="h-3.5 w-3.5 mr-1 text-green-600" />
+                              Recordatorio WA
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Cumplimiento óptimo — no requiere recordatorio</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={sendingReminder === branch.branchId}
+                        onClick={() => sendWhatsAppReminder(branch)}
+                        className="h-8 text-xs font-semibold hover:bg-green-50 hover:text-green-700 hover:border-green-300"
+                      >
+                        {sendingReminder === branch.branchId ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                        ) : (
+                          <MessageSquare className="h-3.5 w-3.5 mr-1 text-green-600" />
+                        )}
+                        Recordatorio WA
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -460,5 +479,6 @@ export function CorporateComplianceGrid() {
         </CardContent>
       </Card>
     </div>
+    </TooltipProvider>
   );
 }

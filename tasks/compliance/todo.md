@@ -48,7 +48,7 @@ Open questions (responder antes de T16/T21/T22 — ver `plan.md`):
   - **Verify:** `pnpm run build`; prueba manual con API caída (o mock) → toast de error visible.
   - **Deps:** None.
 
-- [ ] **T5** Explicar el WA reminder deshabilitado ≥95%. *Files: `components/compliance/compliance-dashboard.tsx`. Size XS.*
+- [ ] **T5** Explicar el WA reminder deshabilitado ≥95%. *Files: ~~`components/compliance/compliance-dashboard.tsx`~~ → corrección durante implementación: el botón y la regla ≥95% viven en `components/compliance/corporate-compliance-grid.tsx:444` (el dashboard no tiene reminder). Size XS.*
   - **Acceptance:**
     - [ ] Botón deshabilitado ≥95% muestra tooltip "Cumplimiento óptimo — no requiere recordatorio" (o la regla oculta se elimina y el botón siempre habilita — decisión del implementador, documentar en el PR)
   - **Verify:** inspección visual en estado ≥95%; tooltip presente y en español.
