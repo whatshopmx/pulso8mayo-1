@@ -1,4 +1,5 @@
 import { getCurrentTenant } from "@/lib/tenant-context"
+import { EmptyState, PageContainer } from "@/components/shared"
 import { EmployeeService } from "@/lib/services/employee-service"
 import { db } from "@/lib/db"
 import { plannedShifts, shiftSessions, users, shiftApprovals, employeeDocuments, leaveRequests, vacationRequests, breakLogs, shiftTemplates, shiftChangeRequests, holidays, incidents, branches } from "@/lib/db/schema"
@@ -17,16 +18,17 @@ export default async function LaborManagementPage() {
   const companyId = tenant.id;
   const branchId = tenant.branchId;
 
-  // Default values if no company
+  // Canonical empty state when the signed-in user has no company context
+  // (T7 — replaces the bespoke notice with shared EmptyState variant).
   if (!companyId) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <Users className="h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-xl font-bold">Sin Empresa Seleccionada</h3>
-        <p className="text-muted-foreground max-w-md">
-          Debes tener una empresa asignada para ver los indicadores de personal.
-        </p>
-      </div>
+      <PageContainer>
+        <EmptyState
+          icon={Users}
+          title="Sin empresa seleccionada"
+          description="Debes tener una empresa asignada para ver los indicadores de personal."
+        />
+      </PageContainer>
     );
   }
 
