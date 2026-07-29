@@ -114,12 +114,25 @@ export function CorporateComplianceGrid() {
         }),
       });
 
+      if (!response.ok) {
+        let apiMessage = "";
+        try {
+          const errJson = await response.json();
+          apiMessage = errJson?.error || errJson?.message || "";
+        } catch {
+          // respuesta sin cuerpo JSON — se usa el mensaje genérico
+        }
+        throw new Error(apiMessage || `Error ${response.status} al enviar el recordatorio`);
+      }
+
       toast.success(
         `Recordatorio enviado con éxito a ${branch.managerName} (${branch.branchName}) vía WhatsApp`
       );
     } catch (error) {
       console.error(error);
-      toast.error("No se pudo enviar el recordatorio de WhatsApp");
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo enviar el recordatorio de WhatsApp"
+      );
     } finally {
       setSendingReminder(null);
     }
@@ -208,10 +221,9 @@ export function CorporateComplianceGrid() {
       {/* KPI Cards Grid */}
       <div className="grid gap-4 md:grid-cols-4">
         {/* Card 1: Corporate Average */}
-        <Card className="relative overflow-hidden border-primary/10">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 pointer-events-none" />
+        <Card className="border-primary/10">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase tracking-wider font-semibold">
+            <CardDescription className="text-xs font-semibold">
               Cumplimiento Corporativo
             </CardDescription>
             <CardTitle className="text-3xl font-bold tracking-tight text-primary flex items-baseline gap-1">
@@ -222,7 +234,7 @@ export function CorporateComplianceGrid() {
           <CardContent>
             <Progress value={avgCompliance} className="h-2" />
             <div className="flex items-center gap-1.5 mt-2.5 text-xs text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-yellow-500 animate-pulse" />
+              <Sparkles className="h-3.5 w-3.5 text-yellow-500" />
               <span>Calificación global NOM-251</span>
             </div>
           </CardContent>
@@ -231,7 +243,7 @@ export function CorporateComplianceGrid() {
         {/* Card 2: Best Branch */}
         <Card className="border-green-500/10">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase tracking-wider font-semibold">
+            <CardDescription className="text-xs font-semibold">
               Mayor Cumplimiento
             </CardDescription>
             <CardTitle className="text-xl font-bold truncate text-green-700 flex items-center gap-1.5">
@@ -250,7 +262,7 @@ export function CorporateComplianceGrid() {
         {/* Card 3: Worst Branch */}
         <Card className="border-red-500/10">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase tracking-wider font-semibold">
+            <CardDescription className="text-xs font-semibold">
               Menor Cumplimiento
             </CardDescription>
             <CardTitle className="text-xl font-bold truncate text-red-700 flex items-center gap-1.5">
@@ -271,7 +283,7 @@ export function CorporateComplianceGrid() {
         {/* Card 4: Incidents */}
         <Card className="border-yellow-500/10">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase tracking-wider font-semibold">
+            <CardDescription className="text-xs font-semibold">
               Desviaciones y Alertas
             </CardDescription>
             <CardTitle className="text-3xl font-extrabold text-yellow-600 flex items-baseline gap-1.5">

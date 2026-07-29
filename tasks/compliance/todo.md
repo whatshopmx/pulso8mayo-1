@@ -31,7 +31,7 @@ Open questions (responder antes de T16/T21/T22 — ver `plan.md`):
   - **Verify:** `pnpm run build`; inspección visual — cards sin fuente muestran "Sin datos".
   - **Deps:** None.
 
-- [ ] **T3** Eliminar Info tab de la página principal. *Files: `app/dashboard/compliance/page.tsx`. Size XS.*
+- [ ] **T3** Eliminar Info tab de la página principal. *Files: `app/dashboard/compliance/page.tsx`. Size XS.* **⏸ BLOQUEADA TEMPORALMENTE (2026-07-28): el workstream paralelo Dashboard Consistency Pass está migrando esta página a Server Component + `useBranch()` (commit `cab090d`, working tree activo). Re-aplicar sobre `app/dashboard/compliance/compliance-page-client.tsx` cuando su trabajo aterrice. Contenido de ayuda ya rescatado en `components/compliance/nom-help-content.tsx`.*
   - **Acceptance:**
     - [ ] Tab "info" y su `TabsContent` eliminados (cards vanity "100% Cumple", "Oficial", "PDF", "Beneficios Operativos")
     - [ ] Grid de TabsList ajustado (`grid-cols-3 lg:grid-cols-7` → columnas correctas)
