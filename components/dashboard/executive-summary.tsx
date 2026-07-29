@@ -1,110 +1,55 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { AlertTriangle, Clock, PackageOpen, CalendarClock, Building2, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-
-interface AlertSummary {
-  criticalIncidents: number;
-  overdueWorkflows: number;
-  lowStockItems: number;
-  expiringBatches: number;
-}
-
-interface BranchOverview {
-  totalBranches: number;
-  topPerformer: { branchId: string; branchName: string; performanceIndex: number } | null;
-  bottomPerformer: { branchId: string; branchName: string; performanceIndex: number } | null;
-  avgPerformanceIndex: number;
-}
-
-interface CostTrends {
-  currentPeriod: { total: number; byCategory: Record<string, number> };
-  previousPeriod: { total: number; byCategory: Record<string, number> };
-  changePercent: number;
-}
-
-interface ComplianceOverview {
-  avgScore: number;
-  totalWorkflows: number;
-  completedWorkflows: number;
-  completionRate: number;
-}
-
-interface ExecutiveData {
-  alertSummary: AlertSummary;
-  branchOverview: BranchOverview;
-  costTrends: CostTrends;
-  complianceOverview: ComplianceOverview;
-}
+import { AlertTriangle, Clock, PackageOpen, CalendarClock, Building2, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { getExecutiveSummary } from "@/lib/services/analytics-service";
+import { ExecutiveSummaryCostChart } from "./executive-summary-cost-chart";
 
 interface ExecutiveSummaryProps {
-  branch?: string;
+  /** Active branch scope (cookie-derived by the home page; null/"all" ⇒ chain rollup). */
+  branch?: string | null;
+  /** Kept for prop parity with sibling sections; the summary is period-based historically. */
   startDate?: string;
   endDate?: string;
 }
 
-export function ExecutiveSummary({ branch, startDate, endDate }: ExecutiveSummaryProps) {
-  const [data, setData] = useState<ExecutiveData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const searchParams = useSearchParams();
+/**
+ * Executive summary — Server Component under the AD-2 floor (Server Component
+ * + Suspense). Loads via `getExecutiveSummary` (lib/services/, shared with the
+ * `/api/analytics/executive-summary` route), inheriting auth/tenant from the
+ * session. The home page wraps this in `<Suspense>` + `<SectionErrorBoundary>`;
+ * on a hard top-level failure this async component throws so the boundary can
+ * render `ErrorState` with retry (never a silent null gap — H9/H1).
+ *
+ * The recharts cost-trend card lives in the client child
+ * `ExecutiveSummaryCostChart` because recharts is client-only (refs/class
+ * components); the parent server component passes server-fetched props.
+ */
+export async function ExecutiveSummary({ branch }: ExecutiveSummaryProps) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  const companyId = session?.user?.companyId;
+  const userRole = (session?.user as any)?.role;
+  const userBranchId = (session?.user as any)?.branchId as string | undefined;
+  const requestedBranchId = branch && branch !== "all" ? branch : null;
 
-  useEffect(() => {
-    const params = new URLSearchParams();
-    const activeBranch = branch || searchParams.get("branch");
-    const activeStart = startDate || searchParams.get("startDate");
-    const activeEnd = endDate || searchParams.get("endDate");
-
-    if (activeBranch && activeBranch !== "all") params.set("branchId", activeBranch);
-    if (activeStart) params.set("startDate", activeStart);
-    if (activeEnd) params.set("endDate", activeEnd);
-
-    fetch(`/api/analytics/executive-summary?${params}`)
-      .then((res) => res.json())
-      .then((result) => {
-        if (result && result.alertSummary) {
-          setData(result);
-        } else {
-          setData(null);
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        setData(null);
-        setLoading(false);
-      });
-  }, [branch, startDate, endDate, searchParams]);
-
-  if (loading) {
-    return (
-      <div className="space-y-4 px-4 lg:px-6">
-        <div className="grid gap-4 md:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-4">
-                <div className="h-16 bg-muted rounded" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
+  if (!companyId || !userRole) {
+    // No authenticated tenant context; nothing to summarise. Render nothing
+    // rather than attempt a query that would 401 (the boundary needn't fire).
+    return null;
   }
+
+  const data = await getExecutiveSummary({
+    companyId,
+    userRole,
+    userBranchId,
+    requestedBranchId,
+  });
 
   if (!data || !data.alertSummary) return null;
 
-  const costCategories = Object.entries(data.costTrends.currentPeriod.byCategory);
-  const chartData = costCategories.map(([category, current]) => ({
-    category,
-    actual: Number(current),
-    anterior: Number(data.costTrends.previousPeriod.byCategory[category] || 0),
-  }));
-
   return (
-    <div className="space-y-4 px-4 lg:px-6">
+    <div className="space-y-4">
       {/* Consolidated Operational Alerts Strip */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border border-border">
@@ -226,71 +171,7 @@ export function ExecutiveSummary({ branch, startDate, endDate }: ExecutiveSummar
           </CardContent>
         </Card>
 
-        <Card className="border border-border">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                {data.costTrends.changePercent >= 0 ? (
-                  <TrendingUp className="h-4 w-4 text-destructive" />
-                ) : (
-                  <TrendingDown className="h-4 w-4 text-emerald-500" />
-                )}
-                Tendencia de Costos
-              </CardTitle>
-              <Badge
-                variant={data.costTrends.changePercent > 0 ? "destructive" : "secondary"}
-                className="text-xs"
-              >
-                {data.costTrends.changePercent > 0 ? "+" : ""}
-                {data.costTrends.changePercent.toFixed(1)}%
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {chartData.length === 0 ? (
-              <div className="flex items-center justify-center h-[180px] text-muted-foreground text-sm">
-                Sin datos de costos
-              </div>
-            ) : (
-              <>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis
-                      dataKey="category"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                      className="text-muted-foreground"
-                    />
-                    <YAxis
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                      className="text-muted-foreground"
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--popover))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Bar dataKey="anterior" name="Período Anterior" fill="oklch(0.70 0.01 85)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="actual" name="Período Actual" fill="oklch(0.52 0.17 25)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-                <div className="flex items-center justify-between mt-3 pt-3 border-t">
-                  <span className="text-sm text-muted-foreground">Total Actual</span>
-                  <span className="text-lg font-bold">
-                    ${data.costTrends.currentPeriod.total.toLocaleString()}
-                  </span>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        <ExecutiveSummaryCostChart costTrends={data.costTrends} />
       </div>
     </div>
   );

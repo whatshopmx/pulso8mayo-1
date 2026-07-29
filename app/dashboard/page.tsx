@@ -18,17 +18,20 @@ import {
   ChartSkeleton,
   DataTableSkeleton,
 } from "@/components/shared"
-import { PageContainer, PageHeader } from "@/components/shared"
+import { PageContainer, PageHeader, SectionErrorBoundary } from "@/components/shared"
+import { cookies } from "next/headers";
+import { BRANCH_COOKIE_NAME } from "@/lib/tenant-context";
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ branch?: string; startDate?: string; endDate?: string }> }) {
   const params = await searchParams;
-  // Branch scope lives in the header BranchScopeControl (cookie-backed, AD-1).
+  // Branch scope flows from the header BranchScopeControl (cookie-backed, AD-1):
+  // "pulso_selected_branch" is the single source of truth across home sections.
+  // Legacy ?branch= URL links still honoured on a best-effort basis until they cycle out.
+  const cookieBranch = (await cookies()).get(BRANCH_COOKIE_NAME)?.value;
+  const selectedBranch = cookieBranch || params.branch;
   // Date range stays URL-encoded so shared links keep their window.
   const startDate = params.startDate;
   const endDate = params.endDate;
-  // Absorb legacy ?branch= links into the cookie world until they cycle out
-  // (see Risks table, tasks/plan.md). Selected branch for server queries:
-  const selectedBranch = params.branch;
 
   const t = await getTranslations("dashboard.executive");
   const session = await auth.api.getSession({
@@ -95,7 +98,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
 
       {/* #3 — Operational alerts & executive overview */}
       <Suspense fallback={<KpiCardsSkeleton count={2} />}>
-        <ExecutiveSummary branch={selectedBranch} startDate={startDate} endDate={endDate} />
+        <SectionErrorBoundary>
+          <ExecutiveSummary branch={selectedBranch} startDate={startDate} endDate={endDate} />
+        </SectionErrorBoundary>
       </Suspense>
 
       {/* #4 — KPI summary cards */}
