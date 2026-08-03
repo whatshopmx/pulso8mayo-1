@@ -79,7 +79,8 @@ export class SuggestedOrderService {
   static async generatePurchaseOrders(
     companyId: string,
     branchId: string,
-    suggestedItems: Array<{ itemId: string; suggestedQty: number }>
+    suggestedItems: Array<{ itemId: string; suggestedQty: number }>,
+    userId?: string
   ) {
     if (suggestedItems.length === 0) return [];
 
@@ -109,7 +110,7 @@ export class SuggestedOrderService {
         companyId,
         branchId,
         supplierId,
-        requestedBy: 'system',
+        requestedBy: userId || 'system',
         items: poItems,
         notes: 'Orden generada automáticamente por sistema de sugerencias PAR',
       });

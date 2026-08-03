@@ -25,6 +25,7 @@ import {
   ComplianceTrendChart,
   type TrendDataPoint,
 } from "@/components/dashboard/executive/compliance-trend-chart";
+import { PnlBranchTable } from "@/components/finance/pnl-branch-table";
 import { CrossBranchService } from "@/lib/services/cross-branch-service";
 
 // ---------------------------------------------------------------------------
@@ -132,6 +133,11 @@ export default async function ExecutiveDashboardPage() {
             <TrendChartWrapper companyId={companyId} />
           </Suspense>
         </div>
+      </div>
+
+      {/* Section 4: P&L Operativo Estimado por Sucursal */}
+      <div>
+        <PnlBranchTable />
       </div>
     </div>
   );

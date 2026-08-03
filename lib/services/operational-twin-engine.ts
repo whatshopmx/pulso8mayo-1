@@ -11,7 +11,8 @@ import {
   temperatureLogs,
   costRecords,
   incidents,
-  branches
+  branches,
+  operationalTwinStateEnum
 } from "@/lib/db/schema";
 import { eq, and, gte, inArray, ne, sql } from "drizzle-orm";
 

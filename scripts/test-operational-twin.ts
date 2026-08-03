@@ -12,8 +12,8 @@ async function main() {
   console.log("=================================================\n");
 
   // 1. Fetch branch and company from the database
-  const branch = await db.query.branches.findFirst();
-  const company = await db.query.companies.findFirst();
+  const branch = await db.query.branches.findFirst() as any;
+  const company = await db.query.companies.findFirst() as any;
 
   if (!branch || !company) {
     console.error("❌ Error: No branches or companies found in the database. Please seed the database first.");

@@ -122,13 +122,46 @@ export default function PODetailPage() {
     <PageContainer>
       <style>{`
         @media print {
-          aside, nav, header, footer, button, .print\\:hidden {
-            display: none !important;
+          @page {
+            size: letter portrait;
+            margin: 12mm;
           }
-          main, .print\\:full-width {
-            width: 100% !important;
+
+          html, body, [data-slot="sidebar-inset"], main, div, .flex-1 {
+            display: block !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            flex: none !important;
             padding: 0 !important;
             margin: 0 !important;
+            box-shadow: none !important;
+            background: transparent !important;
+          }
+
+          aside, nav, header, footer, button, .print\\:hidden, [data-sidebar], [data-slot="sidebar-trigger"] {
+            display: none !important;
+          }
+
+          .grid {
+            display: block !important;
+          }
+
+          .card, [class*="card"] {
+            box-shadow: none !important;
+            border: 1px solid #e2e8f0 !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            margin-bottom: 1.25rem !important;
+          }
+
+          table {
+            width: 100% !important;
+          }
+
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -265,7 +298,7 @@ export default function PODetailPage() {
           </Card>
 
           {(availableActions.length > 0 || ['SENT', 'PARTIALLY_RECEIVED'].includes(po.status as string)) && (
-            <Card>
+            <Card className="print:hidden">
               <CardHeader>
                 <CardTitle className="text-sm">Acciones</CardTitle>
               </CardHeader>

@@ -41,7 +41,8 @@ export async function POST(req: NextRequest) {
     const orders = await SuggestedOrderService.generatePurchaseOrders(
       session.user.companyId || "",
       session.user.branchId,
-      items
+      items,
+      session.user.id
     );
 
     return NextResponse.json({ orders, count: orders.length });

@@ -29,7 +29,10 @@ export type NotificationEventType =
   | "employee_absence"
   | "announcement_broadcast"
   | "training_assigned"
-  | "imss_deadline";
+  | "imss_deadline"
+  | "sales_cut_reminder"
+  | "sales_cut_missing"
+  | "financial_kpi_deviation";
 
 export interface UserData {
     id: string;
@@ -269,6 +272,38 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
     inAppTitle: "Fecha límite IMSS en {daysLabel}",
     inAppMessage: "{deadlineLabel} vence el {deadlineDate}",
     variables: ["userName", "deadlineLabel", "deadlineDate", "daysLabel"]
+  },
+  "sales_cut_reminder": {
+    id: "sales_cut_reminder",
+    name: "Recordatorio de Corte de Caja",
+    eventType: "sales_cut_reminder",
+    channels: ["whatsapp", "in-app"],
+    whatsappTemplate: "💰 *Recordatorio de Corte de Caja*\n\nHola {userName},\n\nRecuerda registrar el corte de ventas del turno *{shift}* ({businessDate}).\n\nIngresa directamente desde la app para subir tu reporte:\n{smartLinkUrl}",
+    inAppTitle: "Corte de caja pendiente",
+    inAppMessage: "Turno {shift} ({businessDate}) pendiente de registrar.",
+    variables: ["userName", "shift", "businessDate", "smartLinkUrl"]
+  },
+  "sales_cut_missing": {
+    id: "sales_cut_missing",
+    name: "Corte de Caja Faltante",
+    eventType: "sales_cut_missing",
+    channels: ["whatsapp", "email", "in-app"],
+    whatsappTemplate: "🚨 *Alerta: Corte de Caja Faltante*\n\nHola {userName},\n\nNo se ha recibido el corte de caja de la sucursal *{branchName}* para el turno *{shift}* ({businessDate}).\n\nPor favor haz clic para subirlo o revisarlo:\n{smartLinkUrl}",
+    emailSubject: "🚨 Corte de caja no registrado: {branchName}",
+    emailBody: "<h2>Corte de caja no registrado</h2><p>Sucursal: {branchName}</p><p>Turno: {shift}</p><p>Fecha: {businessDate}</p>",
+    inAppTitle: "Corte de caja no recibido",
+    inAppMessage: "{branchName} - Turno {shift} del {businessDate}",
+    variables: ["userName", "branchName", "shift", "businessDate", "smartLinkUrl"]
+  },
+  "financial_kpi_deviation": {
+    id: "financial_kpi_deviation",
+    name: "Desviación de KPI Financiero",
+    eventType: "financial_kpi_deviation",
+    channels: ["whatsapp", "in-app"],
+    whatsappTemplate: "⚠️ *Alerta Financiera*\n\nDesviación de costo en tu sucursal:\n- Food Cost: {foodCostPercent}%\n- Labor Cost: {laborCostPercent}%\n\nVentas registradas: ${totalSales} MXN.",
+    inAppTitle: "Desviación de KPI Financiero",
+    inAppMessage: "Food Cost {foodCostPercent}% / Labor Cost {laborCostPercent}%",
+    variables: ["foodCostPercent", "laborCostPercent", "totalSales"]
   }
 };
 

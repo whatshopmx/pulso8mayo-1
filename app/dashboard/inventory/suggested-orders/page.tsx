@@ -58,13 +58,17 @@ export default function SuggestedOrdersPage() {
   }, [fetchSuggestions]);
 
   const groupedSuggestions = React.useMemo(() => {
-    const groups: Record<string, SuggestedItem[]> = {};
+    const groups: Record<string, { supplierId: string | null; supplierName: string; items: SuggestedItem[] }> = {};
     suggestions.forEach(item => {
-      const supplier = item.supplierName || "Sin Proveedor";
-      if (!groups[supplier]) {
-        groups[supplier] = [];
+      const key = item.supplierId || item.supplierName || "Sin Proveedor";
+      if (!groups[key]) {
+        groups[key] = {
+          supplierId: item.supplierId || null,
+          supplierName: item.supplierName || "Sin Proveedor",
+          items: [],
+        };
       }
-      groups[supplier].push(item);
+      groups[key].items.push(item);
     });
     return groups;
   }, [suggestions]);
@@ -87,7 +91,7 @@ export default function SuggestedOrdersPage() {
     }
   };
 
-  const toggleSupplierGroup = (supplierName: string, groupItems: SuggestedItem[]) => {
+  const toggleSupplierGroup = (groupItems: SuggestedItem[]) => {
     const next = new Set(selectedIds);
     const itemIds = groupItems.map(i => i.itemId);
     const allSelected = itemIds.every(id => next.has(id));
@@ -124,7 +128,11 @@ export default function SuggestedOrdersPage() {
         throw new Error(data.error || "Error al crear órdenes");
       }
 
-      toast.success(`${data.count} órdenes de compra creadas`);
+      toast.success(
+        data.count === 1
+          ? "1 orden de compra consolidada creada"
+          : `${data.count} órdenes de compra creadas (1 consolidada por proveedor)`
+      );
       setSelectedIds(new Set());
       fetchSuggestions();
     } catch (err) {
@@ -193,19 +201,21 @@ export default function SuggestedOrdersPage() {
             />
           ) : (
             <div className="space-y-8">
-              {Object.entries(groupedSuggestions).map(([supplierName, groupItems]) => {
+              {Object.entries(groupedSuggestions).map(([key, group]) => {
+                const groupItems = group.items;
+                const supplierName = group.supplierName;
                 const groupItemIds = groupItems.map(i => i.itemId);
                 const allGroupSelected = groupItemIds.every(id => selectedIds.has(id));
                 const someGroupSelected = groupItemIds.some(id => selectedIds.has(id)) && !allGroupSelected;
 
                 return (
-                  <div key={supplierName} className="border rounded-md overflow-hidden bg-card text-card-foreground shadow-sm">
+                  <div key={key} className="border rounded-md overflow-hidden bg-card text-card-foreground shadow-sm">
                     {/* Supplier Group Header */}
                     <div className="flex items-center justify-between px-4 py-2.5 bg-muted/40 border-b">
                       <div className="flex items-center gap-3">
                         <Checkbox
                           checked={allGroupSelected ? true : someGroupSelected ? "indeterminate" : false}
-                          onCheckedChange={() => toggleSupplierGroup(supplierName, groupItems)}
+                          onCheckedChange={() => toggleSupplierGroup(groupItems)}
                         />
                         <span className="font-semibold text-sm">{supplierName}</span>
                         <Badge variant="outline" className="text-xs bg-background/50">

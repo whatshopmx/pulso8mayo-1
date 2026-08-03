@@ -12,6 +12,13 @@ import {
   Wrench,
   BarChart3,
   FileText,
+  Coins,
+  Wallet,
+  Receipt,
+  Calendar,
+  Settings2,
+  Flame,
+  Crown,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -36,6 +43,11 @@ const navMain = [
       {
         title: "Vista General",
         url: "/dashboard",
+      },
+      {
+        title: "Dashboard Ejecutivo",
+        url: "/dashboard/executive",
+        icon: Crown,
       },
       {
         title: "Analítica",
@@ -236,6 +248,11 @@ const navMain = [
         url: "/dashboard/audit",
       },
       {
+        title: "Protección Civil",
+        url: "/dashboard/civil-protection",
+        icon: Flame,
+      },
+      {
         title: "Reportes",
         url: "/dashboard/reports",
       },
@@ -274,6 +291,11 @@ const navMain = [
       {
         title: "Cambios de Turno",
         url: "/dashboard/labor/shift-changes",
+      },
+      {
+        title: "Distribución de Propinas",
+        url: "/dashboard/labor/propinas",
+        icon: Coins,
       },
       {
         title: "Constructor de Horarios",
@@ -321,6 +343,36 @@ const navMain = [
     ],
   },
   {
+    title: "Finanzas",
+    url: "/dashboard/sales",
+    icon: Coins,
+    items: [
+      {
+        title: "Cortes de Ventas",
+        url: "/dashboard/sales",
+      },
+      {
+        title: "Mapeo POS",
+        url: "/dashboard/sales/mapping",
+      },
+      {
+        title: "Caja Chica",
+        url: "/dashboard/finance/petty-cash",
+        icon: Wallet,
+      },
+      {
+        title: "Gastos Operativos",
+        url: "/dashboard/finance/expenses",
+        icon: Receipt,
+      },
+      {
+        title: "Flujo de Efectivo",
+        url: "/dashboard/finance/cash-flow",
+        icon: Calendar,
+      },
+    ],
+  },
+  {
     title: "Organización",
     url: "/dashboard/company",
     icon: Building2,
@@ -328,6 +380,11 @@ const navMain = [
       {
         title: "Sucursales",
         url: "/dashboard/company/branches",
+      },
+      {
+        title: "Modelo Operativo",
+        url: "/dashboard/company/operating-config",
+        icon: Settings2,
       },
       {
         title: "Equipo",

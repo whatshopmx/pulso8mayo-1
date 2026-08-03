@@ -1,0 +1,48 @@
+{
+  "id": "tpl-retiro-caja-chica-v1",
+  "nombre": "💸 Retiro de Caja Chica",
+  "descripcion": "Workflow de autorización y registro de retiro de efectivo de caja chica con evidencia fotográfica del comprobante.",
+  "categoria": "FINANZAS",
+  "version": 1,
+  "activo": true,
+  "requiereIA": false,
+  "duracionEstimada": "3-5 min",
+  "tags": ["caja-chica", "efectivo", "gastos", "comprobante"],
+  "pasos": [
+    {
+      "id": "paso-monto",
+      "type": "NumberField",
+      "titulo": "Monto del Retiro ($ MXN)",
+      "obligatorio": true,
+      "validation": {
+        "min": 1
+      }
+    },
+    {
+      "id": "paso-concepto",
+      "type": "TextField",
+      "titulo": "Concepto o Motivo del Gasto",
+      "obligatorio": true
+    },
+    {
+      "id": "paso-categoria",
+      "type": "SelectField",
+      "titulo": "Categoría de Gasto",
+      "obligatorio": true,
+      "options": [
+        "MANTENIMIENTO",
+        "SERVICIOS",
+        "PUBLICIDAD",
+        "SERVICIOS_PROFESIONALES",
+        "OTROS"
+      ]
+    },
+    {
+      "id": "paso-comprobante",
+      "type": "PhotoField",
+      "titulo": "Foto del Ticket / Comprobante de Compra",
+      "obligatorio": true,
+      "evidenceRequired": true
+    }
+  ]
+}

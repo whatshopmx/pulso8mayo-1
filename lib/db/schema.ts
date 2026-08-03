@@ -2610,3 +2610,131 @@ export const tenantOperatingConfig = pgTable("tenant_operating_config", {
 }, (table) => ({
     tenantOperatingConfigCompanyUnique: uniqueIndex("tenant_operating_config_company_unique").on(table.companyId),
 }));
+
+// ---------------------------------------------------------------------------
+// M16: Pagos y Gastos / Caja Chica (T34)
+// ---------------------------------------------------------------------------
+
+export const pettyCashTransactionTypeEnum = pgEnum("petty_cash_transaction_type", ['OUT', 'REPLENISHMENT', 'ADJUSTMENT']);
+export const operatingExpenseCategoryEnum = pgEnum("operating_expense_category", [
+  'RENTA',
+  'SERVICIOS',
+  'MANTENIMIENTO',
+  'PUBLICIDAD',
+  'SERVICIOS_PROFESIONALES',
+  'OTROS'
+]);
+export const operatingExpenseStatusEnum = pgEnum("operating_expense_status", ['PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'PAID']);
+
+export const pettyCashFunds = pgTable("petty_cash_funds", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+
+    fundAmount: integer("fund_amount").notNull().default(500000), // in cents ($5,000 default)
+    currentBalance: integer("current_balance").notNull().default(500000), // in cents
+    lowThreshold: integer("low_threshold").notNull().default(100000), // in cents (20% default)
+    active: boolean("active").notNull().default(true),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    pettyCashFundBranchUnique: uniqueIndex("petty_cash_fund_branch_unique").on(table.companyId, table.branchId),
+}));
+
+export const pettyCashTransactions = pgTable("petty_cash_transactions", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    fundId: uuid("fund_id").notNull().references(() => pettyCashFunds.id),
+
+    type: pettyCashTransactionTypeEnum("type").notNull(),
+    amount: integer("amount").notNull(), // in cents
+    concept: text("concept").notNull(),
+    category: operatingExpenseCategoryEnum("category"),
+    evidenceUrl: text("evidence_url"),
+    workflowInstanceId: text("workflow_instance_id"),
+
+    registeredBy: text("registered_by").notNull().references(() => users.id),
+    approvedBy: text("approved_by").references(() => users.id),
+    authorizationNotes: text("authorization_notes"),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const operatingExpenses = pgTable("operating_expenses", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+
+    category: operatingExpenseCategoryEnum("category").notNull(),
+    amount: integer("amount").notNull(), // in cents
+    description: text("description").notNull(),
+    invoiceId: uuid("invoice_id").references(() => invoices.id),
+    status: operatingExpenseStatusEnum("status").notNull().default('PENDING_APPROVAL'),
+
+    requestedBy: text("requested_by").notNull().references(() => users.id),
+    approvedBy: text("approved_by").references(() => users.id),
+    approvalNotes: text("approval_notes"),
+
+    paidAt: timestamp("paid_at"),
+    dueDate: date("due_date"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const expenseAuthorizationRules = pgTable("expense_authorization_rules", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").references(() => branches.id),
+
+    minAmount: integer("min_amount").notNull(), // in cents
+    maxAmount: integer("max_amount"), // in cents (null = infinite)
+    approverRole: text("approver_role").notNull(), // 'GERENTE' | 'DIRECTOR_OPS' | 'OWNER'
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// Post-Fase 10 (T21): Módulo de Distribución de Propinas Auditable
+// ---------------------------------------------------------------------------
+
+export const propinaStatusEnum = pgEnum("propina_status", ['CALCULATED', 'DISBURSED']);
+
+export const propinas = pgTable("propinas", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+
+    businessDate: date("business_date").notNull(),
+    shift: salesCutShiftEnum("shift").notNull(),
+    totalPoolCents: integer("total_pool_cents").notNull(), // Total cash tip pool in cents
+    distributedCents: integer("distributed_cents").notNull(), // Sum of assigned amounts
+
+    status: propinaStatusEnum("status").notNull().default('CALCULATED'),
+    registeredBy: text("registered_by").notNull().references(() => users.id),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    propinasBranchDateShiftUnique: uniqueIndex("propinas_branch_date_shift_unique").on(
+        table.companyId,
+        table.branchId,
+        table.businessDate,
+        table.shift
+    ),
+}));
+
+export const propinaAsignaciones = pgTable("propina_asignaciones", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    propinaId: uuid("propina_id").notNull().references(() => propinas.id),
+    userId: text("user_id").notNull().references(() => users.id),
+
+    hoursWorked: numeric("hours_worked").notNull().default('0'),
+    points: numeric("points").notNull().default('1.0'),
+    assignedAmountCents: integer("assigned_amount_cents").notNull(), // Amount for employee in cents
+
+    paidAt: timestamp("paid_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+

@@ -157,6 +157,30 @@ const routingRules: Record<NotificationEventType, RoutingRule> = {
     retryAttempts: 3,
     retryDelayMs: 2000,
     businessHoursOnly: false
+  },
+  sales_cut_reminder: {
+    eventType: "sales_cut_reminder",
+    priority: "normal",
+    channels: ["whatsapp", "in-app"],
+    retryAttempts: 2,
+    retryDelayMs: 3000,
+    businessHoursOnly: false
+  },
+  sales_cut_missing: {
+    eventType: "sales_cut_missing",
+    priority: "high",
+    channels: ["whatsapp", "email", "in-app"],
+    retryAttempts: 3,
+    retryDelayMs: 2000,
+    businessHoursOnly: false
+  },
+  financial_kpi_deviation: {
+    eventType: "financial_kpi_deviation",
+    priority: "high",
+    channels: ["whatsapp", "in-app"],
+    retryAttempts: 2,
+    retryDelayMs: 3000,
+    businessHoursOnly: false
   }
 };
 
