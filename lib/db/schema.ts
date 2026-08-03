@@ -4,7 +4,7 @@
  * All tables will be moved to domain-specific modules in lib/db/schema/
  */
 
-import { pgTable, text, timestamp, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, date, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // Import auth tables and enums for internal use within this file
@@ -30,6 +30,12 @@ export const assignmentTypeEnum = pgEnum("assignment_type", ['ROLE', 'USER', 'AU
 export const assignmentStatusEnum = pgEnum("assignment_status", ['PENDING', 'NOTIFIED', 'STARTED', 'COMPLETED', 'OVERDUE']);
 export const priorityEnum = pgEnum("priority", ['LOW', 'MEDIUM', 'HIGH', 'URGENT']);
 export const notificationTypeEnum = pgEnum("notification_type", ['info', 'warning', 'error', 'success']);
+
+// M13: Ventas y POS — daily sales cut enums
+export const salesCutShiftEnum = pgEnum("sales_cut_shift", ['MATUTINO', 'VESPERTINO', 'COMPLETO']);
+export const salesChannelEnum = pgEnum("sales_channel", ['SALON', 'DELIVERY', 'EVENTOS', 'TOTAL']);
+export const salesCutSourceEnum = pgEnum("sales_cut_source", ['UPLOAD', 'WHATSAPP', 'MANUAL_FORM']);
+export const salesCutStatusEnum = pgEnum("sales_cut_status", ['VALIDATED', 'PENDING_REVIEW', 'REJECTED']);
 
 // Note: account, users, sessions, verifications, magicLinks tables are re-exported from auth.ts
 // Keeping them here would cause duplicate identifier errors
@@ -2336,6 +2342,76 @@ export const salesEntries = pgTable("sales_entries", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// M13: Daily sales cuts (corte de ventas diario por sucursal/turno/canal)
+// Ingested from POS files (upload/WhatsApp) or a manual fallback form.
+// All money amounts in cents (integer), consistent with invoices/sales_entries.
+export const dailySalesCuts = pgTable("daily_sales_cuts", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+
+    businessDate: date("business_date").notNull(),
+    shift: salesCutShiftEnum("shift").notNull(),
+    channel: salesChannelEnum("channel").notNull().default('TOTAL'),
+
+    // Money (cents)
+    totalSales: integer("total_sales").notNull(),
+    cashSales: integer("cash_sales"),
+    cardSales: integer("card_sales"),
+    otherPayments: integer("other_payments"), // vales, transferencias, agregadores
+    avgTicket: integer("avg_ticket"),
+
+    ticketCount: integer("ticket_count"),
+
+    source: salesCutSourceEnum("source").notNull(),
+    rawFileUrl: text("raw_file_url"),
+    status: salesCutStatusEnum("status").notNull().default('PENDING_REVIEW'),
+    validationNotes: text("validation_notes"),
+
+    receivedBy: uuid("received_by").references(() => users.id),
+    receivedAt: timestamp("received_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    // One cut per branch/date/shift/channel — duplicates rejected at ingest (T25)
+    dailySalesCutUnique: uniqueIndex("daily_sales_cut_unique").on(
+        table.companyId,
+        table.branchId,
+        table.businessDate,
+        table.shift,
+        table.channel
+    ),
+    dailySalesCutsDateIdx: index("daily_sales_cuts_date_idx").on(
+        table.companyId,
+        table.branchId,
+        table.businessDate
+    ),
+}));
+
+// M13: POS column-mapping templates — per-tenant configurable mapping of
+// POS export columns → canonical sales-cut fields (plan decision 4).
+// The mapping JSONB also stores fileShape, headerRow, and date/decimal
+// format metadata so T27 can reuse a template without re-detection.
+export const posMappingTemplates = pgTable("pos_mapping_templates", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+
+    name: text("name").notNull(),
+    posSystem: text("pos_system"), // free text: Soft Restaurant, Aloha, Square, genérico…
+
+    mapping: jsonb("mapping").notNull(), // { canonicalField: sourceColumn, ...metadata }
+    paymentMethodMapping: jsonb("payment_method_mapping"), // { paymentLabel: CASH|CARD|DELIVERY|OTHER }
+
+    isDefault: boolean("is_default").default(false).notNull(),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    posMappingTemplatesCompanyIdx: index("pos_mapping_templates_company_idx").on(
+        table.companyId
+    ),
+}));
 
 export const invoices = pgTable("invoices", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
