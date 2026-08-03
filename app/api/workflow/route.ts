@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { inngest } from "@/lib/inngest/client";
+import { withTenantAuth } from "@/lib/api/with-auth";
 
-const WORKFLOW_EVENT_MAP: Record<string, { event: string; mapArgs: (args: any[]) => any }> = {
+const WORKFLOW_EVENT_MAP: Record<string, { event: string; mapArgs: (args: any[], auth: any) => any }> = {
   executeWorkflow: {
     event: "workflow/execution.created",
-    mapArgs: ([instanceId, userId]: any[]) => ({ instanceId, userId }),
+    mapArgs: ([instanceId]: any[], auth) => ({ instanceId, userId: auth.user.id }),
   },
   handleIncidentWorkflow: {
     event: "incident/detected",
@@ -16,23 +17,23 @@ const WORKFLOW_EVENT_MAP: Record<string, { event: string; mapArgs: (args: any[])
   },
   handleClockInWorkflow: {
     event: "shift/clock-in.requested",
-    mapArgs: ([userId, branchId, phoneNumber, geolocation]: any[]) => ({ userId, branchId, phoneNumber, geolocation }),
+    mapArgs: ([branchId, phoneNumber, geolocation]: any[], auth) => ({ userId: auth.user.id, branchId, phoneNumber, geolocation }),
   },
   handleClockOutWorkflow: {
     event: "shift/clock-out.requested",
-    mapArgs: ([userId, phoneNumber, geolocation]: any[]) => ({ userId, phoneNumber, geolocation }),
+    mapArgs: ([phoneNumber, geolocation]: any[], auth) => ({ userId: auth.user.id, phoneNumber, geolocation }),
   },
   handleBreakStartWorkflow: {
     event: "shift/break.start.requested",
-    mapArgs: ([userId, phoneNumber, geolocation]: any[]) => ({ userId, phoneNumber, geolocation }),
+    mapArgs: ([phoneNumber, geolocation]: any[], auth) => ({ userId: auth.user.id, phoneNumber, geolocation }),
   },
   handleBreakEndWorkflow: {
     event: "shift/break.end.requested",
-    mapArgs: ([userId, phoneNumber, geolocation]: any[]) => ({ userId, phoneNumber, geolocation }),
+    mapArgs: ([phoneNumber, geolocation]: any[], auth) => ({ userId: auth.user.id, phoneNumber, geolocation }),
   },
 };
 
-export async function POST(req: Request) {
+export const POST = withTenantAuth(async (req: Request, { auth }) => {
   try {
     const body = await req.json();
     const { workflow, args } = body;
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Workflow '${workflow}' not found` }, { status: 404 });
     }
 
-    const eventData = mapping.mapArgs(args || []);
+    const eventData = mapping.mapArgs(args || [], auth);
 
     await inngest.send({
       name: mapping.event,
@@ -61,4 +62,4 @@ export async function POST(req: Request) {
     console.error("Error dispatching workflow:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-}
+});

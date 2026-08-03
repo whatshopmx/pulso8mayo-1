@@ -3,11 +3,12 @@ import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import { requireTenant } from "@/lib/tenant-context";
 import { db } from "@/lib/db";
-import { shiftSessions, users, branches, plannedShifts, breakLogs } from "@/lib/db/schema";
+import { shiftSessions, users, branches, plannedShifts, breakLogs, employeeProfiles } from "@/lib/db/schema";
 import { eq, and, gte, lte, inArray, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { parseISO, differenceInMinutes, format, addDays } from "date-fns";
 import { calculateOvertime, validateBreakCompliance, DEFAULT_COMPLIANCE_RULES } from "@/lib/labor-validation";
+import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
 
 const createShiftSessionSchema = z.object({
     plannedShiftId: z.string().uuid().optional(),
@@ -240,6 +241,99 @@ export async function PUT(req: NextRequest) {
             .set(updateData)
             .where(eq(shiftSessions.id, data.id))
             .returning();
+
+        // Check if status changed to NO_SHOW to dispatch absence notifications
+        if (updated.status === "NO_SHOW" && existing.status !== "NO_SHOW") {
+            try {
+                // Fetch employee user
+                const employeeUser = await db.query.users.findFirst({
+                    where: eq(users.id, existing.userId),
+                });
+
+                // Fetch planned shift details
+                const shift = existing.plannedShiftId
+                    ? await db.query.plannedShifts.findFirst({
+                        where: eq(plannedShifts.id, existing.plannedShiftId),
+                    })
+                    : null;
+
+                const shiftDate = shift?.shiftDate || (existing.startedAt ? new Date(existing.startedAt).toLocaleDateString('es-MX') : 'N/A');
+                const shiftTime = shift ? `${shift.startTime} - ${shift.endTime}` : (existing.scheduledStartTime && existing.scheduledEndTime ? `${existing.scheduledStartTime} - ${existing.scheduledEndTime}` : 'N/A');
+                const reason = data.notes || existing.notes || 'Sin especificar';
+                const employeePhone = employeeUser?.whatsappPhone || employeeUser?.phone || 'No registrado';
+
+                // 1. Notify the employee
+                await NotificationDispatcher.sendNotification({
+                    userId: existing.userId,
+                    title: "Ausencia Registrada",
+                    message: `Se ha registrado una ausencia (No Show) en tu turno del ${shiftDate} (${shiftTime}).`,
+                    type: "warning",
+                    eventType: "employee_absence",
+                    actionUrl: `/dashboard/labor/shifts`,
+                    actionLabel: "Ver Turnos",
+                    metadata: {
+                        employeeName: employeeUser?.name || 'Empleado',
+                        shiftDate,
+                        shiftTime,
+                        reason,
+                    }
+                });
+
+                // 2. Notify the supervisor if exists
+                const employeeProfile = await db.query.employeeProfiles.findFirst({
+                    where: eq(employeeProfiles.userId, existing.userId),
+                });
+
+                if (employeeProfile?.supervisorId) {
+                    await NotificationDispatcher.sendNotification({
+                        userId: employeeProfile.supervisorId,
+                        title: `Ausencia de Empleado: ${employeeUser?.name || 'Empleado'}`,
+                        message: `Se ha registrado una ausencia para ${employeeUser?.name || 'Empleado'} en el turno del ${shiftDate} (${shiftTime}). Motivo: ${reason}. Contacto: ${employeePhone}`,
+                        type: "warning",
+                        eventType: "employee_absence",
+                        actionUrl: `/dashboard/labor/attendance`,
+                        actionLabel: "Ver Asistencia",
+                        metadata: {
+                            employeeName: employeeUser?.name || 'Empleado',
+                            shiftDate,
+                            shiftTime,
+                            reason,
+                        }
+                    });
+                }
+
+                // 3. Notify managers/admins of the branch
+                const managers = await db.query.users.findMany({
+                    where: and(
+                        eq(users.branchId, existing.branchId),
+                        inArray(users.role, ['ADMIN', 'GERENTE', 'SUPERVISOR'] as any)
+                    )
+                });
+
+                for (const manager of managers) {
+                    // Skip if manager is also the supervisor (to avoid duplicate notifications)
+                    if (manager.id === employeeProfile?.supervisorId) continue;
+
+                    await NotificationDispatcher.sendNotification({
+                        userId: manager.id,
+                        title: `Ausencia de Empleado: ${employeeUser?.name || 'Empleado'}`,
+                        message: `Se ha registrado una ausencia para ${employeeUser?.name || 'Empleado'} en el turno del ${shiftDate} (${shiftTime}). Motivo: ${reason}. Contacto: ${employeePhone}`,
+                        type: "warning",
+                        eventType: "employee_absence",
+                        actionUrl: `/dashboard/labor/attendance`,
+                        actionLabel: "Ver Asistencia",
+                        metadata: {
+                            employeeName: employeeUser?.name || 'Empleado',
+                            shiftDate,
+                            shiftTime,
+                            reason,
+                        }
+                    });
+                }
+            } catch (notifErr) {
+                console.error("Error sending absence notifications:", notifErr);
+            }
+        }
 
         return ApiHandler.success(updated);
     } catch (error) {

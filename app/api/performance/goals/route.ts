@@ -3,11 +3,10 @@ import { db } from '@/lib/db';
 import { performanceGoals, users } from '@/lib/db/schema';
 import { eq, and, desc, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
-// Validation schemas
+// Validation schemas — userId and companyId from session
 const createGoalSchema = z.object({
-  userId: z.string(),
-  companyId: z.string().uuid(),
   branchId: z.string().uuid().optional(),
   title: z.string().min(1).max(200),
   description: z.string().optional(),
@@ -20,24 +19,16 @@ const createGoalSchema = z.object({
 const updateGoalSchema = createGoalSchema.partial();
 
 // GET - List performance goals
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
     const userId = searchParams.get('userId');
     const status = searchParams.get('status');
     const category = searchParams.get('category');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'companyId is required' },
-        { status: 400 }
-      );
-    }
-
-    const conditions = [eq(performanceGoals.companyId, companyId)];
+    const conditions = [eq(performanceGoals.companyId, auth.tenantId)];
 
     if (userId) conditions.push(eq(performanceGoals.userId, userId));
     if (status) conditions.push(eq(performanceGoals.status, status as any));
@@ -88,15 +79,20 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Create a new goal
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
-    const validated = createGoalSchema.safeParse(body);
+    // userId from body for who the goal is assigned to; companyId from session
+    const { userId: goalUserId, ...rest } = body;
+    const validated = createGoalSchema.safeParse(rest);
 
-  if (!validated.success) {
+  if (!validated.success || !goalUserId) {
+    if (!goalUserId) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
     return NextResponse.json(
       { error: 'Invalid input', details: validated.error.issues },
       { status: 400 }
@@ -109,8 +105,10 @@ export async function POST(request: NextRequest) {
       .insert(performanceGoals)
       .values({
         ...data,
+        userId: goalUserId,
+        companyId: auth.tenantId,
         targetDate: data.targetDate ? new Date(data.targetDate) : undefined,
-        createdBy: data.userId,
+        createdBy: auth.user.id,
       })
       .returning();
 
@@ -125,10 +123,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PATCH - Update a goal
-export async function PATCH(request: NextRequest) {
+export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const goalId = searchParams.get('id');
@@ -189,10 +187,10 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE - Delete a goal
-export async function DELETE(request: NextRequest) {
+export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const goalId = searchParams.get('id');
@@ -226,4 +224,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

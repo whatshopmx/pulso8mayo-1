@@ -1,118 +1,496 @@
-# Implementation Plan: Dashboard Consistency & Architecture Pass
+# Implementation Plan: Grupo Restaurantero Unificado (Phases 4 to 10)
 
 ## Overview
 
-Unify Pulso's dashboard around one scope control, one data-fetching strategy, and one header/page vocabulary; remaster the home page to lead with a ranked attention queue; collapse the Inventario nav and add a `cmd+k` command palette; then sweep the design-system P2s (semantic color tokens, sub-floor type, error/loading standardization, `border-b-2` removal). Lands the four confirmed architectural decisions and closes the 3 P1 + 7 P2 issues from the `app/dashboard/` critique (27/40 → target ≥32).
+Este plan unifica, simplifica y detalla la hoja de ruta para cerrar los gaps del diseño de **Grupo Restaurantero v2** (`docs/pulso-diseno-grupo-restaurantero.md`). Consolida las tareas pendientes de las Fases 4 a 10 (T9 a T40, con T23 ya completada), cubriendo la integración de WhatsApp como canal de notificaciones y smart links, plantillas de workflows operativos adicionales, NOM-035, el portal para auditores externos, módulos de Protección Civil, Propinas, alertas IMSS, reportes PDF automáticos y los módulos financieros fundacionales M13 (Ventas y POS) y M16 (Pagos y Gastos).
+
+El objetivo es asegurar que la plataforma pueda calcular y reportar KPIs financieros (Food Cost %, Labor Cost %, P&L y Flujo de Efectivo) e instrumentar notificaciones automáticas y flujos de aprobación robustos.
+
+---
 
 ## Architecture Decisions
 
-**AD-1 — Single scope control in the layout header, cookie as truth.**
-A `BranchScopeControl` component lives in `app/dashboard/layout.tsx`'s header (next to `ModeToggle`). Branch selection writes the `pulso_selected_branch` cookie via the existing `BranchProvider.setSelectedBranchId` — the mechanism is already wired. Date range stays **URL-encoded** (`?startDate=&endDate=`) so links are shareable and per-page, but branch is cookie-only so it propagates across tabs and survives navigation.
-*Rationale:* the critique found two scope UIs fighting (`DashboardFilters` `?branch=` vs inventory's cookie Select) — both wrap `BranchProvider` already; the conflict is the duplication, not the mechanism. Cookie wins because open-in-new-tab and cross-section consistency matter for a 15-branch owner.
+*   **AD-3 — WhatsApp como Hub de Notificaciones + Smart Links:** WhatsApp notifica y envía enlaces únicos (Smart Links) para ejecutar las acciones dentro de la PWA (web app móvil). No se implementan flujos interactivos de texto complejos en chat.
+*   **AD-4 — Portal de externos sin credenciales:** Auditores, contadores y proveedores entran mediante URLs seguras con un token JWT firmado de corta duración (máximo 7 días) que expone reportes de solo lectura.
+*   **AD-5 — Dinero en centavos (Integer):** Todos los montos monetarios en la base de datos se manejan como enteros en centavos de peso (MXN) para evitar problemas de redondeo de punto flotante.
+*   **AD-6 — Ingesta POS basada en Archivos (M13):** Se evitan integraciones directas con APIs de los POS locales por costo y fragilidad. Se lee el corte diario generado en XLSX/CSV por el POS usando la librería existente `exceljs`.
+*   **AD-7 — Esquema canónico + Alias + Diccionario dinámico:** El POS de cada cliente se mapea a un esquema canónico a través de plantillas configurables por tenant en `pos_mapping_templates`. El servicio auto-detecta columnas por aproximación de nombres.
+*   **AD-8 — Soporte a múltiples formatos de archivo:** Ingesta de 4 formatos comunes: resumido (corte de caja), detalle por forma de pago, desglose por ticket y archivos multi-hoja.
+*   **AD-9 — Segregación de aprobaciones financieras:** El flujo de aprobación de gastos usa un esquema independiente del de asistencia (`shift_approvals`), reutilizando el motor de escalamiento.
+*   **AD-10 — P&L y Flujo de Efectivo en tiempo real:** Son servicios de agregación de lectura (`unstable_cache` de 5 minutos) basados en datos reales de ventas, compras conciliadas, nómina y gastos operativos.
 
-**AD-2 — Server Component + Suspense is the floor; client hook only for local re-fetch.**
-Read-heavy operational dashboards default to Server Components querying `db` directly, streamed via `<Suspense fallback={<…Skeleton/>}>` (the home-page `ComplianceMetrics`/`DashboardCharts` pattern). The `useDashboard()`/`useInventory()` TanStack-query hook survives only where a component needs re-fetch on local interaction without a navigation round-trip (and where the header cookie change already invalidates the query).
-*Rationale:* the `useEffect` + `fetch("/api/...")` pattern silently nulls on failure (`ExecutiveSummary`) and `console.error`s only (`compliance/page.tsx`) — Heuristics 9 & 1. Server Components inherit auth/tenant from the layout, stream for free, and remove duplicated client-side `/api/branches` fetching the layout already does. This is the larger refactor; flag for human before starting (see Open Questions).
-
-**AD-3 — Home leads with a ranked attention queue, not a KPI grid.**
-`PendingRemediationActionsCard` + critical incidents become section #1 on the home dashboard, rendered as a compact ranked list (top 3 visible, "ver todo" expansion), **not** a fourth hero-metric grid (banned template). KPI grid moves to #2; charts drop lower. Pinned announcements move below the queue or fold into a header bell.
-*Rationale:* the Mariana persona (3–15 branch owner reading a morning brief) currently scrolls past announcements + KPIs before reaching the most owner-relevant block. The single-pane-of-glass promise is diluted by a long scroll. Act first, then measure.
-
-**AD-4 — Collapse Inventario to ~8 groups + `cmd+k` fast path.**
-Re-group the 24 Inventario leaf items into 8 collapsed nav groups, then add a `cmd+k` command palette (new `cmdk` dependency) indexed over every nav leaf so Alex can type "merma" and jump. Collapse lightens the nav; cmd+k is the fast lever that makes a calm nav viable.
-*Rationale:* 24 vertical submenu items exceed the ≤5 working-memory ideal. A command palette is the Linear/Raycast affordance and the reason the nav can afford to stay calm.
+---
 
 ## Task List
 
-### Phase 1: Unified scope control
+### Phase 4: WhatsApp — Hub de Notificaciones + Smart Links (T9–T12)
 
-- [ ] **T1 — Build `BranchScopeControl`, mount in layout header.** New `components/shared/branch-scope-control.tsx`. Branch dropdown + date-range dropdown (port the date-range logic from `components/dashboard/dashboard-filters.tsx`). Reads `useBranch()` for branches + selected; writes cookie via `setSelectedBranchId`. Date range writes URL search params via `useRouter`. Mount in `app/dashboard/layout.tsx` header next to `ModeToggle`. Keep `DashboardFilters` coexisting for now (app still builds). *Files: `components/shared/branch-scope-control.tsx`, `app/dashboard/layout.tsx`.* **S**.
-- [ ] **T2 — Migrate inventory page to header scope; delete local Select.** `app/dashboard/inventory/page.tsx`: remove the local `branchFilter` `useState` + `<Select>`; read `selectedBranchId` from `useBranch()` (`null` ⇒ "all" rollup). `dashboardData` query key stays branch-scoped. `badge` "N sucursales con stock" still computed from data. *Files: `app/dashboard/inventory/page.tsx`.* **XS**.
+*   [ ] **Task T9: Notificación WhatsApp: cambio de turno**
+    *   *Description:* Cuando se genere una solicitud de cambio de turno, notifica al compañero asignado vía WhatsApp con un smart link que le permita aceptar o rechazar en la PWA.
+    *   *Acceptance Criteria:*
+        *   Envía mensaje estructurado con detalles del turno a cambiar.
+        *   Genera smart link a `/dashboard/labor/shift-changes/{id}`.
+    *   *Verification:*
+        *   Crear solicitud de cambio de turno en la base de datos.
+        *   Verificar que se genere el log de despacho de WhatsApp.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [notification-dispatcher.ts](file:///c:/Users/david/pulso29/lib/services/notification-dispatcher.ts)
+        *   [smart-link-service.ts](file:///c:/Users/david/pulso29/lib/services/smart-link-service.ts)
+    *   *Estimated scope:* Small
 
-### Checkpoint A — T1–T2
-- [ ] `pnpm run build` clean
-- [ ] Header scope control changes branch on inventory page without a local Select
-- [ ] Cookie survives navigation to another section and back
-- [ ] Date range still shares via URL on the home dashboard (old `DashboardFilters` still wired there)
+*   [ ] **Task T10: Notificación WhatsApp: reportar ausencia**
+    *   *Description:* Notifica al gerente de la sucursal de manera inmediata cuando un empleado marque su estado como `NO_SHOW` o no registre check-in en su horario establecido.
+    *   *Acceptance Criteria:*
+        *   WhatsApp automático al teléfono del gerente de sucursal.
+        *   Smart link directo a la sesión de asistencia correspondiente.
+    *   *Verification:*
+        *   Simular ausencia de un empleado en un turno programado.
+        *   Verificar la recepción del mensaje por el gerente correspondiente.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [notification-dispatcher.ts](file:///c:/Users/david/pulso29/lib/services/notification-dispatcher.ts)
+    *   *Estimated scope:* Small
 
-### Phase 2: Home remaster + filter retirement
+*   [ ] **Task T11: Anuncios de grupo vía WhatsApp**
+    *   *Description:* Creación de una función en Inngest para dispersar anuncios globales o locales creados por el corporativo directamente a los teléfonos de los empleados con enlace de confirmación.
+    *   *Acceptance Criteria:*
+        *   Función programada en Inngest para emitir mensajes masivos.
+        *   Smart link de solo lectura al anuncio en la PWA.
+    *   *Verification:*
+        *   Crear anuncio corporativo y verificar la ejecución de la función de Inngest en el Inngest Dev Server.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [notification-dispatcher.ts](file:///c:/Users/david/pulso29/lib/services/notification-dispatcher.ts)
+        *   [announcement-broadcast.ts](file:///c:/Users/david/pulso29/lib/inngest/functions/announcement-broadcast.ts) [NEW]
+    *   *Estimated scope:* Medium
 
-- [ ] **T3 — Remaster home page: header scope + attention queue lead.** `app/dashboard/page.tsx`: (a) delete the inline `DashboardFilters` usage + the bespoke `border-b bg-card` executive header; adopt `PageContainer` + `PageHeader` with `actions={<BranchScopeControl/>}`-equivalent (header already mounts it, so `PageHeader.actions` may be empty or carry `ComplianceReportGenerator` only); remove the layout/header double-padding by making `PageContainer` the single padding owner. (b) Reorder sections: **#1 attention queue** (render `PendingRemediationActionsCard` + critical-incidents list, top 3 + "ver todo" expansion, no hero-metric grid), **#2** KPI metrics, **#3** executive summary, **#4** KPI summary, **#5** charts, **#6** alert distribution, **#7** recent activity; pinned announcements fold to a header bell or drop to a low section. *Files: `app/dashboard/page.tsx`, `app/dashboard/layout.tsx` (padding owner), maybe `components/dashboard/pending-actions.tsx` (expansion UI).* **M**.
-- [ ] **T4 — Retire `DashboardFilters`; delete dead code.** Once T1+T3 land and no consumer references `DashboardFilters`, delete `components/dashboard/dashboard-filters.tsx` and its imports. *Files: `components/dashboard/dashboard-filters.tsx` (delete), any import sites.* **XS**.
+*   [ ] **Task T12: Notificación WhatsApp: capacitación**
+    *   *Description:* Avisa al empleado sobre nuevos materiales de capacitación o quizzes obligatorios asignados a su puesto, con enlace directo al executor.
+    *   *Acceptance Criteria:*
+        *   Notificación instantánea al asignar material.
+        *   Smart link que abre el workflow executor en el quiz específico.
+    *   *Verification:*
+        *   Asignar workflow de capacitación a un usuario y validar el envío del smart link.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [notification-dispatcher.ts](file:///c:/Users/david/pulso29/lib/services/notification-dispatcher.ts)
+        *   [smart-link-service.ts](file:///c:/Users/david/pulso29/lib/services/smart-link-service.ts)
+    *   *Estimated scope:* Small
 
-### Checkpoint B — T3–T4
-- [ ] `pnpm run build` clean
-- [ ] Home opens with the attention queue above the KPI grid
-- [ ] Branch + date scope flows from the single header control to every home section
-- [ ] No references to `DashboardFilters` remain (`grep -r "DashboardFilters"` empty)
+#### Checkpoint 1: WhatsApp Channels
+- [ ] La app compila sin errores (`pnpm run build`).
+- [ ] Envío y recepción de notificaciones de cambio de turno, ausencias, anuncios y capacitaciones verificado en Inngest Dev Server.
 
-### Phase 3: Data-fetching standardization (AD-2)
+---
 
-- [ ] **T5 — Migrate `ExecutiveSummary` to Server Component + Suspense.** `components/dashboard/executive-summary.tsx`: convert from client `useEffect`+`fetch` to a server component fetcher (move the `/api/analytics/executive-summary` logic into a `lib/services/` function or `app/api/.../route.ts` server read, query `db` directly with tenant from session). Wrap in `<Suspense fallback={<ChartSkeleton/>}>` in the home page. Add an `ErrorState` with retry for the error path. Delete the silent `setData(null)` `return null`. *Files: `components/dashboard/executive-summary.tsx`, `app/dashboard/page.tsx`, maybe `lib/services/analytics-service.ts`.* **M–L**.
-- [ ] **T6 — Migrate `compliance/page.tsx` off `useEffect`+`fetch`.** Convert the `/api/branches` client fetch + the compliance fetch to Server Components using `getCurrentTenant()` / `BranchService.listBranches` (layout already has branches; pass via props or re-query server-side). Wire `EmptyState`/`ErrorState` for the empty/broken cases. *Files: `app/dashboard/compliance/page.tsx`.* **M**.
-- [ ] **T7 — Standardize error/loading/empty across async sections.** Audit every section page's async data path; each renders exactly one of `*Skeleton` (loading via Suspense), `EmptyState` (empty), `ErrorState` with retry (error). Confirm `components/shared/error-state.tsx` is the canonical error UI and wire it where missing (e.g., labor "no company" state should use `EmptyState`). *Files: `app/dashboard/labor/page.tsx`, `app/dashboard/compliance/page.tsx`, others found in audit.* **M**.
+### Phase 5: Workflows Faltantes + NOM-035 Seguimiento (T13–T16)
 
-### Checkpoint C — T5–T7
-- [ ] `pnpm run build` clean
-- [ ] No `useEffect`+`fetch("/api/...")` data patterns remain in `app/dashboard/` (`grep -rn "useEffect" app/dashboard | grep fetch` empty)
-- [ ] `ExecutiveSummary` renders a skeleton while loading, an `ErrorState` on failure (not a blank gap)
-- [ ] `compliance/page.tsx` no longer re-fetches `/api/branches` client-side
-- [ ] Every async section shows one of skeleton / empty / error
+*   [ ] **Task T13: Template: Cambio de Turno**
+    *   *Description:* Crear la plantilla JSON oficial para el checklist de entrega/recepción de turno (doble firma digital, entrega de caja, pendientes y novedades).
+    *   *Acceptance Criteria:*
+        *   Formulario JSON que incluye arqueo de caja, bitácora de novedades y firmas digitales.
+    *   *Verification:*
+        *   Importar y ejecutar el checklist en el simulador de workflows.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [cambio-turno-v1.json](file:///c:/Users/david/pulso29/templates/operaciones_diarias/cambio-turno-v1.json) [NEW]
+    *   *Estimated scope:* Small
 
-### Phase 4: Nav collapse + command palette
+*   [ ] **Task T14: Template: Auditoría Interna**
+    *   *Description:* Integración en una sola plantilla JSON del checklist para auditorías internas NOM-251 y NOM-035.
+    *   *Acceptance Criteria:*
+        *   Scoring automático y generación automática de plan de acción corrector al fallar secciones críticas.
+    *   *Verification:*
+        *   Completar auditoría simulando fallas críticas; verificar la creación del plan de remediación en base de datos.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [auditoria-interna-v1.json](file:///c:/Users/david/pulso29/templates/compliance/auditoria-interna-v1.json) [NEW]
+    *   *Estimated scope:* Medium
 
-- [ ] **T8 — Collapse Inventario nav to ~8 grouped sections.** `components/app-sidebar.tsx` + `components/nav-main.tsx`: re-structure the 24 Inventario leaf items into 8 collapsed groups (e.g., Panel + Productos inside the top group; Operar / Comprar / Analizar / Configurar remain as group labels with their items). Make `groupLabel` rows collapsible so a group can be hidden. Keep `groupLabel` typographic treatment but raise the `text-[10px]` to `text-xs` (see T11). *Files: `components/app-sidebar.tsx`, `components/nav-main.tsx`.* **M**. *Can parallelize with T9 after T1.*
-- [ ] **T9 — Add `cmd+k` command palette.** Install `cmdk`. New `components/shared/command-palette.tsx` (rendered in `app/dashboard/layout.tsx`, triggered by `⌘K`/`Ctrl+K`). Index over every nav leaf from the sidebar's `navMain` config (export it from `app-sidebar.tsx` so the palette reuses the same source of truth). Fuzzy search, `⌘ Enter` to navigate. `<Esc>` to close. *Files: `package.json`, `components/shared/command-palette.tsx`, `app/dashboard/layout.tsx`, `components/app-sidebar.tsx` (export `navMain`).* **M**. *Can parallelize with T8.*
+*   [ ] **Task T15: Template: Muestreo de Calidad**
+    *   *Description:* Plantilla JSON para el control de temperaturas de cocción, vida de anaquel de preparados y fotos del platillo verificado por AI.
+    *   *Acceptance Criteria:*
+        *   Registro de temperaturas con thresholds; validación por AI de la fotografía de evidencia del platillo.
+    *   *Verification:*
+        *   Completar workflow y validar que la AI asigne score de confianza a la foto.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [muestreo-calidad-v1.json](file:///c:/Users/david/pulso29/templates/control_calidad/muestreo-calidad-v1.json) [NEW]
+    *   *Estimated scope:* Small
 
-### Checkpoint D — T8–T9
-- [ ] `pnpm run build` clean
-- [ ] Inventario submenu shows ~8 groups, not 24 items
-- [ ] `⌘K` opens the palette, typing "merma" lands on the Mermas page, `Enter` navigates
-- [ ] `prefers-reduced-motion` respected (palette open is instant under reduced motion)
+*   [ ] **Task T16: NOM-035: plan de acción y seguimiento**
+    *   *Description:* Base de datos, API y vistas para la creación y control de medidas correctoras asociadas al clima laboral (NOM-035).
+    *   *Acceptance Criteria:*
+        *   Tabla `nom035_action_plans` migrada.
+        *   Endpoints CRUD para planes de acción y subida de evidencia de remediación.
+    *   *Verification:*
+        *   Crear plan de acción, actualizar estatus a "remediado" adjuntando evidencia y validar persistencia.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [schema.ts](file:///c:/Users/david/pulso29/lib/db/schema.ts)
+        *   [nom035-service.ts](file:///c:/Users/david/pulso29/lib/services/compliance/nom035-service.ts) [NEW]
+        *   [route.ts](file:///c:/Users/david/pulso29/app/api/compliance/nom-035/action-plan/route.ts) [NEW]
+    *   *Estimated scope:* Medium
 
-### Phase 5: Design-system polish (the P2 sweep)
+#### Checkpoint 2: Workflows & NOM-035
+- [ ] Ejecutar checklists de cambio de turno, auditorías y muestreos de calidad.
+- [ ] Guardar plan de acción NOM-035 exitosamente.
 
-- [ ] **T10 — Semantic color tokens in status badges.** `components/dashboard/recent-workflows-table.tsx`: replace `emerald-500/600/400` → `success`/`success-foreground`, `blue-500/600/400` → `info`/`info-foreground`. Add `bg-success/10 text-success border-success/20` (and `info`, `warning`, `destructive`) Badge variants in `components/ui/badge.tsx`. Inventory "Actualizado" dot `bg-emerald-500` → `bg-success`. *Files: `components/ui/badge.tsx`, `components/dashboard/recent-workflows-table.tsx`, `app/dashboard/inventory/page.tsx`.* **S**.
-- [ ] **T11 — Darken `--muted-foreground` to AA + fix sub-floor type.** `app/globals.css`: `--muted-foreground` light → `oklch(0.45 0.012 85)`, dark → `~0.62`; re-measure to ≥4.5:1 on `--background`. `audit/page.tsx:840` and `profile/onboarding/page.tsx:171` → `text-xs` (12px). `PageHeader` `h1` add `text-wrap: balance`. Re-run `node .agents/skills/impeccable/scripts/detect.mjs --json app/dashboard` and confirm the 2 font-size findings clear. *Files: `app/globals.css`, `app/dashboard/audit/page.tsx`, `app/dashboard/profile/onboarding/page.tsx`, `components/shared/page-header.tsx`.* **S**.
-- [ ] **T12 — Remove `border-b-2` accent borders; compliance title l10n.** `ai-verifications/page.tsx:215`, `equipment/page.tsx:267`, `equipment/[id]/page.tsx:226`: replace `border-b-2` accent with a full border or background tint. `compliance/page.tsx` page title "Compliance" → "Cumplimiento". Re-run detect and confirm the 3 `border-accent-on-rounded` findings clear. *Files: 3 equipment/ai-verifications pages, `app/dashboard/compliance/page.tsx`.* **S**.
-- [ ] **T13 — Compliance IA: collapse 7 tabs to ≤4 + overflow.** `app/dashboard/compliance/page.tsx`: group 7 tabs into 4 primary (Dashboard, NOM-251, NOM-035, IMSS/Nómina) and sink the rest into a "Más" overflow or a left sub-nav. Keep the existing `<Tabs>` component. *Files: `app/dashboard/compliance/page.tsx`.* **S**.
+---
 
-### Checkpoint E — T10–T13
-- [ ] `pnpm run build` clean
-- [ ] `detect.mjs` reports 0 findings (was 5)
-- [ ] Status badges use semantic tokens; `grep -rn "emerald-500\|blue-500" components/dashboard app/dashboard` for badge contexts is empty
-- [ ] `--muted-foreground` measures ≥4.5:1 on white and on dark `--background`
-- [ ] Compliance page shows ≤4 primary tabs
+### Phase 6: Portal de Externos + Comunicaciones (T17–T19)
 
-### Phase 6: Verify & polish
+*   [ ] **Task T17: Portal de externos con token**
+    *   *Description:* Ruta `/external/report/[token]` pública que valida un JWT de corta duración y despliega reportes operacionales y de cumplimiento de solo lectura para entes de auditoría o consultores.
+    *   *Acceptance Criteria:*
+        *   Expiración automática del token JWT a los 7 días.
+        *   Sin pantalla de inicio de sesión requerida.
+        *   Vista estática de solo lectura con descarga en PDF (jsPDF). Sin controles de filtrado o interactividad.
+    *   *Verification:*
+        *   Generar link de externos, verificar acceso sin credenciales; expirar token manualmente y validar error 401/403.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [layout.tsx](file:///c:/Users/david/pulso29/app/external/layout.tsx) [NEW]
+        *   [page.tsx](file:///c:/Users/david/pulso29/app/external/report/[token]/page.tsx) [NEW]
+        *   [route.ts](file:///c:/Users/david/pulso29/app/api/external/generate-link/route.ts) [NEW]
+    *   *Estimated scope:* Medium
 
-- [ ] **T14 — Re-run critique; fix any regression.** `$impeccable critique app/dashboard/`. Address anything reintroduced. Confirm no `<div className="border-b-2">`, no `useEffect`+`fetch` data fetch, no double padding. *Files: as surfaced.* **S**.
-- [ ] **T15 — Final `$impeccable polish app/dashboard/`.** Sweep any residual detail (focus rings on card hovers, `aria-live` on the attention queue, focus-visible on the palette). *Files: as surfaced.* **S**.
+*   [ ] **Task T18: Confirmación de lectura en anuncios**
+    *   *Description:* Tabla `communication_read_receipts` y endpoint para registrar cuando un empleado abre y confirma un anuncio, con desglose de métrica en panel de administración.
+    *   *Acceptance Criteria:*
+        *   Persiste confirmación con timestamp y ID del empleado.
+        *   Muestra conteo de lectura en UI de anuncios.
+    *   *Verification:*
+        *   Hacer click en "Marcar como leído" y verificar que se inserte el registro y se actualice el contador en tiempo real.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [schema.ts](file:///c:/Users/david/pulso29/lib/db/schema.ts)
+        *   [route.ts](file:///c:/Users/david/pulso29/app/api/communications/announcements/[id]/read/route.ts) [NEW]
+        *   [announcement-card.tsx](file:///c:/Users/david/pulso29/components/communications/announcement-card.tsx)
+    *   *Estimated scope:* Small
 
-### Checkpoint F — Complete
-- [ ] Critique score ≥32 (was 27); P1 count 0; `detect.mjs` 0 findings
-- [ ] All acceptance criteria for T1–T15 met
-- [ ] Ready for human review
+*   [ ] **Task T19: Buscador de comunicaciones**
+    *   *Description:* Añadir búsqueda textual y filtrado por sucursales/tags sobre anuncios e instructivos del corporativo.
+    *   *Acceptance Criteria:*
+        *   Input de búsqueda en `/dashboard/communications` que busque en `title` y `body`.
+    *   *Verification:*
+        *   Buscar palabra clave y validar que se filtren los resultados correspondientes de forma instantánea.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [page.tsx](file:///c:/Users/david/pulso29/app/dashboard/company/communications/page.tsx)
+    *   *Estimated scope:* Small
+
+#### Checkpoint 3: External Access & Read Confirmation
+- [ ] Probar link externo de visualización de reporte.
+- [ ] Confirmar lectura de anuncios e ilustrar conteo en el panel.
+
+---
+
+### Phase 7: Módulos Faltantes (Protección Civil, Propinas, IMSS) (T20–T22)
+
+*   [ ] **Task T20: Módulo de Protección Civil**
+    *   *Description:* Bitácora de simulacros, estado de extintores, checklists fotográficos de salidas de emergencia con extracción OCR de fechas de vigencia.
+    *   *Acceptance Criteria:*
+        *   Tabla `proteccion_civil_checklists` migrada.
+        *   Checklist con OCR funcionando para la carga de vigencia de extintor.
+    *   *Verification:*
+        *   Subir imagen de extintor; verificar la extracción de texto y el cálculo automático de días de vigencia restante.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [schema.ts](file:///c:/Users/david/pulso29/lib/db/schema.ts)
+        *   [proteccion-civil-v1.json](file:///c:/Users/david/pulso29/templates/seguridad/proteccion-civil-v1.json) [NEW]
+        *   [route.ts](file:///c:/Users/david/pulso29/app/api/compliance/proteccion-civil/route.ts) [NEW]
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T21: Distribución de propinas**
+    *   *Description:* Tablas `propinas` y `propina_asignaciones` con lógica de cálculo automático proporcional a las horas trabajadas registradas en `shiftSessions`.
+    *   *Acceptance Criteria:*
+        *   Asignación automática de propinas basado en horas reales de asistencia del período seleccionado.
+        *   API CRUD e interfaz básica de visualización.
+    *   *Verification:*
+        *   Ingresar bolsa de propina de $10,000 MXN para un día de 2 empleados (8h y 4h respectivamente); verificar asignaciones exactas ($6,666.67 MXN y $3,333.33 MXN).
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [schema.ts](file:///c:/Users/david/pulso29/lib/db/schema.ts)
+        *   [route.ts](file:///c:/Users/david/pulso29/app/api/propinas/route.ts) [NEW]
+        *   [page.tsx](file:///c:/Users/david/pulso29/app/dashboard/labor/propinas/page.tsx) [NEW]
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T22: Alertas IMSS**
+    *   *Description:* Cron en Inngest para alertar al corporativo sobre vencimientos de SUA y modificaciones patronales del IMSS.
+    *   *Acceptance Criteria:*
+        *   Recordatorios automáticos en días 7, 3 y 1 antes de la fecha límite patronal (día 17 de cada mes).
+    *   *Verification:*
+        *   Trigger manual de la función de cron; verificar el despacho correcto del payload de alerta.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [cron-compliance-alerts.ts](file:///c:/Users/david/pulso29/lib/inngest/functions/cron-compliance-alerts.ts)
+    *   *Estimated scope:* Small
+
+#### Checkpoint 4: PC & Propinas
+- [ ] Ejecutar auditoría de Protección Civil e ingresar / distribuir bolsa de propinas.
+- [ ] Alertamiento de SUA verificado en panel local de Inngest.
+
+---
+
+### Phase 8: Reportes Automáticos Formateados (T24–T25)
+
+*   [ ] **Task T24: Reportes PDF recurrentes**
+    *   *Description:* Generador de reportes con `@react-pdf/renderer` para el envío programado de resúmenes operativos en formato PDF vía Email/WhatsApp.
+    *   *Acceptance Criteria:*
+        *   Generación de PDFs del reporte diario, semanal y mensual con tablas e históricos consolidados.
+    *   *Verification:*
+        *   Generar un reporte mensual y comprobar visualmente el layout y datos agregados.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [cron-scheduled-reports.ts](file:///c:/Users/david/pulso29/lib/inngest/functions/cron-scheduled-reports.ts)
+        *   [report-pdf-generator.ts](file:///c:/Users/david/pulso29/lib/services/report-pdf-generator.ts) [NEW]
+    *   *Estimated scope:* Large
+
+*   [ ] **Task T25: Reporte pre-auditoría COFEPRIS**
+    *   *Description:* Generar un PDF descargable estructurado conforme al formato de auditoría de COFEPRIS (bitácoras sanitarias, limpieza, plagas, higiene).
+    *   *Acceptance Criteria:*
+        *   Botón de descarga instantánea en el dashboard de cumplimiento.
+    *   *Verification:*
+        *   Click en descargar; validar que el PDF agrupe y ordene evidencias de NOM-251 correspondientes al período.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [page.tsx](file:///c:/Users/david/pulso29/app/dashboard/compliance/page.tsx)
+        *   [ComplianceReportService.ts](file:///c:/Users/david/pulso29/lib/services/ComplianceReportService.ts)
+    *   *Estimated scope:* Medium
+
+#### Checkpoint 5: PDF Reports
+- [ ] Descargar reporte COFEPRIS en un solo click.
+- [ ] Comprobar renderizado correcto de tablas y logos del restaurante en el PDF.
+
+---
+
+### Phase 9: M13 — Ventas y POS (Gap Financiero) (T26–T33)
+
+*   [ ] **Task T26: Schema de Ventas y Migración**
+    *   *Description:* Tablas `daily_sales_cuts` y `pos_mapping_templates` para almacenar los cierres de caja y mapeos de columnas por POS.
+    *   *Acceptance Criteria:*
+        *   Campos requeridos: venta total, efectivo, tarjeta, tickets, fecha comercial, turno y canal.
+        *   Unique compuesto: `(companyId, branchId, businessDate, shift, channel)`.
+    *   *Verification:*
+        *   Aplicar migración y verificar las llaves únicas en PostgreSQL.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [schema.ts](file:///c:/Users/david/pulso29/lib/db/schema.ts)
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T27: Servicio de Ingesta de Cortes**
+    *   *Description:* Lógica en `sales-ingestion-service.ts` para parsear archivos XLSX/CSV, aplicar plantillas de mapeo POS y validar cuadres matemáticos (tolerancia ±2%).
+    *   *Acceptance Criteria:*
+        *   Auto-detección del formato de archivo (`summary` | `payment_summary` | `ticket_detail` | `multi_sheet`).
+        *   Diccionario de alias dinámico para emparejar headers.
+    *   *Verification:*
+        *   Probar parseador con un CSV real; verificar que detecte el canal DELIVERY sumando agregadores.
+    *   *Dependencies:* T26
+    *   *Files likely touched:*
+        *   [sales-ingestion-service.ts](file:///c:/Users/david/pulso29/lib/services/sales-ingestion-service.ts) [NEW]
+        *   [pos-column-aliases.ts](file:///c:/Users/david/pulso29/lib/services/pos-column-aliases.ts) [NEW]
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T28: API y UI de Upload Manual**
+    *   *Description:* Endpoint `/api/sales/cuts/upload` para subir el archivo de corte diario y la pantalla `/dashboard/sales` para la interacción de gerentes.
+    *   *Acceptance Criteria:*
+        *   Dropzone funcional con selector de sucursal, fecha comercial y turno.
+    *   *Verification:*
+        *   Subir un archivo a través de la UI; verificar que aparezca en la lista de cortes recientes con estatus "VALIDATED".
+    *   *Dependencies:* T27
+    *   *Files likely touched:*
+        *   [route.ts](file:///c:/Users/david/pulso29/app/api/sales/cuts/upload/route.ts) [NEW]
+        *   [page.tsx](file:///c:/Users/david/pulso29/app/dashboard/sales/page.tsx) [NEW]
+        *   [sales-cut-upload.tsx](file:///c:/Users/david/pulso29/components/sales/sales-cut-upload.tsx) [NEW]
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T29: Configuración de Plantillas POS**
+    *   *Description:* Pantalla administrativa para que el tenant defina alias y mapeos de columnas cuando suba formatos no estándar.
+    *   *Acceptance Criteria:*
+        *   Proponer mapeo con badges de confianza (🟢 exacto, 🟡 fuzzy, ⚪ sin mapear).
+    *   *Verification:*
+        *   Crear nueva plantilla; editar un header manualmente en el formulario y confirmar que se use al ingestar.
+    *   *Dependencies:* T27
+    *   *Files likely touched:*
+        *   [route.ts](file:///c:/Users/david/pulso29/app/api/sales/mapping-templates/route.ts) [NEW]
+        *   [page.tsx](file:///c:/Users/david/pulso29/app/dashboard/sales/mapping/page.tsx) [NEW]
+        *   [mapping-template-form.tsx](file:///c:/Users/david/pulso29/components/sales/mapping-template-form.tsx) [NEW]
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T30: Dashboard de Ventas**
+    *   *Description:* Visualizaciones para el seguimiento de ventas agregadas por turno, canal de venta e históricos con ticket promedio.
+    *   *Acceptance Criteria:*
+        *   Gráficas Recharts integradas y filtros de fecha comercial/sucursal funcionales.
+    *   *Verification:*
+        *   Filtrar por rango y verificar que el ticket promedio total se recalcule dinámicamente.
+    *   *Dependencies:* T28
+    *   *Files likely touched:*
+        *   [sales-analytics-service.ts](file:///c:/Users/david/pulso29/lib/services/sales-analytics-service.ts) [NEW]
+        *   [sales-dashboard.tsx](file:///c:/Users/david/pulso29/components/sales/sales-dashboard.tsx) [NEW]
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T31: KPIs de Costo de Alimento y Laboral**
+    *   *Description:* Integrar consumo teórico de inventario y costo de nómina real vs ventas para estimar en tiempo real los márgenes (Food Cost % y Labor Cost %).
+    *   *Acceptance Criteria:*
+        *   Semáforo y alertas automáticas si el Food Cost supera el 35% o Labor Cost supera el 30%.
+    *   *Verification:*
+        *   Introducir ventas bajas en un período; validar que las tarjetas marquen alerta 🟡 o 🔴.
+    *   *Dependencies:* T30
+    *   *Files likely touched:*
+        *   [financial-kpi-service.ts](file:///c:/Users/david/pulso29/lib/services/financial-kpi-service.ts) [NEW]
+        *   [financial-kpi-cards.tsx](file:///c:/Users/david/pulso29/components/sales/financial-kpi-cards.tsx) [NEW]
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T32: WhatsApp Ingesta**
+    *   *Description:* Recibir el archivo adjunto (CSV/XLSX) vía WhatsApp en el webhook de Wasender, procesarlo con el servicio de ingesta y responder confirmación.
+    *   *Acceptance Criteria:*
+        *   Conversión fallback: responder con preguntas de texto si el archivo no se procesa correctamente (formulario conversacional).
+    *   *Verification:*
+        *   Simular envío de archivo por WhatsApp; verificar log de confirmación y creación de registro `daily_sales_cuts`.
+    *   *Dependencies:* T27
+    *   *Files likely touched:*
+        *   [workflow-conversation-handler.ts](file:///c:/Users/david/pulso29/lib/whatsapp/workflow-conversation-handler.ts)
+        *   [evidence-processor.ts](file:///c:/Users/david/pulso29/lib/whatsapp/evidence-processor.ts)
+        *   [route.ts](file:///c:/Users/david/pulso29/app/api/whatsapp/webhook/route.ts)
+    *   *Estimated scope:* Large
+
+*   [ ] **Task T33: Cierre de Turno e Integración de Workflow**
+    *   *Description:* Restricción lógica en el checklist de cierre del restaurante para que no permita enviar si no se ha detectado el corte de ventas del día.
+    *   *Acceptance Criteria:*
+        *   Validación en `isCutReceived(branchId, date)`.
+        *   Recordatorios automatizados a gerentes que no hayan enviado el corte tras el cierre.
+    *   *Verification:*
+        *   Intentar completar workflow de cierre sin haber subido venta; validar alerta de bloqueo en pantalla.
+    *   *Dependencies:* T31, T32
+    *   *Files likely touched:*
+        *   [cierre-restaurante-v2-enhanced.json](file:///c:/Users/david/pulso29/templates/operaciones_diarias/cierre-restaurante-v2-enhanced.json) [NEW]
+        *   [cron-sales-cut-reminder.ts](file:///c:/Users/david/pulso29/lib/inngest/functions/cron-sales-cut-reminder.ts) [NEW]
+    *   *Estimated scope:* Medium
+
+#### Checkpoint 6: Ingesta POS & M13
+- [ ] Subida manual y procesamiento por WhatsApp de cortes.
+- [ ] KPIs financieros visibles en el panel de Ventas.
+- [ ] Workflow de cierre bloquea la entrega si no hay corte cargado.
+
+---
+
+### Phase 10: M16 — Pagos y Gastos (Gap Financiero) (T34–T40)
+
+*   [ ] **Task T34: Schema de Gastos**
+    *   *Description:* Estructurar tablas para Caja Chica (`petty_cash_funds`, `petty_cash_transactions`), Gastos Operativos (`operating_expenses`) y reglas de aprobación (`expense_authorization_rules`).
+    *   *Acceptance Criteria:*
+        *   Montos en integer. Relación a facturas conciliadas en compras.
+    *   *Verification:*
+        *   Aplicar migraciones y validar relaciones y constraints en la base de datos.
+    *   *Dependencies:* None
+    *   *Files likely touched:*
+        *   [schema.ts](file:///c:/Users/david/pulso29/lib/db/schema.ts)
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T35: Caja Chica (Servicio + UI)**
+    *   *Description:* Gestión de fondos fijos por sucursal. Registro de salidas con desglose detallado de denominaciones de billetes y monedas, concepto, monto total y foto del ticket (evidencia R2).
+    *   *Acceptance Criteria:*
+        *   Validación de saldo disponible suficiente en transacciones tipo `OUT`.
+        *   Formulario de registro exige el desglose físico por denominación de efectivo entregado.
+    *   *Verification:*
+        *   Registrar un egreso de caja chica en la UI; verificar el descuento atómico del saldo de la sucursal.
+    *   *Dependencies:* T34
+    *   *Files likely touched:*
+        *   [petty-cash-service.ts](file:///c:/Users/david/pulso29/lib/services/petty-cash-service.ts) [NEW]
+        *   [page.tsx](file:///c:/Users/david/pulso29/app/dashboard/finance/petty-cash/page.tsx) [NEW]
+        *   [petty-cash-register.tsx](file:///c:/Users/david/pulso29/components/finance/petty-cash-register.tsx) [NEW]
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T36: Reposición Automática**
+    *   *Description:* Alerta cuando el saldo desciende del 20% del fondo fijo de caja chica. Cron de auditoría diaria.
+    *   *Acceptance Criteria:*
+        *   Notificación automática al gerente y administrador vía WhatsApp.
+    *   *Verification:*
+        *   Reducir el saldo de caja chica al 18%; verificar que la alerta de reposición se guarde en base de datos.
+    *   *Dependencies:* T35
+    *   *Files likely touched:*
+        *   [cron-petty-cash-check.ts](file:///c:/Users/david/pulso29/lib/inngest/functions/cron-petty-cash-check.ts) [NEW]
+        *   [notification-dispatcher.ts](file:///c:/Users/david/pulso29/lib/services/notification-dispatcher.ts)
+    *   *Estimated scope:* Small
+
+*   [ ] **Task T37: Gastos Operativos por Categoría**
+    *   *Description:* Registro de facturas o salidas sin orden de compra (servicios públicos, renta, reparaciones) categorizadas.
+    *   *Acceptance Criteria:*
+        *   Filtros en UI por categoría y sucursal. Agrupador mensual de gastos.
+    *   *Verification:*
+        *   Agregar un gasto de "Energía Eléctrica" y corroborar la asignación del estatus inicial según el flujo.
+    *   *Dependencies:* T34
+    *   *Files likely touched:*
+        *   [expense-service.ts](file:///c:/Users/david/pulso29/lib/services/expense-service.ts) [NEW]
+        *   [page.tsx](file:///c:/Users/david/pulso29/app/dashboard/finance/expenses/page.tsx) [NEW]
+        *   [expense-form.tsx](file:///c:/Users/david/pulso29/components/finance/expense-form.tsx) [NEW]
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T38: Autorización por Monto**
+    *   *Description:* Reglas dinámicas de aprobación de gastos en base a límites (Gerente < $1,000, Director Ops < $10,000, Owner ilimitado).
+    *   *Acceptance Criteria:*
+        *   Asignación automática del aprobador correspondiente y bloqueo del pago hasta la resolución.
+    *   *Verification:*
+        *   Registrar gasto de $15,000 MXN; verificar que el estatus sea `PENDING_APPROVAL` requiriendo al rol "Owner".
+    *   *Dependencies:* T37
+    *   *Files likely touched:*
+        *   [expense-approval-service.ts](file:///c:/Users/david/pulso29/lib/services/expense-approval-service.ts) [NEW]
+        *   [route.ts](file:///c:/Users/david/pulso29/app/api/expenses/approvals/route.ts) [NEW]
+        *   [expense-approval-list.tsx](file:///c:/Users/david/pulso29/components/finance/expense-approval-list.tsx) [NEW]
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T39: Calendario de Flujo de Efectivo**
+    *   *Description:* Interfaz de proyección a 30 días sumando ventas promedio contra salidas fijadas (pagos programados, nómina y gastos) netas de impuestos.
+    *   *Acceptance Criteria:*
+        *   Calendario interactivo que despliegue balances diarios estimados.
+        *   Todas las proyecciones y egresos se calculan netos (sin IVA).
+    *   *Verification:*
+        *   Verificar que la proyección de nómina del día 15/30 se refleje como una salida en el calendario de flujo.
+    *   *Dependencies:* T30, T38
+    *   *Files likely touched:*
+        *   [page.tsx](file:///c:/Users/david/pulso29/app/dashboard/finance/cash-flow/page.tsx) [NEW]
+        *   [cash-flow-projection.tsx](file:///c:/Users/david/pulso29/components/finance/cash-flow-projection.tsx) [NEW]
+    *   *Estimated scope:* Medium
+
+*   [ ] **Task T40: P&L Operativo Estimado por Sucursal**
+    *   *Description:* Widget consolidado en el dashboard ejecutivo que deduce heurísticamente la utilidad operativa restando costos de ventas, operando a nivel neto de impuestos.
+    *   *Acceptance Criteria:*
+        *   Utilidad Operativa = Ventas − Alimentos − Laboral − Gastos Operativos.
+        *   Todos los sumandos y deducciones se obtienen netos (sin IVA).
+        *   Uso de cache de 5 minutos.
+    *   *Verification:*
+        *   Asegurar que los montos coincidan con la sumatoria de las subcategorías cargadas en el dashboard ejecutivo.
+    *   *Dependencies:* T31, T38
+    *   *Files likely touched:*
+        *   [page.tsx](file:///c:/Users/david/pulso29/app/dashboard/executive/page.tsx)
+        *   [pl-widget.tsx](file:///c:/Users/david/pulso29/components/dashboard/executive/pl-widget.tsx) [NEW]
+    *   *Estimated scope:* Medium
+
+#### Checkpoint 7: Complete Finance M16
+- [ ] Salidas y reposiciones de caja chica operando.
+- [ ] Flujo de autorizaciones según el monto configurado.
+- [ ] Calendario de flujo de efectivo y widget de P&L estimando correctamente la rentabilidad operativa.
+
+---
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
-|---|---|---|
-| **AD-2 fork**: the user may prefer the `useDashboard()` client-hook as floor rather than Server Component + Suspense, which inverts T5–T7. | High | Open Question Q1 below; confirm before T5. If flipped, T5/T6 migrate *to* the hook (with `isError`+`onRetry`) instead of to Server Components; the silent-error P1 still clears. |
-| Cookie-vs-URL scope merge breaks deep links carrying `?branch=`. | Medium | T1 keeps `?startDate=&endDate=` URL-encoded (shareable). Branch moves to cookie only; add a one-time redirect/absorb of `?branch=` → cookie on first load in T1 so old links still work. |
-| `cmdk` adds a dependency; bundle size on the dashboard. | Low | `cmdk` is ~7KB gzipped, dynamic-imported only after first `⌘K` ping so it never blocks initial load. |
-| Server Component migration of `ExecutiveSummary` may need a server-side analytics service route refactor. | Medium | T5 explicitly allows extracting the logic to `lib/services/`; verify the `/api/analytics/executive-summary` route isn't called by other (cron/Inngest) consumers before swapping — `grep -rn "/api/analytics/executive-summary"`. |
-| Home reorder shifts chart-loading order; Suspense streaming layout shift. | Low | Keep `ChartSkeleton` heights fixed; the attention queue is fully synchronous (server-fetched), so it paints first without layout shift. |
-| Inventario re-grouping breaks role-based nav filter in `app-sidebar.tsx`. | Medium | T8 keeps the same `navMain` data shape (just reordered + grouped); the role filter only matches on `section.title` and `url.includes()` — re-test all 5 roles after T8. |
-| Phase 3 touches many section pages; risk of shipping half-migrated state. | Medium | Checkpoints C and D gate forward progress; each task leaves the app building and a section fully migrated, never a hybrid mid-task. |
+| :--- | :--- | :--- |
+| **Incompatibilidad de formatos de POS** | Alto | Esquema canónico + Alias flexibles normalizados para mapeo dinámico en vez de parsers hardcodeados. |
+| **Wasender no recibe XLSX por API** | Medio | spike de 1h en webhook (T32) para probar recepción; fallback de emergencia: foto + OCR o formulario conversacional. |
+| **Errores de redondeo de flotantes** | Alto | Forzar base de datos y lógica de servicios a usar enteros en centavos de pesos (MXN). |
+| **Proyecciones desfasadas por datos faltantes** | Medio | Advertencia en UI sobre el porcentaje de datos cubiertos para el cálculo (ej. "calculado con el 80% de ventas registradas"). |
 
-## Open Questions
+## Open Questions (Resoluciones)
 
-- **Q1 (AD-2 fork — confirm before T5):** Server Component + Suspense as the floor (my recommendation: removes silent errors, inherits tenant, streams for free) **OR** keep the `useDashboard()` client-hook as the floor (familiar, has `isError`/`onRetry` already wired) and migrate *to* the hook instead? The silent-error P1 clears either way; the difference is which code style wins long-term.
-- **Q2:** Does the home "pinned announcements" block fold into a header notification bell, or stay as a low-priority section below the attention queue? (Bell is more work; section is cheaper and still on-brand.)
-- **Q3 (scope):** Does this pass cover **all P1 + P2** (7 issues, the plan above) or stop at **top 3 P1 only** (T1–T7 plus a polish pass)? The P2 sweep (T8–T13) is where the score moves from "Acceptable" to "Good."
-- **Q4 (off-limits):** Is `app/dashboard/layout.tsx`'s header structure open to change (T1 adds a control; T3 changes padding ownership), or should the home page's executive header stay as a fixed anchor and only the section pages move to `PageContainer`?
-
-## Estimated total
-
-14 tasks across 6 phases, ~6 checkpoints. Mix of S/M with one M–L (T5). At S–M granularity each is a single focused session. Phases 1–2 (T1–T4) are the visible quick wins; Phase 3 (T5–T7) is the architecture investment; Phases 4–5 (T8–T13) are the nav + design-system polish. T8 and T9 can run in parallel after T1; T10/T11/T12 are independent of each other once T7 lands.
+1. **¿El orden de las fases es adecuado?**
+   *Resolución:* Sí, se mantiene el orden lineal propuesto de las fases (Fases 4 a 10 progresivamente).
+2. **¿Interactividad en el portal de externos?**
+   *Resolución:* Se mantiene 100% estático/PDF de lectura (descarga mediante jsPDF), sin controles interactivos para simplificar seguridad y lógica.
+3. **¿La caja chica requiere desglose de billetes/monedas?**
+   *Resolución:* Sí, se requiere desglose detallado de denominaciones (billetes y monedas) para control de caja chica en T35.
+4. **¿Los impuestos están incluidos en P&L?**
+   *Resolución:* Operación neta (sin IVA) para reflejar la salud financiera real del negocio sin distorsiones fiscales en proyecciones y P&L (T39 y T40).

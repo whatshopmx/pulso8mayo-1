@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Package, AlertTriangle, ChevronLeft } from "lucide-react";
+import { Plus, Search, Package, AlertTriangle, ChevronLeft, Pencil } from "lucide-react";
 import { DataTableSkeleton } from "@/components/shared/skeletons";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useBranch } from "@/lib/branch-context";
@@ -217,16 +217,24 @@ export default function ProductsPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedProductId(product.id);
-                            setDrawerOpen(true);
-                          }}
-                        >
-                          Ver
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedProductId(product.id);
+                              setDrawerOpen(true);
+                            }}
+                          >
+                            Ver
+                          </Button>
+                          <Button variant="ghost" size="sm" asChild aria-label="Editar producto">
+                            <Link href={`/dashboard/inventory/${product.id}/edit`}>
+                              <Pencil className="h-4 w-4" />
+                              <span className="sr-only">Editar</span>
+                            </Link>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

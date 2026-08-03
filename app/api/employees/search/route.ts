@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { employeeProfiles, savedSearches, users } from '@/lib/db/schema';
 import { eq, and, ilike, or, sql, asc, desc, count, gte, lte } from 'drizzle-orm';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
 // GET - Search employees with advanced filters
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
     try {
         const searchParams = request.nextUrl.searchParams;
-        const companyId = searchParams.get('companyId');
         const search = searchParams.get('search');
         const department = searchParams.get('department');
         const position = searchParams.get('position');
@@ -24,9 +24,8 @@ export async function GET(request: NextRequest) {
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '20');
 
-        if (!companyId) {
-            return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
-        }
+        // companyId from session, never from query param
+        const companyId = auth.tenantId;
 
         // Build where conditions
         const conditions = [eq(sql`u."company_id"`, companyId)];
@@ -151,15 +150,15 @@ export async function GET(request: NextRequest) {
             { status: 500 }
         );
     }
-}
+});
 
 // POST - Save a search
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
     try {
         const body = await request.json();
-        const { userId, companyId, name, description, searchCriteria, entityType } = body;
+        const { name, description, searchCriteria, entityType } = body;
 
-        if (!userId || !companyId || !name || !searchCriteria) {
+        if (!name || !searchCriteria) {
             return NextResponse.json(
                 { error: 'Missing required fields' },
                 { status: 400 }
@@ -167,8 +166,8 @@ export async function POST(request: NextRequest) {
         }
 
         const saved = await db.insert(savedSearches).values({
-            userId,
-            companyId,
+            userId: auth.user.id,
+            companyId: auth.tenantId,
             name,
             description,
             searchCriteria,
@@ -183,29 +182,18 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         );
     }
-}
+});
 
-// GET - Get saved searches for a user
-export async function getSavedSearches(request: NextRequest) {
+// GET - Get saved searches for a user (also wrapped for auth)
+export const getSavedSearches = withTenantAuth(async (request: NextRequest, { auth }) => {
     try {
-        const searchParams = request.nextUrl.searchParams;
-        const userId = searchParams.get('userId');
-        const companyId = searchParams.get('companyId');
-
-        if (!userId || !companyId) {
-            return NextResponse.json(
-                { error: 'userId and companyId are required' },
-                { status: 400 }
-            );
-        }
-
         const searches = await db
             .select()
             .from(savedSearches)
             .where(
                 and(
-                    eq(savedSearches.userId, userId),
-                    eq(savedSearches.companyId, companyId)
+                    eq(savedSearches.userId, auth.user.id),
+                    eq(savedSearches.companyId, auth.tenantId)
                 )
             )
             .orderBy(desc(savedSearches.lastUsedAt));
@@ -218,28 +206,28 @@ export async function getSavedSearches(request: NextRequest) {
             { status: 500 }
         );
     }
-}
+});
 
 // DELETE - Delete a saved search
-export async function DELETE(request: NextRequest) {
+export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
     try {
         const searchParams = request.nextUrl.searchParams;
         const searchId = searchParams.get('id');
-        const userId = searchParams.get('userId');
 
-        if (!searchId || !userId) {
+        if (!searchId) {
             return NextResponse.json(
-                { error: 'id and userId are required' },
+                { error: 'id is required' },
                 { status: 400 }
             );
         }
 
+        // Only delete if owned by the authenticated user
         await db
             .delete(savedSearches)
             .where(
                 and(
                     eq(savedSearches.id, searchId as any),
-                    eq(savedSearches.userId, userId)
+                    eq(savedSearches.userId, auth.user.id)
                 )
             );
 
@@ -251,4 +239,4 @@ export async function DELETE(request: NextRequest) {
             { status: 500 }
         );
     }
-}
+});

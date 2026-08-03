@@ -19,7 +19,7 @@ CREATE TABLE "daily_sales_cuts" (
 	"raw_file_url" text,
 	"status" "sales_cut_status" DEFAULT 'PENDING_REVIEW' NOT NULL,
 	"validation_notes" text,
-	"received_by" uuid,
+	"received_by" text,
 	"received_at" timestamp DEFAULT now() NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -33,7 +33,7 @@ CREATE TABLE "pos_mapping_templates" (
 	"mapping" jsonb NOT NULL,
 	"payment_method_mapping" jsonb,
 	"is_default" boolean DEFAULT false NOT NULL,
-	"created_by" uuid,
+	"created_by" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );

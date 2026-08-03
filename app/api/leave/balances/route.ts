@@ -3,10 +3,10 @@ import { db } from '@/lib/db';
 import { leaveBalances, leaveTypes, users } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
-// Validation schema for creating/updating balance
+// Validation schema for updating balance (userId from session)
 const upsertBalanceSchema = z.object({
-  userId: z.string(),
   leaveTypeId: z.string().uuid(),
   year: z.number().min(2000).max(2100),
   totalEntitlement: z.number().min(0),
@@ -16,19 +16,11 @@ const upsertBalanceSchema = z.object({
 });
 
 // GET - Get leave balances for a user
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    const companyId = searchParams.get('companyId');
+    const userId = searchParams.get('userId') || auth.user.id;
     const year = searchParams.get('year');
-
-    if (!userId || !companyId) {
-      return NextResponse.json(
-        { error: 'userId and companyId are required' },
-        { status: 400 }
-      );
-    }
 
     const conditions = [eq(leaveBalances.userId, userId)];
 
@@ -63,10 +55,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Create or update a leave balance
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
     const validated = upsertBalanceSchema.safeParse(body);
@@ -86,7 +78,7 @@ export async function POST(request: NextRequest) {
       .from(leaveBalances)
       .where(
         and(
-          eq(leaveBalances.userId, data.userId),
+          eq(leaveBalances.userId, auth.user.id),
           eq(leaveBalances.leaveTypeId, data.leaveTypeId),
           eq(leaveBalances.year, data.year)
         )
@@ -98,6 +90,7 @@ export async function POST(request: NextRequest) {
         .update(leaveBalances)
         .set({
           ...data,
+          userId: auth.user.id,
           updatedAt: new Date(),
         })
         .where(eq(leaveBalances.id, existingBalance.id))
@@ -111,7 +104,10 @@ export async function POST(request: NextRequest) {
       // Create new balance
       const [newBalance] = await db
         .insert(leaveBalances)
-        .values(data)
+        .values({
+          ...data,
+          userId: auth.user.id,
+        })
         .returning();
 
       return NextResponse.json(
@@ -126,10 +122,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PATCH - Bulk update leave balances (e.g., annual accrual)
-export async function PATCH(request: NextRequest) {
+export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
     const { userIds, leaveTypeId, year, accrualRate } = body;
@@ -195,4 +191,4 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

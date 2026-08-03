@@ -3,10 +3,10 @@ import { db } from '@/lib/db';
 import { performanceReviewCriteria, performanceReviewResponses } from '@/lib/db/schema';
 import { eq, and, desc, asc } from 'drizzle-orm';
 import { z } from 'zod';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
-// Validation schemas
+// Validation schemas — companyId from session
 const createCriteriaSchema = z.object({
-  companyId: z.string().uuid(),
   name: z.string().min(1).max(100),
   description: z.string().optional(),
   category: z.enum(['TECHNICAL', 'SOFT_SKILLS', 'LEADERSHIP', 'COMMUNICATION', 'PROBLEM_SOLVING', 'TEAMWORK']),
@@ -22,21 +22,13 @@ const createResponseSchema = z.object({
 });
 
 // GET - List criteria for a company
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
     const category = searchParams.get('category');
     const isActive = searchParams.get('isActive');
 
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'companyId is required' },
-        { status: 400 }
-      );
-    }
-
-    const conditions = [eq(performanceReviewCriteria.companyId, companyId)];
+    const conditions = [eq(performanceReviewCriteria.companyId, auth.tenantId)];
 
     if (category) conditions.push(eq(performanceReviewCriteria.category, category as any));
     if (isActive !== null && isActive !== undefined) {
@@ -57,10 +49,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Create a new criteria
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
     const validated = createCriteriaSchema.safeParse(body);
@@ -74,7 +66,7 @@ export async function POST(request: NextRequest) {
 
   const [newCriteria] = await db
       .insert(performanceReviewCriteria)
-      .values(validated.data)
+      .values({ ...validated.data, companyId: auth.tenantId })
       .returning();
 
     return NextResponse.json(
@@ -88,10 +80,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PATCH - Update a criteria
-export async function PATCH(request: NextRequest) {
+export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const criteriaId = searchParams.get('id');
@@ -133,10 +125,10 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE - Delete a criteria
-export async function DELETE(request: NextRequest) {
+export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const criteriaId = searchParams.get('id');
@@ -170,4 +162,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

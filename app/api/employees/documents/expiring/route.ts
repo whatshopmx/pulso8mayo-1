@@ -2,20 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { employeeDocuments } from '@/lib/db/schema';
 import { eq, and, lt, gte, lte, isNotNull } from 'drizzle-orm';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
 // GET - Get expiring documents
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
     const days = parseInt(searchParams.get('days') || '30');
-
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'companyId is required' },
-        { status: 400 }
-      );
-    }
 
     const now = new Date();
     const futureDate = new Date();
@@ -34,7 +27,7 @@ export async function GET(request: NextRequest) {
       .from(employeeDocuments)
     .where(
       and(
-        eq(employeeDocuments.companyId, companyId),
+        eq(employeeDocuments.companyId, auth.tenantId),
         isNotNull(employeeDocuments.expirationDate),
         gte(employeeDocuments.expirationDate, now),
         lte(employeeDocuments.expirationDate, futureDate)
@@ -53,27 +46,20 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Send expiration reminders
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
-    const { companyId, documentType, daysBeforeExpiration } = body;
-
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'companyId is required' },
-        { status: 400 }
-      );
-    }
+    const { documentType, daysBeforeExpiration } = body;
 
     const now = new Date();
     const futureDate = new Date();
     futureDate.setDate(now.getDate() + (daysBeforeExpiration || 30));
 
     const conditions = [
-      eq(employeeDocuments.companyId, companyId),
+      eq(employeeDocuments.companyId, auth.tenantId),
       isNotNull(employeeDocuments.expirationDate),
       gte(employeeDocuments.expirationDate, now),
       lte(employeeDocuments.expirationDate, futureDate),
@@ -108,4 +94,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

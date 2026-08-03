@@ -1,7 +1,8 @@
 import { db } from '@/lib/db';
-import { workflowAssignments, workflowInstances, workflowSchedules, users } from '@/lib/db/schema';
+import { workflowAssignments, workflowInstances, workflowSchedules, users, workflowTemplates } from '@/lib/db/schema';
 import { eq, and, lte, gte, or, isNull, sql } from 'drizzle-orm';
 import { emitWorkflowEvent } from '@/lib/websocket/workflow-handlers';
+import { NotificationDispatcher } from '@/lib/services/notification-dispatcher';
 
 export type AssignmentStatus = 'PENDING' | 'NOTIFIED' | 'STARTED' | 'COMPLETED' | 'OVERDUE';
 export type AssignmentType = 'ROLE' | 'USER' | 'AUTO' | 'MANUAL';
@@ -79,6 +80,61 @@ export class WorkflowAssignmentService {
       dueDate: config.dueDate,
       createdAt: new Date().toISOString(),
     });
+
+    // Send training assignment notification if it is a training template
+    try {
+        const instance = await db.query.workflowInstances.findFirst({
+            where: eq(workflowInstances.id, instanceId),
+        });
+
+        if (instance) {
+            const template = await db.query.workflowTemplates.findFirst({
+                where: eq(workflowTemplates.id, instance.workflowTemplateId),
+            });
+
+            const isTraining = template && (
+                template.category === 'TRAINING' || 
+                template.category === 'CAPACITACION' || 
+                template.name?.toLowerCase().includes('capacitacion') || 
+                template.name?.toLowerCase().includes('capacitación')
+            );
+
+            if (isTraining && template) {
+                const { SmartLinkService } = await import('./smart-link-service');
+                const smartLink = await SmartLinkService.createSmartLink(
+                    instanceId,
+                    instance.workflowTemplateId,
+                    instance.sessionId || 'default',
+                    7 * 24 * 60, // 7 days expiration
+                    undefined,
+                    config.assignedTo,
+                    undefined,
+                    assignment.id
+                );
+
+                const formattedDueDate = config.dueDate
+                    ? new Date(config.dueDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+                    : 'Sin fecha límite';
+
+                await NotificationDispatcher.sendNotification({
+                    userId: config.assignedTo,
+                    title: `Nueva Capacitación: ${template.name}`,
+                    message: `Se te ha asignado la capacitación obligatoria: ${template.name}. Fecha límite: ${formattedDueDate}`,
+                    type: "info",
+                    eventType: "training_assigned",
+                    actionUrl: smartLink.url,
+                    actionLabel: "Iniciar Capacitación",
+                    metadata: {
+                        workflowName: template.name || 'Capacitación',
+                        dueDate: formattedDueDate,
+                        smartLinkUrl: smartLink.url,
+                    }
+                });
+            }
+        }
+    } catch (notifErr) {
+        console.error("Error sending training assignment notification:", notifErr);
+    }
 
     return assignment;
   }

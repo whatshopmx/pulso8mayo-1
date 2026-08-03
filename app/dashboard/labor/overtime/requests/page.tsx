@@ -1,8 +1,6 @@
-import { OvertimeApprovalList } from '@/components/labor/overtime-approval-list';
-import { OvertimeRequestForm } from '@/components/labor/overtime-request-form';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { OvertimeRequestsClient } from './overtime-requests-client';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { requireManagementRole } from '@/lib/rbac/require-role';
 
@@ -28,44 +26,10 @@ export default async function OvertimeRequestsPage() {
                 </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
-                {/* Request Form */}
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle>Nueva Solicitud</CardTitle>
-                                <CardDescription>
-                                    Solicita horas extras para aprobación
-                                </CardDescription>
-                            </div>
-                            <Plus className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <OvertimeRequestForm
-                            branchId={session.user.branchId || ''}
-                            onSuccess={() => window.location.reload()}
-                        />
-                    </CardContent>
-                </Card>
-
-                {/* Pending Requests */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Solicitudes Pendientes</CardTitle>
-                        <CardDescription>
-                            Revisa y aprueba solicitudes de horas extras
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <OvertimeApprovalList
-                            branchId={session.user.branchId}
-                            userRole={session.user.role}
-                        />
-                    </CardContent>
-                </Card>
-            </div>
+            <OvertimeRequestsClient
+                branchId={session.user.branchId || undefined}
+                userRole={session.user.role}
+            />
         </div>
     );
 }

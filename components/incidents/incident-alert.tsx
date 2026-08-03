@@ -1,9 +1,20 @@
 'use client';
 
+import { useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, AlertTriangle, XCircle } from 'lucide-react';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { AlertCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
 
 interface IncidentAlertProps {
     incident: {
@@ -14,8 +25,8 @@ interface IncidentAlertProps {
         status: 'DETECTED' | 'IN_REMEDIATION' | 'RESOLVED' | 'ESCALATED';
         remediationProtocol?: unknown;
     };
-    onRemediate?: () => void;
-    onDismiss?: () => void;
+    onRemediate?: () => void | Promise<void>;
+    onDismiss?: () => void | Promise<void>;
 }
 
 const SEVERITY_LABELS: Record<string, string> = {
@@ -57,39 +68,112 @@ export function IncidentAlert({ incident, onRemediate, onDismiss }: IncidentAler
     const config = severityConfig[incident.severity];
     const Icon = config.icon;
 
+    const [isRemediating, setIsRemediating] = useState(false);
+    const [isDismissing, setIsDismissing] = useState(false);
+    const [showDismissConfirm, setShowDismissConfirm] = useState(false);
+
+    const isBusy = isRemediating || isDismissing;
+
+    const handleRemediate = async () => {
+        if (!onRemediate) return;
+        setIsRemediating(true);
+        try {
+            await onRemediate();
+        } finally {
+            setIsRemediating(false);
+        }
+    };
+
+    const handleDismissConfirm = async () => {
+        if (!onDismiss) return;
+        setIsDismissing(true);
+        try {
+            await onDismiss();
+            setShowDismissConfirm(false);
+        } finally {
+            setIsDismissing(false);
+        }
+    };
+
     return (
-        <Alert variant={config.variant}>
-            <Icon className="h-5 w-5" />
-            <div className="flex items-start justify-between w-full">
-                <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                        <AlertTitle className="mb-0">{incident.title}</AlertTitle>
-                        <Badge variant="outline" className={statusVariants[incident.status] || ''}>
-                            {STATUS_LABELS[incident.status] || incident.status}
-                        </Badge>
-                        <Badge variant="outline">
-                            {SEVERITY_LABELS[incident.severity] || incident.severity}
-                        </Badge>
+        <>
+            <Alert variant={config.variant}>
+                <Icon className="h-5 w-5" />
+                <div className="flex items-start justify-between w-full">
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                            <AlertTitle className="mb-0">{incident.title}</AlertTitle>
+                            <Badge variant="outline" className={statusVariants[incident.status] || ''}>
+                                {STATUS_LABELS[incident.status] || incident.status}
+                            </Badge>
+                            <Badge variant="outline">
+                                {SEVERITY_LABELS[incident.severity] || incident.severity}
+                            </Badge>
+                        </div>
+                        {incident.description && (
+                            <AlertDescription className="mt-2 text-sm">
+                                {incident.description}
+                            </AlertDescription>
+                        )}
                     </div>
-                    {incident.description && (
-                        <AlertDescription className="mt-2 text-sm">
-                            {incident.description}
-                        </AlertDescription>
-                    )}
+                    <div className="flex gap-2 ml-4">
+                        {incident.remediationProtocol && incident.status !== 'RESOLVED' && onRemediate && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleRemediate}
+                                disabled={isBusy}
+                            >
+                                {isRemediating ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                        Iniciando…
+                                    </>
+                                ) : (
+                                    'Iniciar remediación'
+                                )}
+                            </Button>
+                        )}
+                        {onDismiss && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setShowDismissConfirm(true)}
+                                disabled={isBusy}
+                            >
+                                Descartar
+                            </Button>
+                        )}
+                    </div>
                 </div>
-                <div className="flex gap-2 ml-4">
-                    {incident.remediationProtocol && incident.status !== 'RESOLVED' && onRemediate && (
-                        <Button size="sm" variant="outline" onClick={onRemediate}>
-                            Iniciar remediación
-                        </Button>
-                    )}
-                    {onDismiss && (
-                        <Button size="sm" variant="ghost" onClick={onDismiss}>
-                            Descartar
-                        </Button>
-                    )}
-                </div>
-            </div>
-        </Alert>
+            </Alert>
+
+            <AlertDialog open={showDismissConfirm} onOpenChange={setShowDismissConfirm}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Descartar este incidente?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Se descartará <strong>{incident.title}</strong> sin marcarlo como resuelto.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDismissing}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDismissConfirm}
+                            disabled={isDismissing}
+                        >
+                            {isDismissing ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                    Descartando…
+                                </>
+                            ) : (
+                                'Descartar'
+                            )}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     );
 }

@@ -1,0 +1,74 @@
+{
+  "capturedAt": "2026-07-29T14:01:59.315Z",
+  "percentageChange": 0.1,
+  "companies": [
+    {
+      "companyId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "recipes": [
+        {
+          "id": "17721abf-a168-4fa9-a7bb-c2e576ec6241",
+          "name": "Sopa Azteca (Demo)",
+          "calculatedCost": 644,
+          "foodCostPercentage": "7.24",
+          "priceSelling": 8900
+        },
+        {
+          "id": "2579bf50-04d4-4860-a254-ceb1e5c865a3",
+          "name": "Enchiladas (Demo)",
+          "calculatedCost": 5403,
+          "foodCostPercentage": "43.22",
+          "priceSelling": 12500
+        },
+        {
+          "id": "6fcb3e91-3262-45ed-a0e5-3db5421311e3",
+          "name": "Pollo en Caldo (Demo)",
+          "calculatedCost": 5960,
+          "foodCostPercentage": "54.18",
+          "priceSelling": 11000
+        },
+        {
+          "id": "da5fe8b3-81ad-407d-9120-c919a5ba6a18",
+          "name": "Combo Degustación (Demo)",
+          "calculatedCost": 11363,
+          "foodCostPercentage": "45.45",
+          "priceSelling": 25000
+        },
+        {
+          "id": "db558898-9a94-4f6e-831f-f6e74da44ce6",
+          "name": "Caldo de Pollo Base (Demo)",
+          "calculatedCost": 4400,
+          "foodCostPercentage": "0.00",
+          "priceSelling": 0
+        },
+        {
+          "id": "e2b025dc-44ff-45f4-bd5b-a09175bcb31c",
+          "name": "Salsa Roja Base (Demo)",
+          "calculatedCost": 935,
+          "foodCostPercentage": "0.00",
+          "priceSelling": 0
+        }
+      ],
+      "simulationItemId": "15ca6938-ff73-4890-9813-fb498078ee6a",
+      "simulation": [
+        {
+          "recipeId": "6fcb3e91-3262-45ed-a0e5-3db5421311e3",
+          "currentCostCents": 5960,
+          "simulatedCostCents": 6004,
+          "simulatedFoodCostPct": "54.58"
+        },
+        {
+          "recipeId": "da5fe8b3-81ad-407d-9120-c919a5ba6a18",
+          "currentCostCents": 11363,
+          "simulatedCostCents": 11407,
+          "simulatedFoodCostPct": "45.63"
+        },
+        {
+          "recipeId": "db558898-9a94-4f6e-831f-f6e74da44ce6",
+          "currentCostCents": 4400,
+          "simulatedCostCents": 4510,
+          "simulatedFoodCostPct": "0.00"
+        }
+      ]
+    }
+  ]
+}

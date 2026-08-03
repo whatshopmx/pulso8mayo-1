@@ -3,22 +3,9 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { recipes, recipeItems } from "@/lib/db/schema";
 import { RecipeService } from "@/lib/services/recipe-service";
+import { updateRecipeSchema } from "@/lib/validators/recipes";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-
-const updateRecipeSchema = z.object({
-    name: z.string().min(1),
-    description: z.string().optional(),
-    baseYield: z.number().positive(),
-    unit: z.string(),
-    priceSelling: z.number().nonnegative(),
-    items: z.array(z.object({
-        itemId: z.string().uuid(),
-        quantity: z.number().positive(),
-        unit: z.string(),
-        isSubRecipe: z.boolean().default(false),
-    })),
-});
 
 export async function GET(
     req: NextRequest,
@@ -72,42 +59,56 @@ export async function PUT(
         const body = await req.json();
         const validated = updateRecipeSchema.parse(body);
 
-        const tx = db;
-        // 1. Update recipe header
-        await tx.update(recipes)
-            .set({
-                name: validated.name,
-                description: validated.description || null,
-                baseYield: validated.baseYield.toFixed(2),
-                unit: validated.unit,
-                priceSelling: Math.round(validated.priceSelling * 100),
-                updatedAt: new Date(),
-            })
-            .where(
-                and(
-                    eq(recipes.id, resolvedParams.id),
-                    eq(recipes.companyId, session.user.companyId)
-                )
-            );
-
-        // 2. Delete existing items
-        await tx.delete(recipeItems)
-            .where(eq(recipeItems.recipeId, resolvedParams.id));
-
-        // 3. Insert new items
-        if (validated.items.length > 0) {
-            await tx.insert(recipeItems).values(
-                validated.items.map(item => ({
-                    recipeId: resolvedParams.id,
-                    itemId: item.itemId,
-                    quantity: item.quantity.toFixed(4),
-                    unit: item.unit,
-                    isSubRecipe: item.isSubRecipe,
-                }))
+        // Reject cycles before persisting (covers indirect A→B→A, not just A→A)
+        const createsCycle = await RecipeService.wouldCreateCycle(
+            session.user.companyId,
+            resolvedParams.id,
+            validated.items
+        );
+        if (createsCycle) {
+            return NextResponse.json(
+                { error: "Recipe cannot contain itself as a sub-recipe (cycle detected)" },
+                { status: 409 }
             );
         }
 
-        // 4. Calculate cost
+        await db.transaction(async (tx) => {
+            // 1. Update recipe header
+            await tx.update(recipes)
+                .set({
+                    name: validated.name,
+                    description: validated.description || null,
+                    baseYield: validated.baseYield.toFixed(2),
+                    unit: validated.unit,
+                    priceSelling: Math.round(validated.priceSelling * 100),
+                    updatedAt: new Date(),
+                })
+                .where(
+                    and(
+                        eq(recipes.id, resolvedParams.id),
+                        eq(recipes.companyId, session.user.companyId)
+                    )
+                );
+
+            // 2. Delete existing items
+            await tx.delete(recipeItems)
+                .where(eq(recipeItems.recipeId, resolvedParams.id));
+
+            // 3. Insert new items
+            if (validated.items.length > 0) {
+                await tx.insert(recipeItems).values(
+                    validated.items.map(item => ({
+                        recipeId: resolvedParams.id,
+                        itemId: item.itemId,
+                        quantity: item.quantity.toFixed(4),
+                        unit: item.unit,
+                        isSubRecipe: item.isSubRecipe,
+                    }))
+                );
+            }
+        });
+
+        // 4. Calculate cost AFTER the transaction commits (it writes with its own connection)
         await RecipeService.calculateRecipeCost(resolvedParams.id, 'LAST_COST');
 
         // Fetch and return the updated recipe details
@@ -159,13 +160,14 @@ export async function DELETE(
             return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
         }
 
-        const tx = db;
-        // Delete items
-        await tx.delete(recipeItems)
-            .where(eq(recipeItems.recipeId, resolvedParams.id));
-        // Delete recipe header
-        await tx.delete(recipes)
-            .where(eq(recipes.id, resolvedParams.id));
+        await db.transaction(async (tx) => {
+            // Delete items
+            await tx.delete(recipeItems)
+                .where(eq(recipeItems.recipeId, resolvedParams.id));
+            // Delete recipe header
+            await tx.delete(recipes)
+                .where(eq(recipes.id, resolvedParams.id));
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

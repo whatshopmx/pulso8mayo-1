@@ -4,9 +4,10 @@ import { employeeCommunications, communicationReadReceipts, users, employeeProfi
 import { eq, and, desc, or, sql, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { WhatsAppService } from '@/lib/services/whatsapp-service';
+import { withTenantAuth } from '@/lib/api/with-auth';
+import { inngest } from '@/lib/inngest/client';
 
 const createAnnouncementSchema = z.object({
-  companyId: z.string().uuid(),
   branchId: z.string().uuid().optional().nullable(),
   communicationType: z.enum(['MESSAGE', 'ANNOUNCEMENT', 'NOTIFICATION', 'POLICY']).default('ANNOUNCEMENT'),
   title: z.string().min(1).max(200),
@@ -16,25 +17,19 @@ const createAnnouncementSchema = z.object({
   targetRoles: z.array(z.string()).optional(),
   isPinned: z.boolean().default(false),
   deliveredVia: z.array(z.string()).optional(),
-  createdBy: z.string(),
 });
 
 // GET - List announcements
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
     const branchId = searchParams.get('branchId');
     const type = searchParams.get('type');
     const pinnedOnly = searchParams.get('pinnedOnly');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    if (!companyId) {
-      return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
-    }
-
-    const conditions = [eq(employeeCommunications.companyId, companyId)];
+    const conditions = [eq(employeeCommunications.companyId, auth.tenantId)];
 
     if (branchId) conditions.push(eq(employeeCommunications.branchId, branchId));
     if (type) conditions.push(eq(employeeCommunications.communicationType, type));
@@ -81,10 +76,10 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching announcements:', error);
     return NextResponse.json({ error: 'Failed to fetch announcements' }, { status: 500 });
   }
-}
+});
 
 // POST - Create announcement
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
     const validated = createAnnouncementSchema.safeParse(body);
@@ -98,8 +93,8 @@ export async function POST(request: NextRequest) {
 
     const data = validated.data;
 
-    // 1. Resolve Target Users to calculate totalRecipients
-    const userConditions = [eq(users.companyId, data.companyId), isNull(users.deletedAt)];
+    // 1. Resolve Target Users to calculate totalRecipients — scoped to authenticated tenant
+    const userConditions = [eq(users.companyId, auth.tenantId), isNull(users.deletedAt)];
     
     // Role filtering
     if (data.targetRoles && data.targetRoles.length > 0) {
@@ -137,34 +132,27 @@ export async function POST(request: NextRequest) {
       .insert(employeeCommunications)
       .values({
         ...data,
+        companyId: auth.tenantId,
+        createdBy: auth.user.id,
         status: 'SENT',
         sentAt: new Date(),
         totalRecipients: targetUsers.length,
       })
       .returning();
 
-    // 3. Trigger WhatsApp notification if requested
+    // 3. Trigger Inngest broadcast if WhatsApp delivery requested
     if (data.deliveredVia?.includes('WHATSAPP') && targetUsers.length > 0) {
-      const messageContent = `🔔 *Pulso - ${data.communicationType === 'MESSAGE' ? 'Nuevo Mensaje' : 'Nuevo Anuncio'}*
-*${data.title}*
-
-${data.content}
-
-_No respondas a este mensaje._`;
-
-      // Dispatch in background
-      Promise.all(
-        targetUsers.map(async (u) => {
-          const numberToUse = u.whatsappPhone || u.phone;
-          if (numberToUse) {
-            try {
-              await WhatsAppService.sendMessage(numberToUse, messageContent);
-            } catch (err) {
-              console.error(`Failed sending WhatsApp to ${numberToUse}`, err);
-            }
-          }
-        })
-      ).catch((err) => console.error("Error in background WhatsApp dispatch:", err));
+      try {
+        await inngest.send({
+          name: "communication/announcement.broadcast",
+          data: {
+            announcementId: newAnnouncement.id,
+            companyId: auth.tenantId,
+          },
+        });
+      } catch (inngestErr) {
+        console.error("Error sending Inngest broadcast event:", inngestErr);
+      }
     }
 
     return NextResponse.json(
@@ -175,10 +163,10 @@ _No respondas a este mensaje._`;
     console.error('Error creating announcement:', error);
     return NextResponse.json({ error: 'Failed to create announcement' }, { status: 500 });
   }
-}
+});
 
 // PATCH - Update announcement (pin/unpin, edit, archive)
-export async function PATCH(request: NextRequest) {
+export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const announcementId = searchParams.get('id');
@@ -209,10 +197,10 @@ export async function PATCH(request: NextRequest) {
     console.error('Error updating announcement:', error);
     return NextResponse.json({ error: 'Failed to update announcement' }, { status: 500 });
   }
-}
+});
 
 // DELETE - Delete announcement
-export async function DELETE(request: NextRequest) {
+export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const announcementId = searchParams.get('id');
@@ -235,4 +223,4 @@ export async function DELETE(request: NextRequest) {
     console.error('Error deleting announcement:', error);
     return NextResponse.json({ error: 'Failed to delete announcement' }, { status: 500 });
   }
-}
+});

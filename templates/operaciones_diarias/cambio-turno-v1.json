@@ -1,0 +1,153 @@
+{
+  "id": "tpl-cambio-turno-v1",
+  "nombre": "🔄 Cambio de Turno",
+  "descripcion": "Workflow de entrega y recepción de turno. Incluye arqueo de caja con desglose de denominaciones físicas (sin IVA), registro de otros medios de pago, bitácora de pendientes y firmas de entrega/recepción.",
+  "categoria": "OPERACIONES_DIARIAS",
+  "version": 1,
+  "activo": true,
+  "requiereIA": false,
+  "duracionEstimada": "10-15 min",
+  "tags": ["cambio-turno", "caja", "arqueo", "firmas"],
+  "complianceConfig": {
+    "complianceType": "LABOR",
+    "regulationSection": "Control Interno HORECA",
+    "requiredFrequency": "per-shift",
+    "auditable": true,
+    "evidenceRequired": true,
+    "criticalForCompliance": false
+  },
+  "pasos": [
+    {
+      "id": "intro-arqueo",
+      "titulo": "Instrucciones de Arqueo",
+      "type": "instruction",
+      "descripcion": "Realice el conteo físico del efectivo en caja. Registre la cantidad de billetes y monedas por denominación. Todos los montos deben registrarse netos de IVA."
+    },
+    {
+      "id": "billetes-1000",
+      "titulo": "Billetes de $1000 (Cantidad)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "0",
+      "validation": {
+        "min": 0
+      }
+    },
+    {
+      "id": "billetes-500",
+      "titulo": "Billetes de $500 (Cantidad)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "0",
+      "validation": {
+        "min": 0
+      }
+    },
+    {
+      "id": "billetes-200",
+      "titulo": "Billetes de $200 (Cantidad)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "0",
+      "validation": {
+        "min": 0
+      }
+    },
+    {
+      "id": "billetes-100",
+      "titulo": "Billetes de $100 (Cantidad)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "0",
+      "validation": {
+        "min": 0
+      }
+    },
+    {
+      "id": "billetes-50",
+      "titulo": "Billetes de $50 (Cantidad)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "0",
+      "validation": {
+        "min": 0
+      }
+    },
+    {
+      "id": "billetes-20",
+      "titulo": "Billetes de $20 (Cantidad)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "0",
+      "validation": {
+        "min": 0
+      }
+    },
+    {
+      "id": "monedas-total",
+      "titulo": "Total en Monedas ($)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "0.00",
+      "validation": {
+        "min": 0
+      }
+    },
+    {
+      "id": "total-efectivo-calculado",
+      "titulo": "Total Efectivo Declarado ($)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "0.00",
+      "validation": {
+        "min": 0
+      }
+    },
+    {
+      "id": "vales-despensa",
+      "titulo": "Monto en Vales ($)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "0.00",
+      "validation": {
+        "min": 0
+      }
+    },
+    {
+      "id": "tarjetas-neto",
+      "titulo": "Total Ventas Tarjeta (Neto sin IVA) ($)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "0.00",
+      "validation": {
+        "min": 0
+      }
+    },
+    {
+      "id": "novedades-bitacora",
+      "titulo": "Bitácora de Novedades / Incidencias",
+      "type": "Textarea",
+      "obligatorio": false,
+      "placeholder": "Reporte de incidencias con equipo, personal, clientes o proveedores durante el turno..."
+    },
+    {
+      "id": "pendientes-turno",
+      "titulo": "Pendientes para Siguiente Turno",
+      "type": "Textarea",
+      "obligatorio": false,
+      "placeholder": "Tareas pendientes, reservas especiales, pedidos por recibir, etc..."
+    },
+    {
+      "id": "firma-saliente",
+      "titulo": "Firma del Gerente Saliente",
+      "type": "SignatureField",
+      "obligatorio": true
+    },
+    {
+      "id": "firma-entrante",
+      "titulo": "Firma del Gerente Entrante",
+      "type": "SignatureField",
+      "obligatorio": true
+    }
+  ]
+}

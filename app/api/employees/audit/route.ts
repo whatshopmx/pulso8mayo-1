@@ -3,13 +3,13 @@ import { db } from '@/lib/db';
 import { employeeAuditLogs, users } from '@/lib/db/schema';
 import { eq, desc, and, gte, lte, inArray } from 'drizzle-orm';
 import { z } from 'zod';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
 // GET - Get audit logs for an employee or company
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
-    const companyId = searchParams.get('companyId');
     const entityType = searchParams.get('entityType');
     const action = searchParams.get('action');
     const isSensitive = searchParams.get('isSensitive');
@@ -18,30 +18,26 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    if (!userId && !companyId) {
-      return NextResponse.json(
-        { error: 'userId or companyId is required' },
-        { status: 400 }
-      );
-    }
-
-    // Build conditions array
+    // Build conditions array — always scoped to authenticated tenant
     const conditions = [];
 
     if (userId) {
+      // If requesting a specific user's audit, it must be in the same tenant
       conditions.push(eq(employeeAuditLogs.userId, userId));
-    } else if (companyId) {
-      // Get all users in company
-      const companyUsers = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.companyId, companyId));
-      
-      const userIds = companyUsers.map(u => u.id);
-      
-      if (userIds.length > 0) {
-        conditions.push(inArray(employeeAuditLogs.userId, userIds));
-      }
+    }
+
+    // Always filter by tenant: get all users in the authenticated company
+    const companyUsers = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.companyId, auth.tenantId));
+
+    const userIds = companyUsers.map(u => u.id);
+
+    if (userIds.length > 0) {
+      conditions.push(inArray(employeeAuditLogs.userId, userIds));
+    } else {
+      return NextResponse.json({ success: true, data: [], pagination: { page, limit, total: 0, totalPages: 0 } });
     }
 
     if (entityType) {
@@ -114,10 +110,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Create audit log (usually called automatically by other endpoints)
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
 
@@ -129,7 +125,6 @@ export async function POST(request: NextRequest) {
       fieldName: z.string().optional(),
       oldValue: z.any().optional(),
       newValue: z.any().optional(),
-      performedBy: z.string(),
       reason: z.string().optional(),
       isSensitive: z.boolean().optional(),
       requiresApproval: z.boolean().optional(),
@@ -149,7 +144,7 @@ export async function POST(request: NextRequest) {
         fieldName: validatedData.fieldName,
         oldValue: validatedData.oldValue,
         newValue: validatedData.newValue,
-        performedBy: validatedData.performedBy,
+        performedBy: auth.user.id, // ALWAYS from session
         reason: validatedData.reason,
         isSensitive: validatedData.isSensitive || false,
         requiresApproval: validatedData.requiresApproval || false,
@@ -179,4 +174,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

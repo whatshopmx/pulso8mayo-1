@@ -18,7 +18,7 @@ Open questions (resolver antes de T25/T30/T33 — ver plan):
 
 ## Phase 9 — M13: Ventas y POS
 
-- [x] **T24** Schema de ventas: tablas `daily_sales_cuts` y `pos_mapping_templates`. *Files: `lib/db/schema.ts`, `drizzle/0021_tough_tony_stark.sql` (migración generada, NO aplicada — requiere `pnpm db:migrate`). Size M.*
+- [x] **T24** Schema de ventas: tablas `daily_sales_cuts` y `pos_mapping_templates`. *Files: `lib/db/schema.ts`, `drizzle/0021_striped_wallop.sql` (migración aplicada a dev 2026-08-05; FKs a `users.id` como `text`). Size M.*
   - Acceptance: `daily_sales_cuts` con `id, companyId, branchId, businessDate, shift (MATUTINO/VESPERTINO/COMPLETO), channel (SALON/DELIVERY/EVENTOS/TOTAL), totalSales, cashSales, cardSales, ticketCount, avgTicket, source (UPLOAD/WHATSAPP/MANUAL_FORM), rawFileUrl, status (VALIDATED/PENDING_REVIEW/REJECTED), validationNotes, receivedBy, receivedAt`; unique compuesto `(companyId, branchId, businessDate, shift, channel)`. `pos_mapping_templates` con `id, companyId, name, posSystem, mapping (jsonb: columna→campo canónico), paymentMethodMapping (jsonb), isDefault, createdBy`. Índices por `(companyId, branchId, businessDate)`.
   - Verify: `pnpm db:generate` produce migración sin drops inesperados; `pnpm run build` limpio.
   - Dependencies: None.

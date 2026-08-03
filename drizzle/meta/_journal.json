@@ -152,8 +152,15 @@
     {
       "idx": 21,
       "version": "7",
-      "when": 1785715843113,
-      "tag": "0021_tough_tony_stark",
+      "when": 1785716676483,
+      "tag": "0021_striped_wallop",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785723666237,
+      "tag": "0022_flat_wonder_man",
       "breakpoints": true
     }
   ]

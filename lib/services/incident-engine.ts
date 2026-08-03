@@ -239,6 +239,22 @@ export class IncidentEngine {
                 (incident as any).status = 'IN_REMEDIATION';
             }
 
+            // Trigger NOM-035 / NOM-251 action plan auto-generation if action/rule specifies it or if critical
+            const hasRemediationPlanAction = rule.actions && Array.isArray(rule.actions) && rule.actions.includes("CREATE_REMEDIATION_PLAN");
+            if (hasRemediationPlanAction || rule.severity === 'CRITICAL') {
+                try {
+                    const { NOM035Service } = await import('./compliance/nom035-service');
+                    await NOM035Service.createActionPlanFromWorkflow(
+                        instanceId,
+                        rule.id || 'system-rule',
+                        rule.message || 'Desviación detectada',
+                        context.userId || 'system'
+                    );
+                } catch (actionPlanErr) {
+                    console.error('[IncidentEngine] Error auto-generating action plan:', actionPlanErr);
+                }
+            }
+
             return incident;
         } catch (error) {
             console.error('[IncidentEngine] Error creating incident:', error);

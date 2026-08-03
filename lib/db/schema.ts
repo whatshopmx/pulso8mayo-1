@@ -2369,7 +2369,7 @@ export const dailySalesCuts = pgTable("daily_sales_cuts", {
     status: salesCutStatusEnum("status").notNull().default('PENDING_REVIEW'),
     validationNotes: text("validation_notes"),
 
-    receivedBy: uuid("received_by").references(() => users.id),
+    receivedBy: text("received_by").references(() => users.id),
     receivedAt: timestamp("received_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -2404,7 +2404,7 @@ export const posMappingTemplates = pgTable("pos_mapping_templates", {
     paymentMethodMapping: jsonb("payment_method_mapping"), // { paymentLabel: CASH|CARD|DELIVERY|OTHER }
 
     isDefault: boolean("is_default").default(false).notNull(),
-    createdBy: uuid("created_by").references(() => users.id),
+    createdBy: text("created_by").references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
@@ -2553,3 +2553,20 @@ export const supplierItems = pgTable("supplier_items", {
 }, (table) => ({
     supplierItemUnique: uniqueIndex("supplier_item_unique").on(table.supplierId, table.itemId),
 }));
+
+export const nom035ActionPlans = pgTable("nom035_action_plans", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").references(() => branches.id),
+    title: text("title").notNull(),
+    description: text("description"),
+    riskCategory: text("risk_category").default('GENERAL').notNull(), // PSICOSOCIAL, VIOLENCIA, JORNADA, etc.
+    priority: text("priority").default('MEDIUM').notNull(), // LOW, MEDIUM, HIGH, URGENT
+    status: text("status").default('PENDING').notNull(), // PENDING, IN_PROGRESS, RESOLVED, CANCELLED
+    assignedTo: text("assigned_to").references(() => users.id),
+    dueDate: timestamp("due_date"),
+    remediationMeasures: jsonb("remediation_measures").default(sql`'[]'::jsonb`).notNull(), // Array of actions/measures
+    evidenceUrl: text("evidence_url"), // Supporting evidence document or photo
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Package, Calendar, Tag, Clock, ShieldAlert, RefreshCw, ShoppingCart, Trash2 } from "lucide-react";
+import { Package, Calendar, Tag, Clock, ShieldAlert, RefreshCw, ShoppingCart, Trash2, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -250,6 +250,18 @@ export function ProductDetailDrawer({ productId, branchId, open, onOpenChange }:
             <Separator />
 
             <div className="flex gap-2 pb-2">
+              <Button
+                asChild
+                variant="outline"
+                size="icon"
+                className="min-h-[44px] min-w-[44px] shrink-0"
+                aria-label="Editar producto"
+                title="Editar producto"
+              >
+                <Link href={`/dashboard/inventory/${product.id}/edit`}>
+                  <Pencil className="h-4 w-4" />
+                </Link>
+              </Button>
               <Button asChild className="flex-1 min-h-[44px] gap-2">
                 <Link href={`/dashboard/inventory/purchase-orders?new=1&item=${product.id}`}>
                   <ShoppingCart className="h-4 w-4" />

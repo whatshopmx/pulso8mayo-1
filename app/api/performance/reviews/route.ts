@@ -3,12 +3,11 @@ import { db } from '@/lib/db';
 import { performanceReviews, performanceReviewCriteria, performanceGoals, users, companies, branches } from '@/lib/db/schema';
 import { eq, and, desc, asc, or, ilike, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
-// Validation schemas
+// Validation schemas — userId, reviewerId, companyId from session
 const createReviewSchema = z.object({
-  userId: z.string(),
-  reviewerId: z.string(),
-  companyId: z.string().uuid(),
+  userId: z.string(), // The employee being reviewed
   branchId: z.string().uuid().optional(),
   reviewType: z.enum(['SELF', 'MANAGER', 'PEER', '360']),
   reviewPeriod: z.string(),
@@ -30,10 +29,9 @@ const updateReviewSchema = createReviewSchema.partial().extend({
 });
 
 // GET - List performance reviews
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
     const userId = searchParams.get('userId');
     const reviewerId = searchParams.get('reviewerId');
     const reviewType = searchParams.get('reviewType');
@@ -42,15 +40,8 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'companyId is required' },
-        { status: 400 }
-      );
-    }
-
-    // Build conditions
-    const conditions = [eq(performanceReviews.companyId, companyId)];
+    // Build conditions — always scoped to authenticated tenant
+    const conditions = [eq(performanceReviews.companyId, auth.tenantId)];
 
     if (userId) conditions.push(eq(performanceReviews.userId, userId));
     if (reviewerId) conditions.push(eq(performanceReviews.reviewerId, reviewerId));
@@ -107,10 +98,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Create a new performance review
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
     const validated = createReviewSchema.safeParse(body);
@@ -128,8 +119,10 @@ export async function POST(request: NextRequest) {
       .insert(performanceReviews)
       .values({
         ...data,
+        reviewerId: auth.user.id, // reviewer is the authenticated user
+        companyId: auth.tenantId,
         status: 'DRAFT',
-        createdBy: data.reviewerId,
+        createdBy: auth.user.id,
       })
       .returning();
 
@@ -144,10 +137,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PATCH - Update a performance review
-export async function PATCH(request: NextRequest) {
+export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const reviewId = searchParams.get('id');
@@ -206,4 +199,4 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

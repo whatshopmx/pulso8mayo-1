@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { shiftChangeRequests, plannedShifts, users } from "@/lib/db/schema";
 import { eq, and, desc, or } from "drizzle-orm";
 import { z } from "zod";
+import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
 
 // Schema para crear solicitud de cambio de turno
 const createShiftChangeRequestSchema = z.object({
@@ -170,6 +171,38 @@ export async function POST(req: NextRequest) {
             status: 'PENDING',
         }).returning();
 
+        // Enviar notificación al compañero (counterparty)
+        try {
+            const requesterUser = await db.query.users.findFirst({
+                where: eq(users.id, tenant.userId),
+            });
+
+            const counterpartShift = data.counterpartyShiftId
+                ? await db.query.plannedShifts.findFirst({
+                    where: eq(plannedShifts.id, data.counterpartyShiftId),
+                })
+                : null;
+
+            await NotificationDispatcher.sendNotification({
+                userId: data.counterpartyId,
+                title: "Solicitud de Cambio de Turno",
+                message: `${requesterUser?.name || 'Un compañero'} ha solicitado cambiar turnos contigo.`,
+                type: "info",
+                eventType: "shift_change_request",
+                actionUrl: `/dashboard/labor/shift-changes`,
+                actionLabel: "Ver Solicitudes",
+                metadata: {
+                    requesterName: requesterUser?.name || 'Un compañero',
+                    requesterShiftDate: requestedShift.shiftDate,
+                    requesterShiftTime: `${requestedShift.startTime} - ${requestedShift.endTime}`,
+                    targetShiftDate: counterpartShift ? counterpartShift.shiftDate : 'Sin turno a cambio',
+                    targetShiftTime: counterpartShift ? `${counterpartShift.startTime} - ${counterpartShift.endTime}` : '',
+                }
+            });
+        } catch (notifErr) {
+            console.error("Error sending shift change notification:", notifErr);
+        }
+
         return ApiHandler.success(newRequest[0], 201);
   } catch (error) {
     console.error("Error creating shift change request:", error);
@@ -223,6 +256,31 @@ export async function PUT(req: NextRequest) {
                 updatedAt: new Date(),
             }).where(eq(shiftChangeRequests.id, id)).returning();
 
+            // Enviar notificación al solicitante
+            try {
+                const counterpartUser = await db.query.users.findFirst({
+                    where: eq(users.id, existingRequest.counterpartyId),
+                });
+
+                await NotificationDispatcher.sendNotification({
+                    userId: existingRequest.requestedBy,
+                    title: respondData.accepted ? "Cambio de Turno Aceptado" : "Cambio de Turno Rechazado",
+                    message: respondData.accepted
+                        ? `${counterpartUser?.name || 'Tu compañero'} ha aceptado tu solicitud de cambio de turno. Pendiente de aprobación del supervisor.`
+                        : `${counterpartUser?.name || 'Tu compañero'} ha rechazado tu solicitud de cambio de turno.`,
+                    type: respondData.accepted ? "success" : "error",
+                    eventType: "shift_change_decision",
+                    actionUrl: `/dashboard/labor/shift-changes`,
+                    actionLabel: "Ver Solicitudes",
+                    metadata: {
+                        counterpartyName: counterpartUser?.name || 'Tu compañero',
+                        decision: respondData.accepted ? "Aceptado (pendiente de supervisor)" : "Rechazado",
+                    }
+                });
+            } catch (notifErr) {
+                console.error("Error sending counterpart response notification:", notifErr);
+            }
+
             return ApiHandler.success(updatedRequest);
         }
 
@@ -243,6 +301,60 @@ export async function PUT(req: NextRequest) {
             // Si fue aprobado, ejecutar el intercambio de turnos
             if (managerData.approved && existingRequest.counterpartyShiftId) {
                 await executeShiftSwap(existingRequest);
+            }
+
+            // Enviar notificaciones a ambos empleados
+            try {
+                const requesterUser = await db.query.users.findFirst({
+                    where: eq(users.id, existingRequest.requestedBy),
+                });
+                const counterpartUser = await db.query.users.findFirst({
+                    where: eq(users.id, existingRequest.counterpartyId),
+                });
+                const managerUser = await db.query.users.findFirst({
+                    where: eq(users.id, tenant.userId),
+                });
+
+                const decisionStr = managerData.approved ? "Aprobado" : "Rechazado";
+                const messageForRequester = managerData.approved
+                    ? `El supervisor ${managerUser?.name || ''} ha aprobado tu cambio de turno con ${counterpartUser?.name || 'tu compañero'}.`
+                    : `El supervisor ${managerUser?.name || ''} ha rechazado tu cambio de turno con ${counterpartUser?.name || 'tu compañero'}.`;
+
+                const messageForCounterpart = managerData.approved
+                    ? `El supervisor ${managerUser?.name || ''} ha aprobado tu cambio de turno con ${requesterUser?.name || 'tu compañero'}.`
+                    : `El supervisor ${managerUser?.name || ''} ha rechazado tu cambio de turno con ${requesterUser?.name || 'tu compañero'}.`;
+
+                // Notificar al solicitante
+                await NotificationDispatcher.sendNotification({
+                    userId: existingRequest.requestedBy,
+                    title: `Cambio de Turno ${decisionStr}`,
+                    message: messageForRequester,
+                    type: managerData.approved ? "success" : "error",
+                    eventType: "shift_change_decision",
+                    actionUrl: `/dashboard/labor/shift-changes`,
+                    actionLabel: "Ver Solicitudes",
+                    metadata: {
+                        counterpartyName: counterpartUser?.name || 'Tu compañero',
+                        decision: decisionStr,
+                    }
+                });
+
+                // Notificar a la contraparte
+                await NotificationDispatcher.sendNotification({
+                    userId: existingRequest.counterpartyId,
+                    title: `Cambio de Turno ${decisionStr}`,
+                    message: messageForCounterpart,
+                    type: managerData.approved ? "success" : "error",
+                    eventType: "shift_change_decision",
+                    actionUrl: `/dashboard/labor/shift-changes`,
+                    actionLabel: "Ver Solicitudes",
+                    metadata: {
+                        counterpartyName: requesterUser?.name || 'Tu compañero',
+                        decision: decisionStr,
+                    }
+                });
+            } catch (notifErr) {
+                console.error("Error sending manager decision notifications:", notifErr);
             }
 
             return ApiHandler.success(updatedRequest);

@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { incidents } from '@/lib/db/schema';
+import { incidents, branches } from '@/lib/db/schema';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { IncidentEngine } from '@/lib/services/incident-engine';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
 /**
  * GET /api/incidents
- * List incidents with filtering
+ * List incidents scoped to the authenticated tenant
  */
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
     try {
         const { searchParams } = new URL(request.url);
 
@@ -18,10 +19,26 @@ export async function GET(request: NextRequest) {
         const limit = parseInt(searchParams.get('limit') || '50');
         const offset = parseInt(searchParams.get('offset') || '0');
 
-        // Build query conditions
-        const conditions = [];
+        // Get branches belonging to this tenant
+        const tenantBranches = await db
+            .select({ id: branches.id })
+            .from(branches)
+            .where(eq(branches.companyId, auth.tenantId));
+
+        const tenantBranchIds = tenantBranches.map(b => b.id);
+
+        if (tenantBranchIds.length === 0) {
+            return NextResponse.json({ incidents: [], total: 0, limit, offset });
+        }
+
+        // Build query conditions — always scoped to tenant's branches
+        const conditions = [inArray(incidents.branchId, tenantBranchIds as any)];
 
         if (branchId) {
+            // Also check that requested branch belongs to tenant
+            if (!tenantBranchIds.includes(branchId as any)) {
+                return NextResponse.json({ error: 'Branch not found' }, { status: 404 });
+            }
             conditions.push(eq(incidents.branchId, branchId));
         }
 
@@ -60,24 +77,23 @@ export async function GET(request: NextRequest) {
             { status: 500 }
         );
     }
-}
+});
 
 /**
  * POST /api/incidents
  * Create incident manually (for testing or manual reporting)
  */
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
     try {
         const body = await request.json();
 
         const {
-            workflowInstanceId: instanceId, // Map from body param to schema column
+            workflowInstanceId: instanceId,
             stepId,
             branchId,
             severity,
             title,
             description,
-            detectedBy,
         } = body;
 
         // Validate required fields
@@ -88,7 +104,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Create incident
+        // Create incident — detectedBy always from session
         const [incident] = await db
             .insert(incidents)
             .values({
@@ -99,7 +115,7 @@ export async function POST(request: NextRequest) {
                 status: 'DETECTED',
                 title,
                 description,
-                detectedBy,
+                detectedBy: auth.user.id,
             })
             .returning();
 
@@ -111,4 +127,4 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         );
     }
-}
+});

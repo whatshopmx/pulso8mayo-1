@@ -111,8 +111,45 @@ export class WorkflowActionRunner {
         await this.handleSendNotification(action, instance, userId);
         break;
 
+      case "CREATE_REMEDIATION_PLAN":
+        await this.handleCreateRemediationPlan(action, instance, steps, userId);
+        break;
+
       default:
         console.warn(`[WorkflowActionRunner] Unsupported action type: ${action.type}`);
+    }
+  }
+
+  private static async handleCreateRemediationPlan(
+    action: CompletionAction,
+    instance: any,
+    steps: any[],
+    userId: string
+  ): Promise<void> {
+    try {
+      console.log(`[WorkflowActionRunner] Triggering CREATE_REMEDIATION_PLAN completion action`);
+
+      // Check if there are critical incident findings for this instance
+      const matchedIncidents = await db.query.incidents.findMany({
+        where: eq(incidents.instanceId, instance.id),
+      });
+
+      const hasCriticalIncidents = matchedIncidents.some(i => i.severity === 'CRITICAL');
+
+      if (action.condition === "failed_critical" && !hasCriticalIncidents) {
+        console.log(`[WorkflowActionRunner] Skipping remediation plan: no critical incidents found`);
+        return;
+      }
+
+      const { NOM035Service } = await import('./compliance/nom035-service');
+      await NOM035Service.createActionPlanFromWorkflow(
+        instance.id,
+        'completion-action',
+        action.message || 'Hallazgo crítico en cierre de workflow',
+        userId
+      );
+    } catch (error) {
+      console.error("[WorkflowActionRunner] Error creating completion action remediation plan:", error);
     }
   }
 

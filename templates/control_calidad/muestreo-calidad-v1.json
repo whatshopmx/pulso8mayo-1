@@ -1,0 +1,93 @@
+{
+  "id": "tpl-muestreo-calidad-v1",
+  "nombre": "🧪 Muestreo de Calidad y Cocción",
+  "descripcion": "Control microbiológico y organoléptico para platillos preparados y cocciones. Incluye medición de temperaturas de cocción (NOM-251) y verificación por IA de la etiqueta de vida de anaquel.",
+  "categoria": "CONTROL_CALIDAD",
+  "version": 1,
+  "activo": true,
+  "requiereIA": true,
+  "duracionEstimada": "5-10 min",
+  "tags": ["NOM-251", "muestreo", "temperatura", "coccion", "vida-anaquel", "AI"],
+  "complianceConfig": {
+    "complianceType": "NOM-251",
+    "regulationSection": "5.3 Control de Operaciones y Cocción",
+    "requiredFrequency": "daily",
+    "auditable": true,
+    "evidenceRequired": true,
+    "criticalForCompliance": true
+  },
+  "completionActions": [
+    {
+      "type": "SEND_NOTIFICATION",
+      "target": "Chef",
+      "channel": "whatsapp",
+      "message": "Muestreo de calidad completado exitosamente"
+    },
+    {
+      "type": "GENERATE_PDF_REPORT",
+      "message": "Generar reporte PDF de muestreo de calidad"
+    }
+  ],
+  "pasos": [
+    {
+      "id": "nombre-platillo",
+      "titulo": "Nombre del Platillo / Preparado",
+      "type": "TextField",
+      "obligatorio": true,
+      "placeholder": "Ej. Salsa Bolognesa, Pechuga de Pollo"
+    },
+    {
+      "id": "temperatura-coccion",
+      "titulo": "Temperatura de Cocción (°C)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "74.0",
+      "validation": {
+        "min": 0,
+        "max": 120
+      },
+      "logicRules": [
+        {
+          "id": "lr-coccion-insuficiente",
+          "condition": "value < 60",
+          "severity": "CRITICAL",
+          "message": "Temperatura de cocción crítica por debajo de 60°C. NOM-251 requiere cocciones seguras (pollo >= 74°C, carne >= 68°C). Recocinar de inmediato.",
+          "actions": ["ESCALATE"]
+        }
+      ]
+    },
+    {
+      "id": "foto-rotulado",
+      "titulo": "Foto de Etiqueta de Vida de Anaquel",
+      "type": "PhotoField",
+      "obligatorio": true,
+      "aiVerification": {
+        "enabled": true,
+        "prompt": "Verificar que en el recipiente del preparado se observe la etiqueta de rotulado de vida de anaquel. La etiqueta debe contener el nombre del producto, la fecha y hora de preparación, y la fecha de vencimiento.",
+        "threshold": 0.85,
+        "expectedConditions": [
+          "Recipiente de almacenamiento visible y limpio",
+          "Etiqueta de rotulado o cinta de rotular adherida al recipiente",
+          "Nombre del preparado y fechas legibles en la etiqueta"
+        ]
+      }
+    },
+    {
+      "id": "vida-anaquel-dias",
+      "titulo": "Vida de Anaquel Declarada (Días)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "3",
+      "validation": {
+        "min": 1,
+        "max": 7
+      }
+    },
+    {
+      "id": "firma-responsable",
+      "titulo": "Firma del Responsable del Muestreo",
+      "type": "SignatureField",
+      "obligatorio": true
+    }
+  ]
+}

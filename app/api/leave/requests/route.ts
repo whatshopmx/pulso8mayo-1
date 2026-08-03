@@ -3,11 +3,10 @@ import { db } from '@/lib/db';
 import { leaveRequests, leaveBalances, users, branches } from '@/lib/db/schema';
 import { eq, and, desc, or, gte, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
-// Validation schemas
+// Validation schemas — userId and companyId come from session, not body
 const createLeaveRequestSchema = z.object({
-  userId: z.string(),
-  companyId: z.string().uuid(),
   branchId: z.string().uuid().optional(),
   leaveTypeId: z.string().uuid(),
   startDate: z.string(),
@@ -17,20 +16,14 @@ const createLeaveRequestSchema = z.object({
   supportingDocumentId: z.string().uuid().optional(),
 });
 
-const approveLeaveRequestSchema = z.object({
-  approvedBy: z.string(),
-});
-
 const rejectLeaveRequestSchema = z.object({
-  rejectedBy: z.string(),
   rejectionReason: z.string().min(1),
 });
 
 // GET - List leave requests
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
     const userId = searchParams.get('userId');
     const leaveTypeId = searchParams.get('leaveTypeId');
     const status = searchParams.get('status');
@@ -39,14 +32,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'companyId is required' },
-        { status: 400 }
-      );
-    }
-
-    const conditions = [eq(leaveRequests.companyId, companyId)];
+    const conditions = [eq(leaveRequests.companyId, auth.tenantId)];
 
     if (userId) conditions.push(eq(leaveRequests.userId, userId));
     if (leaveTypeId) conditions.push(eq(leaveRequests.leaveTypeId, leaveTypeId));
@@ -104,10 +90,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Create a new leave request
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
     const validated = createLeaveRequestSchema.safeParse(body);
@@ -127,7 +113,7 @@ export async function POST(request: NextRequest) {
       .from(leaveBalances)
       .where(
         and(
-          eq(leaveBalances.userId, data.userId),
+          eq(leaveBalances.userId, auth.user.id),
           eq(leaveBalances.leaveTypeId, data.leaveTypeId),
           eq(leaveBalances.year, new Date().getFullYear())
         )
@@ -144,10 +130,12 @@ export async function POST(request: NextRequest) {
       .insert(leaveRequests)
       .values({
         ...data,
+        userId: auth.user.id,
+        companyId: auth.tenantId,
         startDate: new Date(data.startDate),
         endDate: new Date(data.endDate),
         status: 'PENDING',
-        createdBy: data.userId,
+        createdBy: auth.user.id,
       })
       .returning();
 
@@ -173,10 +161,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PATCH - Update leave request (approve/reject)
-export async function PATCH(request: NextRequest) {
+export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const requestId = searchParams.get('id');
@@ -196,18 +184,10 @@ export async function PATCH(request: NextRequest) {
     };
 
   if (action === 'approve') {
-    const validated = approveLeaveRequestSchema.safeParse(body);
-    if (!validated.success) {
-      return NextResponse.json(
-        { error: 'Invalid input', details: validated.error.issues },
-        { status: 400 }
-      );
-    }
-
     updateData = {
         ...updateData,
         status: 'APPROVED',
-        approvedBy: validated.data.approvedBy,
+        approvedBy: auth.user.id, // ALWAYS from session
         approvedAt: new Date(),
       };
   } else if (action === 'reject') {
@@ -222,7 +202,7 @@ export async function PATCH(request: NextRequest) {
     updateData = {
         ...updateData,
         status: 'REJECTED',
-        rejectedBy: validated.data.rejectedBy,
+        rejectedBy: auth.user.id, // ALWAYS from session
         rejectedAt: new Date(),
         rejectionReason: validated.data.rejectionReason,
       };
@@ -305,21 +285,22 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE - Cancel a leave request
-export async function DELETE(request: NextRequest) {
+export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const requestId = searchParams.get('id');
-    const userId = searchParams.get('userId');
 
-    if (!requestId || !userId) {
+    if (!requestId) {
       return NextResponse.json(
-        { error: 'Request ID and userId are required' },
+        { error: 'Request ID is required' },
         { status: 400 }
       );
     }
+
+    const userId = auth.user.id;
 
     const [leaveRequest] = await db
       .select()
@@ -382,4 +363,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

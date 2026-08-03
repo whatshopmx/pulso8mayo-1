@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { RemediationService } from '@/lib/services/remediation-service';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
 /**
  * POST /api/incidents/[id]/remediate
  * Submit remediation step evidence
  */
-export async function POST(
+export const POST = withTenantAuth(async (
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+    { params, auth }
+) => {
     try {
         const body = await request.json();
         const { stepIndex, evidence } = body;
-        const { id } = await params;
+        const { id } = await (params as unknown as Promise<{ id: string }>);
 
         if (stepIndex === undefined || !evidence) {
             return NextResponse.json(
@@ -21,7 +22,7 @@ export async function POST(
             );
         }
 
-        // Track the remediation attempt
+        // Track the remediation attempt — validated by session
         const success = await RemediationService.trackRemediationAttempt(
             id,
             stepIndex,
@@ -30,7 +31,7 @@ export async function POST(
 
         return NextResponse.json({
             success,
-            message: success ? 'Remediation step completed' : 'Remediation step failed',
+            message: success ? 'Paso de remediación completado' : 'No se pudo completar el paso de remediación',
         });
     } catch (error) {
         console.error('[API] Error submitting remediation:', error);
@@ -39,4 +40,4 @@ export async function POST(
             { status: 500 }
         );
     }
-}
+});

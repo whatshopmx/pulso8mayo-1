@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { recipes } from "@/lib/db/schema";
+import { recipes, recipeItems } from "@/lib/db/schema";
+import { RecipeService } from "@/lib/services/recipe-service";
+import { createRecipeSchema } from "@/lib/validators/recipes";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-
-const createRecipeSchema = z.object({
-    name: z.string().min(1),
-    description: z.string().optional(),
-    baseYield: z.number().positive().default(1),
-    unit: z.string().default("PORTION"),
-    priceSelling: z.number().nonnegative().default(0), // in decimal dollars/pesos
-});
 
 export async function GET(req: NextRequest) {
     try {
@@ -41,18 +36,60 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const validated = createRecipeSchema.parse(body);
 
-        const [newRecipe] = await db.insert(recipes).values({
-            companyId: session.user.companyId,
-            name: validated.name,
-            description: validated.description || null,
-            baseYield: validated.baseYield.toFixed(2),
-            unit: validated.unit,
-            priceSelling: Math.round(validated.priceSelling * 100), // convert to cents
-            calculatedCost: 0,
-            foodCostPercentage: "0.00",
-        }).returning();
+        // Reject cycles before persisting (same check as PUT; id pre-generated
+        // so the proposed graph can be validated before anything is written)
+        const recipeId = randomUUID();
+        const createsCycle = await RecipeService.wouldCreateCycle(
+            session.user.companyId,
+            recipeId,
+            validated.items
+        );
+        if (createsCycle) {
+            return NextResponse.json(
+                { error: "Recipe cannot contain itself as a sub-recipe (cycle detected)" },
+                { status: 409 }
+            );
+        }
 
-        return NextResponse.json(newRecipe);
+        const [newRecipe] = await db.transaction(async (tx) => {
+            const [recipe] = await tx.insert(recipes).values({
+                id: recipeId,
+                companyId: session.user.companyId,
+                name: validated.name,
+                description: validated.description || null,
+                baseYield: validated.baseYield.toFixed(2),
+                unit: validated.unit,
+                priceSelling: Math.round(validated.priceSelling * 100), // convert to cents
+                calculatedCost: 0,
+                foodCostPercentage: "0.00",
+            }).returning();
+
+            if (validated.items.length > 0) {
+                await tx.insert(recipeItems).values(
+                    validated.items.map(item => ({
+                        recipeId: recipe.id,
+                        itemId: item.itemId,
+                        quantity: item.quantity.toFixed(4),
+                        unit: item.unit,
+                        isSubRecipe: item.isSubRecipe,
+                    }))
+                );
+            }
+
+            return [recipe];
+        });
+
+        // Calculate initial cost AFTER the transaction commits
+        if (validated.items.length > 0) {
+            await RecipeService.calculateRecipeCost(newRecipe.id, 'LAST_COST');
+        }
+
+        // Refetch so the response carries the freshly calculated cost
+        const [freshRecipe] = await db.select()
+            .from(recipes)
+            .where(eq(recipes.id, newRecipe.id));
+
+        return NextResponse.json(freshRecipe ?? newRecipe);
     } catch (error) {
         console.error("POST recipes error:", error);
         if (error instanceof z.ZodError) {

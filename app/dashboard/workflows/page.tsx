@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { SmartLinkGenerator } from "@/components/workflow/smart-link-generator";
+import { useBranch } from "@/lib/branch-context";
 import Link from "next/link";
 
 interface Template {
@@ -57,7 +58,9 @@ export default function WorkflowsDashboard() {
     const [search, setSearch] = useState("");
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [smartLinkDetails, setSmartLinkDetails] = useState<{ instanceId: string; templateId: string } | null>(null);
+    const [sessionBranchId, setSessionBranchId] = useState<string>("");
     const router = useRouter();
+    const { selectedBranchId } = useBranch();
 
     useEffect(() => {
         const load = async () => {
@@ -81,13 +84,22 @@ export default function WorkflowsDashboard() {
             }
         };
         load();
+        // Branch fallback: the header BranchScopeControl can be "Todas" (null),
+        // but execution always requires a concrete branch.
+        fetch("/api/auth/get-session")
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => setSessionBranchId(d?.branchId || ""))
+            .catch(() => {});
     }, []);
 
+    const effectiveBranchId = selectedBranchId ?? sessionBranchId;
+
     const createInstance = async (templateId: string) => {
+        if (!effectiveBranchId) throw new Error("NO_BRANCH");
         const res = await fetch("/api/workflows/execute", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ templateId, branchId: "00000000-0000-0000-0000-000000000000" }),
+            body: JSON.stringify({ templateId, branchId: effectiveBranchId }),
         });
         if (!res.ok) throw new Error("Failed to create instance");
         return res.json();
@@ -98,8 +110,10 @@ export default function WorkflowsDashboard() {
         try {
             const ex = await createInstance(templateId);
             router.push(`/dashboard/workflows/${ex.id}/execute`);
-        } catch {
-            toast.error("Error al iniciar el workflow");
+        } catch (e) {
+            toast.error(e instanceof Error && e.message === "NO_BRANCH"
+                ? "Selecciona una sucursal antes de iniciar el workflow"
+                : "Error al iniciar el workflow");
         } finally {
             setProcessingId(null);
         }
@@ -110,8 +124,10 @@ export default function WorkflowsDashboard() {
         try {
             const ex = await createInstance(templateId);
             setSmartLinkDetails({ instanceId: ex.id, templateId });
-        } catch {
-            toast.error("Error al generar el enlace");
+        } catch (e) {
+            toast.error(e instanceof Error && e.message === "NO_BRANCH"
+                ? "Selecciona una sucursal antes de generar el enlace"
+                : "Error al generar el enlace");
         } finally {
             setProcessingId(null);
         }

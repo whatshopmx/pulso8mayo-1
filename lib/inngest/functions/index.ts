@@ -23,3 +23,4 @@ export { handleBreakEndWorkflowFn } from "./labor-workflows";
 export { handleIncidentWorkflowFn } from "./incident-escalation";
 export { incidentEscalationChainFn } from "./incident-escalation";
 export { executeWorkflowFn } from "./workflow-executor";
+export { announcementBroadcastFn } from "./announcement-broadcast";

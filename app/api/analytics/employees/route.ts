@@ -3,11 +3,11 @@ import { db } from '@/lib/db';
 import { employeeProfiles, employeeContracts, employeeAuditLogs, employeeDocuments, employeeOnboarding, employeeOffboarding, companies, branches } from '@/lib/db/schema';
 import { eq, and, gte, lte, count, avg, sql, ilike, or, inArray } from 'drizzle-orm';
 import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subDays } from 'date-fns';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const companyId = searchParams.get('companyId');
   const branchId = searchParams.get('branchId');
   const period = searchParams.get('period') || '30d'; // 7d, 30d, 90d, YTD
 
@@ -18,10 +18,6 @@ export async function GET(request: NextRequest) {
       branchFilter = branchId;
     }
   }
-
-    if (!companyId) {
-      return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
-    }
 
     // Calculate date range based on period
     const now = new Date();
@@ -347,4 +343,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -3,11 +3,10 @@ import { db } from '@/lib/db';
 import { employeeOnboarding, onboardingSteps, employeeOffboarding, users } from '@/lib/db/schema';
 import { eq, and, desc, SQL } from 'drizzle-orm';
 import { z } from 'zod';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
-// Onboarding validation schema
+// Onboarding validation schema — userId and companyId from session
 const onboardingSchema = z.object({
-  userId: z.string(),
-  companyId: z.string(),
   branchId: z.string().optional(),
   startDate: z.string(),
   targetEndDate: z.string().optional(),
@@ -17,10 +16,8 @@ const onboardingSchema = z.object({
   hrNotes: z.string().optional(),
 });
 
-// Offboarding validation schema
+// Offboarding validation schema — userId and companyId from session
 const offboardingSchema = z.object({
-  userId: z.string(),
-  companyId: z.string(),
   branchId: z.string().optional(),
   reason: z.enum([
     'VOLUNTARY_RESIGNATION',
@@ -49,32 +46,23 @@ const offboardingSchema = z.object({
 });
 
 // GET - Get onboarding/offboarding records
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
-    const companyId = searchParams.get('companyId');
     const type = searchParams.get('type'); // 'onboarding' or 'offboarding'
-
-    if (!companyId && !userId) {
-      return NextResponse.json(
-        { error: 'companyId or userId is required' },
-        { status: 400 }
-      );
-    }
 
     const result: any = {};
 
-    // Get onboarding records
+    // Get onboarding records — always scoped to authenticated tenant
     if (!type || type === 'onboarding') {
-      // Build conditions array
       const onboardingConditions: SQL[] = [];
       
       if (userId) {
         onboardingConditions.push(eq(employeeOnboarding.userId, userId));
-      } else if (companyId) {
-        onboardingConditions.push(eq(employeeOnboarding.companyId, companyId));
       }
+      // Always filter by authenticated tenant
+      onboardingConditions.push(eq(employeeOnboarding.companyId, auth.tenantId));
 
       const onboardings = await db
         .select()
@@ -98,14 +86,13 @@ export async function GET(request: NextRequest) {
 
     // Get offboarding records
     if (!type || type === 'offboarding') {
-      // Build conditions array
       const offboardingConditions: SQL[] = [];
       
       if (userId) {
         offboardingConditions.push(eq(employeeOffboarding.userId, userId));
-      } else if (companyId) {
-        offboardingConditions.push(eq(employeeOffboarding.companyId, companyId));
       }
+      // Always filter by authenticated tenant
+      offboardingConditions.push(eq(employeeOffboarding.companyId, auth.tenantId));
 
       const offboardings = await db
         .select()
@@ -127,20 +114,28 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Create onboarding
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
-    const validatedData = onboardingSchema.parse(body);
-    const createdBy = request.headers.get('x-user-id') || validatedData.userId;
+    // userId comes from the body target (who's being onboarded), not the session
+    const { userId, ...restData } = body;
+    const validatedData = onboardingSchema.parse(restData);
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'userId is required' },
+        { status: 400 }
+      );
+    }
 
     // Check if onboarding already exists
     const existingOnboarding = await db
       .select()
       .from(employeeOnboarding)
-      .where(eq(employeeOnboarding.userId, validatedData.userId))
+      .where(eq(employeeOnboarding.userId, userId))
       .limit(1);
 
     if (existingOnboarding && existingOnboarding.length > 0) {
@@ -154,8 +149,8 @@ export async function POST(request: NextRequest) {
     const [newOnboarding] = await db
       .insert(employeeOnboarding)
       .values({
-        userId: validatedData.userId,
-        companyId: validatedData.companyId,
+        userId,
+        companyId: auth.tenantId,
         branchId: validatedData.branchId,
         startDate: new Date(validatedData.startDate),
         targetEndDate: validatedData.targetEndDate ? new Date(validatedData.targetEndDate) : null,
@@ -164,7 +159,7 @@ export async function POST(request: NextRequest) {
         status: 'IN_PROGRESS',
         notes: validatedData.notes,
         hrNotes: validatedData.hrNotes,
-        createdBy: createdBy,
+        createdBy: auth.user.id,
       })
       .returning();
 
@@ -211,13 +206,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PATCH - Update onboarding status or complete step
-export async function PATCH(request: NextRequest) {
+export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
-    const { onboardingId, stepId, action, notes, completedBy } = body;
+    const { onboardingId, stepId, action, notes } = body;
 
     if (!onboardingId || !action) {
       return NextResponse.json(
@@ -233,7 +228,7 @@ export async function PATCH(request: NextRequest) {
         .set({
           status: 'COMPLETED',
           completedDate: new Date(),
-          completedBy: completedBy,
+          completedBy: auth.user.id,
           notes: notes,
         })
         .where(eq(onboardingSteps.id, stepId))
@@ -306,10 +301,10 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE - Cancel onboarding
-export async function DELETE(request: NextRequest) {
+export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const onboardingId = searchParams.get('onboardingId');
@@ -355,4 +350,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

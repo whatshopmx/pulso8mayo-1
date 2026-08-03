@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { workflowInstanceSteps, workflowInstances, workflowTemplates, users, branches } from "@/lib/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { withTenantAuth } from "@/lib/api/with-auth";
 
 /**
  * GET /api/dashboard/ai-verifications
  * 
- * Fetch AI verification records for dashboard display
- * 
- * Query Parameters:
- * - status: Filter by status (success, failed, escalated, pending, analyzing)
- * - limit: Maximum number of results (default: 50)
- * - branchId: Filter by branch
- * - assigneeId: Filter by assignee
+ * Fetch AI verification records for dashboard display, scoped to authenticated tenant
  */
-export async function GET(req: NextRequest) {
+export const GET = withTenantAuth(async (req: NextRequest, { auth }) => {
     try {
         const searchParams = req.nextUrl.searchParams;
         const status = searchParams.get('status');
@@ -22,9 +17,18 @@ export async function GET(req: NextRequest) {
         const branchId = searchParams.get('branchId');
         const assigneeId = searchParams.get('assigneeId');
 
-        // Build where conditions
+        // Get branches belonging to this tenant
+        const tenantBranches = await db
+            .select({ id: branches.id })
+            .from(branches)
+            .where(eq(branches.companyId, auth.tenantId));
+
+        const tenantBranchIds = tenantBranches.map(b => b.id);
+
+        // Build where conditions — always scoped to tenant's branches
         const conditions = [
-            sql`${workflowInstanceSteps.aiAnalysis} IS NOT NULL`
+            sql`${workflowInstanceSteps.aiAnalysis} IS NOT NULL`,
+            inArray(workflowInstances.branchId, tenantBranchIds as any)
         ];
 
         if (status) {
@@ -115,4 +119,4 @@ export async function GET(req: NextRequest) {
             { status: 500 }
         );
     }
-}
+});

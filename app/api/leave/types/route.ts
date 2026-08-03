@@ -3,10 +3,10 @@ import { db } from '@/lib/db';
 import { leaveTypes, leaveRequests, leaveBalances, users } from '@/lib/db/schema';
 import { eq, and, desc, or } from 'drizzle-orm';
 import { z } from 'zod';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
-// Validation schemas
+// Validation schemas — companyId from session
 const createLeaveTypeSchema = z.object({
-  companyId: z.string().uuid(),
   name: z.string().min(1).max(100),
   description: z.string().optional(),
   isPaid: z.boolean().default(true),
@@ -19,18 +19,12 @@ const createLeaveTypeSchema = z.object({
 const updateLeaveTypeSchema = createLeaveTypeSchema.partial();
 
 // GET - List leave types for a company
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
     const isActive = searchParams.get('isActive');
 
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'companyId is required' },
-        { status: 400 }
-      );
-    }
+    const companyId = auth.tenantId;
 
     const conditions = [eq(leaveTypes.companyId, companyId)];
 
@@ -52,10 +46,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Create a new leave type
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const body = await request.json();
     const validated = createLeaveTypeSchema.safeParse(body);
@@ -69,7 +63,7 @@ export async function POST(request: NextRequest) {
 
   const [newType] = await db
       .insert(leaveTypes)
-      .values(validated.data)
+      .values({ ...validated.data, companyId: auth.tenantId })
       .returning();
 
     return NextResponse.json(
@@ -83,10 +77,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PATCH - Update a leave type
-export async function PATCH(request: NextRequest) {
+export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
     const leaveTypeId = searchParams.get('id');
@@ -135,4 +129,4 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

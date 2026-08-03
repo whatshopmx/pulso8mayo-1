@@ -163,7 +163,7 @@ export default function IncidentDetailPage() {
     };
 
     const handleRemediationStepSubmit = async (stepIndex: number, evidence: unknown) => {
-        if (!incident) return { success: false, message: "No incident data" };
+        if (!incident) return { success: false, message: "No hay datos del incidente" };
         try {
             const res = await fetch(`/api/incidents/${incident.id}/remediate`, {
                 method: "POST",
@@ -225,6 +225,11 @@ export default function IncidentDetailPage() {
 
     const isResolved = incident.status === "RESOLVED";
     const hasRemediationProtocol = incident.remediationProtocol?.steps && incident.remediationProtocol.steps.length > 0;
+    const remediationMeta = (incident.metadata ?? {}) as {
+        remediationCurrentStep?: number;
+        remediationAttempts?: number;
+        remediationMaxAttempts?: number;
+    };
 
     return (
         <div className="space-y-6">
@@ -355,6 +360,9 @@ export default function IncidentDetailPage() {
                                     description: incident.description ?? undefined,
                                     remediationProtocol: incident.remediationProtocol!,
                                 }}
+                                currentStep={remediationMeta.remediationCurrentStep ?? 0}
+                                currentAttempt={remediationMeta.remediationAttempts ?? 0}
+                                maxAttempts={remediationMeta.remediationMaxAttempts}
                                 onSubmitStep={handleRemediationStepSubmit}
                                 onComplete={handleRemediationComplete}
                                 onCancel={() => toast.info("Remediación cancelada")}

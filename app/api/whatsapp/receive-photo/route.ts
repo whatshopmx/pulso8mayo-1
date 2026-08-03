@@ -10,7 +10,9 @@ import { eq } from "drizzle-orm";
 /**
  * POST /api/whatsapp/receive-photo
  * 
- * Handle incoming photo from WhatsApp and trigger AI verification
+ * Handle incoming photo from WhatsApp and trigger AI verification.
+ * NOTE: This is a webhook called by Wasender. It does NOT use session auth.
+ * TODO: Add Wasender webhook signature verification before processing.
  * 
  * Request body (from WhatsApp webhook):
  * - from: Phone number

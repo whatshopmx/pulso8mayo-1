@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { EscalationService } from '@/lib/services/escalation-service';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
 /**
  * POST /api/incidents/[id]/escalate
  * Manually escalate an incident to a specific level
  */
-export async function POST(
+export const POST = withTenantAuth(async (
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+    { params, auth }
+) => {
     try {
         const body = await request.json();
-        const { targetLevel, escalatedBy } = body;
-        const { id } = await params;
+        const { targetLevel } = body;
+        const { id } = await (params as unknown as Promise<{ id: string }>);
 
-        if (!targetLevel || !escalatedBy) {
+        if (!targetLevel) {
             return NextResponse.json(
-                { error: 'Missing targetLevel or escalatedBy' },
+                { error: 'Missing targetLevel' },
                 { status: 400 }
             );
         }
@@ -24,7 +25,7 @@ export async function POST(
         await EscalationService.manualEscalate(
             id,
             targetLevel,
-            escalatedBy
+            auth.user.id // escalatedBy always from session
         );
 
         return NextResponse.json({
@@ -38,4 +39,4 @@ export async function POST(
             { status: 500 }
         );
     }
-}
+});

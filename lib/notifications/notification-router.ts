@@ -109,6 +109,46 @@ const routingRules: Record<NotificationEventType, RoutingRule> = {
     retryAttempts: 3,
     retryDelayMs: 2000,
     businessHoursOnly: true
+  },
+  shift_change_request: {
+    eventType: "shift_change_request",
+    priority: "normal",
+    channels: ["whatsapp", "email", "in-app"],
+    retryAttempts: 3,
+    retryDelayMs: 3000,
+    businessHoursOnly: false
+  },
+  shift_change_decision: {
+    eventType: "shift_change_decision",
+    priority: "normal",
+    channels: ["whatsapp", "email", "in-app"],
+    retryAttempts: 2,
+    retryDelayMs: 3000,
+    businessHoursOnly: false
+  },
+  employee_absence: {
+    eventType: "employee_absence",
+    priority: "high",
+    channels: ["whatsapp", "email", "in-app"],
+    retryAttempts: 3,
+    retryDelayMs: 2000,
+    businessHoursOnly: false
+  },
+  announcement_broadcast: {
+    eventType: "announcement_broadcast",
+    priority: "normal",
+    channels: ["whatsapp", "email", "in-app"],
+    retryAttempts: 3,
+    retryDelayMs: 3000,
+    businessHoursOnly: false
+  },
+  training_assigned: {
+    eventType: "training_assigned",
+    priority: "normal",
+    channels: ["whatsapp", "email", "in-app"],
+    retryAttempts: 3,
+    retryDelayMs: 3000,
+    businessHoursOnly: false
   }
 };
 

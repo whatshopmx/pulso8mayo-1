@@ -11,6 +11,7 @@ import {
     companies 
 } from '@/lib/db/schema';
 import { eq, and, gte, lte, count, sql, ilike, desc, asc } from 'drizzle-orm';
+import { withTenantAuth } from '@/lib/api/with-auth';
 
 // Standard report definitions
 const STANDARD_REPORTS = {
@@ -54,19 +55,16 @@ const STANDARD_REPORTS = {
     },
 };
 
-export async function GET(request: NextRequest) {
+export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
     try {
         const searchParams = request.nextUrl.searchParams;
         const reportType = searchParams.get('reportType');
-        const companyId = searchParams.get('companyId');
         const branchId = searchParams.get('branchId');
         const dateFrom = searchParams.get('dateFrom');
         const dateTo = searchParams.get('dateTo');
         const format = searchParams.get('format') || 'json'; // json, csv
 
-        if (!companyId) {
-            return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
-        }
+        const companyId = auth.tenantId;
 
         // Get standard report definition
         const reportDef = STANDARD_REPORTS[reportType as keyof typeof STANDARD_REPORTS];
@@ -218,14 +216,13 @@ export async function GET(request: NextRequest) {
             { status: 500 }
         );
     }
-}
+});
 
 // POST endpoint for custom report builder
-export async function POST(request: NextRequest) {
+export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
     try {
         const body = await request.json();
         const {
-            companyId,
             dataSource,
             fields,
             filters,
@@ -235,12 +232,14 @@ export async function POST(request: NextRequest) {
             dateTo,
         } = body;
 
-        if (!companyId || !dataSource || !fields) {
+        if (!dataSource || !fields) {
             return NextResponse.json(
-                { error: 'Missing required fields: companyId, dataSource, fields' },
+                { error: 'Missing required fields: dataSource, fields' },
                 { status: 400 }
             );
         }
+
+        const companyId = auth.tenantId;
 
         // Build custom query based on provided configuration
         let data: any[] = [];
@@ -264,7 +263,7 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         );
     }
-}
+});
 
 // Helper function to convert JSON to CSV
 function convertToCSV(data: any[]): string {

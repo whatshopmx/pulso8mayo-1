@@ -23,7 +23,12 @@ export type NotificationEventType =
   | "schedule_change"
   | "document_expiration"
   | "shift_approval_request"
-  | "shift_approval_decision";
+  | "shift_approval_decision"
+  | "shift_change_request"
+  | "shift_change_decision"
+  | "employee_absence"
+  | "announcement_broadcast"
+  | "training_assigned";
 
 export interface UserData {
     id: string;
@@ -193,6 +198,66 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
     inAppTitle: "Solicitud {decision}",
     inAppMessage: "{approvalType} fue {decision}",
     variables: ["userName", "approvalType", "decision", "approverName", "rejectionReasonSection"]
+  },
+  "shift_change_request": {
+    id: "shift_change_request",
+    name: "Solicitud de Intercambio de Turno",
+    eventType: "shift_change_request",
+    channels: ["whatsapp", "email", "in-app"],
+    whatsappTemplate: "🔄 *Solicitud de Cambio de Turno*\n\nHola {userName},\n\n{requesterName} te ha enviado una solicitud para cambiar turnos:\n\n*Su Turno:* {requesterShiftDate} ({requesterShiftTime})\n*Tu Turno:* {targetShiftDate} ({targetShiftTime})\n\nPor favor, ingresa a la app para responder.",
+    emailSubject: "🔄 Solicitud de Cambio de Turno: {requesterName}",
+    emailBody: "<h2>Solicitud de Cambio de Turno</h2><p>Hola {userName},</p><p><strong>{requesterName}</strong> quiere cambiar turnos contigo:</p><ul><li><strong>Su Turno:</strong> {requesterShiftDate} ({requesterShiftTime})</li><li><strong>Tu Turno:</strong> {targetShiftDate} ({targetShiftTime})</li></ul><p>Por favor, ingresa al dashboard para responder.</p>",
+    inAppTitle: "Cambio de Turno Solicitado",
+    inAppMessage: "{requesterName} solicita cambiar turno contigo",
+    variables: ["userName", "requesterName", "requesterShiftDate", "requesterShiftTime", "targetShiftDate", "targetShiftTime"]
+  },
+  "shift_change_decision": {
+    id: "shift_change_decision",
+    name: "Decisión de Intercambio de Turno",
+    eventType: "shift_change_decision",
+    channels: ["whatsapp", "email", "in-app"],
+    whatsappTemplate: "📋 *Respuesta de Cambio de Turno*\n\nHola {userName},\n\nTu solicitud de cambio de turno con {counterpartyName} fue *{decision}*.\n\nRevisa el dashboard para más detalles.",
+    emailSubject: "📋 Cambio de Turno {decision}",
+    emailBody: "<h2>Cambio de Turno {decision}</h2><p>Hola {userName},</p><p>Tu solicitud de cambio de turno con <strong>{counterpartyName}</strong> fue <strong>{decision}</strong>.</p>",
+    inAppTitle: "Cambio de Turno {decision}",
+    inAppMessage: "Tu cambio de turno con {counterpartyName} fue {decision}",
+    variables: ["userName", "counterpartyName", "decision"]
+  },
+  "employee_absence": {
+    id: "employee_absence",
+    name: "Ausencia de Empleado",
+    eventType: "employee_absence",
+    channels: ["whatsapp", "email", "in-app"],
+    whatsappTemplate: "⚠️ *Ausencia de Empleado*\n\nHola {userName},\n\nSe ha registrado una ausencia para {employeeName} en el turno del {shiftDate} ({shiftTime}).\n\n*Motivo:* {reason}\n\nPor favor, revisa el dashboard de asistencia.",
+    emailSubject: "⚠️ Ausencia de Empleado: {employeeName}",
+    emailBody: "<h2>Ausencia de Empleado</h2><p>Hola {userName},</p><p>Se ha registrado una ausencia para <strong>{employeeName}</strong> en el turno del <strong>{shiftDate} ({shiftTime})</strong>.</p><p><strong>Motivo:</strong> {reason}</p><p>Ingresa al dashboard de asistencia para más detalles.</p>",
+    inAppTitle: "Ausencia Registrada",
+    inAppMessage: "Ausencia: {employeeName} - {shiftDate}",
+    variables: ["userName", "employeeName", "shiftDate", "shiftTime", "reason"]
+  },
+  "announcement_broadcast": {
+    id: "announcement_broadcast",
+    name: "Difusión de Anuncio",
+    eventType: "announcement_broadcast",
+    channels: ["whatsapp", "email", "in-app"],
+    whatsappTemplate: "📢 *Nuevo Anuncio: {title}*\n\nHola {userName},\n\nHay una nueva comunicación importante del grupo:\n\n\"{bodySnippet}...\"\n\nPor favor, lee el anuncio completo y confirma tu lectura aquí:\n{smartLinkUrl}",
+    emailSubject: "📢 Nuevo Anuncio: {title}",
+    emailBody: "<h2>Nuevo Anuncio</h2><p>Hola {userName},</p><p>Hay una nueva comunicación importante:</p><h3>{title}</h3><p>{body}</p><p>Por favor, ingresa al dashboard para confirmar la lectura.</p>",
+    inAppTitle: "Nuevo Anuncio",
+    inAppMessage: "{title}",
+    variables: ["userName", "title", "bodySnippet", "body", "smartLinkUrl"]
+  },
+  "training_assigned": {
+    id: "training_assigned",
+    name: "Capacitación Asignada",
+    eventType: "training_assigned",
+    channels: ["whatsapp", "email", "in-app"],
+    whatsappTemplate: "📚 *Nueva Capacitación Asignada*\n\nHola {userName},\n\nSe te ha asignado el material de capacitación obligatorio: {workflowName}\n\nFecha límite: {dueDate}\n\nPor favor, inicia tu capacitación aquí:\n{smartLinkUrl}",
+    emailSubject: "📚 Nueva Capacitación: {workflowName}",
+    emailBody: "<h2>Nueva Capacitación Asignada</h2><p>Hola {userName},</p><p>Se te ha asignado el material de capacitación obligatorio: <strong>{workflowName}</strong></p><p><strong>Fecha límite:</strong> {dueDate}</p><p>Por favor, ingresa a la app para completarla.</p>",
+    inAppTitle: "Capacitación Asignada",
+    inAppMessage: "Material asignado: {workflowName}",
+    variables: ["userName", "workflowName", "dueDate", "smartLinkUrl"]
   }
 };
 

@@ -38,6 +38,7 @@ export default function EquipmentCatalogPage() {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -75,7 +76,7 @@ export default function EquipmentCatalogPage() {
           <h1 className="text-2xl font-bold">Catálogo de Equipos</h1>
           <p className="text-muted-foreground">Gestiona los tipos de equipos disponibles</p>
         </div>
-        <Dialog>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
@@ -86,7 +87,7 @@ export default function EquipmentCatalogPage() {
             <DialogHeader>
               <DialogTitle>Agregar al Catálogo</DialogTitle>
             </DialogHeader>
-            <EquipmentCatalogForm onSuccess={() => { window.location.reload(); }} />
+            <EquipmentCatalogForm onSuccess={() => { setDialogOpen(false); fetchCatalog(); }} />
           </DialogContent>
         </Dialog>
       </div>

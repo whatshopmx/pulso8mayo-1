@@ -1,5 +1,5 @@
 {
-  "id": "16fcea7b-5ad4-426d-a0e7-f365a7c8df21",
+  "id": "5be18fc3-4ae9-4a0a-8a24-0d6ede6bd598",
   "prevId": "a6201d30-86a4-448e-9189-963b7f54cf97",
   "version": "7",
   "dialect": "postgresql",
@@ -853,7 +853,7 @@
         },
         "received_by": {
           "name": "received_by",
-          "type": "uuid",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -6981,7 +6981,7 @@
         },
         "created_by": {
           "name": "created_by",
-          "type": "uuid",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

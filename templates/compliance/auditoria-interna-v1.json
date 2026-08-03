@@ -1,0 +1,104 @@
+{
+  "id": "tpl-auditoria-interna-v1",
+  "nombre": "📋 Auditoría Interna: NOM-251 & NOM-035",
+  "descripcion": "Checklist unificado de auditoría mensual para cumplimiento de normativas de salud e higiene alimentaria (NOM-251) y prevención de factores de riesgo psicosocial (NOM-035). Calcula scoring automático y auto-genera planes de remediación si se reprueban secciones críticas.",
+  "categoria": "COMPLIANCE",
+  "version": 1,
+  "activo": true,
+  "requiereIA": false,
+  "duracionEstimada": "20-30 min",
+  "tags": ["NOM-251", "NOM-035", "auditoria", "compliance"],
+  "complianceConfig": {
+    "complianceType": "NOM-251/NOM-035",
+    "regulationSection": "Auditoría General de Sucursal",
+    "requiredFrequency": "monthly",
+    "auditable": true,
+    "evidenceRequired": true,
+    "criticalForCompliance": true
+  },
+  "completionActions": [
+    {
+      "type": "CALCULATE_SCORE",
+      "message": "Calcular puntaje de la auditoría interna"
+    },
+    {
+      "type": "GENERATE_PDF_REPORT",
+      "message": "Generar reporte PDF de auditoría interna"
+    },
+    {
+      "type": "CREATE_REMEDIATION_PLAN",
+      "condition": "failed_critical",
+      "message": "Crear plan de remediación automática para hallazgos críticos de auditoría"
+    }
+  ],
+  "pasos": [
+    {
+      "id": "sec-nom251-temp",
+      "titulo": "Temperatura de refrigeración (°C)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "placeholder": "4.0",
+      "validation": {
+        "min": -20,
+        "max": 20
+      },
+      "logicRules": [
+        {
+          "id": "lr-temp-critica",
+          "condition": "value > 4.5",
+          "severity": "CRITICAL",
+          "message": "Temperatura de refrigeración fuera de rango NOM-251 (> 4.5°C). Requiere plan de remediación inmediato.",
+          "actions": ["ESCALATE", "CREATE_REMEDIATION_PLAN"]
+        }
+      ]
+    },
+    {
+      "id": "sec-nom251-plagas",
+      "titulo": "¿Se detectó presencia de plagas en la sucursal?",
+      "type": "YesNo",
+      "obligatorio": true,
+      "logicRules": [
+        {
+          "id": "lr-plagas-critico",
+          "condition": "value == 'yes' || value == 'si'",
+          "severity": "CRITICAL",
+          "message": "Presencia de plagas detectada. Violación crítica a la NOM-251. Se requiere fumigación inmediata y plan de remediación.",
+          "actions": ["ESCALATE", "CREATE_REMEDIATION_PLAN"]
+        }
+      ]
+    },
+    {
+      "id": "sec-nom251-limpieza",
+      "titulo": "¿Las superficies en contacto con alimentos están desinfectadas?",
+      "type": "YesNo",
+      "obligatorio": true
+    },
+    {
+      "id": "sec-nom035-violencia",
+      "titulo": "¿Se reportaron incidentes de violencia laboral en el mes?",
+      "type": "YesNo",
+      "obligatorio": true,
+      "logicRules": [
+        {
+          "id": "lr-violencia-critico",
+          "condition": "value == 'yes' || value == 'si'",
+          "severity": "CRITICAL",
+          "message": "Incidentes de violencia laboral reportados. Violación crítica a la NOM-035. Requiere intervención inmediata de RH.",
+          "actions": ["ESCALATE", "CREATE_REMEDIATION_PLAN"]
+        }
+      ]
+    },
+    {
+      "id": "sec-nom035-politica",
+      "titulo": "¿Se difundió la Política de Prevención de Riesgos Psicosociales?",
+      "type": "YesNo",
+      "obligatorio": true
+    },
+    {
+      "id": "firma-auditor",
+      "titulo": "Firma del Auditor Principal",
+      "type": "SignatureField",
+      "obligatorio": true
+    }
+  ]
+}

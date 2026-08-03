@@ -27,7 +27,11 @@ export async function getCurrentTenant() {
   const headerTenantId = (await headers()).get(TENANT_HEADER);
 
   if (headerTenantId) {
-    // TODO: Verify user has access to this tenant
+    // Verify the user belongs to the requested tenant before accepting the header.
+    // Until multi-tenant membership exists, the header must match the session's companyId.
+    if (headerTenantId !== session.user.companyId) {
+      throw ApiError.forbidden("You do not have access to the requested tenant.");
+    }
     return {
       id: headerTenantId,
       userId: session.user.id,

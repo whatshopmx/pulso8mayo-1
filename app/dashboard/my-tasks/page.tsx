@@ -12,22 +12,26 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { FilterX } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 export default function MyTasksPage() {
+    const router = useRouter();
     const [filters, setFilters] = useState<{
         status?: string;
         priority?: string;
         isOverdue?: boolean;
     }>({});
 
-    const handleStatusChange = (assignmentId: string, status: string) => {
-        console.log(`Assignment ${assignmentId} status changed to ${status}`);
-        // Optionally trigger a refetch or show a toast notification
+    const handleStatusChange = (_assignmentId: string, _status: string) => {
+        // The list applies the change; confirm it visibly (was console.log).
+        toast.success('Tarea actualizada');
     };
 
     const handleViewDetails = (assignmentId: string) => {
-        // Navigate to workflow execution page
-        window.location.href = `/dashboard/workflows/${assignmentId}`;
+        // Client-side nav (was window.location full reload) to the execution
+        // page — /dashboard/workflows/[id] has no route, only [id]/execute.
+        router.push(`/dashboard/workflows/${assignmentId}/execute`);
     };
 
     const clearFilters = () => {

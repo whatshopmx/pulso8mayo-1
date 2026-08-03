@@ -43,6 +43,7 @@ export default function EquipmentProvidersPage() {
   const [providers, setProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -104,7 +105,7 @@ export default function EquipmentProvidersPage() {
           <h1 className="text-2xl font-bold">Proveedores de Servicios</h1>
           <p className="text-muted-foreground">Gestión de proveedores de mantenimiento y servicios</p>
         </div>
-        <Dialog>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
@@ -115,7 +116,7 @@ export default function EquipmentProvidersPage() {
             <DialogHeader>
               <DialogTitle>Agregar Proveedor</DialogTitle>
             </DialogHeader>
-            <ServiceProviderForm onSuccess={() => { window.location.reload(); }} />
+            <ServiceProviderForm onSuccess={() => { setDialogOpen(false); fetchProviders(); }} />
           </DialogContent>
         </Dialog>
       </div>

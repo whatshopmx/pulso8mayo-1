@@ -14,12 +14,14 @@ import dailyAttendance from './compliance/daily-attendance-v1.json';
 import fumigacionV1 from './compliance/fumigacion-v1.json';
 import inspeccionSistemaIncendiosV1 from './compliance/inspeccion-sistema-contra-incendios-v1.json';
 import nom035Survey from './compliance/nom-035-survey-v1.json';
+import auditoriaInternaV1 from './compliance/auditoria-interna-v1.json';
 
 // Control de Calidad
 import controlHigieneV2 from './control_calidad/control-higiene-personal-v2-enhanced.json';
 import controlTemperaturas from './control_calidad/control-temperaturas-v1.json';
 import inspeccionAlimentos from './control_calidad/inspeccion-alimentos-v1.json';
 import recepcionMercanciaV2 from './control_calidad/recepcion-mercancia-v2-enhanced.json';
+import muestreoCalidadV1 from './control_calidad/muestreo-calidad-v1.json';
 
 // Mantenimiento
 import checklistMantenimiento from './mantenimiento/checklist-mantenimiento-v1.json';
@@ -30,6 +32,7 @@ import aperturaRestauranteV2 from './operaciones_diarias/apertura-restaurante-v2
 import cierreRestauranteV2 from './operaciones_diarias/cierre-restaurante-v2-enhanced.json';
 import limpiezaSanitizacionV2 from './operaciones_diarias/limpieza-sanitizacion-v2-enhanced.json';
 import mantenimientoEquiposV2 from './operaciones_diarias/mantenimiento-equipos-v2-enhanced.json';
+import cambioTurnoV1 from './operaciones_diarias/cambio-turno-v1.json';
 
 // Recursos Humanos
 import onboardingEmpleadoV2 from './recursos_humanos/onboarding-empleado-v2-enhanced.json';
@@ -111,27 +114,30 @@ export const templateLibrary: Record<string, Template> = {
   // Atención al Cliente (1)
   'reporte-incidentes-v2': normalizeTemplate(reporteIncidentesV2),
 
-  // Compliance (4)
+  // Compliance (5)
   'daily-attendance-v1': normalizeTemplate(dailyAttendance),
   'fumigacion-v1': normalizeTemplate(fumigacionV1),
   'inspeccion-sistema-incendios-v1': normalizeTemplate(inspeccionSistemaIncendiosV1),
   'nom-035-survey-v1': normalizeTemplate(nom035Survey),
+  'auditoria-interna-v1': normalizeTemplate(auditoriaInternaV1),
 
-  // Control de Calidad (4)
+  // Control de Calidad (5)
   'control-higiene-personal-v2': normalizeTemplate(controlHigieneV2),
   'control-temperaturas-v1': normalizeTemplate(controlTemperaturas),
   'inspeccion-alimentos-v1': normalizeTemplate(inspeccionAlimentos),
   'recepcion-mercancia-v2': normalizeTemplate(recepcionMercanciaV2),
+  'muestreo-calidad-v1': normalizeTemplate(muestreoCalidadV1),
 
   // Mantenimiento (3)
   'checklist-mantenimiento-v1': normalizeTemplate(checklistMantenimiento),
   'mantenimiento-equipos-refrigeradores-v1': normalizeTemplate(mantenimientoEquiposRefrigeradores),
   'mantenimiento-equipos-v2': normalizeTemplate(mantenimientoEquiposV2),
 
-  // Operaciones Diarias (3)
+  // Operaciones Diarias (4)
   'apertura-restaurante-v2': normalizeTemplate(aperturaRestauranteV2),
   'cierre-restaurante-v2': normalizeTemplate(cierreRestauranteV2),
   'limpieza-sanitizacion-v2': normalizeTemplate(limpiezaSanitizacionV2),
+  'cambio-turno-v1': normalizeTemplate(cambioTurnoV1),
 
   // Recursos Humanos (1)
   'onboarding-empleado-v2': normalizeTemplate(onboardingEmpleadoV2),
