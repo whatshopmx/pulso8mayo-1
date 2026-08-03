@@ -262,6 +262,17 @@ export async function PUT(req: NextRequest) {
                 const reason = data.notes || existing.notes || 'Sin especificar';
                 const employeePhone = employeeUser?.whatsappPhone || employeeUser?.phone || 'No registrado';
 
+                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+                const sessionSmartLinkUrl = `${baseUrl}/dashboard/labor/attendance?sessionId=${existing.id}`;
+                const absenceMetadata = {
+                    employeeName: employeeUser?.name || 'Empleado',
+                    shiftDate,
+                    shiftTime,
+                    reason,
+                    smartLinkUrl: sessionSmartLinkUrl,
+                };
+                const absenceActionUrl = `/dashboard/labor/attendance?sessionId=${existing.id}`;
+
                 // 1. Notify the employee
                 await NotificationDispatcher.sendNotification({
                     userId: existing.userId,
@@ -276,6 +287,7 @@ export async function PUT(req: NextRequest) {
                         shiftDate,
                         shiftTime,
                         reason,
+                        smartLinkUrl: `${baseUrl}/dashboard/labor/shifts`,
                     }
                 });
 
@@ -291,14 +303,9 @@ export async function PUT(req: NextRequest) {
                         message: `Se ha registrado una ausencia para ${employeeUser?.name || 'Empleado'} en el turno del ${shiftDate} (${shiftTime}). Motivo: ${reason}. Contacto: ${employeePhone}`,
                         type: "warning",
                         eventType: "employee_absence",
-                        actionUrl: `/dashboard/labor/attendance`,
+                        actionUrl: absenceActionUrl,
                         actionLabel: "Ver Asistencia",
-                        metadata: {
-                            employeeName: employeeUser?.name || 'Empleado',
-                            shiftDate,
-                            shiftTime,
-                            reason,
-                        }
+                        metadata: absenceMetadata
                     });
                 }
 
@@ -320,14 +327,9 @@ export async function PUT(req: NextRequest) {
                         message: `Se ha registrado una ausencia para ${employeeUser?.name || 'Empleado'} en el turno del ${shiftDate} (${shiftTime}). Motivo: ${reason}. Contacto: ${employeePhone}`,
                         type: "warning",
                         eventType: "employee_absence",
-                        actionUrl: `/dashboard/labor/attendance`,
+                        actionUrl: absenceActionUrl,
                         actionLabel: "Ver Asistencia",
-                        metadata: {
-                            employeeName: employeeUser?.name || 'Empleado',
-                            shiftDate,
-                            shiftTime,
-                            reason,
-                        }
+                        metadata: absenceMetadata
                     });
                 }
             } catch (notifErr) {

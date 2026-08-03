@@ -204,12 +204,12 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
     name: "Solicitud de Intercambio de Turno",
     eventType: "shift_change_request",
     channels: ["whatsapp", "email", "in-app"],
-    whatsappTemplate: "🔄 *Solicitud de Cambio de Turno*\n\nHola {userName},\n\n{requesterName} te ha enviado una solicitud para cambiar turnos:\n\n*Su Turno:* {requesterShiftDate} ({requesterShiftTime})\n*Tu Turno:* {targetShiftDate} ({targetShiftTime})\n\nPor favor, ingresa a la app para responder.",
+    whatsappTemplate: "🔄 *Solicitud de Cambio de Turno*\n\nHola {userName},\n\n{requesterName} te ha enviado una solicitud para cambiar turnos:\n\n*Su Turno:* {requesterShiftDate} ({requesterShiftTime})\n*Tu Turno:* {targetShiftDate} ({targetShiftTime})\n\nResponde a la solicitud aquí:\n{smartLinkUrl}",
     emailSubject: "🔄 Solicitud de Cambio de Turno: {requesterName}",
-    emailBody: "<h2>Solicitud de Cambio de Turno</h2><p>Hola {userName},</p><p><strong>{requesterName}</strong> quiere cambiar turnos contigo:</p><ul><li><strong>Su Turno:</strong> {requesterShiftDate} ({requesterShiftTime})</li><li><strong>Tu Turno:</strong> {targetShiftDate} ({targetShiftTime})</li></ul><p>Por favor, ingresa al dashboard para responder.</p>",
+    emailBody: "<h2>Solicitud de Cambio de Turno</h2><p>Hola {userName},</p><p><strong>{requesterName}</strong> quiere cambiar turnos contigo:</p><ul><li><strong>Su Turno:</strong> {requesterShiftDate} ({requesterShiftTime})</li><li><strong>Tu Turno:</strong> {targetShiftDate} ({targetShiftTime})</li></ul><p><a href=\"{smartLinkUrl}\">Responde a la solicitud aquí</a></p>",
     inAppTitle: "Cambio de Turno Solicitado",
     inAppMessage: "{requesterName} solicita cambiar turno contigo",
-    variables: ["userName", "requesterName", "requesterShiftDate", "requesterShiftTime", "targetShiftDate", "targetShiftTime"]
+    variables: ["userName", "requesterName", "requesterShiftDate", "requesterShiftTime", "targetShiftDate", "targetShiftTime", "smartLinkUrl"]
   },
   "shift_change_decision": {
     id: "shift_change_decision",
@@ -228,12 +228,12 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
     name: "Ausencia de Empleado",
     eventType: "employee_absence",
     channels: ["whatsapp", "email", "in-app"],
-    whatsappTemplate: "⚠️ *Ausencia de Empleado*\n\nHola {userName},\n\nSe ha registrado una ausencia para {employeeName} en el turno del {shiftDate} ({shiftTime}).\n\n*Motivo:* {reason}\n\nPor favor, revisa el dashboard de asistencia.",
+    whatsappTemplate: "⚠️ *Ausencia de Empleado*\n\nHola {userName},\n\nSe ha registrado una ausencia para {employeeName} en el turno del {shiftDate} ({shiftTime}).\n\n*Motivo:* {reason}\n\nRevisa la sesión aquí:\n{smartLinkUrl}",
     emailSubject: "⚠️ Ausencia de Empleado: {employeeName}",
-    emailBody: "<h2>Ausencia de Empleado</h2><p>Hola {userName},</p><p>Se ha registrado una ausencia para <strong>{employeeName}</strong> en el turno del <strong>{shiftDate} ({shiftTime})</strong>.</p><p><strong>Motivo:</strong> {reason}</p><p>Ingresa al dashboard de asistencia para más detalles.</p>",
+    emailBody: "<h2>Ausencia de Empleado</h2><p>Hola {userName},</p><p>Se ha registrado una ausencia para <strong>{employeeName}</strong> en el turno del <strong>{shiftDate} ({shiftTime})</strong>.</p><p><strong>Motivo:</strong> {reason}</p><p><a href=\"{smartLinkUrl}\">Revisa la sesión aquí</a></p>",
     inAppTitle: "Ausencia Registrada",
     inAppMessage: "Ausencia: {employeeName} - {shiftDate}",
-    variables: ["userName", "employeeName", "shiftDate", "shiftTime", "reason"]
+    variables: ["userName", "employeeName", "shiftDate", "shiftTime", "reason", "smartLinkUrl"]
   },
   "announcement_broadcast": {
     id: "announcement_broadcast",

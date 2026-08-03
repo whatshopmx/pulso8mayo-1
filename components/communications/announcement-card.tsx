@@ -26,9 +26,28 @@ interface AnnouncementCardProps {
   onPin?: (id: string, pinned: boolean) => void;
   onDelete?: (id: string) => void;
   onEdit?: (id: string) => void;
+  highlight?: string;
 }
 
-export function AnnouncementCard({ announcement, onPin, onDelete, onEdit }: AnnouncementCardProps) {
+function highlightText(text: string, query?: string): React.ReactNode {
+  if (!query || !query.trim()) return text;
+  const q = query.trim();
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(${escaped})`, "gi");
+  const parts = text.split(regex);
+  const lowerQ = q.toLowerCase();
+  return parts.map((part, i) =>
+    part.toLowerCase() === lowerQ ? (
+      <mark key={i} className="bg-yellow-200 rounded px-0.5 text-foreground">
+        {part}
+      </mark>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+}
+
+export function AnnouncementCard({ announcement, onPin, onDelete, onEdit, highlight }: AnnouncementCardProps) {
   const typeConfig: Record<string, { icon: any; label: string; color: string }> = {
     ANNOUNCEMENT: { icon: Megaphone, label: 'Anuncio', color: 'bg-blue-100 text-blue-800' },
     NOTIFICATION: { icon: Bell, label: 'Notificación', color: 'bg-amber-100 text-amber-800' },
@@ -59,7 +78,7 @@ export function AnnouncementCard({ announcement, onPin, onDelete, onEdit }: Anno
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
             {announcement.isPinned && <Pin className="h-4 w-4 text-primary" />}
-            <CardTitle className="text-lg">{announcement.title}</CardTitle>
+            <CardTitle className="text-lg">{highlightText(announcement.title, highlight)}</CardTitle>
           </div>
           <div className="flex items-center gap-1">
             <Badge className={config.color} variant="secondary">
@@ -86,7 +105,7 @@ export function AnnouncementCard({ announcement, onPin, onDelete, onEdit }: Anno
       </CardHeader>
       <CardContent>
         <p className="text-sm text-muted-foreground whitespace-pre-wrap mb-4 line-clamp-3">
-          {announcement.content}
+          {highlightText(announcement.content, highlight)}
         </p>
         <div className="flex items-center justify-between">
             <span>Por: {announcement.authorName || 'Sistema'}</span>

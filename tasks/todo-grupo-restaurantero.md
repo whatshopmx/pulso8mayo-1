@@ -156,8 +156,8 @@ WhatsApp es el "home center" del empleado: notifica eventos y entrega smart link
   - Acceptance: tabla `proteccion_civil_checklists`; template con OCR extintores, foto rutas evacuación, señalización; calendario simulacros.
   - Verify: build clean; ejecutar template → checklist guardado.
 
-- [ ] **T21** Distribución de propinas. *Files: `lib/db/schema.ts` (nuevas tablas), `app/api/propinas/route.ts` (new), `app/dashboard/labor/propinas/page.tsx` (new). Size M.*
-  - Acceptance: tablas `propinas` + `propina_asignaciones`; cálculo automático por horas trabajadas; UI formulario + historial.
+- [ ] **T21** Distribución de propinas. *Files: `lib/db/schema.ts` (nuevas tablas), `app/api/propinas/route.ts` (new), `app/dashboard/labor/propinas/page.tsx` (new). Size M.* **⬆️ RE-PRIORIZADA (2026-08-04): ejecutar inmediatamente después de la Fase 10 (M16).** Canal legal de compensación en efectivo del sector — propinas no integran salario ni SBC (LFT Art. 346); ver AD-19 en `tasks/plan-fiscal-control-interno.md`.
+  - Acceptance: tablas `propinas` + `propina_asignaciones`; cálculo automático por horas trabajadas; UI formulario + historial. La distribución queda documentada por empleado (quién recibió qué, cuándo, con qué regla) — es evidencia auditable, no solo un cálculo.
   - Verify: build clean; crear distribución → montos calculados correctamente.
 
 - [ ] **T22** Alertas de fechas límite IMSS. *Files: `lib/inngest/functions/cron-compliance-alerts.ts` (extender). Size S.*

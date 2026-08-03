@@ -2570,3 +2570,43 @@ export const nom035ActionPlans = pgTable("nom035_action_plans", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// ---------------------------------------------------------------------------
+// Fase 11 (T41): Tenant operating model — 7 structural dimensions (design §2)
+// that condition authorization flows, data visibility and consolidation.
+// One row per company; created with Case-A defaults on company creation.
+// ---------------------------------------------------------------------------
+
+export const purchasingStructureEnum = pgEnum("purchasing_structure", ['CENTRALIZADA', 'POR_SUCURSAL', 'HIBRIDO']);
+export const foodProductionEnum = pgEnum("food_production", ['IN_SITU', 'COCINA_CENTRAL', 'MIXTO']);
+export const treasuryModelEnum = pgEnum("treasury_model", ['CUENTA_UNICA', 'CUENTA_POR_SUCURSAL', 'MIXTO']);
+export const supplierPaymentModelEnum = pgEnum("supplier_payment_model", ['CENTRALIZADO', 'POR_SUCURSAL', 'HIBRIDO']);
+export const managerAutonomyEnum = pgEnum("manager_autonomy", ['ALTA', 'MEDIA', 'BAJA']);
+export const payrollDispersionEnum = pgEnum("payroll_dispersion", ['CONSOLIDADA', 'POR_RAZON_SOCIAL', 'MIXTO']);
+export const tenantTypeEnum = pgEnum("tenant_type", ['GRUPO_PROPIO', 'MIXTO_FRANQUICIAS']);
+
+export const tenantOperatingConfig = pgTable("tenant_operating_config", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+
+    // The 7 operating-model dimensions (defaults = Case A: centralized group, medium autonomy)
+    purchasingStructure: purchasingStructureEnum("purchasing_structure").notNull().default('CENTRALIZADA'),
+    foodProduction: foodProductionEnum("food_production").notNull().default('IN_SITU'),
+    treasuryModel: treasuryModelEnum("treasury_model").notNull().default('CUENTA_UNICA'),
+    supplierPayment: supplierPaymentModelEnum("supplier_payment").notNull().default('CENTRALIZADO'),
+    managerAutonomy: managerAutonomyEnum("manager_autonomy").notNull().default('MEDIA'),
+    payrollDispersion: payrollDispersionEnum("payroll_dispersion").notNull().default('CONSOLIDADA'),
+    tenantType: tenantTypeEnum("tenant_type").notNull().default('GRUPO_PROPIO'),
+
+    // Authorization thresholds in cents (null = no cap).
+    // Defaults mirror the M16 policy (T38): manager < $1,000 MXN, double approval >= $10,000 MXN,
+    // petty cash fund $5,000 MXN per branch. Admins can clear any of them to mean "sin tope".
+    managerAuthLimitCents: integer("manager_auth_limit_cents").default(100000),
+    doubleApprovalThresholdCents: integer("double_approval_threshold_cents").default(1000000),
+    pettyCashLimitCents: integer("petty_cash_limit_cents").default(500000),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    tenantOperatingConfigCompanyUnique: uniqueIndex("tenant_operating_config_company_unique").on(table.companyId),
+}));

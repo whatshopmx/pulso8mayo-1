@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { companies, branches, users } from "@/lib/db/schema";
+import { companies, branches, users, tenantOperatingConfig } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { CreateCompanyInput, UpdateCompanyInput } from "@/lib/validations/company";
 import { ApiError } from "@/lib/api/error";
@@ -15,7 +15,15 @@ export class CompanyService {
 
         const company = newCompany[0];
 
-        // 2. If an owner is provided, assign them to this company and set as ADMIN/SUPER_ADMIN
+        // 2. Create the operating-model config with Case-A defaults (T41).
+        //    The 7 dimensions can be reconfigured later from settings;
+        //    getTenantOperatingConfig() also lazily falls back to these
+        //    defaults for companies created before this hook existed.
+        await db.insert(tenantOperatingConfig).values({
+            companyId: company.id,
+        }).onConflictDoNothing();
+
+        // 3. If an owner is provided, assign them to this company and set as ADMIN/SUPER_ADMIN
         if (ownerUserId) {
             await db.update(users).set({
                 companyId: company.id,

@@ -34,30 +34,30 @@ Source plan: `tasks/plan.md`. Estructurado y reenumerado a partir de `tasks/plan
 
 ## Phase 5 — Workflows Faltantes + NOM-035 Seguimiento
 
-- [ ] **T13** Template: Cambio de Turno. *Files: `templates/operaciones_diarias/cambio-turno-v1.json` (new). Size S.*
+- [x] **T13** Template: Cambio de Turno. *Files: `templates/operaciones_diarias/cambio-turno-v1.json` (new). Size S.*
   - Acceptance: Plantilla de checklist de cambio de turno que incluye arqueo de caja (efectivo, vales, tarjetas), bitácora de novedades/pendientes y doble firma digital de gerentes.
   - Verify: Cargar en el workflow builder y validar que sea ejecutable de inicio a fin.
   - Dependencies: None.
 
-- [ ] **T14** Template: Auditoría Interna. *Files: `templates/compliance/auditoria-interna-v1.json` (new). Size M.*
+- [x] **T14** Template: Auditoría Interna. *Files: `templates/compliance/auditoria-interna-v1.json` (new). Size M.*
   - Acceptance: Checklist combinado NOM-251 y NOM-035. Configurar scoring automático por sección y auto-generación de plan de remediación en caso de reprobar secciones críticas.
   - Verify: Completar auditoría fallando un punto crítico y confirmar creación automática de plan de acción.
   - Dependencies: None.
 
-- [ ] **T15** Template: Muestreo de Calidad. *Files: `templates/control_calidad/muestreo-calidad-v1.json` (new). Size S.*
+- [x] **T15** Template: Muestreo de Calidad. *Files: `templates/control_calidad/muestreo-calidad-v1.json` (new). Size S.*
   - Acceptance: Checklist de toma de muestras, temperatura de cocción y vida de anaquel de preparados. Incluye campo fotográfico con AI verification.
   - Verify: Completar muestreo; validar que la AI verifique la foto del platillo.
   - Dependencies: None.
 
-- [ ] **T16** NOM-035: plan de acción y seguimiento. *Files: `lib/db/schema.ts`, `lib/services/compliance/nom035-service.ts` (new), `app/api/compliance/nom-035/action-plan/route.ts` (new). Size M.*
+- [x] **T16** NOM-035: plan de acción y seguimiento. *Files: `lib/db/schema.ts`, `lib/services/compliance/nom035-service.ts` (new), `app/api/compliance/nom-035/action-plan/route.ts` (new). Size M.*
   - Acceptance: Tabla `nom035_action_plans` migrada. API CRUD y lógica de servicio para controlar medidas, plazos de remediación y evidencia de soporte.
   - Verify: Registrar plan, asociar acciones correctoras y validar adjunto de evidencias.
   - Dependencies: None.
 
 ### Checkpoint 2
-- [ ] Correr `pnpm run build` sin errores.
-- [ ] Ejecución de los 3 nuevos checklists de inicio a fin probada en simulador.
-- [ ] Base de datos migrada para plan de acción NOM-035.
+- [x] Correr `pnpm run build` sin errores.
+- [x] Ejecución de los 3 nuevos checklists de inicio a fin probada en simulador.
+- [x] Base de datos migrada para plan de acción NOM-035.
 
 ---
 

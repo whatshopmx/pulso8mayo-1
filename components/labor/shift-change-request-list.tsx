@@ -88,9 +88,10 @@ interface Shift {
 
 interface ShiftChangeRequestListProps {
     employees?: Employee[]
+    focusId?: string
 }
 
-export function ShiftChangeRequestList({ employees: propEmployees }: ShiftChangeRequestListProps) {
+export function ShiftChangeRequestList({ employees: propEmployees, focusId }: ShiftChangeRequestListProps) {
     const [requests, setRequests] = React.useState<ShiftChangeRequest[]>([])
     const [employees, setEmployees] = React.useState<Employee[]>([])
     const [loading, setLoading] = React.useState(true)
@@ -99,6 +100,7 @@ export function ShiftChangeRequestList({ employees: propEmployees }: ShiftChange
     const [viewDialogOpen, setViewDialogOpen] = React.useState(false)
     const [respondDialogOpen, setRespondDialogOpen] = React.useState(false)
     const [selectedRequestForResponse, setSelectedRequestForResponse] = React.useState<ShiftChangeRequest | null>(null)
+    const focusApplied = React.useRef(false)
 
     // Filters
     const [statusFilter, setStatusFilter] = React.useState<string>("all")
@@ -177,7 +179,22 @@ export function ShiftChangeRequestList({ employees: propEmployees }: ShiftChange
             const response = await fetch("/api/shift-change-requests")
             if (response.ok) {
                 const result = await response.json()
-                setRequests(result.data || [])
+                const data = result.data || []
+                setRequests(data)
+                // Auto-enfocar la solicitud indicada por focusId (deep link)
+                if (focusId && !focusApplied.current) {
+                    focusApplied.current = true
+                    const target = data.find((r: ShiftChangeRequest) => r.id === focusId)
+                    if (target) {
+                        if (target.status === "PENDING" && !target.counterpartyAccepted) {
+                            setSelectedRequestForResponse(target)
+                            setRespondDialogOpen(true)
+                        } else {
+                            setSelectedRequest(target)
+                            setViewDialogOpen(true)
+                        }
+                    }
+                }
             }
         } catch (error) {
             console.error("Error loading requests:", error)

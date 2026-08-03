@@ -7,6 +7,7 @@ export interface LogicRule {
     condition: string;
     severity?: string;
     action?: string;
+    actions?: string[];
     description?: string;
     remediationStepId?: string;
     message?: string;

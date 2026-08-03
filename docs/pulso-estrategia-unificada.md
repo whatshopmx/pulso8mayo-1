@@ -586,6 +586,117 @@ Objetivo: 25-40 clientes. Primeros datos de benchmark. IA funcional.
 
 ---
 
+## 13. Anexo I — Afinaciones de revisión (2026-08-02)
+
+> Revisión trimestral Q3-2026. Cuatro hallazgos que **ajustan, no reemplazan**, las Secciones 3, 7, 11 y 12. El cuerpo superior se mantiene como visión; este anexo es la verdad operacional del día. Se reconcilia la promesa de automatización contra el código existente, se ajustan las metas de revenue y horizonte de break-even, se reclasifican las métricas según medibilidad real, y se lista lo mínimo que hay que construir antes de ejecutar el Sprint 3 con clientes cero.
+
+### 13.1 — Cierre de brecha estratégica: qué automatización existe realmente
+
+La tesis de la Sección 3 ("la consultoría tiene fecha de caducidad porque la IA sustituye al consultor") depende de cinco capacidades: **Discovery Engine**, **Playbook Generator**, **Workflow Factory**, **AI Trainer** y **Digital Twin**. Verificado contra el código el 2026-08-02:
+
+| Capacidad de automatización | Estado en código | Consecuencia operacional |
+|---|---|---|
+| Verificación AI de evidencia (fotos, lecturas) | ✅ Existe — `app/api/ai/verify/route.ts` con scoring de confianza. Cubre el 20% del pitch de Sección 4 ("verificación automática"). | Única capacidad de automatización funcional. |
+| Discovery Engine (IA entrevista por WhatsApp) | ❌ No existe | Diagnóstico de un nuevo cliente sigue siendo 100% manual: el consultor visita y entrevista. |
+| Playbook Generator | ❌ No existe — los 23 templates actuales viven como JSON hardcoded en `templates/` | Adaptar un playbook a la realidad del cliente lo hace el consultor, archivo por archivo. |
+| Workflow Factory (workflow desde playbook) | ❌ No existe | Cada workflow se configura individualmente; el consultor hace de "factory" manual. |
+| AI Trainer (videos y guías generadas por rol) | ❌ No existe | Capacitación sigue siendo presencial/facilitada por consultor. |
+| Digital Twin (clonar la mejor sucursal hacia la nueva) | ❌ No existe | Apertura de Sucursal #6 — la promesa más vendible del diseño v2 — no se cumple automáticamente. |
+
+**Implicación directa sobre las metas de la Sección 11 (Métrica 1: "% automatización 5% → 30% en Año 1"):** hoy el baseline real es **0%**, no 5%. La verificación AI de evidencia es automatización de *operación*, no de *consultoría*: reduce trabajo del gerente y del supervisor, no del consultor en implementación.
+
+**Decisión de afinación:**
+
+1. Replanificar **Discovery Engine** y **Digital Twin** como objetivos verticales de Año 2 (Q1-Q2 2027), no de Año 3-4. El roadmap actual (`tasks/plan-grupo-restaurantero-unificado.md`, Fases 9-10) cierra gaps del diseño v2 pero **no construye** ninguna de estas cinco capacidades. Sin inversión explícita, la meta "% automatización 30% en 12 meses" es retórica.
+2. **No construir** Discovery Engine, Playbook Generator, Workflow Factory, AI Trainer ni Digital Twin en Q4-2026. La secuencia correcta es: (a) terminar 1-2 clientes cero de forma manual, (b) registrar en Pulso *qué 20% del trabajo del consultor es verdaderamente repetible* (log de horas por tarea de implementación), (c) en la revisión de Octubre 2026, con datos reales, decidir cuál de las cinco capacidades se construye primero. Construir IA sobre supuestos genera features que nadie usa.
+3. Ajustar la proyección de evolución del consultor (Sección 3) — la tabla "MES 0-6: Consultor 80%, IA 20%" es la meta futura si se construye Discovery Engine. Mientras tanto, la realidad es **MES 0-12: Consultor 95%, IA 5%** (la 5% es verificación de evidencia durante acompañamiento mensual).
+
+### 13.2 — Pricing y unit economics: la ruta de caja real del Año 1
+
+La Sección 7 define implementación tier ($0 / $25-45K / $60-120K) más plataforma por sucursal ($1,500 / $2,500 / $3,500). La matemática verificada para el Año 1 con esa estructura:
+
+**Meses 1-4 — Clientes Cero (Sprint 2-3):**
+- 3 clientes × ~4 sucursales promedio × $1,500 Core = **$18,000 MXN/mes recurring**
+- Implementación: $0 por contrato con clientes cero
+- Costos fijos: ~$50,000 MXN/mes (consultor senior $35-45K + infraestructura Neon/Wasender/Resend/R2 ~$15K)
+- **Burn: ~$32,000 MXN/mes = ~$128,000 MXN en 4 meses**
+
+**Meses 5-12 — Early Adopters (Sprint 5 → cierre de 8-12 pagando):**
+- Supuesto realista: 9 clientes activos a fin de año, mix 60% Core / 30% Pro / 10% Intel, ~4 sucursales promedio
+- Precio ponderado por sucursal/mes: $1,500×0.6 + $2,500×0.3 + $3,500×0.1 = **$1,750**
+- Recurring EOY: 9 × 4 × $1,750 = **$63,000 MXN/mes**
+- Recurring acumulado del ramp (lineal desde $0 a $63K/mes durante 8 meses): ~$252,000
+- Implementación cobrada en el mismo período (9 × Accelerated promedio $35K, reconociendo ~50% en año 1): ~$157,500
+- **Ingresos Año 1 total: ~$410,000 MXN**
+
+**Costos Año 1:**
+- Costos fijos meses 1-7 (1 consultor): $50,000 × 7 = $350,000
+- Costos fijos meses 8-12 (consultor 2 añadido desde mes 8): ($50,000 + $30,000) × 5 = $400,000
+- **Total costos Año 1: ~$750,000 MXN**
+
+**Resultado:** EBITDA Año 1 ≈ **-$340,000 MXN**. Break-even no en Q4 Año 1 como proyectaba la hoja de ruta; se desliza a **Q1-Q2 Año 2**, y solo si la implementación se cronometra en 12 semanas y el ciclo de venta se mantiene en 14 días.
+
+**Implicación sobre las metas de la hoja de 5 años (Sección 10, Año 1):** el rango "$2M-$4M MXN" es aspiracional. El rango realista con la estructura de pricing y headcount actual es **$400K-$1.2M MXN Año 1** (límite superior solo si (a) se cierran 12+ clientes y (b) algún cliente Concierge paga $60-120K de implementación).
+
+**Decisión de afinación:**
+
+1. Ajustar la meta de Año 1 de "$2M-$4M" a "$700K-$1.2M MXN" (Sección 10). La meta de 20 clientes activos se mantiene como meta, pero break-even clínico requiere 25-28 clientes activos a fin de Año 2 con la mezcla de pricing actual.
+2. Aceptar explícitamente que se requiere **capital founder de $300K-$500K MXN** para bridge de Q1-Q2 2027. Especificar este número en el pitch a inversores/co-founders dormidos.
+3. La señal financiera de alerta "50%+ revenue viene de servicios, no de licencias" en Sección 9 debe revisarse: en Año 1 es estructuralmente esperado que los servicios (implementación) aporten 60-70% del revenue, porque la mensualidad aún está ramping. La señal de alerta real es si en **Q3 Año 2** los servicios siguen siendo >50%. Afinar el trigger.
+
+### 13.3 — Métricas de transición: medibles desde el día 1 vs dependientes de features
+
+La Sección 11 mezcla métricas medibles hoy con métricas cuyo feature desbloqueador no existe. Refinamiento con baseline real y definición de cómo se mide cada una:
+
+| # | Métrica | Baseline real 2026-08-02 | Cómo se mide hoy | Meta Año 1 (afinada) | Bloqueador si aplica |
+|---|---|---|---|---|---|
+| 1 | % Automatización | **0%** real | Log manual de horas de consultor por fase (pre-Discovery Engine) | **15%** (vs 30% en doc) | Discovery Engine-built |
+| 2 | Horas consultor / impl | 0 (cero implementaciones) | Log manual en el primer cliente cero; después `event_log` con `clientId` | Fijado post-primer cliente cero | — |
+| 3 | Horas consultor / cliente mensual | 0 | Booking entries con `clientId` en Pulso | 6 | — |
+| 4 | Revenue Mix lic/serv | 0/0 | Reporte contable mensual | 40/60 | — |
+| 5 | Clientes self-service | 0% | Flag `self_service` en `tenants` | **0%** (no 15% — no es viable Q1-Q2 2027) | Discovery Engine + onboarding wizard |
+| 6 | Clientes multi-vertical | 0% | Tag `vertical` en `tenants` | 0% | — |
+| 7 | Consultores / Engineers | 0:1 (0 consultores de planta, 1 founder + tech) | Headcount | 2:1 | — |
+| 8 | NPS | N/A | Survey post-cierre-implementación | >50 | — |
+| 9 | Churn mensual | N/A | Query sobre `tenants.status` cambios | <3% | — |
+| 10 | Prediction Accuracy | N/A | Eval backtesting: comparar predicción realizada 14d atrás con outcome real | >70% (vs >85% aspiracional) | Módulos M13/M16 — sin denominadores financieros las predicciones son solo compliance/merma |
+
+**Decisión de afinación:**
+
+1. Las métricas 1, 5 y 10 son **"dependientes de features pendientes"** — reclasificar y marcar con el feature que las desbloquea. 1 y 5 dependen de Discovery Engine (Año 2); 10 depende de M13 y M16 terminados (plan actual).
+2. Reducir metas Año 1 de métricas 1 (30%→15%), 5 (15%→0%), 10 (>70% en vez de >85% post-data). Las otras metas se mantienen razonables.
+3. El baseline cero en métricas 1-9 no es malo — es la verdad. Mentirlo en el doc canónico como si estuviéramos en "5%" cuando no existe el feature deshabilita medir progreso. Verdad > aspiración.
+
+### 13.4 — Plan de 90 días: qué construir en Pulso antes de ejecutar el Sprint 3
+
+El Sprint 3 del plan (Sección 12) dice "implementar Pulso en 2-3 clientes cero". Verificado contra el código, una implementación cliente cero hoy **no cubre el pitch completo** que aparece en `pulso-diseno-grupo-restaurantero.md` v2 y en este documento. Mapa estado real:
+
+| Componente del pitch de venta | Estado en código | Acción mínima antes de Sprint 3 |
+|---|---|---|
+| Workflow Engine + evidencia + verificación AI | ✅ Completo (15+ templates, `/api/ai/verify`) | Listo |
+| Compliance NOM-251 + NOM-035 (action plans) | ✅ Fases 5+8 completadas (templates, `nom035_action_plans`, reportes PDF COFEPRIS) | Listo |
+| Dashboard Ejecutivo del grupo (single pane) | ✅ Fases 1-3 (`/dashboard/executive`, predicciones heurísticas, benchmarking) | Listo |
+| Reportes PDF diarios/semanales/mensuales + email | ✅ Fase 8 (`cron-scheduled-reports.ts` con `pdfkit`/`jspdf`) | Listo |
+| Ingeniería de Menú (matriz 2x2) | ✅ T23 completado | Listo |
+| WhatsApp hub de notificaciones | 🟡 Solo `announcement-broadcast.ts` (T11). Faltan T9 (cambio de turno), T10 (ausencia), T12 (capacitación) | **Construir T9 + T10** (1 semana) — sin eso el pitch "WhatsApp como interfaz de campo" no se cumple |
+| Ingesta del corte de ventas POS (M13) | 🔵 Solo schema `daily_sales_cuts` + `pos_mapping_templates` (T26 hecho). Falta servicio de ingesta, API upload, UI | **Construir T27 + T28** (3-4 semanas) — sin esto no hay denominador de venta, ni food-cost %, ni labor % ni P&L |
+| Caja chica + gastos operativos (M16) | ⏳ No existe — ni schema | **Construir T34 + T35** (3 semanas) — sin esto no hay "reemplazo de la libreta" que el pitch de venta más enfatiza ("¿cuánto se sale realmente de la cuenta?") |
+| P&L estimado por sucursal (T40) | ⏳ No existe | Bloqueado por T27-T28 + T34-T35. Igualmente no es bloqueante para el cliente cero — se promete como roadmap activo |
+| Portal de externos / contador (T17) | ⏳ No existe | Workaround: el consultor exporta PDFs a mano durante Año 1 |
+| Onboarding wizard del tenant | ⚠️ Revisar — el consultor configura el tenant a mano (alta de sucursales, áreas, roles, usuarios) hoy | Aceptar por ahora — es exactamente el trabajo donde el consultor aprende qué automatizar. Se vuelve crítico en el tercer cliente cero |
+
+**Trabajo de producto mínimo antes del Sprint 3 (~8 semanas de dev, paralelo a Sprint 1-2 de posicionamiento):**
+
+- **T9 + T10** — Notificaciones WhatsApp de cambio de turno y ausencia (1 semana)
+- **T27 + T28** — Servicio de ingesta de corte POS + API + UI de upload manual (3-4 semanas)
+- **T34 + T35** — Schema de caja chica + gastos + servicio + UI (3 semanas)
+
+Con esto, una implementación cliente cero cubre el **80% del pitch** de venta: workflows + compliance + dashboard ejecutivo + reportes + WhatsApp completo + ventas diarias + caja chica y gastos. El 20% restante (P&L comparativo, flujo de efectivo, Digital Twin, Discovery Engine) se promete al cliente cero como **roadmap activo**, y se desarrolla DURING la implementación con su feedback — que es, no incidentalmente, exactamente el laboratorio de aprendizaje que justifica el modelo de consultoría con fecha de caducidad.
+
+**Decisión de afinación:** añadir al plan de 90 días un **"Sprint 2.5 — Fondo de pozo"** entre Sprint 2 y Sprint 3 (semanas 4-12) con T9, T10, T27, T28, T34 y T35 como scope obligatorio, paralelo al Sprint 2 (identificación/contacto de clientes cero). El Sprint 3 ejecutable arranca **Septiembre 2026** con un producto que concuerda con el pitch.
+
+---
+
 ## Nota de Cierre
 
 Este documento reemplaza a `docs/consultoria-business-model.md` y `docs/platform-vision.md`. Aquellos quedan como borradores históricos. Este es el documento canónico.

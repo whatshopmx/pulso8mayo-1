@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
             status: 'PENDING',
         }).returning();
 
-        // Enviar notificación al compañero (counterparty)
+        // Enviar notificación al compañero (counterparty) con smart link profundo
         try {
             const requesterUser = await db.query.users.findFirst({
                 where: eq(users.id, tenant.userId),
@@ -183,20 +183,25 @@ export async function POST(req: NextRequest) {
                 })
                 : null;
 
+            const requestId = newRequest[0].id;
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+            const smartLinkUrl = `${baseUrl}/dashboard/labor/shift-changes/${requestId}`;
+
             await NotificationDispatcher.sendNotification({
                 userId: data.counterpartyId,
                 title: "Solicitud de Cambio de Turno",
                 message: `${requesterUser?.name || 'Un compañero'} ha solicitado cambiar turnos contigo.`,
                 type: "info",
                 eventType: "shift_change_request",
-                actionUrl: `/dashboard/labor/shift-changes`,
-                actionLabel: "Ver Solicitudes",
+                actionUrl: `/dashboard/labor/shift-changes/${requestId}`,
+                actionLabel: "Responder Solicitud",
                 metadata: {
                     requesterName: requesterUser?.name || 'Un compañero',
                     requesterShiftDate: requestedShift.shiftDate,
                     requesterShiftTime: `${requestedShift.startTime} - ${requestedShift.endTime}`,
                     targetShiftDate: counterpartShift ? counterpartShift.shiftDate : 'Sin turno a cambio',
                     targetShiftTime: counterpartShift ? `${counterpartShift.startTime} - ${counterpartShift.endTime}` : '',
+                    smartLinkUrl,
                 }
             });
         } catch (notifErr) {
