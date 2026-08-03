@@ -6,12 +6,26 @@ Este documento unifica, simplifica y secuencia la hoja de ruta para cerrar los g
 
 **Resolución de Conflictos:** Se reenumeraron las tareas de los módulos financieros (originalmente T24 a T38) como **T26 a T40** para eliminar la colisión con la Fase 8 (T24 y T25) y mantener una numeración progresiva y consistente del plan.
 
+> ⚠️ **Nota de sincronización (verificado contra código 2026-08-02):** Los commits y los trackers operativos (`tasks/todo-grupo-restaurantero.md`, `tasks/todo-ventas-gastos.md`) siguen usando la **numeración original** de cada plan fuente (ej. el schema de ventas se commiteó como "T24" = T26 de este plan). Este documento es la vista ejecutiva consolidada; los `todo-*.md` son los trackers operativos.
+>
+> ➡️ **Continuación (2026-08-04):** Las **Fases 11-14 (T41-T58)** — dimensiones de configuración del tenant (§2), M15 Fiscal vía FiscalAPI, M17 Control Interno, y packaging (tiers + Chef Corporativo) — están planeadas en `tasks/plan-fiscal-control-interno.md` con tracker en `tasks/todo-fiscal-control-interno.md`. Ese plan usa directamente la numeración unificada T41+ (sin renumeración). Quedan sin plan: apertura de sucursal/Digital Twin (§5), adopción (§10), offline (§9), M14 (conciliación de agregadores).
+
 ---
 
 ## 📊 Estado de Avance General
 
+*(Verificado contra el código el 2026-08-02)*
+
 - **Fases 1, 2 y 3 (T1 a T8):** **COMPLETADAS ✅** (Implementadas e integradas en `/dashboard/executive`).
-- **Fases 4 a 10 (T9 a T40):** **PENDIENTES ⏳**
+- **Fase 4 (T9 a T12):** **PARCIAL 🟡** — Solo T11 (broadcast de anuncios) implementada.
+- **Fase 5 (T13 a T16):** **COMPLETADA ✅** — Templates y NOM-035 action plans implementados.
+- **Fase 6 (T17 a T19):** **PARCIAL 🟡** — Solo T18 (confirmación de lectura), de forma parcial.
+- **Fase 7 (T20 a T23):** **PARCIAL 🟡** — Solo T23 (Ingeniería de Menú) implementada.
+- **Fase 8 (T24 y T25):** **COMPLETADA ✅** — Con variante técnica: PDFs generados con `pdfkit`/`jspdf` en lugar de `@react-pdf/renderer`.
+- **Fase 9 (T26 a T33):** **EN PROGRESO 🔵** — T26 (schema) y T27 (servicio de ingesta) implementadas; falta upload UI, plantillas POS, dashboard y WhatsApp.
+- **Fase 10 (T34 a T40):** **PENDIENTE ⏳**
+
+**Resumen:** 18 de 40 tareas completadas (T1–T8, T11, T13–T16, T23–T27), 1 parcial (T18), 21 pendientes.
 
 ---
 
@@ -48,36 +62,36 @@ Este documento unifica, simplifica y secuencia la hoja de ruta para cerrar los g
 
 ---
 
-### Phase 4: WhatsApp — Hub de Notificaciones + Smart Links — **PENDIENTE ⏳**
+### Phase 4: WhatsApp — Hub de Notificaciones + Smart Links — **PARCIAL 🟡** (1/4)
 *   [ ] **T9 — Notificación WhatsApp: cambio de turno:** Solicitud de cambio de turno envía mensaje al compañero con smart link a `/dashboard/labor/shift-changes/{id}`.
 *   [ ] **T10 — Notificación WhatsApp: reportar ausencia:** Alerta de `NO_SHOW` al gerente con smart link a la sesión correspondiente.
-*   [ ] **T11 — Anuncios de grupo vía WhatsApp:** Inngest function que dispersa anuncios globales/locales con smart link a la PWA.
+*   [x] **T11 — Anuncios de grupo vía WhatsApp:** Inngest function que dispersa anuncios globales/locales con smart link a la PWA. *(Implementado en `lib/inngest/functions/announcement-broadcast.ts`, evento `communication/announcement.broadcast` con JWT smart links vía NotificationDispatcher)*
 *   [ ] **T12 — Notificación WhatsApp: capacitación:** Notifica asignación de material/quiz con link directo al executor en la PWA.
 
-### Phase 5: Workflows Faltantes + NOM-035 Seguimiento — **PENDIENTE ⏳**
-*   [ ] **T13 — Template: Cambio de Turno:** JSON con entrega de caja, novedades, pendientes y doble firma digital de gerentes.
-*   [ ] **T14 — Template: Auditoría Interna:** Checklist unificado NOM-251 y NOM-035 con scoring automático y plan de remediación.
-*   [ ] **T15 — Template: Muestreo de Calidad:** Registro de temperaturas de cocción, vida de anaquel y foto de platillo con análisis de AI.
-*   [ ] **T16 — NOM-035: plan de acción y seguimiento:** Tabla `nom035_action_plans`, API CRUD y vista para monitorear medidas correctivas del clima laboral.
+### Phase 5: Workflows Faltantes + NOM-035 Seguimiento — **COMPLETADA ✅**
+*   [x] **T13 — Template: Cambio de Turno:** JSON con entrega de caja, novedades, pendientes y doble firma digital de gerentes. *(Implementado en `templates/operaciones_diarias/cambio-turno-v1.json`)*
+*   [x] **T14 — Template: Auditoría Interna:** Checklist unificado NOM-251 y NOM-035 con scoring automático y plan de remediación. *(Implementado en `templates/compliance/auditoria-interna-v1.json`)*
+*   [x] **T15 — Template: Muestreo de Calidad:** Registro de temperaturas de cocción, vida de anaquel y foto de platillo con análisis de AI. *(Implementado en `templates/control_calidad/muestreo-calidad-v1.json`)*
+*   [x] **T16 — NOM-035: plan de acción y seguimiento:** Tabla `nom035_action_plans`, API CRUD y vista para monitorear medidas correctivas del clima laboral. *(Implementado: tabla `nom035_action_plans` en `lib/db/schema.ts`, servicio `lib/services/compliance/nom035-service.ts`, API `app/api/compliance/nom-035/action-plan/route.ts` + `[id]/route.ts`)*
 
-### Phase 6: Portal de Externos + Comunicaciones — **PENDIENTE ⏳**
+### Phase 6: Portal de Externos + Comunicaciones — **PARCIAL 🟡** (T18 parcial; T17 y T19 pendientes)
 *   [ ] **T17 — Portal de externos con token:** Ruta pública `/external/report/[token]` con validación de JWT temporal (7 días) para reportes de solo lectura.
-*   [ ] **T18 — Confirmación de lectura en anuncios:** Tabla `communication_read_receipts` y endpoint para registrar lectura con métrica visible en la UI.
+*   [~] **T18 — Confirmación de lectura en anuncios:** Tabla `communication_read_receipts` y endpoint para registrar lectura con métrica visible en la UI. **(PARCIAL 🟡)** — *La tabla `communication_read_receipts` existe y registra lecturas desde la página pública `app/communication/public/[token]/` (page + actions). Falta: endpoint `POST /api/communications/announcements/{id}/read` para usuarios autenticados y la métrica "X de Y empleados confirmaron" en la UI.*
 *   [ ] **T19 — Buscador de comunicaciones:** Campo de búsqueda por texto en título/contenido con filtros por sucursal y highlights.
 
-### Phase 7: Módulos Faltantes (Protección Civil, Propinas, IMSS, Menú) — **PENDIENTE ⏳**
+### Phase 7: Módulos Faltantes (Protección Civil, Propinas, IMSS, Menú) — **PARCIAL 🟡** (1/4: solo T23)
 *   [ ] **T20 — Módulo de Protección Civil:** Bitácora de simulacros/extintores con OCR para fechas y checklist fotográfico de salidas despejadas.
-*   [ ] **T21 — Distribución de propinas:** Tablas `propinas` y `propina_asignaciones` con cálculo automático proporcional a las horas trabajadas.
+*   [ ] **T21 — Distribución de propinas:** Tablas `propinas` y `propina_asignaciones` con cálculo automático proporcional a las horas trabajadas. **⬆️ RE-PRIORIZADA (2026-08-04):** ejecutar inmediatamente después de la Fase 10 (M16), antes de Fases 11-14. Es la respuesta de producto a la realidad de compensación en efectivo del sector: las propinas no integran el salario ni el SBC (LFT Art. 346), y su distribución documentada convierte flujo informal en canal legal y auditable (ver AD-19 en `tasks/plan-fiscal-control-interno.md`).
 *   [ ] **T22 — Alertas IMSS:** Cron de Inngest para recordar fechas de SUA y modificaciones (días 7, 3 y 1 antes del límite).
 *   [x] **T23 — Ingeniería de Menú (Popularidad vs Rentabilidad):** Servicio de matriz 2x2 (Estrellas, Vacas, Puzzles, Perros) y scatter plot interactivo en inventario. *(Completado en `app/api/inventory/menu-engineering` y `components/inventory/menu-engineering-matrix.tsx`)*
 
-### Phase 8: Reportes Automáticos Formateados — **PENDIENTE ⏳**
-*   [ ] **T24 — Reportes PDF recurrentes:** Generador de reportes con `@react-pdf/renderer` para envíos programados (diario, semanal, mensual) por email/WhatsApp.
-*   [ ] **T25 — Reporte pre-auditoría COFEPRIS:** Botón en compliance para descargar PDF formateado y ordenado según los requisitos de auditoría de COFEPRIS.
+### Phase 8: Reportes Automáticos Formateados — **COMPLETADA ✅** *(con variante técnica)*
+*   [x] **T24 — Reportes PDF recurrentes:** Envíos programados (diario, semanal, mensual) con PDF adjunto por email. *(Implementado en `lib/inngest/functions/cron-scheduled-reports.ts` con soporte PDF/EXCEL. **Variante:** se usó `pdfkit`/`jspdf` en lugar de `@react-pdf/renderer`)*
+*   [x] **T25 — Reporte pre-auditoría COFEPRIS:** Generación de reporte de cumplimiento formateado según requisitos COFEPRIS desde la página de compliance. *(Implementado en `lib/services/ComplianceReportService.ts` + UI en `app/dashboard/compliance/compliance-page-client.tsx`)*
 
-### Phase 9: M13 — Ventas y POS (Gap Financiero) — **PENDIENTE ⏳**
-*   [ ] **T26 — Schema de Ventas y Migración:** Tabla `daily_sales_cuts` (branch, fecha, turno, canal, monto, estatus) y `pos_mapping_templates`.
-*   [ ] **T27 — Servicio de Ingesta de Cortes:** Parseo con `exceljs`, mapeo de alias del POS y reglas de validación/detección de duplicados.
+### Phase 9: M13 — Ventas y POS (Gap Financiero) — **EN PROGRESO 🔵** (2/8)
+*   [x] **T26 — Schema de Ventas y Migración:** Tabla `daily_sales_cuts` (branch, fecha, turno, canal, monto, estatus) y `pos_mapping_templates`. *(Implementado en commit `5d84e34` — commiteado como "T24" con numeración del plan fuente. Migración `0021` aditiva aplicada a dev; dinero en centavos, unique compuesto `(companyId, branchId, businessDate, shift, channel)` para rechazo de duplicados)*
+*   [x] **T27 — Servicio de Ingesta de Cortes:** Parseo con `exceljs`, mapeo de alias del POS y reglas de validación/detección de duplicados. *(Implementado en `lib/services/sales-ingestion-service.ts` + `lib/services/pos-column-aliases.ts`; 119 checks en `scripts/verify-sales-ingestion.ts`. Cortes con desglose de pago se dividen en filas SALON + DELIVERY para el dashboard por canal)*
 *   [ ] **T28 — API y UI de Upload Manual:** Carga directa del archivo de corte, visualización de discrepancias y confirmación de columnas.
 *   [ ] **T29 — Configuración de Plantillas POS:** Interfaz administrativa para definir el mapeo de columnas del POS de cada sucursal.
 *   [ ] **T30 — Dashboard de Ventas:** Visualización de ventas por turno, canal de venta (salón, delivery, eventos) y ticket promedio.
