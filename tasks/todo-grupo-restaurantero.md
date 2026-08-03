@@ -160,9 +160,9 @@ WhatsApp es el "home center" del empleado: notifica eventos y entrega smart link
   - Acceptance: tablas `propinas` + `propina_asignaciones`; cálculo automático por horas trabajadas; UI formulario + historial. La distribución queda documentada por empleado (quién recibió qué, cuándo, con qué regla) — es evidencia auditable, no solo un cálculo.
   - Verify: build clean; crear distribución → montos calculados correctamente.
 
-- [ ] **T22** Alertas de fechas límite IMSS. *Files: `lib/inngest/functions/cron-compliance-alerts.ts` (extender). Size S.*
+- [x] **T22** Alertas de fechas límite IMSS. *Files: `lib/inngest/functions/cron-compliance-alerts.ts` (extender). Size S.*
   - Acceptance: detecta fechas bimestrales IMSS; alerta a Admin/Owner 7, 3, 1 día antes.
-  - Verify: build clean; simular fecha cercana → alerta disparada.
+  - Verify: build clean; simular fecha cercana → alerta disparada. *(Implementado: lógica pura en `lib/cron/imss-deadlines.ts`, dispatch en `lib/cron/imss-deadline-alerts.ts`, cron Inngest `0 8 * * *` en `lib/inngest/functions/imss-alerts.ts`; eventType `imss_deadline` en dispatcher + router; 16 checks en `scripts/verify-imss-alerts.ts`)*
 
 - [ ] **T23** Ingeniería de Menú (matriz rentabilidad vs popularidad). *Files: `lib/services/menu-engineering-service.ts` (new), `app/dashboard/inventory/menu-engineering/page.tsx` (new), `app/api/inventory/menu-engineering/route.ts` (new). Size M.*
   - Acceptance: scatter plot Recharts con 4 cuadrantes (⭐🐄❓🗑️); clasificación por popularidad + rentabilidad; filtro por período.

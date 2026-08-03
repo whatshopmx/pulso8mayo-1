@@ -61,7 +61,7 @@ npx tsx scripts/seed-demo-data.ts  # Seed demo data
 **Inngest Cron Jobs** (`lib/inngest/functions/`):
 - `*/5 * * * *` - Execute scheduled workflows
 - `0 * * * *` - Check overdue items, send reminders, overdue workflows
-- `0 8 * * *` - Daily reminders
+- `0 8 * * *` - Daily reminders, IMSS deadline alerts (T22)
 - `0 */6 * * *` - Inventory checks, stock check, compliance alerts
 - `0 6 * * *` - Scheduled reports, document expiration
 - `0 18 * * *` - Break reminders

@@ -149,6 +149,14 @@ const routingRules: Record<NotificationEventType, RoutingRule> = {
     retryAttempts: 3,
     retryDelayMs: 3000,
     businessHoursOnly: false
+  },
+  imss_deadline: {
+    eventType: "imss_deadline",
+    priority: "high",
+    channels: ["whatsapp", "in-app"],
+    retryAttempts: 3,
+    retryDelayMs: 2000,
+    businessHoursOnly: false
   }
 };
 

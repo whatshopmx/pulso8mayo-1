@@ -37,3 +37,10 @@ export const incidentEscalationRequested = eventType("incident/escalation.reques
 // ── Workflow Execution ──
 
 export const workflowExecutionTimeout = eventType("workflow/execution.timeout", {});
+
+// ── Operational Twin Events ──
+
+export const domainEventEmitted = eventType("domain/event.emitted", {});
+
+export const corporateTwinRecalculate = eventType("corporate/twin.recalculate", {});
+

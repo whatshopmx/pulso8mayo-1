@@ -28,7 +28,8 @@ export type NotificationEventType =
   | "shift_change_decision"
   | "employee_absence"
   | "announcement_broadcast"
-  | "training_assigned";
+  | "training_assigned"
+  | "imss_deadline";
 
 export interface UserData {
     id: string;
@@ -258,6 +259,16 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
     inAppTitle: "Capacitación Asignada",
     inAppMessage: "Material asignado: {workflowName}",
     variables: ["userName", "workflowName", "dueDate", "smartLinkUrl"]
+  },
+  "imss_deadline": {
+    id: "imss_deadline",
+    name: "Fecha Límite IMSS",
+    eventType: "imss_deadline",
+    channels: ["whatsapp", "in-app"],
+    whatsappTemplate: "⏰ *Recordatorio IMSS*\n\nHola {userName},\n\nLa fecha límite para *{deadlineLabel}* está próxima:\n\n📅 Vence: {deadlineDate} (en {daysLabel})\n\nGenera tus archivos SUA/IDSE a tiempo desde el módulo IMSS en Pulso.",
+    inAppTitle: "Fecha límite IMSS en {daysLabel}",
+    inAppMessage: "{deadlineLabel} vence el {deadlineDate}",
+    variables: ["userName", "deadlineLabel", "deadlineDate", "daysLabel"]
   }
 };
 
