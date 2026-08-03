@@ -76,11 +76,11 @@ Open questions (answer before starting — see `tasks/plan-grupo-restaurantero.m
 
 WhatsApp es el "home center" del empleado: notifica eventos y entrega smart links que abren la PWA para ejecutar. No se ejecutan workflows desde WhatsApp.
 
-- [ ] **T9** Notificación WhatsApp: cambio de turno. *Files: `lib/whatsapp/notification-dispatcher.ts` (extender), `lib/services/smart-link-service.ts` (extender). Size S.*
+- [x] **T9** Notificación WhatsApp: cambio de turno. *Files: `lib/whatsapp/notification-dispatcher.ts` (extender), `lib/services/smart-link-service.ts` (extender). Size S.*
   - Acceptance: solicitud de cambio de turno → notificación WhatsApp al compañero con smart link a `/dashboard/labor/shift-changes/{id}`; aceptación/rechazo en PWA; confirmación WhatsApp a ambos.
   - Verify: build clean; crear solicitud → compañero recibe WhatsApp con link funcional.
 
-- [ ] **T10** Notificación WhatsApp: reportar ausencia. *Files: `lib/whatsapp/notification-dispatcher.ts` (extender). Size S.*
+- [x] **T10** Notificación WhatsApp: reportar ausencia. *Files: `lib/whatsapp/notification-dispatcher.ts` (extender). Size S.*
   - Acceptance: `shiftSessions.status = NO_SHOW` → notificación WhatsApp al gerente con smart link a `/dashboard/labor/sessions/{id}`.
   - Verify: build clean; registrar ausencia → gerente recibe WhatsApp con link.
 
@@ -88,7 +88,7 @@ WhatsApp es el "home center" del empleado: notifica eventos y entrega smart link
   - Acceptance: anuncio "todos los empleados" o "sucursal X" → dispatch WhatsApp vía Inngest; formato: "📢 [Grupo]: [título]... [Leer anuncio]" → smart link a PWA.
   - Verify: build clean; crear anuncio → empleados reciben WhatsApp con link.
 
-- [ ] **T12** Notificación WhatsApp: capacitación. *Files: `lib/services/smart-link-service.ts` (extender), `lib/whatsapp/notification-dispatcher.ts` (extender). Size S.*
+- [x] **T12** Notificación WhatsApp: capacitación. *Files: `lib/services/smart-link-service.ts` (extender), `lib/whatsapp/notification-dispatcher.ts` (extender). Size S.*
   - Acceptance: asignación de capacitación → notificación WhatsApp con smart link al workflow executor en PWA; quiz y contenido en web app.
   - Verify: build clean; asignar capacitación → empleado recibe WhatsApp con link al workflow.
 
@@ -130,15 +130,15 @@ WhatsApp es el "home center" del empleado: notifica eventos y entrega smart link
 
 ## Phase 6 — Portal de Externos + Comunicaciones
 
-- [ ] **T17** Portal de externos con token. *Files: `app/external/layout.tsx` (new), `app/external/report/[token]/page.tsx` (new), `app/api/external/generate-link/route.ts` (new). Size M.*
+- [x] **T17** Portal de externos con token. *Files: `app/external/layout.tsx` (new), `app/external/report/[token]/page.tsx` (new), `app/api/external/generate-link/route.ts` (new). Size M.*
   - Acceptance: token JWT con scope (branchId, reportTypes, expiry); página pública renderiza reporte solo-lectura + descarga PDF; link expira en 7 días.
   - Verify: build clean; generar link → abrir en incógnito → reporte visible; token expirado → error 401.
 
-- [ ] **T18** Confirmación de lectura en comunicaciones. *Files: `lib/db/schema.ts` (nueva tabla), `app/api/communications/announcements/{id}/read/route.ts` (new), `components/communications/announcement-card.tsx`. Size S.*
+- [x] **T18** Confirmación de lectura en comunicaciones. *Files: `lib/db/schema.ts` (nueva tabla), `app/api/communications/announcements/{id}/read/route.ts` (new), `components/communications/announcement-card.tsx`. Size S.*
   - Acceptance: tabla `announcement_reads`; POST marca leído; UI muestra "X de Y confirmaron"; dashboard ejecutivo badge "N sin leer".
   - Verify: build clean; marcar como leído → contador se actualiza.
 
-- [ ] **T19** Buscador de comunicaciones. *Files: `app/dashboard/communications/` (extender). Size S.*
+- [x] **T19** Buscador de comunicaciones. *Files: `app/dashboard/communications/` (extender). Size S.*
   - Acceptance: búsqueda full-text sobre title+body; filtros sucursal/fecha/tipo; resultados con highlight.
   - Verify: build clean; buscar "junta" → resultados con la palabra resaltada.
 
@@ -152,7 +152,7 @@ WhatsApp es el "home center" del empleado: notifica eventos y entrega smart link
 
 ## Phase 7 — Módulos Faltantes (can parallelize internally)
 
-- [ ] **T20** Módulo de Protección Civil. *Files: `lib/db/schema.ts` (nueva tabla), `templates/seguridad/proteccion-civil-v1.json` (new), `app/api/compliance/proteccion-civil/route.ts` (new). Size M.*
+- [x] **T20** Módulo de Protección Civil. *Files: `lib/db/schema.ts` (nueva tabla), `templates/seguridad/proteccion-civil-v1.json` (new), `app/api/compliance/proteccion-civil/route.ts` (new). Size M.*
   - Acceptance: tabla `proteccion_civil_checklists`; template con OCR extintores, foto rutas evacuación, señalización; calendario simulacros.
   - Verify: build clean; ejecutar template → checklist guardado.
 

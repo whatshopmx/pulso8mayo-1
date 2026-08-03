@@ -93,7 +93,7 @@ export async function upsertTenantOperatingConfig(
         })
         .returning();
 
-    revalidateTag(`${TENANT_CONFIG_CACHE_TAG}-${companyId}`);
+    revalidateTag(`${TENANT_CONFIG_CACHE_TAG}-${companyId}`, "default");
 
     const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = row;
     return rest;
