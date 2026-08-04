@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
     try {
         const { ctx } = await requirePermissionApi("reports", "read", {
             classification: "SENSITIVE",
+            audit: { action: "EXPORT", req },
         });
 
         const body = await req.json();

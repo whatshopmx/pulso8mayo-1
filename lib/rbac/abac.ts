@@ -20,6 +20,8 @@
  *     the gate (SUPER_ADMIN/OWNER/ADMIN — HR is Sprint 3 once the role enum
  *     gains 'HR'). See lib/db/schema/classification.ts SENSITIVE_GATE_ROLES.
  */
+import type { NextRequest } from "next/server";
+import { logDataAccess, type DataAccessAction } from "@/lib/security/audit";
 import type { Role, Resource, Action } from "@/lib/permissions";
 import { hasPermission } from "@/lib/permissions";
 import {
@@ -245,6 +247,13 @@ export async function requirePermissionApi(
     targetOwnershipType?: BranchOwnership;
     classification?: DataClassification;
     franchiseeUserId?: string | null;
+    /** When set, the decision (allow or deny) is written to data_access_logs. */
+    audit?: {
+      /** Access action recorded (defaults to READ for 'read', MANAGE→mapped by caller). */
+      action: DataAccessAction;
+      resourceId?: string;
+      req?: NextRequest | null;
+    };
   },
 ): Promise<RequirePermissionResult> {
   // Reuse the existing auth primitive so the auth path never diverges.
@@ -266,6 +275,21 @@ export async function requirePermissionApi(
     dataClassification: opts?.classification,
     companyId,
   });
+
+  const audit = opts?.audit;
+  if (audit) {
+    await logDataAccess({
+      userId: ctx.userId,
+      companyId: ctx.userCompanyId,
+      branchId: ctx.userBranchId ?? null,
+      action: audit.action,
+      resource,
+      resourceId: audit.resourceId,
+      decision,
+      redactedFields: decision.redactFields,
+      req: audit.req,
+    });
+  }
 
   if (!decision.allowed) {
     throw ApiError.forbidden(decision.reason ?? "access-denied");

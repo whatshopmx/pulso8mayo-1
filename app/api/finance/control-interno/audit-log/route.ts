@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
     const { ctx } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
       targetBranchId: branchId,
+      audit: { action: "READ", req },
     });
 
     const result = await getAuditTrail(ctx.userCompanyId, {

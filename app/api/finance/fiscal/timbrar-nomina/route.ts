@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
   try {
     await requirePermissionApi("reports", "manage", {
       classification: "FINANCIAL",
+      audit: { action: "APPROVE", req },
     });
 
     const body = await req.json();

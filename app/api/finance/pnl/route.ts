@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
   try {
     const { ctx } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
+      audit: { action: "READ", req },
     });
 
     const { searchParams } = new URL(req.url);

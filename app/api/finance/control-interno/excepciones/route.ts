@@ -11,10 +11,11 @@ import { detectViolations } from "@/lib/services/control-interno-service";
  * 'FINANCIAL' })` (Sprint 2 Track B). Returns violation aggregates — no PII
  * fields, so the allow+redact path is plaintext-equivalent to the prior behavior.
  */
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const { ctx } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
+      audit: { action: "READ", req },
     });
 
     const violations = await detectViolations(ctx.userCompanyId);
