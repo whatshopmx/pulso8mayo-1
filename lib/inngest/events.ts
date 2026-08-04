@@ -44,3 +44,26 @@ export const domainEventEmitted = eventType("domain/event.emitted", {});
 
 export const corporateTwinRecalculate = eventType("corporate/twin.recalculate", {});
 
+// ── Executive OS events (Sprint 1 Task 3, docs/pulso-executive-os-v2.md §5) ──
+
+// Twin lifecycle
+export const executiveTwinRecalculate = eventType("executive/twin.recalculate", {});
+export const executiveTwinUpdated = eventType("executive/twin.updated", {});
+
+// Brief generation
+export const morningBriefGenerated = eventType("executive/brief.generated", {});
+
+// Risk & opportunity
+export const riskThresholdBreached = eventType("risk/threshold.breached", {});
+export const expansionOpportunity = eventType("expansion/opportunity", {});
+
+// Financial
+export const cashFlowUpdated = eventType("cashflow/updated", {});
+export const budgetExceeded = eventType("budget/exceeded", {});
+export const paymentExecuted = eventType("payment/executed", {});
+
+// Compliance
+export const complianceScoreChanged = eventType("compliance/score.changed", {});
+export const auditDue = eventType("audit/due", {});
+// documentExpiring already declared above (Workflow / Document lifecycle).
+
