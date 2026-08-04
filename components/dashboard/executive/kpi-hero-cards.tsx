@@ -8,15 +8,16 @@
  */
 
 import { CrossBranchService } from "@/lib/services/cross-branch-service";
+import { ExecutiveTwinEngine } from "@/lib/services/executive-twin-engine";
+import type { ExecutiveTwin } from "@/lib/services/intelligence/types";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   ShieldCheck,
-  Trash2,
   AlertTriangle,
   Users,
-  TrendingUp,
-  TrendingDown,
-  Minus,
+  Activity,
+  Wallet,
+  Award,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -43,23 +44,37 @@ function deltaColor(delta: number | null): "emerald" | "red" | "muted" {
   return "red";
 }
 
-function DeltaIcon({ delta, className }: { delta: number | null; className: string }) {
-  if (delta === null) return <Minus className={className} />;
-  if (delta > 0) return <TrendingUp className={className} />;
-  if (delta < 0) return <TrendingDown className={className} />;
-  return <Minus className={className} />;
+// DeltaIcon + deltaColor retained for the (optional) delta badge on cards.
+// All Sprint 1 cards use delta: null, so the badge never renders; the helpers
+// stay so future cards can opt into a delta without touching HeroCard.
+function DeltaIcon({ className }: { delta: number | null; className: string }) {
+  return <Activity className={className} />;
 }
 
 function fmtPercent(n: number): string {
   return `${Math.round(n)}%`;
 }
 
-function fmtCents(n: number): string {
-  return `$${(n / 100).toLocaleString("es-MX", { maximumFractionDigits: 0 })}`;
+/** Compact MXN for hero cards: $1.82M / $45.3K / $12,400. */
+function fmtMxnCompact(cents: number): string {
+  const abs = Math.abs(cents);
+  if (abs >= 1e8) return `$${(cents / 1e8).toFixed(2)}M`;
+  if (abs >= 1e5) return `$${(cents / 1e5).toFixed(1)}K`;
+  return `$${(cents / 100).toLocaleString("es-MX", { maximumFractionDigits: 0 })}`;
 }
 
-function fmtNumber(n: number): string {
-  return n.toLocaleString("es-MX");
+/** Risk score color (0-100, high = bad): green < 30, amber 30-60, red > 60. */
+function riskColor(score: number): KpiCardData["color"] {
+  if (score >= 60) return "red";
+  if (score >= 30) return "amber";
+  return "green";
+}
+
+/** Health score color (0-100, high = good). */
+function healthColor(score: number): KpiCardData["color"] {
+  if (score >= 85) return "green";
+  if (score >= 70) return "amber";
+  return "red";
 }
 
 // ---------------------------------------------------------------------------
@@ -118,99 +133,124 @@ function HeroCard({ data }: { data: KpiCardData }) {
 }
 
 // ---------------------------------------------------------------------------
-// Server component
+// Server component — pulls the 6 hero cards from the Executive Twin.
+// Falls back to CrossBranchService aggregates for secondary detail and to a
+// "waiting for data" card when the twin has not been computed yet (the
+// recalculate-executive-twin Inngest cron populates it every 15 minutes).
 // ---------------------------------------------------------------------------
 
+function WaitingCard() {
+  return (
+    <Card className="border-dashed border-border col-span-full">
+      <CardContent className="p-6 flex items-center gap-3 text-sm text-muted-foreground">
+        <Activity className="h-5 w-5 animate-pulse" />
+        <span>
+          Construyendo el Executive Twin… las tarjetas se poblarán en el
+          siguiente ciclo del cron (cada 15 min) o al forzar un refresh desde
+          <span className="font-medium text-foreground"> POST /api/executive/twin/refresh</span>.
+        </span>
+      </CardContent>
+    </Card>
+  );
+}
+
+function twinOrFallbackCards(
+  twin: ExecutiveTwin,
+  secondary: {
+    branchCount: number;
+    overdue: number;
+    activeIncidents: number;
+    absences: number;
+  },
+): KpiCardData[] {
+  const obligationsCount = twin.executiveState?.upcomingObligations?.length ?? 0;
+  const bestPractices = twin.bestPracticesCount;
+
+  return [
+    {
+      label: "Group Health",
+      value: fmtPercent(twin.healthScore),
+      secondary: `${secondary.branchCount} sucursales · drift ${twin.driftScore}`,
+      delta: null,
+      deltaLabel: "vs período anterior",
+      icon: Activity,
+      color: healthColor(twin.healthScore),
+    },
+    {
+      label: "Cash Available",
+      value: fmtMxnCompact(twin.projectedCashFlowCents),
+      secondary: `${obligationsCount} obligaciones próximas · riesgo liq. ${twin.liquidityRisk}`,
+      delta: null,
+      deltaLabel: "vs período anterior",
+      icon: Wallet,
+      color: riskColor(twin.liquidityRisk),
+    },
+    {
+      label: "Op. Risk",
+      value: `${twin.operationalRisk}`,
+      secondary: `${secondary.activeIncidents} incidentes activos`,
+      delta: null,
+      deltaLabel: "vs período anterior",
+      icon: AlertTriangle,
+      color: riskColor(twin.operationalRisk),
+    },
+    {
+      label: "Compliance",
+      value: fmtPercent(100 - twin.complianceRisk),
+      secondary: `${secondary.overdue} workflows vencidos`,
+      delta: null,
+      deltaLabel: "vs período anterior",
+      icon: ShieldCheck,
+      color: healthColor(100 - twin.complianceRisk),
+    },
+    {
+      label: "Brand",
+      value: fmtPercent(twin.brandConsistency),
+      secondary: `${bestPractices} mejores prácticas documentadas`,
+      delta: null,
+      deltaLabel: "vs período anterior",
+      icon: Award,
+      color: healthColor(twin.brandConsistency),
+    },
+    {
+      label: "People Risk",
+      value: `${twin.peopleRisk}`,
+      secondary: `${secondary.absences} ausencias en 30d`,
+      delta: null,
+      deltaLabel: "vs período anterior",
+      icon: Users,
+      color: riskColor(twin.peopleRisk),
+    },
+  ];
+}
+
 export async function KpiHeroCards({ companyId }: { companyId: string }) {
-  const [compliance, merma, incidentes, labor] = await Promise.all([
+  // The twin is the source of truth for the 6 hero values. CrossBranchService
+  // is kept only for secondary detail (counts that add context to each card).
+  const [twin, compliance, incidentes, labor] = await Promise.all([
+    ExecutiveTwinEngine.getLatest(companyId),
     CrossBranchService.getAllBranchesCompliance(companyId),
-    CrossBranchService.getAllBranchesMerma(companyId),
     CrossBranchService.getAllBranchesIncidentesActivos(companyId),
     CrossBranchService.getAllBranchesLaborMetrics(companyId),
   ]);
 
-  // Aggregate compliance
-  const totalWorkflows = compliance.reduce((s, b) => s + b.totalWorkflows, 0);
-  const completedWorkflows = compliance.reduce(
-    (s, b) => s + b.completedWorkflows,
-    0,
-  );
-  const avgScore =
-    compliance.length > 0
-      ? compliance.reduce((s, b) => s + b.avgScore, 0) / compliance.length
-      : 0;
-  const totalOverdue = compliance.reduce((s, b) => s + b.overdueWorkflows, 0);
+  if (!twin) {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <WaitingCard />
+      </div>
+    );
+  }
 
-  // Aggregate merma
-  const totalMerma = merma.reduce((s, b) => s + b.totalLossCents, 0);
-  const totalWasteCount = merma.reduce((s, b) => s + b.wasteCount, 0);
-
-  // Aggregate incidents
-  const totalIncidentes = incidentes.reduce(
-    (s, b) => s + b.activeIncidents,
-    0,
-  );
-  const criticalPlusFatal = incidentes.reduce(
-    (s, b) => s + b.criticalCount + b.fatalCount,
-    0,
-  );
-
-  // Aggregate labor
-  const totalEmployees = labor.reduce((s, b) => s + b.activeEmployees, 0);
-  const totalAusencias = labor.reduce((s, b) => s + b.absenceCount, 0);
-  const avgLate =
-    labor.length > 0
-      ? labor.reduce((s, b) => s + b.avgLateMinutes, 0) / labor.length
-      : 0;
-
-  // Build cards
-  const cards: KpiCardData[] = [
-    {
-      label: "Compliance Score",
-      value: totalWorkflows > 0 ? fmtPercent(avgScore) : "—",
-      secondary: `${completedWorkflows}/${totalWorkflows} workflows · ${totalOverdue} vencidos`,
-      delta: null, // No previous period data yet
-      deltaLabel: "vs período anterior",
-      icon: ShieldCheck,
-      color: avgScore >= 85 ? "green" : avgScore >= 70 ? "amber" : "red",
-    },
-    {
-      label: "Merma Total",
-      value: totalMerma > 0 ? fmtCents(totalMerma) : "$0",
-      secondary: `${fmtNumber(totalWasteCount)} registros`,
-      delta: null,
-      deltaLabel: "vs período anterior",
-      icon: Trash2,
-      color: totalMerma === 0 ? "green" : "amber",
-    },
-    {
-      label: "Incidentes Activos",
-      value: fmtNumber(totalIncidentes),
-      secondary:
-        criticalPlusFatal > 0
-          ? `${criticalPlusFatal} críticos/fatales`
-          : "Sin críticos",
-      delta: null,
-      deltaLabel: "vs período anterior",
-      icon: AlertTriangle,
-      color: criticalPlusFatal > 0 ? "red" : totalIncidentes > 0 ? "amber" : "green",
-    },
-    {
-      label: "Personal Activo",
-      value: fmtNumber(totalEmployees),
-      secondary:
-        totalAusencias > 0
-          ? `${totalAusencias} ausencias · ${Math.round(avgLate)}min retraso prom.`
-          : "Sin ausencias",
-      delta: null,
-      deltaLabel: "vs período anterior",
-      icon: Users,
-      color: "blue",
-    },
-  ];
+  const cards = twinOrFallbackCards(twin, {
+    branchCount: compliance.length,
+    overdue: compliance.reduce((s, b) => s + b.overdueWorkflows, 0),
+    activeIncidents: incidentes.reduce((s, b) => s + b.activeIncidents, 0),
+    absences: labor.reduce((s, b) => s + b.absenceCount, 0),
+  });
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {cards.map((card) => (
         <HeroCard key={card.label} data={card} />
       ))}

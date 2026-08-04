@@ -26,7 +26,9 @@ import {
   type TrendDataPoint,
 } from "@/components/dashboard/executive/compliance-trend-chart";
 import { PnlBranchTable } from "@/components/finance/pnl-branch-table";
+import { CashFlowProjection } from "@/components/dashboard/executive/cash-flow-projection";
 import { CrossBranchService } from "@/lib/services/cross-branch-service";
+import { ExecutiveTwinEngine } from "@/lib/services/executive-twin-engine";
 
 // ---------------------------------------------------------------------------
 // Trend chart wrapper: fetches data and transforms for client component
@@ -53,6 +55,16 @@ async function TrendChartWrapper({ companyId }: { companyId: string }) {
   });
 
   return <ComplianceTrendChart data={data} branchNames={branchNames} />;
+}
+
+// ---------------------------------------------------------------------------
+// Cash flow projection wrapper: fetches the Executive Twin and passes its
+// cached 14-day projection to the client chart.
+// ---------------------------------------------------------------------------
+
+async function CashFlowProjectionWrapper({ companyId }: { companyId: string }) {
+  const twin = await ExecutiveTwinEngine.getLatest(companyId);
+  return <CashFlowProjection data={twin?.executiveState?.cashFlowProjection} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +96,11 @@ export default async function ExecutiveDashboardPage() {
       {/* Section 1: KPI Hero Cards */}
       <Suspense fallback={<KpiCardsSkeleton />}>
         <KpiHeroCards companyId={companyId} />
+      </Suspense>
+
+      {/* Section 1.5: 14-day cash flow projection (Executive Twin) */}
+      <Suspense fallback={<ChartSkeleton />}>
+        <CashFlowProjectionWrapper companyId={companyId} />
       </Suspense>
 
       {/* Section 2: Branch Ranking + Alerts (side by side on desktop) */}
