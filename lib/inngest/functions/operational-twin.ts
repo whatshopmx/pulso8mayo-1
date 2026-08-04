@@ -2,7 +2,8 @@ import { inngest } from "@/lib/inngest/client";
 import { db } from "@/lib/db";
 import { domainEvents } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { recalculateTwin, recalculateCorporateTwin } from "@/lib/services/operational-twin-engine";
+import { recalculateTwin } from "@/lib/services/operational-twin-engine";
+import { ExecutiveTwinEngine } from "@/lib/services/executive-twin-engine";
 
 /**
  * Inngest handler that processes emitted domain events. Marks the event as processed,
@@ -59,8 +60,11 @@ export const processCorporateTwinUpdate = inngest.createFunction(
   async ({ event, step }) => {
     const { companyId } = event.data;
 
+    // Delegate to ExecutiveTwinEngine.recalculate, which wraps the existing
+    // recalculateCorporateTwin (base 3 + networkState) and layers the 10
+    // executive dimensions + cash/obligations (Sprint 1 Task 8).
     const updatedCorpTwin = await step.run("recalculate-corporate-twin", async () => {
-      return await recalculateCorporateTwin(companyId);
+      return await ExecutiveTwinEngine.recalculate(companyId);
     });
 
     return { success: true, companyId, updatedCorpTwinId: updatedCorpTwin?.id };

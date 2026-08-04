@@ -28,4 +28,5 @@ export { incidentEscalationChainFn } from "./incident-escalation";
 export { executeWorkflowFn } from "./workflow-executor";
 export { announcementBroadcastFn } from "./announcement-broadcast";
 export { processDomainEvent, processCorporateTwinUpdate } from "./operational-twin";
+export { recalculateExecutiveTwin } from "./recalculate-executive-twin";
 
