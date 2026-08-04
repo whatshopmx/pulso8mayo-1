@@ -5,7 +5,18 @@ import { MappingTemplateForm } from "@/components/sales/mapping-template-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Settings2, Trash2, CheckCircle, ArrowLeft, Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Plus, Settings2, Trash2, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 interface PosTemplate {
@@ -19,10 +30,12 @@ interface PosTemplate {
 }
 
 export default function MappingTemplatesPage() {
+  const { toast } = useToast();
   const [templates, setTemplates] = useState<PosTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PosTemplate | null>(null);
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -44,17 +57,30 @@ export default function MappingTemplatesPage() {
   }, []);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Estás seguro de que deseas eliminar esta plantilla de mapeo?")) return;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/sales/mapping-templates/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setTemplates((prev) => prev.filter((t) => t.id !== id));
+        toast({ title: "Plantilla eliminada", description: "La plantilla de mapeo fue eliminada." });
+      } else {
+        toast({
+          title: "No se pudo eliminar",
+          description: data?.error || "El servidor rechazó la operación. Intenta de nuevo.",
+          variant: "destructive",
+        });
       }
     } catch (err) {
       console.error("Failed to delete template:", err);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo eliminar la plantilla. Revisa tu red e intenta de nuevo.",
+        variant: "destructive",
+      });
     } finally {
       setDeletingId(null);
+      setPendingDelete(null);
     }
   };
 
@@ -118,7 +144,7 @@ export default function MappingTemplatesPage() {
                       <CardTitle className="text-base font-bold flex items-center gap-2">
                         {tpl.name}
                         {tpl.isDefault && (
-                          <Badge variant="secondary" className="bg-primary/10 text-primary text-[10px]">
+                          <Badge variant="secondary" className="bg-primary/10 text-primary text-xs">
                             Default
                           </Badge>
                         )}
@@ -132,7 +158,7 @@ export default function MappingTemplatesPage() {
                       variant="ghost"
                       size="icon"
                       className="text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDelete(tpl.id)}
+                      onClick={() => setPendingDelete(tpl)}
                       disabled={deletingId === tpl.id}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -141,19 +167,19 @@ export default function MappingTemplatesPage() {
                 </CardHeader>
                 <CardContent className="space-y-3 text-xs">
                   <div className="bg-muted/40 p-2.5 rounded-md space-y-1">
-                    <span className="font-semibold text-muted-foreground block text-[11px]">
+                    <span className="font-semibold text-muted-foreground block text-xs">
                       Columnas Mapeadas ({Object.keys(tpl.mapping || {}).length}):
                     </span>
                     <div className="flex flex-wrap gap-1">
                       {Object.entries(tpl.mapping || {}).map(([canon, src]) => (
-                        <Badge key={canon} variant="outline" className="bg-background text-[10px]">
+                        <Badge key={canon} variant="outline" className="bg-background text-xs">
                           {canon}: <span className="font-mono text-muted-foreground ml-1">{String(src)}</span>
                         </Badge>
                       ))}
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
                     <span>Creada por: {tpl.createdByName || "Admin"}</span>
                     <span>{new Date(tpl.createdAt).toLocaleDateString("es-MX")}</span>
                   </div>
@@ -163,6 +189,32 @@ export default function MappingTemplatesPage() {
           )}
         </div>
       )}
+
+      {/* Delete confirmation — replaces native confirm() */}
+      <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar esta plantilla?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete?.name ? `“${pendingDelete.name}” se eliminará permanentemente. ` : ""}
+              Los archivos POS que dependían de ella dejarán de mapearse automáticamente hasta que configures una nueva.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={!!pendingDelete && deletingId === pendingDelete.id}
+              onClick={() => pendingDelete && handleDelete(pendingDelete.id)}
+            >
+              {pendingDelete && deletingId === pendingDelete.id ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

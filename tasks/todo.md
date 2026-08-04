@@ -1,215 +1,233 @@
-# Grupo Restaurantero Unificado (Phases 4 to 10) — Task List
+# Performance Optimization — Task List
 
-Source plan: `tasks/plan.md`. Estructurado y reenumerado a partir de `tasks/plan-grupo-restaurantero-unificado.md`.
-
----
-
-## Phase 4 — WhatsApp: Hub de Notificaciones + Smart Links
-
-- [x] **T9** Notificación WhatsApp: cambio de turno. *Files: `lib/services/notification-dispatcher.ts`, `lib/services/smart-link-service.ts`. Size S.*
-  - Acceptance: Al dispararse un cambio de turno, el compañero recibe un mensaje WhatsApp del tipo `shift_change_request` que contiene un smart link con JWT efímero.
-  - Verify: Generar solicitud de cambio de turno en BD y verificar en logs que se despache la notificación por WhatsApp con el link.
-  - Dependencies: None.
-
-- [x] **T10** Notificación WhatsApp: reportar ausencia. *Files: `lib/services/notification-dispatcher.ts`. Size S.*
-  - Acceptance: Al cambiar `shiftSessions.status` a `NO_SHOW` o pasar el límite de tolerancia de check-in, se despacha un WhatsApp al gerente de la sucursal con los datos de contacto directo del empleado ausente, y al empleado informándole del registro.
-  - Verify: Simular ausencia de empleado y corroborar el despacho de la alerta al gerente de sucursal.
-  - Dependencies: None.
-
-- [x] **T11** Anuncios de grupo vía WhatsApp. *Files: `lib/services/notification-dispatcher.ts`, `lib/inngest/functions/announcement-broadcast.ts` (new). Size M.*
-  - Acceptance: Al crear un anuncio corporativo en `/api/communications/announcements`, una función de Inngest despacha el mensaje vía WhatsApp con smart link de lectura a la PWA.
-  - Verify: Crear un anuncio en base de datos y validar en el dev server de Inngest la ejecución y envío masivo.
-  - Dependencies: None.
-
-- [x] **T12** Notificación WhatsApp: capacitación. *Files: `lib/services/notification-dispatcher.ts`, `lib/services/smart-link-service.ts`. Size S.*
-  - Acceptance: Al asignar un workflow/quiz de capacitación, notifica al empleado con smart link directo al executor del quiz en la PWA.
-  - Verify: Crear asignación de capacitación y comprobar el formato del mensaje y del enlace.
-  - Dependencies: None.
-
-### Checkpoint 1
-- [x] La app compila sin errores (`pnpm run build`).
-- [x] Flujo de envío/recepción de notificaciones validado localmente con mocks.
+Baseline: CLS 0.18–0.31 on authed pages · cold /dashboard 591KB JS · suggestions route ~500+ queries · 7/381 paginated.
+Measure after each phase with `scripts/perf-baseline.mjs` / `scripts/perf-cls-cold.mjs` (prod server: `pnpm build && pnpm start`).
 
 ---
 
-## Phase 5 — Workflows Faltantes + NOM-035 Seguimiento
+## Phase 1: Quick wins
 
-- [x] **T13** Template: Cambio de Turno. *Files: `templates/operaciones_diarias/cambio-turno-v1.json` (new). Size S.*
-  - Acceptance: Plantilla de checklist de cambio de turno que incluye arqueo de caja (efectivo, vales, tarjetas), bitácora de novedades/pendientes y doble firma digital de gerentes.
-  - Verify: Cargar en el workflow builder y validar que sea ejecutable de inicio a fin.
-  - Dependencies: None.
+## Task 1: SSR the sidebar + `defaultOpen` from cookie
 
-- [x] **T14** Template: Auditoría Interna. *Files: `templates/compliance/auditoria-interna-v1.json` (new). Size M.*
-  - Acceptance: Checklist combinado NOM-251 y NOM-035. Configurar scoring automático por sección y auto-generación de plan de remediación en caso de reprobar secciones críticas.
-  - Verify: Completar auditoría fallando un punto crítico y confirmar creación automática de plan de acción.
-  - Dependencies: None.
+**Description:** `components/app-sidebar-client.tsx` wraps the entire sidebar in `next/dynamic({ ssr: false })` with a hidden placeholder, so the server sends no sidebar and it pops in ~1.8s after load, shifting `<main>` sideways — 0.18 of the CLS on every authenticated page. Remove the `ssr: false` wrapper and render `AppSidebar` directly in the server layout; read the `sidebar_state` cookie in `app/dashboard/layout.tsx` and pass it as `defaultOpen` to `SidebarProvider` (stock shadcn pattern) so collapsed-state users don't get an open→collapsed snap.
 
-- [x] **T15** Template: Muestreo de Calidad. *Files: `templates/control_calidad/muestreo-calidad-v1.json` (new). Size S.*
-  - Acceptance: Checklist de toma de muestras, temperatura de cocción y vida de anaquel de preparados. Incluye campo fotográfico con AI verification.
-  - Verify: Completar muestreo; validar que la AI verifique la foto del platillo.
-  - Dependencies: None.
+**Acceptance criteria:**
+- [ ] Sidebar HTML present in initial server response (`curl localhost:3000/dashboard` contains sidebar nav markup when authenticated)
+- [ ] `SidebarProvider` receives `defaultOpen` from the `sidebar_state` cookie
+- [ ] Sidebar collapse/expand still persists across reloads
 
-- [x] **T16** NOM-035: plan de acción y seguimiento. *Files: `lib/db/schema.ts`, `lib/services/compliance/nom035-service.ts` (new), `app/api/compliance/nom-035/action-plan/route.ts` (new). Size M.*
-  - Acceptance: Tabla `nom035_action_plans` migrada. API CRUD y lógica de servicio para controlar medidas, plazos de remediación y evidencia de soporte.
-  - Verify: Registrar plan, asociar acciones correctoras y validar adjunto de evidencias.
-  - Dependencies: None.
+**Verification:**
+- [ ] `pnpm run build` clean
+- [ ] `node scripts/perf-cls-cold.mjs` → main-element shift (0.18 @ ~1.8s) gone; /dashboard CLS ≤ 0.1
+- [ ] Manual: toggle collapse, reload → stays collapsed
 
-### Checkpoint 2
-- [x] Correr `pnpm run build` sin errores.
-- [x] Ejecución de los 3 nuevos checklists de inicio a fin probada en simulador.
-- [x] Base de datos migrada para plan de acción NOM-035.
+**Dependencies:** None
+
+**Files likely touched:**
+- `components/app-sidebar-client.tsx` (delete or strip wrapper)
+- `app/dashboard/layout.tsx` (import AppSidebar directly, pass defaultOpen)
+
+**Estimated scope:** S (1–2 files)
 
 ---
 
-## Phase 6 — Portal de Externos + Comunicaciones
+## Task 2: Lazy-load jsPDF / html2canvas at click time
 
-- [ ] **T17** Portal de externos con token JWT. *Files: `app/external/layout.tsx` (new), `app/external/report/[token]/page.tsx` (new), `app/api/external/generate-link/route.ts` (new). Size M.*
-  - Acceptance: Generador de links seguros con JWT limitado a 7 días. Vista pública que decodifica token y renderiza reportes operativos de solo lectura estática con descarga PDF (jsPDF), sin controles interactivos de filtrado.
-  - Verify: Generar token, acceder sin credenciales a `/external/report/[token]`. Expirar token y verificar error 401.
-  - Dependencies: None.
+**Description:** jsPDF + jspdf-autotable + html2canvas (+ framer, 437KB raw / 139KB gz chunk `ef9f5781…`) are statically imported by client components, so every visitor pays for PDF generation they rarely use. Convert to `await import('jspdf')` / `import('jspdf-autotable')` inside the export click handlers. Server-side services (`lib/services/ComplianceReportService.ts`, `lib/reports/schedule-calendar-pdf.ts`) only need changing if they're reachable from client bundles — verify via import graph.
 
-- [ ] **T18** Confirmación de lectura en anuncios. *Files: `lib/db/schema.ts`, `app/api/communications/announcements/[id]/read/route.ts` (new), `components/communications/announcement-card.tsx`. Size S.*
-  - Acceptance: Tabla `communication_read_receipts` migrada. Endpoint `/read` registra lectura del usuario. Tarjeta de anuncio despliega porcentaje y total de lectura.
-  - Verify: Registrar lectura y corroborar incremento en contador y visualización en UI.
-  - Dependencies: None.
+**Acceptance criteria:**
+- [ ] No static `from 'jspdf'` / `from 'html2canvas'` imports in `components/**`
+- [ ] Export buttons still generate identical PDFs (manual click test on compliance dashboard + report generator)
+- [ ] First-load JS of `/dashboard/compliance` drops by ≥ 130KB gz
 
-- [ ] **T19** Buscador de comunicaciones. *Files: `app/dashboard/company/communications/page.tsx`. Size S.*
-  - Acceptance: Input de búsqueda full-text y filtros por sucursal/tags en panel de anuncios y comunicados.
-  - Verify: Buscar palabra clave y verificar filtrado en pantalla de forma instantánea.
-  - Dependencies: None.
+**Verification:**
+- [ ] `pnpm run build` clean; chunk `ef9f5781…` no longer referenced by compliance/report page client manifests
+- [ ] Manual: export PDF from compliance dashboard → downloads correctly
 
-### Checkpoint 3
-- [ ] Correr `pnpm run build` sin errores.
-- [ ] Enlace de externos renderiza datos operacionales reales del tenant de forma estática.
+**Dependencies:** None
 
----
+**Files likely touched:**
+- `components/compliance/compliance-dashboard.tsx`
+- `components/compliance/report-generator.tsx`
+- (maybe) `lib/reports/schedule-calendar-pdf.ts` call sites
 
-## Phase 7 — Módulos Faltantes (Protección Civil, Propinas, IMSS)
-
-- [ ] **T20** Módulo de Protección Civil. *Files: `lib/db/schema.ts`, `templates/seguridad/proteccion-civil-v1.json` (new), `app/api/compliance/proteccion-civil/route.ts` (new). Size M.*
-  - Acceptance: Tabla `proteccion_civil_checklists` migrada. Plantilla de Protección Civil con OCR de vigencias de extintores y subida de fotos de salidas despejadas.
-  - Verify: Cargar imagen de extintor y comprobar extracción OCR de la fecha.
-  - Dependencies: None.
-
-- [ ] **T21** Distribución de propinas. *Files: `lib/db/schema.ts`, `app/api/propinas/route.ts` (new), `app/dashboard/labor/propinas/page.tsx` (new). Size M.*
-  - Acceptance: Tablas `propinas` y `propina_asignaciones` migradas. Distribución automática de bolsa ingresada proporcional a las horas registradas de empleados en `shiftSessions`.
-  - Verify: Ingresar monto de propina y comprobar cálculos proporcionales en reporte.
-  - Dependencies: None.
-
-- [ ] **T22** Alertas de fechas límite IMSS. *Files: `lib/inngest/functions/cron-compliance-alerts.ts`. Size S.*
-  - Acceptance: Cron de Inngest envía recordatorios a Owner/Admin en los días 7, 3 y 1 antes del plazo bimestral del IMSS (día 17).
-  - Verify: Ejecutar cron y validar despacho del payload a través del dashboard inngest.
-  - Dependencies: None.
-
-### Checkpoint 4
-- [ ] Base de datos migrada para Protección Civil y Propinas.
-- [ ] Distribución de propinas calcula montos correctos según horas de asistencia reales.
+**Estimated scope:** S (2–3 files)
 
 ---
 
-## Phase 8 — Reportes Automáticos Formateados
+## Task 3: `next/image` remotePatterns + convert raw `<img>` tags
 
-- [ ] **T24** Reportes PDF recurrentes. *Files: `lib/inngest/functions/cron-scheduled-reports.ts`, `lib/services/report-pdf-generator.ts` (new). Size L.*
-  - Acceptance: Generación asíncrona de PDFs para reportes diarios, semanales y mensuales conteniendo gráficos (Recharts convertidos) y resúmenes. Despacho por Email/WhatsApp.
-  - Verify: Trigger de envío en Inngest y validar el adjunto PDF en los logs del despachador.
-  - Dependencies: None.
+**Description:** 14 raw `<img>` tags vs 4 `next/image` usages. Evidence photos (workflow executor/review/stepper), product photos, petty-cash receipts, and dicebear avatars load full-size originals, unoptimized, eager. Add `images.remotePatterns` to `next.config.ts` (R2 public URL from `R2_PUBLIC_URL` env + `api.dicebear.com`), then convert the raw tags — prioritizing evidence galleries (heaviest images) with `fill` + `sizes`, and avatars with fixed `width`/`height`.
 
-- [ ] **T25** Reporte pre-auditoría COFEPRIS. *Files: `app/dashboard/compliance/page.tsx`, `lib/services/ComplianceReportService.ts`. Size M.*
-  - Acceptance: Botón de descarga en UI de cumplimiento que invoca `ComplianceReportService` y exporta PDF estructurado según requerimientos oficiales de la secretaría de salud (bitácoras ordenadas NOM-251).
-  - Verify: Descargar reporte y validar que el PDF agrupe e ilustre evidencias del rango seleccionado.
-  - Dependencies: None.
+**Acceptance criteria:**
+- [ ] `next.config.ts` has remotePatterns for R2 hostname + `api.dicebear.com`
+- [ ] Evidence/review/stepper/product/petty-cash images use `next/image` with dimensions or `fill`+`sizes`
+- [ ] No layout shift from unloaded images in evidence galleries (explicit aspect boxes preserved)
 
-### Checkpoint 5
-- [ ] Reportes en formato PDF generados y visualmente consistentes con el diseño de Pulso.
+**Verification:**
+- [ ] `pnpm run build` clean
+- [ ] Manual: open workflow review with photo evidence, product page, petty-cash table → images render, served via `/_next/image`
+- [ ] `rg "<img" app components` → only justified exceptions remain (e.g. camera capture preview of local blob)
 
----
+**Dependencies:** None (config + components, independent of Tasks 1–2)
 
-## Phase 9 — M13: Ventas y POS (Gap Financiero)
+**Files likely touched:**
+- `next.config.ts`
+- `components/execution/workflow-stepper.tsx`, `components/workflow/workflow-review.tsx`, `components/workflow/workflow-executor.tsx`, `components/workflow/ai-verification-status.tsx`, `components/builder/workflow-preview-modal.tsx`
+- `components/inventory/product-photo-upload.tsx`, `app/dashboard/inventory/[id]/page.tsx`
+- `components/finance/petty-cash-history-table.tsx`, `app/dashboard/profile/onboarding/page.tsx`
 
-- [ ] **T26** Schema de Ventas y Migración. *Files: `lib/db/schema.ts`. Size M.*
-  - Acceptance: Tablas `daily_sales_cuts` y `pos_mapping_templates` migradas. Llave única `(companyId, branchId, businessDate, shift, channel)`.
-  - Verify: `pnpm db:generate` corre exitosamente; comprobar tablas y FKs creadas.
-  - Dependencies: None.
+**Estimated scope:** M (5–9 files, mechanical)
 
-- [ ] **T27** Servicio de Ingesta de Cortes. *Files: `lib/services/sales-ingestion-service.ts` (new), `lib/services/pos-column-aliases.ts` (new). Size M.*
-  - Acceptance: Parseo de archivos con `exceljs`. Mapeo a esquema canónico usando diccionario de alias dinámicos. Detección automática del shape del archivo (`summary` | `payment_summary` | `ticket_detail` | `multi_sheet`). Validación de cuadre ±2%.
-  - Verify: Probar ingesta de 3 fixtures diferentes de cortes de caja y verificar mapeo exacto de montos.
-  - Dependencies: T26.
-
-- [ ] **T28** API y UI de Upload Manual. *Files: `app/api/sales/cuts/upload/route.ts` (new), `app/dashboard/sales/page.tsx` (new), `components/sales/sales-cut-upload.tsx` (new). Size M.*
-  - Acceptance: Endpoint POST carga archivo, aplica T27 y persiste registro. UI con dropzone, selector de meta-datos (turno/sucursal) y tabla de estatus.
-  - Verify: Subir corte manual; comprobar que figure como VALIDATED.
-  - Dependencies: T27.
-
-- [ ] **T29** Configuración de Plantillas POS. *Files: `app/api/sales/mapping-templates/route.ts` (new), `app/dashboard/sales/mapping/page.tsx` (new), `components/sales/mapping-template-form.tsx` (new). Size M.*
-  - Acceptance: Cargar archivo de ejemplo en UI, proponer mapeo de headers a campos canónicos con semáforo de confianza. Permitir persistencia de JSONB de mapeo.
-  - Verify: Guardar plantilla custom; subir archivo no estándar y validar parseo exitoso.
-  - Dependencies: T27.
-
-- [ ] **T30** Dashboard de Ventas. *Files: `lib/services/sales-analytics-service.ts` (new), `components/sales/sales-dashboard.tsx` (new). Size M.*
-  - Acceptance: Métricas consolidadas: venta total, ticket promedio, transacciones y ventas por agregador (DELIVERY). Gráficas Recharts por sucursal y turno.
-  - Verify: Mostrar histórico de 15 días con montos distribuidos.
-  - Dependencies: T28.
-
-- [ ] **T31** KPIs de Costo de Alimento y Laboral. *Files: `lib/services/financial-kpi-service.ts` (new), `components/sales/financial-kpi-cards.tsx` (new). Size M.*
-  - Acceptance: Fórmulas de Food Cost % y Labor Cost % contra ventas reales de T26. Semáforo y dispatch de alerta `FINANCIAL_KPI_DEVIATION` en caso de desviación.
-  - Verify: Simular venta baja para forzar Food Cost > 35% y comprobar alerta generada.
-  - Dependencies: T30.
-
-- [ ] **T32** WhatsApp Ingesta. *Files: `lib/whatsapp/workflow-conversation-handler.ts`, `lib/whatsapp/evidence-processor.ts`, `app/api/whatsapp/webhook/route.ts`. Size L.*
-  - Acceptance: Webhook procesa documentos XLSX/CSV de cortes. Si falla, activa formulario conversacional (fallback) pidiendo datos clave del corte vía chat de WhatsApp.
-  - Verify: Enviar archivo de corte por WhatsApp sandbox; verificar que la confirmación detalle montos correctos.
-  - Dependencies: T27.
-
-- [ ] **T33** Cierre de Turno e Integración de Workflow. *Files: `templates/operaciones_diarias/cierre-restaurante-v2-enhanced.json` (new), `lib/inngest/functions/cron-sales-cut-reminder.ts` (new). Size M.*
-  - Acceptance: Bloquear checklist de cierre si `daily_sales_cuts` no ha sido recibido para la sucursal/fecha. Cron recordatorio y escalación en Inngest.
-  - Verify: Intentar cerrar sin corte y validar bloqueo; validar cron en inngest local.
-  - Dependencies: T31, T32.
-
-### Checkpoint 6
-- [ ] Carga manual e ingesta WhatsApp de cortes operativa de inicio a fin.
-- [ ] KPIs de costos estimándose correctamente.
-- [ ] El workflow de cierre valida y restringe la operación si falta el corte.
+### Checkpoint: Phase 1
+- [ ] Build clean; CLS ≤ 0.1 on /dashboard (target: ≤ 0.05 after sidebar fix)
+- [ ] Cold /dashboard JS ≤ 450KB
+- [ ] Manual smoke passed (sidebar, PDF export, images)
 
 ---
 
-## Phase 10 — M16: Pagos y Gastos (Gap Financiero)
+## Phase 2: Backend query hot paths
 
-- [ ] **T34** Schema de Gastos. *Files: `lib/db/schema.ts`. Size M.*
-  - Acceptance: Tablas `petty_cash_funds`, `petty_cash_transactions`, `operating_expenses` y `expense_authorization_rules` migradas. Montos integer.
-  - Verify: Generar y aplicar migración en base de datos.
-  - Dependencies: None.
+## Task 4: Fix `ProductionService.getSuggestions` nested N+1
 
-- [ ] **T35** Caja Chica: Servicio + UI. *Files: `lib/services/petty-cash-service.ts` (new), `app/dashboard/finance/petty-cash/page.tsx` (new), `components/finance/petty-cash-register.tsx` (new). Size M.*
-  - Acceptance: CRUD de fondos. Registro de salidas con desglose físico detallado de denominaciones (billetes y monedas), monto total y foto de comprobante. Descuento atómico del balance.
-  - Verify: Registrar salida; corroborar disminución de saldo y registro de transacción.
-  - Dependencies: T34.
+**Description:** `lib/services/production-service.ts:132-195` loops all recipes (2 queries each) then loops each recipe's ingredients (1 query each) — ~500+ round-trips for 50 recipes × 8 ingredients, on both `GET /api/inventory/production/suggestions` and the forecast cron. Rewrite as 4 batched queries: (1) all recipes, (2) sales aggregated `GROUP BY recipeId` with `inArray(recipeIds)` + date filter, (3) all recipeItems with `inArray(recipeIds)`, (4) stock aggregated `GROUP BY itemId` with `inArray(allItemIds)` + branch filter. Assemble suggestions in memory; identical response shape.
 
-- [ ] **T36** Reposición Automática y Alerta de Umbral. *Files: `lib/services/petty-cash-service.ts`, `lib/inngest/functions/cron-petty-cash-check.ts` (new). Size S.*
-  - Acceptance: Si el balance es menor al 20% del fondo fijo, el cron de Inngest dispara notificación `PETTY_CASH_LOW` a Gerente/Admin con monto sugerido.
-  - Verify: Forzar saldo bajo y verificar alerta en Inngest.
-  - Dependencies: T35.
+**Acceptance criteria:**
+- [ ] ≤ 6 DB queries per `getSuggestions` call regardless of recipe/ingredient count
+- [ ] Response items identical to pre-change output on seeded data (snapshot before, diff after)
+- [ ] Sort/filter semantics unchanged (`suggestedQuantity > 0`, desc)
 
-- [ ] **T37** Gastos Operativos por Categoría. *Files: `lib/services/expense-service.ts` (new), `app/dashboard/finance/expenses/page.tsx` (new), `components/finance/expense-form.tsx` (new). Size M.*
-  - Acceptance: Registro categorizado de renta, servicios, reparaciones, etc. Integración con ID de factura para conciliación. UI con filtros y agregados mensuales.
-  - Verify: Registrar gasto y validar su asignación a la categoría correcta.
-  - Dependencies: T34.
+**Verification:**
+- [ ] Snapshot test: call route before/after on seeded DB, `diff` the JSON
+- [ ] Query count logged ≤ 6 (temp `console.log` or drizzle logger)
+- [ ] `pnpm run build` clean
 
-- [ ] **T38** Autorización de Gastos por Niveles de Monto. *Files: `lib/services/expense-approval-service.ts` (new), `app/api/expenses/approvals/route.ts` (new), `components/finance/expense-approval-list.tsx` (new). Size M.*
-  - Acceptance: Aplicación de reglas `expense_authorization_rules` (por límites). Notificaciones y vista de aprobaciones pendientes para los roles autorizados.
-  - Verify: Cargar gasto de $12,000 MXN; validar que requiera aprobación del Owner y se bloquee.
-  - Dependencies: T37.
+**Dependencies:** None
 
-- [ ] **T39** Calendario de Flujo de Efectivo. *Files: `app/dashboard/finance/cash-flow/page.tsx` (new), `components/finance/cash-flow-projection.tsx` (new). Size M.*
-  - Acceptance: Calendario interactivo a 30 días sumando proyecciones de ventas de T26 vs egresos fijos (nómina de labor-calculator, gastos aprobados de T38 y cuentas por pagar). Todo calculado neto (sin IVA).
-  - Verify: Comprobar balance diario proyectado para los siguientes 15 días.
-  - Dependencies: T30, T38.
+**Files likely touched:**
+- `lib/services/production-service.ts`
 
-- [ ] **T40** P&L Operativo Estimado por Sucursal. *Files: `app/dashboard/executive/page.tsx`, `components/dashboard/executive/pl-widget.tsx` (new). Size M.*
-  - Acceptance: Widget agregador en Dashboard Ejecutivo que calcule heurísticamente la Utilidad Operativa = Ventas - Costo Alimentos - Costo Laboral - Gastos Operativos. Todo calculado neto (sin IVA). Caching con unstable_cache.
-  - Verify: Cargar dashboard ejecutivo y validar que cuadren las deducciones contra los KPIs de la sucursal.
-  - Dependencies: T31, T38.
+**Estimated scope:** S (1 file)
 
-### Checkpoint 7
-- [ ] Caja chica y gastos operando con niveles de autorización.
-- [ ] Calendario de flujo de efectivo y widget de P&L estimando utilidad operativa cross-sucursal.
+---
+
+## Task 5: Fix alert-service N+1 loops
+
+**Description:** Batch user/document lookups in four known loops: `advanced-alert-service.ts:17,58` (item + movements per knowledge-guide entry), `overtime-alert-service.ts:251,311` (user per session / per excessive user), `employee-document-service.ts:359` (docs per employee), `app/api/analytics/labor-compliance/route.ts:62` (user per uid). Replace with `inArray` batch fetches + in-memory maps. Insert-loops in `vacations/route.ts`, `sales-entry/route.ts`, `employees/lifecycle/route.ts`, `inventory-service.ts:451` become single multi-row `insert().values([...])` where inside a transaction.
+
+**Acceptance criteria:**
+- [ ] No `await db.*` inside `for` loops in the listed files (except chunk-batched inserts like the existing 100-row pattern)
+- [ ] Notification payloads/recipients identical to before
+
+**Verification:**
+- [ ] `rg -U "for\s*\([^)]*\)\s*\{[^{}]{0,400}?await\s+(db\.|tx\.)"` on touched files → no hits
+- [ ] `pnpm run build` clean
+- [ ] Manual: trigger overtime alert path / vacation request → notifications arrive
+
+**Dependencies:** None (can run parallel to Task 4)
+
+**Files likely touched:**
+- `lib/services/advanced-alert-service.ts`, `lib/services/overtime-alert-service.ts`
+- `lib/services/employee-document-service.ts`
+- `app/api/analytics/labor-compliance/route.ts`
+- `app/api/vacations/route.ts`, `app/api/inventory/sales-entry/route.ts`, `app/api/employees/lifecycle/route.ts`, `lib/services/inventory-service.ts`
+
+**Estimated scope:** M (5–8 files, same mechanical pattern)
+
+---
+
+## Task 6: Paginate top unbounded list endpoints
+
+**Description:** Only 7 of 381 query call sites use limits. Add `limit`/`offset` (default 50, max 200) + `meta: { total, limit, offset }` to the highest-traffic unbounded GET endpoints: `notifications`, `shifts`, `shift-sessions`, `inventory/alerts`, `kpi/dashboard`. **First grep every frontend caller of each endpoint** — response stays `{ data: [...], meta }` or array-with-meta so existing UI keeps working; UI pagination controls are out of scope (follow-up).
+
+**Acceptance criteria:**
+- [ ] Listed endpoints accept `limit`/`offset`, default-capped, with total count in `meta`
+- [ ] Existing callers' response fields unchanged (additive only)
+- [ ] No caller found that requires full unbounded result sets (or those endpoints excluded from this task)
+
+**Verification:**
+- [ ] Caller grep documented in PR description for each endpoint
+- [ ] `pnpm run build` clean; manual smoke: notifications dropdown, shifts page, inventory alerts
+- [ ] curl each endpoint with/without params → capped + meta present
+
+**Dependencies:** None (but do after Tasks 4–5 to isolate regressions)
+
+**Files likely touched:**
+- `app/api/notifications/route.ts`, `app/api/shifts/route.ts`, `app/api/shift-sessions/route.ts`, `app/api/inventory/alerts/route.ts`, `app/api/kpi/dashboard/route.ts`
+
+**Estimated scope:** M (5 files + caller audit)
+
+### Checkpoint: Phase 2
+- [ ] Build clean; response snapshots match for Tasks 4–5
+- [ ] Suggestions route ≤ 6 queries, local p95 < 500ms
+- [ ] Smoke: notifications, shifts, alerts pages
+
+---
+
+## Phase 3: Bundle diet & guardrails
+
+## Task 7: Recharts strategy — lazy below-fold charts + duplicate-chunk investigation
+
+**Description:** Recharts (382KB raw / 102KB gz) appears as ~6 near-identical chunks and is statically imported by 20+ components. Two moves: (a) wrap below-the-fold charts (compliance trends, menu-engineering matrix, executive charts) in `next/dynamic` with a sized skeleton fallback; (b) timeboxed investigation (≤ 1h) into why Turbopack emits duplicate chunks — route all recharts imports through `components/ui/chart.tsx` barrel to give the splitter one canonical module.
+
+**Acceptance criteria:**
+- [ ] Below-fold charts load lazily with skeletons that reserve height (no CLS)
+- [ ] Duplicate-chunk cause documented (fixed if source-level; noted as tooling artifact if not)
+- [ ] Cold /dashboard JS ≤ 400KB
+
+**Verification:**
+- [ ] Build; chunk manifest diff shows fewer/smaller recharts chunks on chart-heavy routes
+- [ ] `node scripts/perf-cls-cold.mjs` → no new shifts from chart skeletons
+- [ ] Manual: charts render on scroll (dashboard, compliance, menu-engineering)
+
+**Dependencies:** Task 1 (CLS must be fixed first so chart-skeleton shifts are visible in measurements)
+
+**Files likely touched:**
+- `components/compliance/compliance-dashboard.tsx`, `components/inventory/menu-engineering-matrix.tsx`, `components/sales/sales-dashboard.tsx`, `components/dashboard/executive/*`, `components/ui/chart.tsx`
+
+**Estimated scope:** M (4–6 files)
+
+---
+
+## Task 8: Identify & lazy-load 313KB binary-codec chunk
+
+**Description:** Chunk `ff181122…` (313KB raw / 68KB gz) contains base64/binary codec code with one `xlsx` string — not ExcelJS (0 matches), likely pulled by an export/import UI path. Identify its owner module from the chunk's module IDs + import graph, and if it's export-only, lazy-load like Task 2.
+
+**Acceptance criteria:**
+- [ ] Owner library identified and documented
+- [ ] If export/import-only: loaded via dynamic import; out of first-load JS
+
+**Verification:**
+- [ ] Build; chunk absent from page client manifests or only loaded on demand
+
+**Dependencies:** None
+
+**Files likely touched:** TBD by investigation (≤ 3 files)
+
+**Estimated scope:** S
+
+---
+
+## Task 9: Perf budget guardrail + baseline doc
+
+**Description:** Prevent regression: add a lightweight bundle check script (fail if any client chunk > 450KB raw or route first-load JS > 250KB gz, thresholds tuned to post-fix reality) runnable in CI, and record the full before/after baseline in `docs/performance-baseline.md` so future work has numbers to compare.
+
+**Acceptance criteria:**
+- [ ] `scripts/check-bundle-budget.mjs` exits non-zero over budget; wired as `pnpm check:budget`
+- [ ] `docs/performance-baseline.md` contains before/after CWV + transfer + query counts
+
+**Verification:**
+- [ ] Script passes on the fixed build; intentionally lowering a threshold makes it fail
+- [ ] Doc reviewed by human
+
+**Dependencies:** Tasks 1–8 (budgets set from post-fix numbers)
+
+**Files likely touched:**
+- `scripts/check-bundle-budget.mjs` (new), `package.json`, `docs/performance-baseline.md` (new)
+
+**Estimated scope:** S (2–3 files)
+
+### Checkpoint: Complete
+- [ ] All acceptance criteria met; before/after documented
+- [ ] `pnpm run lint` + `pnpm run build` clean
+- [ ] Ready for human review

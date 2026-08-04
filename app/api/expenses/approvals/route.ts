@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       data.expenseId,
       tenant.id,
       user.id,
+      user.role || "EMPLEADO",
       data.notes || undefined
     );
 

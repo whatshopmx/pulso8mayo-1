@@ -7,13 +7,43 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExpenseForm } from "@/components/finance/expense-form";
-import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSession } from "@/hooks/use-session";
 
 interface Branch {
   id: string;
   name: string;
 }
+
+const ROLE_HIERARCHY: Record<string, number> = {
+  "SUPER_ADMIN": 100,
+  "OWNER": 95,
+  "ADMIN": 90,
+  "GERENTE": 80,
+  "SUPERVISOR": 50,
+  "EMPLEADO": 10,
+  "READONLY": 0,
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  "OWNER": "Dueño",
+  "DIRECTOR_OPS": "Director Ops",
+  "ADMIN": "Admin",
+  "GERENTE": "Gerente",
+  "SUPERVISOR": "Supervisor",
+};
 
 interface ExpenseItem {
   id: string;
@@ -24,20 +54,27 @@ interface ExpenseItem {
   amountCents: number;
   description: string;
   status: "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | "PAID";
+  requestedBy?: string | null;
   requestedByName: string | null;
   approvedByName: string | null;
   approvalNotes: string | null;
+  requiredApproverRole?: string | null;
   dueDate: string | null;
   createdAt: string;
 }
 
 export default function ExpensesPage() {
   const { toast } = useToast();
+  const { session } = useSession();
+  const currentUserRole = session?.user?.role || "EMPLEADO";
+  const currentUserId = session?.user?.id;
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchBranches() {
@@ -64,9 +101,15 @@ export default function ExpensesPage() {
       const data = await res.json();
       if (res.ok && data.success) {
         setExpenses(data.data || []);
+        setError(null);
+      } else {
+        setError(data?.error || "No se pudieron cargar los gastos operativos.");
+        setExpenses([]);
       }
     } catch (err) {
       console.error("Error fetching expenses:", err);
+      setError("Error de conexión al cargar los gastos. Revisa tu red e intenta de nuevo.");
+      setExpenses([]);
     } finally {
       setLoading(false);
     }
@@ -84,15 +127,60 @@ export default function ExpensesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ expenseId: id, notes: "Aprobado por administración" }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         toast({ title: "Gasto Aprobado", description: "El gasto ha sido aprobado exitosamente." });
         fetchExpenses();
+      } else {
+        toast({
+          title: "No se pudo aprobar",
+          description: data?.error || "El servidor rechazó la aprobación. Intenta de nuevo.",
+          variant: "destructive",
+        });
       }
     } catch (err) {
       console.error("Failed to approve expense:", err);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo completar la aprobación. Revisa tu red e intenta de nuevo.",
+        variant: "destructive",
+      });
     } finally {
       setApprovingId(null);
+      setConfirmId(null);
     }
+  };
+
+  const renderApproveAction = (item: ExpenseItem) => {
+    const requiredRole = item.requiredApproverRole || "OWNER";
+    const userLevel = ROLE_HIERARCHY[currentUserRole] ?? 0;
+    const requiredLevel = ROLE_HIERARCHY[requiredRole] ?? 0;
+    const canApprove = userLevel >= requiredLevel && item.requestedBy !== currentUserId;
+
+    if (!canApprove) {
+      return (
+        <span className="text-muted-foreground/60 text-[10px] flex flex-col items-center gap-0.5">
+          <Shield className="w-3 h-3" />
+          <span>Requiere {ROLE_LABELS[requiredRole] || requiredRole}</span>
+        </span>
+      );
+    }
+
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 text-xs bg-success/10 text-success hover:bg-success/20 border-success/20"
+        onClick={() => setConfirmId(item.id)}
+        disabled={approvingId === item.id}
+      >
+        {approvingId === item.id ? (
+          <Loader2 className="w-3 h-3 animate-spin" />
+        ) : (
+          "Aprobar"
+        )}
+      </Button>
+    );
   };
 
   const formatMXN = (cents: number) =>
@@ -102,13 +190,13 @@ export default function ExpensesPage() {
     switch (status) {
       case "APPROVED":
         return (
-          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1">
+          <Badge variant="outline" className="bg-success/10 text-success border-success/20 gap-1">
             <CheckCircle className="w-3 h-3" /> Aprobado
           </Badge>
         );
       case "PENDING_APPROVAL":
         return (
-          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1">
+          <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
             <Clock className="w-3 h-3" /> Pendiente
           </Badge>
         );
@@ -120,7 +208,7 @@ export default function ExpensesPage() {
         );
       case "PAID":
         return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 gap-1">
+          <Badge variant="outline" className="bg-info/10 text-info border-info/20 gap-1">
             <CheckCircle className="w-3 h-3" /> Pagado
           </Badge>
         );
@@ -172,10 +260,24 @@ export default function ExpensesPage() {
             <div className="py-12 flex justify-center text-muted-foreground">
               <Loader2 className="w-6 h-6 animate-spin mr-2" /> Cargando gastos operativos...
             </div>
+          ) : error ? (
+            <EmptyState
+              icon={AlertCircle}
+              title="No se pudieron cargar los gastos"
+              description={error}
+              action={
+                <Button variant="outline" size="sm" onClick={fetchExpenses}>
+                  <Loader2 className="w-4 h-4 mr-2" /> Reintentar
+                </Button>
+              }
+            />
           ) : expenses.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground text-xs">
-              Sin gastos operativos registrados en esta sucursal.
-            </div>
+            <EmptyState
+              icon={Receipt}
+              title="Sin gastos operativos registrados"
+              description="Registra tu primer gasto operativo (renta, luz, gas, mantenimiento) para iniciar la cadena de autorización."
+              action={<ExpenseForm branches={branches} onSuccess={fetchExpenses} />}
+            />
           ) : (
             <div className="border rounded-md overflow-x-auto">
               <Table>
@@ -213,19 +315,7 @@ export default function ExpensesPage() {
                       <TableCell>{getStatusBadge(item.status)}</TableCell>
                       <TableCell className="text-center">
                         {item.status === "PENDING_APPROVAL" ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200"
-                            onClick={() => handleApprove(item.id)}
-                            disabled={approvingId === item.id}
-                          >
-                            {approvingId === item.id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              "Aprobar"
-                            )}
-                          </Button>
+                          renderApproveAction(item)
                         ) : (
                           <span className="text-muted-foreground/50 text-xs">—</span>
                         )}
@@ -238,6 +328,31 @@ export default function ExpensesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Approve confirmation — irreversible authorization, deliberate gate */}
+      <AlertDialog open={confirmId !== null} onOpenChange={(open) => !open && setConfirmId(null)}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Aprobar este gasto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La aprobación compromete el pago y queda registrada en la bitácora de autorizaciones. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              variant="default"
+              disabled={approvingId === confirmId}
+              onClick={() => confirmId && handleApprove(confirmId)}
+            >
+              {approvingId === confirmId ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Sí, aprobar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

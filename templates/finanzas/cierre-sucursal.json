@@ -1,0 +1,131 @@
+{
+  "id": "tpl-cierre-sucursal-v2",
+  "nombre": "🔒 Cierre de Sucursal (Fin de Día)",
+  "descripcion": "Checklist de cierre diario de sucursal: verificación de cajas, inventario de merma, limpieza, armado de depósitos, y carga de archivo POS. Completado por el gerente de turno.",
+  "categoria": "FINANZAS",
+  "version": 2,
+  "activo": true,
+  "requiereIA": true,
+  "duracionEstimada": "15-20 min",
+  "cumplimientoNormativo": ["NOM-251"],
+  "tags": ["cierre", "sucursal", "gerente", "POS", "deposito", "limpieza", "checklist"],
+  "responsable": {
+    "rol": "GERENTE",
+    "descripcion": "Gerente de turno o encargado de sucursal"
+  },
+
+  "aiConfig": {
+    "provider": "moondream",
+    "fallbackProvider": "openai",
+    "maxRetries": 2
+  },
+
+  "pasos": [
+    {
+      "id": "paso-cajas",
+      "type": "YesNo",
+      "titulo": "¿Todas las cajas registradoras están cerradas y cuadradas?",
+      "descripcion": "Verifica que cada terminal POS esté cerrada y el cuadre coincida con las ventas del día.",
+      "obligatorio": true,
+      "aiVerification": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "paso-efectivo",
+      "type": "PhotoField",
+      "titulo": "Foto del Depósito de Efectivo",
+      "descripcion": "Toma foto del sobre de depósito bancario con el monto visible.",
+      "obligatorio": true,
+      "evidenceRequired": true,
+      "aiVerification": {
+        "enabled": true,
+        "prompt": "Verifica que la foto muestre un sobre de depósito bancario con monto visible.",
+        "threshold": 0.7
+      }
+    },
+    {
+      "id": "paso-merma",
+      "type": "NumberField",
+      "titulo": "Merma del Día ($ MXN)",
+      "descripcion": "Valor total de productos desechados, caducados o dañados durante el día.",
+      "obligatorio": true,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-merma-foto",
+      "type": "PhotoField",
+      "titulo": "Foto de la Merma Registrada",
+      "descripcion": "Foto de los productos en el área de merma antes de desecharlos.",
+      "obligatorio": false,
+      "evidenceRequired": true
+    },
+    {
+      "id": "paso-inventario",
+      "type": "YesNo",
+      "titulo": "¿Se revisaron inventarios críticos?",
+      "descripcion": "Confirma que revisaste los niveles de proteína, lácteos, y productos de alto consumo para el siguiente turno.",
+      "obligatorio": true
+    },
+    {
+      "id": "paso-limpieza-cocina",
+      "type": "PhotoField",
+      "titulo": "Foto de Cocina — Limpieza Final",
+      "descripcion": "Foto de la cocina después de la limpieza profunda de cierre (campanas, freidoras, mesas de trabajo).",
+      "obligatorio": true,
+      "evidenceRequired": true,
+      "aiVerification": {
+        "enabled": true,
+        "prompt": "Verifica que la cocina esté limpia: superficies despejadas, sin residuos visibles, equipo apagado o en modo limpieza.",
+        "threshold": 0.75
+      }
+    },
+    {
+      "id": "paso-limpieza-salon",
+      "type": "PhotoField",
+      "titulo": "Foto de Salón — Limpieza Final",
+      "descripcion": "Foto del salón comedor después de la limpieza (mesas, sillas, piso, baños).",
+      "obligatorio": true,
+      "evidenceRequired": true,
+      "aiVerification": {
+        "enabled": true,
+        "prompt": "Verifica que el salón esté limpio y ordenado: mesas alineadas, sillas recogidas, piso visiblemente limpio.",
+        "threshold": 0.7
+      }
+    },
+    {
+      "id": "paso-puertas",
+      "type": "YesNo",
+      "titulo": "¿Puertas y accesos asegurados?",
+      "descripcion": "Confirma que todas las puertas, ventanas y accesos estén cerrados con llave.",
+      "obligatorio": true
+    },
+    {
+      "id": "paso-alarma",
+      "type": "YesNo",
+      "titulo": "¿Alarma activada?",
+      "descripcion": "Confirma que el sistema de alarma esté armado antes de retirarte.",
+      "obligatorio": true
+    },
+    {
+      "id": "paso-upload-pos",
+      "type": "smart_link",
+      "titulo": "Subir Archivo del POS",
+      "descripcion": "Sube el reporte de ventas del sistema POS (CSV, Excel o PDF). Si tu POS envía el reporte por correo automáticamente, el sistema lo detectará y este paso se completará solo.",
+      "obligatorio": false,
+      "smartLinkTarget": "/api/workflows/smart-links/upload-pos"
+    }
+  ],
+
+  "completionActions": [
+    {
+      "type": "notify",
+      "target": "owner",
+      "message": "Cierre de sucursal completado. Todas las verificaciones del checklist fueron realizadas."
+    },
+    {
+      "type": "create_report",
+      "description": "Genera resumen de cierre con merma, ventas y evidencias."
+    }
+  ]
+}

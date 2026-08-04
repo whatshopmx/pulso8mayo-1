@@ -51,7 +51,7 @@ export function PnlBranchTable() {
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="text-base font-bold flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-emerald-600" /> P&L Operativo Estimado por Sucursal (Neto sin IVA)
+          <TrendingUp className="w-5 h-5 text-success" /> P&L Operativo Estimado por Sucursal (Neto sin IVA)
         </CardTitle>
         <CardDescription className="text-xs">
           Utilidad Operativa = Ventas − Alimentos − Costo Laboral − Gastos Operativos.
@@ -91,14 +91,14 @@ export function PnlBranchTable() {
                     <TableCell className="text-right font-medium">{formatMXN(item.operatingExpensesCents)}</TableCell>
                     <TableCell
                       className={`text-right font-bold ${
-                        item.operatingProfitCents >= 0 ? "text-emerald-700" : "text-rose-700"
+                        item.operatingProfitCents >= 0 ? "text-success" : "text-destructive"
                       }`}
                     >
                       {formatMXN(item.operatingProfitCents)}
                     </TableCell>
                     <TableCell className="text-right font-bold">{item.operatingProfitPercent}%</TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline" className="text-[10px] bg-muted/30 gap-1">
+                      <Badge variant="outline" className="text-xs bg-muted/30 gap-1">
                         <Info className="w-3 h-3 text-muted-foreground" /> {item.dataCoveragePercent}% Cobertura
                       </Badge>
                     </TableCell>

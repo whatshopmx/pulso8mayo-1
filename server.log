@@ -1,0 +1,1231 @@
+$ next start
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.66:3000
+
+✓ Starting...
+✓ Ready in 2.8s
+The `fetchConnectionCache` option is deprecated (now always `true`)
+The `fetchConnectionCache` option is deprecated (now always `true`)
+[R2] WARNING: Missing required R2 credentials in production. Set R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_ACCOUNT_ID. R2 storage will be disabled.
+[R2] Credentials not configured - R2 storage will be disabled
+[Queue] Starting background processor...
+The `fetchConnectionCache` option is deprecated (now always `true`)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+{"level":40,"time":1785800407952,"pid":14568,"hostname":"daveescam","component":"rate-limiter","msg":"Redis not available, falling back to in-memory rate limiting"}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[KpiCalculator] Unparseable formula: completed_on_time / total_scheduled * 100
+[KpiCalculator] Unparseable formula: on_time_shifts / total_shifts * 100
+[KpiCalculator] Unparseable formula: accurate_items / total_items * 100
+[KpiCalculator] Unparseable formula: labor_cost / revenue * 100
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[KpiCalculator] Unparseable formula: resolved_alerts / total_alerts * 100
+[KpiCalculator] Unparseable formula: compliant_readings / total_readings * 100
+[KpiCalculator] Unparseable formula: total_incidents
+[KpiCalculator] Unparseable formula: avg_satisfaction_score
+[KpiCalculator] Unparseable formula: employees_left / total_employees * 100
+[KpiCalculator] Unparseable formula: nom251_score
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[KpiCalculator] Unparseable formula: completed_on_time / total_scheduled * 100
+[KpiCalculator] Unparseable formula: on_time_shifts / total_shifts * 100
+[KpiCalculator] Unparseable formula: employees_left / total_employees * 100
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[KpiCalculator] Unparseable formula: labor_cost / revenue * 100
+[KpiCalculator] Unparseable formula: nom251_score
+[KpiCalculator] Unparseable formula: compliant_readings / total_readings * 100
+[KpiCalculator] Unparseable formula: avg_satisfaction_score
+[KpiCalculator] Unparseable formula: total_incidents
+[KpiCalculator] Unparseable formula: resolved_alerts / total_alerts * 100
+[KpiCalculator] Unparseable formula: accurate_items / total_items * 100
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[KpiCalculator] Unparseable formula: on_time_shifts / total_shifts * 100
+[KpiCalculator] Unparseable formula: completed_on_time / total_scheduled * 100
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[KpiCalculator] Unparseable formula: employees_left / total_employees * 100
+[KpiCalculator] Unparseable formula: total_incidents
+[KpiCalculator] Unparseable formula: labor_cost / revenue * 100
+[KpiCalculator] Unparseable formula: resolved_alerts / total_alerts * 100
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[KpiCalculator] Unparseable formula: avg_satisfaction_score
+[KpiCalculator] Unparseable formula: accurate_items / total_items * 100
+[KpiCalculator] Unparseable formula: nom251_score
+[KpiCalculator] Unparseable formula: compliant_readings / total_readings * 100
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[KpiCalculator] Unparseable formula: labor_cost / revenue * 100
+[KpiCalculator] Unparseable formula: employees_left / total_employees * 100
+[KpiCalculator] Unparseable formula: on_time_shifts / total_shifts * 100
+[KpiCalculator] Unparseable formula: completed_on_time / total_scheduled * 100
+[KpiCalculator] Unparseable formula: total_incidents
+[KpiCalculator] Unparseable formula: resolved_alerts / total_alerts * 100
+[KpiCalculator] Unparseable formula: avg_satisfaction_score
+[KpiCalculator] Unparseable formula: compliant_readings / total_readings * 100
+[KpiCalculator] Unparseable formula: accurate_items / total_items * 100
+[KpiCalculator] Unparseable formula: nom251_score
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'SUPER_ADMIN'
+}
+[ELIFECYCLE] Command failed with exit code 4294967295.

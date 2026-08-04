@@ -16,7 +16,7 @@ export type Action = 'create' | 'read' | 'update' | 'delete' | 'manage';
 
 type PermissionMatrix = Record<Role, Partial<Record<Resource, Action[]>>>;
 
-const ROLES_HIERARCHY: Record<Role, number> = {
+export const ROLES_HIERARCHY: Record<Role, number> = {
     'SUPER_ADMIN': 100,
     'OWNER': 95,
     'ADMIN': 90,

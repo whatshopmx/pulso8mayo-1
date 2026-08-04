@@ -145,7 +145,7 @@ M  tasks/todo.md                             ← tracker
 ## ⏳ Tareas Pendientes (15) — Orden Sugerido
 
 ### Fase 7 (restante)
-- [ ] **T20** — Módulo de Protección Civil (ver arriba, EN PROGRESO)
+- [ x] **T20** — Módulo de Protección Civil (ver arriba, EN PROGRESO)
 - [ ] **T22** — Alertas IMSS: cron Inngest para recordar fechas SUA (días 7, 3, 1 antes). Patrón: ver `lib/inngest/functions/` (11 cron jobs existentes). Nuevo `lib/inngest/functions/imss-alerts.ts` con trigger `0 8 * * *` y lógica de días.
 
 ### Fase 9 (restante) — M13 Ventas/POS

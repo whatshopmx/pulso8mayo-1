@@ -11,20 +11,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SalesCutUpload } from "@/components/sales/sales-cut-upload";
 import { SalesDashboard } from "@/components/sales/sales-dashboard";
 import { FinancialKpiCards } from "@/components/sales/financial-kpi-cards";
-import { 
-  TrendingUp, 
-  Loader2, 
-  Calendar, 
-  Filter, 
-  Coins, 
-  AlertCircle, 
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Loader2,
+  Coins,
+  AlertCircle,
   CheckCircle,
-  Ticket,
   Settings2,
   BarChart3,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Store,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { statusBadgeClasses } from "@/lib/utils";
 import Link from "next/link";
 
 interface SalesCut {
@@ -61,8 +60,8 @@ export default function SalesDashboardPage() {
   const [loadingCuts, setLoadingCuts] = useState(true);
   const [loadingBranches, setLoadingBranches] = useState(true);
 
-  // Filters
-  const [selectedBranch, setSelectedBranch] = useState<string>("all");
+  // Filters — single source of truth for branch across Analytics + Cuts tabs
+  const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
@@ -89,7 +88,7 @@ export default function SalesDashboardPage() {
     setLoadingCuts(true);
     try {
       let url = "/api/sales/cuts?";
-      if (selectedBranch && selectedBranch !== "all") {
+      if (selectedBranch && selectedBranch !== "ALL") {
         url += `branchId=${selectedBranch}&`;
       }
       if (startDate) {
@@ -128,11 +127,46 @@ export default function SalesDashboardPage() {
   const getSourceBadge = (source: SalesCut["source"]) => {
     switch (source) {
       case "UPLOAD":
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Archivo POS</Badge>;
+        return <Badge variant="outline" className={statusBadgeClasses("info")}>Archivo POS</Badge>;
       case "WHATSAPP":
-        return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">WhatsApp</Badge>;
+        return <Badge variant="outline" className={statusBadgeClasses("success")}>WhatsApp</Badge>;
       case "MANUAL_FORM":
-        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Manual</Badge>;
+        return <Badge variant="outline" className={statusBadgeClasses("warning")}>Manual</Badge>;
+    }
+  };
+
+  /** Aplica un preset de fechas y dispara el fetch. */
+  const applyDatePreset = (preset: "today" | "7d" | "thisMonth" | "lastMonth") => {
+    const now = new Date();
+    const toISODate = (d: Date) => d.toISOString().slice(0, 10);
+
+    switch (preset) {
+      case "today": {
+        const today = toISODate(now);
+        setStartDate(today);
+        setEndDate(today);
+        break;
+      }
+      case "7d": {
+        const sevenAgo = new Date(now);
+        sevenAgo.setDate(sevenAgo.getDate() - 6);
+        setStartDate(toISODate(sevenAgo));
+        setEndDate(toISODate(now));
+        break;
+      }
+      case "thisMonth": {
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        setStartDate(toISODate(firstOfMonth));
+        setEndDate(toISODate(now));
+        break;
+      }
+      case "lastMonth": {
+        const firstOfLast = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastOfLast = new Date(now.getFullYear(), now.getMonth(), 0);
+        setStartDate(toISODate(firstOfLast));
+        setEndDate(toISODate(lastOfLast));
+        break;
+      }
     }
   };
 
@@ -143,9 +177,15 @@ export default function SalesDashboardPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Coins className="h-7 w-7 text-primary" /> Ventas y POS (M13)
+            <span
+              className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-muted-foreground/30 text-[10px] text-muted-foreground cursor-help"
+              title="Módulo de ingesta de cortes de ventas desde archivos POS, WhatsApp o captura manual. Los datos alimentan KPIs financieros y la proyección de flujo de efectivo."
+            >
+              ?
+            </span>
           </h1>
           <p className="text-sm text-muted-foreground">
-            Ingesta de cortes diarios, análisis por turno/canal y control de Food Cost % y Labor Cost %.
+            Ingesta de cortes diarios, análisis por turno/canal y desglose de ventas totales.
           </p>
         </div>
 
@@ -171,8 +211,29 @@ export default function SalesDashboardPage() {
 
         {/* TAB 1: Analytics & KPIs */}
         <TabsContent value="analytics" className="space-y-6">
+          {/* Common branch selector — feeds both KPIs and charts */}
+          <div className="flex items-center gap-2">
+            <Store className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Sucursal:</span>
+            <div className="w-56">
+              <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={loadingBranches}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Todas las sucursales" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Todas las sucursales (consolidado)</SelectItem>
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <FinancialKpiCards branchId={selectedBranch} />
-          <SalesDashboard branches={branches} />
+          <SalesDashboard branchId={selectedBranch} />
         </TabsContent>
 
         {/* TAB 2: Ingestion & Cuts List */}
@@ -195,7 +256,7 @@ export default function SalesDashboardPage() {
                         <SelectValue placeholder="Todas las sucursales" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Todas las sucursales</SelectItem>
+                        <SelectItem value="ALL">Todas las sucursales</SelectItem>
                         {branches.map((b) => (
                           <SelectItem key={b.id} value={b.id}>
                             {b.name}
@@ -219,13 +280,49 @@ export default function SalesDashboardPage() {
                     onChange={(e) => setEndDate(e.target.value)}
                   />
 
-                  {(selectedBranch !== "all" || startDate || endDate) && (
+                  {/* Date presets */}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      onClick={() => applyDatePreset("today")}
+                    >
+                      Hoy
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      onClick={() => applyDatePreset("7d")}
+                    >
+                      7d
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      onClick={() => applyDatePreset("thisMonth")}
+                    >
+                      Este mes
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      onClick={() => applyDatePreset("lastMonth")}
+                    >
+                      Mes ant.
+                    </Button>
+                  </div>
+
+                  {(selectedBranch !== "ALL" || startDate || endDate) && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-8 text-xs text-muted-foreground"
                       onClick={() => {
-                        setSelectedBranch("all");
+                        setSelectedBranch("ALL");
                         setStartDate("");
                         setEndDate("");
                       }}
@@ -242,10 +339,12 @@ export default function SalesDashboardPage() {
                   <Loader2 className="w-6 h-6 animate-spin mr-2" /> Cargando cortes de ventas...
                 </div>
               ) : cuts.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground space-y-2">
-                  <Coins className="w-8 h-8 text-muted-foreground/50 mx-auto" />
-                  <p className="text-sm font-medium">No se encontraron cortes de ventas en el período.</p>
-                </div>
+                <EmptyState
+                  bare
+                  icon={Coins}
+                  title="No se encontraron cortes de ventas en el período"
+                  description="Sube un archivo exportado del POS o recibe cortes por WhatsApp para empezar a registrar la operación diaria."
+                />
               ) : (
                 <div className="border rounded-md overflow-x-auto">
                   <Table>
@@ -309,16 +408,16 @@ export default function SalesDashboardPage() {
                             <TableCell>
                               <div className="flex flex-col gap-1">
                                 {cut.status === "VALIDATED" ? (
-                                  <span className="inline-flex items-center gap-1 text-xs text-green-500 font-semibold">
+                                  <span className="inline-flex items-center gap-1 text-xs text-success font-semibold">
                                     <CheckCircle className="h-3 w-3" /> Validado
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 text-xs text-yellow-500 font-semibold">
+                                  <span className="inline-flex items-center gap-1 text-xs text-warning font-semibold">
                                     <AlertCircle className="h-3 w-3" /> Observación
                                   </span>
                                 )}
                                 {cut.validationNotes && (
-                                  <span className="text-[10px] text-muted-foreground max-w-[200px] leading-tight block">
+                                  <span className="text-xs text-muted-foreground max-w-[200px] leading-tight block">
                                     {cut.validationNotes}
                                   </span>
                                 )}
@@ -327,7 +426,7 @@ export default function SalesDashboardPage() {
                             <TableCell className="text-xs">
                               <div className="flex flex-col">
                                 <span className="font-medium text-muted-foreground">{cut.receivedByName || "Sistema"}</span>
-                                <span className="text-[10px] text-muted-foreground/75">
+                                <span className="text-xs text-muted-foreground/75">
                                   {new Date(cut.receivedAt).toLocaleDateString("es-MX", {
                                     hour: "2-digit",
                                     minute: "2-digit",

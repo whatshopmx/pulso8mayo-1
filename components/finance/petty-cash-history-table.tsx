@@ -38,19 +38,19 @@ export function PettyCashHistoryTable({ transactions }: PettyCashHistoryTablePro
     switch (type) {
       case "OUT":
         return (
-          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1">
-            <ArrowUpRight className="w-3 h-3 text-amber-600" /> Retiro
+          <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
+            <ArrowUpRight className="w-3 h-3" /> Retiro
           </Badge>
         );
       case "REPLENISHMENT":
         return (
-          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1">
-            <ArrowDownLeft className="w-3 h-3 text-emerald-600" /> Reposición
+          <Badge variant="outline" className="bg-success/10 text-success border-success/20 gap-1">
+            <ArrowDownLeft className="w-3 h-3" /> Reposición
           </Badge>
         );
       case "ADJUSTMENT":
         return (
-          <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+          <Badge variant="outline" className="bg-muted text-muted-foreground border-border">
             Ajuste
           </Badge>
         );
@@ -95,7 +95,7 @@ export function PettyCashHistoryTable({ transactions }: PettyCashHistoryTablePro
                   <TableCell>{getTypeBadge(tx.type)}</TableCell>
                   <TableCell
                     className={`text-right font-bold text-xs ${
-                      tx.type === "OUT" ? "text-amber-700" : "text-emerald-700"
+                      tx.type === "OUT" ? "text-warning" : "text-success"
                     }`}
                   >
                     {tx.type === "OUT" ? `- ${formatMXN(tx.amountCents)}` : `+ ${formatMXN(tx.amountCents)}`}
@@ -104,7 +104,7 @@ export function PettyCashHistoryTable({ transactions }: PettyCashHistoryTablePro
                     <div className="flex flex-col">
                       <span className="font-semibold text-foreground">{tx.concept}</span>
                       {tx.category && (
-                        <span className="text-[10px] text-muted-foreground uppercase">{tx.category}</span>
+                        <span className="text-xs text-muted-foreground uppercase">{tx.category}</span>
                       )}
                     </div>
                   </TableCell>
@@ -113,12 +113,12 @@ export function PettyCashHistoryTable({ transactions }: PettyCashHistoryTablePro
                   </TableCell>
                   <TableCell className="text-xs">
                     <div className="flex flex-col">
-                      <span className="font-medium flex items-center gap-1 text-emerald-700">
-                        <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                      <span className="font-medium flex items-center gap-1 text-success">
+                        <ShieldCheck className="w-3 h-3" />
                         {tx.approvedByName || tx.registeredByName || "Gerente"}
                       </span>
                       {tx.authorizationNotes && (
-                        <span className="text-[10px] text-muted-foreground/80 leading-tight">
+                        <span className="text-xs text-muted-foreground/80 leading-tight">
                           "{tx.authorizationNotes}"
                         </span>
                       )}
@@ -135,7 +135,7 @@ export function PettyCashHistoryTable({ transactions }: PettyCashHistoryTablePro
                         <ImageIcon className="w-3.5 h-3.5 mr-1" /> Ticket
                       </Button>
                     ) : (
-                      <span className="text-[11px] text-muted-foreground/50">—</span>
+                      <span className="text-xs text-muted-foreground/50">—</span>
                     )}
                   </TableCell>
                 </TableRow>

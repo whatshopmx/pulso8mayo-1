@@ -4,21 +4,40 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PettyCashHistoryTable, PettyCashTransactionItem } from "@/components/finance/petty-cash-history-table";
 import { PettyCashRegister } from "@/components/finance/petty-cash-register";
-import { Wallet, AlertTriangle, CheckCircle2, ShieldCheck, Coins, Loader2 } from "lucide-react";
+import {
+  Wallet,
+  AlertTriangle,
+  CheckCircle2,
+  ShieldCheck,
+  Coins,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
 
 interface Branch {
   id: string;
   name: string;
 }
 
+interface PettyFund {
+  branchId?: string;
+  branchName?: string;
+  currentBalance: number;
+  fundAmount: number;
+  lowThreshold: number;
+}
+
 export default function PettyCashPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string>("");
-  const [fund, setFund] = useState<any>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
+  const [fund, setFund] = useState<PettyFund | null>(null);
   const [transactions, setTransactions] = useState<PettyCashTransactionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch branches
   useEffect(() => {
@@ -28,40 +47,68 @@ export default function PettyCashPage() {
         const data = await res.json();
         const list = data.data || data.branches || (Array.isArray(data) ? data : []);
         setBranches(list);
-        if (list.length > 0) {
-          setSelectedBranch(list[0].id);
-        }
       } catch (err) {
         console.error("Error fetching branches:", err);
+        setError("No se pudieron cargar las sucursales.");
       }
     }
     fetchBranches();
   }, []);
 
-  // Fetch fund & transaction audit history
+  // Fetch fund & transaction audit history (single branch, or aggregated "ALL")
   const fetchData = useCallback(async () => {
-    if (!selectedBranch) return;
+    if (branches.length === 0) return;
     setLoading(true);
+    setError(null);
     try {
-      const [fundRes, txRes] = await Promise.all([
-        fetch(`/api/petty-cash?branchId=${selectedBranch}`),
-        fetch(`/api/petty-cash/transactions?branchId=${selectedBranch}`),
-      ]);
+      const targetBranches =
+        selectedBranch === "ALL" ? branches : branches.filter((b) => b.id === selectedBranch);
 
-      const [fundJson, txJson] = await Promise.all([fundRes.json(), txRes.json()]);
+      const results = await Promise.all(
+        targetBranches.map(async (b) => {
+          const [fundRes, txRes] = await Promise.all([
+            fetch(`/api/petty-cash?branchId=${b.id}`),
+            fetch(`/api/petty-cash/transactions?branchId=${b.id}`),
+          ]);
+          const [fundJson, txJson] = await Promise.all([fundRes.json(), txRes.json()]);
+          return {
+            branchId: b.id,
+            branchName: b.name,
+            fund: fundRes.ok && fundJson.success ? (fundJson.data as PettyFund | null) : null,
+            tx: txRes.ok && txJson.success ? (txJson.data as PettyCashTransactionItem[]) : [],
+          };
+        })
+      );
 
-      if (fundRes.ok && fundJson.success) {
-        setFund(fundJson.data);
+      const fundsFound = results.filter((r) => r.fund);
+      const allTx = results.flatMap((r) => r.tx);
+
+      if (fundsFound.length === 0) {
+        setFund(null);
+        setTransactions([]);
+        return;
       }
-      if (txRes.ok && txJson.success) {
-        setTransactions(txJson.data || []);
+
+      if (selectedBranch === "ALL" && fundsFound.length > 1) {
+        // Aggregated consolidated view for the chain owner
+        setFund({
+          branchName: "Vista consolidada",
+          currentBalance: fundsFound.reduce((s, r) => s + (r.fund?.currentBalance || 0), 0),
+          fundAmount: fundsFound.reduce((s, r) => s + (r.fund?.fundAmount || 0), 0),
+          lowThreshold: fundsFound.reduce((s, r) => s + (r.fund?.lowThreshold || 0), 0),
+        });
+      } else {
+        const f = fundsFound[0].fund!;
+        setFund({ ...f, branchName: fundsFound[0].branchName });
       }
+      setTransactions(allTx);
     } catch (err) {
       console.error("Error loading petty cash data:", err);
+      setError("No se pudo cargar el estado de caja chica. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setLoading(false);
     }
-  }, [selectedBranch]);
+  }, [selectedBranch, branches]);
 
   useEffect(() => {
     fetchData();
@@ -70,8 +117,9 @@ export default function PettyCashPage() {
   const formatMXN = (cents: number) =>
     (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 
-  const isLowBalance = fund && fund.currentBalance <= fund.lowThreshold;
+  const isLowBalance = fund ? fund.currentBalance <= fund.lowThreshold : false;
   const balancePercentage = fund ? Math.round((fund.currentBalance / fund.fundAmount) * 100) : 100;
+  const thresholdPercentage = fund ? Math.round((fund.lowThreshold / fund.fundAmount) * 100) : 20;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -87,12 +135,13 @@ export default function PettyCashPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="w-48">
+          <div className="w-56">
             <Select value={selectedBranch} onValueChange={setSelectedBranch}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona sucursal" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="ALL">Vista consolidada (todas)</SelectItem>
                 {branches.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
                     {b.name}
@@ -102,7 +151,7 @@ export default function PettyCashPage() {
             </Select>
           </div>
 
-          {branches.length > 0 && (
+          {branches.length > 0 && selectedBranch !== "ALL" && (
             <PettyCashRegister branches={branches} onSuccess={fetchData} />
           )}
         </div>
@@ -112,59 +161,71 @@ export default function PettyCashPage() {
         <div className="py-12 flex justify-center text-muted-foreground">
           <Loader2 className="w-6 h-6 animate-spin mr-2" /> Cargando estado de caja chica...
         </div>
+      ) : error ? (
+        <EmptyState
+          icon={AlertCircle}
+          title="No se pudo cargar la caja chica"
+          description={error}
+          action={
+            <Button variant="outline" size="sm" onClick={fetchData}>
+              <Loader2 className="w-4 h-4 mr-2" /> Reintentar
+            </Button>
+          }
+        />
       ) : fund ? (
         <>
-          {/* Balance Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs font-medium">Saldo Disponible</CardDescription>
-                <CardTitle className="text-2xl font-bold text-foreground">
-                  {formatMXN(fund.currentBalance)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex items-center justify-between text-xs mt-1">
-                  <span className="text-muted-foreground">
-                    Fondo Total: {formatMXN(fund.fundAmount)}
-                  </span>
-                  {isLowBalance ? (
-                    <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 gap-1 text-xs">
-                      <AlertTriangle className="w-3 h-3" /> Reposición Requerida (&lt;20%)
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 text-xs">
-                      <CheckCircle2 className="w-3 h-3" /> Suficiente ({balancePercentage}%)
-                    </Badge>
-                  )}
+          {/* Distilled status surface — one prominent figure + inline threshold bar + movements line */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardDescription className="text-xs font-medium">
+                  Saldo Disponible{fund.branchName ? ` · ${fund.branchName}` : ""}
+                </CardDescription>
+                {isLowBalance ? (
+                  <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 gap-1 text-xs">
+                    <AlertTriangle className="w-3 h-3" /> Reposición requerida (&lt;{thresholdPercentage}%)
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-success/10 text-success border-success/20 gap-1 text-xs">
+                    <CheckCircle2 className="w-3 h-3" /> Suficiente ({balancePercentage}%)
+                  </Badge>
+                )}
+              </div>
+              <CardTitle className="text-3xl font-bold text-foreground pt-1">
+                {formatMXN(fund.currentBalance)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Inline threshold bar: currentBalance as % of fundAmount, mark at threshold */}
+              <div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                  <span>Fondo total: {formatMXN(fund.fundAmount)}</span>
+                  <span>Umbral de alerta: {formatMXN(fund.lowThreshold)}</span>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="relative w-full h-2.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`absolute inset-y-0 left-0 rounded-full transition-all ${
+                      isLowBalance ? "bg-destructive" : "bg-success"
+                    }`}
+                    style={{ width: `${Math.min(Math.max(balancePercentage, 0), 100)}%` }}
+                  />
+                  {/* Threshold mark */}
+                  <div
+                    className="absolute inset-y-0 w-px bg-foreground/40"
+                    style={{ left: `${Math.min(Math.max(thresholdPercentage, 0), 100)}%` }}
+                    aria-hidden
+                  />
+                </div>
+              </div>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs font-medium">Umbral Mínimo de Alerta</CardDescription>
-                <CardTitle className="text-2xl font-bold text-muted-foreground">
-                  {formatMXN(fund.lowThreshold)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 text-xs text-muted-foreground mt-1">
-                Dispara alerta de Inngest al bajar del 20%
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs font-medium">Total de Movimientos</CardDescription>
-                <CardTitle className="text-2xl font-bold text-foreground">
-                  {transactions.length}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" /> Auditado con firma y foto
-              </CardContent>
-            </Card>
-          </div>
+              {/* Movements as a demoted secondary line, not its own card */}
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1 border-t">
+                <ShieldCheck className="w-4 h-4 text-success" />
+                <span className="font-medium text-foreground">{transactions.length}</span>
+                movimientos auditados con firma y comprobante fotográfico.
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Audit History Table */}
           <Card>
@@ -181,7 +242,22 @@ export default function PettyCashPage() {
             </CardContent>
           </Card>
         </>
-      ) : null}
+      ) : (
+        <EmptyState
+          icon={Wallet}
+          title="Sin caja chica en esta sucursal"
+          description={
+            selectedBranch === "ALL"
+              ? "Ninguna sucursal tiene un fondo de caja chica registrado. Crea el primero desde una sucursal específica."
+              : "Esta sucursal aún no tiene fondo de caja chica. Registra el primer movimiento para inicializar el fondo."
+          }
+          action={
+            selectedBranch !== "ALL" && branches.length > 0 ? (
+              <PettyCashRegister branches={branches} onSuccess={fetchData} />
+            ) : undefined
+          }
+        />
+      )}
     </div>
   );
 }

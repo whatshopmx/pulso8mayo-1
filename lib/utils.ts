@@ -12,6 +12,25 @@ export function formatCurrency(value: number, currency = 'MXN'): string {
   }).format(value);
 }
 
+/**
+ * Helper que produce clases de badge compuestas para estados semánticos.
+ * Usa las variantes nativas de Badge (outline) + tonalidades de diseño.
+ *
+ * Colores soportados: success | warning | destructive | info | neutral
+ */
+export function statusBadgeClasses(
+  status: "success" | "warning" | "destructive" | "info" | "neutral"
+): string {
+  const map: Record<string, string> = {
+    success: "bg-success/10 text-success border-success/20",
+    warning: "bg-warning/10 text-warning border-warning/20",
+    destructive: "bg-destructive/10 text-destructive border-destructive/20",
+    info: "bg-info/10 text-info border-info/20",
+    neutral: "bg-muted text-muted-foreground border-muted",
+  };
+  return map[status] ?? map.neutral;
+}
+
 export function exportToCSV<T extends Record<string, unknown>>(
   data: T[],
   columns: { key: keyof T; label: string }[],

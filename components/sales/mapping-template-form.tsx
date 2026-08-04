@@ -242,17 +242,17 @@ export function MappingTemplateForm({ onSaved, onCancel }: MappingTemplateFormPr
                     <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                     <span className="font-mono text-xs truncate font-medium">{col.header}</span>
                     {col.confidence === "high" && (
-                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 text-[10px] py-0">
+                      <Badge variant="outline" className="bg-success/10 text-success border-success/20 gap-1 text-xs py-0">
                         <CheckCircle2 className="w-3 h-3" /> Exacto
                       </Badge>
                     )}
                     {col.confidence === "medium" && (
-                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 text-[10px] py-0">
+                      <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1 text-xs py-0">
                         <AlertCircle className="w-3 h-3" /> Aproximado
                       </Badge>
                     )}
                     {col.confidence === "none" && (
-                      <Badge variant="outline" className="bg-slate-50 text-slate-500 border-slate-200 gap-1 text-[10px] py-0">
+                      <Badge variant="outline" className="bg-muted text-muted-foreground border-border gap-1 text-xs py-0">
                         <HelpCircle className="w-3 h-3" /> Sin asignar
                       </Badge>
                     )}

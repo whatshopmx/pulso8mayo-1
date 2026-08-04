@@ -338,13 +338,17 @@
 │                                                                  │
 │  Lo que ve:                                                      │
 │  • Dashboard de su sucursal: KPIs, tareas, incidentes            │
-│  • Workflows asignados a su sucursal                             │
+│  • Workflows asignados a su sucursal (incluye Cierre con         │
+│    upload de archivo POS)                                        │
 │  • Estado de cada tarea: completada, pendiente, vencida          │
 │  • Alertas de su sucursal: stock bajo, documento por vencer      │
 │  • Equipo: asistencia, turnos, descansos, vacaciones             │
 │  • Inventario de su sucursal                                     │
 │  • Ventas del día, caja chica, gastos operativos de su sucursal  │
-│  • Arqueo de caja y corte de ventas diario                       │
+│  • Cruce de cortes de caja (cajeros) vs archivo POS diario       │
+│  • Recibe alerta si un cajero no completó su corte a tiempo      │
+│                                                                  │
+│  Frecuencia de uso: Constante durante el turno                   │
 │                                                                  │
 │  Frecuencia de uso: Constante durante el turno                   │
 │                                                                  │
@@ -451,12 +455,24 @@
 │  │ • Verificación de temperaturas, encendido de equipos,     │   │
 │  │   revisión de áreas, preparación de estaciones            │   │
 │  │                                                           │   │
+│  │ CORTE DE CAJA (POR TURNO)                                 │   │
+│  │ • 6 pasos, 1 responsable (cajero), 5 min objetivo         │   │
+│  │ • Smart Link con formulario de totales: efectivo, tarjeta, │   │
+│  │   cupones, delivery apps (Rappi, Uber, DiDi), número de   │   │
+│  │   tickets. El cajero lo completa desde su celular al      │   │
+│  │   final de cada turno.                                     │   │
+│  │ • Datos inmediatos en dashboard de ventas.                 │   │
+│  │ • Si no se completa en 15 min → escala al gerente.         │   │
+│  │                                                           │   │
 │  │ CIERRE DE SUCURSAL                                        │   │
 │  │ • 34 pasos, 5 responsables, 45 min objetivo               │   │
 │  │ • Arqueo de caja, limpieza profunda, apagado de equipos,  │   │
 │  │   revisión de inventario faltante, cierre de bitácoras    │   │
-│  │   Incluye: envío de corte de ventas (POS) vía WhatsApp    │   │
-│  │   o validación automática si ya se recibió por correo     │   │
+│  │   Incluye: paso con Smart Link para que el gerente suba   │   │
+│  │   el archivo completo del POS (CSV/Excel). Alternativa:   │   │
+│  │   CC automático a ventas-[sucursal]@pulso.mx desde el     │   │
+│  │   correo que el POS ya envía. El workflow verifica que    │   │
+│  │   el archivo haya llegado antes de completar el cierre.    │   │
 │  │                                                           │   │
 │  │ LIMPIEZA NOM-251                                          │   │
 │  │ • 28 pasos por área, frecuencia variable                  │   │
@@ -720,7 +736,8 @@
 │  • Reporte semanal/mensual listo                                 │
 │  • Compliance score bajó del umbral                              │
 │  • Predicción de riesgo (auditoría, incidente)                   │
-│  • Corte de ventas no recibido (recordatorio de cierre)          │
+│  • Corte de ventas no registrado (workflow de cierre con         │
+│    paso Smart Link vencido — escala igual que tarea vencida)     │
 │  • Factura no conciliada con recepción de mercancía              │
 │  • Gasto pendiente de autorización                               │
 │  • Vencimiento de cuenta por pagar                               │
@@ -763,14 +780,27 @@
 │  lento. En lugar de eso, Pulso se alimenta del corte de ventas   │
 │  (Excel/CSV) que el POS ya genera todos los días.                │
 │                                                                  │
-│  Canales de ingesta:                                             │
-│  • Adjunto en WhatsApp: en el mismo hilo donde el gerente hace   │
-│    el cierre de sucursal — cero herramienta nueva                 │
-│  • Buzón de correo con copia (CC): el cliente agrega             │
-│    ventas-[sucursal]@pulso.mx en copia del correo automático     │
-│    que el POS ya envía — cero fricción, cero cambio de hábito    │
-│  • Upload manual en dashboard: respaldo cuando no llega por      │
-│    los otros dos canales                                         │
+│  Canales de ingesta (dos workflows, dos niveles de detalle):    │
+│                                                                  │
+│  NIVEL 1 — CORTE DE CAJA (Workflow del Cajero, por turno):      │
+│  • Smart Link con formulario de totales: efectivo, tarjeta,     │
+│    cupones, delivery apps, número de tickets                    │
+│  • El cajero lo completa en 2-3 min desde su celular al         │
+│    final de su turno                                            │
+│  • Datos inmediatos: venta total del turno, proporción          │
+│    efectivo/tarjeta, canal delivery — suficiente para el        │
+│    dashboard en tiempo real y cruces básicos                    │
+│                                                                  │
+│  NIVEL 2 — CIERRE DE SUCURSAL (Workflow del Gerente, diario):   │
+│  • El gerente sube el archivo completo del POS (CSV/Excel)      │
+│    vía Smart Link en el workflow de cierre, O BIEN              │
+│  • Configura una sola vez CC automático en el correo del POS:   │
+│    ventas-[sucursal]@pulso.mx — cero fricción diaria            │
+│  • El workflow verifica que el archivo haya llegado; si no,     │
+│    pide al gerente que lo suba manualmente                      │
+│  • Datos detallados: desglose por categoría de menú, ticket     │
+│    promedio, canales, formas de pago — alimenta analytics       │
+│    y cruces con food cost y labor cost                          │
 │                                                                  │
 │  Procesamiento:                                                  │
 │  • Plantilla de mapeo de columnas por tipo de POS, configurada   │
@@ -780,14 +810,26 @@
 │    esperadas presentes, nada en cero inesperado                  │
 │                                                                  │
 │  Integración al cierre de sucursal (Módulo 1):                   │
-│  • Workflow de cierre → arqueo de caja → "Ventas del día         │
-│    registradas" ✓ (automático si ya llegó el archivo)            │
-│  • Si no se ha recibido: recordatorio en WhatsApp al gerente     │
-│  • Si pasa tiempo límite: escala igual que tarea vencida         │
+│  • Workflow "Corte de Caja" (cajero, por turno): Smart Link     │
+│    con formulario de totales → datos inmediatos en dashboard     │
+│  • Workflow "Cierre de Sucursal" (gerente, diario): paso        │
+│    "Subir archivo POS" con Smart Link para upload CSV/Excel.     │
+│    Alternativa: CC automático del correo POS a                   │
+│    ventas-[sucursal]@pulso.mx — el sistema detecta el archivo   │
+│    y marca el paso como ✓ sin intervención del gerente.          │
+│  • Si no se completa a tiempo: recordatorio y escalamiento       │
+│    igual que cualquier tarea vencida del workflow                │
+│  • El cierre de sucursal no se completa sin archivo POS —        │
+│    queda blindado por el propio motor de workflows               │
 │                                                                  │
 │  Fallback para el cliente más chico:                             │
-│  • Formulario corto por WhatsApp (venta total, efectivo vs.      │
-│    tarjeta, número de tickets) — suficiente para cruces básicos  │
+│  • Sin archivo POS: el workflow de Corte de Caja (cajero)        │
+│    con el formulario de totales es suficiente para arrancar      │
+│  • Cuando el cliente crece y adopta el archivo POS, se activa    │
+│    el paso de upload en el workflow de Cierre (Nivel 2)          │
+│  • El formulario del cajero y el archivo del gerente se          │
+│    cruzan automáticamente — si hay discrepancia >5%, se          │
+│    marca para revisión (detección de fraude o error)             │
 │                                                                  │
 │  Datos que alimenta:                                             │
 │  • Venta por sucursal, por turno, por categoría de menú          │
@@ -1089,12 +1131,20 @@
 │  ─────────────────────────                                       │
 │  Workflow "Cambio de Turno Matutino → Vespertino."               │
 │                                                                  │
-│  Juan (saliente) reporta:                                        │
+│  Antes del cambio, workflow "Corte de Caja" para Ana (cajera     │
+│  turno matutino): recibe notificación WhatsApp con Smart Link.   │
+│  Ana toca el link, ingresa:                                      │
+│  • Efectivo: $12,400 | Tarjeta: $8,200 | Cupones: $300          │
+│  • Delivery Apps: Rappi $3,100 + Uber $2,400 + DiDi $1,200      │
+│  • Tickets: 94                                                   │
+│  Total turno matutino: $27,600 ✓                                  │
+│                                                                  │
+│  Juan (gerente saliente) reporta:                                │
 │  • Una incidencia: proveedor incompleto (aguacate)               │
 │  • Un pendiente: limpieza de trampa de grasa                     │
 │  • Consumo de insumos del turno                                  │
 │                                                                  │
-│  Carlos (entrante) recibe y firma conformidad.                   │
+│  Carlos (gerente entrante) recibe y firma conformidad.           │
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
@@ -1121,10 +1171,21 @@
 │                                                                  │
 │  10:00 PM — CIERRE                                              │
 │  ────────────────                                                │
-│  Workflow "Cierre Centro" se dispara. 34 pasos.                  │
+│  Workflow "Corte de Caja" para Luis (cajero turno vespertino):   │
+│  Smart Link con totales del turno → $22,400 registrados.         │
+│                                                                  │
+│  Workflow "Cierre Centro" se dispara para Carlos (gerente).      │
+│  34 pasos.                                                       │
 │                                                                  │
 │  • Arqueo de caja (foto de corte)                                │
-│  • Adjuntar corte de ventas del POS (foto/archivo)               │
+│  • Smart Link: "Subir archivo POS" → Carlos toca el link,        │
+│    sube el CSV/Excel del día completo. Alternativa: el POS ya    │
+│    envió el archivo por correo a ventas-centro@pulso.mx y el     │
+│    sistema lo detectó automáticamente → paso marcado ✓ solo.     │
+│    El sistema cruza totales del archivo vs suma de cortes de     │
+│    caja de ambos turnos ($27,600 + $22,400 = $50,000 vs          │
+│    archivo POS $49,580). Diferencia de $420 (0.8%) — dentro      │
+│    de tolerancia. ✓                                              │
 │  • Limpieza profunda de cocina                                   │
 │  • Conteo de inventario final del día                            │
 │  • Apagado de equipos                                            │
@@ -1145,7 +1206,8 @@
 │  │ Merma reportada:   Pollo -4kg ($480)                      │   │
 │  │ Horas extra:       0                                       │   │
 │  │ Asistencia:        6/6 empleados presentes                 │   │
-│  │ Venta del día:     $34,580 (corte recibido ✓)             │   │
+│  │ Venta del día:     $49,580 (archivo POS ✓. Cruzado con    │   │
+│  │                    cortes de caja: diferencia 0.8% OK)     │   │
 │  │ Caja chica:        $180 gastado (2 tickets)               │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
@@ -1240,7 +1302,8 @@
 │  • Documento de empleado por vencer (7, 3, 1 día)                │
 │  • Proveedor con 2+ incidencias en el mes                       │
 │  • Auditoría de COFEPRIS en el sector/colonia (alerta externa)   │
-│  • Corte de ventas no recibido al cierre del día                │
+│  • Corte de ventas no registrado al cierre del día (workflow     │
+│    de cierre con paso Smart Link vencido)                        │
 │  • Costo de alimentos > 35% de venta en cualquier sucursal       │
 │  • Factura no conciliada con recepción después de 48 hrs         │
 │  • Proveedor aparece en listas negras del SAT                    │
@@ -1311,8 +1374,10 @@
 │  ✅ Reportar ausencia: "No puedo ir hoy, estoy enfermo"          │
 │  ✅ Recibir anuncios del grupo: "Junta general el viernes"       │
 │  ✅ Recibir capacitación: videos, guías, quizzes                 │
-│  ✅ Enviar corte de ventas: adjuntar archivo/CSV del POS         │
-│  ✅ Reportar gasto de caja chica: foto de ticket + monto         │
+│  ✅ Completar Smart Links del workflow: el sistema envía         │
+│     links que abren formularios web (corte de ventas, gasto      │
+│     de caja chica, reporte de incidente). El empleado toca,      │
+│     completa y el workflow avanza automáticamente.               │
 │  ✅ Enviar nota de voz como evidencia (transcrita autom.)        │
 │                                                                  │
 │  ❌ NO puede: ver dashboard completo, modificar workflows,       │
@@ -1345,6 +1410,52 @@
 │                                                                  │
 │  [07:38] Pulso: "🎉 Checklist Apertura Cocina completado.        │
 │           18/18 pasos. 26 minutos. ¡Buen turno, María!"          │
+│                                                                  │
+│  ────────────────────────────────────────────────────           │
+│                                                                  │
+│  FLUJO CON SMART LINK (CORTE DE CAJA — CAJERO)                  │
+│  ────────────────────────────────────────────                   │
+│                                                                  │
+│  [13:55] Pulso: "Ana, el turno matutino está por terminar.      │
+│           Completa el Corte de Caja antes de entregar.           │
+│           📊 https://pulso.mx/w/corte-caja-matutino              │
+│           Ingresa los totales: efectivo, tarjeta, delivery       │
+│           apps y número de tickets. Vence: 14:15."              │
+│                                                                  │
+│  [13:58] Ana toca el link → formulario web:                      │
+│          Efectivo: $12,400 | Tarjeta: $8,200 | Cupones: $300    │
+│          Rappi: $3,100 | Uber: $2,400 | DiDi: $1,200            │
+│          Tickets: 94 → Confirma.                                 │
+│                                                                  │
+│  [13:58] Pulso: "✅ Corte de caja registrado: $27,600.           │
+│           94 tickets. ¡Buen turno, Ana!"                         │
+│                                                                  │
+│  ────────────────────────────────────────────────────           │
+│                                                                  │
+│  FLUJO CON SMART LINK (CIERRE — ARCHIVO POS DEL GERENTE)         │
+│  ───────────────────────────────────────────────────────         │
+│                                                                  │
+│  [22:00] Pulso: "Carlos, inicia el Cierre de Sucursal Centro.   │
+│           Paso 22/34: Subir archivo del POS.                     │
+│           📊 https://pulso.mx/w/cierre-centro/upload-pos         │
+│           Adjunta el CSV/Excel del día o verifica que el correo  │
+│           automático ya lo envió. Vence: 22:30."                 │
+│                                                                  │
+│  [22:05] Carlos toca el link → ve que el sistema ya detectó      │
+│          el archivo enviado por el POS a ventas-centro@pulso.mx. │
+│          Sistema: "Archivo recibido automáticamente. Venta       │
+│          total: $49,580. Cruzado contra cortes de caja del       │
+│          día ($27,600 matutino + $22,400 vespertino = $50,000).  │
+│          Diferencia: 0.8%. Dentro de tolerancia. ✓"              │
+│          Carlos confirma → paso completado.                       │
+│                                                                  │
+│  [22:06] Pulso: "✅ Archivo POS validado. $49,580.              │
+│           187 tickets. Paso 22/34 completado.                    │
+│           Paso 23/34: Limpieza profunda de cocina..."            │
+│                                                                  │
+│  💡 Si el archivo no hubiera llegado por correo, Carlos lo       │
+│     sube manualmente desde el mismo Smart Link (igual que        │
+│     el formulario de upload que ya existe en el dashboard).      │
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │

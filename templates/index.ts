@@ -44,6 +44,11 @@ import seguridadLocal from './seguridad/seguridad-local-v1.json';
 // Inventario
 import conteoInventarioV1 from './inventory/conteo-inventario-v1.json';
 
+// Finanzas
+import retiroCajaChicaV1 from './finanzas/retiro-caja-chica-v1.json';
+import corteCajaV1 from './finanzas/corte-caja.json';
+import cierreSucursalV2 from './finanzas/cierre-sucursal.json';
+
 
 const normalizeTemplate = (json: any): Template => {
   return {
@@ -148,6 +153,11 @@ export const templateLibrary: Record<string, Template> = {
 
   // Inventario (1)
   'conteo-inventario-v1': normalizeTemplate(conteoInventarioV1),
+
+  // Finanzas (3)
+  'retiro-caja-chica-v1': normalizeTemplate(retiroCajaChicaV1),
+  'corte-caja-v1': normalizeTemplate(corteCajaV1),
+  'cierre-sucursal-v2': normalizeTemplate(cierreSucursalV2),
 };
 
 

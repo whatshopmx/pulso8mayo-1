@@ -1,0 +1,102 @@
+{
+  "id": "tpl-corte-caja-v1",
+  "nombre": "💰 Corte de Caja Diario",
+  "descripcion": "Registro de ventas por canal: efectivo, tarjeta, cupones, y agregadores (Rappi, Uber, Didi). El cajero registra los totales desde su celular 15 min antes del fin de turno.",
+  "categoria": "FINANZAS",
+  "version": 1,
+  "activo": true,
+  "requiereIA": false,
+  "duracionEstimada": "2-3 min",
+  "tags": ["corte-caja", "ventas", "cierre", "cajero", "turno"],
+  "responsable": {
+    "rol": "CAJERO",
+    "descripcion": "Cajero o encargado de turno"
+  },
+
+  "pasos": [
+    {
+      "id": "paso-efectivo",
+      "type": "NumberField",
+      "titulo": "Ventas en Efectivo ($ MXN)",
+      "descripcion": "Total de efectivo en caja al cierre del turno. Cuenta billetes y monedas.",
+      "obligatorio": true,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-tarjeta",
+      "type": "NumberField",
+      "titulo": "Ventas con Tarjeta ($ MXN)",
+      "descripcion": "Suma de todos los vouchers de terminal bancaria del turno.",
+      "obligatorio": true,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-cupones",
+      "type": "NumberField",
+      "titulo": "Cupones y Vales ($ MXN)",
+      "descripcion": "Total de cupones, vales de despensa, o tarjetas de regalo recibidas.",
+      "obligatorio": false,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-rappi",
+      "type": "NumberField",
+      "titulo": "Rappi ($ MXN)",
+      "descripcion": "Total de órdenes recibidas y completadas vía Rappi durante el turno.",
+      "obligatorio": false,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-uber",
+      "type": "NumberField",
+      "titulo": "Uber Eats ($ MXN)",
+      "descripcion": "Total de órdenes recibidas vía Uber Eats durante el turno.",
+      "obligatorio": false,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-didi",
+      "type": "NumberField",
+      "titulo": "Didi Food ($ MXN)",
+      "descripcion": "Total de órdenes recibidas vía Didi Food durante el turno.",
+      "obligatorio": false,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-tickets",
+      "type": "NumberField",
+      "titulo": "Total de Tickets / Comandas",
+      "descripcion": "Número total de tickets o comandas atendidas en el turno (mesa + para llevar).",
+      "obligatorio": false,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-foto",
+      "type": "PhotoField",
+      "titulo": "Foto del Corte de Caja",
+      "descripcion": "Toma una foto clara del reporte de cierre de terminal POS o del cuadre manual.",
+      "obligatorio": true,
+      "evidenceRequired": true
+    },
+    {
+      "id": "paso-confirmacion",
+      "type": "smart_link",
+      "titulo": "Confirmar y Enviar Corte",
+      "descripcion": "Revisa los montos ingresados y confirma. El sistema registrará automáticamente el corte en el dashboard de ventas.",
+      "obligatorio": true,
+      "smartLinkTarget": "/api/workflows/smart-links/corte-caja"
+    }
+  ],
+
+  "completionActions": [
+    {
+      "type": "create_sales_cut",
+      "description": "Crea el registro de corte de caja en dailySalesCuts"
+    },
+    {
+      "type": "notify",
+      "target": "gerente",
+      "message": "El cajero ha completado el corte de caja del turno."
+    }
+  ]
+}
