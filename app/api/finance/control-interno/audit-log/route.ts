@@ -1,11 +1,16 @@
 import { NextRequest } from "next/server";
-import { requireTenant } from "@/lib/tenant-context";
+import { requirePermissionApi } from "@/lib/rbac/abac";
 import { ApiHandler } from "@/lib/api/response";
-import { ApiError } from "@/lib/api/error";
 import { getAuditTrail } from "@/lib/services/control-interno-service";
 
 /**
  * GET /api/finance/control-interno/audit-log
+ *
+ * Migrated to `requirePermissionApi('reports','read', { classification:
+ * 'FINANCIAL' })` (Sprint 2 Track B). The query `branchId` is passed as
+ * `targetBranchId` so ABAC step 2 can 403 a branch-scoped role that passes a
+ * foreign branch id (docs §3 Brecha 1). Audit trails are aggregates by
+ * action/severity — no PII fields, so allow+redact is plaintext-equivalent.
  *
  * Query params:
  *   - branchId   (optional)
@@ -17,20 +22,27 @@ import { getAuditTrail } from "@/lib/services/control-interno-service";
  */
 export async function GET(req: NextRequest) {
   try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get("branchId") || undefined;
-    const action = searchParams.get("action") as any || undefined;
+    const action =
+      (searchParams.get("action") as
+        | "CREATED"
+        | "APPROVED"
+        | "REJECTED"
+        | "PAID"
+        | "EDITED"
+        | undefined) || undefined;
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
     const limit = parseInt(searchParams.get("limit") || "50", 10);
     const offset = parseInt(searchParams.get("offset") || "0", 10);
 
-    const result = await getAuditTrail(tenant.id, {
+    const { ctx } = await requirePermissionApi("reports", "read", {
+      classification: "FINANCIAL",
+      targetBranchId: branchId,
+    });
+
+    const result = await getAuditTrail(ctx.userCompanyId, {
       branchId,
       action,
       startDate,

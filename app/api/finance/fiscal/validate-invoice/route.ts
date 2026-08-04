@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAuth, requireTenant } from "@/lib/tenant-context";
+import { requirePermissionApi } from "@/lib/rbac/abac";
 import { ApiHandler } from "@/lib/api/response";
-import { ApiError } from "@/lib/api/error";
 import { validateInvoice } from "@/lib/services/fiscal-service";
 
 const validateSchema = z.object({
@@ -16,14 +15,18 @@ const validateSchema = z.object({
 /**
  * POST /api/finance/fiscal/validate-invoice
  * Validates a CFDI invoice against the SAT via FiscalAPI.
+ *
+ * Migrated to `requirePermissionApi('reports','read', { classification:
+ * 'FINANCIAL' })` (Sprint 2 Track B). The redundant `requireAuth()` call is
+ * dropped — `requirePermissionApi` authenticates via `requireRoleApi` (throws
+ * 401 unauthenticated), so authentication is preserved. Read action: this
+ * route validates a CFDI without persisting anything.
  */
 export async function POST(req: NextRequest) {
   try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-    await requireAuth();
+    await requirePermissionApi("reports", "read", {
+      classification: "FINANCIAL",
+    });
 
     const body = await req.json();
     const data = validateSchema.parse(body);

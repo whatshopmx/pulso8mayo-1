@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAuth, requireTenant } from "@/lib/tenant-context";
+import { requirePermissionApi } from "@/lib/rbac/abac";
 import { ApiHandler } from "@/lib/api/response";
-import { ApiError } from "@/lib/api/error";
 import { timbrarNomina } from "@/lib/services/fiscal-service";
 
 const timbrarSchema = z.object({
@@ -18,14 +17,18 @@ const timbrarSchema = z.object({
 /**
  * POST /api/finance/fiscal/timbrar-nomina
  * Generates CFDI nómina digital stamp via FiscalAPI.
+ *
+ * Migrated to `requirePermissionApi('reports','manage', { classification:
+ * 'FINANCIAL' })` (Sprint 2 Track B). Uses 'manage' (not 'read') because
+ * timbrar is a mutating fiscal action that mints a CFDI. The redundant
+ * `requireAuth()` call is dropped — `requirePermissionApi` authenticates via
+ * `requireRoleApi` (throws 401 unauthenticated).
  */
 export async function POST(req: NextRequest) {
   try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-    await requireAuth();
+    await requirePermissionApi("reports", "manage", {
+      classification: "FINANCIAL",
+    });
 
     const body = await req.json();
     const data = timbrarSchema.parse(body);
