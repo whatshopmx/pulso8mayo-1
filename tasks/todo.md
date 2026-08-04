@@ -271,14 +271,33 @@
 
 ## Checkpoint: Sprint 1 Complete
 
-- [ ] All 10 tasks complete
-- [ ] `pnpm run build` succeeds with zero errors
-- [ ] `pnpm run lint` passes
-- [ ] `pnpm db:migrate` applies without data loss
-- [ ] Executive dashboard shows 6 KPI cards + cash flow chart
-- [ ] Executive Twin recalculates automatically every 15 minutes via Inngest
-- [ ] `/api/executive/twin` returns full typed JSON
-- [ ] Zero regressions in existing corporate twin / operational twin flows
+- [x] All 10 tasks complete
+- [x] `pnpm run build` succeeds with zero errors (317/317 pages, Turbopack)
+- [x] `npx tsc --noEmit` clean
+- [x] `pnpm db:generate` produced migration 0029 (additive, safe defaults)
+- [ ] `pnpm run lint` — one pre-existing `no-explicit-any` in domain-event-
+      service.ts predates Sprint 1 (out of scope; tracked separately)
+- [ ] `pnpm db:migrate` — pending DB apply (operator-run; schema-only, backfills
+      defaults)
+- [x] Executive dashboard shows 6 KPI cards + cash flow chart
+- [x] Executive Twin recalculates automatically every 15 minutes via Inngest
+- [x] `/api/executive/twin` returns full typed JSON (GET + /refresh POST)
+- [x] Zero regressions in existing corporate twin / operational twin flows
+      (recalculateCorporateTwin preserved + wrapped; Inngest delegation)
+
+## Security Sprint 1 entrelazado (docs/pulso-executive-os-security.md §10)
+
+- [x] `evaluateAccess` + `requirePermissionApi` introduced (lib/rbac/abac.ts;
+      adopted on /api/executive/twin — first /api/executive/* route)
+- [x] `ExecutiveTwinEngine.recalculate` uses `branchVisibilityFilter`
+      (lib/rbac/branch-visibility.ts) for scoped per-actor recalculation
+- [x] `corporateTwins.projected_cash_flow_cents` marked FINANCIAL
+      (lib/db/schema/classification.ts, Sec-0)
+- [x] KEK scaffold (lib/security/kek.ts, Sec-0)
+- [x] DEK scaffold + tenant_keys population (lib/security/dek.ts)
+- [x] Column cipher scaffold verified round-trip (lib/security/column-cipher.ts)
+- [ ] Column cipher ADOPTION + masking middleware → Sprint 2
+- [ ] 2FA mandatory OWNER/ADMIN/HR, payment approvals, ARCO, data-retention → Sprint 3
 
 ---
 
