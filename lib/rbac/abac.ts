@@ -22,7 +22,10 @@
  */
 import type { Role, Resource, Action } from "@/lib/permissions";
 import { hasPermission } from "@/lib/permissions";
-import { SENSITIVE_GATE_ROLES } from "@/lib/db/schema/classification";
+import {
+  SENSITIVE_GATE_ROLES,
+  FINANCIAL_FIELDS,
+} from "@/lib/db/schema/classification";
 import type { DataClassification } from "@/lib/db/schema/classification";
 import { requireRoleApi } from "@/lib/rbac/require-role";
 import { ApiError } from "@/lib/api/error";
@@ -68,6 +71,32 @@ export interface AccessDecision {
 const BRANCH_SCOPED_ROLES: Role[] = ["GERENTE", "SUPERVISOR", "EMPLEADO"];
 
 /**
+ * Roles that read FINANCIAL data masked (never plaintext) even when allowed.
+ * Pilar 2 §6.2 — gate roles (SUPER_ADMIN/OWNER/ADMIN) see plaintext; everyone
+ * else sees `redactFields` masked by lib/rbac/masking.ts (Sprint 2 Task 3).
+ * SENSITIVE stays deny-by-default for these roles (strict; HR arrives Sprint 3).
+ */
+const FINANCIAL_MASKED_ROLES: Role[] = [
+  "GERENTE",
+  "SUPERVISOR",
+  "EMPLEADO",
+  "READONLY",
+];
+
+/**
+ * Candidate field names to redact on a FINANCIAL read by a masked role.
+ * Flattened from `FINANCIAL_FIELDS` so it stays data-driven (no hand-maintained
+ * list to drift). `masking.ts` only redacts keys that actually appear in the
+ * serialized response, so listing aggregate-shaped names (e.g.
+ * `projected_cash_flow_cents`) is harmless for routes that don't return them.
+ */
+const FINANCIAL_REDACT_FIELDS: readonly string[] = Array.from(
+  new Set(
+    Object.values(FINANCIAL_FIELDS).flat(),
+  ),
+);
+
+/**
  * Evaluate access on 4 axes (role ⊕ branch ⊕ classification ⊕ ownership).
  *
  * Returns a fully-populated AccessDecision. Callers should log the decision
@@ -93,20 +122,37 @@ export function evaluateAccess(
     return { allowed: false, reason: "branch-out-of-scope" };
   }
 
-  // 3. Data classification gate — SENSITIVE/FINANCIAL needs an elevated role.
+  // 3. Data classification gate (Pilar 2).
+  //    SENSITIVE → deny for non-gate roles (strict; HR arrives Sprint 3).
+  //    FINANCIAL → allow for masked roles with `redactFields` populated so
+  //    masking.ts (Task 3) can redact PII; gate roles read plaintext. This keeps
+  //    route migration (Track B Task 1) regression-free: a GERENTE who today
+  //    reads an aggregate (cash-flow/pnl/kpis) keeps reading it (no PII to mask →
+  //    plaintext-equivalent), and only PII-bearing routes (payroll/export) get
+  //    redaction once Task 3 wires the maskers onto `decision.redactFields`.
   const classification: DataClassification | undefined =
     target?.dataClassification;
-  if (classification === "SENSITIVE" || classification === "FINANCIAL") {
+  if (classification === "SENSITIVE") {
     if (!SENSITIVE_GATE_ROLES.has(ctx.userRole)) {
       return { allowed: false, reason: "insensitive-data-gate" };
     }
-    // Lower roles that somehow pass the base matrix still get masked values.
-    // (Masked fields are computed by lib/rbac/masking.ts in Sprint 2 — declared
-    // here so the API layer can ask for them without recomputing the decision.)
-    if (ctx.userRole === "ADMIN") {
-      // ADMIN reads but financial PII is masked unless acting for the group.
-      // Sprint 2 refines; Sprint 1 leaves ADMIN full read (no redaction yet).
+  } else if (classification === "FINANCIAL") {
+    if (!SENSITIVE_GATE_ROLES.has(ctx.userRole)) {
+      // Non-gate role: allow the read, but flag every candidate FINANCIAL field
+      // for redaction. masking.ts is a no-op until Task 3, so the interim is
+      // plaintext-equivalent for routes with no PII fields (no regression);
+      // PII-bearing routes must be migrated with SENSITIVE (deny) or wait for
+      // Task 3 before relying on this allow+redact path.
+      if (FINANCIAL_MASKED_ROLES.includes(ctx.userRole)) {
+        return {
+          allowed: true,
+          redactFields: [...FINANCIAL_REDACT_FIELDS],
+        };
+      }
+      // Role outside both gate and masked set (e.g. a future role) → deny.
+      return { allowed: false, reason: "insensitive-data-gate" };
     }
+    // Gate roles (SUPER_ADMIN/OWNER/ADMIN) read FINANCIAL plaintext.
   }
 
   // 4. Franchise isolation (Pilar 4). Branch-scoped actors are already
