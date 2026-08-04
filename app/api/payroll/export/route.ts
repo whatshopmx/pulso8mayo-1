@@ -1,18 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, employeeProfiles, employeeContracts } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
-import { requireTenant } from "@/lib/tenant-context";
+import { requirePermissionApi } from "@/lib/rbac/abac";
 
+/**
+ * POST /api/payroll/export
+ *
+ * Migrated to ABAC (Sprint 2 Track B slice 2c). This route returns employee
+ * PII (NSS, CURP, RFC, salario) so it is gated with classification 'SENSITIVE'
+ * — non-gate roles (GERENTE/SUPERVISOR/EMPLEADO/READONLY) are denied by the
+ * SENSITIVE gate (strict; HR arrives Sprint 3). Gate roles
+ * (SUPER_ADMIN/OWNER/ADMIN) read plaintext, consistent with the prior
+ * `requireTenant` behavior for authenticated admins.
+ *
+ * `ctx.userCompanyId` replaces `requireTenant().id` (both read `user.companyId`
+ * from the same session). The response is a CSV blob (not JSON), so the
+ * masking middleware (Task 3) does not apply here — the SENSITIVE deny is the
+ * control for non-gate roles, not field masking.
+ */
 export async function POST(req: NextRequest) {
     try {
-        const session = await auth.api.getSession({ headers: req.headers });
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-        }
+        const { ctx } = await requirePermissionApi("reports", "read", {
+            classification: "SENSITIVE",
+        });
 
-        const tenant = await requireTenant();
         const body = await req.json();
         const { startDate, endDate } = body;
 
@@ -43,7 +55,7 @@ export async function POST(req: NextRequest) {
                 eq(employeeContracts.userId, users.id),
                 isNull(employeeContracts.endDate)
             ))
-            .where(eq(users.companyId, tenant.id as string));
+            .where(eq(users.companyId, ctx.userCompanyId));
 
         const records = employeeData.map(emp => {
             const baseSalary = Number(emp.baseSalary || 0) / 100;
@@ -55,8 +67,8 @@ export async function POST(req: NextRequest) {
             const netPay = grossPay - imssEmployee - isrEstimate;
 
             const hireDateVal = emp.hireDate;
-            const hireDateStr = hireDateVal 
-                ? new Date(hireDateVal as unknown as string).toISOString().slice(0, 10) 
+            const hireDateStr = hireDateVal
+                ? new Date(hireDateVal as unknown as string).toISOString().slice(0, 10)
                 : "";
 
             return [
@@ -81,17 +93,17 @@ export async function POST(req: NextRequest) {
         });
 
         const headers = [
-            "NumeroEmpleado", "Nombre", "NSS", "CURP", "RFC", 
+            "NumeroEmpleado", "Nombre", "NSS", "CURP", "RFC",
             "Puesto", "Departamento", "FechaAlta", "TipoContrato",
             "DiasTrabajados", "SalarioBase", "SalarioDiario",
             "PercepcionBruta", "IMSS", "ISR", "PercepcionNeta", "HorasExtra"
         ];
 
-        const csvRows = records.map(row => 
+        const csvRows = records.map(row =>
             row.map(cell => {
                 const str = String(cell);
-                return str.includes(",") || str.includes('"') 
-                    ? `"${str.replace(/"/g, '""')}"` 
+                return str.includes(",") || str.includes('"')
+                    ? `"${str.replace(/"/g, '""')}"`
                     : str;
             }).join(",")
         );
