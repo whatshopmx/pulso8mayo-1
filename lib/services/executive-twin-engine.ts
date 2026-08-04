@@ -42,6 +42,8 @@ import type {
   ExecutiveState,
   CashFlowDay,
   Obligation,
+  EngineId,
+  EngineOutput,
 } from "./intelligence/types";
 
 const CLAMP = (n: number, min = 0, max = 100) =>
@@ -226,6 +228,34 @@ export const ExecutiveTwinEngine = {
   async getUpcomingObligations(companyId: string): Promise<Obligation[]> {
     const projection = await getCashFlowProjection(companyId, 30);
     return projection.upcomingItems.map(toObligation);
+  },
+
+  /**
+   * Persist an engine `EngineOutput` snapshot into
+   * `corporate_twins.executive_state.engineSnapshots[engineId]` (Sprint 2
+   * caching decision — see handoff §3 "Persistencia de outputs"). Merge-only:
+   * other snapshots and state keys are preserved. No-op if no twin row exists.
+   */
+  async setEngineSnapshot(
+    companyId: string,
+    engineId: EngineId,
+    output: EngineOutput,
+  ): Promise<void> {
+    const row = await db.query.corporateTwins.findFirst({
+      where: eq(corporateTwins.companyId, companyId),
+    });
+    if (!row) return;
+    const state = (row.executiveState ?? {}) as ExecutiveState;
+    const snapshots = { ...(state.engineSnapshots ?? {}) };
+    snapshots[engineId] = output;
+    const nextState: ExecutiveState = { ...state, engineSnapshots: snapshots };
+    await db
+      .update(corporateTwins)
+      .set({
+        executiveState: nextState as unknown as Record<string, unknown>,
+        updatedAt: new Date(),
+      })
+      .where(eq(corporateTwins.id, row.id));
   },
 
   // ── internals ──────────────────────────────────────────────────────────
