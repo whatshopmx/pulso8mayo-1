@@ -30,7 +30,8 @@ export type EngineId =
   | 'inventory'
   | 'brand'
   | 'expansion'
-  | 'knowledge';
+  | 'knowledge'
+  | 'procurement';
 
 // ── Executive Twin (mirror of corporate_twins + computed cache) ──
 
