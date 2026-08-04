@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, uuid, jsonb, integer, uniqueIndex, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, jsonb, integer, bigint, uniqueIndex, pgEnum } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { companies, branches } from "./core";
 
@@ -48,9 +48,33 @@ export const corporateTwins = pgTable("corporate_twins", {
   healthScore: integer("health_score").default(100).notNull(),
   driftScore: integer("drift_score").default(0).notNull(),
   marginLeakageScore: integer("margin_leakage_score").default(0).notNull(),
-  
+
   // Projected network state
   networkState: jsonb("network_state").default(sql`'{}'::jsonb`).notNull(),
+
+  // ── Sprint 1: Executive Twin — 10 dimensions + cash/obligations + state (docs/pulso-executive-os-v2.md §9) ──
+  // Financial projection (FINANCIAL classification — see lib/db/schema/classification.ts)
+  projectedCashFlowCents: bigint("projected_cash_flow_cents", { mode: "number" }).default(0).notNull(),
+  upcomingObligationsCents: bigint("upcoming_obligations_cents", { mode: "number" }).default(0).notNull(),
+  liquidityRisk: integer("liquidity_risk").default(0).notNull(),
+
+  // Executive risk dimensions (0–100; 0 = no risk)
+  operationalRisk: integer("operational_risk").default(0).notNull(),
+  complianceRisk: integer("compliance_risk").default(0).notNull(),
+  peopleRisk: integer("people_risk").default(0).notNull(),
+
+  // Growth / capability dimensions (0–100; 100 = best)
+  expansionReadiness: integer("expansion_readiness").default(0).notNull(),
+  executionCapacity: integer("execution_capacity").default(0).notNull(),
+  brandConsistency: integer("brand_consistency").default(0).notNull(),
+  knowledgeIndex: integer("knowledge_index").default(0).notNull(),
+
+  // Organizational learning counters
+  playbookCount: integer("playbook_count").default(0).notNull(),
+  bestPracticesCount: integer("best_practices_count").default(0).notNull(),
+
+  // Free-form engine cache (per-engine outputs, brief state, projections beyond the typed columns)
+  executiveState: jsonb("executive_state").default(sql`'{}'::jsonb`).notNull(),
 
   lastUpdated: timestamp("last_updated").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

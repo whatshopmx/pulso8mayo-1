@@ -204,6 +204,13 @@
       "when": 1785875436325,
       "tag": "0028_melted_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1785877886523,
+      "tag": "0029_vengeful_scarlet_spider",
+      "breakpoints": true
     }
   ]
 }
