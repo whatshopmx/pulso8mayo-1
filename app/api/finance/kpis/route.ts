@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
+import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
 import { calculateFinancialKPIs } from "@/lib/services/financial-kpi-service";
 
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
 
-    const { ctx } = await requirePermissionApi("reports", "read", {
+    const { ctx, decision } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
       targetBranchId: branchId,
       audit: { action: "READ", req },
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
       endDate,
     });
 
-    return ApiHandler.success(kpis);
+    return ApiHandler.success(maskSensitive(kpis, decision));
   } catch (error) {
     return ApiHandler.error(error);
   }

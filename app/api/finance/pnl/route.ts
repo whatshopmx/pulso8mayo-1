@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
+import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
 import { getPnLByBranch } from "@/lib/services/pnl-service";
 
@@ -12,7 +13,7 @@ import { getPnLByBranch } from "@/lib/services/pnl-service";
  */
 export async function GET(req: NextRequest) {
   try {
-    const { ctx } = await requirePermissionApi("reports", "read", {
+    const { ctx, decision } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
       audit: { action: "READ", req },
     });
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
     const endDate = searchParams.get("endDate") || undefined;
 
     const pnl = await getPnLByBranch(ctx.userCompanyId, startDate, endDate);
-    return ApiHandler.success(pnl);
+    return ApiHandler.success(maskSensitive(pnl, decision));
   } catch (error) {
     return ApiHandler.error(error);
   }

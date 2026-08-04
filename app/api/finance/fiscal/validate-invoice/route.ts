@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requirePermissionApi } from "@/lib/rbac/abac";
+import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
 import { validateInvoice } from "@/lib/services/fiscal-service";
 
@@ -24,7 +25,7 @@ const validateSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   try {
-    await requirePermissionApi("reports", "read", {
+    const { decision } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
       audit: { action: "READ", req },
     });
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
     const data = validateSchema.parse(body);
 
     const result = await validateInvoice(data);
-    return ApiHandler.success(result);
+    return ApiHandler.success(maskSensitive(result, decision));
   } catch (error) {
     return ApiHandler.error(error);
   }

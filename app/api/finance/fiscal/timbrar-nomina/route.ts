@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requirePermissionApi } from "@/lib/rbac/abac";
+import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
 import { timbrarNomina } from "@/lib/services/fiscal-service";
 
@@ -26,7 +27,7 @@ const timbrarSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   try {
-    await requirePermissionApi("reports", "manage", {
+    const { decision } = await requirePermissionApi("reports", "manage", {
       classification: "FINANCIAL",
       audit: { action: "APPROVE", req },
     });
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
     const data = timbrarSchema.parse(body);
 
     const result = await timbrarNomina(data);
-    return ApiHandler.success(result);
+    return ApiHandler.success(maskSensitive(result, decision));
   } catch (error) {
     return ApiHandler.error(error);
   }

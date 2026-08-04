@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
+import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
 import { getCashFlowProjection } from "@/lib/services/cash-flow-service";
 
@@ -14,7 +15,7 @@ import { getCashFlowProjection } from "@/lib/services/cash-flow-service";
  */
 export async function GET(req: NextRequest) {
   try {
-    const { ctx } = await requirePermissionApi("reports", "read", {
+    const { ctx, decision } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
       audit: { action: "READ", req },
     });
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
     const days = daysStr ? parseInt(daysStr, 10) : 30;
 
     const projection = await getCashFlowProjection(ctx.userCompanyId, days);
-    return ApiHandler.success(projection);
+    return ApiHandler.success(maskSensitive(projection, decision));
   } catch (error) {
     return ApiHandler.error(error);
   }

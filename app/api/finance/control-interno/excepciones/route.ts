@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
+import { maskSensitiveList } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
 import { detectViolations } from "@/lib/services/control-interno-service";
 
@@ -13,19 +14,20 @@ import { detectViolations } from "@/lib/services/control-interno-service";
  */
 export async function GET(req: NextRequest) {
   try {
-    const { ctx } = await requirePermissionApi("reports", "read", {
+    const { ctx, decision } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
       audit: { action: "READ", req },
     });
 
     const violations = await detectViolations(ctx.userCompanyId);
-    return ApiHandler.success({
-      violations,
+    const payload = {
+      violations: maskSensitiveList(violations, decision),
       total: violations.length,
       highSeverity: violations.filter((v) => v.severity === "HIGH").length,
       mediumSeverity: violations.filter((v) => v.severity === "MEDIUM").length,
       lowSeverity: violations.filter((v) => v.severity === "LOW").length,
-    });
+    };
+    return ApiHandler.success(payload);
   } catch (error) {
     return ApiHandler.error(error);
   }

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
+import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
 import { getAuditTrail } from "@/lib/services/control-interno-service";
 
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50", 10);
     const offset = parseInt(searchParams.get("offset") || "0", 10);
 
-    const { ctx } = await requirePermissionApi("reports", "read", {
+    const { ctx, decision } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
       targetBranchId: branchId,
       audit: { action: "READ", req },
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
       offset,
     });
 
-    return ApiHandler.success(result);
+    return ApiHandler.success(maskSensitive(result, decision));
   } catch (error) {
     return ApiHandler.error(error);
   }
