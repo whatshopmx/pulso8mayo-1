@@ -3,6 +3,10 @@ import { users, employeeProfiles, employeeContracts, employeeOnboarding, onboard
 import { eq, and, isNull, desc, or, ilike, sql } from "drizzle-orm";
 import { ApiError } from "../api/error";
 import { AuditService } from "./audit-service";
+import {
+  decryptProfileRecord,
+  encryptProfileRecord,
+} from "@/lib/security/employee-cipher";
 
 export interface EmployeeData {
   id?: string;
@@ -132,8 +136,13 @@ export class EmployeeService {
 
     const total = Number(totalResult[0]?.count || 0);
 
+    // Decrypt any encrypted PII fields on the returned rows (no-op for plaintext).
+    const decryptedData = await Promise.all(
+      data.map((row) => decryptProfileRecord(companyId, row as Record<string, unknown>)),
+    );
+
     return {
-      data,
+      data: decryptedData,
       meta: {
         page,
         limit,
@@ -235,6 +244,10 @@ export class EmployeeService {
         .limit(1);
 
       const result = [{ ...userResult[0], ...(profileResult.length > 0 ? profileResult[0] : {}) }];
+
+      // Decrypt any PII fields carrying the `enc::` prefix (no-op for plaintext
+      // rows — see lib/security/employee-cipher.ts). Safe to apply unconditionally.
+      result[0] = await decryptProfileRecord(companyId, result[0] as Record<string, unknown>) as typeof result[0];
 
       console.log(`[EmployeeService] Found employee, fetching related data...`);
 
@@ -398,9 +411,10 @@ export class EmployeeService {
       }
 
       if (Object.keys(filteredProfileFields).length > 0) {
+        const encryptedProfileFields = await encryptProfileRecord(companyId, filteredProfileFields);
         await tx.update(employeeProfiles)
         .set({
-          ...filteredProfileFields,
+          ...encryptedProfileFields,
           updatedBy: performedBy,
           updatedAt: new Date()
         })
@@ -419,7 +433,9 @@ export class EmployeeService {
       insertValues.hireDate = new Date(insertValues.hireDate);
     }
     await tx.insert(employeeProfiles)
-    .values(insertValues as any);
+    .values(
+      (await encryptProfileRecord(companyId, insertValues)) as any,
+    );
   }
 
       // 3. Audit Logging
@@ -472,7 +488,9 @@ export class EmployeeService {
         createdBy: performedBy,
         updatedBy: performedBy,
       };
-      const [newProfile] = await tx.insert(employeeProfiles).values(profileInsertData as any).returning();
+      const [newProfile] = await tx.insert(employeeProfiles).values(
+        (await encryptProfileRecord(data.companyId as string, profileInsertData)) as any,
+      ).returning();
 
       const result = {
         ...newUser,
