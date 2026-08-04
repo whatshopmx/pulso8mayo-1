@@ -197,6 +197,13 @@
       "when": 1785864755469,
       "tag": "0027_sleepy_nocturne",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1785875436325,
+      "tag": "0028_melted_reavers",
+      "breakpoints": true
     }
   ]
 }

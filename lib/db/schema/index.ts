@@ -5,3 +5,6 @@ export * from './equipment';
 export * from './civil-protection';
 export * from './operational-twin';
 
+// Pilar 1–4 security tables (Sprint Sec-0). See docs/pulso-executive-os-security.md §11.
+export * from './security';
+

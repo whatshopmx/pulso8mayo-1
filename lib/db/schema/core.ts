@@ -1,6 +1,14 @@
-import { pgTable, text, timestamp, boolean, uuid, jsonb, uniqueIndex, foreignKey, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, jsonb, uniqueIndex, foreignKey, integer, pgEnum } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./auth";
+
+/**
+ * Pilar 4 — Aislamiento sucursales propias vs franquiciadas.
+ *OWNED = sucursal operada por el grupo; FRANCHISE = operada por un franquiciatario.
+ * See docs/pulso-executive-os-security.md §8. Without this, a franchise manager
+ * with `users: ['read']` can read employees of any branch in the company.
+ */
+export const branchOwnershipEnum = pgEnum("branch_ownership", ['OWNED', 'FRANCHISE']);
 
 // Companies table - Core entity for multi-tenant architecture
 export const companies = pgTable("companies", {
@@ -31,6 +39,16 @@ export const branches = pgTable("branches", {
   managerInviteToken: uuid("manager_invite_token").default(sql`gen_random_uuid()`),
   active: boolean("active").default(true),
   costingMethod: text("costing_method"), // 'LAST_COST' | 'AVERAGE_COST' — overrides company default
+
+  // ── Pilar 4: franchise isolation (docs §8.2) ──
+  ownershipType: branchOwnershipEnum("ownership_type").default('OWNED').notNull(),
+  /** If FRANCHISE, the Pulso user_id of the franchisee responsible for this branch. */
+  franchiseeUserId: text("franchisee_user_id"),
+  /** External reference to the franchise agreement (contract id). */
+  franchiseAgreementRef: text("franchise_agreement_ref"),
+  /** Commercial config: royalty percent paid to the franchisor (0–100). */
+  franchiseRoyaltyPercent: integer("franchise_royalty_percent"),
+
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => {
   return {
