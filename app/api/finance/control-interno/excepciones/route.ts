@@ -1,21 +1,23 @@
 import { NextRequest } from "next/server";
-import { requireTenant } from "@/lib/tenant-context";
+import { requirePermissionApi } from "@/lib/rbac/abac";
 import { ApiHandler } from "@/lib/api/response";
-import { ApiError } from "@/lib/api/error";
 import { detectViolations } from "@/lib/services/control-interno-service";
 
 /**
  * GET /api/finance/control-interno/excepciones
  * Returns detected control violations sorted by severity.
+ *
+ * Migrated to `requirePermissionApi('reports','read', { classification:
+ * 'FINANCIAL' })` (Sprint 2 Track B). Returns violation aggregates — no PII
+ * fields, so the allow+redact path is plaintext-equivalent to the prior behavior.
  */
 export async function GET(_req: NextRequest) {
   try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
+    const { ctx } = await requirePermissionApi("reports", "read", {
+      classification: "FINANCIAL",
+    });
 
-    const violations = await detectViolations(tenant.id);
+    const violations = await detectViolations(ctx.userCompanyId);
     return ApiHandler.success({
       violations,
       total: violations.length,

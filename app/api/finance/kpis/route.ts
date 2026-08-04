@@ -1,13 +1,20 @@
 import { NextRequest } from "next/server";
-import { requireTenant } from "@/lib/tenant-context";
+import { requirePermissionApi } from "@/lib/rbac/abac";
 import { ApiHandler } from "@/lib/api/response";
-import { ApiError } from "@/lib/api/error";
 import { calculateFinancialKPIs } from "@/lib/services/financial-kpi-service";
 
 /**
  * GET /api/finance/kpis
  * Returns Food Cost % and Labor Cost % with semaphore statuses
  * for the selected branch and date range.
+ *
+ * Migrated to `requirePermissionApi('reports','read', { classification:
+ * 'FINANCIAL' })` (Sprint 2 Track B). The query `branchId` is passed as
+ * `targetBranchId` so ABAC step 2 (branch scoping) can 403 a branch-scoped
+ * role (GERENTE/SUPERVISOR/EMPLEADO) that passes a foreign branch's id
+ * (docs §3 Brecha 1, §5.1 step 2). When `branchId` is omitted the gate skips
+ * step 2 → the aggregate read proceeds as before (no regression); tightening
+ * the all-branches default is a CrossBranchService concern (§10.1 item 4).
  *
  * Query params:
  *   - branchId (optional, defaults to all branches)
@@ -16,18 +23,18 @@ import { calculateFinancialKPIs } from "@/lib/services/financial-kpi-service";
  */
 export async function GET(req: NextRequest) {
   try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get("branchId") || undefined;
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
 
+    const { ctx } = await requirePermissionApi("reports", "read", {
+      classification: "FINANCIAL",
+      targetBranchId: branchId,
+    });
+
     const kpis = await calculateFinancialKPIs({
-      companyId: tenant.id,
+      companyId: ctx.userCompanyId,
       branchId,
       startDate,
       endDate,
