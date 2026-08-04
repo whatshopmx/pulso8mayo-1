@@ -1,233 +1,293 @@
-# Performance Optimization — Task List
+# Pulso Executive OS — Sprint 1 Tasks
 
-Baseline: CLS 0.18–0.31 on authed pages · cold /dashboard 591KB JS · suggestions route ~500+ queries · 7/381 paginated.
-Measure after each phase with `scripts/perf-baseline.mjs` / `scripts/perf-cls-cold.mjs` (prod server: `pnpm build && pnpm start`).
+> **Goal:** Enriched Executive Twin with 10 dimensions, unified event bus, 8 engine contracts, and first visible UI changes.  
+> **Sprint duration:** 2-3 weeks  
+> **Dependency order:** Tasks MUST be completed sequentially (each depends on the prior).
 
 ---
 
-## Phase 1: Quick wins
+## Phase 1: Foundation — Schema + Types
 
-## Task 1: SSR the sidebar + `defaultOpen` from cookie
+### Task 1: Enrich `corporateTwins` schema with 12 new executive columns
 
-**Description:** `components/app-sidebar-client.tsx` wraps the entire sidebar in `next/dynamic({ ssr: false })` with a hidden placeholder, so the server sends no sidebar and it pops in ~1.8s after load, shifting `<main>` sideways — 0.18 of the CLS on every authenticated page. Remove the `ssr: false` wrapper and render `AppSidebar` directly in the server layout; read the `sidebar_state` cookie in `app/dashboard/layout.tsx` and pass it as `defaultOpen` to `SidebarProvider` (stock shadcn pattern) so collapsed-state users don't get an open→collapsed snap.
+**Description:** Add `projectedCashFlowCents`, `liquidityRisk`, `upcomingObligationsCents`, `operationalRisk`, `complianceRisk`, `peopleRisk`, `expansionReadiness`, `executionCapacity`, `brandConsistency`, `knowledgeIndex`, `playbookCount`, `bestPracticesCount`, and `executiveState` to the existing `corporateTwins` table. All new columns must have safe defaults (0 for scores, `'{}'::jsonb` for JSON).
 
 **Acceptance criteria:**
-- [ ] Sidebar HTML present in initial server response (`curl localhost:3000/dashboard` contains sidebar nav markup when authenticated)
-- [ ] `SidebarProvider` receives `defaultOpen` from the `sidebar_state` cookie
-- [ ] Sidebar collapse/expand still persists across reloads
+- [ ] `lib/db/schema/operational-twin.ts` has all 13 new columns on `corporateTwins`
+- [ ] Migration generated via `pnpm db:generate` without errors
+- [ ] Migration applied via `pnpm db:migrate` without data loss on existing rows
+- [ ] All existing `recalculateCorporateTwin` inserts/updates still compile
 
 **Verification:**
-- [ ] `pnpm run build` clean
-- [ ] `node scripts/perf-cls-cold.mjs` → main-element shift (0.18 @ ~1.8s) gone; /dashboard CLS ≤ 0.1
-- [ ] Manual: toggle collapse, reload → stays collapsed
+- [ ] `pnpm run build` succeeds
+- [ ] `pnpm db:generate` produces a clean migration file
+- [ ] Manual: query `SELECT * FROM corporate_twins` — all new columns present with defaults
 
 **Dependencies:** None
 
 **Files likely touched:**
-- `components/app-sidebar-client.tsx` (delete or strip wrapper)
-- `app/dashboard/layout.tsx` (import AppSidebar directly, pass defaultOpen)
+- `lib/db/schema/operational-twin.ts`
 
-**Estimated scope:** S (1–2 files)
+**Estimated scope:** Small (1 file, schema-only change)
 
 ---
 
-## Task 2: Lazy-load jsPDF / html2canvas at click time
+### Task 2: Create shared intelligence types
 
-**Description:** jsPDF + jspdf-autotable + html2canvas (+ framer, 437KB raw / 139KB gz chunk `ef9f5781…`) are statically imported by client components, so every visitor pays for PDF generation they rarely use. Convert to `await import('jspdf')` / `import('jspdf-autotable')` inside the export click handlers. Server-side services (`lib/services/ComplianceReportService.ts`, `lib/reports/schedule-calendar-pdf.ts`) only need changing if they're reachable from client bundles — verify via import graph.
+**Description:** Create `lib/services/intelligence/types.ts` with the core type contracts used by all engines, the executive twin, and the UI. Types: `ExecutiveTwin` (full interface matching new schema columns), `EngineOutput`, `Priority`, `Risk`, `BriefPriority`, `MorningBrief`, and the `IntelligenceEngine<TInput, TOutput>` interface.
 
 **Acceptance criteria:**
-- [ ] No static `from 'jspdf'` / `from 'html2canvas'` imports in `components/**`
-- [ ] Export buttons still generate identical PDFs (manual click test on compliance dashboard + report generator)
-- [ ] First-load JS of `/dashboard/compliance` drops by ≥ 130KB gz
+- [ ] `ExecutiveTwin` interface matches all new `corporateTwins` columns + computed fields
+- [ ] `IntelligenceEngine<TInput, TOutput>` interface has `analyze`, `getLatest`, `refresh` methods
+- [ ] `EngineOutput` has `score`, `confidence`, `insights`, `priorities`, `risks`, `generatedAt`
+- [ ] `Priority` has `id`, `title`, `description`, `impact` (enum), `estimatedSavingsCents`, `actionUrl`, `deadline`
+- [ ] `Risk` has `type`, `severity` (enum), `probability`, `impactCents`, `mitigation`
+- [ ] `MorningBrief` matches the plan document structure
+- [ ] All types are `type`-only exports (no runtime code)
 
 **Verification:**
-- [ ] `pnpm run build` clean; chunk `ef9f5781…` no longer referenced by compliance/report page client manifests
-- [ ] Manual: export PDF from compliance dashboard → downloads correctly
+- [ ] `pnpm run build` succeeds
+- [ ] TypeScript intellisense resolves all new types
 
-**Dependencies:** None
+**Dependencies:** Task 1 (new columns inform the `ExecutiveTwin` interface)
 
 **Files likely touched:**
-- `components/compliance/compliance-dashboard.tsx`
-- `components/compliance/report-generator.tsx`
-- (maybe) `lib/reports/schedule-calendar-pdf.ts` call sites
+- `lib/services/intelligence/types.ts` (NEW)
 
-**Estimated scope:** S (2–3 files)
+**Estimated scope:** Small (1 file, types only)
 
 ---
 
-## Task 3: `next/image` remotePatterns + convert raw `<img>` tags
+### Task 3: Extend domain events with new executive event types
 
-**Description:** 14 raw `<img>` tags vs 4 `next/image` usages. Evidence photos (workflow executor/review/stepper), product photos, petty-cash receipts, and dicebear avatars load full-size originals, unoptimized, eager. Add `images.remotePatterns` to `next.config.ts` (R2 public URL from `R2_PUBLIC_URL` env + `api.dicebear.com`), then convert the raw tags — prioritizing evidence galleries (heaviest images) with `fill` + `sizes`, and avatars with fixed `width`/`height`.
+**Description:** Extend the `DomainEventType` union and `emitDomainEvent` in `lib/services/domain-event-service.ts` with new executive event types: `EXECUTIVE_TWIN_UPDATED`, `MORNING_BRIEF_GENERATED`, `RISK_THRESHOLD_BREACHED`, `EXPANSION_OPPORTUNITY`. Also add financial events: `CASH_FLOW_UPDATED`, `BUDGET_EXCEEDED`, `PAYMENT_EXECUTED`. Add compliance events: `COMPLIANCE_SCORE_CHANGED`, `DOCUMENT_EXPIRING`, `AUDIT_DUE`. Ensure the Inngest event type in `lib/inngest/events.ts` is extended too if needed.
 
 **Acceptance criteria:**
-- [ ] `next.config.ts` has remotePatterns for R2 hostname + `api.dicebear.com`
-- [ ] Evidence/review/stepper/product/petty-cash images use `next/image` with dimensions or `fill`+`sizes`
-- [ ] No layout shift from unloaded images in evidence galleries (explicit aspect boxes preserved)
+- [ ] `DomainEventType` union includes all ~25 event types from the plan
+- [ ] Existing callers of `emitDomainEvent` still compile with no changes
+- [ ] New event types are string literals (not enums) for easy extension
 
 **Verification:**
-- [ ] `pnpm run build` clean
-- [ ] Manual: open workflow review with photo evidence, product page, petty-cash table → images render, served via `/_next/image`
-- [ ] `rg "<img" app components` → only justified exceptions remain (e.g. camera capture preview of local blob)
+- [ ] `pnpm run build` succeeds
+- [ ] `pnpm run lint` passes
+- [ ] Manual: search all `emitDomainEvent(` calls — none broken
 
-**Dependencies:** None (config + components, independent of Tasks 1–2)
+**Dependencies:** None (can run in parallel with Tasks 1-2)
 
 **Files likely touched:**
-- `next.config.ts`
-- `components/execution/workflow-stepper.tsx`, `components/workflow/workflow-review.tsx`, `components/workflow/workflow-executor.tsx`, `components/workflow/ai-verification-status.tsx`, `components/builder/workflow-preview-modal.tsx`
-- `components/inventory/product-photo-upload.tsx`, `app/dashboard/inventory/[id]/page.tsx`
-- `components/finance/petty-cash-history-table.tsx`, `app/dashboard/profile/onboarding/page.tsx`
+- `lib/services/domain-event-service.ts`
+- `lib/inngest/events.ts` (if event types defined there)
 
-**Estimated scope:** M (5–9 files, mechanical)
-
-### Checkpoint: Phase 1
-- [ ] Build clean; CLS ≤ 0.1 on /dashboard (target: ≤ 0.05 after sidebar fix)
-- [ ] Cold /dashboard JS ≤ 450KB
-- [ ] Manual smoke passed (sidebar, PDF export, images)
+**Estimated scope:** XS (1-2 files, additive change)
 
 ---
 
-## Phase 2: Backend query hot paths
+## Phase 2: Core Engine
 
-## Task 4: Fix `ProductionService.getSuggestions` nested N+1
+### Task 4: Build `ExecutiveTwinEngine`
 
-**Description:** `lib/services/production-service.ts:132-195` loops all recipes (2 queries each) then loops each recipe's ingredients (1 query each) — ~500+ round-trips for 50 recipes × 8 ingredients, on both `GET /api/inventory/production/suggestions` and the forecast cron. Rewrite as 4 batched queries: (1) all recipes, (2) sales aggregated `GROUP BY recipeId` with `inArray(recipeIds)` + date filter, (3) all recipeItems with `inArray(recipeIds)`, (4) stock aggregated `GROUP BY itemId` with `inArray(allItemIds)` + branch filter. Assemble suggestions in memory; identical response shape.
+**Description:** Create `lib/services/executive-twin-engine.ts` with an `ExecutiveTwinEngine` class. It must:
+1. **Recalculate** — Query all branch operational twins, aggregate the 10 executive dimensions, compute scores, persist to `corporateTwins`, emit `EXECUTIVE_TWIN_UPDATED`.
+2. **getProjectedCashFlow** — Use existing `forecast-service.ts` data summed across branches for 14d projection.
+3. **getUpcomingObligations** — Aggregate payroll, supplier invoices due within 30d, rent, services from `expenses` + `purchaseOrders` + `shiftSessions`.
+4. **Dimension calculations** mapped as described in the plan (operationalRisk from drift scores, complianceRisk from compliance scores + expiring docs, peopleRisk from rotation + overtime, etc.).
+5. **Wrap, don't break** — Call the existing `recalculateCorporateTwin` internally for the base 3 fields, then layer on the 10 new dimensions.
 
 **Acceptance criteria:**
-- [ ] ≤ 6 DB queries per `getSuggestions` call regardless of recipe/ingredient count
-- [ ] Response items identical to pre-change output on seeded data (snapshot before, diff after)
-- [ ] Sort/filter semantics unchanged (`suggestedQuantity > 0`, desc)
+- [ ] `ExecutiveTwinEngine.recalculate(companyId)` returns a full `ExecutiveTwin` object
+- [ ] All 10 executive dimensions computed (not just default 0)
+- [ ] Result persisted to `corporateTwins` table
+- [ ] `EXECUTIVE_TWIN_UPDATED` domain event emitted on successful recalculation
+- [ ] `getProjectedCashFlow(companyId, 14)` returns non-null projection
+- [ ] `getUpcomingObligations(companyId)` returns array of obligations with amounts
+- [ ] Existing `recalculateCorporateTwin` is called internally (no regression)
 
 **Verification:**
-- [ ] Snapshot test: call route before/after on seeded DB, `diff` the JSON
-- [ ] Query count logged ≤ 6 (temp `console.log` or drizzle logger)
-- [ ] `pnpm run build` clean
+- [ ] `pnpm run build` succeeds
+- [ ] Manual: call `ExecutiveTwinEngine.recalculate(companyId)` from a test script, inspect DB row
+- [ ] Manual: verify `GET /api/executive/twin` (Task 7) returns all 10 dimensions with non-zero values
 
-**Dependencies:** None
+**Dependencies:** Tasks 1, 2, 3 (needs schema, types, and event types)
 
 **Files likely touched:**
-- `lib/services/production-service.ts`
+- `lib/services/executive-twin-engine.ts` (NEW)
+- `lib/services/operational-twin-engine.ts` (import, no edits)
 
-**Estimated scope:** S (1 file)
+**Estimated scope:** Large (new file, ~200-300 lines of aggregation logic)
 
 ---
 
-## Task 5: Fix alert-service N+1 loops
+### Task 5: Create `IntelligenceEngine` interface + Evidence Store foundation
 
-**Description:** Batch user/document lookups in four known loops: `advanced-alert-service.ts:17,58` (item + movements per knowledge-guide entry), `overtime-alert-service.ts:251,311` (user per session / per excessive user), `employee-document-service.ts:359` (docs per employee), `app/api/analytics/labor-compliance/route.ts:62` (user per uid). Replace with `inArray` batch fetches + in-memory maps. Insert-loops in `vacations/route.ts`, `sales-entry/route.ts`, `employees/lifecycle/route.ts`, `inventory-service.ts:451` become single multi-row `insert().values([...])` where inside a transaction.
+**Description:** Create the base engine interface file `lib/services/intelligence/engine-interface.ts` (re-export `IntelligenceEngine` from types.ts if already defined). Create the directory. Create `lib/services/evidence-store.ts` as a lightweight wrapper that unifies evidence (photos, files, voice notes) currently scattered across workflow evidence, incident evidence, and document uploads. Add AI metadata fields: `transcription`, `classification`, `verificationResult`.
 
 **Acceptance criteria:**
-- [ ] No `await db.*` inside `for` loops in the listed files (except chunk-batched inserts like the existing 100-row pattern)
-- [ ] Notification payloads/recipients identical to before
+- [ ] `lib/services/intelligence/` directory exists with `engine-interface.ts`
+- [ ] `IntelligenceEngine` interface re-exported (implemented in types.ts from Task 2)
+- [ ] `EvidenceStore` class has `store`, `getByEntity`, `getByBranch`, `attachMetadata` methods
+- [ ] Evidence store uses existing R2/local storage — no new storage infrastructure
 
 **Verification:**
-- [ ] `rg -U "for\s*\([^)]*\)\s*\{[^{}]{0,400}?await\s+(db\.|tx\.)"` on touched files → no hits
-- [ ] `pnpm run build` clean
-- [ ] Manual: trigger overtime alert path / vacation request → notifications arrive
+- [ ] `pnpm run build` succeeds
+- [ ] `EvidenceStore` methods are importable and type-check
 
-**Dependencies:** None (can run parallel to Task 4)
+**Dependencies:** Task 2 (types)
 
 **Files likely touched:**
-- `lib/services/advanced-alert-service.ts`, `lib/services/overtime-alert-service.ts`
-- `lib/services/employee-document-service.ts`
-- `app/api/analytics/labor-compliance/route.ts`
-- `app/api/vacations/route.ts`, `app/api/inventory/sales-entry/route.ts`, `app/api/employees/lifecycle/route.ts`, `lib/services/inventory-service.ts`
+- `lib/services/intelligence/engine-interface.ts` (NEW)
+- `lib/services/evidence-store.ts` (NEW)
 
-**Estimated scope:** M (5–8 files, same mechanical pattern)
+**Estimated scope:** Medium (2 new files, evidence store ~150 lines)
 
 ---
 
-## Task 6: Paginate top unbounded list endpoints
+### Task 6: Wire Inngest `recalculate-executive-twin` cron + event handler
 
-**Description:** Only 7 of 381 query call sites use limits. Add `limit`/`offset` (default 50, max 200) + `meta: { total, limit, offset }` to the highest-traffic unbounded GET endpoints: `notifications`, `shifts`, `shift-sessions`, `inventory/alerts`, `kpi/dashboard`. **First grep every frontend caller of each endpoint** — response stays `{ data: [...], meta }` or array-with-meta so existing UI keeps working; UI pagination controls are out of scope (follow-up).
+**Description:** Create `lib/inngest/functions/recalculate-executive-twin.ts` with a new Inngest function that triggers on cron (`*/15 * * * *`) and also reacts to `domain/event.emitted` for specific event types. It calls `ExecutiveTwinEngine.recalculate(companyId)`. Also update the existing `processCorporateTwinUpdate` in `lib/inngest/functions/operational-twin.ts` to delegate to `ExecutiveTwinEngine.recalculate()` instead of raw `recalculateCorporateTwin()`.
 
 **Acceptance criteria:**
-- [ ] Listed endpoints accept `limit`/`offset`, default-capped, with total count in `meta`
-- [ ] Existing callers' response fields unchanged (additive only)
-- [ ] No caller found that requires full unbounded result sets (or those endpoints excluded from this task)
+- [ ] New Inngest function `recalculate-executive-twin` runs every 15 minutes
+- [ ] Function iterates all companies and calls `ExecutiveTwinEngine.recalculate()`
+- [ ] Existing `processCorporateTwinUpdate` delegates to `ExecutiveTwinEngine.recalculate()`
+- [ ] Function registers in Inngest dev server (`npx inngest-cli@latest dev`)
 
 **Verification:**
-- [ ] Caller grep documented in PR description for each endpoint
-- [ ] `pnpm run build` clean; manual smoke: notifications dropdown, shifts page, inventory alerts
-- [ ] curl each endpoint with/without params → capped + meta present
+- [ ] `pnpm run dev` + Inngest Dev Server shows the new function
+- [ ] Manual: trigger via Inngest UI, verify corporate twin row updated with new dimensions
+- [ ] Existing corporate twin Inngest function still triggers and completes
 
-**Dependencies:** None (but do after Tasks 4–5 to isolate regressions)
+**Dependencies:** Task 4 (needs ExecutiveTwinEngine), Task 3 (event types)
 
 **Files likely touched:**
-- `app/api/notifications/route.ts`, `app/api/shifts/route.ts`, `app/api/shift-sessions/route.ts`, `app/api/inventory/alerts/route.ts`, `app/api/kpi/dashboard/route.ts`
+- `lib/inngest/functions/recalculate-executive-twin.ts` (NEW)
+- `lib/inngest/functions/operational-twin.ts` (edit — delegate call)
+- `lib/inngest/events.ts` (possible event type addition)
 
-**Estimated scope:** M (5 files + caller audit)
-
-### Checkpoint: Phase 2
-- [ ] Build clean; response snapshots match for Tasks 4–5
-- [ ] Suggestions route ≤ 6 queries, local p95 < 500ms
-- [ ] Smoke: notifications, shifts, alerts pages
+**Estimated scope:** Medium (1 new Inngest function, 1 edit)
 
 ---
 
-## Phase 3: Bundle diet & guardrails
+## Phase 3: API + Integration
 
-## Task 7: Recharts strategy — lazy below-fold charts + duplicate-chunk investigation
+### Task 7: Build `/api/executive/twin` route
 
-**Description:** Recharts (382KB raw / 102KB gz) appears as ~6 near-identical chunks and is statically imported by 20+ components. Two moves: (a) wrap below-the-fold charts (compliance trends, menu-engineering matrix, executive charts) in `next/dynamic` with a sized skeleton fallback; (b) timeboxed investigation (≤ 1h) into why Turbopack emits duplicate chunks — route all recharts imports through `components/ui/chart.tsx` barrel to give the splitter one canonical module.
+**Description:** Create the executive API routes under `app/api/executive/`. Start with `twin/route.ts` (GET returns latest from DB, POST forces refresh via `ExecutiveTwinEngine.recalculate`). Follow existing API patterns (e.g., `app/api/analytics/trends/route.ts`). Auth check with `getSession()`. Route returns typed JSON matching `ExecutiveTwin` interface.
 
 **Acceptance criteria:**
-- [ ] Below-fold charts load lazily with skeletons that reserve height (no CLS)
-- [ ] Duplicate-chunk cause documented (fixed if source-level; noted as tooling artifact if not)
-- [ ] Cold /dashboard JS ≤ 400KB
+- [ ] `GET /api/executive/twin` returns full Executive Twin (200) or null (404)
+- [ ] `POST /api/executive/twin/refresh` triggers recalculation and returns updated twin
+- [ ] Auth guard rejects unauthenticated requests (401)
+- [ ] Response shape matches `ExecutiveTwin` TypeScript interface
 
 **Verification:**
-- [ ] Build; chunk manifest diff shows fewer/smaller recharts chunks on chart-heavy routes
-- [ ] `node scripts/perf-cls-cold.mjs` → no new shifts from chart skeletons
-- [ ] Manual: charts render on scroll (dashboard, compliance, menu-engineering)
+- [ ] `curl http://localhost:3000/api/executive/twin` returns JSON (with auth cookie)
+- [ ] TypeScript compiles clean against the response type
 
-**Dependencies:** Task 1 (CLS must be fixed first so chart-skeleton shifts are visible in measurements)
+**Dependencies:** Task 4 (needs ExecutiveTwinEngine), Task 2 (types)
 
 **Files likely touched:**
-- `components/compliance/compliance-dashboard.tsx`, `components/inventory/menu-engineering-matrix.tsx`, `components/sales/sales-dashboard.tsx`, `components/dashboard/executive/*`, `components/ui/chart.tsx`
+- `app/api/executive/twin/route.ts` (NEW)
+- `app/api/executive/twin/refresh/route.ts` (NEW)
 
-**Estimated scope:** M (4–6 files)
-
----
-
-## Task 8: Identify & lazy-load 313KB binary-codec chunk
-
-**Description:** Chunk `ff181122…` (313KB raw / 68KB gz) contains base64/binary codec code with one `xlsx` string — not ExcelJS (0 matches), likely pulled by an export/import UI path. Identify its owner module from the chunk's module IDs + import graph, and if it's export-only, lazy-load like Task 2.
-
-**Acceptance criteria:**
-- [ ] Owner library identified and documented
-- [ ] If export/import-only: loaded via dynamic import; out of first-load JS
-
-**Verification:**
-- [ ] Build; chunk absent from page client manifests or only loaded on demand
-
-**Dependencies:** None
-
-**Files likely touched:** TBD by investigation (≤ 3 files)
-
-**Estimated scope:** S
+**Estimated scope:** Small (2 route files, ~60 lines each)
 
 ---
 
-## Task 9: Perf budget guardrail + baseline doc
+### Task 8: Update `processCorporateTwinUpdate` to delegate to `ExecutiveTwinEngine`
 
-**Description:** Prevent regression: add a lightweight bundle check script (fail if any client chunk > 450KB raw or route first-load JS > 250KB gz, thresholds tuned to post-fix reality) runnable in CI, and record the full before/after baseline in `docs/performance-baseline.md` so future work has numbers to compare.
+**Description:** Modify the existing `processCorporateTwinUpdate` Inngest function in `lib/inngest/functions/operational-twin.ts` to call `ExecutiveTwinEngine.recalculate(companyId)` instead of raw `recalculateCorporateTwin(companyId)`. This ensures the new executive dimensions are computed whenever the old corporate twin flow triggers.
 
 **Acceptance criteria:**
-- [ ] `scripts/check-bundle-budget.mjs` exits non-zero over budget; wired as `pnpm check:budget`
-- [ ] `docs/performance-baseline.md` contains before/after CWV + transfer + query counts
+- [ ] `processCorporateTwinUpdate` calls `ExecutiveTwinEngine.recalculate()`
+- [ ] Import path resolves correctly
+- [ ] Existing `recalculateCorporateTwin` export remains for backward compat
 
 **Verification:**
-- [ ] Script passes on the fixed build; intentionally lowering a threshold makes it fail
-- [ ] Doc reviewed by human
+- [ ] `pnpm run build` succeeds
+- [ ] Trigger `corporate/twin.recalculate` event via Inngest UI → new dimensions populated
 
-**Dependencies:** Tasks 1–8 (budgets set from post-fix numbers)
+**Dependencies:** Tasks 4, 6
 
 **Files likely touched:**
-- `scripts/check-bundle-budget.mjs` (new), `package.json`, `docs/performance-baseline.md` (new)
+- `lib/inngest/functions/operational-twin.ts`
 
-**Estimated scope:** S (2–3 files)
+**Estimated scope:** XS (1 file, 1-line change in the step.run callback)
 
-### Checkpoint: Complete
-- [ ] All acceptance criteria met; before/after documented
-- [ ] `pnpm run lint` + `pnpm run build` clean
-- [ ] Ready for human review
+---
+
+## Phase 4: First UI
+
+### Task 9: Enrich `KpiHeroCards` with new executive dimensions
+
+**Description:** Modify `components/dashboard/executive/kpi-hero-cards.tsx` to pull from the new executive twin instead of just the old 3-field corporate twin. Add 3 new KPI cards: **Cash Available** (formatted MXN), **Operational Risk** (color-coded badge), **Compliance Score** (%, from `complianceRisk` inverted to a health score). Keep the existing Group Health card. Result: 6 cards total in 2 rows.
+
+**Acceptance criteria:**
+- [ ] KPI cards show: Group Health, Cash Available, Op. Risk, Compliance, Brand, People Risk
+- [ ] Cards pull data from `ExecutiveTwinEngine.getLatest()` or the API route
+- [ ] Cash amounts formatted as MXN (`$1.82M` style)
+- [ ] Risk cards use color coding (green < 30, yellow 30-60, red > 60)
+- [ ] Loading skeleton matches existing `KpiCardsSkeleton`
+
+**Verification:**
+- [ ] `pnpm run build` succeeds
+- [ ] Manual: visit `/dashboard/executive` — 6 KPI cards visible with data
+- [ ] Manual: verify loading state (skeleton) appears before data
+
+**Dependencies:** Task 7 (API route) or Task 4 (direct service call)
+
+**Files likely touched:**
+- `components/dashboard/executive/kpi-hero-cards.tsx`
+- `components/dashboard/executive/kpi-hero-cards.tsx` (types/props)
+
+**Estimated scope:** Medium (1 component, ~80 lines of new JSX + data fetching)
+
+---
+
+### Task 10: Add cash flow projection mini-chart component
+
+**Description:** Create `components/dashboard/executive/cash-flow-projection.tsx` — a client component using Recharts (already a dependency) that shows a 14-day projected cash flow bar chart. Pull data from the executive twin's `executiveState` JSON (which caches the 14-day projection). Fallback: if no projection data, show "Waiting for data" state.
+
+**Acceptance criteria:**
+- [ ] Component renders a Recharts `BarChart` with 14 data points
+- [ ] X-axis: day labels (Day 1-14 or dates)
+- [ ] Y-axis: MXN formatted amounts
+- [ ] Component added to executive dashboard page below KPI cards
+- [ ] Empty state renders gracefully (no crash, message shown)
+
+**Verification:**
+- [ ] `pnpm run build` succeeds
+- [ ] Manual: visit `/dashboard/executive` — cash flow chart visible
+- [ ] Manual: verify chart updates when data changes
+
+**Dependencies:** Task 9 (placed on same dashboard page)
+
+**Files likely touched:**
+- `components/dashboard/executive/cash-flow-projection.tsx` (NEW)
+- `app/dashboard/executive/page.tsx` (add import + Suspense block)
+
+**Estimated scope:** Small (1 new component, 1 page edit)
+
+---
+
+## Checkpoint: Sprint 1 Complete
+
+- [ ] All 10 tasks complete
+- [ ] `pnpm run build` succeeds with zero errors
+- [ ] `pnpm run lint` passes
+- [ ] `pnpm db:migrate` applies without data loss
+- [ ] Executive dashboard shows 6 KPI cards + cash flow chart
+- [ ] Executive Twin recalculates automatically every 15 minutes via Inngest
+- [ ] `/api/executive/twin` returns full typed JSON
+- [ ] Zero regressions in existing corporate twin / operational twin flows
+
+---
+
+## Out of Scope for Sprint 1
+
+- The 8 intelligence engines (Sprint 2)
+- Morning Brief generator (Sprint 3)
+- AI Reasoning layer (Sprint 3)
+- Priority/Recommendation engine (Sprint 3)
+- Full CEO Dashboard redesign (Sprint 4)
+- Subscription tiers / billing (Sprint 5)
+- Professional services workflows (Sprint 6)
