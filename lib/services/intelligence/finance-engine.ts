@@ -85,6 +85,14 @@ export interface FinanceEngineOutput extends EngineOutput {
   upcomingObligations: Obligation[];
   recommendedPayments: RecommendedPayment[];
   pnlBranchCount: number;
+  /**
+   * Sucursales cuyo P&L se apoya en al menos un renglón que NO se calculó con
+   * datos del cliente (`weakestLine !== 'MEASURED'`). Si es > 0, el margen
+   * operativo de esas sucursales NO es un número firme y ninguna recomendación
+   * derivada de él debe presentarse como tal
+   * (docs/plan-pnl-real.md Fase 0, punto 3).
+   */
+  pnlEstimatedBranchCount: number;
   forecastRecipes: number;
   forecastWithData: number;
 }
@@ -146,6 +154,7 @@ export const FinanceEngine: IntelligenceEngine<
         upcomingObligations: [],
         recommendedPayments: [],
         pnlBranchCount: 0,
+        pnlEstimatedBranchCount: 0,
         forecastRecipes: 0,
         forecastWithData: 0,
       };
@@ -325,6 +334,7 @@ export const FinanceEngine: IntelligenceEngine<
       upcomingObligations: obligations,
       recommendedPayments,
       pnlBranchCount: pnlScoped.length,
+      pnlEstimatedBranchCount: pnlScoped.filter((p) => p.weakestLine !== "MEASURED").length,
       forecastRecipes,
       forecastWithData,
     };

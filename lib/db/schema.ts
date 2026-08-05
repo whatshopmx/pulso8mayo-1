@@ -2738,3 +2738,59 @@ export const propinaAsignaciones = pgTable("propina_asignaciones", {
 });
 
 
+
+// ---------------------------------------------------------------------------
+// P&L Fase 3.3 — Congelado del P&L operativo por sucursal.
+//
+// El food cost se valoriza AL MOMENTO DEL CÁLCULO contra `inventory_items`,
+// porque `inventory_movements` no guarda el costo del momento. Eso significa
+// que recalcular una semana pasada puede dar un número distinto si el costo de
+// un ítem cambió — y la tendencia semana-a-semana se movería sola.
+//
+// Al cerrar el período se persiste el `BranchPnL` completo (con la procedencia
+// de cada renglón) para que el histórico sea estable y comparable.
+//
+// Decisión P3 de docs/plan-pnl-real.md: tabla propia y no `executiveState`,
+// que es caché de engines y tiene otro ciclo de vida.
+// ---------------------------------------------------------------------------
+export const pnlSnapshots = pgTable("pnl_snapshots", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+
+    /** Período cerrado, inclusive en ambos extremos. */
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+
+    // Renglones congelados (centavos). Se guardan planos además del JSON para
+    // poder graficar la tendencia sin deserializar cada fila.
+    salesCents: integer("sales_cents").notNull(),
+    foodCostCents: integer("food_cost_cents").notNull(),
+    wasteCents: integer("waste_cents").notNull(),
+    laborCostCents: integer("labor_cost_cents").notNull(),
+    operatingExpensesCents: integer("operating_expenses_cents").notNull(),
+    operatingProfitCents: integer("operating_profit_cents").notNull(),
+
+    /** Procedencia del renglón más débil: MEASURED | DERIVED | SECTOR_DEFAULT | NO_DATA. */
+    weakestLine: text("weakest_line").notNull(),
+
+    /** `BranchPnL` completo, con `source`, `coveragePercent` y `note` por renglón. */
+    lines: jsonb("lines").notNull(),
+
+    /** Método de costeo vigente al congelar, para poder explicar el número después. */
+    costingMethod: text("costing_method"),
+
+    frozenAt: timestamp("frozen_at").defaultNow().notNull(),
+    frozenBy: text("frozen_by").references(() => users.id),
+}, (table) => ({
+    // Un snapshot por sucursal y período: recongelar actualiza, no duplica.
+    pnlSnapshotUnique: uniqueIndex("pnl_snapshot_branch_period_unique").on(
+        table.branchId,
+        table.periodStart,
+        table.periodEnd
+    ),
+    pnlSnapshotCompanyPeriodIdx: index("pnl_snapshots_company_period_idx").on(
+        table.companyId,
+        table.periodEnd
+    ),
+}));

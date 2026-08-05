@@ -211,6 +211,13 @@
       "when": 1785877886523,
       "tag": "0029_vengeful_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1785955997211,
+      "tag": "0030_pnl_snapshots",
+      "breakpoints": true
     }
   ]
 }

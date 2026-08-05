@@ -1,26 +1,75 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Info, Loader2 } from "lucide-react";
+import { TrendingUp, Info, Loader2, AlertTriangle } from "lucide-react";
+import type { BranchPnL, LineSource, PnLLine } from "@/lib/services/pnl-types";
 
-export interface BranchPnLItem {
-  branchId: string;
-  branchName: string;
-  totalSalesCents: number;
-  foodCostCents: number;
-  foodCostPercent: number;
-  laborCostCents: number;
-  laborCostPercent: number;
-  operatingExpensesCents: number;
-  operatingExpensesPercent: number;
-  operatingProfitCents: number;
-  operatingProfitPercent: number;
-  dataCoveragePercent: number;
-  coverageNote: string;
+export type BranchPnLItem = BranchPnL;
+
+/**
+ * Regla de presentación (docs/plan-pnl-real.md §3.2):
+ *
+ *  - MEASURED       → se muestra normal.
+ *  - DERIVED        → marcado con † y la nota del método.
+ *  - SECTOR_DEFAULT → marcado con * : NO son datos del cliente.
+ *  - NO_DATA        → guion, NUNCA cero. Un cero se lee como "no gastamos nada".
+ */
+const MARKER: Record<LineSource, string> = {
+  MEASURED: "",
+  DERIVED: "†",
+  SECTOR_DEFAULT: "*",
+  NO_DATA: "",
+};
+
+const SOURCE_CLASS: Record<LineSource, string> = {
+  MEASURED: "",
+  DERIVED: "text-amber-700 dark:text-amber-400",
+  SECTOR_DEFAULT: "text-amber-700 dark:text-amber-400 italic",
+  NO_DATA: "text-muted-foreground",
+};
+
+const formatMXN = (cents: number) =>
+  (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+
+/** Celda de dinero o porcentaje que respeta la procedencia del renglón. */
+function LineCell({
+  value,
+  mode,
+  className = "",
+}: {
+  value: PnLLine;
+  mode: "money" | "percent";
+  className?: string;
+}) {
+  const isNoData = value.source === "NO_DATA";
+  const percentUnavailable = mode === "percent" && value.percentOfSales === null;
+
+  // Sin datos (o sin ventas contra las que calcular un %) → guion, no cero.
+  if (isNoData || percentUnavailable) {
+    return (
+      <TableCell className={`text-right text-muted-foreground ${className}`} title={value.note}>
+        <span aria-label="Sin datos">—</span>
+      </TableCell>
+    );
+  }
+
+  return (
+    <TableCell
+      className={`text-right ${SOURCE_CLASS[value.source]} ${className}`}
+      title={value.note}
+    >
+      {mode === "money" ? formatMXN(value.cents) : `${value.percentOfSales}%`}
+      {MARKER[value.source] && (
+        <sup className="ml-0.5 font-semibold" aria-hidden="true">
+          {MARKER[value.source]}
+        </sup>
+      )}
+    </TableCell>
+  );
 }
 
 export function PnlBranchTable() {
@@ -38,7 +87,7 @@ export function PnlBranchTable() {
         const res = await fetch("/api/finance/pnl");
         const json = await res.json();
         if (res.ok && json.success) {
-          setPnlData(json.data || []);
+          setPnlData(json.data?.branches ?? []);
         }
       } catch (err) {
         console.error("Failed to load P&L data:", err);
@@ -49,33 +98,71 @@ export function PnlBranchTable() {
     fetchPnL();
   }, []);
 
-  const formatMXN = (cents: number) =>
-    (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
-
-  // Calculate Group Totals
-  const totals = pnlData.reduce(
-    (acc, b) => {
-      acc.totalSales += b.totalSalesCents;
-      acc.foodCost += b.foodCostCents;
-      acc.laborCost += b.laborCostCents;
-      acc.operatingExpenses += b.operatingExpensesCents;
-      acc.operatingProfit += b.operatingProfitCents;
-      acc.coverageSum += b.dataCoveragePercent;
-      return acc;
-    },
-    { totalSales: 0, foodCost: 0, laborCost: 0, operatingExpenses: 0, operatingProfit: 0, coverageSum: 0 },
-  );
+  // Totales del grupo. Solo se suman los renglones que tienen datos: un NO_DATA
+  // no aporta cero, deja el total marcado como incompleto.
+  const totals = useMemo(() => {
+    const acc = {
+      sales: 0,
+      foodCost: 0,
+      waste: 0,
+      labor: 0,
+      operatingExpenses: 0,
+      operatingProfit: 0,
+      salesHasData: false,
+      incompleteLines: 0,
+    };
+    for (const b of pnlData) {
+      if (b.sales.source !== "NO_DATA") {
+        acc.sales += b.sales.cents;
+        acc.salesHasData = true;
+      }
+      for (const key of ["foodCost", "waste", "labor", "operatingExpenses"] as const) {
+        if (b[key].source === "NO_DATA") acc.incompleteLines += 1;
+        else acc[key] += b[key].cents;
+      }
+      if (b.operatingProfit.source !== "NO_DATA") acc.operatingProfit += b.operatingProfit.cents;
+    }
+    return acc;
+  }, [pnlData]);
 
   const groupCount = pnlData.length;
-  const groupFoodPercent = totals.totalSales > 0 ? Math.round((totals.foodCost / totals.totalSales) * 100) : 0;
-  const groupLaborPercent = totals.totalSales > 0 ? Math.round((totals.laborCost / totals.totalSales) * 100) : 0;
-  const groupProfitPercent = totals.totalSales > 0 ? Math.round((totals.operatingProfit / totals.totalSales) * 100) : 0;
-  const groupAvgCoverage = groupCount > 0 ? Math.round(totals.coverageSum / groupCount) : 0;
+  const pct = (cents: number) =>
+    totals.sales > 0 ? `${Number(((cents / totals.sales) * 100).toFixed(1))}%` : "—";
 
-  // Filtered & Paginated items
+  /** Sucursales cuyo margen no es confiable porque algún insumo no es MEASURED. */
+  const approximateCount = pnlData.filter((b) => b.weakestLine !== "MEASURED").length;
+
+  /** Notas al pie: solo los métodos que realmente aparecen en la tabla. */
+  const footnotes = useMemo(() => {
+    const lines: string[] = [];
+    const all = pnlData.flatMap((b) => [b.sales, b.foodCost, b.waste, b.labor, b.operatingExpenses]);
+    if (all.some((l) => l.source === "SECTOR_DEFAULT")) {
+      lines.push(
+        "* Estimación sectorial HORECA: ese renglón NO se calcula con tus datos todavía. " +
+          "Llega en cuanto tengas 2-4 semanas de captura.",
+      );
+    }
+    if (all.some((l) => l.source === "DERIVED")) {
+      lines.push(
+        "† Calculado con tus datos pero por vía indirecta (compras en lugar de consumo, " +
+          "o plantilla contratada en lugar de asistencia real). Pasa el cursor sobre la celda para ver el método.",
+      );
+    }
+    if (all.some((l) => l.source === "NO_DATA")) {
+      lines.push("— Sin datos capturados en el período. No es un cero: es un renglón que falta.");
+    }
+    lines.push(
+      "La nómina es sueldo bruto: no incluye IMSS, INFONAVIT ni provisiones (aguinaldo, vacaciones, prima). " +
+        "El número de tu contador será mayor.",
+    );
+    return lines;
+  }, [pnlData]);
+
   const filtered = pnlData.filter((b) => {
     const matchesSearch = b.branchName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRed = onlyRed ? b.operatingProfitCents < 0 : true;
+    const matchesRed = onlyRed
+      ? b.operatingProfit.source !== "NO_DATA" && b.operatingProfit.cents < 0
+      : true;
     return matchesSearch && matchesRed;
   });
 
@@ -88,10 +175,10 @@ export function PnlBranchTable() {
       <CardHeader className="pb-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 space-y-0">
         <div>
           <CardTitle className="text-base font-bold flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /> P&L Operativo Estimado por Sucursal (Neto sin IVA)
+            <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /> P&L Operativo por Sucursal (Neto sin IVA)
           </CardTitle>
           <CardDescription className="text-xs mt-0.5">
-            Utilidad Operativa = Ventas − Alimentos − Costo Laboral − Gastos Operativos.
+            Utilidad Operativa = Ventas − Alimentos − Merma − Nómina − Gastos Operativos.
           </CardDescription>
         </div>
 
@@ -134,6 +221,20 @@ export function PnlBranchTable() {
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Aviso de confiabilidad: si el margen se apoya en algo que no se
+                midió, se dice antes de que el dueño lea el número. */}
+            {approximateCount > 0 && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="w-4 h-4 mt-px shrink-0" />
+                <span>
+                  {approximateCount === groupCount
+                    ? "El margen operativo es aproximado en todas las sucursales"
+                    : `El margen operativo es aproximado en ${approximateCount} de ${groupCount} sucursales`}
+                  : algún renglón todavía no se calcula con tus datos. Las celdas marcadas indican cuál.
+                </span>
+              </div>
+            )}
+
             <div className="border rounded-md overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -141,15 +242,16 @@ export function PnlBranchTable() {
                     <TableHead>Sucursal</TableHead>
                     <TableHead className="text-right">Venta Neta</TableHead>
                     <TableHead className="text-right">Food Cost %</TableHead>
-                    <TableHead className="text-right">Labor %</TableHead>
+                    <TableHead className="text-right">Merma</TableHead>
+                    <TableHead className="text-right">Nómina %</TableHead>
                     <TableHead className="text-right">Gastos Operativos</TableHead>
-                    <TableHead className="text-right bg-emerald-500/5">Utilidad Est. ($)</TableHead>
+                    <TableHead className="text-right bg-emerald-500/5">Utilidad ($)</TableHead>
                     <TableHead className="text-right bg-emerald-500/5">Margen %</TableHead>
-                    <TableHead className="text-center">Cobertura de Datos</TableHead>
+                    <TableHead className="text-center">Confianza</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {/* Group Consolidate Summary Row */}
+                  {/* Consolidado del grupo */}
                   <TableRow className="bg-primary/5 hover:bg-primary/10 font-bold text-xs border-b-2 border-primary/20">
                     <TableCell className="font-bold text-foreground flex items-center gap-1.5">
                       <span>TOTAL GRUPO</span>
@@ -157,10 +259,15 @@ export function PnlBranchTable() {
                         {groupCount} sucursales
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-bold">{formatMXN(totals.totalSales)}</TableCell>
-                    <TableCell className="text-right">{groupFoodPercent}%</TableCell>
-                    <TableCell className="text-right">{groupLaborPercent}%</TableCell>
-                    <TableCell className="text-right font-bold">{formatMXN(totals.operatingExpenses)}</TableCell>
+                    <TableCell className="text-right font-bold">
+                      {totals.salesHasData ? formatMXN(totals.sales) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">{pct(totals.foodCost)}</TableCell>
+                    <TableCell className="text-right">{formatMXN(totals.waste)}</TableCell>
+                    <TableCell className="text-right">{pct(totals.labor)}</TableCell>
+                    <TableCell className="text-right font-bold">
+                      {formatMXN(totals.operatingExpenses)}
+                    </TableCell>
                     <TableCell
                       className={`text-right font-bold bg-emerald-500/10 ${
                         totals.operatingProfit >= 0
@@ -168,52 +275,105 @@ export function PnlBranchTable() {
                           : "text-destructive"
                       }`}
                     >
-                      {formatMXN(totals.operatingProfit)}
+                      {totals.salesHasData ? formatMXN(totals.operatingProfit) : "—"}
                     </TableCell>
-                    <TableCell className="text-right font-bold bg-emerald-500/10">{groupProfitPercent}%</TableCell>
+                    <TableCell className="text-right font-bold bg-emerald-500/10">
+                      {pct(totals.operatingProfit)}
+                    </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="secondary" className="text-xs gap-1 font-semibold">
-                        <Info className="w-3 h-3" /> {groupAvgCoverage}% Prom.
+                      <Badge
+                        variant={totals.incompleteLines > 0 ? "outline" : "secondary"}
+                        className="text-xs gap-1 font-semibold"
+                        title={
+                          totals.incompleteLines > 0
+                            ? `${totals.incompleteLines} renglón(es) sin datos entre todas las sucursales`
+                            : "Todos los renglones tienen datos capturados"
+                        }
+                      >
+                        <Info className="w-3 h-3" />
+                        {totals.incompleteLines > 0 ? `${totals.incompleteLines} sin datos` : "Completo"}
                       </Badge>
                     </TableCell>
                   </TableRow>
 
-                  {/* Individual Branches */}
-                  {paginated.map((item) => (
-                    <TableRow key={item.branchId} className="hover:bg-muted/40 transition text-xs">
-                      <TableCell className="font-medium">
-                        <Link
-                          href={`/dashboard/branches?branchId=${item.branchId}`}
-                          className="hover:underline text-foreground"
+                  {/* Sucursales */}
+                  {paginated.map((item) => {
+                    const approximate = item.weakestLine !== "MEASURED";
+                    return (
+                      <TableRow key={item.branchId} className="hover:bg-muted/40 transition text-xs">
+                        <TableCell className="font-medium">
+                          <Link
+                            href={`/dashboard/branches?branchId=${item.branchId}`}
+                            className="hover:underline text-foreground"
+                          >
+                            {item.branchName}
+                          </Link>
+                        </TableCell>
+                        <LineCell value={item.sales} mode="money" className="font-medium" />
+                        <LineCell value={item.foodCost} mode="percent" />
+                        <LineCell value={item.waste} mode="money" />
+                        <LineCell value={item.labor} mode="percent" />
+                        <LineCell
+                          value={item.operatingExpenses}
+                          mode="money"
+                          className="font-medium"
+                        />
+                        <TableCell
+                          className={`text-right font-bold bg-emerald-500/5 ${
+                            item.operatingProfit.source === "NO_DATA"
+                              ? "text-muted-foreground"
+                              : item.operatingProfit.cents >= 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-destructive"
+                          }`}
+                          title={item.operatingProfit.note}
                         >
-                          {item.branchName}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">{formatMXN(item.totalSalesCents)}</TableCell>
-                      <TableCell className="text-right">{item.foodCostPercent}%</TableCell>
-                      <TableCell className="text-right">{item.laborCostPercent}%</TableCell>
-                      <TableCell className="text-right font-medium">{formatMXN(item.operatingExpensesCents)}</TableCell>
-                      <TableCell
-                        className={`text-right font-bold bg-emerald-500/5 ${
-                          item.operatingProfitCents >= 0
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : "text-destructive"
-                        }`}
-                      >
-                        {formatMXN(item.operatingProfitCents)}
-                      </TableCell>
-                      <TableCell className="text-right font-bold bg-emerald-500/5">{item.operatingProfitPercent}%</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline" className="text-xs bg-muted/30 gap-1">
-                          <Info className="w-3 h-3 text-muted-foreground" /> {item.dataCoveragePercent}% Cobertura
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                          {item.operatingProfit.source === "NO_DATA"
+                            ? "—"
+                            : formatMXN(item.operatingProfit.cents)}
+                          {approximate && item.operatingProfit.source !== "NO_DATA" && (
+                            <sup className="ml-0.5" aria-hidden="true">
+                              ≈
+                            </sup>
+                          )}
+                        </TableCell>
+                        <LineCell
+                          value={item.operatingProfit}
+                          mode="percent"
+                          className="font-bold bg-emerald-500/5"
+                        />
+                        <TableCell className="text-center">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs gap-1 ${
+                              approximate
+                                ? "border-amber-500/40 text-amber-700 dark:text-amber-400"
+                                : "bg-muted/30"
+                            }`}
+                            title={
+                              approximate
+                                ? `Renglón más débil: ${item.weakestLine}. ${item.operatingProfit.note}`
+                                : "Los cuatro renglones se calcularon con tus datos"
+                            }
+                          >
+                            {approximate ? (
+                              <>
+                                <AlertTriangle className="w-3 h-3" /> Aproximado
+                              </>
+                            ) : (
+                              <>
+                                <Info className="w-3 h-3 text-muted-foreground" /> Medido
+                              </>
+                            )}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
 
                   {paginated.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-6 text-xs text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-6 text-xs text-muted-foreground">
                         No se encontraron sucursales con el filtro actual.
                       </TableCell>
                     </TableRow>
@@ -222,7 +382,13 @@ export function PnlBranchTable() {
               </Table>
             </div>
 
-            {/* Pagination Controls */}
+            {/* Notas al pie: la parte que hace que este P&L sea seguro de mostrar. */}
+            <div className="space-y-1 pt-1 text-[11px] leading-relaxed text-muted-foreground">
+              {footnotes.map((note) => (
+                <p key={note}>{note}</p>
+              ))}
+            </div>
+
             {totalPages > 1 && (
               <div className="flex items-center justify-between pt-1 text-xs text-muted-foreground">
                 <span>

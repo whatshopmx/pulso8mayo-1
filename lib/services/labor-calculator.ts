@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { shiftSessions, users, branches } from "@/lib/db/schema";
+import { shiftSessions, users, branches, holidays } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 
 export interface OvertimeRule {
@@ -93,6 +93,15 @@ const OVERTIME_RULES: OvertimeRule[] = [
     }
 ];
 
+/** Normaliza un Date o un texto de fecha a la llave "YYYY-MM-DD". */
+function toDayKey(value: Date | string): string {
+    if (typeof value === "string") return value.slice(0, 10);
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, "0");
+    const d = String(value.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
 const NIGHT_SHIFT_START = 22; // 22:00
 const NIGHT_SHIFT_END = 6; // 06:00
 const MAX_WEEKLY_HOURS = 48;
@@ -135,12 +144,17 @@ export class LaborCalculator {
               })
             : null;
 
+        // Días festivos de la company, precargados una sola vez para todo el
+        // período (antes esto era un TODO y la prima de festivo nunca aplicaba
+        // salvo en domingo).
+        const holidayDates = await this.loadHolidayDates(user.companyId);
+
         // Calculate weekly hours
         let weeklyMinutes = 0;
         const sessionSummaries: ShiftSessionSummary[] = [];
 
         for (const session of sessions) {
-            const summary = this.analyzeSession(session);
+            const summary = this.analyzeSession(session, holidayDates);
             sessionSummaries.push(summary);
             weeklyMinutes += summary.totalWorkMinutes;
         }
@@ -196,7 +210,7 @@ export class LaborCalculator {
     /**
      * Analyze a single shift session for overtime
      */
-    private static analyzeSession(session: any): ShiftSessionSummary {
+    private static analyzeSession(session: any, holidayDates?: Set<string>): ShiftSessionSummary {
         const startTime = new Date(session.startedAt);
         const endTime = session.endedAt ? new Date(session.endedAt) : new Date();
         const totalWorkMinutes = session.totalWorkMinutes || 0;
@@ -205,7 +219,7 @@ export class LaborCalculator {
         const isNightShift = this.isNightShift(startTime, endTime);
 
         // Check if holiday
-        const isHoliday = this.isHoliday(startTime);
+        const isHoliday = this.isHoliday(startTime, holidayDates);
 
         // Check if weekly overtime (will be calculated in aggregate)
         const isWeeklyOvertime = false; // Calculated separately
@@ -315,28 +329,48 @@ export class LaborCalculator {
     }
 
     /**
-     * Check if date is a holiday
+     * Check if date is a holiday.
+     *
+     * `holidayDates` es el conjunto de días festivos de la company en formato
+     * "YYYY-MM-DD", precargado por `calculateOvertime` desde la tabla
+     * `holidays` (una consulta por período, no una por sesión). Si no se
+     * provee, solo aplica la regla de domingo.
      */
-    private static isHoliday(date: Date): boolean {
-        // Check for Sundays
+    private static isHoliday(date: Date, holidayDates?: Set<string>): boolean {
+        // Domingo — día de descanso semanal (LFT art. 69).
         if (date.getDay() === 0) {
             return true;
         }
 
-        // TODO: Check against holidays table
-        // const holiday = await db.query.holidays.findFirst({
-        //     where: and(
-        //         eq(holidays.date, startOfDay(date)),
-        //         eq(holidays.companyId, companyId)
-        //     )
-        // });
-        // return !!holiday;
-
-        return false;
+        // Día de descanso obligatorio declarado por la company (LFT art. 74).
+        return holidayDates?.has(toDayKey(date)) ?? false;
     }
 
     /**
-     * Calculate overtime cost
+     * Load the company's holiday dates for a period as a "YYYY-MM-DD" set.
+     * Devuelve un set vacío si el usuario no tiene company asignada.
+     */
+    private static async loadHolidayDates(
+        companyId: string | null | undefined
+    ): Promise<Set<string>> {
+        if (!companyId) return new Set();
+        const rows = await db
+            .select({ date: holidays.date })
+            .from(holidays)
+            .where(eq(holidays.companyId, companyId));
+        return new Set(rows.map(r => toDayKey(r.date)));
+    }
+
+    /**
+     * Calculate overtime cost.
+     *
+     * @deprecated NO usar para costear nómina. `calculateOvertime` clasifica la
+     * jornada COMPLETA en `overtimeMinutes.diurnal`/`.nocturnal` — no solo los
+     * minutos que exceden el umbral (ver `calculateSessionOvertime`, rama
+     * `totalMinutes <= maxDaily`). En consecuencia `regularMinutes` sale
+     * siempre en 0 y este método multiplicaría la jornada ordinaria por 2x/3x
+     * encima del sueldo base. Para el costo de nómina usar
+     * `lib/services/labor-cost-service.ts`, que hace su propia clasificación.
      */
     static calculateOvertimeCost(
         hourlyRate: number,

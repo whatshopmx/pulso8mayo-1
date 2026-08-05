@@ -151,6 +151,20 @@ export class CostingService {
         };
     }
 
+    /**
+     * @deprecated NO usar como fuente de costo. Este método es falso por
+     * construcción y tiene un efecto de escritura oculto:
+     *
+     *  - `lastCostPercent` y `avgCostPercent` reciben EL MISMO valor
+     *    (`lastCostDetail.foodCostPercent`), así que no comparan nada.
+     *  - `variance` está hardcodeado en 0: siempre reporta varianza cero.
+     *  - Hace `db.update(recipes)` de `calculatedCost`/`foodCostPercentage` por
+     *    cada receta, en un bucle N+1, dentro de lo que aparenta ser una lectura.
+     *
+     * Para el food cost del P&L usar `lib/services/food-cost-service.ts`.
+     * Arreglarlo bien exige comparar `lastCost` contra `averageCost` de verdad,
+     * y eso es otro alcance (decisión P4 de docs/plan-pnl-real.md).
+     */
     static async getVarianceReport(
         companyId: string,
         branchId: string

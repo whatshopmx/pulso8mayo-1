@@ -61,16 +61,10 @@ Commits: `9d9f9c9` → `f19d414` (12 commits, uno por slice).
 - `npx eslint <archivos nuevos>` → sin errores nuevos.
 - Round-trip del column cipher: 5/5 muestras (prefijo, round-trip, IV aleatorio, passthrough legacy).
 
-### Migraciones — estado verificado 2026-08-05
-`drizzle/0028_melted_reavers.sql` (Sec-0) → **aplicada y registrada**.
-`drizzle/0029_vengeful_scarlet_spider.sql` (Sprint 1) → **las 13 columnas existen en
-la DB, pero la migración NO está registrada en `__drizzle_migrations`** (se aplicó
-fuera del flujo de `db:migrate`).
-
-⚠️ **Deuda:** el próximo `pnpm db:migrate` intentará ejecutar `0029` y fallará con
-`column already exists`. Hay que reconciliar el registro (insertar la fila del hash
-de `0029`) antes de la siguiente migración, o `db:migrate` queda bloqueado.
-Ver también `scripts/check-migration-drift.ts`.
+### Migraciones pendientes de aplicar (operator)
+`drizzle/0028_melted_reavers.sql` (Sec-0) y `drizzle/0029_vengeful_scarlet_spider.sql` (Sprint 1)
+NO se han aplicado a la DB. Quienes inningen Sprint 2 deben correr
+`pnpm db:migrate` (NUNCA `db:push`) antes de validar nada que lea columnas nuevas.
 
 ### Deuda técnica conocida (NO tocar en Sprint 2 salvo que lo bloquea)
 - `lib/services/domain-event-service.ts` línea ~44: `Record<string, any>` —
@@ -78,12 +72,6 @@ Ver también `scripts/check-migration-drift.ts`.
 - 2 commits sin conexión con Sprint 1 quedaron sin commitear a propósito
   (renames en `app/api/workflows/smart-links/corte-caja/route.ts` y
   `lib/inngest/functions/check-financial-alerts.ts`) — scope discipline.
-  **Ojo:** esos dos archivos arreglan 2 errores de `tsc` que HEAD sí tiene; hasta
-  que se commiteen, el repo en limpio no compila verde.
-- `refresh-engines` recorre **todas** las companies × 5 engines secuencialmente,
-  un `step.run` por par. Con muchos tenants el run crece linealmente. La forma
-  correcta cuando el número de companies crezca es fan-out por evento (una run
-  por company) o `concurrency` con key por company. Registrado, no cambiado.
 
 ---
 
@@ -209,58 +197,12 @@ export interface EngineOutput {
   `corporateTwins.executiveState.engineSnapshots[engineId]` vía
   `ExecutiveTwinEngine` (puede exponer un helper `setEngineSnapshot`).
 
-### Aceptación Track A — ✅ CUMPLIDA (2026-08-05)
-
-Cierre ejecutado según `docs/plan-cierre-sprint-2-track-a.md`.
-
-- [x] Los 5 archivos engine existen e implementan `IntelligenceEngine`.
-- [x] Cada uno produce `EngineOutput` con `confidence > 0` en una company con datos.
-      Verificado en `Pulso HORECA Demo`: operations 81/100, finance 94/58,
-      compliance 92/72, brand 71/71, procurement 100/87 (score/confidence).
-- [x] `npx tsc --noEmit` sin errores en los archivos del Track A;
-      `npx eslint` sin errores nuevos. Ver "Estado del build" abajo.
-- [x] Snapshots visibles en `corporateTwins.executiveState.engineSnapshots`,
-      verificados vía Inngest Dev Server (evento `executive/engines.refresh`) y
-      confirmados en DB.
-
-**Bugs encontrados y corregidos durante el cierre** (los tres bloqueaban la
-aceptación y ninguno estaba previsto en el plan de cierre):
-
-1. `refresh-engines.ts` — el JSDoc se cerraba en la expresión cron `*/6` y rompía
-   el parseo (48 errores de `tsc`).
-2. `refresh-engines.ts` — iteraba `string[]` usando `company.id`, así que llamaba
-   `refresh(undefined)` y generaba step IDs iguales para todas las companies
-   (memoización cruzada de Inngest: sólo un tenant se refrescaba).
-3. `ExecutiveTwinEngine.recalculate` — persistía `dims.state` completo, y
-   `computeDimensions` lo construye con `engineSnapshots: {}`. Como el twin se
-   recalcula cada 15 min y los engines cada 6 h, **cada recálculo borraba los
-   snapshots**. Ahora hace merge sobre el estado previo.
-4. `ExecutiveReportService.calcFillRate` — agregado anidado
-   (`count(... case when sum(...) ...)`), que Postgres rechaza con "aggregate
-   function calls cannot be nested". Hacía fallar `FinanceEngine.refresh` al 100%.
-   Reescrito con subconsulta por artículo.
-
-**Estado del build (no bloqueante para Track A):** `npx tsc --noEmit` a nivel repo
-todavía reporta errores, todos en trabajo sin commitear ajeno al Track A
-(`lib/services/kpi-calculator.ts` ×27, `app/api/labor/emergency-departure/`,
-`app/dashboard/labor/page.tsx`, `components/dashboard/executive/branch-ranking-client.tsx`).
-Verificado en un worktree limpio: HEAD + cierre del Track A no añade ningún error.
-
-### Decisión de scope para Sprint 3 — PENDIENTE de confirmar
-
-Los 5 engines ya persisten `insights`/`priorities`/`risks`, pero **nada los lee**:
-el dashboard ejecutivo sólo consume `executiveState.cashFlowProjection`.
-
-| Opción | Qué implica |
-|---|---|
-| **A. Orden de la v2** | Workforce + Maintenance + Knowledge → `PriorityEngine` → Morning Brief. Los outputs no se ven hasta el `PriorityEngine`. |
-| **B. Adelantar el consumidor** | `PriorityEngine` + panel de prioridades en el dashboard existente, con 5 engines. Los 3 engines restantes se suman después a un consumidor que ya funciona. |
-
-Recomendación de `docs/plan-cierre-sprint-2-track-a.md` §5: **B** — validar el
-contrato `EngineOutput` con 5 engines es más barato que con 8, y `/api/executive/priorities`
-es la ruta que desbloquea la demo con datos reales. De las 7 rutas
-`/api/executive/*` del plan sólo existen 2 (`twin`, `twin/refresh`); faltan
-`brief`, `priorities`, `cashflow`, `reason`, `feed`.
+### Aceptación Track A
+- [ ] Los 5 archivos engine existen e implementan `IntelligenceEngine`.
+- [ ] Cada uno produce `EngineOutput` con `confidence > 0` en una company con datos.
+- [ ] `npx tsc --noEmit` clean; `pnpm run build` verde; `pnpm run lint` sin
+  errores nuevos.
+- [ ] Snapshots visibles en `corporateTwins.executiveState.engineSnapshots`.
 
 ---
 

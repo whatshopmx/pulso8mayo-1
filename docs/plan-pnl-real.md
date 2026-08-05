@@ -315,17 +315,97 @@ credibilidad hoy.
 
 ## Checklist
 
-- [ ] F0: `PnLLine.source` marcado en API y UI, con nota al pie
-- [ ] `dataCoveragePercent` global eliminado, sustituido por cobertura por renglón
-- [ ] `labor-cost-service.ts` con escalera `MEASURED` / `CONTRACT_ONLY` / `SECTOR_DEFAULT`
-- [ ] `LaborCalculator.isHoliday()` consultando la tabla `holidays`
-- [ ] Sueldo vigente resuelto vía `salary_history` con fallback a `employee_contracts.baseSalary`
-- [ ] `hourlyRate` derivado de la jornada del contrato, no de un 8 asumido
-- [ ] `food-cost-service.ts` con escalera `CONSUMPTION` / `INVENTORY_DIFF` / `PURCHASES` / `SECTOR_DEFAULT`
-- [ ] Merma como renglón separado
-- [ ] `select count(*) from sales_entries` verificado (¿existe la vía de COGS teórico?)
-- [ ] `getVarianceReport` marcado `@deprecated`, sin llamadas nuevas
-- [ ] `pnl-service` reescrito con `GROUP BY branch_id`, una consulta por concepto
-- [ ] Snapshots semanales persistidos
-- [ ] Las 6 pruebas de la Fase 5 pasando
-- [ ] P1-P4 decididas
+- [x] F0: `PnLLine.source` marcado en API y UI, con nota al pie
+- [x] `dataCoveragePercent` global eliminado, sustituido por cobertura por renglón
+- [x] `labor-cost-service.ts` con escalera `MEASURED` / `CONTRACT_ONLY` / `SECTOR_DEFAULT`
+- [x] `LaborCalculator.isHoliday()` consultando la tabla `holidays`
+- [x] Sueldo vigente resuelto vía `salary_history` con fallback a `employee_contracts.baseSalary`
+- [x] `hourlyRate` derivado de la jornada del contrato, no de un 8 asumido
+      *(con fallback a 8h declarado en la nota: hoy ningún contrato tiene horario capturado)*
+- [x] `food-cost-service.ts` con escalera `CONSUMPTION` / `PURCHASES` / `SECTOR_DEFAULT`
+      *(`INVENTORY_DIFF` pendiente — ver F2b abajo)*
+- [x] Merma como renglón separado
+- [x] `select count(*) from sales_entries` verificado → **0 filas: la vía de COGS teórico no existe hoy**
+- [x] `getVarianceReport` marcado `@deprecated`, sin llamadas nuevas
+- [x] `pnl-service` reescrito con `GROUP BY branch_id`, una consulta por concepto
+- [x] Snapshots semanales persistidos *(tabla + servicio + migración `0030`; falta aplicarla)*
+- [x] Las pruebas de la Fase 5 pasando (14 aserciones)
+- [x] P1-P4 decididas — todas según la recomendación del plan
+
+---
+
+## Estado de implementación (2026-08-05)
+
+### Correcciones al diagnóstico del plan
+
+Al implementar aparecieron tres cosas que el plan afirmaba de otra forma. Ninguna
+invalida el plan; sí cambian el código.
+
+**1. `salary_history.newSalary` es MENSUAL, no diario.** El plan indica resolver el
+sueldo vigente con `newSalary` y fallback a `baseSalary`. Pero `newSalary` replica
+`monthlySalary` (4,500,000¢ = $45,000/mes) mientras `baseSalary` es diario
+(150,000¢ = $1,500/día). Tomarlo literal infla la nómina **30×**. Se normaliza
+comparando contra el `baseSalary` del propio contrato
+(`MONTHLY_SALARY_RATIO_THRESHOLD`), así que funciona igual para un tenant que sí
+guarde el diario.
+
+**2. `LaborCalculator` no sirve para costear.** El plan propone las horas extra
+"vía `LaborCalculator`". Pero `calculateSessionOvertime` clasifica la jornada
+COMPLETA como extra cuando está bajo el umbral (`totalMinutes <= maxDaily` asigna
+`diurnal = dayMinutes`), por lo que `regularMinutes` sale siempre 0 y
+`calculateOvertimeCost` multiplicaría la jornada ordinaria por 2x/3x sobre el
+sueldo base. `labor-cost-service` hace su propia clasificación; el método quedó
+marcado `@deprecated` explicando por qué. Los dashboards existentes no se tocaron.
+
+**3. `isHoliday()` no "siempre devuelve `false`"** (§0.2b): devuelve `true` los
+domingos. Lo que faltaba era la consulta a `holidays`, que ahora se precarga por
+período (una consulta, no una por sesión).
+
+### Defectos adicionales corregidos
+
+- **Gastos operativos sin filtro de período.** El `pnl-service` anterior sumaba el
+  histórico completo de `operating_expenses` contra las ventas del rango — un
+  margen que empeoraba solo con el paso del tiempo. Ahora se imputan por fecha
+  efectiva (pago > vencimiento > captura) y se excluyen los rechazados.
+- **Sucursal del contrato vacía.** `employee_contracts.branch_id` es NULL en los 7
+  contratos capturados; agrupar por él daba nómina cero en todas las sucursales.
+  Se resuelve con `COALESCE(contract.branch_id, users.branch_id)`.
+- **`average_cost` vacío.** Los 30 ítems tienen `last_cost` y ninguno tiene
+  `average_cost`. Una sucursal en `AVERAGE_COST` habría valorizado todo en $0. Hay
+  fallback a `last_cost` que **degrada el renglón a `DERIVED`** y lo dice en la nota.
+- **Horas extra sin tope.** Hay empleados con 17 `shift_sessions` COMPLETED el mismo
+  día; sin guardarraíl eso producía 120 h extra en 24 h. Se acota a 16 h/día
+  declarándolo en la nota, y se aplica el modelo LFT real (3 h/día al doble o
+  triple según jornada, art. 66/68/69; el excedente al triple).
+- **Turno nocturno en UTC.** Clasificar con horas UTC convertía un turno de las
+  21:30 hora de México en "nocturno" (3x en vez de 2x). Ahora se resuelve contra
+  `branches.timezone`.
+
+### Verificación ejecutada
+
+14/14 aserciones sobre el tenant demo, con escrituras temporales revertidas y
+baseline reconfirmado:
+
+| Prueba | Resultado |
+|---|---|
+| Diferenciación | Food cost **$5,785 / $7,492 / $5,273** — distinto por sucursal |
+| Sensibilidad a merma | +50 u. en Condesa → merma +$4,250 exacto; food cost sin mover; otras sucursales sin mover |
+| Cuadre de nómina | 3 h×2 + 5 h×3 a $52.08/h = $1,093.76 — coincide al centavo |
+| Escalera | Sin inventario → `SECTOR_DEFAULT` 28.5% etiquetado; sin turnos → `CONTRACT_ONLY`; ambos marcados en UI |
+| Vacío | Todos los renglones `NO_DATA`, `percentOfSales: null` (guion), sin margen calculado |
+| `tsc --noEmit` | Limpio |
+
+### Pendiente
+
+- **Aplicar la migración `drizzle/0030_pnl_snapshots.sql`** (aditiva: solo crea la
+  tabla). Sin esto `pnl-snapshot-service` falla en runtime.
+- **F2b `INVENTORY_DIFF`.** Los conteos viven como `workflow_instances`, no como
+  tabla propia, y hoy no hay ninguno capturado. Requiere disciplina de conteo real.
+- **Cron de congelado semanal** que llame a `freezePnLPeriod`.
+- **Factor de carga social por tenant** (decisión P1): hoy la nota al pie declara
+  que es sueldo bruto; el factor configurable es el siguiente paso.
+- **`financial-kpi-service.calculateFinancialKPIs` sigue siendo falso** y alimenta
+  `check-financial-alerts` y las tarjetas de KPI: suma `inventory_batches` de TODA
+  la historia sin filtro de fecha y costea la nómina a **$60/hora hardcodeados**.
+  Fuera del alcance de este plan, pero es el mismo defecto en otro archivo — y ahora
+  hay dos servicios reales a los que puede delegar.
