@@ -188,20 +188,37 @@ export class ExecutiveReportService {
     }
 
     private static async calcFillRate(branchId: string): Promise<number> {
-        const rows = await db.select({
-            totalItems: sql<number>`count(distinct ${inventoryItems.id})`,
-            filledItems: sql<number>`count(distinct case when coalesce(sum(case when ${inventoryBatches.status} = 'AVAILABLE' then ${inventoryBatches.currentQuantity} else 0 end), 0) >= ${inventoryItems.minLevel} then ${inventoryItems.id} end)`,
-        })
+        // El stock disponible por artículo se agrega en una subconsulta y sólo
+        // después se cuenta. Hacerlo en un único nivel
+        // (`count(... case when sum(...) ...)`) es un agregado anidado y Postgres
+        // lo rechaza con "aggregate function calls cannot be nested".
+        const perItem = db
+            .select({
+                itemId: inventoryItems.id,
+                minLevel: sql<number>`${inventoryItems.minLevel}`.as("min_level"),
+                available: sql<number>`coalesce(sum(case when ${inventoryBatches.status} = 'AVAILABLE' then ${inventoryBatches.currentQuantity} else 0 end), 0)`.as("available"),
+            })
             .from(inventoryItems)
             .leftJoin(inventoryBatches, eq(inventoryItems.id, inventoryBatches.itemId))
             .where(and(
                 eq(inventoryBatches.branchId, branchId),
                 eq(inventoryItems.active, true),
                 sql`${inventoryItems.minLevel} > 0`,
-            ));
+            ))
+            .groupBy(inventoryItems.id, inventoryItems.minLevel)
+            .as("per_item");
+
+        const rows = await db
+            .select({
+                totalItems: sql<number>`cast(count(*) as integer)`,
+                filledItems: sql<number>`cast(count(*) filter (where ${perItem.available} >= ${perItem.minLevel}) as integer)`,
+            })
+            .from(perItem);
 
         const r = rows[0];
-        return r && r.totalItems > 0 ? parseFloat(((r.filledItems / r.totalItems) * 100).toFixed(1)) : 100;
+        const total = Number(r?.totalItems ?? 0);
+        const filled = Number(r?.filledItems ?? 0);
+        return total > 0 ? parseFloat(((filled / total) * 100).toFixed(1)) : 100;
     }
 
     private static async calcCountAccuracy(branchId: string): Promise<number | null> {

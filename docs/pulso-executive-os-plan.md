@@ -1,5 +1,10 @@
 # Pulso Executive OS — Plan de Implementación
 
+> ⚠️ **SUPERADO por `docs/pulso-executive-os-v2.md`.**
+> Este documento subestimaba lo ya construido (CEO Dashboard, 26 funciones Inngest,
+> CrossBranchService). Usar la v2 como plan de referencia. Se conserva por contexto
+> histórico del gap analysis original.
+
 > **De "software para restaurantes" a "Directorio Ejecutivo Digital"**
 >
 > Este documento es el puente entre la visión estratégica (`pulso-diseno-grupo-restaurantero.md`) y lo que ya está construido en el sistema. No duplica el diseño — mapea qué existe, qué falta, y cómo construirlo incrementalmente.

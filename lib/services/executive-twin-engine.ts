@@ -161,6 +161,20 @@ export const ExecutiveTwinEngine = {
 
     // 4a. GroupWide (no actor) → persist the new columns + executiveState.
     if (!ctx) {
+      // `dims.state` se construye desde cero (con `engineSnapshots: {}`), así que
+      // escribirlo tal cual borraría los snapshots de los engines: el twin se
+      // recalcula cada 15 min y los engines cada 6 h. Merge sobre el estado
+      // previo — las cachés recomputadas ganan, los snapshots se conservan.
+      const prevState = (base.executiveState ?? {}) as ExecutiveState;
+      const nextState: ExecutiveState = {
+        ...prevState,
+        ...dims.state,
+        engineSnapshots: {
+          ...(prevState.engineSnapshots ?? {}),
+          ...(dims.state.engineSnapshots ?? {}),
+        },
+      };
+
       const [persisted] = await db
         .update(corporateTwins)
         .set({
@@ -176,7 +190,7 @@ export const ExecutiveTwinEngine = {
           knowledgeIndex: dims.knowledgeIndex,
           playbookCount: dims.playbookCount,
           bestPracticesCount: dims.bestPracticesCount,
-          executiveState: dims.state as unknown as Record<string, unknown>,
+          executiveState: nextState as unknown as Record<string, unknown>,
           lastUpdated: new Date(),
           updatedAt: new Date(),
         })
@@ -197,7 +211,12 @@ export const ExecutiveTwinEngine = {
         );
       }
 
-      return this.toExecutiveTwin(persisted ?? base, dims);
+      // Devolver el estado realmente persistido (con los snapshots), no el
+      // `dims.state` recién computado.
+      return this.toExecutiveTwin(persisted ?? base, {
+        ...dims,
+        state: nextState,
+      });
     }
 
     // 4b. Scoped (actor present) → in-memory twin, not persisted.

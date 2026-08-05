@@ -21,15 +21,21 @@ export type ImpactLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type SeverityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type ConfidenceLevel = 'LOW' | 'MEDIUM' | 'HIGH';
 
-/** Stable engine ids — used as `engine_outputs.engineId` discriminator. */
+/**
+ * Stable engine ids — used as `engine_outputs.engineId` discriminator.
+ *
+ * Alineado con los 8 engines del roadmap v2. Notas de nomenclatura:
+ *  - `workforce` (no `labor`): el engine de personal se llama `WorkforceEngine`.
+ *  - `procurement` cubre el trabajo de inventario; no hay engine `inventory`.
+ *  - la expansión es una *dimensión* del twin (`expansionReadiness`), no un engine.
+ */
 export type EngineId =
   | 'operations'
   | 'finance'
   | 'compliance'
-  | 'labor'
-  | 'inventory'
+  | 'workforce'
+  | 'maintenance'
   | 'brand'
-  | 'expansion'
   | 'knowledge'
   | 'procurement';
 
