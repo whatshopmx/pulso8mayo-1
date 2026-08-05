@@ -22,6 +22,7 @@ const createExpenseSchema = z.object({
   description: z.string().min(1, "La descripción es requerida."),
   invoiceId: z.string().optional().nullable(),
   dueDate: z.string().optional().nullable(),
+  evidenceUrl: z.string().optional().nullable(),
 });
 
 export async function GET(req: NextRequest) {
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
       description: data.description,
       invoiceId: data.invoiceId || undefined,
       dueDate: data.dueDate || undefined,
+      evidenceUrl: data.evidenceUrl || undefined,
       requestedBy: user.id,
       userRole: user.role || "GERENTE",
     });

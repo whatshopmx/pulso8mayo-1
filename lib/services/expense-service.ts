@@ -22,6 +22,8 @@ export interface CreateExpenseInput {
   description: string;
   invoiceId?: string;
   dueDate?: string;
+  /** URL del ticket/foto de evidencia (R2). */
+  evidenceUrl?: string;
   requestedBy: string;
   userRole?: string;
 }
@@ -84,6 +86,7 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
       amount: input.amountCents,
       description: input.description,
       invoiceId: input.invoiceId || null,
+      evidenceUrl: input.evidenceUrl || null,
       status: initialStatus,
       requestedBy: input.requestedBy,
       approvedBy,
@@ -193,6 +196,7 @@ export async function getOperatingExpenses(companyId: string, branchId?: string)
       category: operatingExpenses.category,
       amountCents: operatingExpenses.amount,
       description: operatingExpenses.description,
+      evidenceUrl: operatingExpenses.evidenceUrl,
       status: operatingExpenses.status,
       requestedBy: operatingExpenses.requestedBy,
       requestedByName: requestedUser.name,

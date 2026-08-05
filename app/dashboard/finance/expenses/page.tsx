@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield } from "lucide-react";
+import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield, ImagePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/hooks/use-session";
 
@@ -53,6 +53,7 @@ interface ExpenseItem {
   category: string;
   amountCents: number;
   description: string;
+  evidenceUrl?: string | null;
   status: "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | "PAID";
   requestedBy?: string | null;
   requestedByName: string | null;
@@ -287,6 +288,7 @@ export default function ExpensesPage() {
                     <TableHead>Sucursal</TableHead>
                     <TableHead>Categoría</TableHead>
                     <TableHead>Descripción</TableHead>
+                    <TableHead>Evidencia</TableHead>
                     <TableHead className="text-right">Monto ($)</TableHead>
                     <TableHead>Solicitado por</TableHead>
                     <TableHead>Estatus</TableHead>
@@ -310,6 +312,20 @@ export default function ExpensesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="font-medium max-w-xs truncate">{item.description}</TableCell>
+                      <TableCell>
+                        {item.evidenceUrl ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                            onClick={() => window.open(item.evidenceUrl!, "_blank", "noopener,noreferrer")}
+                          >
+                            <ImagePlus className="w-3.5 h-3.5 text-primary" /> Ver ticket
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground/40 text-[10px]">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-bold">{formatMXN(item.amountCents)}</TableCell>
                       <TableCell>{item.requestedByName || "Gerente"}</TableCell>
                       <TableCell>{getStatusBadge(item.status)}</TableCell>
