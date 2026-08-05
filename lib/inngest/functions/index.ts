@@ -31,4 +31,5 @@ export { processDomainEvent, processCorporateTwinUpdate } from "./operational-tw
 export { recalculateExecutiveTwin } from "./recalculate-executive-twin";
 export { backfillEncryptEmployees } from "./backfill-encrypt-employees";
 export { refreshEngines } from "./refresh-engines";
+export { emergencyDepartureHandler } from "./emergency-departure-handler";
 

@@ -39,7 +39,7 @@ export async function requireRole(allowedRoles: UserRole[]) {
 
   const userRole = ((session.user as any).role || 'EMPLEADO') as UserRole;
 
-  if (!allowedRoles.includes(userRole)) {
+  if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
     redirect("/dashboard/workflows");
   }
 
@@ -63,7 +63,7 @@ export async function requireRoleApi(allowedRoles: UserRole[]) {
 
   const userRole = ((session.user as any).role || 'EMPLEADO') as UserRole;
 
-  if (!allowedRoles.includes(userRole)) {
+  if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
     throw ApiError.forbidden(
       `Role '${userRole}' is not allowed. Required: ${allowedRoles.join(", ")}`
     );

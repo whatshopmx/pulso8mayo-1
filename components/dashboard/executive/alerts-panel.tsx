@@ -1,12 +1,13 @@
 /**
  * Alerts Panel — Executive Dashboard
  *
- * Cross-branch alerts grouped by branch: overdue workflows, low scores,
- * expiring documents, active critical incidents.
+ * Scalable alerts grouped by severity level (Crítica, Advertencia, Info)
+ * across 3 to 15+ branches to prevent visual clutter.
  *
  * Server Component.
  */
 
+import Link from "next/link";
 import { CrossBranchService } from "@/lib/services/cross-branch-service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,27 +16,19 @@ import {
   FileWarning,
   ShieldAlert,
   AlertTriangle,
+  AlertOctagon,
+  CheckCircle2,
 } from "lucide-react";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface BranchAlert {
+interface FlattenedAlert {
+  id: string;
   branchId: string;
   branchName: string;
-  items: AlertItem[];
+  severity: "critical" | "warning" | "info";
+  title: string;
+  detail: string;
+  icon: React.ElementType;
 }
-
-interface AlertItem {
-  type: "overdue" | "low_score" | "critical_incident" | "expiring_docs";
-  message: string;
-  count?: number;
-}
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 export async function AlertsPanel({ companyId }: { companyId: string }) {
   const [compliance, incidentes, docExpirations] = await Promise.all([
@@ -44,35 +37,46 @@ export async function AlertsPanel({ companyId }: { companyId: string }) {
     CrossBranchService.getDocumentExpirations(companyId),
   ]);
 
-  const alerts: BranchAlert[] = [];
+  const items: FlattenedAlert[] = [];
 
   for (const b of compliance) {
-    const items: AlertItem[] = [];
-
-    // Overdue workflows
-    if (b.overdueWorkflows > 0) {
-      items.push({
-        type: "overdue",
-        message: `${b.overdueWorkflows} tareas vencidas`,
-        count: b.overdueWorkflows,
-      });
-    }
-
-    // Low compliance score
-    if (b.totalWorkflows > 0 && b.avgScore < 80) {
-      items.push({
-        type: "low_score",
-        message: `Score bajo: ${Math.round(b.avgScore)}%`,
-      });
-    }
-
     // Critical incidents
     const inc = incidentes.find((i) => i.branchId === b.branchId);
     if (inc && inc.activeIncidents > 0) {
       items.push({
-        type: "critical_incident",
-        message: `${inc.activeIncidents} incidentes (${inc.criticalCount + inc.fatalCount} críticos)`,
-        count: inc.activeIncidents,
+        id: `inc-${b.branchId}`,
+        branchId: b.branchId,
+        branchName: b.branchName,
+        severity: "critical",
+        title: `${inc.activeIncidents} incidentes activos`,
+        detail: inc.criticalCount + inc.fatalCount > 0 ? `${inc.criticalCount + inc.fatalCount} críticos` : "Revisión requerida",
+        icon: AlertOctagon,
+      });
+    }
+
+    // Low compliance score (<80%)
+    if (b.totalWorkflows > 0 && b.avgScore < 80) {
+      items.push({
+        id: `score-${b.branchId}`,
+        branchId: b.branchId,
+        branchName: b.branchName,
+        severity: "critical",
+        title: `Score bajo: ${Math.round(b.avgScore)}%`,
+        detail: "Cumplimiento NOM-251 bajo umbral",
+        icon: ShieldAlert,
+      });
+    }
+
+    // Overdue workflows
+    if (b.overdueWorkflows > 0) {
+      items.push({
+        id: `overdue-${b.branchId}`,
+        branchId: b.branchId,
+        branchName: b.branchName,
+        severity: "warning",
+        title: `${b.overdueWorkflows} tareas vencidas`,
+        detail: "Workflows sin completar",
+        icon: Clock,
       });
     }
 
@@ -80,62 +84,36 @@ export async function AlertsPanel({ companyId }: { companyId: string }) {
     const docs = docExpirations.find((d) => d.branchId === b.branchId);
     if (docs && (docs.expiringCount > 0 || docs.expiredCount > 0)) {
       const parts: string[] = [];
-      if (docs.expiredCount > 0)
-        parts.push(`${docs.expiredCount} vencidos`);
-      if (docs.expiringCount > 0)
-        parts.push(`${docs.expiringCount} por vencer`);
+      if (docs.expiredCount > 0) parts.push(`${docs.expiredCount} vencidos`);
+      if (docs.expiringCount > 0) parts.push(`${docs.expiringCount} por vencer`);
       items.push({
-        type: "expiring_docs",
-        message: `Docs: ${parts.join(", ")}`,
-      });
-    }
-
-    if (items.length > 0) {
-      alerts.push({
+        id: `doc-${b.branchId}`,
         branchId: b.branchId,
         branchName: b.branchName,
-        items,
+        severity: docs.expiredCount > 0 ? "warning" : "info",
+        title: `Docs: ${parts.join(", ")}`,
+        detail: "Permisos / certificados",
+        icon: FileWarning,
       });
     }
   }
 
-  // Sort: branches with most critical items first
-  alerts.sort((a, b) => {
-    const aCrit = a.items.filter(
-      (i) => i.type === "critical_incident" || i.type === "low_score",
-    ).length;
-    const bCrit = b.items.filter(
-      (i) => i.type === "critical_incident" || i.type === "low_score",
-    ).length;
-    return bCrit - aCrit || b.items.length - a.items.length;
-  });
+  const criticals = items.filter((i) => i.severity === "critical");
+  const warnings = items.filter((i) => i.severity === "warning");
+  const infos = items.filter((i) => i.severity === "info");
 
-  const iconMap: Record<AlertItem["type"], React.ElementType> = {
-    overdue: Clock,
-    low_score: ShieldAlert,
-    critical_incident: AlertTriangle,
-    expiring_docs: FileWarning,
-  };
-
-  const colorMap: Record<
-    AlertItem["type"],
-    "default" | "destructive" | "secondary" | "outline"
-  > = {
-    overdue: "default",
-    low_score: "destructive",
-    critical_incident: "destructive",
-    expiring_docs: "secondary",
-  };
-
-  if (alerts.length === 0) {
+  if (items.length === 0) {
     return (
       <Card className="border-border">
         <CardHeader>
-          <CardTitle className="text-lg">Alertas</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            Alertas del Grupo
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            ✅ Sin alertas activas en el grupo.
+            ✅ Operación estable. Sin alertas activas en ninguna sucursal.
           </p>
         </CardContent>
       </Card>
@@ -143,35 +121,129 @@ export async function AlertsPanel({ companyId }: { companyId: string }) {
   }
 
   return (
-    <Card className="border-border border-l-4 border-l-amber-500">
-      <CardHeader className="pb-2">
+    <Card className="border-border">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-lg flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-amber-500" />
-          Alertas ({alerts.reduce((s, a) => s + a.items.length, 0)})
+          Alertas ({items.length})
         </CardTitle>
+        <div className="flex items-center gap-1.5">
+          {criticals.length > 0 && (
+            <Badge variant="destructive" className="text-xs">
+              {criticals.length} críticas
+            </Badge>
+          )}
+          {warnings.length > 0 && (
+            <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-700 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/30">
+              {warnings.length} adv.
+            </Badge>
+          )}
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {alerts.map((alert) => (
-          <div key={alert.branchId} className="space-y-1.5">
-            <p className="text-sm font-semibold">{alert.branchName}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {alert.items.map((item, idx) => {
-                const Icon = iconMap[item.type];
+      <CardContent className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
+        {/* Critical group */}
+        {criticals.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-destructive flex items-center gap-1">
+              <AlertOctagon className="h-3.5 w-3.5" />
+              Atención Inmediata ({criticals.length})
+            </p>
+            <div className="space-y-1.5">
+              {criticals.map((item) => {
+                const Icon = item.icon;
                 return (
-                  <Badge
-                    key={idx}
-                    variant={colorMap[item.type]}
-                    className="text-xs gap-1"
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between p-2 rounded-lg bg-red-50/50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-900/30 text-xs"
                   >
-                    <Icon className="h-3 w-3" />
-                    {item.message}
-                  </Badge>
+                    <div className="flex items-center gap-2 truncate">
+                      <Icon className="h-4 w-4 text-destructive shrink-0" />
+                      <div className="truncate">
+                        <Link
+                          href={`/dashboard/branches?branchId=${item.branchId}`}
+                          className="font-semibold text-foreground hover:underline mr-1.5"
+                        >
+                          {item.branchName}:
+                        </Link>
+                        <span className="text-foreground">{item.title}</span>
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </div>
           </div>
-        ))}
+        )}
+
+        {/* Warnings group */}
+        {warnings.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              Pendientes Operativos ({warnings.length})
+            </p>
+            <div className="space-y-1.5">
+              {warnings.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between p-2 rounded-lg bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200/40 dark:border-amber-900/30 text-xs"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Icon className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <div className="truncate">
+                        <Link
+                          href={`/dashboard/branches?branchId=${item.branchId}`}
+                          className="font-semibold text-foreground hover:underline mr-1.5"
+                        >
+                          {item.branchName}:
+                        </Link>
+                        <span className="text-muted-foreground">{item.title}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Info group */}
+        {infos.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <FileWarning className="h-3.5 w-3.5" />
+              Informativas ({infos.length})
+            </p>
+            <div className="space-y-1.5">
+              {infos.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border text-xs"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="truncate">
+                        <Link
+                          href={`/dashboard/branches?branchId=${item.branchId}`}
+                          className="font-semibold text-foreground hover:underline mr-1.5"
+                        >
+                          {item.branchName}:
+                        </Link>
+                        <span className="text-muted-foreground">{item.title}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
+

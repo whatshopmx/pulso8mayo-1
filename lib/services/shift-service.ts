@@ -1,11 +1,14 @@
 
 import { db } from "@/lib/db";
-import { shiftSessions, breakLogs, branches, plannedShifts, breakComplianceRules } from "@/lib/db/schema";
+import { shiftSessions, breakLogs, branches, plannedShifts, breakComplianceRules, shiftApprovals } from "@/lib/db/schema";
 import { eq, and, isNull, between, sql } from "drizzle-orm";
 import { Shift, ShiftFilters, CreateShiftInput, UpdateShiftInput, BulkCreateResult, DuplicateOptions } from "@/lib/types/shifts";
 import { parseISO, startOfWeek, endOfWeek, addWeeks } from "date-fns";
 import { ShiftApprovalService } from "./shift-approval-service";
 import { OvertimeAlertService } from "./overtime-alert-service";
+import { WorkflowAssignmentService } from "./workflow-assignment-service";
+import { WorkflowTriggerService } from "./workflow-trigger-service";
+import { inngest } from "@/lib/inngest/client";
 
 const DAILY_WORK_LIMIT_MINUTES = 480; // 8 hours
 
@@ -438,5 +441,99 @@ export class ShiftService {
         }
 
         return null;
+    }
+
+    /**
+     * Register emergency departure for an employee:
+     * - Ends active shift session with early departure flags
+     * - Creates shift approval request of type EARLY_DEPARTURE
+     * - Reassigns all active workflow tasks to available peers/supervisors
+     * - Triggers system event EMERGENCY_DEPARTURE and dispatches Inngest event
+     */
+    static async registerEmergencyDeparture(data: {
+        userId: string;
+        branchId: string;
+        companyId: string;
+        reason: string;
+        requestedBy?: string;
+        targetUserId?: string;
+        notes?: string;
+    }) {
+        const { userId, branchId, companyId, reason, requestedBy, targetUserId, notes } = data;
+
+        // 1. Close active session if exists
+        let activeSession = await db.query.shiftSessions.findFirst({
+            where: and(
+                eq(shiftSessions.userId, userId),
+                eq(shiftSessions.status, 'ACTIVE')
+            )
+        });
+
+        let closedSession = null;
+        if (activeSession) {
+            closedSession = await this.endSession(userId);
+        }
+
+        // 2. Create Shift Approval for EARLY_DEPARTURE
+        const approvalTitle = `Salida de Emergencia: ${reason}`;
+        const approval = await ShiftApprovalService.createApproval({
+            companyId,
+            branchId,
+            approvalType: 'EARLY_DEPARTURE',
+            requestedBy: requestedBy || userId,
+            requestedFor: userId,
+            title: approvalTitle,
+            reason: reason,
+            description: notes,
+            shiftSessionId: activeSession?.id
+        });
+
+        // 3. Reassign active pending workflows
+        const reassignmentResult = await WorkflowAssignmentService.reassignUserPendingWorkflows(
+            userId,
+            branchId,
+            targetUserId,
+            requestedBy
+        );
+
+        // 4. Trigger system event for workflows
+        const launchedWorkflows = await WorkflowTriggerService.handleEvent(branchId, 'EMERGENCY_DEPARTURE', {
+            userId,
+            branchId,
+            companyId,
+            reason,
+            sessionId: activeSession?.id,
+            reassignedCount: reassignmentResult.reassignedCount,
+            newAssigneeId: reassignmentResult.targetUserId
+        });
+
+        // 5. Dispatch Inngest event
+        try {
+            await inngest.send({
+                name: "employee/emergency.departure",
+                data: {
+                    userId,
+                    branchId,
+                    companyId,
+                    reason,
+                    notes,
+                    requestedBy: requestedBy || userId,
+                    sessionId: activeSession?.id,
+                    reassignedCount: reassignmentResult.reassignedCount,
+                    targetUserId: reassignmentResult.targetUserId,
+                    approvalId: approval.id,
+                }
+            });
+        } catch (inngestErr) {
+            console.error("[ShiftService] Failed to dispatch Inngest emergency departure event:", inngestErr);
+        }
+
+        return {
+            success: true,
+            approval,
+            closedSession,
+            reassignmentResult,
+            launchedWorkflowsCount: launchedWorkflows.length
+        };
     }
 }

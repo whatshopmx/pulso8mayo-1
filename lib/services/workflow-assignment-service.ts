@@ -356,6 +356,66 @@ export class WorkflowAssignmentService {
     }
 
     /**
+     * Reassign all pending and started workflows of an employee to another user or to the best available user in the branch
+     */
+    static async reassignUserPendingWorkflows(userId: string, branchId: string, targetUserId?: string, reassignedBy?: string) {
+        // Find all active/pending assignments for this user
+        const activeAssignments = await db
+            .select({ assignment: workflowAssignments })
+            .from(workflowAssignments)
+            .leftJoin(workflowInstances, eq(workflowAssignments.instanceId, workflowInstances.id))
+            .where(
+                and(
+                    eq(workflowAssignments.assignedTo, userId),
+                    or(
+                        eq(workflowAssignments.status, 'PENDING'),
+                        eq(workflowAssignments.status, 'NOTIFIED'),
+                        eq(workflowAssignments.status, 'STARTED')
+                    ),
+                    eq(workflowInstances.branchId, branchId)
+                )
+            );
+
+        if (activeAssignments.length === 0) {
+            return { reassignedCount: 0, targetUserId: null };
+        }
+
+        // Determine destination user
+        let destinationUserId = targetUserId || null;
+        if (!destinationUserId) {
+            destinationUserId = await this.findBestAvailableUser(branchId);
+        }
+
+        if (!destinationUserId) {
+            // Fallback to manager in branch if no peer user found
+            const manager = await db.query.users.findFirst({
+                where: and(
+                    eq(users.branchId, branchId),
+                    or(eq(users.role, 'GERENTE'), eq(users.role, 'SUPERVISOR'), eq(users.role, 'ADMIN'))
+                )
+            });
+            destinationUserId = manager?.id || null;
+        }
+
+        if (!destinationUserId) {
+            console.warn(`[WorkflowAssignmentService] Could not find any target user to reassign tasks for user ${userId} in branch ${branchId}`);
+            return { reassignedCount: 0, targetUserId: null };
+        }
+
+        const reassignedIds: string[] = [];
+        for (const item of activeAssignments) {
+            await this.reassignWorkflow(item.assignment.id, destinationUserId, reassignedBy);
+            reassignedIds.push(item.assignment.id);
+        }
+
+        return {
+            reassignedCount: reassignedIds.length,
+            targetUserId: destinationUserId,
+            reassignedIds
+        };
+    }
+
+    /**
      * Get assignment statistics for a user
      */
     static async getAssignmentStats(userId: string): Promise<AssignmentStats> {

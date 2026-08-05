@@ -81,6 +81,12 @@ function healthColor(score: number): KpiCardData["color"] {
 // Card component
 // ---------------------------------------------------------------------------
 
+const deltaTextColorMap: Record<string, string> = {
+  emerald: "text-emerald-600 dark:text-emerald-400",
+  red: "text-red-600 dark:text-red-400",
+  muted: "text-muted-foreground",
+};
+
 function HeroCard({ data }: { data: KpiCardData }) {
   const Icon = data.icon;
   const dColor = deltaColor(data.delta);
@@ -117,9 +123,9 @@ function HeroCard({ data }: { data: KpiCardData }) {
 
         {data.delta !== null && (
           <div className="mt-3 flex items-center gap-1 text-xs">
-            <DeltaIcon delta={data.delta} className={`h-3.5 w-3.5 text-${dColor}-600 dark:text-${dColor}-400`} />
+            <DeltaIcon delta={data.delta} className={`h-3.5 w-3.5 ${deltaTextColorMap[dColor]}`} />
             <span
-              className={`font-semibold text-${dColor}-600 dark:text-${dColor}-400`}
+              className={`font-semibold ${deltaTextColorMap[dColor]}`}
             >
               {data.delta > 0 ? "+" : ""}
               {data.delta}%
@@ -143,11 +149,9 @@ function WaitingCard() {
   return (
     <Card className="border-dashed border-border col-span-full">
       <CardContent className="p-6 flex items-center gap-3 text-sm text-muted-foreground">
-        <Activity className="h-5 w-5 animate-pulse" />
+        <Activity className="h-5 w-5 animate-pulse text-muted-foreground" />
         <span>
-          Construyendo el Executive Twin… las tarjetas se poblarán en el
-          siguiente ciclo del cron (cada 15 min) o al forzar un refresh desde
-          <span className="font-medium text-foreground"> POST /api/executive/twin/refresh</span>.
+          Calculando métricas del grupo... Las tarjetas se actualizarán automáticamente en el siguiente ciclo.
         </span>
       </CardContent>
     </Card>
@@ -168,16 +172,16 @@ function twinOrFallbackCards(
 
   return [
     {
-      label: "Group Health",
+      label: "Salud del Grupo",
       value: fmtPercent(twin.healthScore),
-      secondary: `${secondary.branchCount} sucursales · drift ${twin.driftScore}`,
+      secondary: `${secondary.branchCount} sucursales · desv. ${twin.driftScore}`,
       delta: null,
       deltaLabel: "vs período anterior",
       icon: Activity,
       color: healthColor(twin.healthScore),
     },
     {
-      label: "Cash Available",
+      label: "Flujo Disponible",
       value: fmtMxnCompact(twin.projectedCashFlowCents),
       secondary: `${obligationsCount} obligaciones próximas · riesgo liq. ${twin.liquidityRisk}`,
       delta: null,
@@ -186,7 +190,7 @@ function twinOrFallbackCards(
       color: riskColor(twin.liquidityRisk),
     },
     {
-      label: "Op. Risk",
+      label: "Riesgo Operativo",
       value: `${twin.operationalRisk}`,
       secondary: `${secondary.activeIncidents} incidentes activos`,
       delta: null,
@@ -195,7 +199,7 @@ function twinOrFallbackCards(
       color: riskColor(twin.operationalRisk),
     },
     {
-      label: "Compliance",
+      label: "Cumplimiento NOM",
       value: fmtPercent(100 - twin.complianceRisk),
       secondary: `${secondary.overdue} workflows vencidos`,
       delta: null,
@@ -204,7 +208,7 @@ function twinOrFallbackCards(
       color: healthColor(100 - twin.complianceRisk),
     },
     {
-      label: "Brand",
+      label: "Consistencia de Marca",
       value: fmtPercent(twin.brandConsistency),
       secondary: `${bestPractices} mejores prácticas documentadas`,
       delta: null,
@@ -213,7 +217,7 @@ function twinOrFallbackCards(
       color: healthColor(twin.brandConsistency),
     },
     {
-      label: "People Risk",
+      label: "Riesgo de Personal",
       value: `${twin.peopleRisk}`,
       secondary: `${secondary.absences} ausencias en 30d`,
       delta: null,

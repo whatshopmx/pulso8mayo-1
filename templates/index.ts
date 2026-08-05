@@ -36,6 +36,7 @@ import cambioTurnoV1 from './operaciones_diarias/cambio-turno-v1.json';
 
 // Recursos Humanos
 import onboardingEmpleadoV2 from './recursos_humanos/onboarding-empleado-v2-enhanced.json';
+import tplSalidaEmergenciaV1 from './recursos_humanos/tpl-salida-emergencia-v1.json';
 
 // Seguridad
 import controlAccesos from './seguridad/control-accesos-v1.json';
@@ -144,8 +145,9 @@ export const templateLibrary: Record<string, Template> = {
   'limpieza-sanitizacion-v2': normalizeTemplate(limpiezaSanitizacionV2),
   'cambio-turno-v1': normalizeTemplate(cambioTurnoV1),
 
-  // Recursos Humanos (1)
+  // Recursos Humanos (2)
   'onboarding-empleado-v2': normalizeTemplate(onboardingEmpleadoV2),
+  'tpl-salida-emergencia-v1': normalizeTemplate(tplSalidaEmergenciaV1),
 
   // Seguridad (2)
   'control-accesos-v1': normalizeTemplate(controlAccesos),

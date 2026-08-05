@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         cardSales: tarjetaCents,
         otherPayments,
         ticketCount: data.tickets || null,
-        source: "MANUAL",
+        source: "MANUAL_FORM",
         status: "PENDING_REVIEW",
         receivedBy: user.id,
         receivedAt: new Date(),

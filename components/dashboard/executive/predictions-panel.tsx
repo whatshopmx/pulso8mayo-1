@@ -1,17 +1,8 @@
-/**
- * Predictions Panel — Executive Dashboard
- *
- * Shows the highest-risk prediction across all branches, formatted
- * like the design mockup: probability, contributing factors, and
- * recommended actions.
- *
- * Server Component.
- */
-
+import Link from "next/link";
 import { PredictiveScoringService } from "@/lib/services/predictive-scoring-service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, TrendingUp, Lightbulb, AlertTriangle } from "lucide-react";
+import { Brain, TrendingUp, Lightbulb, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -54,13 +45,16 @@ function factorBadge(status: "good" | "warning" | "critical"): string {
 export async function PredictionsPanel({ companyId }: { companyId: string }) {
   const predictions = await PredictiveScoringService.predictAll(companyId);
 
+  // Filter for active risks (probability >= 40%)
+  const activeRisks = predictions.filter((p) => p.probability >= 40);
+
   if (predictions.length === 0) {
     return (
       <Card className="border-border">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Brain className="h-5 w-5 text-muted-foreground" />
-            Predicciones
+            Pulso Inteligente
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -73,16 +67,41 @@ export async function PredictionsPanel({ companyId }: { companyId: string }) {
     );
   }
 
-  // Show top 2 predictions (the highest-risk ones)
-  const top = predictions.slice(0, 2);
+  if (activeRisks.length === 0) {
+    return (
+      <Card className="border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Brain className="h-5 w-5 text-violet-500" />
+            Pulso Inteligente
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 py-2">
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
+            <span>
+              <strong>Operación Estable:</strong> Sin riesgos predictivos altos detectados en el grupo. Las sucursales operan dentro de los parámetros esperados.
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show top 2 highest-risk predictions
+  const top = activeRisks.slice(0, 2);
+  const remainingCount = activeRisks.length - top.length;
 
   return (
     <Card className="border-border">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-lg flex items-center gap-2">
           <Brain className="h-5 w-5 text-violet-500" />
           Pulso Inteligente
         </CardTitle>
+        <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
+          {activeRisks.length} {activeRisks.length === 1 ? "riesgo activo" : "riesgos activos"}
+        </Badge>
       </CardHeader>
       <CardContent className="space-y-6">
         {top.map((pred) => (
@@ -90,7 +109,14 @@ export async function PredictionsPanel({ companyId }: { companyId: string }) {
             {/* Header */}
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-sm font-semibold">{pred.branchName}</p>
+                <p className="text-sm font-semibold">
+                  <Link
+                    href={`/dashboard/branches?branchId=${pred.branchId}`}
+                    className="hover:underline text-foreground"
+                  >
+                    {pred.branchName}
+                  </Link>
+                </p>
                 <p className="text-xs text-muted-foreground">
                   Riesgo: {riskLabel(pred.riskType)}
                 </p>
@@ -162,6 +188,17 @@ export async function PredictionsPanel({ companyId }: { companyId: string }) {
             )}
           </div>
         ))}
+
+        {remainingCount > 0 && (
+          <div className="pt-2 border-t text-center">
+            <Link
+              href="/dashboard/analytics"
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Ver las {remainingCount} predicciones adicionales →
+            </Link>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

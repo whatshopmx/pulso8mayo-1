@@ -1,0 +1,75 @@
+{
+  "id": "tpl-salida-emergencia-v1",
+  "nombre": "🚨 Protocolo de Salida de Emergencia de Empleado",
+  "descripcion": "Workflow de contingencia activado al registrar la salida de emergencia de un empleado en turno. Incluye entrega de estación, reasignación de tareas y validación laboral de gerencia.",
+  "tipo": "RECURSOS_HUMANOS",
+  "version": 1,
+  "requiereIA": false,
+  "duracionEstimada": "5-10 min",
+  "activo": true,
+  "tags": ["recursos humanos", "emergencia", "salida anticipada", "contingencia", "reasignación"],
+  "cumplimientoNormativo": [
+    {
+      "norma": "LABOR_LAW",
+      "seccion": "Permisos e Incidencias Laborales",
+      "descripcion": "Registro y justificación de salidas antes del término de la jornada"
+    }
+  ],
+  "complianceConfig": {
+    "complianceType": "LABOR_LAW",
+    "regulationSection": "LFT-Incidencias",
+    "requiredFrequency": "per-event",
+    "auditable": true,
+    "evidenceRequired": true,
+    "criticalForCompliance": true
+  },
+  "completionActions": [
+    {
+      "type": "SEND_NOTIFICATION",
+      "target": "GERENTE",
+      "channel": "whatsapp",
+      "message": "Protocolo de salida de emergencia completado en sucursal."
+    }
+  ],
+  "pasos": [
+    {
+      "id": "paso-1",
+      "titulo": "Datos del Empleado y Motivo de Emergencia",
+      "descripcion": "Nombre del empleado que se retira de la jornada y causa justificada",
+      "tipo": "TEXT",
+      "requerido": true,
+      "instrucciones": "Indique la causa de la salida inmediata (ej: médica, personal, familiar)."
+    },
+    {
+      "id": "paso-2",
+      "titulo": "Revisión y Reasignación de Tareas del Turno",
+      "descripcion": "Confirmación de tareas del turno reasignadas al compañero en turno o supervisor",
+      "tipo": "CHECKBOX",
+      "requerido": true,
+      "instrucciones": "Marque si las tareas prioritarias pendientes del día ya fueron transferidas."
+    },
+    {
+      "id": "paso-3",
+      "titulo": "Chequeo de Estación y Equipos (Handoff)",
+      "descripcion": "Verificación de seguridad en estación de trabajo (caja chica, llaves, terminales, apague de cocinas)",
+      "tipo": "TEXT",
+      "requerido": true,
+      "instrucciones": "Escriba observaciones de entrega de estación o resguardo de bienes de la sucursal."
+    },
+    {
+      "id": "paso-4",
+      "titulo": "Evidencia Fotográfica de Entrega (Opcional)",
+      "descripcion": "Fotografía del estado en que se entrega la estación de trabajo o documentos de respaldo",
+      "tipo": "PHOTO",
+      "requerido": false
+    },
+    {
+      "id": "paso-5",
+      "titulo": "Visto Bueno del Supervisor / Gerente de Turno",
+      "descripcion": "Autorización formal del responsable de la sucursal para liberar la salida",
+      "tipo": "SIGNATURE",
+      "requerido": true,
+      "instrucciones": "Firma digital del Gerente o Supervisor a cargo en el turno."
+    }
+  ]
+}

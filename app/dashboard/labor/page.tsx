@@ -11,6 +11,7 @@ import { Calendar, Clock, Users, MapPin, TrendingUp, FileText, ArrowLeftRight, F
 import Link from "next/link"
 import { requireManagementRole } from "@/lib/rbac/require-role"
 import { LaborQuickActionDrawer } from "@/components/labor/labor-quick-action-drawer"
+import { EmergencyDepartureDialog } from "@/components/labor/emergency-departure-dialog"
 
 export default async function LaborManagementPage() {
   await requireManagementRole();
@@ -40,10 +41,16 @@ export default async function LaborManagementPage() {
   const startOfYear = new Date(now.getFullYear(), 0, 1);
 
   // --- 1. Basic Employee Counts (filtered by branch if selected) ---
-  const activeEmployeesRes = await EmployeeService.listEmployees(companyId, { status: 'ACTIVE', limit: 1, branchId: branchId || undefined });
+  const activeEmployeesRes = await EmployeeService.listEmployees(companyId, { status: 'ACTIVE', limit: 100, branchId: branchId || undefined });
   const totalEmployeesRes = await EmployeeService.listEmployees(companyId, { limit: 1, branchId: branchId || undefined });
   const activeCount = activeEmployeesRes.meta.total;
   const totalCount = totalEmployeesRes.meta.total;
+
+  const dialogEmployees = activeEmployeesRes.data.map((emp) => ({
+    id: emp.userId,
+    name: emp.userName || 'Empleado',
+    role: emp.userRole || undefined,
+  }));
 
   // --- 2. Attendance & Sessions (Today/Weekly) - Filtered by branch if selected ---
   const branchFilter = branchId ? eq(plannedShifts.branchId, branchId) : undefined;
@@ -189,10 +196,16 @@ export default async function LaborManagementPage() {
                         Administra turnos, asistencia, horas extras, descansos y expedientes laborales
                     </p>
                 </div>
-                <Badge variant="outline" className="gap-1 px-2.5 py-1 text-xs font-medium">
-                    <Shield className="w-3.5 h-3.5 text-emerald-600" />
-                    Cumplimiento LFT
-                </Badge>
+                <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="gap-1 px-2.5 py-1 text-xs font-medium">
+                        <Shield className="w-3.5 h-3.5 text-emerald-600" />
+                        Cumplimiento LFT
+                    </Badge>
+                    <EmergencyDepartureDialog
+                        employees={dialogEmployees}
+                        branchId={branchId || ''}
+                    />
+                </div>
             </div>
 
             {/* Operational Command Banner & Quick Action Drawer */}

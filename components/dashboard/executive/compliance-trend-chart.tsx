@@ -1,15 +1,11 @@
 "use client";
 
-/**
- * Compliance Trend Chart — Executive Dashboard
- *
- * Multi-line Recharts chart showing weekly compliance scores per branch
- * over the last 4 weeks. Color-coded per branch with interactive tooltips.
- */
-
+import { useState, useMemo } from "react";
 import {
   LineChart,
   Line,
+  Area,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -18,7 +14,7 @@ import {
   Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, Layers, Activity } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,6 +59,39 @@ export function ComplianceTrendChart({
   data,
   branchNames,
 }: ComplianceTrendChartProps) {
+  const isLarge = branchNames.length > 5;
+  const [viewMode, setViewMode] = useState<"branches" | "aggregate">(
+    isLarge ? "aggregate" : "branches",
+  );
+
+  // Compute aggregate stats per week (promedio, min, max, range)
+  const transformedData = useMemo(() => {
+    return data.map((pt) => {
+      const scores: number[] = [];
+      for (const name of branchNames) {
+        const val = pt[name];
+        if (typeof val === "number") scores.push(val);
+      }
+
+      if (scores.length === 0) {
+        return { ...pt, promedioGrupo: null, rangeGrupo: [0, 0], minGrupo: 0, maxGrupo: 0 };
+      }
+
+      const min = Math.min(...scores);
+      const max = Math.max(...scores);
+      const sum = scores.reduce((a, b) => a + b, 0);
+      const avg = Math.round(sum / scores.length);
+
+      return {
+        ...pt,
+        promedioGrupo: avg,
+        rangeGrupo: [min, max],
+        minGrupo: min,
+        maxGrupo: max,
+      };
+    });
+  }, [data, branchNames]);
+
   if (data.length === 0 || branchNames.length === 0) {
     return (
       <Card className="border-border">
@@ -80,17 +109,37 @@ export function ComplianceTrendChart({
 
   return (
     <Card className="border-border">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-lg flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-muted-foreground" />
           Tendencia de Compliance (4 semanas)
         </CardTitle>
+        {branchNames.length > 3 && (
+          <button
+            onClick={() =>
+              setViewMode(viewMode === "branches" ? "aggregate" : "branches")
+            }
+            className="text-xs font-medium text-primary hover:underline flex items-center gap-1 bg-muted/50 hover:bg-muted px-2.5 py-1 rounded-md transition-colors"
+          >
+            {viewMode === "aggregate" ? (
+              <>
+                <Layers className="h-3.5 w-3.5" />
+                Ver Sucursales ({branchNames.length})
+              </>
+            ) : (
+              <>
+                <Activity className="h-3.5 w-3.5" />
+                Ver Promedio del Grupo
+              </>
+            )}
+          </button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={data}
+            <ComposedChart
+              data={transformedData}
               margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
             >
               <CartesianGrid
@@ -115,22 +164,43 @@ export function ComplianceTrendChart({
                 }}
                 labelStyle={{ fontWeight: 600 }}
               />
-              <Legend
-                wrapperStyle={{ fontSize: "12px" }}
-              />
-              {branchNames.map((name, idx) => (
-                <Line
-                  key={name}
-                  type="monotone"
-                  dataKey={name}
-                  stroke={branchColor(idx)}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                  connectNulls
-                />
-              ))}
-            </LineChart>
+              <Legend wrapperStyle={{ fontSize: "12px" }} />
+
+              {viewMode === "aggregate" ? (
+                <>
+                  <Area
+                    type="monotone"
+                    dataKey="rangeGrupo"
+                    name="Rango Min-Max del Grupo"
+                    fill="#10b981"
+                    stroke="none"
+                    fillOpacity={0.15}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="promedioGrupo"
+                    name="Promedio del Grupo"
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "#10b981" }}
+                    activeDot={{ r: 6 }}
+                  />
+                </>
+              ) : (
+                branchNames.map((name, idx) => (
+                  <Line
+                    key={name}
+                    type="monotone"
+                    dataKey={name}
+                    stroke={branchColor(idx)}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                    connectNulls
+                  />
+                ))
+              )}
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </CardContent>

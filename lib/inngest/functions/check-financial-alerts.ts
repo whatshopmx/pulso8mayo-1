@@ -107,7 +107,7 @@ export const checkFinancialAlerts = inngest.createFunction(
                 : "⚠️ Advertencia de Costos Operativos",
               message: alert,
               type: isCritical ? "warning" : "info",
-              eventType: "financial_kpi_alert",
+              eventType: "financial_kpi_deviation",
               actionUrl: `/dashboard/sales?branchId=${branch.id}`,
               actionLabel: "Ver Dashboard",
               metadata: {
