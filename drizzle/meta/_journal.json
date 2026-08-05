@@ -218,6 +218,13 @@
       "when": 1785955997211,
       "tag": "0030_pnl_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1785959220110,
+      "tag": "0031_closed_vampiro",
+      "breakpoints": true
     }
   ]
 }

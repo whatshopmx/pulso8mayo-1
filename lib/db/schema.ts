@@ -2668,6 +2668,8 @@ export const operatingExpenses = pgTable("operating_expenses", {
     category: operatingExpenseCategoryEnum("category").notNull(),
     amount: integer("amount").notNull(), // in cents
     description: text("description").notNull(),
+    /** Foto del ticket/comprobante (gastos sin CFDI: hielo, ferretería, taxi, plomero). */
+    evidenceUrl: text("evidence_url"),
     invoiceId: uuid("invoice_id").references(() => invoices.id),
     status: operatingExpenseStatusEnum("status").notNull().default('PENDING_APPROVAL'),
 
