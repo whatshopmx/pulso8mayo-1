@@ -246,6 +246,20 @@
       "when": 1785961105235,
       "tag": "0034_sku-alto-valor",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786031904384,
+      "tag": "0035_gaps-avanzados",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786051189302,
+      "tag": "0036_tags-inventory-items",
+      "breakpoints": true
     }
   ]
 }

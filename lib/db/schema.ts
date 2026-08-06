@@ -97,6 +97,10 @@ export const workflowTemplates = pgTable("workflow_templates", {
     steps: jsonb("steps").notNull().default(sql`'[]'::jsonb`), // Stores the form builder elements
     category: text("category").default('GENERAL'),
 
+    // 'company' = playbook corporativo publicable a N sucursales (ver
+    // lib/db/schema/playbooks.ts); 'branch' = plantilla local (default legacy).
+    scope: text("scope").default('branch').notNull(),
+
     // Compliance Metadata
     complianceType: text("compliance_type"), // 'NOM-251', 'NOM-035', 'LABOR'
     regulationSection: text("regulation_section"),
@@ -692,6 +696,10 @@ export const inventoryItems = pgTable("inventory_items", {
     // 15-30 SKUs que representan el 80% del costo en vez de abandonar el
     // inventario completo. El onboarding limita cuántos pueden marcarse.
     isHighValue: boolean("is_high_value").default(false),
+    // Etiquetas libres por item (p.ej. "perecedero", "receta_activa"). Se usan
+    // como filtro en los pasos dinámicos de workflow (metadata.dynamicSource).
+    // jsonb como el resto de listas del esquema (ver workflowTemplates.tags).
+    tags: jsonb("tags").default(sql`'[]'::jsonb`),
 
     // New fields for Supplier and Pricing
     supplierId: uuid("supplier_id"), // Preferred Supplier
