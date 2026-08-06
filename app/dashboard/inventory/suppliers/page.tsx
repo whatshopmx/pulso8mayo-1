@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { SupplierList } from "@/components/inventory/supplier-list";
+import { SupplierVarianceCard } from "@/components/inventory/supplier-variance-card";
 import { DataTableSkeleton } from "@/components/shared/skeletons";
 
 export default function SuppliersPage() {
@@ -10,6 +11,8 @@ export default function SuppliersPage() {
                     Proveedores
                 </h1>
             </div>
+            {/* Fase 5: card de varianza (faltantes por proveedor) */}
+            <SupplierVarianceCard />
             <Suspense fallback={<DataTableSkeleton columns={4} rows={6} />}>
                 <SupplierList />
             </Suspense>

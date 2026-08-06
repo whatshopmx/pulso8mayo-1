@@ -1,0 +1,1 @@
+ALTER TABLE "inventory_items" ADD COLUMN "is_high_value" boolean DEFAULT false;

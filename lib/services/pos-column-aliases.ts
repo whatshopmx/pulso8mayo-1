@@ -399,6 +399,29 @@ export function isTotalLabel(label: string): boolean {
   return TOTAL_LABEL_SET.has(normalizeHeader(label));
 }
 
+/**
+ * Fase 3 (capa dinero): normalizes an aggregator payment label into a stable
+ * key used to populate `dailySalesCuts.aggregator_sales` (per-aggregator
+ * conciliation). Returns null when the label is not a recognized aggregator.
+ */
+export function matchAggregatorLabel(label: string): string | null {
+  const normalized = normalizeHeader(label);
+  if (!normalized) return null;
+  const rules: Array<[RegExp, string]> = [
+    [/rappi/i, "rappi"],
+    [/uber.*eats|ubereats|uber/i, "uber"],
+    [/didi|didifood|didif ood/i, "didi"],
+    [/pedidos[ ]?ya|pedidosya/i, "pedidosya"],
+    [/justo/i, "justo"],
+    [/sin[ ]?delantal|sindelantal/i, "sindelantal"],
+    [/mercadopago|mercadop ago/i, "mercadopago"],
+  ];
+  for (const [re, key] of rules) {
+    if (re.test(normalized)) return key;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Value parsers
 // ---------------------------------------------------------------------------

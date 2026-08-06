@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Clock, UserCheck, ShieldAlert } from "lucide-react";
 
-interface Violation {
+export interface Violation {
   id: string;
   type: "SELF_APPROVAL" | "OVERDUE_APPROVAL" | "ROLE_MISMATCH";
   severity: "LOW" | "MEDIUM" | "HIGH";

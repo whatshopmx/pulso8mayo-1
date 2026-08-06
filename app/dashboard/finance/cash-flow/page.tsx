@@ -1,37 +1,23 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { CashFlowCalendar } from "@/components/finance/cash-flow-calendar";
+import {
+  CashFlowCalendar,
+  type CashFlowDay,
+  type CashFlowProjection,
+} from "@/components/finance/cash-flow-calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Calendar, Loader2, AlertCircle } from "lucide-react";
-
-interface Branch {
-  id: string;
-  name: string;
-}
+import { useBranches } from "@/hooks/use-branches";
+import { Calendar, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 
 export default function CashFlowPage() {
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const { branches, loading: branchesLoading } = useBranches();
   const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
-  const [projection, setProjection] = useState<any[]>([]);
+  const [projection, setProjection] = useState<CashFlowProjection | CashFlowDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchBranches() {
-      try {
-        const res = await fetch("/api/branches");
-        const data = await res.json();
-        const list = data.data || data.branches || (Array.isArray(data) ? data : []);
-        setBranches(list);
-      } catch (err) {
-        console.error("Error fetching branches:", err);
-      }
-    }
-    fetchBranches();
-  }, []);
 
   const fetchProjection = useCallback(async () => {
     setLoading(true);
@@ -76,7 +62,7 @@ export default function CashFlowPage() {
         </div>
 
         <div className="w-56">
-          <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+          <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={branchesLoading}>
             <SelectTrigger>
               <SelectValue placeholder="Todas las sucursales" />
             </SelectTrigger>
@@ -103,7 +89,7 @@ export default function CashFlowPage() {
           description={error}
           action={
             <Button variant="outline" size="sm" onClick={fetchProjection}>
-              <Loader2 className="w-4 h-4 mr-2" /> Reintentar
+              <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
             </Button>
           }
         />

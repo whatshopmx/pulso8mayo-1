@@ -442,6 +442,25 @@ export class WorkflowExecutionService {
                     score: complianceScore
                 })
                 .where(eq(workflowInstances.id, instanceId));
+
+            // Fase 5: al completar el template de recepción de mercancía,
+            // extrae los datos a receiving_reports (best-effort fuera del request).
+            // Debe ir DESPUÉS del update: el extractor descarta la instancia si
+            // todavía no está en COMPLETED.
+            if (instance) {
+                try {
+                    const template = await db.query.workflowTemplates.findFirst({
+                        where: eq(workflowTemplates.id, instance.workflowTemplateId),
+                    });
+                    if (template && template.id === "tpl-recepcion-mercancia-v2") {
+                        const { extractReceivingFromInstance } = await import("./receiving-from-workflow");
+                        // Fire-and-forget: no bloquea la respuesta al cajero.
+                        void extractReceivingFromInstance(instanceId);
+                    }
+                } catch (error) {
+                    console.error("[WorkflowExecution] Error scheduling receiving extraction:", error);
+                }
+            }
         } else {
             await db.update(workflowInstances)
                 .set({

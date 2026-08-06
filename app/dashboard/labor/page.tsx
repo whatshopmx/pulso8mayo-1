@@ -47,9 +47,9 @@ export default async function LaborManagementPage() {
   const totalCount = totalEmployeesRes.meta.total;
 
   const dialogEmployees = activeEmployeesRes.data.map((emp) => ({
-    id: emp.userId,
-    name: emp.userName || 'Empleado',
-    role: emp.userRole || undefined,
+    id: emp.userId as string,
+    name: (emp.userName || 'Empleado') as string,
+    role: (emp.userRole || undefined) as string | undefined,
   }));
 
   // --- 2. Attendance & Sessions (Today/Weekly) - Filtered by branch if selected ---

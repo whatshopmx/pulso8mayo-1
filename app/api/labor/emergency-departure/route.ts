@@ -36,9 +36,7 @@ export async function POST(req: NextRequest) {
       notes: validatedData.notes,
     });
 
-    return ApiHandler.success(result, {
-      message: "Salida de emergencia registrada exitosamente. Tareas reasignadas."
-    });
+    return ApiHandler.success(result);
   } catch (error) {
     return ApiHandler.error(error);
   }

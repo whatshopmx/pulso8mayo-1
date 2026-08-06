@@ -11,6 +11,7 @@ import {
   CanonicalField,
   MatchConfidence,
   isTotalLabel,
+  matchAggregatorLabel,
   matchFieldAlias,
   matchPaymentLabel,
   parseBusinessDate,
@@ -368,6 +369,8 @@ export interface CanonicalSalesData {
   taxAmount: number | null;
   discounts: number | null;
   cancellations: number | null;
+  /** Fase 3: per-aggregator sales (rappi/uber/didi/…), cents. */
+  aggregatorSales: Record<string, number> | null;
 }
 
 export interface ComputedCut {
@@ -416,6 +419,8 @@ interface Aggregation {
   computedTotal: number | null;
   buckets: Partial<Record<PaymentBucketName, number>>;
   bucketTickets: Partial<Record<PaymentBucketName, number>>;
+  /** Fase 3: cents per aggregator key (rappi/uber/didi/…). */
+  aggregatorSales: Record<string, number>;
   ticketCount: number | null;
   taxAmount: number | null;
   discounts: number | null;
@@ -433,6 +438,7 @@ function emptyAggregation(): Aggregation {
     computedTotal: null,
     buckets: {},
     bucketTickets: {},
+    aggregatorSales: {},
     ticketCount: null,
     taxAmount: null,
     discounts: null,
@@ -468,6 +474,13 @@ function addBucket(agg: Aggregation, bucket: PaymentBucketName, cents: number, t
   if (tickets !== null && tickets > 0) {
     agg.bucketTickets[bucket] = (agg.bucketTickets[bucket] ?? 0) + tickets;
   }
+}
+
+/** Fase 3: accumulates cents under the aggregator key when the label matches. */
+function addAggregator(agg: Aggregation, label: string, cents: number) {
+  const key = matchAggregatorLabel(label);
+  if (!key) return;
+  agg.aggregatorSales[key] = (agg.aggregatorSales[key] ?? 0) + cents;
 }
 
 function dataRows(sheet: ParsedSheet): unknown[][] {
@@ -558,6 +571,7 @@ function buildFromPaymentSummary(sheet: ParsedSheet, mapping: ColumnMapping[], a
     } else {
       addBucket(agg, bucket, cents, tickets);
     }
+    addAggregator(agg, label, cents);
     computed += cents;
     hasComputed = true;
 
@@ -586,6 +600,7 @@ function buildFromTicketDetail(sheet: ParsedSheet, mapping: ColumnMapping[], agg
       agg.unrecognizedLabels.push(label);
     }
     addBucket(agg, bucket ?? "OTHER", cents, 1);
+    addAggregator(agg, label, cents);
     computed += cents;
     tickets++;
 
@@ -768,6 +783,8 @@ export function buildSalesCut(
       taxAmount: agg.taxAmount,
       discounts: agg.discounts,
       cancellations: agg.cancellations,
+      aggregatorSales:
+        Object.keys(agg.aggregatorSales).length > 0 ? { ...agg.aggregatorSales } : null,
     };
 
     if (delivery !== null && delivery > 0 && totalSales - delivery > 0) {
@@ -784,7 +801,14 @@ export function buildSalesCut(
       }
       cuts.push({
         channel: "SALON",
-        data: { ...base, totalSales: salonTotal, otherPayments: other, ticketCount: salonTickets },
+        data: {
+          ...base,
+          totalSales: salonTotal,
+          otherPayments: other,
+          ticketCount: salonTickets,
+          // Fase 3: el desglose por agregador pertenece al canal DELIVERY.
+          aggregatorSales: null,
+        },
       });
       cuts.push({
         channel: "DELIVERY",
@@ -800,7 +824,12 @@ export function buildSalesCut(
     } else if (delivery !== null && delivery > 0 && totalSales - delivery === 0) {
       cuts.push({
         channel: "DELIVERY",
-        data: { ...base, cashSales: null, cardSales: null, otherPayments: delivery },
+        data: {
+          ...base,
+          cashSales: null,
+          cardSales: null,
+          otherPayments: delivery,
+        },
       });
     } else {
       cuts.push({ channel: "TOTAL", data: base });
@@ -922,6 +951,7 @@ export async function ingestSalesCut(params: {
         cashSales: cut.data.cashSales,
         cardSales: cut.data.cardSales,
         otherPayments: cut.data.otherPayments,
+        aggregatorSales: cut.data.aggregatorSales ?? null,
         ticketCount: cut.data.ticketCount,
         avgTicket:
           cut.data.ticketCount && cut.data.ticketCount > 0
@@ -950,4 +980,4 @@ export async function ingestSalesCut(params: {
 }
 
 // Re-exported so the API/UI layers (T28/T29) and tests use one entry point.
-export { parseBusinessDate, parseCount, parseMoneyToCents, matchPaymentLabel };
+export { parseBusinessDate, parseCount, parseMoneyToCents, matchPaymentLabel, matchAggregatorLabel };

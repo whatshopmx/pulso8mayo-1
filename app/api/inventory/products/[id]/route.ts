@@ -24,6 +24,8 @@ const updateProductSchema = z.object({
   brand: z.string().optional(),
   presentation: z.string().optional(),
   standardCost: z.number().optional(),
+  // Fase 4: marca de SKU de alto valor (conteo semanal priorizado).
+  isHighValue: z.boolean().optional(),
 });
 
 export async function GET(
@@ -110,6 +112,35 @@ export async function PATCH(
 
     const body = await req.json();
     const data = updateProductSchema.parse(body);
+
+    // Fase 4: si se enciende isHighValue, validar el límite de 30 SKUs.
+    if (data.isHighValue === true) {
+      const currentItem = await db.query.inventoryItems.findFirst({
+        where: and(
+          eq(inventoryItems.id, id),
+          eq(inventoryItems.companyId, user.companyId)
+        ),
+      });
+      if (currentItem && !currentItem.isHighValue) {
+        const rows = await db
+          .select({ n: sql<number>`count(*)` })
+          .from(inventoryItems)
+          .where(
+            and(
+              eq(inventoryItems.companyId, user.companyId),
+              eq(inventoryItems.isHighValue, true)
+            )
+          );
+        if (Number(rows[0]?.n ?? 0) >= 30) {
+          return NextResponse.json(
+            {
+              error: `Límite de SKUs de alto valor alcanzado (30). Desmarca otro SKU antes de marcar este como alto valor.`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
 
     if (data.lastCost !== undefined) {
       const currentItem = await db.query.inventoryItems.findFirst({

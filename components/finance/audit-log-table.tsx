@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface AuditLogEntry {
+export interface AuditLogEntry {
   id: string;
   expenseId: string;
   branchName: string;

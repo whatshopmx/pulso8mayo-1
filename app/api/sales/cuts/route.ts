@@ -17,6 +17,9 @@ const createCutSchema = z.object({
   cardSales: z.number().int().nonnegative().nullable().optional(), // in cents
   otherPayments: z.number().int().nonnegative().nullable().optional(), // in cents
   ticketCount: z.number().int().positive().nullable().optional(),
+  cashCountedCents: z.number().int().nonnegative().nullable().optional(), // Fase 2
+  depositedCents: z.number().int().nonnegative().nullable().optional(), // Fase 2
+  aggregatorSales: z.record(z.string(), z.number().int().nonnegative()).nullable().optional(), // Fase 3
 });
 
 export async function GET(req: NextRequest) {
@@ -55,6 +58,9 @@ export async function GET(req: NextRequest) {
         cashSales: dailySalesCuts.cashSales,
         cardSales: dailySalesCuts.cardSales,
         otherPayments: dailySalesCuts.otherPayments,
+        cashCountedCents: dailySalesCuts.cashCountedCents,
+        depositedCents: dailySalesCuts.depositedCents,
+        aggregatorSales: dailySalesCuts.aggregatorSales,
         ticketCount: dailySalesCuts.ticketCount,
         avgTicket: dailySalesCuts.avgTicket,
         source: dailySalesCuts.source,
@@ -134,6 +140,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Fase 2: si el formulario trae arqueo, exigir que coexista con efectivo para
+    // evitar un registro incoherente.
+    if (data.cashSales && data.cashSales > 0 && data.cashCountedCents == null) {
+      throw new ApiError(
+        "Captura el arqueo de caja (efectivo contado) cuando declaras ventas en efectivo.",
+        400
+      );
+    }
+
     const [inserted] = await db
       .insert(dailySalesCuts)
       .values({
@@ -146,6 +161,9 @@ export async function POST(req: NextRequest) {
         cashSales: data.cashSales || null,
         cardSales: data.cardSales || null,
         otherPayments: data.otherPayments || null,
+        cashCountedCents: data.cashCountedCents || null,
+        depositedCents: data.depositedCents || null,
+        aggregatorSales: data.aggregatorSales || null,
         ticketCount: data.ticketCount || null,
         avgTicket:
           data.ticketCount && data.ticketCount > 0

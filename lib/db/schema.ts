@@ -688,6 +688,10 @@ export const inventoryItems = pgTable("inventory_items", {
     storageRequirements: text("storage_requirements"), // Temp/Humidity text
     typicalShelfLifeDays: integer("typical_shelf_life_days"),
     active: boolean("active").default(true),
+    // Fase 4 (capa dinero): SKUs "alto valor" — dirigen el conteo semanal a
+    // 15-30 SKUs que representan el 80% del costo en vez de abandonar el
+    // inventario completo. El onboarding limita cuántos pueden marcarse.
+    isHighValue: boolean("is_high_value").default(false),
 
     // New fields for Supplier and Pricing
     supplierId: uuid("supplier_id"), // Preferred Supplier
@@ -2360,6 +2364,13 @@ export const dailySalesCuts = pgTable("daily_sales_cuts", {
     cashSales: integer("cash_sales"),
     cardSales: integer("card_sales"),
     otherPayments: integer("other_payments"), // vales, transferencias, agregadores
+    // Fase 2 (capa dinero): arqueo físico de caja y depósito del turno.
+    // varianceCents NO es columna: se deriva cashSales - cashCountedCents.
+    cashCountedCents: integer("cash_counted_cents"), // efectivo contado físicamente
+    depositedCents: integer("deposited_cents"), // depósito bancario del turno
+    // Fase 3 (capa dinero): desglose de ventas por agregador (rappi/uber/didi/…)
+    // en JSONB aditivo; otherPayments se mantiene como suma para compatibilidad.
+    aggregatorSales: jsonb("aggregator_sales"),
     avgTicket: integer("avg_ticket"),
 
     ticketCount: integer("ticket_count"),

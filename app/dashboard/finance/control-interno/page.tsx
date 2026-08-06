@@ -4,37 +4,23 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AuditLogTable } from "@/components/finance/audit-log-table";
-import { ExcepcionesPanel } from "@/components/finance/excepciones-panel";
+import { AuditLogTable, type AuditLogEntry } from "@/components/finance/audit-log-table";
+import { ExcepcionesPanel, type Violation } from "@/components/finance/excepciones-panel";
+import { useBranches } from "@/hooks/use-branches";
 import { Shield, FileSearch, AlertTriangle } from "lucide-react";
 
-interface Branch {
-  id: string;
-  name: string;
-}
+/** Tope de entradas solicitadas a la bitácora; se avisa cuando hay más. */
+const AUDIT_LIMIT = 100;
 
 export default function ControlInternoPage() {
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const { branches, loading: branchesLoading } = useBranches();
   const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
-  const [auditEntries, setAuditEntries] = useState<any[]>([]);
+  const [auditEntries, setAuditEntries] = useState<AuditLogEntry[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
   const [auditLoading, setAuditLoading] = useState(true);
-  const [violations, setViolations] = useState<any[]>([]);
+  const [violations, setViolations] = useState<Violation[]>([]);
   const [violationsLoading, setViolationsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("audit");
-
-  useEffect(() => {
-    async function fetchBranches() {
-      try {
-        const res = await fetch("/api/branches");
-        const data = await res.json();
-        const list = data.data || data.branches || (Array.isArray(data) ? data : []);
-        setBranches(list);
-      } catch (err) {
-        console.error("Error fetching branches:", err);
-      }
-    }
-    fetchBranches();
-  }, []);
 
   const fetchAuditLog = useCallback(async () => {
     setAuditLoading(true);
@@ -43,11 +29,12 @@ export default function ControlInternoPage() {
       if (selectedBranch !== "ALL") {
         url.searchParams.set("branchId", selectedBranch);
       }
-      url.searchParams.set("limit", "100");
+      url.searchParams.set("limit", String(AUDIT_LIMIT));
       const res = await fetch(url.toString());
       const json = await res.json();
       if (res.ok && json.success) {
         setAuditEntries(json.data?.entries || []);
+        setAuditTotal(json.data?.total ?? 0);
       }
     } catch (err) {
       console.error("Error fetching audit log:", err);
@@ -60,6 +47,9 @@ export default function ControlInternoPage() {
     setViolationsLoading(true);
     try {
       const url = new URL("/api/finance/control-interno/excepciones", window.location.origin);
+      if (selectedBranch !== "ALL") {
+        url.searchParams.set("branchId", selectedBranch);
+      }
       const res = await fetch(url.toString());
       const json = await res.json();
       if (res.ok && json.success) {
@@ -70,18 +60,21 @@ export default function ControlInternoPage() {
     } finally {
       setViolationsLoading(false);
     }
-  }, []);
+  }, [selectedBranch]);
+
+  // Ambas cargas dependen del filtro de sucursal, no de la pestaña activa: el
+  // badge de excepciones existe para avisar de lo que aún no se ha abierto, así
+  // que no puede esperar a que se abra la pestaña que anuncia.
+  useEffect(() => {
+    fetchAuditLog();
+  }, [fetchAuditLog]);
 
   useEffect(() => {
-    if (activeTab === "audit") {
-      fetchAuditLog();
-    } else {
-      fetchViolations();
-    }
-  }, [activeTab, fetchAuditLog, fetchViolations]);
+    fetchViolations();
+  }, [fetchViolations]);
 
   const violationCount = violations.length;
-  const highCount = violations.filter((v: any) => v.severity === "HIGH").length;
+  const highCount = violations.filter((v) => v.severity === "HIGH").length;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -97,7 +90,7 @@ export default function ControlInternoPage() {
 
         <div className="flex items-center gap-3">
           <div className="w-48">
-            <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+            <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={branchesLoading}>
               <SelectTrigger>
                 <SelectValue placeholder="Todas las sucursales" />
               </SelectTrigger>
@@ -124,7 +117,13 @@ export default function ControlInternoPage() {
             <AlertTriangle className="w-3.5 h-3.5" />
             Excepciones
             {violationCount > 0 && (
-              <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${highCount > 0 ? "bg-red-500 text-white" : "bg-amber-500 text-white"}`}>
+              <span
+                className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
+                  highCount > 0
+                    ? "bg-destructive text-destructive-foreground"
+                    : "bg-warning text-warning-foreground"
+                }`}
+              >
                 {violationCount}
               </span>
             )}
@@ -144,6 +143,14 @@ export default function ControlInternoPage() {
             </CardHeader>
             <CardContent>
               <AuditLogTable entries={auditEntries} loading={auditLoading} />
+              {/* Un corte silencioso es peor que una página lenta en una
+                  superficie de cumplimiento: se declara lo que no se ve. */}
+              {!auditLoading && auditTotal > auditEntries.length && (
+                <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
+                  Mostrando las {auditEntries.length} entradas más recientes de {auditTotal} totales.
+                  Filtra por sucursal para acotar el rango.
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

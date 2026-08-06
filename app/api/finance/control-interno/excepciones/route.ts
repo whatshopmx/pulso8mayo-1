@@ -11,15 +11,23 @@ import { detectViolations } from "@/lib/services/control-interno-service";
  * Migrated to `requirePermissionApi('reports','read', { classification:
  * 'FINANCIAL' })` (Sprint 2 Track B). Returns violation aggregates — no PII
  * fields, so the allow+redact path is plaintext-equivalent to the prior behavior.
+ *
+ * Query params:
+ *   - branchId (optional) — se pasa como `targetBranchId` para que ABAC pueda
+ *     403 a un rol acotado a sucursal que solicite una ajena.
  */
 export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const branchId = searchParams.get("branchId") || undefined;
+
     const { ctx, decision } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
+      targetBranchId: branchId,
       audit: { action: "READ", req },
     });
 
-    const violations = await detectViolations(ctx.userCompanyId);
+    const violations = await detectViolations(ctx.userCompanyId, branchId);
     const payload = {
       violations: maskSensitiveList(violations, decision),
       total: violations.length,

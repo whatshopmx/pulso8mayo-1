@@ -3,14 +3,16 @@ import {
   workflowInstances,
   workflowAssignments,
   inventoryBatches,
+  inventoryItems,
   inventoryMovements,
+  branches,
   incidents,
   temperatureLogs,
   complianceAlerts,
   users,
 } from "../db/schema";
-import { eq, and, gte, lte, sql, count, avg, isNull, inArray } from "drizzle-orm";
-import { subDays, startOfDay, endOfDay } from "date-fns";
+import { eq, and, gte, sql, inArray, notInArray } from "drizzle-orm";
+import { subDays, startOfDay } from "date-fns";
 
 export class KpiCalculator {
   /**
@@ -102,6 +104,14 @@ export class KpiCalculator {
     return 0;
   }
 
+  /** Subquery de las sucursales de la empresa — para acotar por tenant. */
+  private companyBranches(companyId: string) {
+    return db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(eq(branches.companyId, companyId));
+  }
+
   private async countCompletedWorkflows(companyId: string, branchId?: string): Promise<number> {
     const conditions = [eq(workflowInstances.status, 'COMPLETED')];
     // @ts-ignore
@@ -110,17 +120,6 @@ export class KpiCalculator {
       .select({ count: sql<number>`cast(count(*) as integer)` })
       .from(workflowInstances)
       .where(and(...conditions));
-    return Number(result?.count || 0);
-  }
-
-  private async countTotalWorkflows(companyId: string, branchId?: string): Promise<number> {
-    const conditions = [];
-    // @ts-ignore
-    if (branchId && branchId !== 'all') conditions.push(eq(workflowInstances.branchId, branchId));
-    const [result] = await db
-      .select({ count: sql<number>`cast(count(*) as integer)` })
-      .from(workflowInstances)
-      .where(conditions.length > 0 ? and(...conditions) : undefined);
     return Number(result?.count || 0);
   }
 
@@ -213,7 +212,7 @@ export class KpiCalculator {
   }
 
   private async countTotalIncidents(companyId: string, branchId?: string): Promise<number> {
-    const conditions: any[] = [eq(incidents.companyId, companyId)];
+    const conditions: any[] = [inArray(incidents.branchId, this.companyBranches(companyId))];
     if (branchId && branchId !== 'all') conditions.push(eq(incidents.branchId, branchId));
     const [result] = await db
       .select({ count: sql<number>`cast(count(*) as integer)` })
@@ -236,7 +235,7 @@ export class KpiCalculator {
   }
 
   private async countTotalWorkflows(companyId: string, branchId?: string): Promise<number> {
-    const conditions: any[] = [eq(workflowInstances.companyId, companyId)];
+    const conditions: any[] = [inArray(workflowInstances.branchId, this.companyBranches(companyId))];
     if (branchId && branchId !== 'all') conditions.push(eq(workflowInstances.branchId, branchId));
     const [result] = await db
       .select({ count: sql<number>`cast(count(*) as integer)` })
@@ -254,7 +253,7 @@ export class KpiCalculator {
 
   private async countOverdueTasks(companyId: string, branchId?: string): Promise<number> {
     const conditions: any[] = [
-      eq(workflowInstances.companyId, companyId),
+      inArray(workflowInstances.branchId, this.companyBranches(companyId)),
       eq(workflowInstances.status, 'PENDING'),
       sql`${workflowInstances.dueDate} < NOW()`,
     ];
@@ -268,8 +267,8 @@ export class KpiCalculator {
 
   private async countStockouts(companyId: string, branchId?: string): Promise<number> {
     const conditions: any[] = [
-      eq(inventoryBatches.companyId, companyId),
-      eq(inventoryBatches.quantityUnits, 0),
+      inArray(inventoryBatches.branchId, this.companyBranches(companyId)),
+      eq(inventoryBatches.currentQuantity, 0),
     ];
     if (branchId && branchId !== 'all') conditions.push(eq(inventoryBatches.branchId, branchId));
     const [result] = await db
@@ -280,38 +279,46 @@ export class KpiCalculator {
   }
 
   private async countLowStock(companyId: string, branchId?: string): Promise<number> {
+    // El umbral mínimo vive en inventory_items (minLevel), no en el lote.
     const conditions: any[] = [
-      eq(inventoryBatches.companyId, companyId),
-      sql`${inventoryBatches.quantityUnits} > 0`,
-      sql`${inventoryBatches.quantityUnits} <= ${inventoryBatches.minThresholdUnits}`,
+      inArray(inventoryBatches.branchId, this.companyBranches(companyId)),
+      sql`${inventoryBatches.currentQuantity} > 0`,
+      sql`${inventoryBatches.currentQuantity} <= COALESCE(${inventoryItems.minLevel}, 0)`,
     ];
     if (branchId && branchId !== 'all') conditions.push(eq(inventoryBatches.branchId, branchId));
     const [result] = await db
       .select({ count: sql<number>`cast(count(*) as integer)` })
       .from(inventoryBatches)
+      .innerJoin(inventoryItems, eq(inventoryBatches.itemId, inventoryItems.id))
       .where(and(...conditions));
     return Number(result?.count || 0);
   }
 
   private async calculateWasteCost(companyId: string, branchId?: string): Promise<number> {
     const thirtyDaysAgo = subDays(new Date(), 30);
+    // inventory_movements no guarda costo: se valúa con el costo unitario del
+    // lote y, si el movimiento no trae lote, con el último costo del artículo.
     const conditions: any[] = [
-      eq(inventoryMovements.companyId, companyId),
-      eq(inventoryMovements.movementType, 'WASTE'),
-      gte(inventoryMovements.createdAt, thirtyDaysAgo),
+      inArray(inventoryMovements.branchId, this.companyBranches(companyId)),
+      eq(inventoryMovements.type, 'WASTE'),
+      gte(inventoryMovements.timestamp, thirtyDaysAgo),
     ];
     if (branchId && branchId !== 'all') conditions.push(eq(inventoryMovements.branchId, branchId));
     const [result] = await db
-      .select({ total: sql<number>`COALESCE(SUM(${inventoryMovements.costCents}), 0)` })
+      .select({
+        total: sql<number>`COALESCE(SUM(ABS(${inventoryMovements.quantityChange}) * COALESCE(${inventoryBatches.unitCost}, ${inventoryItems.lastCost}, 0)), 0)`,
+      })
       .from(inventoryMovements)
+      .leftJoin(inventoryBatches, eq(inventoryMovements.batchId, inventoryBatches.id))
+      .leftJoin(inventoryItems, eq(inventoryMovements.itemId, inventoryItems.id))
       .where(and(...conditions));
     return Number(result?.total || 0) / 100; // Convert cents to currency units
   }
 
   private async countActiveIncidents(companyId: string, branchId?: string): Promise<number> {
     const conditions: any[] = [
-      eq(incidents.companyId, companyId),
-      inArray(incidents.status, ['OPEN', 'INVESTIGATING', 'ACTION_REQUIRED']),
+      inArray(incidents.branchId, this.companyBranches(companyId)),
+      inArray(incidents.status, ['DETECTED', 'IN_REMEDIATION', 'AWAITING_EXTERNAL', 'CONFIRMED', 'ESCALATED']),
     ];
     if (branchId && branchId !== 'all') conditions.push(eq(incidents.branchId, branchId));
     const [result] = await db
@@ -323,8 +330,8 @@ export class KpiCalculator {
 
   private async countCriticalIncidents(companyId: string, branchId?: string): Promise<number> {
     const conditions: any[] = [
-      eq(incidents.companyId, companyId),
-      inArray(incidents.status, ['OPEN', 'INVESTIGATING', 'ACTION_REQUIRED']),
+      inArray(incidents.branchId, this.companyBranches(companyId)),
+      inArray(incidents.status, ['DETECTED', 'IN_REMEDIATION', 'AWAITING_EXTERNAL', 'CONFIRMED', 'ESCALATED']),
       inArray(incidents.severity, ['CRITICAL', 'FATAL']),
     ];
     if (branchId && branchId !== 'all') conditions.push(eq(incidents.branchId, branchId));
@@ -338,7 +345,7 @@ export class KpiCalculator {
   private async countResolvedIncidents(companyId: string, branchId?: string): Promise<number> {
     const thirtyDaysAgo = subDays(new Date(), 30);
     const conditions: any[] = [
-      eq(incidents.companyId, companyId),
+      inArray(incidents.branchId, this.companyBranches(companyId)),
       eq(incidents.status, 'RESOLVED'),
       gte(incidents.createdAt, thirtyDaysAgo),
     ];
@@ -352,28 +359,14 @@ export class KpiCalculator {
 
   private async countTempAlerts(companyId: string, branchId?: string): Promise<number> {
     const conditions: any[] = [
-      eq(temperatureLogs.companyId, companyId),
-      eq(temperatureLogs.isOutOfRange, true),
-      gte(temperatureLogs.recordedAt, subDays(new Date(), 7)),
+      inArray(temperatureLogs.branchId, this.companyBranches(companyId)),
+      eq(temperatureLogs.isCompliant, false),
+      gte(temperatureLogs.timestamp, subDays(new Date(), 7)),
     ];
     if (branchId && branchId !== 'all') conditions.push(eq(temperatureLogs.branchId, branchId));
     const [result] = await db
       .select({ count: sql<number>`cast(count(*) as integer)` })
       .from(temperatureLogs)
-      .where(and(...conditions));
-    return Number(result?.count || 0);
-  }
-
-  private async countEquipmentIssues(companyId: string, branchId?: string): Promise<number> {
-    const conditions: any[] = [
-      eq(complianceAlerts.companyId, companyId),
-      eq(complianceAlerts.alertType, 'EQUIPMENT_MAINTENANCE'),
-      eq(complianceAlerts.status, 'ACTIVE'),
-    ];
-    if (branchId && branchId !== 'all') conditions.push(eq(complianceAlerts.branchId, branchId));
-    const [result] = await db
-      .select({ count: sql<number>`cast(count(*) as integer)` })
-      .from(complianceAlerts)
       .where(and(...conditions));
     return Number(result?.count || 0);
   }
@@ -402,7 +395,7 @@ export class KpiCalculator {
   }
 
   private async countTotalItems(companyId: string, branchId?: string): Promise<number> {
-    const conditions: any[] = [eq(inventoryBatches.companyId, companyId)];
+    const conditions: any[] = [inArray(inventoryBatches.branchId, this.companyBranches(companyId))];
     if (branchId && branchId !== 'all') conditions.push(eq(inventoryBatches.branchId, branchId));
     const [result] = await db
       .select({ count: sql<number>`cast(count(*) as integer)` })
@@ -412,9 +405,10 @@ export class KpiCalculator {
   }
 
   private async countAccurateItems(companyId: string, branchId?: string): Promise<number> {
+    // "Exacto" = lote sano: no cuarentenado ni caducado.
     const conditions: any[] = [
-      eq(inventoryBatches.companyId, companyId),
-      eq(inventoryBatches.qualityStatus, 'PASSED'),
+      inArray(inventoryBatches.branchId, this.companyBranches(companyId)),
+      notInArray(inventoryBatches.status, ['QUARANTINED', 'EXPIRED']),
     ];
     if (branchId && branchId !== 'all') conditions.push(eq(inventoryBatches.branchId, branchId));
     const [result] = await db

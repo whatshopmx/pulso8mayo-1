@@ -109,6 +109,25 @@ npx tsx scripts/seed-demo-data.ts
 - Integración AI verification con `/api/ai/verify`
 - Upload a R2 implementado con fallback local
 
+### Capa de retención de dinero (rama `feat/capa-dinero`) - COMPLETADA ✅
+
+Cinco features que cierran las fugas de efectivo del negocio. Cada una tiene su
+propia migración (nunca `db:push`) y su spec E2E en `tests/`.
+
+| # | Feature | Migración | Dónde vive |
+|---|---------|-----------|------------|
+| 1 | **Evidencia (foto del ticket) en gastos operativos** — `operating_expenses.evidence_url` sustituye la libreta de gastos. | `0031_closed_vampiro` | `app/api/expenses/route.ts`, `app/api/expenses/evidence/route.ts` (upload a R2), `components/finance/expense-form.tsx` |
+| 2 | **Arqueo de cierre de turno** — efectivo contado y depósito del turno; el arqueo es **obligatorio** si hay efectivo declarado. El dashboard marca faltantes/sobrantes. | `0032_arqueo-cierre-turno` (`cash_counted_cents`, `deposited_cents`) | `app/api/workflows/smart-links/corte-caja/route.ts`, `app/api/sales/cuts/route.ts`, `templates/finanzas/corte-caja.json`, `app/dashboard/sales/page.tsx` (columna "Arqueo/Dif.") |
+| 3 | **Desglose por agregador** — ventas por Rappi/Uber/DiDi/etc. en jsonb, con conciliación contra la liquidación del agregador. | `0033_desglose-agregadores` (`aggregator_sales`) | `lib/services/pos-column-aliases.ts` (`matchAggregatorLabel`), `lib/services/sales-ingestion-service.ts`, `app/dashboard/sales/page.tsx` (tabla de conciliación) |
+| 4 | **SKUs de alto valor (80/20)** — el conteo semanal se dirige a máximo **30 SKUs** que concentran el 80% del costo, en vez de abandonar el inventario completo. | `0034_sku-alto-valor` (`inventory_items.is_high_value`) | `app/api/inventory/products/route.ts` (`MAX_HIGH_VALUE_SKUS = 30`), `lib/services/stock-count-service.ts` (filtro por defecto + toggle "ver todos"), `app/api/inventory/high-value/`, `components/inventory/high-value-skus-section.tsx` |
+| 5 | **Recepción ⇒ `receiving_reports`** — al completar el workflow `tpl-recepcion-mercancia-v2` se extrae proveedor, evidencia y discrepancias al reporte de recepción; alimenta la varianza por proveedor y la conciliación CFDI 3-way. | — (tablas ya existían) | `lib/services/receiving-service.ts` (`processReceiving`), `lib/services/receiving-from-workflow.ts`, enganche en `lib/services/workflow-execution-service.ts`, `app/api/inventory/supplier-variance/` |
+
+**Notas de implementación:**
+- El enganche de la fase 5 se dispara **después** de marcar la instancia como
+  `COMPLETED` — el extractor descarta instancias que aún no lo estén.
+- La ingesta automática de POS deja `cash_counted_cents` en `null`: solo el
+  arqueo manual del cajero lo llena.
+
 ---
 
 ## 📋 TODOs Pendientes (Priorizados)
@@ -231,9 +250,35 @@ UPSTASH_REDIS_REST_TOKEN=
 - **Base URL:** `PLAYWRIGHT_TEST_BASE_URL` env var
 
 ```bash
+# Requisitos: base sembrada y build de producción
+pnpm seed && pnpm seed:pass
+pnpm build
+
 # Run E2E tests
 pnpm test:e2e
 ```
+
+**Cómo están armados los specs:**
+
+- `tests/auth.setup.ts` inicia sesión una vez (`carlos@pulso.mx` / `123456`,
+  sembrados por `pnpm seed:pass`) y guarda las cookies en `tests/.auth/`.
+- Los specs corren **en serie** (`workers: 1`): comparten la base de desarrollo
+  y se pisarían entre sí (flags de alto valor, conteos activos por sucursal).
+- `tests/support/db.ts` prepara y limpia datos vía SQL directo. Todo lo que
+  crean los tests va marcado con `[E2E]` y se borra al terminar.
+- Por defecto levantan `next start` (el dev server compila cada ruta al primer
+  golpe y los specs expiran). Para usar el dev server:
+  `PLAYWRIGHT_WEB_SERVER_CMD="npm run dev" pnpm test:e2e`.
+
+**Cobertura de la capa de dinero:**
+
+| Spec | Escenario |
+|------|-----------|
+| `corte-arqueo.spec.ts` | Corte rechazado sin arqueo; efectivo $1,000 / arqueo $980 ⇒ −$20.00 "faltante" en el dashboard |
+| `gasto-evidencia.spec.ts` | Gasto con foto del ticket ⇒ `evidence_url` persistido |
+| `conteo-alto-valor.spec.ts` | Conteo filtrado por alto valor + toggle "ver todos" |
+| `limite-30-skus.spec.ts` | Límite de 30 SKUs de alto valor: acepta el 30, rechaza el 31 |
+| `recepcion-workflow.spec.ts` | Workflow de recepción con discrepancia ⇒ `receiving_reports` (idempotente) |
 
 ---
 

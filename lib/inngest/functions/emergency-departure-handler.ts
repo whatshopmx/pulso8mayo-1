@@ -37,7 +37,7 @@ export const emergencyDepartureHandler = inngest.createFunction(
           title: "🚨 Salida de Emergencia Registrada",
           message: `${empName} se ha retirado por emergencia: "${reason}". (${reassignedCount || 0} tareas reasignadas${targetUser ? ` a ${targetUser.name}` : ''}).`,
           type: "warning",
-          eventType: "shift_approval_needed",
+          eventType: "shift_approval_request",
           actionUrl: `/dashboard/labor/shift-changes`,
           actionLabel: "Ver Aprobaciones",
           metadata: {

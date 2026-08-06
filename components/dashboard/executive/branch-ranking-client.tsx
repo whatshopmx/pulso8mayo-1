@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trophy, AlertOctagon, AlertTriangle, Layers, Eye } from "lucide-react";
-import type { BranchComplianceMetrics } from "@/lib/services/cross-branch-service";
+import type { BranchComplianceSnapshot as BranchComplianceMetrics } from "@/lib/services/cross-branch-service";
 
 function barColor(score: number): string {
   if (score >= 90) return "bg-emerald-500";

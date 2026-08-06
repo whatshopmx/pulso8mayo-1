@@ -225,6 +225,27 @@
       "when": 1785959220110,
       "tag": "0031_closed_vampiro",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1785960912829,
+      "tag": "0032_arqueo-cierre-turno",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1785960952526,
+      "tag": "0033_desglose-agregadores",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1785961105235,
+      "tag": "0034_sku-alto-valor",
+      "breakpoints": true
     }
   ]
 }

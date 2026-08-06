@@ -31,7 +31,7 @@ import {
 
 // ── Types ────────────────────────────────────────────────────────
 
-interface CashFlowDay {
+export interface CashFlowDay {
   date: string;
   projectedInflowCents: number;
   projectedOutflowCents: number;
@@ -69,7 +69,7 @@ interface WeeklyAggregation {
   isHeavy: boolean;
 }
 
-interface CashFlowProjection {
+export interface CashFlowProjection {
   days: CashFlowDay[];
   outflowItems: OutflowItem[];
   categorySummary: CategorySummary[];

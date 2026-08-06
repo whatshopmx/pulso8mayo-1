@@ -136,6 +136,24 @@ export function ProductForm({ suppliers = [], initialData }: ProductFormProps) {
                         onPhotoChange={setPhotoUrl}
                     />
 
+                    {/* Fase 4: SKU de alto valor (conteo semanal 80/20) */}
+                    <div className="flex items-center gap-3 rounded-lg border bg-muted/10 p-3">
+                        <input
+                            id="isHighValue"
+                            type="checkbox"
+                            name="isHighValue"
+                            value="true"
+                            defaultChecked={initialData?.isHighValue === true}
+                            className="h-4 w-4 shrink-0"
+                        />
+                        <label htmlFor="isHighValue" className="text-sm">
+                            <span className="font-semibold">SKU de alto valor</span>
+                            <span className="block text-xs text-muted-foreground">
+                                Se cuenta semanalmente por defecto (80% del costo). Máx. 30 SKUs por empresa.
+                            </span>
+                        </label>
+                    </div>
+
                     {/* Supplier and Cost Section */}
                     <div className="grid grid-cols-3 gap-4 pt-2 border-t">
                         <div className="space-y-2">

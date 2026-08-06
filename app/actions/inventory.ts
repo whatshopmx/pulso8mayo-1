@@ -28,6 +28,7 @@ export async function createProduct(formData: FormData) {
     const brand = formData.get("brand") as string || undefined;
     const presentation = formData.get("presentation") as string || undefined;
     const standardCost = formData.get("standardCost") ? Math.round(Number(formData.get("standardCost")) * 100) : undefined;
+    const isHighValue = formData.get("isHighValue") === "true"; // Fase 4
 
     await InventoryService.createItem({
         companyId: session.user.companyId as string,
@@ -48,6 +49,7 @@ export async function createProduct(formData: FormData) {
         brand,
         presentation,
         standardCost,
+        isHighValue,
         userId: session.user.id
     });
 
@@ -78,6 +80,7 @@ export async function updateProduct(id: string, formData: FormData) {
     const brand = formData.get("brand") as string || undefined;
     const presentation = formData.get("presentation") as string || undefined;
     const standardCost = formData.get("standardCost") ? Math.round(Number(formData.get("standardCost")) * 100) : undefined;
+    const isHighValue = formData.get("isHighValue") === "true"; // Fase 4
 
     await InventoryService.updateItem(id, {
         name,
@@ -96,6 +99,7 @@ export async function updateProduct(id: string, formData: FormData) {
         brand,
         presentation,
         standardCost,
+        isHighValue,
     }, session.user.id);
 
     revalidatePath("/dashboard/inventory");

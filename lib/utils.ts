@@ -5,11 +5,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Formatea un monto expresado en **pesos**. Para centavos, usa `formatCents`. */
 export function formatCurrency(value: number, currency = 'MXN'): string {
   return new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency,
   }).format(value);
+}
+
+/**
+ * Formatea un monto expresado en **centavos** (la unidad en que el esquema
+ * guarda todo el dinero). Reemplaza las copias locales de `formatMXN`.
+ */
+export function formatCents(cents: number, currency = 'MXN'): string {
+  return formatCurrency(cents / 100, currency);
 }
 
 /**

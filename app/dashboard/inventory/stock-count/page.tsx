@@ -39,25 +39,34 @@ async function createStockCount(formData: FormData) {
     return redirect("/dashboard/inventory/stock-count?error=missing-fields");
   }
 
+  // `redirect()` funciona lanzando NEXT_REDIRECT: si se llama dentro del try,
+  // el propio catch se lo traga y el conteo recién creado termina en la
+  // pantalla de error. Por eso aquí solo se resuelve el destino.
+  let destino: string;
   try {
     const result = await StockCountService.createStockCountInstance({
       companyId: session.user.companyId || "",
       branchId,
       assigneeId: session.user.id,
       categoryValue: category,
+      highOnlyValue: formData.get("highValueOnly") !== "false", // Fase 4
     });
-    if (result.instance?.id) {
-      redirect(`/dashboard/workflows/${result.instance.id}/execute`);
-    }
+    destino = result.instance?.id
+      ? `/dashboard/workflows/${result.instance.id}/execute`
+      : "/dashboard/inventory/stock-count?error=create-failed";
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
+    // El service reporta el conteo ya activo como "... ID: <uuid>".
     const match = message.match(/ID:\s*([a-f0-9-]+)/i);
     if (match) {
-      redirect(`/dashboard/workflows/${match[1]}/execute`);
+      destino = `/dashboard/workflows/${match[1]}/execute`;
+    } else {
+      console.error("Stock count error:", error);
+      destino = "/dashboard/inventory/stock-count?error=create-failed";
     }
-    console.error("Stock count error:", error);
-    redirect("/dashboard/inventory/stock-count?error=create-failed");
   }
+
+  redirect(destino);
 }
 
 export default async function StockCountPage(props: { searchParams?: Promise<{ error?: string }> }) {
@@ -159,6 +168,20 @@ export default async function StockCountPage(props: { searchParams?: Promise<{ e
                                             <option key={c.value} value={c.value}>{c.label}</option>
                                         ))}
                                     </select>
+                                </div>
+
+                                <div className="flex items-center gap-2 rounded-lg border bg-muted/10 p-3">
+                                    <input
+                                        id="highValueOnly"
+                                        type="checkbox"
+                                        name="highValueOnly"
+                                        value="true"
+                                        defaultChecked
+                                        className="h-4 w-4 shrink-0"
+                                    />
+                                    <label htmlFor="highValueOnly" className="text-sm text-muted-foreground">
+                                        Contar solo SKUs de alto valor (80% del costo — máx. 30). Desmarca para contar todos.
+                                    </label>
                                 </div>
 
                                 <Button type="submit" className="w-full mt-2">

@@ -71,12 +71,18 @@ export class StockCountService {
             ));
     }
 
-    static async getProductsWithStock(companyId: string, branchId: string, categoryValue?: string) {
+    static async getProductsWithStock(companyId: string, branchId: string, categoryValue?: string, highOnlyValue?: boolean) {
         const conditions = [
             eq(inventoryItems.companyId, companyId),
             eq(inventoryItems.active, true),
         ];
-        
+
+        // Fase 4: por defecto solo se cuentan los SKUs de alto valor (80/20).
+        // Pasa false para "ver todos".
+        if (highOnlyValue !== false) {
+            conditions.push(eq(inventoryItems.isHighValue, true));
+        }
+
         if (categoryValue) {
             conditions.push(eq(inventoryItems.category, categoryValue));
         }
@@ -87,6 +93,7 @@ export class StockCountService {
             sku: inventoryItems.sku,
             category: inventoryItems.category,
             unit: inventoryItems.unit,
+            isHighValue: inventoryItems.isHighValue,
             currentStock: sql<number>`COALESCE((
                 SELECT sum(${inventoryBatches.currentQuantity})
                 FROM ${inventoryBatches}
@@ -185,6 +192,7 @@ export class StockCountService {
     branchId: string;
     assigneeId: string;
     categoryValue: string;
+    highOnlyValue?: boolean; // Fase 4: por defecto true (solo alto valor)
   }) {
     const activeCount = await this.getActiveCountForBranch(data.branchId);
     if (activeCount) {
@@ -192,7 +200,7 @@ export class StockCountService {
     }
 
     const template = await this.getOrCreateTemplate(data.companyId);
-    const products = await this.getProductsWithStock(data.companyId, data.branchId, data.categoryValue);
+    const products = await this.getProductsWithStock(data.companyId, data.branchId, data.categoryValue, data.highOnlyValue);
 
         if (products.length === 0) {
             throw new Error("No products found for selected category");
@@ -212,6 +220,7 @@ export class StockCountService {
             data: {
                 category: data.categoryValue,
                 productCount: products.length,
+                highValueOnly: data.highOnlyValue !== false, // Fase 4
                 startTime: new Date().toISOString(),
                 ...(staticTemplate?.aiConfig ? { aiConfig: staticTemplate.aiConfig } : {}),
                 ...(staticTemplate?.complianceConfig ? { complianceConfig: staticTemplate.complianceConfig } : {}),

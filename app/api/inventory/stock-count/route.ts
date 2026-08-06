@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { branchId, category } = body;
+        const { branchId, category, highValueOnly } = body;
 
         if (!branchId || !category) {
             return NextResponse.json({ error: "branchId and category required" }, { status: 400 });
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
             branchId,
             assigneeId: session.user.id,
             categoryValue: category,
+            highOnlyValue: highValueOnly !== false, // Fase 4
         });
 
         return NextResponse.json(result);

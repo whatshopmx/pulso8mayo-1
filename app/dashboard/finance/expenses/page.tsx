@@ -18,31 +18,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield, ImagePlus } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield, ImagePlus, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/hooks/use-session";
+import { roleIsAtLeast } from "@/lib/permissions";
+import { useBranches } from "@/hooks/use-branches";
+import { formatCents } from "@/lib/utils";
 
-interface Branch {
-  id: string;
-  name: string;
-}
-
-const ROLE_HIERARCHY: Record<string, number> = {
-  "SUPER_ADMIN": 100,
-  "OWNER": 95,
-  "ADMIN": 90,
-  "GERENTE": 80,
-  "SUPERVISOR": 50,
-  "EMPLEADO": 10,
-  "READONLY": 0,
-};
-
+// Etiquetas legibles para cada rol aprobador. Debe cubrir todo
+// APPROVER_ROLES_HIERARCHY para que "Requiere X" nunca muestre el identificador crudo.
 const ROLE_LABELS: Record<string, string> = {
+  "SUPER_ADMIN": "Super Admin",
   "OWNER": "Dueño",
   "DIRECTOR_OPS": "Director Ops",
   "ADMIN": "Admin",
   "GERENTE": "Gerente",
   "SUPERVISOR": "Supervisor",
+  "EMPLEADO": "Empleado",
+  "READONLY": "Solo lectura",
 };
 
 interface ExpenseItem {
@@ -69,27 +64,17 @@ export default function ExpensesPage() {
   const { session } = useSession();
   const currentUserRole = session?.user?.role || "EMPLEADO";
   const currentUserId = session?.user?.id;
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const { branches, loading: loadingBranches } = useBranches();
   const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchBranches() {
-      try {
-        const res = await fetch("/api/branches");
-        const data = await res.json();
-        const list = data.data || data.branches || (Array.isArray(data) ? data : []);
-        setBranches(list);
-      } catch (err) {
-        console.error("Error fetching branches:", err);
-      }
-    }
-    fetchBranches();
-  }, []);
+  const [actionInFlightId, setActionInFlightId] = useState<string | null>(null);
+  /** Gasto y tipo de resolución pendiente de confirmar en el diálogo. */
+  const [pendingAction, setPendingAction] = useState<
+    { type: "approve" | "reject"; item: ExpenseItem } | null
+  >(null);
+  const [actionNotes, setActionNotes] = useState("");
 
   const fetchExpenses = useCallback(async () => {
     setLoading(true);
@@ -120,45 +105,73 @@ export default function ExpensesPage() {
     fetchExpenses();
   }, [fetchExpenses]);
 
-  const handleApprove = async (id: string) => {
-    setApprovingId(id);
+  const openAction = (type: "approve" | "reject", item: ExpenseItem) => {
+    setActionNotes("");
+    setPendingAction({ type, item });
+  };
+
+  const submitAction = async () => {
+    if (!pendingAction) return;
+    const { type, item } = pendingAction;
+    const trimmed = actionNotes.trim();
+
+    // El motivo es obligatorio al rechazar; la nota es opcional al aprobar.
+    if (type === "reject" && !trimmed) return;
+
+    setActionInFlightId(item.id);
     try {
-      const res = await fetch("/api/expenses/approvals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expenseId: id, notes: "Aprobado por administración" }),
-      });
+      const res = await fetch(
+        type === "approve" ? "/api/expenses/approvals" : "/api/expenses/reject",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            type === "approve"
+              ? { expenseId: item.id, notes: trimmed || undefined }
+              : { expenseId: item.id, reason: trimmed }
+          ),
+        }
+      );
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast({ title: "Gasto Aprobado", description: "El gasto ha sido aprobado exitosamente." });
+        toast({
+          title: type === "approve" ? "Gasto aprobado" : "Gasto rechazado",
+          description:
+            type === "approve"
+              ? "El gasto ha sido aprobado exitosamente."
+              : "El gasto fue rechazado y el motivo quedó en la bitácora.",
+        });
         fetchExpenses();
       } else {
         toast({
-          title: "No se pudo aprobar",
-          description: data?.error || "El servidor rechazó la aprobación. Intenta de nuevo.",
+          title: type === "approve" ? "No se pudo aprobar" : "No se pudo rechazar",
+          description: data?.error || "El servidor rechazó la operación. Intenta de nuevo.",
           variant: "destructive",
         });
       }
     } catch (err) {
-      console.error("Failed to approve expense:", err);
+      console.error(`Failed to ${type} expense:`, err);
       toast({
         title: "Error de conexión",
-        description: "No se pudo completar la aprobación. Revisa tu red e intenta de nuevo.",
+        description: "No se pudo completar la operación. Revisa tu red e intenta de nuevo.",
         variant: "destructive",
       });
     } finally {
-      setApprovingId(null);
-      setConfirmId(null);
+      setActionInFlightId(null);
+      setPendingAction(null);
+      setActionNotes("");
     }
   };
 
   const renderApproveAction = (item: ExpenseItem) => {
     const requiredRole = item.requiredApproverRole || "OWNER";
-    const userLevel = ROLE_HIERARCHY[currentUserRole] ?? 0;
-    const requiredLevel = ROLE_HIERARCHY[requiredRole] ?? 0;
-    const canApprove = userLevel >= requiredLevel && item.requestedBy !== currentUserId;
+    // Afordancia de UX únicamente; la autorización real se aplica en
+    // expense-service.ts. Se usa el mismo helper para que no puedan divergir.
+    // Rechazar exige la misma autoridad que aprobar.
+    const canResolve =
+      roleIsAtLeast(currentUserRole, requiredRole) && item.requestedBy !== currentUserId;
 
-    if (!canApprove) {
+    if (!canResolve) {
       return (
         <span className="text-muted-foreground/60 text-[10px] flex flex-col items-center gap-0.5">
           <Shield className="w-3 h-3" />
@@ -167,25 +180,31 @@ export default function ExpensesPage() {
       );
     }
 
+    const busy = actionInFlightId === item.id;
+
     return (
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-7 text-xs bg-success/10 text-success hover:bg-success/20 border-success/20"
-        onClick={() => setConfirmId(item.id)}
-        disabled={approvingId === item.id}
-      >
-        {approvingId === item.id ? (
-          <Loader2 className="w-3 h-3 animate-spin" />
-        ) : (
-          "Aprobar"
-        )}
-      </Button>
+      <div className="flex items-center justify-center gap-1">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs bg-success/10 text-success hover:bg-success/20 border-success/20"
+          onClick={() => openAction("approve", item)}
+          disabled={busy}
+        >
+          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : "Aprobar"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/20"
+          onClick={() => openAction("reject", item)}
+          disabled={busy}
+        >
+          Rechazar
+        </Button>
+      </div>
     );
   };
-
-  const formatMXN = (cents: number) =>
-    (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 
   const getStatusBadge = (status: ExpenseItem["status"]) => {
     switch (status) {
@@ -230,7 +249,7 @@ export default function ExpensesPage() {
 
         <div className="flex items-center gap-3">
           <div className="w-48">
-            <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+            <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={loadingBranches}>
               <SelectTrigger>
                 <SelectValue placeholder="Todas las sucursales" />
               </SelectTrigger>
@@ -268,7 +287,7 @@ export default function ExpensesPage() {
               description={error}
               action={
                 <Button variant="outline" size="sm" onClick={fetchExpenses}>
-                  <Loader2 className="w-4 h-4 mr-2" /> Reintentar
+                  <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
                 </Button>
               }
             />
@@ -317,16 +336,19 @@ export default function ExpensesPage() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            asChild
                             className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
-                            onClick={() => window.open(item.evidenceUrl!, "_blank", "noopener,noreferrer")}
                           >
-                            <ImagePlus className="w-3.5 h-3.5 text-primary" /> Ver ticket
+                            {/* Ancla real: `window.open` descartaba clic central y "copiar enlace". */}
+                            <a href={item.evidenceUrl} target="_blank" rel="noopener noreferrer">
+                              <ImagePlus className="w-3.5 h-3.5 text-primary" /> Ver ticket
+                            </a>
                           </Button>
                         ) : (
                           <span className="text-muted-foreground/40 text-[10px]">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-bold">{formatMXN(item.amountCents)}</TableCell>
+                      <TableCell className="text-right font-bold">{formatCents(item.amountCents)}</TableCell>
                       <TableCell>{item.requestedByName || "Gerente"}</TableCell>
                       <TableCell>{getStatusBadge(item.status)}</TableCell>
                       <TableCell className="text-center">
@@ -345,26 +367,72 @@ export default function ExpensesPage() {
         </CardContent>
       </Card>
 
-      {/* Approve confirmation — irreversible authorization, deliberate gate */}
-      <AlertDialog open={confirmId !== null} onOpenChange={(open) => !open && setConfirmId(null)}>
+      {/* Resolution confirmation — irreversible authorization, deliberate gate */}
+      <AlertDialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingAction(null);
+            setActionNotes("");
+          }
+        }}
+      >
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Aprobar este gasto?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {pendingAction?.type === "reject" ? "¿Rechazar este gasto?" : "¿Aprobar este gasto?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              La aprobación compromete el pago y queda registrada en la bitácora de autorizaciones. Esta acción no se puede deshacer.
+              {pendingAction?.type === "reject"
+                ? "El rechazo es definitivo: para corregir el gasto habrá que registrarlo de nuevo. El motivo queda en la bitácora de autorizaciones."
+                : "La aprobación compromete el pago y queda registrada en la bitácora de autorizaciones. Esta acción no se puede deshacer."}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {pendingAction && (
+            <div className="space-y-2 text-sm">
+              <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{pendingAction.item.description}</span>
+                {" · "}
+                {pendingAction.item.branchName}
+                {" · "}
+                <span className="font-semibold text-foreground">
+                  {formatCents(pendingAction.item.amountCents)}
+                </span>
+              </div>
+              <Label htmlFor="action-notes" className="text-xs">
+                {pendingAction.type === "reject" ? "Motivo del rechazo" : "Notas (opcional)"}
+              </Label>
+              <Textarea
+                id="action-notes"
+                rows={3}
+                value={actionNotes}
+                onChange={(e) => setActionNotes(e.target.value)}
+                placeholder={
+                  pendingAction.type === "reject"
+                    ? "Ej. Falta la factura del proveedor; el monto no coincide con la cotización."
+                    : "Ej. Validado contra factura F-1042."
+                }
+              />
+            </div>
+          )}
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              variant="default"
-              disabled={approvingId === confirmId}
-              onClick={() => confirmId && handleApprove(confirmId)}
+              variant={pendingAction?.type === "reject" ? "destructive" : "default"}
+              disabled={
+                actionInFlightId !== null ||
+                (pendingAction?.type === "reject" && actionNotes.trim() === "")
+              }
+              onClick={(e) => {
+                // El diálogo no debe cerrarse antes de conocer el resultado.
+                e.preventDefault();
+                submitAction();
+              }}
             >
-              {approvingId === confirmId ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : null}
-              Sí, aprobar
+              {actionInFlightId !== null ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              {pendingAction?.type === "reject" ? "Sí, rechazar" : "Sí, aprobar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
