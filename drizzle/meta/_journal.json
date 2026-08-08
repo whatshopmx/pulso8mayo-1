@@ -260,6 +260,13 @@
       "when": 1786051189302,
       "tag": "0036_tags-inventory-items",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786111597033,
+      "tag": "0037_lush_malice",
+      "breakpoints": true
     }
   ]
 }

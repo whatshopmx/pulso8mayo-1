@@ -2815,3 +2815,48 @@ export const pnlSnapshots = pgTable("pnl_snapshots", {
         table.periodEnd
     ),
 }));
+
+
+// ---------------------------------------------------------------------------
+// Conteo físico — resultado por ítem, fuera del blob JSON.
+//
+// Hasta ahora el resultado de un conteo vivía sólo en `workflow_instances.data`
+// (`results[]`), lo que impide cruzarlo por ítem/fecha sin deserializar cada
+// instancia. Esta tabla lo saca a filas consultables; el blob se mantiene tal
+// cual para no romper la página de resultados ni `applyStockCountAdjustments`,
+// que sigue siendo el único punto que escribe ajustes de inventario.
+//
+// Cantidades en `numeric(12,4)`: contar 2.5 kg debe guardar 2.5, no 2.
+// ---------------------------------------------------------------------------
+export const stockCounts = pgTable("stock_counts", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
+
+    /** Instancia de workflow que originó el conteo. Null = captura manual/import. */
+    workflowInstanceId: uuid("workflow_instance_id"),
+
+    /** Cantidad física capturada por quien contó. */
+    countedQuantity: numeric("counted_quantity", { precision: 12, scale: 4 }).notNull(),
+    /** Stock que el sistema creía tener al momento de contar. */
+    systemQuantity: numeric("system_quantity", { precision: 12, scale: 4 }).notNull(),
+
+    evidenceUrl: text("evidence_url"),
+    countedBy: text("counted_by").references(() => users.id),
+
+    /** Día del conteo (no timestamp): la varianza diaria se agrupa por fecha. */
+    countDate: date("count_date").notNull(),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+    // Idempotencia (AD-4): completar la misma instancia dos veces no duplica
+    // filas. Parcial porque las capturas sin instancia sí pueden repetirse.
+    stockCountInstanceItemUnique: uniqueIndex("stock_counts_instance_item_unique")
+        .on(table.workflowInstanceId, table.itemId)
+        .where(sql`${table.workflowInstanceId} IS NOT NULL`),
+    stockCountsBranchDateIdx: index("stock_counts_branch_date_idx").on(
+        table.branchId,
+        table.countDate.desc()
+    ),
+}));
