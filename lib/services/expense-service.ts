@@ -7,12 +7,10 @@ import {
   expenseAuthorizationRules,
   users,
   branches,
-  invoices,
 } from "@/lib/db/schema";
 import { eq, and, desc, lte, gte, or, isNull } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
-import { ROLES_HIERARCHY } from "@/lib/permissions";
-import type { Role } from "@/lib/permissions";
+import { roleIsAtLeast } from "@/lib/permissions";
 
 export interface CreateExpenseInput {
   companyId: string;
@@ -22,6 +20,8 @@ export interface CreateExpenseInput {
   description: string;
   invoiceId?: string;
   dueDate?: string;
+  /** URL del ticket/foto de evidencia (R2). */
+  evidenceUrl?: string;
   requestedBy: string;
   userRole?: string;
 }
@@ -49,16 +49,6 @@ async function findAuthorizationRule(companyId: string, amountCents: number) {
   return rule ?? null;
 }
 
-/**
- * Check if a user's role is sufficient to satisfy a required approver role.
- * Uses the role hierarchy: higher number = more authority.
- */
-function roleIsAtLeast(userRole: string, requiredRole: string): boolean {
-  const userLevel = ROLES_HIERARCHY[userRole as Role] ?? 0;
-  const requiredLevel = ROLES_HIERARCHY[requiredRole as Role] ?? 0;
-  return userLevel >= requiredLevel;
-}
-
 export async function createOperatingExpense(input: CreateExpenseInput) {
   // Query expenseAuthorizationRules to determine the required approver role
   const rule = await findAuthorizationRule(input.companyId, input.amountCents);
@@ -84,6 +74,7 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
       amount: input.amountCents,
       description: input.description,
       invoiceId: input.invoiceId || null,
+      evidenceUrl: input.evidenceUrl || null,
       status: initialStatus,
       requestedBy: input.requestedBy,
       approvedBy,
@@ -175,6 +166,75 @@ export async function approveOperatingExpense(
   return updated;
 }
 
+/**
+ * Rechaza un gasto pendiente.
+ *
+ * Exige la misma autoridad que aprobar: negar el pago es una decisión de la
+ * cadena de autorización, no un atajo para saltársela. El motivo es obligatorio
+ * y queda en `approvalNotes`, de donde lo lee la bitácora de Control Interno.
+ *
+ * REJECTED es terminal — el enum no ofrece retorno a PENDING_APPROVAL; para
+ * corregir un gasto rechazado se registra uno nuevo.
+ */
+export async function rejectOperatingExpense(
+  expenseId: string,
+  companyId: string,
+  approverId: string,
+  approverRole: string,
+  reason: string
+) {
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) {
+    throw new Error("El motivo del rechazo es obligatorio.");
+  }
+
+  const [expense] = await db
+    .select()
+    .from(operatingExpenses)
+    .where(
+      and(
+        eq(operatingExpenses.id, expenseId),
+        eq(operatingExpenses.companyId, companyId)
+      )
+    )
+    .limit(1);
+
+  if (!expense) {
+    throw new Error("El gasto especificado no fue encontrado.");
+  }
+
+  if (expense.status !== "PENDING_APPROVAL") {
+    throw new Error(`No se puede rechazar un gasto en estado "${expense.status}".`);
+  }
+
+  const rule = await findAuthorizationRule(companyId, expense.amount);
+  const requiredRole = rule?.approverRole ?? "OWNER";
+
+  if (!roleIsAtLeast(approverRole, requiredRole)) {
+    throw new Error(
+      `No tienes el nivel de autorización necesario. Este gasto requiere resolución de ${requiredRole} (tu rol: ${approverRole}).`
+    );
+  }
+
+  const [updated] = await db
+    .update(operatingExpenses)
+    .set({
+      status: "REJECTED",
+      approvedBy: approverId,
+      approvalNotes: `Rechazado: ${trimmedReason}`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(operatingExpenses.id, expenseId),
+        eq(operatingExpenses.companyId, companyId)
+      )
+    )
+    .returning();
+
+  return updated;
+}
+
 export async function getOperatingExpenses(companyId: string, branchId?: string) {
   const conditions = [eq(operatingExpenses.companyId, companyId)];
   if (branchId) {
@@ -193,6 +253,7 @@ export async function getOperatingExpenses(companyId: string, branchId?: string)
       category: operatingExpenses.category,
       amountCents: operatingExpenses.amount,
       description: operatingExpenses.description,
+      evidenceUrl: operatingExpenses.evidenceUrl,
       status: operatingExpenses.status,
       requestedBy: operatingExpenses.requestedBy,
       requestedByName: requestedUser.name,

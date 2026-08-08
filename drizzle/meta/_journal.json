@@ -218,6 +218,76 @@
       "when": 1785955997211,
       "tag": "0030_pnl_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1785959220110,
+      "tag": "0031_closed_vampiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1785960912829,
+      "tag": "0032_arqueo-cierre-turno",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1785960952526,
+      "tag": "0033_desglose-agregadores",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1785961105235,
+      "tag": "0034_sku-alto-valor",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786031904384,
+      "tag": "0035_gaps-avanzados",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786051189302,
+      "tag": "0036_tags-inventory-items",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786111597033,
+      "tag": "0037_lush_malice",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786150938231,
+      "tag": "0038_builder-settings-arrays",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1786197611355,
+      "tag": "0039_objetivos-financieros-tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1786198857644,
+      "tag": "0040_cuentas-por-pagar",
+      "breakpoints": true
     }
   ]
 }

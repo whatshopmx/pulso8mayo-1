@@ -143,6 +143,7 @@ gerente, que a menudo son el mismo problema.
 
 ---
 
+
 ### 3.4 Inventario de alto valor únicamente — **~60% construido, mal enfocado**
 
 **Qué es.** No inventario completo. **15-30 SKUs** que son el 80% del costo de alimentos

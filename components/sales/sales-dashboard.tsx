@@ -109,12 +109,16 @@ export function SalesDashboard({ branchId }: SalesDashboardProps) {
           <CardHeader>
             <CardTitle className="text-base font-bold flex items-center gap-1.5">
               Tendencia de Ventas Diarias
-              <span
-                className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-muted-foreground/25 text-[9px] text-muted-foreground cursor-help"
+              {/* `button`, no `span`: un `title` sobre texto plano no recibe foco ni
+                  lo anuncia el lector de pantalla. */}
+              <button
+                type="button"
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-muted-foreground/30 text-xs leading-none font-normal text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 title="Evolución de la venta total diaria (todas las sucursales y canales) en el período seleccionado. Útil para detectar días atípicos o caídas en la operación."
+                aria-label="Qué muestra esta gráfica: la evolución de la venta total diaria en el período seleccionado, útil para detectar días atípicos o caídas en la operación."
               >
                 ?
-              </span>
+              </button>
             </CardTitle>
             <CardDescription className="text-xs">
               Comportamiento del ingreso acumulado por fecha de operación.
@@ -187,12 +191,14 @@ export function SalesDashboard({ branchId }: SalesDashboardProps) {
           <CardHeader>
             <CardTitle className="text-base font-bold flex items-center gap-1.5">
               Desglose por Canal
-              <span
-                className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-muted-foreground/25 text-[9px] text-muted-foreground cursor-help"
+              <button
+                type="button"
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-muted-foreground/30 text-xs leading-none font-normal text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 title="Distribución porcentual de la venta total entre Salón, Delivery y Eventos. Ayuda a entender qué canal genera más ingreso en el período."
+                aria-label="Qué muestra este desglose: la distribución porcentual de la venta total entre Salón, Delivery y Eventos en el período."
               >
                 ?
-              </span>
+              </button>
             </CardTitle>
             <CardDescription className="text-xs">
               Participación de Salón, Delivery y Eventos.

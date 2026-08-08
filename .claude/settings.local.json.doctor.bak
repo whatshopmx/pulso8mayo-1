@@ -1,0 +1,114 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(grep -oE \"^[^:]+:[0-9]+:.{0,60}\")",
+      "PowerShell(Copy-Item *)",
+      "PowerShell(Set-Location *)",
+      "PowerShell(Set-Location C:\\\\Users\\\\david\\\\pulso29; \\(Get-Content package.json | Select-String -Pattern 'tsx|dotenv|\"scripts\"' \\); Write-Output \"--- scripts dir ---\"; Get-ChildItem scripts -ErrorAction SilentlyContinue | Select-Object Name -First 20)",
+      "PowerShell(Set-Location C:\\\\Users\\\\david\\\\pulso29; npx tsx \"$env:TEMP\\\\claude\\\\C--Users-david-pulso29\\\\9503ab14-7328-4483-987d-9f9d19081158\\\\scratchpad\\\\check-trackA-db.ts\")",
+      "Bash(curl -s \"http://localhost:8288/v1/events/01KZ9F7M4HGXS48BHMTXX5JRPS/runs\")",
+      "Bash(sleep 8)",
+      "Bash(curl -s -X PUT http://localhost:3000/api/inngest)",
+      "Bash(curl -s -X POST http://localhost:8288/e/dev_key -H 'content-type: application/json' -d '{\"name\":\"executive/engines.refresh\",\"data\":{\"companyId\":\"__TRACKED_VAR__\"}}')",
+      "Bash(echo)",
+      "PowerShell(Remove-Item *)",
+      "mcp__codegraph__codegraph_explore",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(grep -o \"DATABASE_URL=.\\\\{0,40\\\\}\" .env.local)",
+      "Bash(cp \"C:/Users/david/AppData/Local/Temp/claude/C--Users-david-pulso29/1c773cd6-eee5-4a60-a738-7080f8c3885b/scratchpad/probe-pnl-data.ts\" scripts/_probe-pnl-data.ts)",
+      "Bash(npx tsx *)",
+      "mcp__Neon__run_sql",
+      "Bash(rm -f scripts/_probe*.ts scripts/_verify-pnl.ts)",
+      "Bash(node node_modules/next/dist/bin/next build)",
+      "Bash(sed 's/\\(.*//')",
+      "PowerShell(npx tsc --noEmit -p tsconfig.json 2>&1 | Select-Object -Last 30)",
+      "Bash(NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS=1 npm run build)",
+      "mcp__Neon__list_projects",
+      "Bash(npm run *)",
+      "Bash(npx eslint *)",
+      "PowerShell(npx impeccable install)",
+      "PowerShell(npx eslint app/dashboard/sales app/dashboard/finance app/dashboard/labor/propinas lib/sales lib/permissions.ts lib/services/expense-service.ts lib/services/control-interno-service.ts hooks/use-branches.ts app/api/expenses app/api/finance/control-interno 2>&1 | Select-Object -Last 40)",
+      "Bash(echo \"EXIT:$?\")",
+      "Read(//c/Users/david/AppData/Local/Temp/claude/C--Users-david-pulso29/658d86f0-7ae3-469d-ac11-5eee212b3f7a/scratchpad/**)",
+      "Bash(echo \"---\")",
+      "Bash(node -e ' *)",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/auth/sign-in/email\" -Method POST -ContentType \"application/json\" -Body '{\"email\":\"carlos@pulso.mx\",\"password\":\"123456\"}' -UseBasicParsing -TimeoutSec 120; Write-Output \"STATUS: $\\($r.StatusCode\\)\"; Write-Output $r.Content.Substring\\(0,[Math]::Min\\(300,$r.Content.Length\\)\\) } catch { Write-Output \"ERR STATUS: $\\($_.Exception.Response.StatusCode.value__\\)\"; $sr = New-Object System.IO.StreamReader\\($_.Exception.Response.GetResponseStream\\(\\)\\); Write-Output $sr.ReadToEnd\\(\\) })",
+      "PowerShell(git rev-list *)",
+      "PowerShell(git show --stat --oneline 8d2e512 | Select-Object -First 40; echo \"=== TOTAL FILES IN 8d2e512 ===\"; \\(git show --name-only --format=\"\" 8d2e512 | Measure-Object -Line\\).Lines)",
+      "PowerShell(git show 8d2e512 -- .gitignore; echo \"=== SCRIPTS ===\"; node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "PowerShell(npx eslint . 2>&1 | Select-Object -Last 40)",
+      "PowerShell(claude mcp *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\(JSON.stringify\\(p.scripts,null,1\\)\\)\")",
+      "Bash(node *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(echo \"EXIT_FIN=$?\")",
+      "Bash(echo \"EXIT_SALES=$?\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -m 8 http://localhost:3000)",
+      "PowerShell(npx drizzle-kit generate --name gaps-avanzados 2>&1 | Select-Object -Last 40)",
+      "PowerShell(npx tsc --noEmit -p tsconfig.json 2>&1 | Select-Object -First 60)",
+      "PowerShell(npx tsc --noEmit -p tsconfig.json 2>&1 | Select-Object -First 40)",
+      "PowerShell(pnpm run *)",
+      "Bash(cd C:\\\\Users\\\\david\\\\pulso29 *)",
+      "PowerShell(npx tsc --noEmit -p tsconfig.json; \"EXIT=$LASTEXITCODE\")",
+      "PowerShell(npx next lint --dir app --dir components --dir lib 2>&1 | Select-Object -Last 60)",
+      "PowerShell(npx eslint app/dashboard/sales app/dashboard/finance components/finance components/sales components/ui/table.tsx components/ui/badge.tsx components/shared/branch-scope-control.tsx lib/utils.ts 2>&1 | Select-Object -Last 60)",
+      "PowerShell(npx eslint components/finance/petty-cash-register.tsx components/finance/excepciones-panel.tsx components/finance/audit-log-table.tsx components/sales/sales-cut-upload.tsx app/dashboard/sales/page.tsx app/dashboard/finance components/ui/table.tsx components/shared/branch-scope-control.tsx 2>&1 | Select-Object -Last 30; npx tsc --noEmit -p tsconfig.json; \"TSC_EXIT=$LASTEXITCODE\")",
+      "PowerShell(pnpm db:generate *)",
+      "PowerShell(npx tsc --noEmit)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m '@ *)",
+      "Bash(git commit *)",
+      "Bash(grep -n \"generateStockCountSteps\\\\|count-\\\\${\" lib/services/stock-count-service.ts)",
+      "Bash(grep -n \"uniqueIndex\\\\|\\), \\(table\\)\\\\|=> \\({$\\\\|index\\(\" lib/db/schema.ts)",
+      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; $errs = $out | Select-String -Pattern \"error TS\"; \"TOTAL ERRORES: $\\($errs.Count\\)\"; $errs | Select-Object -First 15)",
+      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; $errs = $out | Select-String -Pattern \"error TS\"; \"TOTAL ERRORES: $\\($errs.Count\\)\"; $errs | Select-Object -First 20)",
+      "PowerShell(pnpm lint *)",
+      "Read(//c/Users/david/.claude/skills/**)",
+      "Read(//c/Users/david/.claude/plugins/**)",
+      "Read(//c/Users/david/.claude/plugins/marketplaces/**)",
+      "Read(//c/Users/david/.claude/**)",
+      "Bash(find 'C:\\\\Users\\\\david/pulso29/.claude/agents' -name *.md)",
+      "PowerShell(npx eslint tests/conteo-dinamico.spec.ts tests/support/db.ts lib/services/stock-count-from-workflow.ts lib/services/stock-count-service.ts lib/services/workflow-execution-service.ts lib/db/schema.ts 2>&1 | Select-Object -Last 40)",
+      "PowerShell(npx tsx \"C:\\\\Users\\\\david\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-david-pulso29\\\\ca8a7e51-1ced-427d-ae2a-464689465ce7\\\\scratchpad\\\\check-migrations.ts\" 2>&1 | Select-Object -Last 10)",
+      "PowerShell(npx tsx scripts/_tmp-check-migrations.ts 2>&1 | Select-Object -Last 10)",
+      "PowerShell(npx tsx scripts/_tmp-check-migrations.ts 2>&1 | Select-Object -Last 25)",
+      "PowerShell(pnpm test:e2e *)",
+      "PowerShell(npx tsx scripts/_tmp-repro.ts 2>&1 | Select-Object -First 60)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/api/workflows/executions/abc/steps/def -X PATCH -H \"Content-Type: application/json\" -d '{\"status\":\"COMPLETED\"}')",
+      "Bash(curl -s -o /dev/null -w \"paso-12 -> %{http_code}\\\\n\" -X PATCH \"http://localhost:3000/api/workflows/executions/abc/steps/paso-12\" -H \"Content-Type: application/json\" -d '{}')",
+      "PowerShell($c = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { $c | ForEach-Object { $p = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; \"PID $\\($_.OwningProcess\\) $\\($p.ProcessName\\) iniciado $\\($p.StartTime\\)\" } } else { \"nada escuchando en 3000\" })",
+      "Bash(curl -s -o /dev/null -w \"executions/abc -> %{http_code}\\\\n\" -X PATCH \"http://localhost:3000/api/workflows/executions/abc\" -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(curl -s -o /dev/null -w \"steps/paso-12 -> %{http_code}\\\\n\" -X PATCH \"http://localhost:3000/api/workflows/executions/abc/steps/paso-12\" -H \"Content-Type: application/json\" -d '{}')"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\" ] || node \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\"",
+            "timeout": 5,
+            "statusMessage": "Checking UI changes"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\" ] || node \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\"",
+            "timeout": 30,
+            "statusMessage": "Design deep pass"
+          }
+        ]
+      }
+    ]
+  },
+  "description": "Impeccable design detector: immediate-tier checks after Edit/Write/MultiEdit on UI files, full-rule deep pass on Stop."
+}

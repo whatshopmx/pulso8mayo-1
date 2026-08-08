@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import EditorClient from "./editor-client";
 import { WorkflowStep } from "@/components/builder/builder-context";
 import { normalizeOptions } from "@/lib/workflow-type-map";
+import { roleIsAtLeast } from "@/lib/permissions";
 import React from 'react';
 
 export default async function EditorPage({ params }: { params: Promise<{ id: string }> }) {
@@ -16,6 +17,14 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
 
     if (!session) {
         redirect("/sign-in");
+    }
+
+    // AD-9: el editor arranca en GERENTE. Por debajo no es un 404 ni una
+    // expulsión del módulo — supervisores y empleados necesitan ver qué flujos
+    // existen, solo no editarlos.
+    const userRole = (session.user as { role?: string }).role;
+    if (!roleIsAtLeast(userRole ?? '', 'GERENTE')) {
+        redirect("/dashboard/builder");
     }
 
     const { id } = await params;
@@ -108,6 +117,7 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
             title={template.name}
             initialSteps={steps}
             initialSettings={initialSettings}
+            canEditPrivileged={roleIsAtLeast(userRole ?? '', 'ADMIN')}
         />
     );
 }

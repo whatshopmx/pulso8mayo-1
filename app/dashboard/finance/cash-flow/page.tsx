@@ -1,37 +1,24 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { CashFlowCalendar } from "@/components/finance/cash-flow-calendar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  CashFlowCalendar,
+  type CashFlowDay,
+  type CashFlowProjection,
+} from "@/components/finance/cash-flow-calendar";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Calendar, Loader2, AlertCircle } from "lucide-react";
-
-interface Branch {
-  id: string;
-  name: string;
-}
+import { useBranch } from "@/lib/branch-context";
+import { Calendar, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 
 export default function CashFlowPage() {
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
-  const [projection, setProjection] = useState<any[]>([]);
+  // Scope único: el selector del encabezado del dashboard. El Select local
+  // duplicaba el mismo control con otra respuesta y sin indicar cuál mandaba.
+  const { selectedBranchId } = useBranch();
+  const selectedBranch = selectedBranchId ?? "ALL";
+  const [projection, setProjection] = useState<CashFlowProjection | CashFlowDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchBranches() {
-      try {
-        const res = await fetch("/api/branches");
-        const data = await res.json();
-        const list = data.data || data.branches || (Array.isArray(data) ? data : []);
-        setBranches(list);
-      } catch (err) {
-        console.error("Error fetching branches:", err);
-      }
-    }
-    fetchBranches();
-  }, []);
 
   const fetchProjection = useCallback(async () => {
     setLoading(true);
@@ -75,21 +62,6 @@ export default function CashFlowPage() {
           </p>
         </div>
 
-        <div className="w-56">
-          <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todas las sucursales" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todas las sucursales (consolidado)</SelectItem>
-              {branches.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  {b.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
       {loading ? (
@@ -103,7 +75,7 @@ export default function CashFlowPage() {
           description={error}
           action={
             <Button variant="outline" size="sm" onClick={fetchProjection}>
-              <Loader2 className="w-4 h-4 mr-2" /> Reintentar
+              <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
             </Button>
           }
         />

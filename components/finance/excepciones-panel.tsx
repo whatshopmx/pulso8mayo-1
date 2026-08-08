@@ -1,10 +1,10 @@
 "use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Clock, UserCheck, ShieldAlert } from "lucide-react";
+import { formatCents, statusBadgeClasses } from "@/lib/utils";
+import { CheckCircle2, Clock, UserCheck, ShieldAlert } from "lucide-react";
 
-interface Violation {
+export interface Violation {
   id: string;
   type: "SELF_APPROVAL" | "OVERDUE_APPROVAL" | "ROLE_MISMATCH";
   severity: "LOW" | "MEDIUM" | "HIGH";
@@ -34,21 +34,20 @@ const VIOLATION_TITLES: Record<string, string> = {
   ROLE_MISMATCH: "Rol insuficiente",
 };
 
-const SEVERITY_COLORS: Record<string, string> = {
-  HIGH: "border-red-300 bg-red-50",
-  MEDIUM: "border-amber-300 bg-amber-50",
-  LOW: "border-blue-300 bg-blue-50",
+// Tonos del sistema en vez de paleta cruda: `bg-red-50` no tiene contraparte
+// `dark:`, así que una violación HIGH se pintaba como una losa casi blanca sobre
+// el `--card` oscuro — el estado más grave, el menos legible.
+const SEVERITY_TONES: Record<string, Parameters<typeof statusBadgeClasses>[0]> = {
+  HIGH: "destructive",
+  MEDIUM: "warning",
+  LOW: "info",
 };
 
-const SEVERITY_BADGES: Record<string, string> = {
-  HIGH: "bg-red-100 text-red-700",
-  MEDIUM: "bg-amber-100 text-amber-700",
-  LOW: "bg-blue-100 text-blue-700",
+const SEVERITY_SURFACES: Record<string, string> = {
+  HIGH: "border-destructive/30 bg-destructive/5",
+  MEDIUM: "border-warning/30 bg-warning/5",
+  LOW: "border-info/30 bg-info/5",
 };
-
-function formatMXN(cents: number) {
-  return (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
-}
 
 export function ExcepcionesPanel({ violations, loading }: ExcepcionesPanelProps) {
   if (loading) {
@@ -61,13 +60,15 @@ export function ExcepcionesPanel({ violations, loading }: ExcepcionesPanelProps)
 
   if (violations.length === 0) {
     return (
+      // El "todo en orden" llevaba un `AlertTriangle` teñido de verde: el ícono de
+      // advertencia usado como ícono de tranquilidad. Aquí va una palomita.
       <div className="py-10 text-center">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 mb-3">
-          <AlertTriangle className="w-6 h-6 text-emerald-600" />
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-success/10 mb-3">
+          <CheckCircle2 className="w-6 h-6 text-success" />
         </div>
         <p className="text-sm font-medium">Sin excepciones detectadas</p>
         <p className="text-xs text-muted-foreground mt-1">
-          Todos los gastos cumplen con las políticas de control interno.
+          Todos los gastos analizados cumplen con las políticas de control interno.
         </p>
       </div>
     );
@@ -78,7 +79,7 @@ export function ExcepcionesPanel({ violations, loading }: ExcepcionesPanelProps)
       {violations.map((v) => (
         <div
           key={v.id}
-          className={`border rounded-lg p-3 ${SEVERITY_COLORS[v.severity] || "border-gray-200"}`}
+          className={`border rounded-lg p-3 ${SEVERITY_SURFACES[v.severity] || "border-border"}`}
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-2.5 min-w-0">
@@ -92,18 +93,18 @@ export function ExcepcionesPanel({ violations, loading }: ExcepcionesPanelProps)
                   </span>
                   <Badge
                     variant="outline"
-                    className={`text-[10px] px-1.5 py-0 h-4 ${SEVERITY_BADGES[v.severity]}`}
+                    className={`text-xs px-1.5 py-0 ${statusBadgeClasses(SEVERITY_TONES[v.severity] ?? "neutral")}`}
                   >
                     {v.severity === "HIGH" ? "Crítico" : v.severity === "MEDIUM" ? "Precaución" : "Bajo"}
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">{v.detail}</p>
-                <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
                   <span className="font-medium">{v.branchName}</span>
                   <span>·</span>
                   <span>{v.category}</span>
                   <span>·</span>
-                  <span className="font-bold">{formatMXN(v.amountCents)}</span>
+                  <span className="font-bold tabular-nums">{formatCents(v.amountCents)}</span>
                 </div>
               </div>
             </div>

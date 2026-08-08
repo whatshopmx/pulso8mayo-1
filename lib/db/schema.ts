@@ -97,6 +97,10 @@ export const workflowTemplates = pgTable("workflow_templates", {
     steps: jsonb("steps").notNull().default(sql`'[]'::jsonb`), // Stores the form builder elements
     category: text("category").default('GENERAL'),
 
+    // 'company' = playbook corporativo publicable a N sucursales (ver
+    // lib/db/schema/playbooks.ts); 'branch' = plantilla local (default legacy).
+    scope: text("scope").default('branch').notNull(),
+
     // Compliance Metadata
     complianceType: text("compliance_type"), // 'NOM-251', 'NOM-035', 'LABOR'
     regulationSection: text("regulation_section"),
@@ -119,6 +123,10 @@ export const workflowTemplates = pgTable("workflow_templates", {
   complianceConfig: jsonb("compliance_config"),
   completionActions: jsonb("completion_actions").default(sql`'[]'::jsonb`),
 
+  // Normas que declara cumplir la plantilla (ej. ["NOM-251", "NOM-035"]).
+  // No es derivable de complianceConfig, que solo guarda una norma principal.
+  cumplimientoNormativo: jsonb("cumplimiento_normativo").default(sql`'[]'::jsonb`),
+
   // Reminder configuration - intervals in minutes before due date
   // Default: [1440, 60, 30] = 24h, 1h, 30min
   reminderIntervals: jsonb("reminder_intervals").default(sql`'[1440, 60, 30]'::jsonb`),
@@ -137,9 +145,16 @@ export const workflowSchedules = pgTable("workflow_schedules", {
     assignedRole: roleEnum("assigned_role"), // 'GERENTE', 'SUPERVISOR', 'EMPLEADO'
     assignedUserId: text("assigned_user_id"), // Specific user ID
 
+    // Configuración real del editor: el usuario elige varios roles y turnos.
+    // Las columnas escalares de arriba se conservan y siguen recibiendo el
+    // primer elemento porque el motor de ejecución y el cron las leen (AD-7).
+    assignedRoles: jsonb("assigned_roles").default(sql`'[]'::jsonb`),
+    assignedShifts: jsonb("assigned_shifts").default(sql`'[]'::jsonb`),
+
     // Scheduling Configuration
     frequency: scheduleFrequencyEnum("frequency").notNull(),
     dayOfWeek: integer("day_of_week"), // 0-6 (Sunday-Saturday) for WEEKLY
+    daysOfWeek: jsonb("days_of_week").default(sql`'[]'::jsonb`), // ["monday", ...] — ídem AD-7
     dayOfMonth: integer("day_of_month"), // 1-31 for MONTHLY
     timeOfDay: text("time_of_day"), // HH:MM format (e.g., "08:00")
 
@@ -656,6 +671,12 @@ export const suppliers = pgTable("suppliers", {
     taxId: text("tax_id"),
     active: boolean("active").default(true),
     matchTolerancePercent: integer("match_tolerance_percent").default(5), // Tolerance for 3-way match
+    /**
+     * Días de crédito acordados. 0 = contado.
+     * De aquí sale el vencimiento de cada factura recibida (M15 → M16): sin
+     * este dato no había forma de saber cuándo se debe pagar un CFDI.
+     */
+    paymentTermsDays: integer("payment_terms_days").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -688,6 +709,14 @@ export const inventoryItems = pgTable("inventory_items", {
     storageRequirements: text("storage_requirements"), // Temp/Humidity text
     typicalShelfLifeDays: integer("typical_shelf_life_days"),
     active: boolean("active").default(true),
+    // Fase 4 (capa dinero): SKUs "alto valor" — dirigen el conteo semanal a
+    // 15-30 SKUs que representan el 80% del costo en vez de abandonar el
+    // inventario completo. El onboarding limita cuántos pueden marcarse.
+    isHighValue: boolean("is_high_value").default(false),
+    // Etiquetas libres por item (p.ej. "perecedero", "receta_activa"). Se usan
+    // como filtro en los pasos dinámicos de workflow (metadata.dynamicSource).
+    // jsonb como el resto de listas del esquema (ver workflowTemplates.tags).
+    tags: jsonb("tags").default(sql`'[]'::jsonb`),
 
     // New fields for Supplier and Pricing
     supplierId: uuid("supplier_id"), // Preferred Supplier
@@ -2360,6 +2389,13 @@ export const dailySalesCuts = pgTable("daily_sales_cuts", {
     cashSales: integer("cash_sales"),
     cardSales: integer("card_sales"),
     otherPayments: integer("other_payments"), // vales, transferencias, agregadores
+    // Fase 2 (capa dinero): arqueo físico de caja y depósito del turno.
+    // varianceCents NO es columna: se deriva cashSales - cashCountedCents.
+    cashCountedCents: integer("cash_counted_cents"), // efectivo contado físicamente
+    depositedCents: integer("deposited_cents"), // depósito bancario del turno
+    // Fase 3 (capa dinero): desglose de ventas por agregador (rappi/uber/didi/…)
+    // en JSONB aditivo; otherPayments se mantiene como suma para compatibilidad.
+    aggregatorSales: jsonb("aggregator_sales"),
     avgTicket: integer("avg_ticket"),
 
     ticketCount: integer("ticket_count"),
@@ -2413,6 +2449,15 @@ export const posMappingTemplates = pgTable("pos_mapping_templates", {
     ),
 }));
 
+/**
+ * Estatus de pago de un CFDI recibido.
+ *
+ * Sin `PARTIAL` a propósito: un pago parcial necesita un libro de pagos con su
+ * propio complemento CFDI, y eso es un módulo, no una columna. Mientras tanto
+ * es mejor no ofrecer un estado que el sistema no puede sostener.
+ */
+export const invoicePaymentStatusEnum = pgEnum("invoice_payment_status", ['PENDING', 'PAID', 'CANCELLED']);
+
 export const invoices = pgTable("invoices", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
     companyId: uuid("company_id").notNull().references(() => companies.id),
@@ -2437,7 +2482,19 @@ export const invoices = pgTable("invoices", {
     matchStatus: text("match_status").default("PENDING").notNull(),
     hasPriceDiscrepancy: boolean("has_price_discrepancy").default(false).notNull(),
     hasQtyDiscrepancy: boolean("has_qty_discrepancy").default(false).notNull(),
-    
+
+    // --- Cuentas por pagar (M15 §"Cuentas por pagar como consecuencia") -----
+    // `match_status` describe la conciliación contra la OC y la recepción; NO
+    // dice si ya se pagó. Sin estas tres columnas una factura liquidada seguía
+    // proyectándose como salida futura en el flujo de efectivo para siempre.
+    /** Fecha límite de pago = fecha del CFDI + días de crédito del proveedor. */
+    dueDate: date("due_date"),
+    paymentStatus: invoicePaymentStatusEnum("payment_status").default('PENDING').notNull(),
+    paidAt: timestamp("paid_at"),
+    /** Quién registró el pago. Texto libre por consistencia con `users.id`. */
+    paidBy: text("paid_by").references(() => users.id),
+    paymentNotes: text("payment_notes"),
+
     xmlContent: text("xml_content"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -2605,6 +2662,20 @@ export const tenantOperatingConfig = pgTable("tenant_operating_config", {
     doubleApprovalThresholdCents: integer("double_approval_threshold_cents").default(1000000),
     pettyCashLimitCents: integer("petty_cash_limit_cents").default(500000),
 
+    // Objetivos financieros del grupo (M13/M16). Vivían hardcodeados en
+    // `components/sales/financial-kpi-cards.tsx` y en `financial-kpi-service`,
+    // así que una marisquería y una taquería compartían el mismo food cost
+    // objetivo. El diseño §2 es explícito: esto es configuración, no código.
+    //
+    // Food y labor: MENOR es mejor (target = tope sano, warn = tope tolerable).
+    // Margen: MAYOR es mejor (target = piso sano, warn = piso tolerable).
+    foodCostTargetPercent: numeric("food_cost_target_percent", { precision: 5, scale: 2 }).default("30.00"),
+    foodCostWarnPercent: numeric("food_cost_warn_percent", { precision: 5, scale: 2 }).default("35.00"),
+    laborCostTargetPercent: numeric("labor_cost_target_percent", { precision: 5, scale: 2 }).default("28.00"),
+    laborCostWarnPercent: numeric("labor_cost_warn_percent", { precision: 5, scale: 2 }).default("32.00"),
+    healthyMarginTargetPercent: numeric("healthy_margin_target_percent", { precision: 5, scale: 2 }).default("45.00"),
+    healthyMarginWarnPercent: numeric("healthy_margin_warn_percent", { precision: 5, scale: 2 }).default("35.00"),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
@@ -2668,6 +2739,8 @@ export const operatingExpenses = pgTable("operating_expenses", {
     category: operatingExpenseCategoryEnum("category").notNull(),
     amount: integer("amount").notNull(), // in cents
     description: text("description").notNull(),
+    /** Foto del ticket/comprobante (gastos sin CFDI: hielo, ferretería, taxi, plomero). */
+    evidenceUrl: text("evidence_url"),
     invoiceId: uuid("invoice_id").references(() => invoices.id),
     status: operatingExpenseStatusEnum("status").notNull().default('PENDING_APPROVAL'),
 
@@ -2792,5 +2865,50 @@ export const pnlSnapshots = pgTable("pnl_snapshots", {
     pnlSnapshotCompanyPeriodIdx: index("pnl_snapshots_company_period_idx").on(
         table.companyId,
         table.periodEnd
+    ),
+}));
+
+
+// ---------------------------------------------------------------------------
+// Conteo físico — resultado por ítem, fuera del blob JSON.
+//
+// Hasta ahora el resultado de un conteo vivía sólo en `workflow_instances.data`
+// (`results[]`), lo que impide cruzarlo por ítem/fecha sin deserializar cada
+// instancia. Esta tabla lo saca a filas consultables; el blob se mantiene tal
+// cual para no romper la página de resultados ni `applyStockCountAdjustments`,
+// que sigue siendo el único punto que escribe ajustes de inventario.
+//
+// Cantidades en `numeric(12,4)`: contar 2.5 kg debe guardar 2.5, no 2.
+// ---------------------------------------------------------------------------
+export const stockCounts = pgTable("stock_counts", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
+
+    /** Instancia de workflow que originó el conteo. Null = captura manual/import. */
+    workflowInstanceId: uuid("workflow_instance_id"),
+
+    /** Cantidad física capturada por quien contó. */
+    countedQuantity: numeric("counted_quantity", { precision: 12, scale: 4 }).notNull(),
+    /** Stock que el sistema creía tener al momento de contar. */
+    systemQuantity: numeric("system_quantity", { precision: 12, scale: 4 }).notNull(),
+
+    evidenceUrl: text("evidence_url"),
+    countedBy: text("counted_by").references(() => users.id),
+
+    /** Día del conteo (no timestamp): la varianza diaria se agrupa por fecha. */
+    countDate: date("count_date").notNull(),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+    // Idempotencia (AD-4): completar la misma instancia dos veces no duplica
+    // filas. Parcial porque las capturas sin instancia sí pueden repetirse.
+    stockCountInstanceItemUnique: uniqueIndex("stock_counts_instance_item_unique")
+        .on(table.workflowInstanceId, table.itemId)
+        .where(sql`${table.workflowInstanceId} IS NOT NULL`),
+    stockCountsBranchDateIdx: index("stock_counts_branch_date_idx").on(
+        table.branchId,
+        table.countDate.desc()
     ),
 }));

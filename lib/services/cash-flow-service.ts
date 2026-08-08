@@ -6,8 +6,8 @@
 //   - Invoices from procurement (CFDI XML received but not linked to a paid expense)
 
 import { db } from "@/lib/db";
-import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users, branches } from "@/lib/db/schema";
-import { eq, and, gte, lte, sql, or, inArray, asc } from "drizzle-orm";
+import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users } from "@/lib/db/schema";
+import { eq, and, gte, lte, sql, inArray, asc } from "drizzle-orm";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -162,19 +162,34 @@ export async function getCashFlowProjection(
     .where(
       and(
         eq(purchaseOrders.companyId, companyId),
-        inArray(purchaseOrders.status, PO_COMMITTED_STATUSES as any),
+        // Copia mutable en vez de `as any`: `inArray` no acepta un `readonly[]`,
+        // pero el cast silenciaba también un cambio de valores del enum.
+        inArray(purchaseOrders.status, [...PO_COMMITTED_STATUSES]),
         sql`${purchaseOrders.totalAmount} > 0`
       )
     )
     .orderBy(asc(purchaseOrders.expectedDeliveryDate));
 
-  // ── 5. Procurement invoices (CFDI received, not yet linked to a paid expense) ──
+  // ── 5. Procurement invoices (CFDI recibidos y todavía sin pagar) ──
+  //
+  // Antes esta consulta traía TODAS las facturas de la empresa sin filtro, con
+  // la nota de que "representan pasivos reales una vez recibido el CFDI". Eso
+  // era cierto para el pasivo, pero no para una PROYECCIÓN de salidas: una
+  // factura ya liquidada seguía proyectándose como dinero por salir, para
+  // siempre, y el saldo proyectado empeoraba solo con el paso del tiempo.
+  //
+  // Desde la migración 0040 hay estatus de pago. PAID ya salió de la cuenta y
+  // CANCELLED nunca va a salir: ninguna de las dos es flujo futuro.
+  //
+  // El vencimiento también sale de ahí: `due_date` (fecha del CFDI + días de
+  // crédito del proveedor) es cuándo se paga de verdad, no la fecha de emisión.
   const invRows = await db
     .select({
       id: invoices.id,
       folio: invoices.folio,
       total: invoices.total,
       fecha: invoices.fecha,
+      dueDate: invoices.dueDate,
       nombreEmisor: invoices.nombreEmisor,
       supplierName: suppliers.name,
     })
@@ -182,9 +197,8 @@ export async function getCashFlowProjection(
     .leftJoin(suppliers, eq(invoices.supplierId, suppliers.id))
     .where(
       and(
-        eq(invoices.companyId, companyId)
-        // Include all invoices regardless of match status
-        // They represent real liabilities once the CFDI is received
+        eq(invoices.companyId, companyId),
+        eq(invoices.paymentStatus, "PENDING")
       )
     );
 
@@ -285,9 +299,17 @@ export async function getCashFlowProjection(
 
   // 6c. Procurement invoices
   for (const inv of invRows) {
-    // The invoice `fecha` field is the CFDI emission date in "YYYY-MM-DD" format
-    // Payment is typically due 15-30 days after emission
-    const invDate = inv.fecha;
+    // La salida se fecha en el VENCIMIENTO, no en la emisión. El comentario que
+    // estaba aquí ("el pago suele vencer 15-30 días después de la emisión")
+    // describía el problema sin corregirlo: la partida se colocaba en la fecha
+    // del CFDI, así que una factura a 30 días aparecía saliendo el mismo día
+    // que se recibió. `due_date` (migración 0040) ya trae esa fecha calculada
+    // con los días de crédito del proveedor.
+    //
+    // Si `due_date` no se pudo derivar (fecha del CFDI ilegible), se cae a la
+    // emisión: adelantar la salida es el error conservador — nunca hace creer
+    // que hay más dinero del que hay.
+    const invDate = inv.dueDate || inv.fecha;
     if (invDate && invDate >= startDateStr && invDate <= endDateStr) {
       const emitterLabel = inv.nombreEmisor || inv.supplierName || "Proveedor";
       addItem({
@@ -296,7 +318,7 @@ export async function getCashFlowProjection(
         description: `Factura ${inv.folio || "S/N"} — ${emitterLabel}`,
         amountCents: inv.total,
         category: "COMPRAS",
-        status: "RECIBIDA",
+        status: "POR PAGAR",
         isPayroll: false,
         source: "PROCUREMENT_INVOICE",
         supplierName: inv.nombreEmisor || inv.supplierName || undefined,

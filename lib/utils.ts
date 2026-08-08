@@ -5,11 +5,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Formatea un monto expresado en **pesos**. Para centavos, usa `formatCents`. */
 export function formatCurrency(value: number, currency = 'MXN'): string {
   return new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency,
   }).format(value);
+}
+
+/**
+ * Formatea un monto expresado en **centavos** (la unidad en que el esquema
+ * guarda todo el dinero). Reemplaza las copias locales de `formatMXN`.
+ */
+export function formatCents(cents: number, currency = 'MXN'): string {
+  return formatCurrency(cents / 100, currency);
 }
 
 /**
@@ -23,7 +32,9 @@ export function statusBadgeClasses(
 ): string {
   const map: Record<string, string> = {
     success: "bg-success/10 text-success border-success/20",
-    warning: "bg-warning/10 text-warning border-warning/20",
+    // `text-warning-text`, no `text-warning`: el ámbar de relleno sobre un tinte
+    // al 10% no alcanza AA. Ver `--warning-text` en globals.css.
+    warning: "bg-warning/10 text-warning-text border-warning/25",
     destructive: "bg-destructive/10 text-destructive border-destructive/20",
     info: "bg-info/10 text-info border-info/20",
     neutral: "bg-muted text-muted-foreground border-muted",

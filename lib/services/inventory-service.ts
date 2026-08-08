@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { inventoryItems, inventoryBatches, inventoryMovements, suppliers, inventoryPriceHistory, inventoryTransfers, inventoryTransferItems, inventoryWaste, inventoryPeriods, companies } from "@/lib/db/schema";
-import { eq, and, sql, desc, inArray, gte, lte, or, ilike } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, gte, lte, or, ilike, ne } from "drizzle-orm";
 
 export class InventoryService {
 
@@ -33,7 +33,32 @@ export class InventoryService {
         });
     }
 
+    /** Fase 4: regla 80/20 — máx. 30 SKUs de alto valor por empresa. */
+    static async assertHighValueLimit(companyId: string, excludeItemId?: string) {
+        const rows = await db
+            .select({ n: sql<number>`count(*)` })
+            .from(inventoryItems)
+            .where(
+                and(
+                    eq(inventoryItems.companyId, companyId),
+                    eq(inventoryItems.isHighValue, true),
+                    excludeItemId ? ne(inventoryItems.id, excludeItemId) : undefined
+                )
+            );
+        return Number(rows[0]?.n ?? 0);
+    }
+
     static async createItem(data: typeof inventoryItems.$inferInsert & { userId?: string }) {
+        // Fase 4: no exceder 30 SKUs de alto valor al crear.
+        if (data.isHighValue && data.companyId) {
+            const current = await this.assertHighValueLimit(data.companyId);
+            if (current >= 30) {
+                throw new Error(
+                    `Límite de SKUs de alto valor alcanzado (${current} de 30). Marca máximo 30 SKUs (los que concentran el 80% del costo) para no abandonar el conteo semanal.`
+                );
+            }
+        }
+
         const [item] = await db.insert(inventoryItems).values(data).returning();
 
         // Initial Price History Logic if cost is provided
@@ -49,6 +74,19 @@ export class InventoryService {
     }
 
     static async updateItem(id: string, data: Partial<typeof inventoryItems.$inferInsert>, userId?: string) {
+        // Fase 4: si se enciende isHighValue, validar el límite de 30 SKUs.
+        if (data.isHighValue === true) {
+            const currentItem = await this.getItem(id);
+            if (currentItem?.companyId && !currentItem.isHighValue) {
+                const current = await this.assertHighValueLimit(currentItem.companyId, id);
+                if (current >= 30) {
+                    throw new Error(
+                        `Límite de SKUs de alto valor alcanzado (${current} de 30). Desmarca otro SKU antes de marcar este como alto valor.`
+                    );
+                }
+            }
+        }
+
         // 1. Check if cost changed
         if (data.lastCost !== undefined && userId) {
             const currentItem = await this.getItem(id);

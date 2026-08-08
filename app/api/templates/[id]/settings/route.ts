@@ -7,6 +7,8 @@ import { workflowTemplates } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { WorkflowScheduleService } from '@/lib/services/workflow-schedule-service';
 import { WorkflowTriggerService } from '@/lib/services/workflow-trigger-service';
+import { roleIsAtLeast } from '@/lib/permissions';
+import { checkScheduleFrequency } from '@/lib/compliance/frequency-requirements';
 import { z } from 'zod';
 
 const scheduleSchema = z.object({
@@ -46,6 +48,59 @@ const scheduleSchema = z.object({
   completionActions: z.array(z.record(z.string(), z.any())).optional(),
 });
 
+/**
+ * Campos que solo un ADMIN puede escribir, con el nombre que ve el usuario.
+ *
+ * El gate va por jerarquía de rol y por campo, nunca por PERMISSIONS (AD-3):
+ * `PERMISSIONS.workflows` incluye `update` para GERENTE, SUPERVISOR y también
+ * EMPLEADO — es el permiso con el que un empleado ejecuta pasos —, así que
+ * `requirePermissionApi('workflows','update')` deja pasar a todo el mundo
+ * salvo READONLY y no sirve como gate del editor.
+ */
+const PRIVILEGED_FIELDS: Record<string, string> = {
+    complianceConfig: 'la configuración de cumplimiento',
+    cumplimientoNormativo: 'las normas declaradas',
+    aiConfig: 'la configuración de IA',
+    version: 'la versión',
+    activo: 'el estado activo de la plantilla',
+};
+
+/**
+ * Devuelve el motivo del rechazo, o null si la escritura está permitida.
+ */
+function denySettingsWrite(
+    role: string | undefined,
+    templateScope: string | null | undefined,
+    sentFields: string[]
+): string | null {
+    if (!roleIsAtLeast(role ?? '', 'GERENTE')) {
+        return 'Editar la configuración de un flujo requiere rol Gerente o superior. ' +
+            'Pídele el cambio a tu gerente o a un administrador.';
+    }
+
+    const isAdmin = roleIsAtLeast(role ?? '', 'ADMIN');
+
+    if (templateScope === 'company' && !isAdmin) {
+        return 'Este flujo es un playbook corporativo y su configuración afecta a varias ' +
+            'sucursales: solo un administrador puede cambiarla. Para ajustar únicamente tu ' +
+            'sucursal, usa una plantilla local.';
+    }
+
+    if (!isAdmin) {
+        const touched = sentFields.filter((f) => f in PRIVILEGED_FIELDS);
+        if (touched.length > 0) {
+            const nombres = touched.map((f) => PRIVILEGED_FIELDS[f]);
+            const lista = nombres.length === 1
+                ? nombres[0]
+                : `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`;
+            return `Cambiar ${lista} requiere rol Administrador. Como Gerente puedes editar ` +
+                'la programación y las acciones de este flujo.';
+        }
+    }
+
+    return null;
+}
+
 export async function GET(
     req: NextRequest,
     props: { params: Promise<{ id: string }> }
@@ -66,8 +121,6 @@ export async function GET(
         const templateId = params.id;
         const branchId = user.branchId;
 
-        console.log(`[API] Fetching schedule settings for template ${templateId} in branch ${branchId}`);
-
         // Fetch template metadata, schedule and triggers in parallel
         const [template, schedule, triggers] = await Promise.all([
             db.query.workflowTemplates.findFirst({
@@ -81,9 +134,12 @@ export async function GET(
         const templateMeta = {
             version: template?.version ?? 1,
             activo: template?.active ?? true,
-            requiereIA: false, // Not a separate DB column — derived from aiConfig presence
+            // Derivado, nunca almacenado (AD-4): lo que le importa a un auditor es
+            // si el flujo *contiene* verificación por IA, no si hay proveedor
+            // configurado. Como columna volvería a divergir al primer cambio.
+            requiereIA: templateRequiresAI(template),
             duracionEstimada: template?.duracionEstimada ?? '',
-            cumplimientoNormativo: [] as string[], // Stored separately if needed; defaults to []
+            cumplimientoNormativo: (template?.cumplimientoNormativo as string[]) ?? [],
             tags: (template?.tags as string[]) ?? [],
             aiConfig: (template?.aiConfig as Record<string, any>) ?? null,
             complianceConfig: (template?.complianceConfig as Record<string, any>) ?? null,
@@ -135,16 +191,24 @@ export async function GET(
             };
         }
 
+        // Las columnas de array son la fuente de verdad. Las escalares solo se
+        // consultan cuando el array está vacío, para filas escritas antes de la
+        // migración 0038 por un camino que no pasó por el backfill.
+        const daysOfWeek = (schedule.daysOfWeek as string[] | null) ?? [];
+        const assignedRoles = (schedule.assignedRoles as string[] | null) ?? [];
+
         const settings = {
             ...templateMeta,
             enabled: schedule.isActive,
             frequency: schedule.frequency.toLowerCase(),
             shiftTimes,
-            days: schedule.dayOfWeek !== null
-                ? [getDayName(schedule.dayOfWeek)]
-                : ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-            assignedRoles: schedule.assignedRole ? [schedule.assignedRole] : [],
-            assignedShifts: [],
+            days: daysOfWeek.length > 0
+                ? daysOfWeek
+                : schedule.dayOfWeek !== null ? [getDayName(schedule.dayOfWeek)] : [],
+            assignedRoles: assignedRoles.length > 0
+                ? assignedRoles
+                : schedule.assignedRole ? [schedule.assignedRole] : [],
+            assignedShifts: (schedule.assignedShifts as string[] | null) ?? [],
             autoAssign: schedule.assignmentType === 'AUTO',
             triggers: triggers.map(t => ({
                 eventName: t.eventName,
@@ -194,19 +258,61 @@ export async function POST(
         }
 
         const data = validation.data;
-        console.log(`[API] Saving schedule settings for template ${templateId}`, data);
 
-        // 1. Update workflowTemplates row with metadata
+        const template = await db.query.workflowTemplates.findFirst({
+            where: eq(workflowTemplates.id, templateId),
+        });
+
+        if (!template) {
+            return NextResponse.json({ error: 'Plantilla no encontrada' }, { status: 404 });
+        }
+
+        const denied = denySettingsWrite(
+            user.role,
+            template.scope,
+            Object.keys(body ?? {})
+        );
+        if (denied) {
+            return NextResponse.json({ error: denied }, { status: 403 });
+        }
+
+        // D1: la programación se compara contra el mínimo de la norma. La norma
+        // efectiva es la que trae este guardado; si no manda complianceConfig
+        // (un gerente, por el gate), se usa la que ya tiene la plantilla.
+        const storedCompliance = template.complianceConfig as { complianceType?: string } | null;
+        const complianceType = data.complianceConfig?.complianceType ?? storedCompliance?.complianceType;
+        const frequencyCheck = checkScheduleFrequency(
+            complianceType,
+            data.frequency,
+            process.env.COMPLIANCE_FREQ_ENFORCE === 'false'
+        );
+
+        if (frequencyCheck.blocking) {
+            // 422 y no se escribe nada: rechazar a medias dejaría la plantilla
+            // con la programación nueva y la norma vieja.
+            return NextResponse.json(
+                { error: frequencyCheck.warnings[0], warnings: frequencyCheck.warnings },
+                { status: 422 }
+            );
+        }
+
+        // 1. Update workflowTemplates row with metadata.
+        //
+        // Un campo ausente conserva lo que había. Con `?? valorPorDefecto` un
+        // guardado que no incluyera complianceConfig lo ponía en null: ahora que
+        // el gate hace que un Gerente no mande los campos privilegiados, eso
+        // habría borrado la configuración del administrador en cada guardado.
         await db
             .update(workflowTemplates)
             .set({
-                version: data.version ?? 1,
-                active: data.activo ?? true,
-                duracionEstimada: data.duracionEstimada ?? null,
-                tags: data.tags ?? [],
-                aiConfig: data.aiConfig ?? null,
-                complianceConfig: data.complianceConfig ?? null,
-                completionActions: data.completionActions ?? [],
+                version: data.version ?? template.version,
+                active: data.activo ?? template.active,
+                duracionEstimada: data.duracionEstimada ?? template.duracionEstimada,
+                tags: data.tags ?? template.tags,
+                aiConfig: data.aiConfig ?? template.aiConfig,
+                complianceConfig: data.complianceConfig ?? template.complianceConfig,
+                completionActions: data.completionActions ?? template.completionActions,
+                cumplimientoNormativo: data.cumplimientoNormativo ?? template.cumplimientoNormativo,
                 updatedAt: new Date(),
             })
             .where(eq(workflowTemplates.id, templateId));
@@ -216,19 +322,28 @@ export async function POST(
 
         const dbFrequency = (data.frequency === 'on_demand' ? 'ONCE' : data.frequency.toUpperCase()) as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'ONCE';
 
+        const days = data.days ?? [];
+        const assignedRoles = data.assignedRoles ?? [];
+
+        // Las escalares siguen recibiendo el primer elemento (AD-7): el cron y el
+        // motor de ejecución todavía las leen. Las de array guardan la selección
+        // completa, que es lo que el usuario configuró.
         let dayOfWeek: number | undefined;
-        if (dbFrequency === 'WEEKLY' && data.days && data.days.length > 0) {
-            dayOfWeek = getDayNumber(data.days[0]);
+        if (dbFrequency === 'WEEKLY' && days.length > 0) {
+            dayOfWeek = getDayNumber(days[0]);
         }
 
         const scheduleData = {
             templateId,
             branchId,
             assignmentType: data.autoAssign ? 'AUTO' : 'ROLE',
-            assignedRole: data.assignedRoles && data.assignedRoles.length > 0 ? data.assignedRoles[0] as any : null,
+            assignedRole: assignedRoles.length > 0 ? assignedRoles[0] as any : null,
+            assignedRoles,
+            assignedShifts: data.assignedShifts ?? [],
             frequency: dbFrequency,
             timeOfDay: JSON.stringify(data.shiftTimes),
             dayOfWeek: dayOfWeek,
+            daysOfWeek: days,
             startDate: new Date(),
             title: `Schedule for ${templateId}`,
             createdBy: user.id,
@@ -261,7 +376,7 @@ export async function POST(
             );
         }
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, warnings: frequencyCheck.warnings });
 
     } catch (error: any) {
         console.error('[API] Error saving schedule settings:', error);
@@ -273,6 +388,23 @@ export async function POST(
 }
 
 // Helpers
+
+/**
+ * AD-4: `requiereIA` no tiene columna. Se deriva de los pasos porque lo que
+ * responde a un auditor es si el flujo *contiene* verificación por IA, no si
+ * hay proveedor configurado; `aiConfig` se mantiene en el OR para las
+ * plantillas que declaran proveedor sin pasos de IA todavía.
+ */
+function templateRequiresAI(template?: { steps?: unknown; aiConfig?: unknown } | null): boolean {
+    if (template?.aiConfig != null) return true;
+    const steps = template?.steps;
+    if (!Array.isArray(steps)) return false;
+    return steps.some(
+        (step: { aiVerification?: { enabled?: boolean } } | null) =>
+            step?.aiVerification?.enabled === true
+    );
+}
+
 function getDayNumber(day: string): number {
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     return days.indexOf(day.toLowerCase());

@@ -42,6 +42,7 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-text: var(--warning-text);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --radius-sm: calc(var(--radius) - 4px);
@@ -86,6 +87,11 @@
   --success-foreground: oklch(0.99 0 0);
   --warning: oklch(0.72 0.15 80);
   --warning-foreground: oklch(0.20 0.02 80);
+  /* `--warning` es un ámbar pensado para rellenos. Usado como texto sobre un
+     tinte al 10% daba ~2.3:1 — por debajo de AA — justo en el elemento más
+     escaneado del módulo (badges "Pendiente", montos de retiro). Este es el
+     mismo tono oscurecido hasta pasar contraste sobre fondos claros. */
+  --warning-text: oklch(0.48 0.13 80);
   --info: oklch(0.52 0.10 245);
   --info-foreground: oklch(0.99 0 0);
 
@@ -136,6 +142,8 @@
   --success-foreground: oklch(0.16 0.01 30);
   --warning: oklch(0.68 0.14 80);
   --warning-foreground: oklch(0.16 0.01 30);
+  /* En oscuro el texto va por arriba del relleno, no por debajo. */
+  --warning-text: oklch(0.82 0.12 80);
   --info: oklch(0.58 0.10 245);
   --info-foreground: oklch(0.16 0.01 30);
 

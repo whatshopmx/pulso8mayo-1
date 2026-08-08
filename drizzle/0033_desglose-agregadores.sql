@@ -1,0 +1,1 @@
+ALTER TABLE "daily_sales_cuts" ADD COLUMN "aggregator_sales" jsonb;

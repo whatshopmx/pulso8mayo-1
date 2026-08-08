@@ -71,6 +71,22 @@
       "validation": { "min": 0 }
     },
     {
+      "id": "paso-arqueo",
+      "type": "NumberField",
+      "titulo": "🧮 Arqueo de Caja — Efectivo Contado ($ MXN)",
+      "descripcion": "Cuenta físicamente el dinero en caja (billetes y monedas). Este número detecta faltantes o sobrantes contra lo declarado.",
+      "obligatorio": true,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-deposito",
+      "type": "NumberField",
+      "titulo": "Depósito Bancario ($ MXN)",
+      "descripcion": "Monto depositado en el banco durante el turno, si aplica.",
+      "obligatorio": false,
+      "validation": { "min": 0 }
+    },
+    {
       "id": "paso-foto",
       "type": "PhotoField",
       "titulo": "Foto del Corte de Caja",

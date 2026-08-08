@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Loader2, Calendar, Clock, Users, Zap, Plus, X, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import {
@@ -23,6 +24,7 @@ import {
     getDefaultActionFields,
     type ActionGroup,
 } from '@/lib/workflow-actions';
+import { PlaybookScopeSection } from './playbook-scope-section';
 
 interface WorkflowSettingsModalProps {
     open: boolean;
@@ -45,6 +47,12 @@ interface WorkflowSettingsModalProps {
         shiftTimes?: Record<string, string>;
         triggers?: Trigger[];
     };
+    /**
+     * ADMIN+ (AD-3). El servidor rechaza con 403 los campos privilegiados por
+     * debajo de ese rol, así que el cliente ni siquiera los manda: un Gerente
+     * que solo cambia la programación no debe chocar contra el gate.
+     */
+    canEditPrivileged?: boolean;
 }
 
 interface AICofig {
@@ -173,7 +181,7 @@ interface Trigger {
     conditions: Record<string, any>;
 }
 
-export function WorkflowSettingsModal({ open, onClose, templateId, initialSettings }: WorkflowSettingsModalProps) {
+export function WorkflowSettingsModal({ open, onClose, templateId, initialSettings, canEditPrivileged = false }: WorkflowSettingsModalProps) {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -330,25 +338,29 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    version,
-                    activo,
-                    requiereIA,
+                    // Campos privilegiados: solo se mandan si el rol los puede
+                    // escribir. Mandarlos igualmente haría que el servidor
+                    // devolviera 403 a un Gerente que solo tocó la programación.
+                    ...(canEditPrivileged ? {
+                        version,
+                        activo,
+                        cumplimientoNormativo,
+                        aiConfig: {
+                            provider: aiProvider,
+                            fallbackProvider: aiFallbackProvider,
+                            maxRetries: aiMaxRetries
+                        },
+                        complianceConfig: {
+                            complianceType,
+                            regulationSection,
+                            requiredFrequency,
+                            auditable,
+                            evidenceRequired,
+                            criticalForCompliance
+                        },
+                    } : {}),
                     duracionEstimada,
-                    cumplimientoNormativo,
                     tags,
-                    aiConfig: {
-                        provider: aiProvider,
-                        fallbackProvider: aiFallbackProvider,
-                        maxRetries: aiMaxRetries
-                    },
-                    complianceConfig: {
-                        complianceType,
-                        regulationSection,
-                        requiredFrequency,
-                        auditable,
-                        evidenceRequired,
-                        criticalForCompliance
-                    },
                     completionActions,
                     enabled,
                     frequency,
@@ -361,12 +373,22 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                 })
             });
 
-            if (!response.ok) throw new Error('Failed to save settings');
+            const payload = await response.json().catch(() => null);
+
+            // El servidor manda mensajes accionables (403 por rol, 422 por
+            // frecuencia normativa). Tragárselos y mostrar un genérico deja al
+            // usuario sin saber qué campo tocar.
+            if (!response.ok) {
+                throw new Error(payload?.error || 'No se pudo guardar la configuración');
+            }
 
             toast.success('Configuración guardada correctamente');
+            for (const warning of (payload?.warnings ?? []) as string[]) {
+                toast.warning(warning, { duration: 10000 });
+            }
             onClose();
         } catch (error) {
-            toast.error('Error al guardar la configuración');
+            toast.error(error instanceof Error ? error.message : 'Error al guardar la configuración');
             console.error(error);
         } finally {
             setSaving(false);
@@ -477,11 +499,15 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                                 </div>
                                 <div className="flex items-center justify-between rounded-lg border p-2">
                                     <Label className="text-xs">Activo</Label>
-                                    <Switch checked={activo} onCheckedChange={setActivo} />
+                                    <Switch checked={activo} onCheckedChange={setActivo} disabled={!canEditPrivileged} />
                                 </div>
+                                {/* AD-4: derivado de los pasos, no editable. Como switch
+                                    prometía un dato que ninguna columna guardaba. */}
                                 <div className="flex items-center justify-between rounded-lg border p-2">
                                     <Label className="text-xs">Requiere IA</Label>
-                                    <Switch checked={requiereIA} onCheckedChange={setRequiereIA} />
+                                    <Badge variant={requiereIA ? 'default' : 'secondary'}>
+                                        {requiereIA ? 'Sí' : 'No'}
+                                    </Badge>
                                 </div>
                             </div>
 
@@ -723,6 +749,11 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                                 )}
                             </div>
                         </div>
+
+                        {/* Alcance del playbook corporativo — guarda por su
+                            cuenta contra /api/playbooks/[id], no con el botón
+                            "Guardar Configuración" de abajo. */}
+                        <PlaybookScopeSection templateId={templateId} />
 
                         {/* Scheduling Section */}
                         <div className="space-y-4 border-t pt-4">

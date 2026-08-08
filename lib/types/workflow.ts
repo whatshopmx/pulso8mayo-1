@@ -46,6 +46,34 @@ export interface StepValidation {
   customMessage?: string;
 }
 
+/**
+ * Entidades que el resolver de pasos dinámicos sabe expandir.
+ * Ver `lib/workflows/dynamic-steps.ts`.
+ */
+export type DynamicSourceEntity = "inventory_item" | "recipe";
+
+export interface DynamicSourceFilter {
+  /** Sólo SKUs marcados 80/20. Únicamente para `inventory_item`. */
+  isHighValue?: boolean;
+  /** Categoría exacta del item. Únicamente para `inventory_item`. */
+  category?: string;
+  /** El item debe contener TODAS estas etiquetas. Únicamente para `inventory_item`. */
+  tags?: string[];
+  /** Por defecto `true`. Únicamente para `inventory_item`. */
+  active?: boolean;
+}
+
+/**
+ * Declarado en `WorkflowStep.metadata`, NO como miembro de `WorkflowStepType`:
+ * el paso plantilla se expande a N sub-pasos del mismo tipo (ya soportado por
+ * todos los renderers) en vez de introducir un tipo nuevo en una unión cerrada
+ * que está duplicada en 7 archivos.
+ */
+export interface DynamicSource {
+  entity: DynamicSourceEntity;
+  filter?: DynamicSourceFilter;
+}
+
 export interface WorkflowStep {
   id: string;
   type: WorkflowStepType;
@@ -54,7 +82,7 @@ export interface WorkflowStep {
   required: boolean;
   config?: any;
   unit?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, any> & { dynamicSource?: DynamicSource };
   aiVerification?: AIVerification;
   logicRules?: LogicRule[];
   branches?: Branch[];

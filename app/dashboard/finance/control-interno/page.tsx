@@ -3,54 +3,56 @@
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AuditLogTable } from "@/components/finance/audit-log-table";
-import { ExcepcionesPanel } from "@/components/finance/excepciones-panel";
-import { Shield, FileSearch, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { AuditLogTable, type AuditLogEntry } from "@/components/finance/audit-log-table";
+import { ExcepcionesPanel, type Violation } from "@/components/finance/excepciones-panel";
+import { useBranch } from "@/lib/branch-context";
+import { Shield, FileSearch, AlertTriangle, AlertCircle, RefreshCw } from "lucide-react";
 
-interface Branch {
-  id: string;
-  name: string;
-}
+/** Tope de entradas solicitadas a la bitácora; se avisa cuando hay más. */
+const AUDIT_LIMIT = 100;
 
 export default function ControlInternoPage() {
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
-  const [auditEntries, setAuditEntries] = useState<any[]>([]);
+  // Scope único: el control del header manda. Un segundo selector local hacía que
+  // la página contestara sobre una sucursal distinta a la que el header anunciaba.
+  const { selectedBranchId } = useBranch();
+  const selectedBranch = selectedBranchId ?? "ALL";
+  const [auditEntries, setAuditEntries] = useState<AuditLogEntry[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
   const [auditLoading, setAuditLoading] = useState(true);
-  const [violations, setViolations] = useState<any[]>([]);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [violations, setViolations] = useState<Violation[]>([]);
   const [violationsLoading, setViolationsLoading] = useState(true);
+  const [violationsError, setViolationsError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("audit");
-
-  useEffect(() => {
-    async function fetchBranches() {
-      try {
-        const res = await fetch("/api/branches");
-        const data = await res.json();
-        const list = data.data || data.branches || (Array.isArray(data) ? data : []);
-        setBranches(list);
-      } catch (err) {
-        console.error("Error fetching branches:", err);
-      }
-    }
-    fetchBranches();
-  }, []);
 
   const fetchAuditLog = useCallback(async () => {
     setAuditLoading(true);
+    setAuditError(null);
     try {
       const url = new URL("/api/finance/control-interno/audit-log", window.location.origin);
       if (selectedBranch !== "ALL") {
         url.searchParams.set("branchId", selectedBranch);
       }
-      url.searchParams.set("limit", "100");
+      url.searchParams.set("limit", String(AUDIT_LIMIT));
       const res = await fetch(url.toString());
       const json = await res.json();
       if (res.ok && json.success) {
         setAuditEntries(json.data?.entries || []);
+        setAuditTotal(json.data?.total ?? 0);
+      } else {
+        // Una bitácora que no cargó no es una bitácora vacía. En una superficie
+        // de cumplimiento las dos lecturas no pueden compartir render.
+        setAuditError(json?.error || "El servidor no devolvió la bitácora de autorizaciones.");
+        setAuditEntries([]);
+        setAuditTotal(0);
       }
     } catch (err) {
       console.error("Error fetching audit log:", err);
+      setAuditError("Error de conexión al cargar la bitácora. Revisa tu red e intenta de nuevo.");
+      setAuditEntries([]);
+      setAuditTotal(0);
     } finally {
       setAuditLoading(false);
     }
@@ -58,30 +60,46 @@ export default function ControlInternoPage() {
 
   const fetchViolations = useCallback(async () => {
     setViolationsLoading(true);
+    setViolationsError(null);
     try {
       const url = new URL("/api/finance/control-interno/excepciones", window.location.origin);
+      if (selectedBranch !== "ALL") {
+        url.searchParams.set("branchId", selectedBranch);
+      }
       const res = await fetch(url.toString());
       const json = await res.json();
       if (res.ok && json.success) {
         setViolations(json.data?.violations || []);
+      } else {
+        // Sin esto, una conexión caída se rendía como "Sin excepciones detectadas /
+        // Todos los gastos cumplen": una afirmación de cumplimiento inventada.
+        setViolationsError(json?.error || "El servidor no devolvió el análisis de excepciones.");
+        setViolations([]);
       }
     } catch (err) {
       console.error("Error fetching violations:", err);
+      setViolationsError(
+        "Error de conexión al analizar las excepciones. Revisa tu red e intenta de nuevo."
+      );
+      setViolations([]);
     } finally {
       setViolationsLoading(false);
     }
-  }, []);
+  }, [selectedBranch]);
+
+  // Ambas cargas dependen del filtro de sucursal, no de la pestaña activa: el
+  // badge de excepciones existe para avisar de lo que aún no se ha abierto, así
+  // que no puede esperar a que se abra la pestaña que anuncia.
+  useEffect(() => {
+    fetchAuditLog();
+  }, [fetchAuditLog]);
 
   useEffect(() => {
-    if (activeTab === "audit") {
-      fetchAuditLog();
-    } else {
-      fetchViolations();
-    }
-  }, [activeTab, fetchAuditLog, fetchViolations]);
+    fetchViolations();
+  }, [fetchViolations]);
 
   const violationCount = violations.length;
-  const highCount = violations.filter((v: any) => v.severity === "HIGH").length;
+  const highCount = violations.filter((v) => v.severity === "HIGH").length;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -95,23 +113,6 @@ export default function ControlInternoPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="w-48">
-            <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-              <SelectTrigger>
-                <SelectValue placeholder="Todas las sucursales" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Todas las sucursales</SelectItem>
-                {branches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -124,8 +125,21 @@ export default function ControlInternoPage() {
             <AlertTriangle className="w-3.5 h-3.5" />
             Excepciones
             {violationCount > 0 && (
-              <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${highCount > 0 ? "bg-red-500 text-white" : "bg-amber-500 text-white"}`}>
+              // El tono distingue crítico de sólo-advertencia; el texto accesible
+              // lo dice también, porque el color por sí solo no es un estado.
+              <span
+                className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${
+                  highCount > 0
+                    ? "bg-destructive text-destructive-foreground"
+                    : "bg-warning text-warning-foreground"
+                }`}
+              >
                 {violationCount}
+                <span className="sr-only">
+                  {highCount > 0
+                    ? ` excepciones, ${highCount} de severidad crítica`
+                    : " excepciones, ninguna crítica"}
+                </span>
               </span>
             )}
           </TabsTrigger>
@@ -143,7 +157,30 @@ export default function ControlInternoPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <AuditLogTable entries={auditEntries} loading={auditLoading} />
+              {!auditLoading && auditError ? (
+                <EmptyState
+                  icon={AlertCircle}
+                  title="No se pudo cargar la bitácora"
+                  description={auditError}
+                  action={
+                    <Button variant="outline" size="sm" onClick={fetchAuditLog}>
+                      <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
+                    </Button>
+                  }
+                />
+              ) : (
+                <>
+                  <AuditLogTable entries={auditEntries} loading={auditLoading} />
+                  {/* Un corte silencioso es peor que una página lenta en una
+                      superficie de cumplimiento: se declara lo que no se ve. */}
+                  {!auditLoading && auditTotal > auditEntries.length && (
+                    <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
+                      Mostrando las {auditEntries.length} entradas más recientes de {auditTotal} totales.
+                      Filtra por sucursal desde el control del encabezado para acotar el rango.
+                    </p>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -160,7 +197,20 @@ export default function ControlInternoPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ExcepcionesPanel violations={violations} loading={violationsLoading} />
+              {!violationsLoading && violationsError ? (
+                <EmptyState
+                  icon={AlertCircle}
+                  title="No se pudo analizar el cumplimiento"
+                  description={violationsError}
+                  action={
+                    <Button variant="outline" size="sm" onClick={fetchViolations}>
+                      <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
+                    </Button>
+                  }
+                />
+              ) : (
+                <ExcepcionesPanel violations={violations} loading={violationsLoading} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>

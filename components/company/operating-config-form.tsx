@@ -7,10 +7,35 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Settings2, ShieldCheck, DollarSign, Building2, Save, Loader2 } from "lucide-react";
+import { DEFAULT_FINANCIAL_TARGETS } from "@/lib/services/financial-kpi-types";
+import { DollarSign, Building2, Save, Loader2, Target } from "lucide-react";
+
+/**
+ * Lo que el formulario lee de `/api/company/operating-config`. Todo opcional:
+ * la fila puede no existir todavía y la API resuelve defaults perezosamente.
+ * Los porcentajes son `numeric` en Postgres, así que llegan como string.
+ */
+export interface OperatingConfigValues {
+  purchasingStructure?: string;
+  foodProduction?: string;
+  treasuryModel?: string;
+  supplierPayment?: string;
+  managerAutonomy?: string;
+  payrollDispersion?: string;
+  tenantType?: string;
+  managerAuthLimitCents?: number | null;
+  doubleApprovalThresholdCents?: number | null;
+  pettyCashLimitCents?: number | null;
+  foodCostTargetPercent?: string | null;
+  foodCostWarnPercent?: string | null;
+  laborCostTargetPercent?: string | null;
+  laborCostWarnPercent?: string | null;
+  healthyMarginTargetPercent?: string | null;
+  healthyMarginWarnPercent?: string | null;
+}
 
 interface OperatingConfigFormProps {
-  initialConfig: any;
+  initialConfig: OperatingConfigValues | null;
   onSuccess?: () => void;
 }
 
@@ -48,7 +73,42 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
     ((initialConfig?.pettyCashLimitCents || 500000) / 100).toString()
   );
 
+  // Objetivos financieros (migración 0039). Llegan como `numeric` → string, y
+  // `??` en vez de `||` porque un objetivo de 0% es un valor legítimo que `||`
+  // reemplazaría por el default.
+  const [foodTarget, setFoodTarget] = useState(
+    String(initialConfig?.foodCostTargetPercent ?? DEFAULT_FINANCIAL_TARGETS.foodCostTargetPercent)
+  );
+  const [foodWarn, setFoodWarn] = useState(
+    String(initialConfig?.foodCostWarnPercent ?? DEFAULT_FINANCIAL_TARGETS.foodCostWarnPercent)
+  );
+  const [laborTarget, setLaborTarget] = useState(
+    String(initialConfig?.laborCostTargetPercent ?? DEFAULT_FINANCIAL_TARGETS.laborCostTargetPercent)
+  );
+  const [laborWarn, setLaborWarn] = useState(
+    String(initialConfig?.laborCostWarnPercent ?? DEFAULT_FINANCIAL_TARGETS.laborCostWarnPercent)
+  );
+  const [marginTarget, setMarginTarget] = useState(
+    String(
+      initialConfig?.healthyMarginTargetPercent ??
+        DEFAULT_FINANCIAL_TARGETS.healthyMarginTargetPercent
+    )
+  );
+  const [marginWarn, setMarginWarn] = useState(
+    String(
+      initialConfig?.healthyMarginWarnPercent ?? DEFAULT_FINANCIAL_TARGETS.healthyMarginWarnPercent
+    )
+  );
+
   const [loading, setLoading] = useState(false);
+
+  // Se valida en cliente lo mismo que rechaza el servidor, para que el error
+  // aparezca junto al campo y no como un toast rojo después del viaje.
+  const num = (raw: string) => Number(raw);
+  const foodPairInvalid = num(foodWarn) < num(foodTarget);
+  const laborPairInvalid = num(laborWarn) < num(laborTarget);
+  const marginPairInvalid = num(marginWarn) > num(marginTarget);
+  const percentPairsInvalid = foodPairInvalid || laborPairInvalid || marginPairInvalid;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +126,12 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
         managerAuthLimitCents: Math.round(parseFloat(managerAuthLimit) * 100),
         doubleApprovalThresholdCents: Math.round(parseFloat(doubleApprovalThreshold) * 100),
         pettyCashLimitCents: Math.round(parseFloat(pettyCashLimit) * 100),
+        foodCostTargetPercent: parseFloat(foodTarget),
+        foodCostWarnPercent: parseFloat(foodWarn),
+        laborCostTargetPercent: parseFloat(laborTarget),
+        laborCostWarnPercent: parseFloat(laborWarn),
+        healthyMarginTargetPercent: parseFloat(marginTarget),
+        healthyMarginWarnPercent: parseFloat(marginWarn),
       };
 
       const res = await fetch("/api/company/operating-config", {
@@ -85,10 +151,11 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
       });
 
       if (onSuccess) onSuccess();
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "Error",
-        description: err.message || "No se pudo actualizar la configuración.",
+        description:
+          err instanceof Error ? err.message : "No se pudo actualizar la configuración.",
         variant: "destructive",
       });
     } finally {
@@ -229,7 +296,7 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
               onChange={(e) => setManagerAuthLimit(e.target.value)}
               required
             />
-            <span className="text-[10px] text-muted-foreground block">
+            <span className="text-xs text-muted-foreground block">
               Gastos/OC menores a este monto se auto-aprueban por el gerente.
             </span>
           </div>
@@ -244,7 +311,7 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
               onChange={(e) => setDoubleApprovalThreshold(e.target.value)}
               required
             />
-            <span className="text-[10px] text-muted-foreground block">
+            <span className="text-xs text-muted-foreground block">
               Montos superiores requieren aprobación de Dirección u Owner.
             </span>
           </div>
@@ -259,18 +326,155 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
               onChange={(e) => setPettyCashLimit(e.target.value)}
               required
             />
-            <span className="text-[10px] text-muted-foreground block">
+            <span className="text-xs text-muted-foreground block">
               Fondo fijo asignado por sucursal para gastos imprevistos.
             </span>
           </div>
         </CardContent>
       </Card>
 
+      {/* Objetivos de costo — antes vivían hardcodeados en el JSX de las
+          tarjetas de KPI, iguales para cualquier tipo de restaurante. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-bold flex items-center gap-2">
+            <Target className="w-5 h-5 text-primary" /> Objetivos de Costo del Grupo
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Definen el semáforo de food cost, labor cost y margen en el módulo de Finanzas, y los
+            umbrales de la alerta diaria de rentabilidad. Una taquería y una marisquería no comparten
+            estructura de costo: estos son <em>tus</em> números, no los del sector.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <TargetPair
+            idPrefix="foodCost"
+            label="Food Cost"
+            hint="Costo de insumos y merma sobre venta neta. Menor es mejor."
+            targetLabel="Objetivo (verde hasta)"
+            warnLabel="Precaución (amarillo hasta)"
+            targetValue={foodTarget}
+            warnValue={foodWarn}
+            onTargetChange={setFoodTarget}
+            onWarnChange={setFoodWarn}
+            invalid={foodPairInvalid}
+            invalidMessage="En costos, el umbral de precaución debe ser mayor o igual al objetivo. Si no, no hay zona amarilla: el semáforo salta de verde a rojo."
+          />
+
+          <TargetPair
+            idPrefix="laborCost"
+            label="Labor Cost"
+            hint="Sueldo bruto sobre venta neta. No incluye IMSS ni provisiones. Menor es mejor."
+            targetLabel="Objetivo (verde hasta)"
+            warnLabel="Precaución (amarillo hasta)"
+            targetValue={laborTarget}
+            warnValue={laborWarn}
+            onTargetChange={setLaborTarget}
+            onWarnChange={setLaborWarn}
+            invalid={laborPairInvalid}
+            invalidMessage="En costos, el umbral de precaución debe ser mayor o igual al objetivo. Si no, no hay zona amarilla: el semáforo salta de verde a rojo."
+          />
+
+          <TargetPair
+            idPrefix="healthyMargin"
+            label="Margen tras food y labor"
+            hint="100% menos food cost menos labor cost. No es utilidad operativa: todavía no descuenta renta ni gastos. Mayor es mejor."
+            targetLabel="Objetivo (verde desde)"
+            warnLabel="Precaución (amarillo desde)"
+            targetValue={marginTarget}
+            warnValue={marginWarn}
+            onTargetChange={setMarginTarget}
+            onWarnChange={setMarginWarn}
+            invalid={marginPairInvalid}
+            invalidMessage="En margen, el piso de precaución debe ser menor o igual al objetivo: mayor es mejor."
+          />
+        </CardContent>
+      </Card>
+
       <div className="flex justify-end">
-        <Button type="submit" size="lg" disabled={loading}>
+        <Button type="submit" size="lg" disabled={loading || percentPairsInvalid}>
           {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Guardar Configuración Operativa
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Par objetivo/precaución de un KPI porcentual.
+ *
+ * Van juntos a propósito: el sentido de "precaución" depende de si el KPI mejora
+ * hacia arriba o hacia abajo, y separarlos en dos campos sueltos hacía fácil
+ * guardar una combinación sin zona amarilla.
+ */
+function TargetPair({
+  idPrefix,
+  label,
+  hint,
+  targetLabel,
+  warnLabel,
+  targetValue,
+  warnValue,
+  onTargetChange,
+  onWarnChange,
+  invalid,
+  invalidMessage,
+}: {
+  idPrefix: string;
+  label: string;
+  hint: string;
+  targetLabel: string;
+  warnLabel: string;
+  targetValue: string;
+  warnValue: string;
+  onTargetChange: (value: string) => void;
+  onWarnChange: (value: string) => void;
+  invalid: boolean;
+  invalidMessage: string;
+}) {
+  const errorId = `${idPrefix}-error`;
+
+  return (
+    <div className="space-y-2 pb-4 border-b last:border-b-0 last:pb-0">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}Target`}>{targetLabel} (%)</Label>
+          <Input
+            id={`${idPrefix}Target`}
+            type="number"
+            min="0"
+            max="100"
+            step="0.5"
+            value={targetValue}
+            onChange={(e) => onTargetChange(e.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}Warn`}>{warnLabel} (%)</Label>
+          <Input
+            id={`${idPrefix}Warn`}
+            type="number"
+            min="0"
+            max="100"
+            step="0.5"
+            value={warnValue}
+            onChange={(e) => onWarnChange(e.target.value)}
+            required
+            aria-invalid={invalid}
+            aria-describedby={invalid ? errorId : undefined}
+          />
+        </div>
+      </div>
+      {invalid && (
+        <p id={errorId} role="alert" className="text-xs text-destructive">
+          {invalidMessage}
+        </p>
+      )}
+    </div>
   );
 }

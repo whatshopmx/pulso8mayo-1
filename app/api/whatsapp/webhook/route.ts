@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { messageRouter } from '@/lib/whatsapp/message-router';
-import { sessionManager } from '@/lib/whatsapp/session-manager';
+import { inngest } from '@/lib/inngest/client';
+import { whatsappMessageReceived } from '@/lib/inngest/events';
 import { db } from '@/lib/db';
-import { whatsappMessages, whatsappSessions, users, notificationPreferences } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { whatsappMessages } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 interface WhapiMessage {
   id: string;
@@ -32,151 +32,28 @@ interface WhapiWebhookPayload {
   }>;
 }
 
-interface NormalizedPayload {
-  event: string;
-  sessionId: string;
-  from: string;
-  to?: string;
-  message: string;
-  type: string;
-  messageId: string;
-  timestamp: Date;
-  fromMe: boolean;
-  mediaUrl?: string;
-  location?: {
-    latitude: number;
-    longitude: number;
-  };
-}
+/**
+ * Webhook strategy (durable): acknowledge fast, don't block on heavy work.
+ * - Each inbound message is emitted as a `whatsapp/message.received` event with
+ *   an idempotent `id` = message id (24h dedupe window). The durable function
+ *   in `lib/inngest/functions/whatsapp-router.ts` owns the side effects.
+ * - Status updates are cheap single-row writes and stay synchronous.
+ * - If event emission fails we return 500 so the provider retries delivery
+ *   (at-least-once semantics handled by the event id + DB guard).
+ */
 
-const SESSION_ID = 'default';
-
-function normalizePayload(msg: WhapiMessage): NormalizedPayload {
-  const from = (msg.from || msg.chat_id || '').replace(/@.*$/, '');
-
-  return {
-    event: 'message',
-    sessionId: SESSION_ID,
-    from,
-    to: undefined,
-    message: msg.text?.body || msg.caption || '',
-    type: msg.type === 'text' ? 'text' : msg.type,
-    messageId: msg.id,
-    timestamp: new Date(msg.timestamp * 1000),
-    fromMe: msg.from_me,
-    mediaUrl: msg.media,
-    location: msg.location ? {
-      latitude: msg.location.latitude,
-      longitude: msg.location.longitude,
-    } : undefined,
-  };
-}
-
-async function handleMessagePayload(msg: WhapiMessage): Promise<void> {
-  const normalized = normalizePayload(msg);
-
-  if (normalized.fromMe) {
-    return;
-  }
-
-  await db.insert(whatsappMessages).values({
-    sessionId: SESSION_ID,
-    direction: 'INBOUND',
-    from: normalized.from,
-    to: normalized.to || '',
-    messageType: normalized.type,
-    content: normalized.message,
-    mediaUrl: normalized.mediaUrl,
-    externalMessageId: normalized.messageId,
-    processed: false,
-  });
-
-  if (normalized.type === 'text') {
-    const messageText = normalized.message.toLowerCase().trim();
-    const isOptOut = ['stop', 'alto', 'parar', 'no notificar', 'opt-out', 'unsubscribe'].some(cmd =>
-      messageText.includes(cmd)
-    );
-    const isOptIn = ['start', 'inicio', 'comenzar', 'activar', 'opt-in', 'subscribe'].some(cmd =>
-      messageText.includes(cmd)
-    );
-
-    if (isOptOut || isOptIn) {
-      const session = await sessionManager.getSession(SESSION_ID);
-      if (session) {
-        const user = await db.query.users.findFirst({
-          where: and(
-            eq(users.phone, normalized.from),
-            eq(users.companyId, session.companyId)
-          ),
-        });
-
-        if (user) {
-          await db.insert(notificationPreferences)
-            .values({
-              userId: user.id,
-              whatsappEnabled: isOptIn,
-            })
-            .onConflictDoUpdate({
-              target: notificationPreferences.userId,
-              set: {
-                whatsappEnabled: isOptIn,
-                updatedAt: new Date(),
-              },
-            });
-
-          const confirmationMessage = isOptIn
-            ? `✅ *Notificaciones Activadas*\n\nHas activado las notificaciones de WhatsApp.\n\nEscribe *ayuda* para ver los comandos disponibles.`
-            : `🛑 *Notificaciones Desactivadas*\n\nHas desactivado las notificaciones de WhatsApp.\n\nPara reactivarlas, escribe *inicio*.`;
-
-          const { whatsappClient } = await import('@/lib/whatsapp/client-factory');
-          await whatsappClient.sendMessage({
-            sessionId: SESSION_ID,
-            to: normalized.from,
-            message: confirmationMessage,
-          });
-        }
-      }
-
-      await db.update(whatsappMessages)
-        .set({ processed: true })
-        .where(eq(whatsappMessages.externalMessageId, normalized.messageId));
-
-      return;
-    }
-  }
-
-  const result = await messageRouter.routeMessage({
-    sessionId: normalized.sessionId,
-    from: normalized.from,
-    message: normalized.message,
-    messageType: normalized.type as any,
-    mediaUrl: normalized.mediaUrl,
-    timestamp: normalized.timestamp,
-    location: normalized.location,
-  });
-
-  if (!result.success) {
-    console.error('[WhatsApp Webhook] Message routing failed:', result.error);
-    await sessionManager.recordError(SESSION_ID, result.error || 'Unknown error');
-  }
-
-  await db.update(whatsappMessages)
-    .set({ processed: true })
-    .where(eq(whatsappMessages.externalMessageId, normalized.messageId));
-}
-
-async function handleStatusUpdate(status: { id: string; status: string }): Promise<void> {
+function handleStatusUpdate(id: string, status: string): Promise<unknown> {
   const statusMap: Record<string, string> = {
     sent: 'sent',
     delivered: 'delivered',
     read: 'read',
     failed: 'failed',
   };
-
-  const mapped = statusMap[status.status] || 'unknown';
-  await db.update(whatsappMessages)
+  const mapped = statusMap[status] || 'unknown';
+  return db
+    .update(whatsappMessages)
     .set({ status: mapped })
-    .where(eq(whatsappMessages.externalMessageId, status.id));
+    .where(eq(whatsappMessages.externalMessageId, id));
 }
 
 export async function POST(req: NextRequest) {
@@ -187,23 +64,25 @@ export async function POST(req: NextRequest) {
 
     if (body.statuses) {
       for (const status of body.statuses) {
-        await handleStatusUpdate(status);
+        await handleStatusUpdate(status.id, status.status);
       }
     }
 
     if (body.messages) {
-      for (const msg of body.messages) {
-        await handleMessagePayload(msg);
+      for (const message of body.messages) {
+        // Idempotent emit: id = message.id (Inngest dedupes within 24h).
+        await inngest.send({
+          name: whatsappMessageReceived.name,
+          id: message.id,
+          data: { message },
+        });
       }
     }
 
     return NextResponse.json({ status: 'ok' });
   } catch (error) {
     console.error('[WhatsApp Webhook] Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 

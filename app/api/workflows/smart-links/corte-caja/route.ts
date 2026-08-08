@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
+import { checkCashVarianceAndAlertSafe } from "@/lib/services/cash-variance-alert-service";
 
 const corteSchema = z.object({
   workflowInstanceId: z.string().optional(),
@@ -18,7 +19,27 @@ const corteSchema = z.object({
   uber: z.number().int().min(0).default(0),
   didi: z.number().int().min(0).default(0),
   tickets: z.number().int().min(0).default(0),
+  // Fase 2: arqueo físico (efectivo contado) y depósito del turno.
+  // Opcionales en el schema; la validación de negocio exige arqueo si hay efectivo.
+  arqueo: z.number().int().min(0).optional(),
+  deposito: z.number().int().min(0).optional(),
 });
+
+// Fase 3: etiquetas conocidas de agregadores (rappi/uber/didi + genéricos).
+function buildAggregatorSales(data: z.infer<typeof corteSchema>): Record<string, number> | null {
+  const entries = [
+    ["rappi", data.rappi],
+    ["uber", data.uber],
+    ["didi", data.didi],
+  ] as const;
+  const hasAny = entries.some(([, v]) => (v ?? 0) > 0);
+  if (!hasAny) return null;
+  const out: Record<string, number> = {};
+  for (const [key, value] of entries) {
+    out[key] = value ?? 0;
+  }
+  return out;
+}
 
 /**
  * POST /api/workflows/smart-links/corte-caja
@@ -35,6 +56,14 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const data = corteSchema.parse(body);
+
+    // Fase 2: el arqueo es obligatorio cuando hay efectivo declarado — sin él
+    // el corte no es fiable (cashSales sería solo lo que el cajero declara).
+    if (data.efectivo > 0 && data.arqueo === undefined) {
+      throw ApiError.badRequest(
+        "Captura el arqueo de caja (efectivo contado físicamente) para poder registrar el corte."
+      );
+    }
 
     // Convert dollar amounts from the form (which are in MXN dollars) to cents
     const efectivoCents = data.efectivo;
@@ -68,6 +97,9 @@ export async function POST(req: NextRequest) {
         cashSales: efectivoCents,
         cardSales: tarjetaCents,
         otherPayments,
+        cashCountedCents: data.arqueo ?? null,
+        depositedCents: data.deposito ?? null,
+        aggregatorSales: buildAggregatorSales(data),
         ticketCount: data.tickets || null,
         source: "MANUAL_FORM",
         status: "PENDING_REVIEW",
@@ -75,6 +107,18 @@ export async function POST(req: NextRequest) {
         receivedAt: new Date(),
       })
       .returning();
+
+    // El cajero acaba de declarar efectivo y contarlo. Si no cuadra, es el
+    // momento en que alguien todavía puede recontar la caja.
+    checkCashVarianceAndAlertSafe({
+      id: cut.id,
+      companyId: cut.companyId,
+      branchId: cut.branchId,
+      businessDate: cut.businessDate,
+      shift: cut.shift,
+      cashSales: cut.cashSales,
+      cashCountedCents: cut.cashCountedCents,
+    });
 
     return ApiHandler.success({
       cut,

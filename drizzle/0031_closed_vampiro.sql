@@ -1,0 +1,1 @@
+ALTER TABLE "operating_expenses" ADD COLUMN "evidence_url" text;

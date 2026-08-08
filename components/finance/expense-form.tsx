@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Receipt, Loader2 } from "lucide-react";
+import { Plus, Receipt, Loader2, ImagePlus, X, Check } from "lucide-react";
 
 interface ExpenseFormProps {
   branches: Array<{ id: string; name: string }>;
@@ -22,7 +22,35 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
   const [amount, setAmount] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
+  const [evidenceUrl, setEvidenceUrl] = useState<string>("");
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/expenses/evidence", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || data.error || "Error al subir la evidencia.");
+      }
+      setEvidenceUrl(data.data.url);
+      toast({ title: "Evidencia adjunta", description: "Foto del ticket subida correctamente." });
+    } catch (err: any) {
+      toast({
+        title: "No se pudo subir la evidencia",
+        description: err.message || "Revisa tu conexión e inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+      if (e.target) e.target.value = "";
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +75,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
           amountCents: Math.round(parsed * 100),
           description,
           dueDate: dueDate || undefined,
+          evidenceUrl: evidenceUrl || undefined,
         }),
       });
 
@@ -66,6 +95,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
       setAmount("");
       setDescription("");
       setDueDate("");
+      setEvidenceUrl("");
       setOpen(false);
       if (onSuccess) onSuccess();
     } catch (err: any) {
@@ -80,7 +110,16 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(next) => {
+      setOpen(next);
+      if (!next) {
+        // Reabrir limpio: no arrastrar foto/montos de un intento cancelado.
+        setAmount("");
+        setDescription("");
+        setDueDate("");
+        setEvidenceUrl("");
+      }
+    }}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="w-4 h-4 mr-2" /> Nuevo Gasto Operativo
@@ -162,6 +201,47 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Evidencia / Ticket (opcional)</Label>
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="expense-evidence"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-dashed text-xs cursor-pointer hover:bg-muted/60 transition"
+              >
+                {uploading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : evidenceUrl ? (
+                  <Check className="w-4 h-4 text-success" />
+                ) : (
+                  <ImagePlus className="w-4 h-4" />
+                )}
+                {uploading ? "Subiendo…" : evidenceUrl ? "Foto adjunta" : "Subir foto del ticket"}
+              </label>
+              <input
+                id="expense-evidence"
+                type="file"
+                accept="image/*,.pdf"
+                className="sr-only"
+                onChange={handleFileSelect}
+                disabled={uploading || loading}
+              />
+              {evidenceUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => setEvidenceUrl("")}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Foto del comprobante (hielo, ferretería, taxi, plomero) que sustituye la libreta.
+            </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">

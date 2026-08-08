@@ -6,12 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { PropinasCalculator } from "@/components/labor/propinas-calculator";
+import { useBranches } from "@/hooks/use-branches";
 import { Coins, CheckCircle, Clock, Loader2 } from "lucide-react";
 
-interface Branch {
-  id: string;
-  name: string;
-}
 
 interface PropinaHistoryItem {
   id: string;
@@ -27,24 +24,10 @@ interface PropinaHistoryItem {
 }
 
 export default function PropinasPage() {
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const { branches, loading: branchesLoading } = useBranches();
   const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
   const [propinas, setPropinas] = useState<PropinaHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchBranches() {
-      try {
-        const res = await fetch("/api/branches");
-        const data = await res.json();
-        const list = data.data || data.branches || (Array.isArray(data) ? data : []);
-        setBranches(list);
-      } catch (err) {
-        console.error("Error fetching branches:", err);
-      }
-    }
-    fetchBranches();
-  }, []);
 
   const fetchPropinas = useCallback(async () => {
     setLoading(true);
@@ -86,7 +69,7 @@ export default function PropinasPage() {
 
         <div className="flex items-center gap-3">
           <div className="w-48">
-            <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+            <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={branchesLoading}>
               <SelectTrigger>
                 <SelectValue placeholder="Todas las sucursales" />
               </SelectTrigger>

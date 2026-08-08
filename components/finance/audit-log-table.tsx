@@ -1,8 +1,8 @@
 "use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCents, statusBadgeClasses } from "@/lib/utils";
 
-interface AuditLogEntry {
+export interface AuditLogEntry {
   id: string;
   expenseId: string;
   branchName: string;
@@ -20,17 +20,15 @@ interface AuditLogTableProps {
   loading: boolean;
 }
 
-const ACTION_LABELS: Record<string, { label: string; color: string }> = {
-  CREATED: { label: "Creó", color: "bg-blue-100 text-blue-700" },
-  APPROVED: { label: "Aprobó", color: "bg-emerald-100 text-emerald-700" },
-  REJECTED: { label: "Rechazó", color: "bg-red-100 text-red-700" },
-  PAID: { label: "Pagó", color: "bg-violet-100 text-violet-700" },
-  EDITED: { label: "Editó", color: "bg-amber-100 text-amber-700" },
+// Tonos semánticos del sistema, no paleta cruda: `bg-*-100` sin variante `dark:`
+// se convertía en una losa casi blanca sobre el `--card` oscuro.
+const ACTION_LABELS: Record<string, { label: string; tone: Parameters<typeof statusBadgeClasses>[0] }> = {
+  CREATED: { label: "Creó", tone: "info" },
+  APPROVED: { label: "Aprobó", tone: "success" },
+  REJECTED: { label: "Rechazó", tone: "destructive" },
+  PAID: { label: "Pagó", tone: "info" },
+  EDITED: { label: "Editó", tone: "warning" },
 };
-
-function formatMXN(cents: number) {
-  return (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
-}
 
 export function AuditLogTable({ entries, loading }: AuditLogTableProps) {
   if (loading) {
@@ -52,20 +50,24 @@ export function AuditLogTable({ entries, loading }: AuditLogTableProps) {
   return (
     <div className="border rounded-md overflow-x-auto">
       <table className="w-full text-xs">
+        <caption className="sr-only">
+          Bitácora de autorizaciones: fecha, sucursal, categoría, usuario que actuó, acción,
+          monto y notas de cada movimiento sobre gastos operativos.
+        </caption>
         <thead>
           <tr className="bg-muted/50 border-b">
-            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Fecha</th>
-            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Sucursal</th>
-            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Categoría</th>
-            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Usuario</th>
-            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Acción</th>
-            <th className="text-right px-3 py-2 font-medium text-muted-foreground">Monto</th>
-            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Notas</th>
+            <th scope="col" className="text-left px-3 py-2 font-medium text-muted-foreground">Fecha</th>
+            <th scope="col" className="text-left px-3 py-2 font-medium text-muted-foreground">Sucursal</th>
+            <th scope="col" className="text-left px-3 py-2 font-medium text-muted-foreground">Categoría</th>
+            <th scope="col" className="text-left px-3 py-2 font-medium text-muted-foreground">Usuario</th>
+            <th scope="col" className="text-left px-3 py-2 font-medium text-muted-foreground">Acción</th>
+            <th scope="col" className="text-right px-3 py-2 font-medium text-muted-foreground">Monto</th>
+            <th scope="col" className="text-left px-3 py-2 font-medium text-muted-foreground">Notas</th>
           </tr>
         </thead>
         <tbody>
           {entries.map((entry) => {
-            const actionInfo = ACTION_LABELS[entry.action] || { label: entry.action, color: "bg-gray-100 text-gray-700" };
+            const actionInfo = ACTION_LABELS[entry.action] || { label: entry.action, tone: "neutral" as const };
             return (
               <tr key={entry.id} className="border-b hover:bg-muted/40 transition">
                 <td className="px-3 py-2 whitespace-nowrap">
@@ -82,17 +84,21 @@ export function AuditLogTable({ entries, loading }: AuditLogTableProps) {
                   <div className="flex flex-col">
                     <span>{entry.actorName || "—"}</span>
                     {entry.actorRole && (
-                      <span className="text-[10px] text-muted-foreground">{entry.actorRole}</span>
+                      <span className="text-xs text-muted-foreground">{entry.actorRole}</span>
                     )}
                   </div>
                 </td>
                 <td className="px-3 py-2">
-                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${actionInfo.color}`}>
+                  <span
+                    className={`inline-block px-1.5 py-0.5 rounded border text-xs font-medium ${statusBadgeClasses(
+                      actionInfo.tone
+                    )}`}
+                  >
                     {actionInfo.label}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-right font-bold">
-                  {formatMXN(entry.amountCents)}
+                <td className="px-3 py-2 text-right font-bold tabular-nums">
+                  {formatCents(entry.amountCents)}
                 </td>
                 <td className="px-3 py-2 max-w-[200px] truncate text-muted-foreground">
                   {entry.notes || "—"}

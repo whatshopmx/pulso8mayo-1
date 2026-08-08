@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Image as ImageIcon, ArrowUpRight, ArrowDownLeft, ShieldCheck, UserCheck, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { formatCents, statusBadgeClasses } from "@/lib/utils";
+import { Image as ImageIcon, ArrowUpRight, ArrowDownLeft, ShieldCheck, FileText } from "lucide-react";
 
 export interface PettyCashTransactionItem {
   id: string;
@@ -31,26 +32,23 @@ interface PettyCashHistoryTableProps {
 export function PettyCashHistoryTable({ transactions }: PettyCashHistoryTableProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
-  const formatMXN = (cents: number) =>
-    (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
-
   const getTypeBadge = (type: PettyCashTransactionItem["type"]) => {
     switch (type) {
       case "OUT":
         return (
-          <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
+          <Badge variant="outline" className={`gap-1 ${statusBadgeClasses("warning")}`}>
             <ArrowUpRight className="w-3 h-3" /> Retiro
           </Badge>
         );
       case "REPLENISHMENT":
         return (
-          <Badge variant="outline" className="bg-success/10 text-success border-success/20 gap-1">
+          <Badge variant="outline" className={`gap-1 ${statusBadgeClasses("success")}`}>
             <ArrowDownLeft className="w-3 h-3" /> Reposición
           </Badge>
         );
       case "ADJUSTMENT":
         return (
-          <Badge variant="outline" className="bg-muted text-muted-foreground border-border">
+          <Badge variant="outline" className={statusBadgeClasses("neutral")}>
             Ajuste
           </Badge>
         );
@@ -61,6 +59,10 @@ export function PettyCashHistoryTable({ transactions }: PettyCashHistoryTablePro
     <div className="space-y-4">
       <div className="border rounded-md overflow-x-auto">
         <Table>
+          <TableCaption className="sr-only">
+            Bitácora de movimientos de caja chica: fecha, sucursal, tipo, monto, concepto,
+            quién lo solicitó, quién lo autorizó y el comprobante adjunto.
+          </TableCaption>
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead>Fecha / Hora</TableHead>
@@ -94,11 +96,13 @@ export function PettyCashHistoryTable({ transactions }: PettyCashHistoryTablePro
                   <TableCell className="font-medium text-xs">{tx.branchName}</TableCell>
                   <TableCell>{getTypeBadge(tx.type)}</TableCell>
                   <TableCell
-                    className={`text-right font-bold text-xs ${
-                      tx.type === "OUT" ? "text-warning" : "text-success"
+                    className={`text-right font-bold text-xs tabular-nums ${
+                      tx.type === "OUT" ? "text-warning-text" : "text-success"
                     }`}
                   >
-                    {tx.type === "OUT" ? `- ${formatMXN(tx.amountCents)}` : `+ ${formatMXN(tx.amountCents)}`}
+                    {tx.type === "OUT"
+                      ? `- ${formatCents(tx.amountCents)}`
+                      : `+ ${formatCents(tx.amountCents)}`}
                   </TableCell>
                   <TableCell className="text-xs">
                     <div className="flex flex-col">
@@ -109,17 +113,28 @@ export function PettyCashHistoryTable({ transactions }: PettyCashHistoryTablePro
                     </div>
                   </TableCell>
                   <TableCell className="text-xs">
-                    <span className="font-medium text-muted-foreground">{tx.registeredByName || "Cajero"}</span>
+                    {tx.registeredByName ? (
+                      <span className="font-medium text-foreground">{tx.registeredByName}</span>
+                    ) : (
+                      <span className="text-muted-foreground/70">Sin registrar</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-xs">
+                    {/* Nunca sustituir un autorizador ausente por el solicitante: esta
+                        celda se lee como un hecho de auditoría, y el escudo verde lo
+                        firmaba. Sin `approvedByName` no hubo segunda persona. */}
                     <div className="flex flex-col">
-                      <span className="font-medium flex items-center gap-1 text-success">
-                        <ShieldCheck className="w-3 h-3" />
-                        {tx.approvedByName || tx.registeredByName || "Gerente"}
-                      </span>
+                      {tx.approvedByName ? (
+                        <span className="font-medium flex items-center gap-1 text-success">
+                          <ShieldCheck className="w-3 h-3" />
+                          {tx.approvedByName}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/70">Sin autorización registrada</span>
+                      )}
                       {tx.authorizationNotes && (
                         <span className="text-xs text-muted-foreground/80 leading-tight">
-                          "{tx.authorizationNotes}"
+                          Nota: {tx.authorizationNotes}
                         </span>
                       )}
                     </div>
@@ -158,7 +173,7 @@ export function PettyCashHistoryTable({ transactions }: PettyCashHistoryTablePro
               <img
                 src={selectedPhoto}
                 alt="Ticket Evidence"
-                className="max-h-96 object-contain rounded border shadow-sm"
+                className="max-h-96 object-contain rounded border"
               />
             )}
           </div>

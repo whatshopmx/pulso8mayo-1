@@ -15,8 +15,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Settings2, Trash2, ArrowLeft, Loader2 } from "lucide-react";
+import { Plus, Settings2, Trash2, ArrowLeft, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
 interface PosTemplate {
@@ -36,17 +37,26 @@ export default function MappingTemplatesPage() {
   const [showForm, setShowForm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PosTemplate | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchTemplates = async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/sales/mapping-templates");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         setTemplates(data.data || []);
+        setError(null);
+      } else {
+        // Sin este `else`, un fallo de carga pintaba "Sin plantillas configuradas"
+        // e invitaba a recrear una configuración que sí existe.
+        setError(data?.error || "El servidor no devolvió las plantillas de mapeo.");
+        setTemplates([]);
       }
     } catch (err) {
       console.error("Failed to load POS templates:", err);
+      setError("Error de conexión al cargar las plantillas. Revisa tu red e intenta de nuevo.");
+      setTemplates([]);
     } finally {
       setLoading(false);
     }
@@ -122,6 +132,19 @@ export default function MappingTemplatesPage() {
             <div className="col-span-full py-12 flex justify-center text-muted-foreground">
               <Loader2 className="w-6 h-6 animate-spin mr-2" /> Cargando plantillas...
             </div>
+          ) : error ? (
+            <div className="col-span-full">
+              <EmptyState
+                icon={AlertCircle}
+                title="No se pudieron cargar las plantillas"
+                description={error}
+                action={
+                  <Button variant="outline" size="sm" onClick={fetchTemplates}>
+                    <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
+                  </Button>
+                }
+              />
+            </div>
           ) : templates.length === 0 ? (
             <Card className="col-span-full py-12 text-center border-dashed">
               <CardContent className="space-y-3">
@@ -154,14 +177,17 @@ export default function MappingTemplatesPage() {
                       </CardDescription>
                     </div>
 
+                    {/* Botón sólo-ícono: sin nombre accesible el lector de pantalla
+                        anunciaba "botón" a secas en una acción destructiva. */}
                     <Button
                       variant="ghost"
                       size="icon"
                       className="text-destructive hover:bg-destructive/10"
                       onClick={() => setPendingDelete(tpl)}
                       disabled={deletingId === tpl.id}
+                      aria-label={`Eliminar la plantilla ${tpl.name}`}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" aria-hidden />
                     </Button>
                   </div>
                 </CardHeader>
@@ -180,7 +206,7 @@ export default function MappingTemplatesPage() {
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-                    <span>Creada por: {tpl.createdByName || "Admin"}</span>
+                    <span>Creada por: {tpl.createdByName || "Sin registrar"}</span>
                     <span>{new Date(tpl.createdAt).toLocaleDateString("es-MX")}</span>
                   </div>
                 </CardContent>

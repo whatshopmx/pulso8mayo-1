@@ -8,9 +8,8 @@ import {
   users,
   branches,
 } from "@/lib/db/schema";
-import { eq, and, desc, gte, lt, sql, or, isNull } from "drizzle-orm";
-import { ROLES_HIERARCHY } from "@/lib/permissions";
-import type { Role } from "@/lib/permissions";
+import { eq, and, desc } from "drizzle-orm";
+import { roleIsAtLeast } from "@/lib/permissions";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,16 +48,6 @@ export interface AuditFilters {
   endDate?: string;
   limit?: number;
   offset?: number;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function roleIsAtLeast(userRole: string, requiredRole: string): boolean {
-  const userLevel = ROLES_HIERARCHY[userRole as Role] ?? 0;
-  const requiredLevel = ROLES_HIERARCHY[requiredRole as Role] ?? 0;
-  return userLevel >= requiredLevel;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +191,10 @@ export async function getAuditTrail(
  * - OVERDUE_APPROVAL: expense pending approval for >48 hours
  * - ROLE_MISMATCH: approver doesn't have the required role per rules
  */
-export async function detectViolations(companyId: string): Promise<Violation[]> {
+export async function detectViolations(
+  companyId: string,
+  branchId?: string
+): Promise<Violation[]> {
   const violations: Violation[] = [];
   const now = new Date();
   const overdueThreshold = new Date(now.getTime() - 48 * 60 * 60 * 1000); // 48h ago
@@ -231,7 +223,12 @@ export async function detectViolations(companyId: string): Promise<Violation[]> 
     .innerJoin(branches, eq(operatingExpenses.branchId, branches.id))
     .leftJoin(reqUser, eq(operatingExpenses.requestedBy, reqUser.id))
     .leftJoin(appUser, eq(operatingExpenses.approvedBy, appUser.id))
-    .where(eq(operatingExpenses.companyId, companyId));
+    .where(
+      and(
+        eq(operatingExpenses.companyId, companyId),
+        ...(branchId ? [eq(operatingExpenses.branchId, branchId)] : [])
+      )
+    );
 
   // Fetch authorization rules
   const rules = await db

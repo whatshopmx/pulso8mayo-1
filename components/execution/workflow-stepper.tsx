@@ -548,7 +548,9 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
                     {currentStepDef.type === 'NUMBER' && (
                         <div className="space-y-2">
                             <Label>Valor</Label>
-                            <Input type="number" value={value} onChange={e => setValue(e.target.value)} placeholder="0.00" />
+                            {/* step="any": sin él el navegador trata 2.5 como
+                                inválido y los spinners saltan de 1 en 1. */}
+                            <Input type="number" step="any" value={value} onChange={e => setValue(e.target.value)} placeholder="0.00" />
                             {currentStepDef.config?.min !== undefined && currentStepDef.config?.max !== undefined && (
                                 <p className="text-xs text-muted-foreground">
               Rango: {currentStepDef.config.min as number} - {currentStepDef.config.max as number}
@@ -849,11 +851,14 @@ function StockCountConfirmSummary({ existingSteps, onConfirm, value }: { existin
     try {
       const parsed = typeof s.value === 'string' ? JSON.parse(s.value) : s.value;
       systemQty = parsed.systemQuantity || 0;
-      physicalQty = parsed.inputValue ? parseInt(String(parsed.inputValue), 10) : 0;
+      physicalQty = parsed.inputValue ? parseFloat(String(parsed.inputValue)) : 0;
     } catch {
-      physicalQty = parseInt(String(s.value), 10) || 0;
+      physicalQty = parseFloat(String(s.value)) || 0;
     }
-    const variance = physicalQty - systemQty;
+    // parseFloat, no parseInt: el resumen debe mostrar los 2.5 kg que se
+    // guardan, no 2 (cf. StockCountService.completeStockCount).
+    if (!Number.isFinite(physicalQty)) physicalQty = 0;
+    const variance = Math.round((physicalQty - systemQty) * 10000) / 10000;
     const variancePercent = systemQty > 0 ? Math.abs(variance) / systemQty * 100 : (physicalQty > 0 ? 100 : 0);
     const isAlert = variancePercent > 10;
 

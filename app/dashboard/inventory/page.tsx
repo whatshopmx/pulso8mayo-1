@@ -13,6 +13,7 @@ import { useDashboard } from "@/hooks/queries";
 import { useRelativeTime } from "@/hooks/use-relative-time";
 import { DashboardKpis } from "@/components/inventory/dashboard-kpis";
 import { QuickAlerts } from "@/components/inventory/quick-alerts";
+import { HighValueSkusSection } from "@/components/inventory/high-value-skus-section";
 
 // Acciones del día — el gerente abre aquí para empezar a operar
 const DAILY_ACTIONS = [
@@ -114,6 +115,9 @@ export default function InventoryPage() {
           onRetry={retry}
           showBranchAttribution={isAll}
         />
+
+        {/* Fase 4: SKUs de alto valor (conteo semanal 80/20) */}
+        <HighValueSkusSection />
 
         {/* 3. Dónde empiezo — strip delgado */}
         <section aria-label="Acciones del día">

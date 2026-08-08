@@ -7,7 +7,20 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Plus } from "lucide-react";
+import { formatCents } from "@/lib/utils";
+import { computeCashVariance, cashVarianceToneClass } from "@/lib/sales/cash-variance";
+import { Loader2, Upload, Plus, AlertTriangle, CheckCircle2 } from "lucide-react";
+
+/**
+ * Pesos escritos por el usuario → centavos. Devuelve `null` si el campo está
+ * vacío o no es un número usable.
+ */
+function pesosToCents(raw: string): number | null {
+  if (raw.trim() === "") return null;
+  const parsed = parseFloat(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.round(parsed * 100);
+}
 
 interface SalesCutUploadProps {
   branches: { id: string; name: string }[];
@@ -32,6 +45,7 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
   const [cashSales, setCashSales] = useState<string>("");
   const [cardSales, setCardSales] = useState<string>("");
   const [otherPayments, setOtherPayments] = useState<string>("");
+  const [cashCounted, setCashCounted] = useState<string>("");
   const [ticketCount, setTicketCount] = useState<string>("");
 
   const resetForm = () => {
@@ -43,8 +57,33 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
     setCashSales("");
     setCardSales("");
     setOtherPayments("");
+    setCashCounted("");
     setTicketCount("");
   };
+
+  // --- Comprobaciones en vivo -------------------------------------------------
+  // El único momento en que un error de conteo se puede corregir es mientras el
+  // efectivo sigue sobre el mostrador, así que ambas cuentas se resuelven aquí y
+  // no en un toast después de guardar.
+  const totalCents = pesosToCents(totalSales);
+  const cashCents = pesosToCents(cashSales);
+  const cardCents = pesosToCents(cardSales);
+  const otherCents = pesosToCents(otherPayments);
+  const countedCents = pesosToCents(cashCounted);
+
+  const anyPaymentEntered = cashCents !== null || cardCents !== null || otherCents !== null;
+  const paymentsSum = (cashCents ?? 0) + (cardCents ?? 0) + (otherCents ?? 0);
+  // Mismo margen que aplica el servidor (app/api/sales/cuts/route.ts): ±2%.
+  const paymentsGap = totalCents !== null && anyPaymentEntered ? paymentsSum - totalCents : null;
+  const paymentsOutOfTolerance =
+    totalCents !== null && paymentsGap !== null
+      ? Math.abs(paymentsGap) > Math.round(totalCents * 0.02)
+      : false;
+
+  const arqueo = computeCashVariance({ cashSales: cashCents, cashCountedCents: countedCents });
+  // El servidor rechaza un corte con efectivo declarado y sin arqueo; avisarlo
+  // aquí evita que el 400 llegue después de escribir todo el formulario.
+  const arqueoMissing = cashCents !== null && cashCents > 0 && countedCents === null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -68,16 +107,22 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
     try {
       if (isManual) {
         // Manual entry (POST to /api/sales/cuts)
-        const total = parseFloat(totalSales);
-        if (isNaN(total) || total <= 0) {
+        if (totalCents === null || totalCents <= 0) {
           toast({ title: "Error", description: "La venta total debe ser mayor a 0", variant: "destructive" });
           setLoading(false);
           return;
         }
 
-        const cashVal = cashSales ? parseFloat(cashSales) : null;
-        const cardVal = cardSales ? parseFloat(cardSales) : null;
-        const otherVal = otherPayments ? parseFloat(otherPayments) : null;
+        if (arqueoMissing) {
+          toast({
+            title: "Falta el arqueo",
+            description: "Captura el efectivo contado en caja cuando declaras ventas en efectivo.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+
         const ticketsVal = ticketCount ? parseInt(ticketCount, 10) : null;
 
         const body = {
@@ -85,10 +130,11 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
           businessDate,
           shift,
           channel: "TOTAL",
-          totalSales: Math.round(total * 100), // in cents
-          cashSales: cashVal !== null ? Math.round(cashVal * 100) : null,
-          cardSales: cardVal !== null ? Math.round(cardVal * 100) : null,
-          otherPayments: otherVal !== null ? Math.round(otherVal * 100) : null,
+          totalSales: totalCents, // in cents
+          cashSales: cashCents,
+          cardSales: cardCents,
+          otherPayments: otherCents,
+          cashCountedCents: countedCents,
           ticketCount: ticketsVal && !isNaN(ticketsVal) ? ticketsVal : null,
         };
 
@@ -308,6 +354,71 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
                     onChange={(e) => setOtherPayments(e.target.value)}
                   />
                 </div>
+              </div>
+
+              {/* Cuadre de formas de pago contra el total, en vivo. */}
+              {paymentsGap !== null && (
+                <p
+                  className={`flex items-start gap-1.5 text-xs ${
+                    paymentsOutOfTolerance ? "text-destructive" : "text-muted-foreground"
+                  }`}
+                >
+                  {paymentsOutOfTolerance ? (
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-px text-success" />
+                  )}
+                  <span>
+                    Formas de pago:{" "}
+                    <span className="font-semibold tabular-nums">{formatCents(paymentsSum)}</span> vs.
+                    total <span className="font-semibold tabular-nums">{formatCents(totalCents ?? 0)}</span>
+                    {paymentsGap !== 0 && (
+                      <>
+                        {" "}·{" "}
+                        <span className="font-semibold tabular-nums">
+                          {paymentsGap > 0 ? "+" : ""}
+                          {formatCents(paymentsGap)}
+                        </span>
+                      </>
+                    )}
+                    {paymentsOutOfTolerance && " — revisa las cifras antes de guardar."}
+                  </span>
+                </p>
+              )}
+
+              {/* Arqueo: sin este campo la columna Diferencia de la tabla y la alerta
+                  de cortes descuadrados nunca podían dispararse desde el dashboard. */}
+              <div className="space-y-1 pt-1 border-t">
+                <Label htmlFor="cashCounted">Efectivo contado en caja (MXN)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  id="cashCounted"
+                  placeholder="0.00"
+                  value={cashCounted}
+                  onChange={(e) => setCashCounted(e.target.value)}
+                  aria-describedby="cashCounted-help"
+                />
+                <p id="cashCounted-help" className="text-xs text-muted-foreground">
+                  El dinero que realmente hay en la caja al cerrar. Se compara contra el efectivo
+                  declarado arriba.
+                </p>
+                {arqueoMissing && (
+                  <p className="flex items-start gap-1.5 text-xs text-destructive">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                    Declaraste ventas en efectivo: cuenta la caja antes de guardar.
+                  </p>
+                )}
+                {arqueo && (
+                  <p className={`text-xs font-semibold ${cashVarianceToneClass(arqueo.direction)}`}>
+                    {arqueo.direction === "cuadrado"
+                      ? "Caja cuadrada: el conteo coincide con el efectivo declarado."
+                      : `${arqueo.direction === "faltante" ? "Faltan" : "Sobran"} ${formatCents(
+                          Math.abs(arqueo.varianceCents)
+                        )} respecto al efectivo declarado.`}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1">

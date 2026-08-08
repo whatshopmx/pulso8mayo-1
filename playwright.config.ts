@@ -12,20 +12,26 @@ import path from 'path';
  */
 export default defineConfig({
   testDir: './tests',
-  /* Run tests in files in parallel */
-  fullyParallel: true,
+  /* Los specs comparten la base de desarrollo y se pisan entre sí (SKUs de alto
+   * valor, conteos activos por sucursal), así que corren en serie. */
+  fullyParallel: false,
+  workers: 1,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
+  /* El arranque en frío del servidor y las consultas a Neon son lentos. */
+  timeout: 120_000,
+  expect: { timeout: 20_000 },
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000',
+
+    actionTimeout: 30_000,
+    navigationTimeout: 60_000,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -33,22 +39,36 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
+    // Inicia sesión una vez y guarda las cookies para el resto de los specs.
+    { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: path.join(__dirname, 'tests/.auth/admin.json'),
+      },
+      dependencies: ['setup'],
     },
-    // For MVP phase, Chrome is sufficient to measure critical paths. 
+    // For MVP phase, Chrome is sufficient to measure critical paths.
     // {
     //   name: 'webkit',
     //   use: { ...devices['Desktop Safari'] },
     // },
   ],
 
-  /* Run your local dev server before starting the tests */
+  /**
+   * Servidor bajo prueba. El dev server compila cada ruta al primer golpe, por
+   * eso los timeouts de arriba son generosos. Con un build ya hecho
+   * (`pnpm build`) conviene correrlos contra producción, que es mucho más
+   * rápido y estable:
+   *   PLAYWRIGHT_WEB_SERVER_CMD="npm run start" pnpm test:e2e
+   * Ojo: `next dev` y `next start` comparten `.next`, así que no pueden
+   * convivir — hay que apagar el dev server antes de construir.
+   */
   webServer: {
-    command: 'npm run dev',
+    command: process.env.PLAYWRIGHT_WEB_SERVER_CMD || 'npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
-    timeout: 120000,
+    timeout: 300_000,
   },
 });

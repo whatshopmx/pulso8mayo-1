@@ -22,7 +22,22 @@ const createProductSchema = z.object({
   brand: z.string().optional(),
   presentation: z.string().optional(),
   standardCost: z.number().optional(),
+  // Fase 4: marca de SKU de alto valor (conteo semanal priorizado).
+  isHighValue: z.boolean().optional(),
 });
+
+/** Fase 4: límite de SKUs de alto valor por empresa (regla 80/20 en el onboarding). */
+export const MAX_HIGH_VALUE_SKUS = 30;
+
+async function countHighValue(companyId: string): Promise<number> {
+  const rows = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(inventoryItems)
+    .where(
+      and(eq(inventoryItems.companyId, companyId), eq(inventoryItems.isHighValue, true))
+    );
+  return Number(rows[0]?.n ?? 0);
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -124,6 +139,19 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const data = createProductSchema.parse(body);
+
+    // Fase 4: validar la regla de máx. 30 SKUs de alto valor en el onboarding.
+    if (data.isHighValue) {
+      const current = await countHighValue(user.companyId!);
+      if (current >= MAX_HIGH_VALUE_SKUS) {
+        return NextResponse.json(
+          {
+            error: `Límite de SKUs de alto valor alcanzado: ya hay ${current} de ${MAX_HIGH_VALUE_SKUS}. Marca máximo ${MAX_HIGH_VALUE_SKUS} SKUs (los que concentran el 80% del costo) para no abandonar el conteo semanal.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     const newItem = await db.insert(inventoryItems).values({
       companyId: user.companyId,

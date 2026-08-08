@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SalesCutUpload } from "@/components/sales/sales-cut-upload";
@@ -20,10 +20,12 @@ import {
   Settings2,
   BarChart3,
   FileSpreadsheet,
-  Store,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { statusBadgeClasses } from "@/lib/utils";
+import { statusBadgeClasses, formatCents } from "@/lib/utils";
+import { computeCashVariance, cashVarianceToneClass } from "@/lib/sales/cash-variance";
+import { useBranches } from "@/hooks/use-branches";
+import { useBranch } from "@/lib/branch-context";
 import Link from "next/link";
 
 interface SalesCut {
@@ -37,6 +39,9 @@ interface SalesCut {
   cashSales: number | null;
   cardSales: number | null;
   otherPayments: number | null;
+  cashCountedCents: number | null;
+  depositedCents: number | null;
+  aggregatorSales: Record<string, number> | null;
   ticketCount: number | null;
   avgTicket: number | null;
   source: "UPLOAD" | "WHATSAPP" | "MANUAL_FORM";
@@ -48,40 +53,48 @@ interface SalesCut {
   createdAt: string;
 }
 
-interface Branch {
-  id: string;
-  name: string;
+/** El canal se guarda como enum; en pantalla se lee como lo nombra la operación. */
+const CHANNEL_LABELS: Record<SalesCut["channel"], string> = {
+  SALON: "Salón",
+  DELIVERY: "Delivery",
+  EVENTOS: "Eventos",
+  TOTAL: "Total",
+};
+
+/**
+ * `useSearchParams` exige un límite de Suspense: el rango de fechas ahora vive en
+ * la URL que escribe `BranchScopeControl`, y sin esta frontera el prerender de la
+ * ruta falla en build.
+ */
+export default function SalesDashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto py-12 flex justify-center text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" /> Cargando ventas...
+        </div>
+      }
+    >
+      <SalesDashboardPageContent />
+    </Suspense>
+  );
 }
 
-export default function SalesDashboardPage() {
+function SalesDashboardPageContent() {
   const { toast } = useToast();
   const [cuts, setCuts] = useState<SalesCut[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const { branches } = useBranches();
   const [loadingCuts, setLoadingCuts] = useState(true);
-  const [loadingBranches, setLoadingBranches] = useState(true);
 
-  // Filters — single source of truth for branch across Analytics + Cuts tabs
-  const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-
-  // Fetch branches
-  useEffect(() => {
-    async function fetchBranches() {
-      try {
-        const res = await fetch("/api/branches");
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        const branchesList = data.data || data.branches || (Array.isArray(data) ? data : []);
-        setBranches(branchesList);
-      } catch (err) {
-        console.error("Error fetching branches:", err);
-      } finally {
-        setLoadingBranches(false);
-      }
-    }
-    fetchBranches();
-  }, []);
+  // Scope único para toda la página: sucursal desde el control del encabezado
+  // (cookie) y rango de fechas desde la URL que ese mismo control escribe. Antes
+  // esta pantalla llegaba a mostrar diez controles de alcance a la vez —dos en el
+  // header y ocho propios— sin señal de cuál mandaba.
+  const { selectedBranchId, setSelectedBranchId } = useBranch();
+  const selectedBranch = selectedBranchId ?? "ALL";
+  const searchParams = useSearchParams();
+  const startDate = searchParams.get("startDate") ?? "";
+  const endDate = searchParams.get("endDate") ?? "";
 
   // Fetch sales cuts
   const fetchCuts = useCallback(async () => {
@@ -104,11 +117,12 @@ export default function SalesDashboardPage() {
       }
       const data = await res.json();
       setCuts(data.data || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       toast({
         title: "Error de Carga",
-        description: err.message || "Error al conectar con el servidor.",
+        description:
+          err instanceof Error ? err.message : "Error al conectar con el servidor.",
         variant: "destructive",
       });
     } finally {
@@ -119,10 +133,6 @@ export default function SalesDashboardPage() {
   useEffect(() => {
     fetchCuts();
   }, [fetchCuts]);
-
-  const formatMXN = (cents: number) => {
-    return (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
-  };
 
   const getSourceBadge = (source: SalesCut["source"]) => {
     switch (source) {
@@ -135,40 +145,16 @@ export default function SalesDashboardPage() {
     }
   };
 
-  /** Aplica un preset de fechas y dispara el fetch. */
-  const applyDatePreset = (preset: "today" | "7d" | "thisMonth" | "lastMonth") => {
-    const now = new Date();
-    const toISODate = (d: Date) => d.toISOString().slice(0, 10);
-
-    switch (preset) {
-      case "today": {
-        const today = toISODate(now);
-        setStartDate(today);
-        setEndDate(today);
-        break;
-      }
-      case "7d": {
-        const sevenAgo = new Date(now);
-        sevenAgo.setDate(sevenAgo.getDate() - 6);
-        setStartDate(toISODate(sevenAgo));
-        setEndDate(toISODate(now));
-        break;
-      }
-      case "thisMonth": {
-        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        setStartDate(toISODate(firstOfMonth));
-        setEndDate(toISODate(now));
-        break;
-      }
-      case "lastMonth": {
-        const firstOfLast = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const lastOfLast = new Date(now.getFullYear(), now.getMonth(), 0);
-        setStartDate(toISODate(firstOfLast));
-        setEndDate(toISODate(lastOfLast));
-        break;
-      }
-    }
-  };
+  const scopeLabel = (() => {
+    const branchLabel =
+      selectedBranch === "ALL"
+        ? "todas las sucursales"
+        : branches.find((b) => b.id === selectedBranch)?.name ?? "la sucursal en foco";
+    const dateLabel = startDate
+      ? `${startDate}${endDate && endDate !== startDate ? ` a ${endDate}` : ""}`
+      : "todo el período";
+    return `${branchLabel} · ${dateLabel}`;
+  })();
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -176,13 +162,19 @@ export default function SalesDashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Coins className="h-7 w-7 text-primary" /> Ventas y POS (M13)
-            <span
-              className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-muted-foreground/30 text-[10px] text-muted-foreground cursor-help"
+            {/* "(M13)" era un código interno de módulo filtrado al h1: lo primero
+                que leía un gerente nuevo era jerga del backlog. */}
+            <Coins className="h-7 w-7 text-primary" /> Ventas y Cortes de Caja
+            {/* `button` en vez de `span`: un `title` sobre texto plano es
+                inalcanzable por teclado y lo ignora el lector de pantalla. */}
+            <button
+              type="button"
+              className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-muted-foreground/30 text-xs leading-none text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               title="Módulo de ingesta de cortes de ventas desde archivos POS, WhatsApp o captura manual. Los datos alimentan KPIs financieros y la proyección de flujo de efectivo."
+              aria-label="Qué es este módulo: ingesta de cortes de ventas desde archivos POS, WhatsApp o captura manual. Los datos alimentan KPIs financieros y la proyección de flujo de efectivo."
             >
               ?
-            </span>
+            </button>
           </h1>
           <p className="text-sm text-muted-foreground">
             Ingesta de cortes diarios, análisis por turno/canal y desglose de ventas totales.
@@ -211,27 +203,6 @@ export default function SalesDashboardPage() {
 
         {/* TAB 1: Analytics & KPIs */}
         <TabsContent value="analytics" className="space-y-6">
-          {/* Common branch selector — feeds both KPIs and charts */}
-          <div className="flex items-center gap-2">
-            <Store className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Sucursal:</span>
-            <div className="w-56">
-              <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={loadingBranches}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Todas las sucursales" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Todas las sucursales (consolidado)</SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
           <FinancialKpiCards branchId={selectedBranch} />
           <SalesDashboard branchId={selectedBranch} />
         </TabsContent>
@@ -239,6 +210,49 @@ export default function SalesDashboardPage() {
         {/* TAB 2: Ingestion & Cuts List */}
         <TabsContent value="cuts" className="space-y-6">
           <SalesCutUpload branches={branches} onUploadSuccess={fetchCuts} />
+
+          {/* Fase 2: alerta de cortes con diferencia (arqueo vs efectivo declarado) */}
+          {(() => {
+            // Misma fuente de verdad que la celda de la tabla, para que el
+            // conteo del banner no pueda discrepar de las filas en rojo.
+            const diffCuts = cuts.filter((c) => {
+              const arqueo = computeCashVariance(c);
+              return arqueo !== null && arqueo.direction !== "cuadrado";
+            });
+            if (diffCuts.length === 0) return null;
+            const byBranch = new Map<string, { id: string; count: number }>();
+            for (const c of diffCuts) {
+              const prev = byBranch.get(c.branchName);
+              byBranch.set(c.branchName, { id: c.branchId, count: (prev?.count ?? 0) + 1 });
+            }
+            return (
+              <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
+                <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                <div className="space-y-2">
+                  <p className="font-semibold text-destructive">
+                    {diffCuts.length} corte{diffCuts.length !== 1 ? "s" : ""} con diferencia entre efectivo declarado y arqueo
+                  </p>
+                  {/* El banner nombraba las sucursales y no llevaba a ninguna: la
+                      última pantalla que ve una gerente a las 11pm era una
+                      acusación sin camino. Ahora cada nombre acota el alcance. */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">Ir a la sucursal:</span>
+                    {Array.from(byBranch.entries()).map(([name, { id, count }]) => (
+                      <Button
+                        key={id}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => setSelectedBranchId(id)}
+                      >
+                        {name} ({count})
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Cuts Table */}
           <Card>
@@ -248,89 +262,13 @@ export default function SalesDashboardPage() {
                   <Coins className="h-5 w-5 text-primary" /> Historial de Cortes Registrados
                 </CardTitle>
 
-                {/* Table Filters */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="w-44">
-                    <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={loadingBranches}>
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Todas las sucursales" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">Todas las sucursales</SelectItem>
-                        {branches.map((b) => (
-                          <SelectItem key={b.id} value={b.id}>
-                            {b.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Input
-                    type="date"
-                    className="h-8 text-xs w-36"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                  <span className="text-xs text-muted-foreground">-</span>
-                  <Input
-                    type="date"
-                    className="h-8 text-xs w-36"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-
-                  {/* Date presets */}
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs px-2"
-                      onClick={() => applyDatePreset("today")}
-                    >
-                      Hoy
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs px-2"
-                      onClick={() => applyDatePreset("7d")}
-                    >
-                      7d
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs px-2"
-                      onClick={() => applyDatePreset("thisMonth")}
-                    >
-                      Este mes
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs px-2"
-                      onClick={() => applyDatePreset("lastMonth")}
-                    >
-                      Mes ant.
-                    </Button>
-                  </div>
-
-                  {(selectedBranch !== "ALL" || startDate || endDate) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-xs text-muted-foreground"
-                      onClick={() => {
-                        setSelectedBranch("ALL");
-                        setStartDate("");
-                        setEndDate("");
-                      }}
-                    >
-                      Limpiar
-                    </Button>
-                  )}
-                </div>
+                {/* Los ocho controles que vivían aquí duplicaban el alcance del
+                    encabezado. Queda el eco de lo que se está viendo, para que la
+                    tabla nunca se lea fuera de contexto. */}
+                <p className="text-xs text-muted-foreground">
+                  Mostrando <span className="font-medium text-foreground">{scopeLabel}</span>. Cambia
+                  el alcance desde los controles del encabezado.
+                </p>
               </div>
             </CardHeader>
             <CardContent>
@@ -348,6 +286,11 @@ export default function SalesDashboardPage() {
               ) : (
                 <div className="border rounded-md overflow-x-auto">
                   <Table>
+                    <TableCaption className="sr-only">
+                      Cortes de ventas registrados: fecha, sucursal, turno, canal, venta total,
+                      formas de pago, tickets, arqueo de caja, origen del dato, estatus de
+                      validación y quién lo recibió.
+                    </TableCaption>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
                         <TableHead>Fecha</TableHead>
@@ -357,6 +300,7 @@ export default function SalesDashboardPage() {
                         <TableHead className="text-right">Venta Total</TableHead>
                         <TableHead>Formas de Pago</TableHead>
                         <TableHead className="text-center">Tickets</TableHead>
+                        <TableHead>Arqueo/Dif.</TableHead>
                         <TableHead>Origen</TableHead>
                         <TableHead>Estatus</TableHead>
                         <TableHead>Recibido por</TableHead>
@@ -365,9 +309,15 @@ export default function SalesDashboardPage() {
                     <TableBody>
                       {cuts.map((cut) => {
                         const paymentParts = [];
-                        if (cut.cashSales !== null) paymentParts.push(`Efectivo: ${formatMXN(cut.cashSales)}`);
-                        if (cut.cardSales !== null) paymentParts.push(`Tarjeta: ${formatMXN(cut.cardSales)}`);
-                        if (cut.otherPayments !== null) paymentParts.push(`Otros: ${formatMXN(cut.otherPayments)}`);
+                        if (cut.cashSales !== null) paymentParts.push(`Efectivo: ${formatCents(cut.cashSales)}`);
+                        if (cut.cardSales !== null) paymentParts.push(`Tarjeta: ${formatCents(cut.cardSales)}`);
+                        if (cut.otherPayments !== null) paymentParts.push(`Otros: ${formatCents(cut.otherPayments)}`);
+
+                        // Fase 2: arqueo = efectivo contado vs. efectivo declarado.
+                        // `countedCents` puede existir sin contraparte declarada:
+                        // en ese caso hay conteo que mostrar pero no diferencia.
+                        const countedCents = cut.cashCountedCents;
+                        const arqueo = computeCashVariance(cut);
 
                         return (
                           <TableRow key={cut.id} className="hover:bg-muted/40 transition">
@@ -379,16 +329,26 @@ export default function SalesDashboardPage() {
                               })}
                             </TableCell>
                             <TableCell className="font-medium">{cut.branchName}</TableCell>
-                            <TableCell className="text-xs font-semibold capitalize">
-                              {cut.shift.toLowerCase()}
+                            {/* El turno es el campo que dice "restaurante": matutino
+                                contra vespertino es la pregunta diaria de gerencia.
+                                Se le da la misma jerarquía visual que al canal. */}
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={`text-xs capitalize ${statusBadgeClasses(
+                                  cut.shift === "MATUTINO" ? "info" : cut.shift === "VESPERTINO" ? "warning" : "neutral"
+                                )}`}
+                              >
+                                {cut.shift.toLowerCase()}
+                              </Badge>
                             </TableCell>
                             <TableCell>
                               <Badge variant={cut.channel === "TOTAL" ? "secondary" : "outline"} className="text-xs">
-                                {cut.channel}
+                                {CHANNEL_LABELS[cut.channel]}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right font-semibold text-sm">
-                              {formatMXN(cut.totalSales)}
+                            <TableCell className="text-right font-semibold text-sm tabular-nums">
+                              {formatCents(cut.totalSales)}
                             </TableCell>
                             <TableCell>
                               {paymentParts.length > 0 ? (
@@ -404,6 +364,29 @@ export default function SalesDashboardPage() {
                             <TableCell className="text-center text-sm font-medium">
                               {cut.ticketCount !== null ? cut.ticketCount : <span className="text-muted-foreground/60">—</span>}
                             </TableCell>
+                            <TableCell>
+                              {countedCents !== null ? (
+                                <div className="flex flex-col text-xs">
+                                  <span className="text-muted-foreground">
+                                    Contado: {formatCents(countedCents)}
+                                  </span>
+                                  {arqueo === null ? (
+                                    <span className="text-muted-foreground/60">
+                                      Diferencia: — (sin efectivo declarado)
+                                    </span>
+                                  ) : (
+                                    <span className={`font-semibold ${cashVarianceToneClass(arqueo.direction)}`}>
+                                      Diferencia:{" "}
+                                      {arqueo.direction === "cuadrado"
+                                        ? "cuadrado"
+                                        : `${arqueo.varianceCents > 0 ? "+" : ""}${formatCents(arqueo.varianceCents)} (${arqueo.direction})`}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60">—</span>
+                              )}
+                            </TableCell>
                             <TableCell>{getSourceBadge(cut.source)}</TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-1">
@@ -412,7 +395,7 @@ export default function SalesDashboardPage() {
                                     <CheckCircle className="h-3 w-3" /> Validado
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 text-xs text-warning font-semibold">
+                                  <span className="inline-flex items-center gap-1 text-xs text-warning-text font-semibold">
                                     <AlertCircle className="h-3 w-3" /> Observación
                                   </span>
                                 )}
@@ -425,7 +408,13 @@ export default function SalesDashboardPage() {
                             </TableCell>
                             <TableCell className="text-xs">
                               <div className="flex flex-col">
-                                <span className="font-medium text-muted-foreground">{cut.receivedByName || "Sistema"}</span>
+                                {/* Sin nombre real se dice que no lo hay: inventar "Sistema"
+                                    atribuye la recepción del corte a un actor que no existe. */}
+                                {cut.receivedByName ? (
+                                  <span className="font-medium text-foreground">{cut.receivedByName}</span>
+                                ) : (
+                                  <span className="text-muted-foreground/70">Sin registrar</span>
+                                )}
                                 <span className="text-xs text-muted-foreground/75">
                                   {new Date(cut.receivedAt).toLocaleDateString("es-MX", {
                                     hour: "2-digit",
@@ -443,8 +432,178 @@ export default function SalesDashboardPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Fase 3: conciliación por agregador — venta reportada vs. liquidación */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" /> Conciliación por Agregador
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Compara la venta reportada en los cortes contra la liquidación del agregador (que llega neta de comisión). Captura el monto liquidado para ver la varianza.
+                <span className="block mt-1 text-xs text-muted-foreground/80">
+                  Los montos capturados aquí no se guardan: son una ayuda de cálculo de la sesión y se limpian al cambiar el filtro.
+                </span>
+              </p>
+            </CardHeader>
+            <CardContent>
+              {/* `key` fuerza el remontaje al cambiar el filtro: sin esto, un monto
+                  capturado bajo una sucursal seguía comparándose contra la venta
+                  reportada de otra. */}
+              <AggregatorConciliation
+                key={`${selectedBranch}|${startDate}|${endDate}`}
+                cuts={cuts}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/**
+ * Monto liquidado escrito por el usuario → centavos, o `null` si no es una cifra
+ * de dinero utilizable.
+ *
+ * `parseFloat` acepta notación exponencial, así que teclear `1e5` en un
+ * `input[type=number]` producía una retención de $100,000 con cuatro teclas.
+ * Aquí solo se admiten dígitos con separadores y a lo más dos decimales.
+ */
+function parseLiquidatedCents(raw: string): number | null {
+  const cleaned = raw.trim().replace(/[$,\s]/g, "");
+  if (cleaned === "") return null;
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : null;
+}
+
+function AggregatorConciliation({ cuts }: { cuts: SalesCut[] }) {
+  // Sum reported sales per aggregator across the filtered cuts.
+  const totals = useMemo(() => {
+    const acc: Record<string, number> = {};
+    for (const cut of cuts) {
+      if (!cut.aggregatorSales) continue;
+      for (const [key, value] of Object.entries(cut.aggregatorSales)) {
+        acc[key] = (acc[key] ?? 0) + value;
+      }
+    }
+    return acc;
+  }, [cuts]);
+
+  const labels: Record<string, string> = {
+    rappi: "Rappi",
+    uber: "Uber Eats",
+    didi: "Didi Food",
+    justo: "Justo",
+    sindelantal: "Sin Delantal",
+    mercadopago: "Mercado Pago",
+  };
+
+  const [liquidated, setLiquidated] = useState<Record<string, string>>({});
+  const keys = Object.keys(totals);
+
+  if (keys.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Aún no hay ventas por agregador en los cortes del período filtrado. Captura un corte con Rappi/Uber/Didi desde el Smart Link para ver la conciliación.
+      </p>
+    );
+  }
+
+  const hasEntries = Object.values(liquidated).some((v) => v.trim() !== "");
+
+  return (
+    <div className="space-y-2">
+      {/* Salida del borrador: los montos son de sesión, así que debe poder
+          vaciarse sin recargar la página ni cambiar el filtro. */}
+      {hasEntries && (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-muted-foreground"
+            onClick={() => setLiquidated({})}
+          >
+            Limpiar montos capturados
+          </Button>
+        </div>
+      )}
+      <div className="border rounded-md overflow-x-auto">
+      <Table>
+        <TableCaption className="sr-only">
+          Conciliación por agregador: venta reportada en los cortes, liquidación recibida
+          capturada por el usuario y retención resultante.
+        </TableCaption>
+        <TableHeader>
+          <TableRow className="bg-muted/50">
+            <TableHead>Agregador</TableHead>
+            <TableHead className="text-right">Venta reportada</TableHead>
+            <TableHead className="text-right">Liquidación recibida</TableHead>
+            <TableHead className="text-right">Retención (comisión y ajustes)</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {keys.map((key) => {
+            const reported = totals[key];
+            const raw = liquidated[key] ?? "";
+            const liquidatedCents = parseLiquidatedCents(raw);
+            const valid = liquidatedCents !== null;
+            const variance = valid ? reported - liquidatedCents : null;
+            const pct = valid && reported > 0 ? ((variance! / reported) * 100).toFixed(1) : null;
+            const label = labels[key] ?? key;
+            return (
+              <TableRow key={key} className="hover:bg-muted/40 transition">
+                <TableCell className="font-medium">{label}</TableCell>
+                <TableCell className="text-right font-semibold text-sm tabular-nums">
+                  {formatCents(reported)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <span className="text-xs text-muted-foreground" aria-hidden>$</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      className="h-8 w-32 text-xs text-right tabular-nums"
+                      aria-label={`Liquidación recibida de ${label}, en pesos`}
+                      value={raw}
+                      onChange={(e) => setLiquidated((prev) => ({ ...prev, [key]: e.target.value }))}
+                    />
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">
+                  {valid && variance !== null ? (
+                    // `reported > liquidated` es lo ESPERADO: la liquidación llega
+                    // neta de comisión. Solo lo inverso (te liquidan más de lo que
+                    // vendiste) es una anomalía. Sin una tasa de comisión esperada
+                    // en el esquema no hay forma de juzgar si la retención es
+                    // excesiva, así que se presenta como dato, no como error.
+                    <span
+                      className={`inline-flex items-center gap-1 text-sm font-semibold tabular-nums ${
+                        variance < 0 ? "text-warning-text" : "text-foreground"
+                      }`}
+                    >
+                      {variance > 0 ? "+" : ""}
+                      {formatCents(variance)}
+                      {pct !== null && (
+                        <span className="text-xs text-muted-foreground">({pct}%)</span>
+                      )}
+                      {variance < 0 && (
+                        <span className="text-xs font-normal">liquidación &gt; venta</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground/60">—</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      </div>
     </div>
   );
 }
