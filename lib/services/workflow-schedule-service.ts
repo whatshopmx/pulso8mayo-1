@@ -11,9 +11,12 @@ export interface CreateScheduleInput {
     branchId: string;
     assignmentType: AssignmentType;
     assignedRole?: 'SUPER_ADMIN' | 'ADMIN' | 'GERENTE' | 'SUPERVISOR' | 'EMPLEADO' | 'READONLY';
+    assignedRoles?: string[]; // selección completa; assignedRole guarda el primero (AD-7)
+    assignedShifts?: string[]; // 'morning' | 'afternoon' | 'night' | 'all'
     assignedUserId?: string;
     frequency: ScheduleFrequency;
     dayOfWeek?: number; // 0-6 (Sunday-Saturday)
+    daysOfWeek?: string[]; // ['monday', ...]; dayOfWeek guarda el primero (AD-7)
     dayOfMonth?: number; // 1-31
     timeOfDay?: string; // HH:MM format
     startDate: Date;
@@ -27,9 +30,12 @@ export interface CreateScheduleInput {
 export interface UpdateScheduleInput {
     assignmentType?: AssignmentType;
     assignedRole?: 'SUPER_ADMIN' | 'ADMIN' | 'GERENTE' | 'SUPERVISOR' | 'EMPLEADO' | 'READONLY';
+    assignedRoles?: string[];
+    assignedShifts?: string[];
     assignedUserId?: string;
     frequency?: ScheduleFrequency;
     dayOfWeek?: number;
+    daysOfWeek?: string[];
     dayOfMonth?: number;
     timeOfDay?: string;
     startDate?: Date;
@@ -72,9 +78,12 @@ export class WorkflowScheduleService {
             branchId: data.branchId,
             assignmentType: data.assignmentType,
             assignedRole: data.assignedRole,
+            assignedRoles: data.assignedRoles ?? [],
+            assignedShifts: data.assignedShifts ?? [],
             assignedUserId: data.assignedUserId,
             frequency: data.frequency,
             dayOfWeek: data.dayOfWeek,
+            daysOfWeek: data.daysOfWeek ?? [],
             dayOfMonth: data.dayOfMonth,
             timeOfDay: data.timeOfDay,
             startDate: data.startDate,

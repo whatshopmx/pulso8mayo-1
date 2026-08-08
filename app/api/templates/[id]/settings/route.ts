@@ -81,9 +81,12 @@ export async function GET(
         const templateMeta = {
             version: template?.version ?? 1,
             activo: template?.active ?? true,
-            requiereIA: false, // Not a separate DB column — derived from aiConfig presence
+            // Derivado, nunca almacenado (AD-4): lo que le importa a un auditor es
+            // si el flujo *contiene* verificación por IA, no si hay proveedor
+            // configurado. Como columna volvería a divergir al primer cambio.
+            requiereIA: templateRequiresAI(template),
             duracionEstimada: template?.duracionEstimada ?? '',
-            cumplimientoNormativo: [] as string[], // Stored separately if needed; defaults to []
+            cumplimientoNormativo: (template?.cumplimientoNormativo as string[]) ?? [],
             tags: (template?.tags as string[]) ?? [],
             aiConfig: (template?.aiConfig as Record<string, any>) ?? null,
             complianceConfig: (template?.complianceConfig as Record<string, any>) ?? null,
@@ -135,16 +138,24 @@ export async function GET(
             };
         }
 
+        // Las columnas de array son la fuente de verdad. Las escalares solo se
+        // consultan cuando el array está vacío, para filas escritas antes de la
+        // migración 0038 por un camino que no pasó por el backfill.
+        const daysOfWeek = (schedule.daysOfWeek as string[] | null) ?? [];
+        const assignedRoles = (schedule.assignedRoles as string[] | null) ?? [];
+
         const settings = {
             ...templateMeta,
             enabled: schedule.isActive,
             frequency: schedule.frequency.toLowerCase(),
             shiftTimes,
-            days: schedule.dayOfWeek !== null
-                ? [getDayName(schedule.dayOfWeek)]
-                : ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-            assignedRoles: schedule.assignedRole ? [schedule.assignedRole] : [],
-            assignedShifts: [],
+            days: daysOfWeek.length > 0
+                ? daysOfWeek
+                : schedule.dayOfWeek !== null ? [getDayName(schedule.dayOfWeek)] : [],
+            assignedRoles: assignedRoles.length > 0
+                ? assignedRoles
+                : schedule.assignedRole ? [schedule.assignedRole] : [],
+            assignedShifts: (schedule.assignedShifts as string[] | null) ?? [],
             autoAssign: schedule.assignmentType === 'AUTO',
             triggers: triggers.map(t => ({
                 eventName: t.eventName,
@@ -207,6 +218,7 @@ export async function POST(
                 aiConfig: data.aiConfig ?? null,
                 complianceConfig: data.complianceConfig ?? null,
                 completionActions: data.completionActions ?? [],
+                cumplimientoNormativo: data.cumplimientoNormativo ?? [],
                 updatedAt: new Date(),
             })
             .where(eq(workflowTemplates.id, templateId));
@@ -216,19 +228,28 @@ export async function POST(
 
         const dbFrequency = (data.frequency === 'on_demand' ? 'ONCE' : data.frequency.toUpperCase()) as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'ONCE';
 
+        const days = data.days ?? [];
+        const assignedRoles = data.assignedRoles ?? [];
+
+        // Las escalares siguen recibiendo el primer elemento (AD-7): el cron y el
+        // motor de ejecución todavía las leen. Las de array guardan la selección
+        // completa, que es lo que el usuario configuró.
         let dayOfWeek: number | undefined;
-        if (dbFrequency === 'WEEKLY' && data.days && data.days.length > 0) {
-            dayOfWeek = getDayNumber(data.days[0]);
+        if (dbFrequency === 'WEEKLY' && days.length > 0) {
+            dayOfWeek = getDayNumber(days[0]);
         }
 
         const scheduleData = {
             templateId,
             branchId,
             assignmentType: data.autoAssign ? 'AUTO' : 'ROLE',
-            assignedRole: data.assignedRoles && data.assignedRoles.length > 0 ? data.assignedRoles[0] as any : null,
+            assignedRole: assignedRoles.length > 0 ? assignedRoles[0] as any : null,
+            assignedRoles,
+            assignedShifts: data.assignedShifts ?? [],
             frequency: dbFrequency,
             timeOfDay: JSON.stringify(data.shiftTimes),
             dayOfWeek: dayOfWeek,
+            daysOfWeek: days,
             startDate: new Date(),
             title: `Schedule for ${templateId}`,
             createdBy: user.id,
@@ -273,6 +294,20 @@ export async function POST(
 }
 
 // Helpers
+
+/**
+ * AD-4: `requiereIA` no tiene columna. Se deriva de los pasos porque lo que
+ * responde a un auditor es si el flujo *contiene* verificación por IA, no si
+ * hay proveedor configurado; `aiConfig` se mantiene en el OR para las
+ * plantillas que declaran proveedor sin pasos de IA todavía.
+ */
+function templateRequiresAI(template?: { steps?: unknown; aiConfig?: unknown } | null): boolean {
+    if (template?.aiConfig != null) return true;
+    const steps = template?.steps;
+    if (!Array.isArray(steps)) return false;
+    return steps.some((step: any) => step?.aiVerification?.enabled === true);
+}
+
 function getDayNumber(day: string): number {
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     return days.indexOf(day.toLowerCase());
