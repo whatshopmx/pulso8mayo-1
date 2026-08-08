@@ -7,6 +7,7 @@ import { workflowTemplates } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { WorkflowScheduleService } from '@/lib/services/workflow-schedule-service';
 import { WorkflowTriggerService } from '@/lib/services/workflow-trigger-service';
+import { roleIsAtLeast } from '@/lib/permissions';
 import { z } from 'zod';
 
 const scheduleSchema = z.object({
@@ -46,6 +47,59 @@ const scheduleSchema = z.object({
   completionActions: z.array(z.record(z.string(), z.any())).optional(),
 });
 
+/**
+ * Campos que solo un ADMIN puede escribir, con el nombre que ve el usuario.
+ *
+ * El gate va por jerarquía de rol y por campo, nunca por PERMISSIONS (AD-3):
+ * `PERMISSIONS.workflows` incluye `update` para GERENTE, SUPERVISOR y también
+ * EMPLEADO — es el permiso con el que un empleado ejecuta pasos —, así que
+ * `requirePermissionApi('workflows','update')` deja pasar a todo el mundo
+ * salvo READONLY y no sirve como gate del editor.
+ */
+const PRIVILEGED_FIELDS: Record<string, string> = {
+    complianceConfig: 'la configuración de cumplimiento',
+    cumplimientoNormativo: 'las normas declaradas',
+    aiConfig: 'la configuración de IA',
+    version: 'la versión',
+    activo: 'el estado activo de la plantilla',
+};
+
+/**
+ * Devuelve el motivo del rechazo, o null si la escritura está permitida.
+ */
+function denySettingsWrite(
+    role: string | undefined,
+    templateScope: string | null | undefined,
+    sentFields: string[]
+): string | null {
+    if (!roleIsAtLeast(role ?? '', 'GERENTE')) {
+        return 'Editar la configuración de un flujo requiere rol Gerente o superior. ' +
+            'Pídele el cambio a tu gerente o a un administrador.';
+    }
+
+    const isAdmin = roleIsAtLeast(role ?? '', 'ADMIN');
+
+    if (templateScope === 'company' && !isAdmin) {
+        return 'Este flujo es un playbook corporativo y su configuración afecta a varias ' +
+            'sucursales: solo un administrador puede cambiarla. Para ajustar únicamente tu ' +
+            'sucursal, usa una plantilla local.';
+    }
+
+    if (!isAdmin) {
+        const touched = sentFields.filter((f) => f in PRIVILEGED_FIELDS);
+        if (touched.length > 0) {
+            const nombres = touched.map((f) => PRIVILEGED_FIELDS[f]);
+            const lista = nombres.length === 1
+                ? nombres[0]
+                : `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`;
+            return `Cambiar ${lista} requiere rol Administrador. Como Gerente puedes editar ` +
+                'la programación y las acciones de este flujo.';
+        }
+    }
+
+    return null;
+}
+
 export async function GET(
     req: NextRequest,
     props: { params: Promise<{ id: string }> }
@@ -65,8 +119,6 @@ export async function GET(
 
         const templateId = params.id;
         const branchId = user.branchId;
-
-        console.log(`[API] Fetching schedule settings for template ${templateId} in branch ${branchId}`);
 
         // Fetch template metadata, schedule and triggers in parallel
         const [template, schedule, triggers] = await Promise.all([
@@ -205,20 +257,41 @@ export async function POST(
         }
 
         const data = validation.data;
-        console.log(`[API] Saving schedule settings for template ${templateId}`, data);
 
-        // 1. Update workflowTemplates row with metadata
+        const template = await db.query.workflowTemplates.findFirst({
+            where: eq(workflowTemplates.id, templateId),
+        });
+
+        if (!template) {
+            return NextResponse.json({ error: 'Plantilla no encontrada' }, { status: 404 });
+        }
+
+        const denied = denySettingsWrite(
+            user.role,
+            template.scope,
+            Object.keys(body ?? {})
+        );
+        if (denied) {
+            return NextResponse.json({ error: denied }, { status: 403 });
+        }
+
+        // 1. Update workflowTemplates row with metadata.
+        //
+        // Un campo ausente conserva lo que había. Con `?? valorPorDefecto` un
+        // guardado que no incluyera complianceConfig lo ponía en null: ahora que
+        // el gate hace que un Gerente no mande los campos privilegiados, eso
+        // habría borrado la configuración del administrador en cada guardado.
         await db
             .update(workflowTemplates)
             .set({
-                version: data.version ?? 1,
-                active: data.activo ?? true,
-                duracionEstimada: data.duracionEstimada ?? null,
-                tags: data.tags ?? [],
-                aiConfig: data.aiConfig ?? null,
-                complianceConfig: data.complianceConfig ?? null,
-                completionActions: data.completionActions ?? [],
-                cumplimientoNormativo: data.cumplimientoNormativo ?? [],
+                version: data.version ?? template.version,
+                active: data.activo ?? template.active,
+                duracionEstimada: data.duracionEstimada ?? template.duracionEstimada,
+                tags: data.tags ?? template.tags,
+                aiConfig: data.aiConfig ?? template.aiConfig,
+                complianceConfig: data.complianceConfig ?? template.complianceConfig,
+                completionActions: data.completionActions ?? template.completionActions,
+                cumplimientoNormativo: data.cumplimientoNormativo ?? template.cumplimientoNormativo,
                 updatedAt: new Date(),
             })
             .where(eq(workflowTemplates.id, templateId));
@@ -305,7 +378,10 @@ function templateRequiresAI(template?: { steps?: unknown; aiConfig?: unknown } |
     if (template?.aiConfig != null) return true;
     const steps = template?.steps;
     if (!Array.isArray(steps)) return false;
-    return steps.some((step: any) => step?.aiVerification?.enabled === true);
+    return steps.some(
+        (step: { aiVerification?: { enabled?: boolean } } | null) =>
+            step?.aiVerification?.enabled === true
+    );
 }
 
 function getDayNumber(day: string): number {

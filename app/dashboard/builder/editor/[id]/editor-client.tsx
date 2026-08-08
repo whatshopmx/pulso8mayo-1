@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 // Wrapper component to access context
-function EditorHeader({ id, initialTitle, initialSettings }: { id: string, initialTitle?: string, initialSettings?: any }) {
+function EditorHeader({ id, initialTitle, initialSettings, canEditPrivileged }: { id: string, initialTitle?: string, initialSettings?: any, canEditPrivileged: boolean }) {
     const { steps, undo, redo, canUndo, canRedo } = useBuilder();
     const [title, setTitle] = useState(initialTitle || "Flujo sin título");
     const [isSaving, setIsSaving] = useState(false);
@@ -228,6 +228,7 @@ function EditorHeader({ id, initialTitle, initialSettings }: { id: string, initi
                 onClose={() => setShowSettings(false)}
                 templateId={id}
                 initialSettings={initialSettings}
+                canEditPrivileged={canEditPrivileged}
             />
 
             <WorkflowPreviewModal
@@ -245,13 +246,15 @@ interface EditorClientProps {
     initialSteps: WorkflowStep[];
     title?: string;
     initialSettings?: any;
+    /** ADMIN+ (AD-3). Debajo de eso el servidor rechaza los campos privilegiados. */
+    canEditPrivileged: boolean;
 }
 
-export default function EditorClient({ id, initialSteps, title, initialSettings }: EditorClientProps) {
+export default function EditorClient({ id, initialSteps, title, initialSettings, canEditPrivileged }: EditorClientProps) {
     return (
         <BuilderProvider initialSteps={initialSteps}>
             <div className="flex h-[calc(100vh-4rem)] flex-col">
-                <EditorHeader id={id} initialTitle={title} initialSettings={initialSettings} />
+                <EditorHeader id={id} initialTitle={title} initialSettings={initialSettings} canEditPrivileged={canEditPrivileged} />
                 <div className="flex flex-1 overflow-hidden">
                     <Toolbox />
                     <Canvas />
