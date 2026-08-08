@@ -123,6 +123,10 @@ export const workflowTemplates = pgTable("workflow_templates", {
   complianceConfig: jsonb("compliance_config"),
   completionActions: jsonb("completion_actions").default(sql`'[]'::jsonb`),
 
+  // Normas que declara cumplir la plantilla (ej. ["NOM-251", "NOM-035"]).
+  // No es derivable de complianceConfig, que solo guarda una norma principal.
+  cumplimientoNormativo: jsonb("cumplimiento_normativo").default(sql`'[]'::jsonb`),
+
   // Reminder configuration - intervals in minutes before due date
   // Default: [1440, 60, 30] = 24h, 1h, 30min
   reminderIntervals: jsonb("reminder_intervals").default(sql`'[1440, 60, 30]'::jsonb`),
@@ -141,9 +145,16 @@ export const workflowSchedules = pgTable("workflow_schedules", {
     assignedRole: roleEnum("assigned_role"), // 'GERENTE', 'SUPERVISOR', 'EMPLEADO'
     assignedUserId: text("assigned_user_id"), // Specific user ID
 
+    // Configuración real del editor: el usuario elige varios roles y turnos.
+    // Las columnas escalares de arriba se conservan y siguen recibiendo el
+    // primer elemento porque el motor de ejecución y el cron las leen (AD-7).
+    assignedRoles: jsonb("assigned_roles").default(sql`'[]'::jsonb`),
+    assignedShifts: jsonb("assigned_shifts").default(sql`'[]'::jsonb`),
+
     // Scheduling Configuration
     frequency: scheduleFrequencyEnum("frequency").notNull(),
     dayOfWeek: integer("day_of_week"), // 0-6 (Sunday-Saturday) for WEEKLY
+    daysOfWeek: jsonb("days_of_week").default(sql`'[]'::jsonb`), // ["monday", ...] — ídem AD-7
     dayOfMonth: integer("day_of_month"), // 1-31 for MONTHLY
     timeOfDay: text("time_of_day"), // HH:MM format (e.g., "08:00")
 

@@ -267,6 +267,13 @@
       "when": 1786111597033,
       "tag": "0037_lush_malice",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786150938231,
+      "tag": "0038_builder-settings-arrays",
+      "breakpoints": true
     }
   ]
 }
