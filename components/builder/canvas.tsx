@@ -2,14 +2,9 @@
 "use client";
 
 import React from 'react';
-import { useBuilder, WorkflowStep } from './builder-context';
+import { useBuilder } from './builder-context';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { Card, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
-import { GripVertical } from 'lucide-react';
-import { STEP_TYPE_DISPLAY } from '@/lib/workflow-type-map';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 import { SortableStep } from './sortable-step';
 

@@ -28,13 +28,6 @@ interface WorkflowPreviewModalProps {
  title: string;
 }
 
-interface WorkflowPreviewModalProps {
- open: boolean;
- onClose: () => void;
- steps: BuilderWorkflowStep[];
- title: string;
-}
-
 function StepField({ step, value, onChange, evidenceUrl, onEvidenceChange, checkboxValues, onCheckboxChange }: {
  step: BuilderWorkflowStep;
  value: string;
