@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm';
 import { WorkflowScheduleService } from '@/lib/services/workflow-schedule-service';
 import { WorkflowTriggerService } from '@/lib/services/workflow-trigger-service';
 import { roleIsAtLeast } from '@/lib/permissions';
+import { checkScheduleFrequency } from '@/lib/compliance/frequency-requirements';
 import { z } from 'zod';
 
 const scheduleSchema = z.object({
@@ -275,6 +276,26 @@ export async function POST(
             return NextResponse.json({ error: denied }, { status: 403 });
         }
 
+        // D1: la programación se compara contra el mínimo de la norma. La norma
+        // efectiva es la que trae este guardado; si no manda complianceConfig
+        // (un gerente, por el gate), se usa la que ya tiene la plantilla.
+        const storedCompliance = template.complianceConfig as { complianceType?: string } | null;
+        const complianceType = data.complianceConfig?.complianceType ?? storedCompliance?.complianceType;
+        const frequencyCheck = checkScheduleFrequency(
+            complianceType,
+            data.frequency,
+            process.env.COMPLIANCE_FREQ_ENFORCE === 'false'
+        );
+
+        if (frequencyCheck.blocking) {
+            // 422 y no se escribe nada: rechazar a medias dejaría la plantilla
+            // con la programación nueva y la norma vieja.
+            return NextResponse.json(
+                { error: frequencyCheck.warnings[0], warnings: frequencyCheck.warnings },
+                { status: 422 }
+            );
+        }
+
         // 1. Update workflowTemplates row with metadata.
         //
         // Un campo ausente conserva lo que había. Con `?? valorPorDefecto` un
@@ -355,7 +376,7 @@ export async function POST(
             );
         }
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, warnings: frequencyCheck.warnings });
 
     } catch (error: any) {
         console.error('[API] Error saving schedule settings:', error);

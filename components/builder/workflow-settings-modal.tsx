@@ -372,12 +372,22 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                 })
             });
 
-            if (!response.ok) throw new Error('Failed to save settings');
+            const payload = await response.json().catch(() => null);
+
+            // El servidor manda mensajes accionables (403 por rol, 422 por
+            // frecuencia normativa). Tragárselos y mostrar un genérico deja al
+            // usuario sin saber qué campo tocar.
+            if (!response.ok) {
+                throw new Error(payload?.error || 'No se pudo guardar la configuración');
+            }
 
             toast.success('Configuración guardada correctamente');
+            for (const warning of (payload?.warnings ?? []) as string[]) {
+                toast.warning(warning, { duration: 10000 });
+            }
             onClose();
         } catch (error) {
-            toast.error('Error al guardar la configuración');
+            toast.error(error instanceof Error ? error.message : 'Error al guardar la configuración');
             console.error(error);
         } finally {
             setSaving(false);
