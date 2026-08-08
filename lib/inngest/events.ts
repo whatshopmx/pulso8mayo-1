@@ -38,6 +38,14 @@ export const incidentEscalationRequested = eventType("incident/escalation.reques
 
 export const workflowExecutionTimeout = eventType("workflow/execution.timeout", {});
 
+// ── WhatsApp Webhook (durable processing) ──
+
+export const whatsappMessageReceived = eventType("whatsapp/message.received", {});
+
+// ── Notification Dispatch (durable queue) ──
+
+export const notificationDispatchRequested = eventType("notification/dispatch.requested", {});
+
 // ── Operational Twin Events ──
 
 export const domainEventEmitted = eventType("domain/event.emitted", {});
@@ -51,6 +59,7 @@ export const executiveTwinRecalculate = eventType("executive/twin.recalculate", 
 export const executiveTwinUpdated = eventType("executive/twin.updated", {});
 
 // Brief generation
+export const morningBriefGenerate = eventType("executive/brief.generate", {});
 export const morningBriefGenerated = eventType("executive/brief.generated", {});
 
 // Risk & opportunity

@@ -72,8 +72,13 @@ export interface RecommendedPayment {
 }
 
 export interface FinanceEngineOutput extends EngineOutput {
-  foodCostPercent: number;
-  laborCostPercent: number;
+  /**
+   * `null` cuando el KPI no es calculable en el período (sin movimientos de
+   * inventario / sin contratos vigentes). No se sustituye por 0: un food cost
+   * de 0% se lee como "no gastamos en insumos".
+   */
+  foodCostPercent: number | null;
+  laborCostPercent: number | null;
   revenueCents: number;
   cogsCents: number;
   shrinkagePercent: number;
@@ -141,8 +146,9 @@ export const FinanceEngine: IntelligenceEngine<
         priorities: [],
         risks: [],
         generatedAt,
-        foodCostPercent: 0,
-        laborCostPercent: 0,
+        // Sin sucursales visibles no hay KPI que reportar: `null`, no 0%.
+        foodCostPercent: null,
+        laborCostPercent: null,
         revenueCents: 0,
         cogsCents: 0,
         shrinkagePercent: 0,
@@ -221,12 +227,21 @@ export const FinanceEngine: IntelligenceEngine<
     const forecastRecipes = forecastAll.length;
     const forecastWithData = forecastAll.filter((f) => f.daysOfData >= 30).length;
 
+    // Los KPIs ahora pueden no ser calculables (sin inventario, sin contratos):
+    // `percent` llega en `null` y no se puede castigar ni premiar un score con
+    // un dato que no existe. Se trata como "en objetivo" para no inventar una
+    // penalización, y `confidence` más abajo absorbe la incertidumbre.
+    const foodPct = kpis.foodCost.percent;
+    const laborPct = kpis.laborCost.percent;
+
     // Score: financial health = inverse of liquidity risk weighted by cost
     // discipline (food+labor cost within margin) and fill rate.
+    // Los umbrales salen del tenant, no de un 30/28 fijo: un grupo con otra
+    // estructura de costo no debe puntuar mal por operar a su propio objetivo.
     const costDiscipline = CLAMP(
       100 -
-        Math.max(0, kpis.foodCostPercent - 30) * 3 -
-        Math.max(0, kpis.laborCostPercent - 28) * 3,
+        Math.max(0, (foodPct ?? kpis.targets.foodCostTargetPercent) - kpis.targets.foodCostTargetPercent) * 3 -
+        Math.max(0, (laborPct ?? kpis.targets.laborCostTargetPercent) - kpis.targets.laborCostTargetPercent) * 3,
     );
     const fillScore = CLAMP(cons.fillRate);
     const score = CLAMP(
@@ -244,9 +259,13 @@ export const FinanceEngine: IntelligenceEngine<
       `Cash proyectado a 14 días: ${(projectedCashFlowCents / 100).toFixed(2)} MXN ` +
         `con ${(upcomingObligationsCents / 100).toFixed(2)} MXN de obligaciones próximas.`,
     );
+    // Un KPI sin datos se nombra como tal. Reportar "Food Cost 0.0% (OK)" por
+    // no tener movimientos de inventario es peor que no reportarlo.
+    const pctLabel = (metric: { percent: number | null; status: string | null }) =>
+      metric.percent === null ? "sin datos" : `${metric.percent.toFixed(1)}% (${metric.status})`;
+
     insights.push(
-      `Food Cost ${kpis.foodCostPercent.toFixed(1)}% (${kpis.foodCostStatus}), ` +
-        `Labor Cost ${kpis.laborCostPercent.toFixed(1)}% (${kpis.laborCostStatus}).`,
+      `Food Cost ${pctLabel(kpis.foodCost)}, Labor Cost ${pctLabel(kpis.laborCost)}.`,
     );
     if (liquidityRisk > 60) {
       insights.push(
@@ -274,11 +293,13 @@ export const FinanceEngine: IntelligenceEngine<
         impact: "CRITICAL",
       });
     }
-    if (kpis.foodCostStatus === "CRITICAL" || kpis.laborCostStatus === "CRITICAL") {
+    if (kpis.foodCost.status === "CRITICAL" || kpis.laborCost.status === "CRITICAL") {
       priorities.push({
         id: "finance-cost-discipline",
         title: "Corregir costos fuera de umbral",
-        description: `Food Cost ${kpis.foodCostPercent.toFixed(1)}% (${kpis.foodCostStatus}), Labor ${kpis.laborCostPercent.toFixed(1)}% (${kpis.laborCostStatus}).`,
+        description:
+          `Food Cost ${pctLabel(kpis.foodCost)}, Labor ${pctLabel(kpis.laborCost)}. ` +
+          `Objetivo del grupo: ${kpis.targets.foodCostTargetPercent}% / ${kpis.targets.laborCostTargetPercent}%.`,
         impact: "HIGH",
       });
     }
@@ -321,8 +342,8 @@ export const FinanceEngine: IntelligenceEngine<
       priorities,
       risks,
       generatedAt,
-      foodCostPercent: kpis.foodCostPercent,
-      laborCostPercent: kpis.laborCostPercent,
+      foodCostPercent: foodPct,
+      laborCostPercent: laborPct,
       revenueCents: cons.revenueCents,
       cogsCents: cons.cogsCents,
       shrinkagePercent: cons.shrinkagePercent,

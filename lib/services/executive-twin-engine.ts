@@ -34,6 +34,7 @@ import {
   type CashFlowProjection,
   type OutflowItem,
 } from "./cash-flow-service";
+import { PlaybookService } from "./playbook-service";
 import { inngest } from "@/lib/inngest/client";
 import { branchVisibilityFilter } from "@/lib/rbac/branch-visibility";
 import type { AccessContext } from "@/lib/rbac/abac";
@@ -401,7 +402,11 @@ export const ExecutiveTwinEngine = {
         5,
     );
 
-    const playbookCount = 0; // Sprint 3 (manual playbook CRUD)
+    // Playbooks corporativos activos. Se calcula AQUÍ y no en un reconcile
+    // externo: `recalculate()` reescribe `corporate_twins.playbook_count` cada
+    // 15 minutos, así que cualquier backfill hecho fuera del engine se perdería
+    // en el siguiente ciclo del cron.
+    const playbookCount = await PlaybookService.countCompanyPlaybooks(companyId);
 
     const state: ExecutiveState = {
       cashFlowProjection: cash.days.map(toCashFlowDay),

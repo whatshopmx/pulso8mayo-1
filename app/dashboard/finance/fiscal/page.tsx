@@ -149,9 +149,12 @@ export default function FiscalPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* `htmlFor`/`id` en los cuatro: dos de los seis campos ya lo tenían y
+                    cuatro no, dentro de la misma tarjeta. */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs">RFC del Empleado</Label>
+                  <Label htmlFor="nomina-rfc" className="text-xs">RFC del Empleado</Label>
                   <Input
+                    id="nomina-rfc"
                     className="h-8 text-xs"
                     disabled={isLocked}
                     placeholder="Ej: XAXX010101000"
@@ -161,8 +164,9 @@ export default function FiscalPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Nombre del Empleado</Label>
+                  <Label htmlFor="nomina-nombre" className="text-xs">Nombre del Empleado</Label>
                   <Input
+                    id="nomina-nombre"
                     className="h-8 text-xs"
                     disabled={isLocked}
                     placeholder="Nombre completo"
@@ -171,8 +175,9 @@ export default function FiscalPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">CURP (opcional)</Label>
+                  <Label htmlFor="nomina-curp" className="text-xs">CURP (opcional)</Label>
                   <Input
+                    id="nomina-curp"
                     className="h-8 text-xs"
                     disabled={isLocked}
                     placeholder="CURP"
@@ -182,14 +187,21 @@ export default function FiscalPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Período</Label>
+                  <Label htmlFor="nomina-periodo" className="text-xs">Período</Label>
                   <Input
+                    id="nomina-periodo"
                     className="h-8 text-xs"
                     disabled={isLocked}
-                    placeholder="2025-01"
+                    placeholder="Ej: 2026-08-Q1"
                     value={nominaForm.periodo}
                     onChange={(e) => handleNominaChange("periodo", e.target.value)}
+                    aria-describedby="nomina-periodo-help"
                   />
+                  {/* La nómina en México corre por quincenas; un campo libre con
+                      ejemplo mensual invitaba a capturar el período equivocado. */}
+                  <p id="nomina-periodo-help" className="text-xs text-muted-foreground">
+                    Quincena que se está pagando (Q1 = 1–15, Q2 = 16–fin de mes).
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="total-percepciones" className="text-xs">Total Percepciones ($ MXN)</Label>
@@ -267,7 +279,7 @@ export default function FiscalPage() {
                     </div>
                     <div>
                       <span className="text-muted-foreground">Cadena Original: </span>
-                      <span className="font-mono text-[10px] break-all">{timbradoResult.cadenaOriginal || "—"}</span>
+                      <span className="font-mono text-xs break-all">{timbradoResult.cadenaOriginal || "—"}</span>
                     </div>
                   </div>
                 </div>

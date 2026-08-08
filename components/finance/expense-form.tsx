@@ -239,7 +239,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
                 </Button>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Foto del comprobante (hielo, ferretería, taxi, plomero) que sustituye la libreta.
             </p>
           </div>

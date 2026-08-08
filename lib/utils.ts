@@ -32,7 +32,9 @@ export function statusBadgeClasses(
 ): string {
   const map: Record<string, string> = {
     success: "bg-success/10 text-success border-success/20",
-    warning: "bg-warning/10 text-warning border-warning/20",
+    // `text-warning-text`, no `text-warning`: el ámbar de relleno sobre un tinte
+    // al 10% no alcanza AA. Ver `--warning-text` en globals.css.
+    warning: "bg-warning/10 text-warning-text border-warning/25",
     destructive: "bg-destructive/10 text-destructive border-destructive/20",
     info: "bg-info/10 text-info border-info/20",
     neutral: "bg-muted text-muted-foreground border-muted",

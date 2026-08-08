@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { statusBadgeClasses } from "@/lib/utils";
 import { Search, FileCheck, AlertCircle, Loader2, XCircle } from "lucide-react";
 
 interface ValidationResult {
@@ -20,23 +21,24 @@ interface ValidationResult {
   fechaCertificacion: string;
 }
 
+const EMPTY_FORM = {
+  emisorRfc: "",
+  receptorRfc: "",
+  uuid: "",
+  // Pesos como texto crudo para que el input sea controlado y se limpie con el
+  // resto del formulario; se convierte a centavos al enviar.
+  total: "",
+  fechaEmision: "",
+};
+
 export function FiscalInvoiceValidator() {
-  const [form, setForm] = useState({
-    emisorRfc: "",
-    receptorRfc: "",
-    uuid: "",
-    totalCents: 0,
-    fechaEmision: "",
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleChange = (field: string, value: string) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: field === "totalCents" ? Math.round(parseFloat(value || "0") * 100) : value,
-    }));
+  const handleChange = (field: keyof typeof EMPTY_FORM, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
     setResult(null);
     setError(null);
   };
@@ -46,10 +48,17 @@ export function FiscalInvoiceValidator() {
     setError(null);
     setResult(null);
     try {
+      const parsedTotal = parseFloat(form.total);
       const res = await fetch("/api/finance/fiscal/validate-invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          emisorRfc: form.emisorRfc,
+          receptorRfc: form.receptorRfc,
+          uuid: form.uuid,
+          fechaEmision: form.fechaEmision,
+          totalCents: Number.isFinite(parsedTotal) ? Math.round(parsedTotal * 100) : 0,
+        }),
       });
       const json = await res.json();
       if (res.ok && json.success) {
@@ -65,12 +74,14 @@ export function FiscalInvoiceValidator() {
     }
   };
 
+  // Tonos del sistema: la paleta cruda no tenía variante oscura y el estatus de
+  // un CFDI se volvía ilegible en `.dark`.
   const statusBadge = result
     ? result.status === "VIGENTE"
-      ? <Badge className="bg-emerald-100 text-emerald-700 gap-1"><FileCheck className="w-3 h-3" /> Vigente</Badge>
+      ? <Badge variant="outline" className={`gap-1 ${statusBadgeClasses("success")}`}><FileCheck className="w-3 h-3" /> Vigente</Badge>
       : result.status === "CANCELADO"
-      ? <Badge className="bg-red-100 text-red-700 gap-1"><XCircle className="w-3 h-3" /> Cancelado</Badge>
-      : <Badge className="bg-amber-100 text-amber-700 gap-1"><AlertCircle className="w-3 h-3" /> {result.status}</Badge>
+      ? <Badge variant="outline" className={`gap-1 ${statusBadgeClasses("destructive")}`}><XCircle className="w-3 h-3" /> Cancelado</Badge>
+      : <Badge variant="outline" className={`gap-1 ${statusBadgeClasses("warning")}`}><AlertCircle className="w-3 h-3" /> {result.status}</Badge>
     : null;
 
   return (
@@ -85,10 +96,14 @@ export function FiscalInvoiceValidator() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Cada `Label` va atada a su `Input` por `htmlFor`/`id`: sin eso, tocar la
+            etiqueta no enfoca el campo y el lector de pantalla anuncia "edición"
+            a secas. */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">RFC Emisor</Label>
+            <Label htmlFor="cfdi-emisor-rfc" className="text-xs">RFC Emisor</Label>
             <Input
+              id="cfdi-emisor-rfc"
               className="h-8 text-xs"
               placeholder="Ej: ABC123456789"
               value={form.emisorRfc}
@@ -97,8 +112,9 @@ export function FiscalInvoiceValidator() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">RFC Receptor</Label>
+            <Label htmlFor="cfdi-receptor-rfc" className="text-xs">RFC Receptor</Label>
             <Input
+              id="cfdi-receptor-rfc"
               className="h-8 text-xs"
               placeholder="RFC de tu empresa"
               value={form.receptorRfc}
@@ -107,8 +123,9 @@ export function FiscalInvoiceValidator() {
             />
           </div>
           <div className="space-y-1.5 md:col-span-2">
-            <Label className="text-xs">UUID de la Factura</Label>
+            <Label htmlFor="cfdi-uuid" className="text-xs">UUID de la Factura</Label>
             <Input
+              id="cfdi-uuid"
               className="h-8 text-xs font-mono"
               placeholder="00000000-0000-0000-0000-000000000000"
               value={form.uuid}
@@ -117,19 +134,25 @@ export function FiscalInvoiceValidator() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Total ($ MXN)</Label>
+            <Label htmlFor="cfdi-total" className="text-xs">Total ($ MXN)</Label>
+            {/* Faltaba `value`: era el único campo no controlado de los cinco, así
+                que sobrevivía a la limpieza del formulario y se enviaba con la
+                consulta siguiente. */}
             <Input
+              id="cfdi-total"
               className="h-8 text-xs"
               type="number"
               step="0.01"
               min="0"
               placeholder="0.00"
-              onChange={(e) => handleChange("totalCents", e.target.value)}
+              value={form.total}
+              onChange={(e) => handleChange("total", e.target.value)}
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Fecha de Emisión</Label>
+            <Label htmlFor="cfdi-fecha" className="text-xs">Fecha de Emisión</Label>
             <Input
+              id="cfdi-fecha"
               className="h-8 text-xs"
               type="date"
               value={form.fechaEmision}

@@ -32,7 +32,9 @@ export type NotificationEventType =
   | "imss_deadline"
   | "sales_cut_reminder"
   | "sales_cut_missing"
-  | "financial_kpi_deviation";
+  | "financial_kpi_deviation"
+  | "cash_variance_detected"
+  | "morning_brief";
 
 export interface UserData {
     id: string;
@@ -304,6 +306,42 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
     inAppTitle: "Desviación de KPI Financiero",
     inAppMessage: "Food Cost {foodCostPercent}% / Labor Cost {laborCostPercent}%",
     variables: ["foodCostPercent", "laborCostPercent", "totalSales"]
+  },
+  "cash_variance_detected": {
+    id: "cash_variance_detected",
+    name: "Diferencia en Arqueo de Caja",
+    eventType: "cash_variance_detected",
+    channels: ["whatsapp", "in-app"],
+    whatsappTemplate:
+      "💵 *Diferencia en Arqueo*\n\n{branchName} · corte del {businessDate} ({shift})\n\n" +
+      "Efectivo declarado: ${declaredAmount} MXN\nEfectivo contado: ${countedAmount} MXN\n" +
+      "*{direction} de ${varianceAmount} MXN* ({variancePercent}%)\n\n" +
+      "Revisa el corte y documenta la causa.",
+    inAppTitle: "Diferencia en arqueo de caja",
+    inAppMessage: "{branchName} ({businessDate}): {direction} de ${varianceAmount} MXN",
+    variables: [
+      "branchName",
+      "businessDate",
+      "shift",
+      "declaredAmount",
+      "countedAmount",
+      "varianceAmount",
+      "variancePercent",
+      "direction",
+    ]
+  },
+  "morning_brief": {
+    id: "morning_brief",
+    name: "Morning Brief del Grupo",
+    eventType: "morning_brief",
+    // Sin canal email: `sendEmailNotification` despacha por un switch de
+    // eventType y no hay plantilla de correo para el brief. Declararlo aquí
+    // solo produciría un envío silenciosamente vacío.
+    channels: ["whatsapp", "in-app"],
+    whatsappTemplate: "☀️ *Morning Brief* — {briefDate}\n\n{headline}\n\n{prioritiesText}",
+    inAppTitle: "Morning Brief del grupo",
+    inAppMessage: "{headline}",
+    variables: ["briefDate", "headline", "prioritiesText"]
   }
 };
 

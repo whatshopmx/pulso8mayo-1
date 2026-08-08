@@ -383,7 +383,7 @@ export function PnlBranchTable() {
             </div>
 
             {/* Notas al pie: la parte que hace que este P&L sea seguro de mostrar. */}
-            <div className="space-y-1 pt-1 text-[11px] leading-relaxed text-muted-foreground">
+            <div className="space-y-1 pt-1 text-xs leading-relaxed text-muted-foreground">
               {footnotes.map((note) => (
                 <p key={note}>{note}</p>
               ))}

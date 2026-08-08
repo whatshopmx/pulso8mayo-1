@@ -60,6 +60,11 @@ test.describe("Fase 1 · gasto con evidencia", () => {
     expect(gasto).not.toBeNull();
     expect(gasto.amount_cents).toBe(35_050);
     expect(gasto.evidence_url).toBeTruthy();
-    expect(String(gasto.evidence_url)).toMatch(/^https?:\/\//);
+    // El esquema depende del almacenamiento: `https://` con R2 configurado y
+    // `local://` con el fallback de desarrollo, que existe justamente para que
+    // la API siga funcionando sin credenciales (`app/api/expenses/evidence/route.ts:45`).
+    // Lo que este spec comprueba es que la referencia quedó persistida, no el
+    // proveedor de archivos.
+    expect(String(gasto.evidence_url)).toMatch(/^(https?|local):\/\/.+/);
   });
 });

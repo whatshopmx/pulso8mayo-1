@@ -18,8 +18,10 @@ const badgeVariants = cva(
           "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         link: "text-primary underline-offset-4 [a&]:hover:underline",
+        // Tokens, no paleta cruda de Tailwind: `bg-amber-100` no tiene variante
+        // oscura, así que en `.dark` la insignia salía como una losa casi blanca.
         warning:
-          "bg-amber-100 text-amber-800 [a&]:hover:bg-amber-200",
+          "bg-warning/15 text-warning-text [a&]:hover:bg-warning/25",
         success:
           "bg-success text-success-foreground [a&]:hover:bg-success/90",
       },

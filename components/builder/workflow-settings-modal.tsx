@@ -24,6 +24,7 @@ import {
     getDefaultActionFields,
     type ActionGroup,
 } from '@/lib/workflow-actions';
+import { PlaybookScopeSection } from './playbook-scope-section';
 
 interface WorkflowSettingsModalProps {
     open: boolean;
@@ -748,6 +749,11 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                                 )}
                             </div>
                         </div>
+
+                        {/* Alcance del playbook corporativo — guarda por su
+                            cuenta contra /api/playbooks/[id], no con el botón
+                            "Guardar Configuración" de abajo. */}
+                        <PlaybookScopeSection templateId={templateId} />
 
                         {/* Scheduling Section */}
                         <div className="space-y-4 border-t pt-4">

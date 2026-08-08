@@ -3,6 +3,7 @@ import { workflowInstances, workflowInstanceSteps, workflowTemplates, users, com
 import { WorkflowStep } from "@/lib/types/workflow";
 import { eq, and, sql } from "drizzle-orm";
 import { STOCK_COUNT_TEMPLATE_NAME, DEFAULT_CATEGORIES } from "./stock-count-service";
+import { hasDynamicSteps, resolveDynamicSteps } from "@/lib/workflows/dynamic-steps";
 import { templateLibrary } from "@/templates";
 
 export class WorkflowExecutionService {
@@ -29,31 +30,42 @@ export class WorkflowExecutionService {
             steps = StockCountService.generateStockCountSteps(templateSteps, products, category);
         }
 
-        return await db.transaction(async (tx) => {
-            // 2. Create Instance
-            const [instance] = await tx.insert(workflowInstances).values({
-                workflowTemplateId: template.id,
-                branchId: branchId,
-                assigneeId: assigneeId,
-                sessionId: sessionId,
-                status: 'PENDING',
-                currentStepId: steps.length > 0 ? steps[0].id : null,
-                score: 0,
-                data: template.name === STOCK_COUNT_TEMPLATE_NAME ? { 
-                    category: categoryValue || DEFAULT_CATEGORIES[0].value,
-                    productCount: steps.filter(s => s.id.startsWith("count-")).length,
-                    ...(() => {
-                        const st = templateLibrary['conteo-inventario-v1'];
-                        return {
-                            ...(st?.aiConfig ? { aiConfig: st.aiConfig } : {}),
-                            ...(st?.complianceConfig ? { complianceConfig: st.complianceConfig } : {}),
-                            ...(st?.completionActions ? { completionActions: st.completionActions } : {}),
-                        };
-                    })(),
-                } : undefined
-            }).returning();
+        // 2b. Expandir pasos dinámicos genéricos (metadata.dynamicSource).
+        // Aditivo: no-op para el conteo de inventario, cuyos pasos ya vienen
+        // resueltos por la rama de arriba y no declaran dynamicSource.
+        if (hasDynamicSteps(steps)) {
+            const cid = companyId
+                || template.companyId
+                || (await db.query.users.findFirst({ where: eq(users.id, assigneeId || "") }))?.companyId
+                || "";
+            steps = await resolveDynamicSteps(steps, { companyId: cid, branchId });
+        }
 
-            // 3. Create Steps
+        const instanceValues = {
+            workflowTemplateId: template.id,
+            branchId: branchId,
+            assigneeId: assigneeId,
+            sessionId: sessionId,
+            status: 'PENDING',
+            currentStepId: steps.length > 0 ? steps[0].id : null,
+            score: 0,
+            data: template.name === STOCK_COUNT_TEMPLATE_NAME ? {
+                category: categoryValue || DEFAULT_CATEGORIES[0].value,
+                productCount: steps.filter(s => s.id.startsWith("count-")).length,
+                ...(() => {
+                    const st = templateLibrary['conteo-inventario-v1'];
+                    return {
+                        ...(st?.aiConfig ? { aiConfig: st.aiConfig } : {}),
+                        ...(st?.complianceConfig ? { complianceConfig: st.complianceConfig } : {}),
+                        ...(st?.completionActions ? { completionActions: st.completionActions } : {}),
+                    };
+                })(),
+            } : undefined
+        };
+
+        return await db.transaction(async (tx) => {
+            const [instance] = await tx.insert(workflowInstances).values(instanceValues).returning();
+
             if (steps.length > 0) {
                 await tx.insert(workflowInstanceSteps).values(
                     steps.map(step => {
@@ -457,6 +469,13 @@ export class WorkflowExecutionService {
                         // Fire-and-forget: no bloquea la respuesta al cajero.
                         void extractReceivingFromInstance(instanceId);
                     }
+
+                    // Conteo: saca los pasos `count-{itemId}` a `stock_counts`.
+                    // Cubre los templates con pasos dinámicos genéricos, que se
+                    // completan por esta vía y no por `completeStockCount`.
+                    // El extractor se auto-descarta si no hay pasos de conteo.
+                    const { extractStockCountFromInstance } = await import("./stock-count-from-workflow");
+                    void extractStockCountFromInstance(instanceId);
                 } catch (error) {
                     console.error("[WorkflowExecution] Error scheduling receiving extraction:", error);
                 }

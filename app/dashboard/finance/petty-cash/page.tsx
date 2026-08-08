@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PettyCashHistoryTable, PettyCashTransactionItem } from "@/components/finance/petty-cash-history-table";
 import { PettyCashRegister } from "@/components/finance/petty-cash-register";
 import { useBranches } from "@/hooks/use-branches";
-import { formatCents } from "@/lib/utils";
+import { useBranch } from "@/lib/branch-context";
+import { formatCents, statusBadgeClasses } from "@/lib/utils";
 import {
   Wallet,
   AlertTriangle,
@@ -21,6 +21,15 @@ import {
   RefreshCw,
 } from "lucide-react";
 
+/** Estado de una sucursal dentro de la vista consolidada. */
+interface BranchFundRow {
+  branchId: string;
+  branchName: string;
+  currentBalance: number;
+  lowThreshold: number;
+  belowThreshold: boolean;
+}
+
 interface PettyFund {
   branchId?: string;
   branchName?: string;
@@ -30,9 +39,13 @@ interface PettyFund {
   /**
    * Solo en vista consolidada. El umbral NO es aditivo: sumarlo permitiría que
    * la cadena luzca sana mientras una sucursal está en cero, así que se reporta
-   * cuántas sucursales están bajo su propio umbral.
+   * cuántas sucursales están bajo su propio umbral — y cuáles.
    */
-  consolidated?: { branchesBelowThreshold: number; branchesWithFund: number };
+  consolidated?: {
+    branchesBelowThreshold: number;
+    branchesWithFund: number;
+    rows: BranchFundRow[];
+  };
 }
 
 export default function PettyCashPage() {
@@ -42,11 +55,16 @@ export default function PettyCashPage() {
     error: branchesError,
     refetch: refetchBranches,
   } = useBranches();
-  const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
+  // Scope único: el selector del header (`BranchScopeControl`) es la fuente de
+  // verdad. `null` = todas las sucursales.
+  const { selectedBranchId } = useBranch();
+  const selectedBranch = selectedBranchId ?? "ALL";
   const [fund, setFund] = useState<PettyFund | null>(null);
   const [transactions, setTransactions] = useState<PettyCashTransactionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [fundError, setFundError] = useState<string | null>(null);
+  /** Sucursales cuyo fondo no respondió: excluirlas en silencio subestimaría el total. */
+  const [unreachableBranches, setUnreachableBranches] = useState<string[]>([]);
 
   // El fallo al cargar sucursales tiene prioridad: sin ellas no hay fondo que pedir.
   const error = branchesError ?? fundError;
@@ -88,6 +106,10 @@ export default function PettyCashPage() {
       const fundsFound = results.filter((r) => r.fund);
       const allTx = results.flatMap((r) => r.tx);
 
+      // Un fondo que no respondió sale de la suma; callarlo presentaría un saldo
+      // de cadena subestimado como si fuera autoritativo.
+      setUnreachableBranches(results.filter((r) => !r.fund).map((r) => r.branchName));
+
       if (fundsFound.length === 0) {
         setFund(null);
         setTransactions([]);
@@ -96,16 +118,30 @@ export default function PettyCashPage() {
 
       if (selectedBranch === "ALL" && fundsFound.length > 1) {
         // Aggregated consolidated view for the chain owner
+        const rows: BranchFundRow[] = fundsFound
+          .map((r) => ({
+            branchId: r.branchId,
+            branchName: r.branchName,
+            currentBalance: r.fund!.currentBalance,
+            lowThreshold: r.fund!.lowThreshold,
+            belowThreshold: r.fund!.currentBalance <= r.fund!.lowThreshold,
+          }))
+          // Las que necesitan efectivo primero: la pregunta de la página es
+          // "¿a dónde mando dinero?", no "¿cómo se llaman mis sucursales?".
+          .sort((a, b) => {
+            if (a.belowThreshold !== b.belowThreshold) return a.belowThreshold ? -1 : 1;
+            return a.currentBalance - b.currentBalance;
+          });
+
         setFund({
           branchName: "Vista consolidada",
           currentBalance: fundsFound.reduce((s, r) => s + (r.fund?.currentBalance || 0), 0),
           fundAmount: fundsFound.reduce((s, r) => s + (r.fund?.fundAmount || 0), 0),
           lowThreshold: 0, // no aplica en consolidado; ver `consolidated`
           consolidated: {
-            branchesBelowThreshold: fundsFound.filter(
-              (r) => r.fund!.currentBalance <= r.fund!.lowThreshold
-            ).length,
-            branchesWithFund: fundsFound.length,
+            branchesBelowThreshold: rows.filter((r) => r.belowThreshold).length,
+            branchesWithFund: rows.length,
+            rows,
           },
         });
       } else {
@@ -155,27 +191,16 @@ export default function PettyCashPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="w-56">
-            <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={branchesLoading}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona sucursal" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Vista consolidada (todas)</SelectItem>
-                {branches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {branches.length > 0 && selectedBranch !== "ALL" && (
-            <PettyCashRegister branches={branches} onSuccess={fetchData} />
-          )}
-        </div>
+        {/* El registro ya no se esconde en vista consolidada: la acción por la que
+            una gerente abre esta página no puede depender de que antes acierte con
+            un filtro. La sucursal se elige dentro del diálogo. */}
+        {branches.length > 0 && (
+          <PettyCashRegister
+            branches={branches}
+            defaultBranchId={selectedBranchId}
+            onSuccess={fetchData}
+          />
+        )}
       </div>
 
       {branchesLoading || loading ? (
@@ -266,11 +291,62 @@ export default function PettyCashPage() {
                 </div>
               </div>
 
-              {/* Movements as a demoted secondary line, not its own card */}
+              {/* "3 de 7 bajo umbral" sin decir cuáles obliga a siete consultas
+                  manuales en la página cuyo trabajo es decidir a dónde mandar
+                  efectivo. Aquí van, las que menos tienen primero. */}
+              {consolidated && (
+                <ul className="divide-y rounded-md border">
+                  {consolidated.rows.map((row) => (
+                    <li
+                      key={row.branchId}
+                      className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
+                    >
+                      <span className="font-medium truncate">{row.branchName}</span>
+                      <span className="flex items-center gap-2 shrink-0">
+                        <span className="tabular-nums font-semibold">
+                          {formatCents(row.currentBalance)}
+                        </span>
+                        {row.belowThreshold ? (
+                          <Badge
+                            variant="outline"
+                            className={`gap-1 text-xs ${statusBadgeClasses("destructive")}`}
+                          >
+                            <AlertTriangle className="w-3 h-3" /> Bajo umbral
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className={`gap-1 text-xs ${statusBadgeClasses("success")}`}
+                          >
+                            <CheckCircle2 className="w-3 h-3" /> Suficiente
+                          </Badge>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {unreachableBranches.length > 0 && (
+                <p className="flex items-start gap-2 text-xs text-warning-text">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
+                  El saldo mostrado excluye {unreachableBranches.length}{" "}
+                  {unreachableBranches.length === 1 ? "sucursal que no respondió" : "sucursales que no respondieron"}
+                  {" "}({unreachableBranches.join(", ")}). El total de la cadena es mayor al que ves.
+                </p>
+              )}
+
+              {/* Movements as a demoted secondary line, not its own card.
+                  Se cuenta cuántos traen comprobante en vez de afirmar que todos
+                  lo traen: los movimientos previos al gate pueden no tenerlo. */}
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1 border-t">
                 <ShieldCheck className="w-4 h-4 text-success" />
                 <span className="font-medium text-foreground">{transactions.length}</span>
-                movimientos auditados con firma y comprobante fotográfico.
+                movimientos en la bitácora,{" "}
+                <span className="font-medium text-foreground">
+                  {transactions.filter((t) => t.evidenceUrl).length}
+                </span>{" "}
+                con comprobante fotográfico.
               </div>
             </CardContent>
           </Card>
@@ -293,15 +369,23 @@ export default function PettyCashPage() {
       ) : (
         <EmptyState
           icon={Wallet}
-          title="Sin caja chica en esta sucursal"
+          title={
+            selectedBranch === "ALL"
+              ? "Sin fondos de caja chica en la cadena"
+              : "Sin caja chica en esta sucursal"
+          }
           description={
             selectedBranch === "ALL"
-              ? "Ninguna sucursal tiene un fondo de caja chica registrado. Crea el primero desde una sucursal específica."
-              : "Esta sucursal aún no tiene fondo de caja chica. Registra el primer movimiento para inicializar el fondo."
+              ? "Ninguna sucursal tiene un fondo de caja chica registrado. El primer movimiento inicializa el fondo."
+              : "Esta sucursal aún no tiene fondo de caja chica. Registra el primer movimiento para inicializarlo."
           }
           action={
-            selectedBranch !== "ALL" && branches.length > 0 ? (
-              <PettyCashRegister branches={branches} onSuccess={fetchData} />
+            branches.length > 0 ? (
+              <PettyCashRegister
+                branches={branches}
+                defaultBranchId={selectedBranchId}
+                onSuccess={fetchData}
+              />
             ) : undefined
           }
         />

@@ -21,11 +21,13 @@ import {
 } from "@/components/ui/popover"
 import { useBranch } from "@/lib/branch-context"
 
-type DateRangeKey = "today" | "yesterday" | "last7" | "thisMonth" | "custom"
+type DateRangeKey = "all" | "today" | "yesterday" | "last7" | "thisMonth" | "custom"
 
 function getDateRangeConfig(key: DateRangeKey) {
   const now = new Date()
   switch (key) {
+    case "all":
+      return { startDate: "", endDate: "", label: "Todo el período" }
     case "today":
       return { startDate: format(startOfDay(now), "yyyy-MM-dd"), endDate: format(endOfDay(now), "yyyy-MM-dd"), label: "Hoy" }
     case "yesterday":
@@ -40,7 +42,9 @@ function getDateRangeConfig(key: DateRangeKey) {
 }
 
 function inferDateRangeKey(startDate: string | null): DateRangeKey {
-  if (!startDate) return "today"
+  // Sin `startDate` en la URL no hay filtro aplicado. Devolver "today" hacía que
+  // el control anunciara "Hoy" mientras las páginas mostraban todo el histórico.
+  if (!startDate) return "all"
   const now = new Date()
   const today = format(startOfDay(now), "yyyy-MM-dd")
   const yesterday = format(startOfDay(subDays(now, 1)), "yyyy-MM-dd")
@@ -171,7 +175,7 @@ export function BranchScopeControl() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {(["today", "yesterday", "last7", "thisMonth"] as DateRangeKey[]).map(key => (
+          {(["all", "today", "yesterday", "last7", "thisMonth"] as DateRangeKey[]).map(key => (
             <DropdownMenuItem key={key} onClick={() => handleDateRangeChange(key)}>
               <div className="flex w-full items-center justify-between">
                 <span>{getDateRangeConfig(key).label}</span>

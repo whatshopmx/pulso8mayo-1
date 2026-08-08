@@ -22,6 +22,8 @@ import { db } from "@/lib/db";
 import { tenantOperatingConfig } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { unstable_cache, revalidateTag } from "next/cache";
+import { DEFAULT_FINANCIAL_TARGETS } from "@/lib/services/financial-kpi-types";
+import type { FinancialTargets } from "@/lib/services/financial-kpi-types";
 
 export const TENANT_CONFIG_CACHE_TAG = "tenant-operating-config";
 const CACHE_TTL = 300; // 5 minutes
@@ -49,7 +51,62 @@ export const DEFAULT_TENANT_OPERATING_CONFIG: Omit<TenantOperatingConfigData, "c
     managerAuthLimitCents: 100000,
     doubleApprovalThresholdCents: 1000000,
     pettyCashLimitCents: 500000,
+    // Reproducen los valores que estaban hardcodeados antes de la 0039, para
+    // que ningún tenant existente cambie de lectura.
+    foodCostTargetPercent: "30.00",
+    foodCostWarnPercent: "35.00",
+    laborCostTargetPercent: "28.00",
+    laborCostWarnPercent: "32.00",
+    healthyMarginTargetPercent: "45.00",
+    healthyMarginWarnPercent: "35.00",
 };
+
+/**
+ * Los objetivos financieros llegan de Postgres como `numeric` → string, y un
+ * `null` es posible en filas anteriores a la 0039: ambos casos caen al default
+ * en lugar de propagar `NaN` a un semáforo.
+ *
+ * El tipo vive en `financial-kpi-types` (sin Drizzle) para que la UI pueda
+ * importarlo sin arrastrar la capa de datos al bundle del navegador.
+ */
+export type { FinancialTargets } from "@/lib/services/financial-kpi-types";
+
+function toPercent(raw: string | null | undefined, fallback: number): number {
+    if (raw === null || raw === undefined) return fallback;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/** Lee los objetivos financieros del tenant (cacheados con el resto del config). */
+export async function getFinancialTargets(companyId: string): Promise<FinancialTargets> {
+    const config = await getTenantOperatingConfig(companyId);
+    return {
+        foodCostTargetPercent: toPercent(
+            config.foodCostTargetPercent,
+            DEFAULT_FINANCIAL_TARGETS.foodCostTargetPercent,
+        ),
+        foodCostWarnPercent: toPercent(
+            config.foodCostWarnPercent,
+            DEFAULT_FINANCIAL_TARGETS.foodCostWarnPercent,
+        ),
+        laborCostTargetPercent: toPercent(
+            config.laborCostTargetPercent,
+            DEFAULT_FINANCIAL_TARGETS.laborCostTargetPercent,
+        ),
+        laborCostWarnPercent: toPercent(
+            config.laborCostWarnPercent,
+            DEFAULT_FINANCIAL_TARGETS.laborCostWarnPercent,
+        ),
+        healthyMarginTargetPercent: toPercent(
+            config.healthyMarginTargetPercent,
+            DEFAULT_FINANCIAL_TARGETS.healthyMarginTargetPercent,
+        ),
+        healthyMarginWarnPercent: toPercent(
+            config.healthyMarginWarnPercent,
+            DEFAULT_FINANCIAL_TARGETS.healthyMarginWarnPercent,
+        ),
+    };
+}
 
 async function fetchConfig(companyId: string): Promise<TenantOperatingConfigData> {
     const row = await db.query.tenantOperatingConfig.findFirst({

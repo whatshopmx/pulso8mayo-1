@@ -30,11 +30,14 @@ function StockCountConfirmSummary({ steps, onConfirm, value, blindCount }: { ste
     try {
       const parsed = typeof s.value === 'string' ? JSON.parse(s.value as string) : s.value;
       systemQty = (parsed as any).systemQuantity || 0;
-      physicalQty = (parsed as any).inputValue ? parseInt(String((parsed as any).inputValue), 10) : 0;
+      physicalQty = (parsed as any).inputValue ? parseFloat(String((parsed as any).inputValue)) : 0;
     } catch {
-      physicalQty = parseInt(String(s.value), 10) || 0;
+      physicalQty = parseFloat(String(s.value)) || 0;
     }
-    const variance = physicalQty - systemQty;
+    // parseFloat, no parseInt: el resumen debe mostrar los 2.5 kg que se
+    // guardan, no 2 (cf. StockCountService.completeStockCount).
+    if (!Number.isFinite(physicalQty)) physicalQty = 0;
+    const variance = Math.round((physicalQty - systemQty) * 10000) / 10000;
     const variancePercent = systemQty > 0 ? Math.abs(variance) / systemQty * 100 : (physicalQty > 0 ? 100 : 0);
     const isAlert = variancePercent > 10;
 
@@ -327,8 +330,11 @@ export function WorkflowExecutor({
               } catch {}
               return null;
             })()}
+            {/* step="any": sin él el navegador trata 2.5 como inválido y los
+                spinners saltan de 1 en 1 — no se podrían contar 2.5 kg. */}
             <Input
               type="number"
+              step="any"
               placeholder="0"
               value={stepValue || ''}
               onChange={(e) => setStepData({ ...stepData, [step.id]: e.target.value })}

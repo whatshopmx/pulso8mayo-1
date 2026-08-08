@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { OperatingConfigForm } from "@/components/company/operating-config-form";
+import {
+  OperatingConfigForm,
+  type OperatingConfigValues,
+} from "@/components/company/operating-config-form";
 import { Settings2, Loader2 } from "lucide-react";
 
 export default function OperatingConfigPage() {
-  const [config, setConfig] = useState<any>(null);
+  const [config, setConfig] = useState<OperatingConfigValues | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { NotificationQueue } from "@/lib/notifications/notification-queue";
-import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
-import { auth } from "@/lib/auth";
 
 /**
  * POST /api/notifications/dispatch
@@ -9,9 +7,6 @@ import { auth } from "@/lib/auth";
  */
 export async function POST(req: NextRequest) {
     try {
-        // Verify authentication (optional - some notifications might be system-triggered)
-        const session = await auth.api.getSession({ headers: req.headers });
-        
         const body = await req.json();
         const { userId, title, message, type, eventType, actionUrl, actionLabel, metadata } = body;
 
@@ -53,13 +48,16 @@ export async function POST(req: NextRequest) {
 
 /**
  * GET /api/notifications/dispatch
- * Get dispatch status
+ * Dispatch status — the queue is now handled entirely by Inngest (no local
+ * in-memory state), so this returns a placeholder. Use the Inngest UI/API for
+ * real run observability.
  */
 export async function GET() {
     try {
         const status = await NotificationQueue.getStatus();
         return NextResponse.json({
             status,
+            note: "Queue is now processed by Inngest; no local queue state.",
             timestamp: new Date().toISOString()
         });
     } catch (error) {

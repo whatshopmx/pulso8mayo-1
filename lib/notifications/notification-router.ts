@@ -181,6 +181,27 @@ const routingRules: Record<NotificationEventType, RoutingRule> = {
     retryAttempts: 2,
     retryDelayMs: 3000,
     businessHoursOnly: false
+  },
+  cash_variance_detected: {
+    eventType: "cash_variance_detected",
+    // Un faltante de caja se avisa mientras la caja todavía se puede recontar:
+    // `businessHoursOnly` lo reencolaría al día siguiente, que es justo cuando
+    // ya no sirve. Los cortes ocurren al cierre, fuera de horario de oficina.
+    priority: "critical",
+    channels: ["whatsapp", "in-app"],
+    retryAttempts: 3,
+    retryDelayMs: 3000,
+    businessHoursOnly: false
+  },
+  morning_brief: {
+    eventType: "morning_brief",
+    priority: "normal",
+    // El cron ya dispara a las 7:00 locales; `businessHoursOnly` lo reencolaría
+    // fuera de esa ventana y el brief dejaría de ser "de la mañana".
+    channels: ["whatsapp", "in-app"],
+    retryAttempts: 2,
+    retryDelayMs: 5000,
+    businessHoursOnly: false
   }
 };
 

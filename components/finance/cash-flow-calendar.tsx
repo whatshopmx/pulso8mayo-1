@@ -108,15 +108,18 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTROS: "Otros",
 };
 
+// Tokens de gráfica, no hex crudo: la leyenda usaba una paleta fija mientras las
+// barras del mismo archivo usaban `var(--chart-N)`, así que al cambiar de tema la
+// leyenda dejaba de corresponder con lo graficado.
 const CATEGORY_COLORS: Record<string, string> = {
-  RENTA: "#ef4444",
-  SERVICIOS: "#f97316",
-  MANTENIMIENTO: "#eab308",
-  PUBLICIDAD: "#3b82f6",
-  SERVICIOS_PROFESIONALES: "#8b5cf6",
-  NOMINA: "#dc2626",
-  COMPRAS: "#06b6d4",
-  OTROS: "#6b7280",
+  RENTA: "var(--chart-1)",
+  SERVICIOS: "var(--chart-2)",
+  MANTENIMIENTO: "var(--chart-3)",
+  PUBLICIDAD: "var(--chart-4)",
+  SERVICIOS_PROFESIONALES: "var(--chart-5)",
+  NOMINA: "var(--destructive)",
+  COMPRAS: "var(--info)",
+  OTROS: "var(--muted-foreground)",
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -365,7 +368,8 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
           </CardContent>
         </Card>
 
-        {/* Runway */}
+        {/* Días de efectivo — "Runway" es vocabulario de capital de riesgo, no de
+            un dueño de taquería. */}
         <Card
           className={
             metrics && metrics.negativeDays > 0
@@ -376,7 +380,7 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-1">
               <Calendar className="w-4 h-4" />
-              Runway
+              Te alcanza para
             </div>
             {metrics?.daysUntilNegative ? (
               <>

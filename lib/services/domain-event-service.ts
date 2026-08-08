@@ -31,6 +31,8 @@ export type DomainEventType =
   | 'CASH_FLOW_UPDATED'
   | 'BUDGET_EXCEEDED'
   | 'PAYMENT_EXECUTED'
+  /** Arqueo de caja fuera de tolerancia (faltante o sobrante de efectivo). */
+  | 'CashVarianceDetected'
   // Compliance
   | 'COMPLIANCE_SCORE_CHANGED'
   | 'DOCUMENT_EXPIRING'

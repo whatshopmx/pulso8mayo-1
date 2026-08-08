@@ -48,7 +48,10 @@ test.describe("Fase 2 · arqueo de cierre de turno", () => {
     expect(await findLatestCut(BRANCH_CONDESA, today())).toBeNull();
   });
 
-  test("registra el arqueo y el dashboard muestra la diferencia como faltante", async ({ page }) => {
+  test("registra el arqueo y el dashboard muestra la diferencia como faltante", async ({
+    page,
+    baseURL,
+  }) => {
     const res = await page.request.post("/api/workflows/smart-links/corte-caja", {
       data: {
         branchId: BRANCH_CONDESA,
@@ -71,6 +74,18 @@ test.describe("Fase 2 · arqueo de cierre de turno", () => {
     expect(cut.cash_sales).toBe(EFECTIVO_CENTS);
     expect(cut.cash_counted_cents).toBe(ARQUEO_CENTS);
     expect(cut.deposited_cents).toBe(ARQUEO_CENTS);
+
+    // El dashboard filtra por la sucursal en foco, que se guarda en la cookie
+    // `pulso_selected_branch` y, si nadie la fijó, cae en la primera sucursal
+    // de la lista. Se fija explícitamente: si no, la tabla muestra otra
+    // sucursal y el corte recién creado no aparece.
+    await page.context().addCookies([
+      {
+        name: "pulso_selected_branch",
+        value: BRANCH_CONDESA,
+        url: baseURL ?? "http://localhost:3000",
+      },
+    ]);
 
     // Dashboard: la columna "Arqueo/Dif." muestra el faltante de $20.
     await page.goto("/dashboard/sales");

@@ -77,20 +77,21 @@ export async function restoreHighValue(companyId: string, ids: string[]): Promis
 export async function createTestSkus(
   companyId: string,
   count: number,
-  opts: { isHighValue?: boolean; category?: string } = {}
+  opts: { isHighValue?: boolean; category?: string; unit?: string; tags?: string[] } = {}
 ): Promise<string[]> {
   const ids: string[] = [];
   for (let i = 0; i < count; i++) {
     const rows = await sql`
-      INSERT INTO inventory_items (company_id, name, sku, unit, category, active, is_high_value)
+      INSERT INTO inventory_items (company_id, name, sku, unit, category, active, is_high_value, tags)
       VALUES (
         ${companyId},
         ${`${E2E_TAG} SKU ${Date.now()}-${i}`},
         ${`E2E-${Date.now()}-${i}`},
-        'UNIT',
+        ${opts.unit ?? "UNIT"},
         ${opts.category ?? null},
         true,
-        ${opts.isHighValue ?? false}
+        ${opts.isHighValue ?? false},
+        ${JSON.stringify(opts.tags ?? [])}::jsonb
       )
       RETURNING id
     `;
@@ -167,8 +168,10 @@ export async function deleteTestExpenses(): Promise<void> {
 
 /** Lee un gasto por descripción. */
 export async function findExpenseByDescription(description: string): Promise<any | null> {
+  // La columna se llama `amount` y ya está en centavos (`schema.ts:2688`); se
+  // expone como `amount_cents` para que el spec lea el nombre con la unidad.
   const rows = await sql`
-    SELECT id, description, amount_cents, evidence_url, status
+    SELECT id, description, amount AS amount_cents, evidence_url, status
     FROM operating_expenses
     WHERE description = ${description}
     LIMIT 1
@@ -274,6 +277,116 @@ export async function cleanupRecepcion(instanceId: string): Promise<void> {
   }
   await sql`DELETE FROM workflow_instance_steps WHERE instance_id = ${instanceId}`;
   await sql`DELETE FROM workflow_instances WHERE id = ${instanceId}`;
+}
+
+/**
+ * Siembra un template con UN paso dinámico (`metadata.dynamicSource`) que se
+ * expande a un sub-paso por SKU de alto valor con la etiqueta indicada, más un
+ * paso de cierre. Devuelve el id del template.
+ */
+export async function seedDynamicCountTemplate(
+  companyId: string,
+  tag: string,
+  closingStepId = "confirmar"
+): Promise<string> {
+  const templateId = `e2e-tpl-conteo-dinamico-${Date.now()}`;
+  const steps = [
+    {
+      id: "count",
+      type: "NUMBER",
+      title: "{{name}}",
+      description: "Cantidad física encontrada",
+      required: true,
+      metadata: {
+        dynamicSource: {
+          entity: "inventory_item",
+          filter: { isHighValue: true, tags: [tag] },
+        },
+      },
+    },
+    {
+      id: closingStepId,
+      type: "TEXT",
+      title: "Observaciones del conteo",
+      required: false,
+    },
+  ];
+
+  await sql`
+    INSERT INTO workflow_templates (id, company_id, name, description, steps, category, active)
+    VALUES (
+      ${templateId},
+      ${companyId},
+      ${`${E2E_TAG} Conteo dinámico`},
+      'Template de prueba con paso dinámico',
+      ${JSON.stringify(steps)}::jsonb,
+      'INVENTORY',
+      true
+    )
+  `;
+
+  return templateId;
+}
+
+export interface CountStepRow {
+  step_id: string;
+  status: string;
+  value: unknown;
+}
+
+/** Sub-pasos de conteo (`count-{itemId}`) de una instancia, en orden. */
+export async function findCountStepsForInstance(instanceId: string): Promise<CountStepRow[]> {
+  const rows = await sql`
+    SELECT step_id, status, value
+    FROM workflow_instance_steps
+    WHERE instance_id = ${instanceId} AND step_id LIKE 'count-%'
+    ORDER BY step_id
+  `;
+  return rows as CountStepRow[];
+}
+
+export interface StockCountRow {
+  id: string;
+  company_id: string;
+  branch_id: string;
+  item_id: string;
+  /** numeric(12,4) — el driver lo devuelve como string ("2.5000"). */
+  counted_quantity: string;
+  system_quantity: string;
+  evidence_url: string | null;
+  counted_by: string | null;
+  count_date: string;
+}
+
+/** Filas de `stock_counts` generadas por una instancia. */
+export async function findStockCountsForInstance(instanceId: string): Promise<StockCountRow[]> {
+  const rows = await sql`
+    SELECT id, company_id, branch_id, item_id, counted_quantity, system_quantity,
+           evidence_url, counted_by, count_date
+    FROM stock_counts
+    WHERE workflow_instance_id = ${instanceId}
+    ORDER BY item_id
+  `;
+  return rows as StockCountRow[];
+}
+
+/** Borra los conteos, la instancia, sus pasos y el template de prueba. */
+export async function cleanupStockCounts(
+  instanceId: string,
+  templateId?: string
+): Promise<void> {
+  await sql`DELETE FROM stock_counts WHERE workflow_instance_id = ${instanceId}`;
+  await sql`DELETE FROM workflow_instance_steps WHERE instance_id = ${instanceId}`;
+  await sql`DELETE FROM workflow_instances WHERE id = ${instanceId}`;
+  if (templateId) {
+    await sql`DELETE FROM workflow_templates WHERE id = ${templateId}`;
+  }
+}
+
+/** Borra los conteos que apuntan a los SKUs de prueba (por si quedó alguno suelto). */
+export async function deleteStockCountsForItems(itemIds: string[]): Promise<void> {
+  if (itemIds.length === 0) return;
+  await sql`DELETE FROM stock_counts WHERE item_id = ANY(${itemIds})`;
 }
 
 /** Fecha de negocio de hoy en el mismo formato que usa la API (YYYY-MM-DD). */

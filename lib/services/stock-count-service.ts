@@ -15,6 +15,15 @@ export const DEFAULT_CATEGORIES = CATEGORIES.map((c) => ({
   value: c.value,
 }));
 
+/**
+ * Redondea a la escala de `stock_counts.counted_quantity` — numeric(12,4).
+ * Devuelve 0 para valores no numéricos (un paso sin capturar, texto libre).
+ */
+export function roundQty(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 10000) / 10000;
+}
+
 export class StockCountService {
   static getCategoryName(categoryValue: string): string {
     const cat = DEFAULT_CATEGORIES.find(c => c.value === categoryValue);
@@ -292,8 +301,13 @@ export class StockCountService {
                 const stepData = stepValue ? JSON.parse(stepValue) : {};
                 const itemId = stepData.itemId as string;
                 const systemQty = stepData.systemQuantity as number || 0;
-                const physicalQty = stepData.inputValue ? parseInt(String(stepData.inputValue), 10) : 0;
-                const variance = physicalQty - systemQty;
+                // parseFloat, no parseInt: contar 2.5 kg debe registrar 2.5.
+                // Se redondea a 4 decimales para no arrastrar ruido binario
+                // (2.5 - 2.2 = 0.30000000000000004) hasta el blob de resultados.
+                const physicalQty = roundQty(
+                    stepData.inputValue ? parseFloat(String(stepData.inputValue)) : 0
+                );
+                const variance = roundQty(physicalQty - systemQty);
 
   const variancePercent = systemQty > 0 ? Math.abs(variance) / systemQty * 100 : (physicalQty > 0 ? 100 : 0);
 
@@ -323,6 +337,16 @@ export class StockCountService {
         },
       })
       .where(eq(workflowInstances.id, instanceId));
+
+    // Saca los resultados del blob a `stock_counts` (filas consultables por
+    // ítem/fecha). Best-effort: un fallo aquí no invalida el conteo, que sigue
+    // completo en `workflow_instances.data`.
+    try {
+      const { extractStockCountFromInstance } = await import("./stock-count-from-workflow");
+      await extractStockCountFromInstance(instanceId);
+    } catch (error) {
+      console.error("[StockCount] Error persistiendo stock_counts:", error);
+    }
 
     const alertItems = results.filter(r => r.isAlert);
     if (alertItems.length > 0) {
@@ -396,10 +420,15 @@ export class StockCountService {
         let applied = 0;
         for (const r of results) {
             if (r.variance !== 0) {
+                // `inventory_batches.currentQuantity` sigue siendo integer (OQ-2):
+                // el ajuste se redondea AQUÍ, en el borde. La varianza fraccionaria
+                // se conserva íntegra en `results[]` y en `stock_counts`.
+                const quantityChange = Math.round(r.variance);
+                if (quantityChange === 0) continue;
                 await InventoryService.recordAdjustment({
                     branchId: instance.branchId,
                     itemId: r.itemId,
-                    quantityChange: r.variance,
+                    quantityChange,
                     reason: `Stock count variance: sistema=${r.systemQuantity}, físico=${r.physicalQuantity}`,
                     performedBy: userId,
                     referenceId: instanceId,

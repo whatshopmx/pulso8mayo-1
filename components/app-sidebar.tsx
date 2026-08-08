@@ -19,6 +19,7 @@ import {
   Settings2,
   Flame,
   Crown,
+  Shield,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -38,7 +39,6 @@ const navMain = [
     title: "Tablero",
     url: "/dashboard",
     icon: SquareTerminal,
-    isActive: true,
     items: [
       {
         title: "Vista General",
@@ -343,10 +343,16 @@ const navMain = [
     ],
   },
   {
+    // "Finanzas" llevaba a /dashboard/sales, así que el módulo abría en una
+    // pantalla de captura de cortes en vez de en el estado del dinero.
     title: "Finanzas",
-    url: "/dashboard/sales",
+    url: "/dashboard/finance",
     icon: Coins,
     items: [
+      {
+        title: "Resumen",
+        url: "/dashboard/finance",
+      },
       {
         title: "Cortes de Ventas",
         url: "/dashboard/sales",
@@ -366,9 +372,27 @@ const navMain = [
         icon: Receipt,
       },
       {
+        title: "Cuentas por Pagar",
+        url: "/dashboard/finance/payables",
+        icon: FileText,
+      },
+      {
         title: "Flujo de Efectivo",
         url: "/dashboard/finance/cash-flow",
         icon: Calendar,
+      },
+      // Ambas existían y no estaban enlazadas desde ningún lado: sólo se llegaba
+      // escribiendo la URL, y son las dos pantallas con más especificidad fiscal
+      // mexicana del producto.
+      {
+        title: "Control Interno",
+        url: "/dashboard/finance/control-interno",
+        icon: Shield,
+      },
+      {
+        title: "Fiscal y Facturación",
+        url: "/dashboard/finance/fiscal",
+        icon: Receipt,
       },
     ],
   },
@@ -385,6 +409,14 @@ const navMain = [
         title: "Modelo Operativo",
         url: "/dashboard/company/operating-config",
         icon: Settings2,
+      },
+      {
+        title: "Playbooks del Grupo",
+        url: "/dashboard/company/playbooks",
+      },
+      {
+        title: "Plan y Capacidades",
+        url: "/dashboard/company/subscription",
       },
       {
         title: "Equipo",

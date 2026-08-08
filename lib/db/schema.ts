@@ -671,6 +671,12 @@ export const suppliers = pgTable("suppliers", {
     taxId: text("tax_id"),
     active: boolean("active").default(true),
     matchTolerancePercent: integer("match_tolerance_percent").default(5), // Tolerance for 3-way match
+    /**
+     * Días de crédito acordados. 0 = contado.
+     * De aquí sale el vencimiento de cada factura recibida (M15 → M16): sin
+     * este dato no había forma de saber cuándo se debe pagar un CFDI.
+     */
+    paymentTermsDays: integer("payment_terms_days").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2443,6 +2449,15 @@ export const posMappingTemplates = pgTable("pos_mapping_templates", {
     ),
 }));
 
+/**
+ * Estatus de pago de un CFDI recibido.
+ *
+ * Sin `PARTIAL` a propósito: un pago parcial necesita un libro de pagos con su
+ * propio complemento CFDI, y eso es un módulo, no una columna. Mientras tanto
+ * es mejor no ofrecer un estado que el sistema no puede sostener.
+ */
+export const invoicePaymentStatusEnum = pgEnum("invoice_payment_status", ['PENDING', 'PAID', 'CANCELLED']);
+
 export const invoices = pgTable("invoices", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
     companyId: uuid("company_id").notNull().references(() => companies.id),
@@ -2467,7 +2482,19 @@ export const invoices = pgTable("invoices", {
     matchStatus: text("match_status").default("PENDING").notNull(),
     hasPriceDiscrepancy: boolean("has_price_discrepancy").default(false).notNull(),
     hasQtyDiscrepancy: boolean("has_qty_discrepancy").default(false).notNull(),
-    
+
+    // --- Cuentas por pagar (M15 §"Cuentas por pagar como consecuencia") -----
+    // `match_status` describe la conciliación contra la OC y la recepción; NO
+    // dice si ya se pagó. Sin estas tres columnas una factura liquidada seguía
+    // proyectándose como salida futura en el flujo de efectivo para siempre.
+    /** Fecha límite de pago = fecha del CFDI + días de crédito del proveedor. */
+    dueDate: date("due_date"),
+    paymentStatus: invoicePaymentStatusEnum("payment_status").default('PENDING').notNull(),
+    paidAt: timestamp("paid_at"),
+    /** Quién registró el pago. Texto libre por consistencia con `users.id`. */
+    paidBy: text("paid_by").references(() => users.id),
+    paymentNotes: text("payment_notes"),
+
     xmlContent: text("xml_content"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -2634,6 +2661,20 @@ export const tenantOperatingConfig = pgTable("tenant_operating_config", {
     managerAuthLimitCents: integer("manager_auth_limit_cents").default(100000),
     doubleApprovalThresholdCents: integer("double_approval_threshold_cents").default(1000000),
     pettyCashLimitCents: integer("petty_cash_limit_cents").default(500000),
+
+    // Objetivos financieros del grupo (M13/M16). Vivían hardcodeados en
+    // `components/sales/financial-kpi-cards.tsx` y en `financial-kpi-service`,
+    // así que una marisquería y una taquería compartían el mismo food cost
+    // objetivo. El diseño §2 es explícito: esto es configuración, no código.
+    //
+    // Food y labor: MENOR es mejor (target = tope sano, warn = tope tolerable).
+    // Margen: MAYOR es mejor (target = piso sano, warn = piso tolerable).
+    foodCostTargetPercent: numeric("food_cost_target_percent", { precision: 5, scale: 2 }).default("30.00"),
+    foodCostWarnPercent: numeric("food_cost_warn_percent", { precision: 5, scale: 2 }).default("35.00"),
+    laborCostTargetPercent: numeric("labor_cost_target_percent", { precision: 5, scale: 2 }).default("28.00"),
+    laborCostWarnPercent: numeric("labor_cost_warn_percent", { precision: 5, scale: 2 }).default("32.00"),
+    healthyMarginTargetPercent: numeric("healthy_margin_target_percent", { precision: 5, scale: 2 }).default("45.00"),
+    healthyMarginWarnPercent: numeric("healthy_margin_warn_percent", { precision: 5, scale: 2 }).default("35.00"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

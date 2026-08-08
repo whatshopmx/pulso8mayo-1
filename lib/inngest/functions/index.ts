@@ -29,7 +29,12 @@ export { executeWorkflowFn } from "./workflow-executor";
 export { announcementBroadcastFn } from "./announcement-broadcast";
 export { processDomainEvent, processCorporateTwinUpdate } from "./operational-twin";
 export { recalculateExecutiveTwin } from "./recalculate-executive-twin";
+export { generateMorningBrief } from "./generate-morning-brief";
 export { backfillEncryptEmployees } from "./backfill-encrypt-employees";
 export { refreshEngines } from "./refresh-engines";
 export { emergencyDepartureHandler } from "./emergency-departure-handler";
+
+export { processWhatsAppMessageFn } from "./whatsapp-router";
+
+export { notificationDispatchFn } from "./notification-dispatch";
 

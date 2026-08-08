@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SalesCutUpload } from "@/components/sales/sales-cut-upload";
@@ -20,12 +20,12 @@ import {
   Settings2,
   BarChart3,
   FileSpreadsheet,
-  Store,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { statusBadgeClasses, formatCents } from "@/lib/utils";
 import { computeCashVariance, cashVarianceToneClass } from "@/lib/sales/cash-variance";
 import { useBranches } from "@/hooks/use-branches";
+import { useBranch } from "@/lib/branch-context";
 import Link from "next/link";
 
 interface SalesCut {
@@ -53,16 +53,48 @@ interface SalesCut {
   createdAt: string;
 }
 
+/** El canal se guarda como enum; en pantalla se lee como lo nombra la operación. */
+const CHANNEL_LABELS: Record<SalesCut["channel"], string> = {
+  SALON: "Salón",
+  DELIVERY: "Delivery",
+  EVENTOS: "Eventos",
+  TOTAL: "Total",
+};
+
+/**
+ * `useSearchParams` exige un límite de Suspense: el rango de fechas ahora vive en
+ * la URL que escribe `BranchScopeControl`, y sin esta frontera el prerender de la
+ * ruta falla en build.
+ */
 export default function SalesDashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto py-12 flex justify-center text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" /> Cargando ventas...
+        </div>
+      }
+    >
+      <SalesDashboardPageContent />
+    </Suspense>
+  );
+}
+
+function SalesDashboardPageContent() {
   const { toast } = useToast();
   const [cuts, setCuts] = useState<SalesCut[]>([]);
-  const { branches, loading: loadingBranches } = useBranches();
+  const { branches } = useBranches();
   const [loadingCuts, setLoadingCuts] = useState(true);
 
-  // Filters — single source of truth for branch across Analytics + Cuts tabs
-  const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  // Scope único para toda la página: sucursal desde el control del encabezado
+  // (cookie) y rango de fechas desde la URL que ese mismo control escribe. Antes
+  // esta pantalla llegaba a mostrar diez controles de alcance a la vez —dos en el
+  // header y ocho propios— sin señal de cuál mandaba.
+  const { selectedBranchId, setSelectedBranchId } = useBranch();
+  const selectedBranch = selectedBranchId ?? "ALL";
+  const searchParams = useSearchParams();
+  const startDate = searchParams.get("startDate") ?? "";
+  const endDate = searchParams.get("endDate") ?? "";
 
   // Fetch sales cuts
   const fetchCuts = useCallback(async () => {
@@ -113,43 +145,16 @@ export default function SalesDashboardPage() {
     }
   };
 
-  /** Aplica un preset de fechas y dispara el fetch. */
-  const applyDatePreset = (preset: "today" | "7d" | "thisMonth" | "lastMonth") => {
-    const now = new Date();
-    // Se construye en hora local: `toISOString()` convierte a UTC y en
-    // America/Mexico_City (UTC−6) adelantaría un día a partir de las 18:00.
-    const toISODate = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-    switch (preset) {
-      case "today": {
-        const today = toISODate(now);
-        setStartDate(today);
-        setEndDate(today);
-        break;
-      }
-      case "7d": {
-        const sevenAgo = new Date(now);
-        sevenAgo.setDate(sevenAgo.getDate() - 6);
-        setStartDate(toISODate(sevenAgo));
-        setEndDate(toISODate(now));
-        break;
-      }
-      case "thisMonth": {
-        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        setStartDate(toISODate(firstOfMonth));
-        setEndDate(toISODate(now));
-        break;
-      }
-      case "lastMonth": {
-        const firstOfLast = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const lastOfLast = new Date(now.getFullYear(), now.getMonth(), 0);
-        setStartDate(toISODate(firstOfLast));
-        setEndDate(toISODate(lastOfLast));
-        break;
-      }
-    }
-  };
+  const scopeLabel = (() => {
+    const branchLabel =
+      selectedBranch === "ALL"
+        ? "todas las sucursales"
+        : branches.find((b) => b.id === selectedBranch)?.name ?? "la sucursal en foco";
+    const dateLabel = startDate
+      ? `${startDate}${endDate && endDate !== startDate ? ` a ${endDate}` : ""}`
+      : "todo el período";
+    return `${branchLabel} · ${dateLabel}`;
+  })();
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -157,12 +162,14 @@ export default function SalesDashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Coins className="h-7 w-7 text-primary" /> Ventas y POS (M13)
+            {/* "(M13)" era un código interno de módulo filtrado al h1: lo primero
+                que leía un gerente nuevo era jerga del backlog. */}
+            <Coins className="h-7 w-7 text-primary" /> Ventas y Cortes de Caja
             {/* `button` en vez de `span`: un `title` sobre texto plano es
                 inalcanzable por teclado y lo ignora el lector de pantalla. */}
             <button
               type="button"
-              className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-muted-foreground/30 text-[10px] text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-muted-foreground/30 text-xs leading-none text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               title="Módulo de ingesta de cortes de ventas desde archivos POS, WhatsApp o captura manual. Los datos alimentan KPIs financieros y la proyección de flujo de efectivo."
               aria-label="Qué es este módulo: ingesta de cortes de ventas desde archivos POS, WhatsApp o captura manual. Los datos alimentan KPIs financieros y la proyección de flujo de efectivo."
             >
@@ -196,27 +203,6 @@ export default function SalesDashboardPage() {
 
         {/* TAB 1: Analytics & KPIs */}
         <TabsContent value="analytics" className="space-y-6">
-          {/* Common branch selector — feeds both KPIs and charts */}
-          <div className="flex items-center gap-2">
-            <Store className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Sucursal:</span>
-            <div className="w-56">
-              <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={loadingBranches}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Todas las sucursales" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Todas las sucursales (consolidado)</SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
           <FinancialKpiCards branchId={selectedBranch} />
           <SalesDashboard branchId={selectedBranch} />
         </TabsContent>
@@ -234,23 +220,35 @@ export default function SalesDashboardPage() {
               return arqueo !== null && arqueo.direction !== "cuadrado";
             });
             if (diffCuts.length === 0) return null;
-            const byBranch = new Map<string, number>();
+            const byBranch = new Map<string, { id: string; count: number }>();
             for (const c of diffCuts) {
-              byBranch.set(c.branchName, (byBranch.get(c.branchName) ?? 0) + 1);
+              const prev = byBranch.get(c.branchName);
+              byBranch.set(c.branchName, { id: c.branchId, count: (prev?.count ?? 0) + 1 });
             }
-            const summary = Array.from(byBranch.entries())
-              .map(([name, n]) => `${n} en ${name}`)
-              .join(", ");
             return (
               <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
                 <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                <div>
+                <div className="space-y-2">
                   <p className="font-semibold text-destructive">
                     {diffCuts.length} corte{diffCuts.length !== 1 ? "s" : ""} con diferencia entre efectivo declarado y arqueo
                   </p>
-                  <p className="text-muted-foreground">
-                    Revisa los cortes marcados en rojo en la columna Diferencia: {summary}.
-                  </p>
+                  {/* El banner nombraba las sucursales y no llevaba a ninguna: la
+                      última pantalla que ve una gerente a las 11pm era una
+                      acusación sin camino. Ahora cada nombre acota el alcance. */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">Ir a la sucursal:</span>
+                    {Array.from(byBranch.entries()).map(([name, { id, count }]) => (
+                      <Button
+                        key={id}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => setSelectedBranchId(id)}
+                      >
+                        {name} ({count})
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </div>
             );
@@ -264,97 +262,13 @@ export default function SalesDashboardPage() {
                   <Coins className="h-5 w-5 text-primary" /> Historial de Cortes Registrados
                 </CardTitle>
 
-                {/* Table Filters */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="w-44">
-                    <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={loadingBranches}>
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Todas las sucursales" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">Todas las sucursales</SelectItem>
-                        {branches.map((b) => (
-                          <SelectItem key={b.id} value={b.id}>
-                            {b.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <label htmlFor="cuts-start-date" className="sr-only">
-                    Fecha inicial
-                  </label>
-                  <Input
-                    id="cuts-start-date"
-                    type="date"
-                    className="h-8 text-xs w-36"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                  <span className="text-xs text-muted-foreground" aria-hidden>-</span>
-                  <label htmlFor="cuts-end-date" className="sr-only">
-                    Fecha final
-                  </label>
-                  <Input
-                    id="cuts-end-date"
-                    type="date"
-                    className="h-8 text-xs w-36"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-
-                  {/* Date presets */}
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs px-2"
-                      onClick={() => applyDatePreset("today")}
-                    >
-                      Hoy
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs px-2"
-                      onClick={() => applyDatePreset("7d")}
-                    >
-                      7d
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs px-2"
-                      onClick={() => applyDatePreset("thisMonth")}
-                    >
-                      Este mes
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs px-2"
-                      onClick={() => applyDatePreset("lastMonth")}
-                    >
-                      Mes ant.
-                    </Button>
-                  </div>
-
-                  {(selectedBranch !== "ALL" || startDate || endDate) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-xs text-muted-foreground"
-                      onClick={() => {
-                        setSelectedBranch("ALL");
-                        setStartDate("");
-                        setEndDate("");
-                      }}
-                    >
-                      Limpiar
-                    </Button>
-                  )}
-                </div>
+                {/* Los ocho controles que vivían aquí duplicaban el alcance del
+                    encabezado. Queda el eco de lo que se está viendo, para que la
+                    tabla nunca se lea fuera de contexto. */}
+                <p className="text-xs text-muted-foreground">
+                  Mostrando <span className="font-medium text-foreground">{scopeLabel}</span>. Cambia
+                  el alcance desde los controles del encabezado.
+                </p>
               </div>
             </CardHeader>
             <CardContent>
@@ -372,6 +286,11 @@ export default function SalesDashboardPage() {
               ) : (
                 <div className="border rounded-md overflow-x-auto">
                   <Table>
+                    <TableCaption className="sr-only">
+                      Cortes de ventas registrados: fecha, sucursal, turno, canal, venta total,
+                      formas de pago, tickets, arqueo de caja, origen del dato, estatus de
+                      validación y quién lo recibió.
+                    </TableCaption>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
                         <TableHead>Fecha</TableHead>
@@ -410,15 +329,25 @@ export default function SalesDashboardPage() {
                               })}
                             </TableCell>
                             <TableCell className="font-medium">{cut.branchName}</TableCell>
-                            <TableCell className="text-xs font-semibold capitalize">
-                              {cut.shift.toLowerCase()}
+                            {/* El turno es el campo que dice "restaurante": matutino
+                                contra vespertino es la pregunta diaria de gerencia.
+                                Se le da la misma jerarquía visual que al canal. */}
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={`text-xs capitalize ${statusBadgeClasses(
+                                  cut.shift === "MATUTINO" ? "info" : cut.shift === "VESPERTINO" ? "warning" : "neutral"
+                                )}`}
+                              >
+                                {cut.shift.toLowerCase()}
+                              </Badge>
                             </TableCell>
                             <TableCell>
                               <Badge variant={cut.channel === "TOTAL" ? "secondary" : "outline"} className="text-xs">
-                                {cut.channel}
+                                {CHANNEL_LABELS[cut.channel]}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right font-semibold text-sm">
+                            <TableCell className="text-right font-semibold text-sm tabular-nums">
                               {formatCents(cut.totalSales)}
                             </TableCell>
                             <TableCell>
@@ -466,7 +395,7 @@ export default function SalesDashboardPage() {
                                     <CheckCircle className="h-3 w-3" /> Validado
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 text-xs text-warning font-semibold">
+                                  <span className="inline-flex items-center gap-1 text-xs text-warning-text font-semibold">
                                     <AlertCircle className="h-3 w-3" /> Observación
                                   </span>
                                 )}
@@ -479,7 +408,13 @@ export default function SalesDashboardPage() {
                             </TableCell>
                             <TableCell className="text-xs">
                               <div className="flex flex-col">
-                                <span className="font-medium text-muted-foreground">{cut.receivedByName || "Sistema"}</span>
+                                {/* Sin nombre real se dice que no lo hay: inventar "Sistema"
+                                    atribuye la recepción del corte a un actor que no existe. */}
+                                {cut.receivedByName ? (
+                                  <span className="font-medium text-foreground">{cut.receivedByName}</span>
+                                ) : (
+                                  <span className="text-muted-foreground/70">Sin registrar</span>
+                                )}
                                 <span className="text-xs text-muted-foreground/75">
                                   {new Date(cut.receivedAt).toLocaleDateString("es-MX", {
                                     hour: "2-digit",
@@ -527,6 +462,22 @@ export default function SalesDashboardPage() {
   );
 }
 
+/**
+ * Monto liquidado escrito por el usuario → centavos, o `null` si no es una cifra
+ * de dinero utilizable.
+ *
+ * `parseFloat` acepta notación exponencial, así que teclear `1e5` en un
+ * `input[type=number]` producía una retención de $100,000 con cuatro teclas.
+ * Aquí solo se admiten dígitos con separadores y a lo más dos decimales.
+ */
+function parseLiquidatedCents(raw: string): number | null {
+  const cleaned = raw.trim().replace(/[$,\s]/g, "");
+  if (cleaned === "") return null;
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : null;
+}
+
 function AggregatorConciliation({ cuts }: { cuts: SalesCut[] }) {
   // Sum reported sales per aggregator across the filtered cuts.
   const totals = useMemo(() => {
@@ -560,9 +511,30 @@ function AggregatorConciliation({ cuts }: { cuts: SalesCut[] }) {
     );
   }
 
+  const hasEntries = Object.values(liquidated).some((v) => v.trim() !== "");
+
   return (
-    <div className="border rounded-md overflow-x-auto">
+    <div className="space-y-2">
+      {/* Salida del borrador: los montos son de sesión, así que debe poder
+          vaciarse sin recargar la página ni cambiar el filtro. */}
+      {hasEntries && (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-muted-foreground"
+            onClick={() => setLiquidated({})}
+          >
+            Limpiar montos capturados
+          </Button>
+        </div>
+      )}
+      <div className="border rounded-md overflow-x-auto">
       <Table>
+        <TableCaption className="sr-only">
+          Conciliación por agregador: venta reportada en los cortes, liquidación recibida
+          capturada por el usuario y retención resultante.
+        </TableCaption>
         <TableHeader>
           <TableRow className="bg-muted/50">
             <TableHead>Agregador</TableHead>
@@ -575,25 +547,27 @@ function AggregatorConciliation({ cuts }: { cuts: SalesCut[] }) {
           {keys.map((key) => {
             const reported = totals[key];
             const raw = liquidated[key] ?? "";
-            const liquidatedCents = raw.trim() === "" ? null : Math.round(parseFloat(raw.replace(/[$,]/g, "")) * 100);
-            const valid = liquidatedCents !== null && !isNaN(liquidatedCents);
-            const variance = valid ? reported - liquidatedCents! : null;
+            const liquidatedCents = parseLiquidatedCents(raw);
+            const valid = liquidatedCents !== null;
+            const variance = valid ? reported - liquidatedCents : null;
             const pct = valid && reported > 0 ? ((variance! / reported) * 100).toFixed(1) : null;
+            const label = labels[key] ?? key;
             return (
               <TableRow key={key} className="hover:bg-muted/40 transition">
-                <TableCell className="font-medium">{labels[key] ?? key}</TableCell>
-                <TableCell className="text-right font-semibold text-sm">
+                <TableCell className="font-medium">{label}</TableCell>
+                <TableCell className="text-right font-semibold text-sm tabular-nums">
                   {formatCents(reported)}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <span className="text-xs text-muted-foreground">$</span>
+                    <span className="text-xs text-muted-foreground" aria-hidden>$</span>
                     <Input
                       type="number"
                       min="0"
                       step="0.01"
                       placeholder="0.00"
-                      className="h-8 w-32 text-xs text-right"
+                      className="h-8 w-32 text-xs text-right tabular-nums"
+                      aria-label={`Liquidación recibida de ${label}, en pesos`}
                       value={raw}
                       onChange={(e) => setLiquidated((prev) => ({ ...prev, [key]: e.target.value }))}
                     />
@@ -607,8 +581,8 @@ function AggregatorConciliation({ cuts }: { cuts: SalesCut[] }) {
                     // en el esquema no hay forma de juzgar si la retención es
                     // excesiva, así que se presenta como dato, no como error.
                     <span
-                      className={`inline-flex items-center gap-1 text-sm font-semibold ${
-                        variance < 0 ? "text-warning" : "text-foreground"
+                      className={`inline-flex items-center gap-1 text-sm font-semibold tabular-nums ${
+                        variance < 0 ? "text-warning-text" : "text-foreground"
                       }`}
                     >
                       {variance > 0 ? "+" : ""}
@@ -629,6 +603,7 @@ function AggregatorConciliation({ cuts }: { cuts: SalesCut[] }) {
           })}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

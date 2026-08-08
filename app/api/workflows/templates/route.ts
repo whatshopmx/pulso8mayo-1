@@ -4,6 +4,7 @@ import { workflowTemplates } from '@/lib/db/schema';
 import { eq, and, or, desc } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
+import { PlaybookService } from '@/lib/services/playbook-service';
 
 export async function GET(request: NextRequest) {
     try {
@@ -17,6 +18,10 @@ export async function GET(request: NextRequest) {
 
         const { searchParams } = new URL(request.url);
         const onboarding = searchParams.get('onboarding') === 'true';
+        // Alcance de playbooks corporativos: si se pide el catálogo de una
+        // sucursal concreta, se ocultan los playbooks publicados solo en otras.
+        // Un playbook 'company' SIN publicaciones aplica a todo el grupo.
+        const branchId = searchParams.get('branchId');
 
         let query = db.select()
             .from(workflowTemplates)
@@ -38,7 +43,18 @@ export async function GET(request: NextRequest) {
                 .orderBy(desc(workflowTemplates.updatedAt));
         }
 
-        const templates = await query;
+        let templates = await query;
+
+        if (branchId) {
+            const { hiddenTemplateIds } = await PlaybookService.getRestrictedTemplateIds(
+                session.user.companyId,
+                branchId
+            );
+            if (hiddenTemplateIds.length > 0) {
+                const hidden = new Set(hiddenTemplateIds);
+                templates = templates.filter((t) => !hidden.has(t.id));
+            }
+        }
 
         return NextResponse.json({
             data: templates,

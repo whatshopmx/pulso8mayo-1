@@ -6,15 +6,16 @@ import {
   type CashFlowDay,
   type CashFlowProjection,
 } from "@/components/finance/cash-flow-calendar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useBranches } from "@/hooks/use-branches";
+import { useBranch } from "@/lib/branch-context";
 import { Calendar, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 
 export default function CashFlowPage() {
-  const { branches, loading: branchesLoading } = useBranches();
-  const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
+  // Scope único: el selector del encabezado del dashboard. El Select local
+  // duplicaba el mismo control con otra respuesta y sin indicar cuál mandaba.
+  const { selectedBranchId } = useBranch();
+  const selectedBranch = selectedBranchId ?? "ALL";
   const [projection, setProjection] = useState<CashFlowProjection | CashFlowDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,21 +62,6 @@ export default function CashFlowPage() {
           </p>
         </div>
 
-        <div className="w-56">
-          <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={branchesLoading}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todas las sucursales" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todas las sucursales (consolidado)</SelectItem>
-              {branches.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  {b.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
       {loading ? (

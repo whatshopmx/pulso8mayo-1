@@ -16,6 +16,8 @@ import {
   KpiCardsSkeleton,
   ChartSkeleton,
 } from "@/components/shared";
+import { MorningBrief } from "@/components/dashboard/morning-brief";
+import { ExecutiveCopilot } from "@/components/dashboard/executive/executive-copilot";
 import { KpiHeroCards } from "@/components/dashboard/executive/kpi-hero-cards";
 import { BranchRanking } from "@/components/dashboard/executive/branch-ranking";
 import { AlertsPanel } from "@/components/dashboard/executive/alerts-panel";
@@ -92,6 +94,16 @@ export default async function ExecutiveDashboardPage() {
           Vista consolidada de todas las sucursales del grupo
         </p>
       </div>
+
+      {/* Section 0: Morning Brief — la rutina diaria del dueño */}
+      <Suspense fallback={<KpiCardsSkeleton />}>
+        <MorningBrief companyId={companyId} />
+      </Suspense>
+
+      {/* Section 0.5: Copiloto ejecutivo — pregunta abierta sobre el twin */}
+      <Suspense fallback={<KpiCardsSkeleton />}>
+        <ExecutiveCopilot companyId={companyId} />
+      </Suspense>
 
       {/* Section 1: KPI Hero Cards */}
       <Suspense fallback={<KpiCardsSkeleton />}>

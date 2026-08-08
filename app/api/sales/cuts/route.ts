@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api/error";
 import { db } from "@/lib/db";
 import { dailySalesCuts, branches, users } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { checkCashVarianceAndAlertSafe } from "@/lib/services/cash-variance-alert-service";
 
 const createCutSchema = z.object({
   branchId: z.string().uuid("La sucursal es inválida."),
@@ -175,6 +176,19 @@ export async function POST(req: NextRequest) {
         receivedBy: user.id,
       })
       .returning();
+
+    // El arqueo con diferencia deja de morir en una celda roja: emite evento y
+    // avisa a dirección y gerencia. Fire-and-forget — el corte ya está guardado
+    // y es el dato primario.
+    checkCashVarianceAndAlertSafe({
+      id: inserted.id,
+      companyId: inserted.companyId,
+      branchId: inserted.branchId,
+      businessDate: inserted.businessDate,
+      shift: inserted.shift,
+      cashSales: inserted.cashSales,
+      cashCountedCents: inserted.cashCountedCents,
+    });
 
     return ApiHandler.success(inserted);
   } catch (error) {

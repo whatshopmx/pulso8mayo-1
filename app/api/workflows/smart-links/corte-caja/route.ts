@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
+import { checkCashVarianceAndAlertSafe } from "@/lib/services/cash-variance-alert-service";
 
 const corteSchema = z.object({
   workflowInstanceId: z.string().optional(),
@@ -106,6 +107,18 @@ export async function POST(req: NextRequest) {
         receivedAt: new Date(),
       })
       .returning();
+
+    // El cajero acaba de declarar efectivo y contarlo. Si no cuadra, es el
+    // momento en que alguien todavía puede recontar la caja.
+    checkCashVarianceAndAlertSafe({
+      id: cut.id,
+      companyId: cut.companyId,
+      branchId: cut.branchId,
+      businessDate: cut.businessDate,
+      shift: cut.shift,
+      cashSales: cut.cashSales,
+      cashCountedCents: cut.cashCountedCents,
+    });
 
     return ApiHandler.success({
       cut,

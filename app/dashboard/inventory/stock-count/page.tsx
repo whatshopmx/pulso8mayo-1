@@ -49,7 +49,11 @@ async function createStockCount(formData: FormData) {
       branchId,
       assigneeId: session.user.id,
       categoryValue: category,
-      highOnlyValue: formData.get("highValueOnly") !== "false", // Fase 4
+      // Un checkbox desmarcado NO viaja en el form: `get()` devuelve null. Con
+      // `!== "false"` eso daba `true` y el toggle "ver todos" no hacía nada.
+      // El checkbox lleva value="true", así que comparar contra "true" es lo
+      // que distingue marcado (true) de desmarcado (null).
+      highOnlyValue: formData.get("highValueOnly") === "true", // Fase 4
     });
     destino = result.instance?.id
       ? `/dashboard/workflows/${result.instance.id}/execute`

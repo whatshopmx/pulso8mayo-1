@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,19 @@ import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/hooks/use-session";
 import { roleIsAtLeast } from "@/lib/permissions";
 import { useBranches } from "@/hooks/use-branches";
-import { formatCents } from "@/lib/utils";
+import { useBranch } from "@/lib/branch-context";
+import { formatCents, statusBadgeClasses } from "@/lib/utils";
+
+/** Estatus que puede filtrarse en la cola de autorizaciones. */
+type StatusFilter = "ALL" | ExpenseItem["status"];
+
+const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
+  ALL: "Todos los estatus",
+  PENDING_APPROVAL: "Pendientes de aprobar",
+  APPROVED: "Aprobados",
+  REJECTED: "Rechazados",
+  PAID: "Pagados",
+};
 
 // Etiquetas legibles para cada rol aprobador. Debe cubrir todo
 // APPROVER_ROLES_HIERARCHY para que "Requiere X" nunca muestre el identificador crudo.
@@ -64,8 +76,12 @@ export default function ExpensesPage() {
   const { session } = useSession();
   const currentUserRole = session?.user?.role || "EMPLEADO";
   const currentUserId = session?.user?.id;
-  const { branches, loading: loadingBranches } = useBranches();
-  const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
+  const { branches } = useBranches();
+  // Scope único: el control del encabezado. El Select local contestaba sobre
+  // "todas" mientras el header seguía anunciando una sucursal concreta.
+  const { selectedBranchId } = useBranch();
+  const selectedBranch = selectedBranchId ?? "ALL";
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,8 +92,13 @@ export default function ExpensesPage() {
   >(null);
   const [actionNotes, setActionNotes] = useState("");
 
-  const fetchExpenses = useCallback(async () => {
-    setLoading(true);
+  /**
+   * `silent` evita el spinner al recargar tras aprobar o rechazar: desmontar la
+   * tabla devolvía el scroll al inicio, así que una sesión de 30 aprobaciones
+   * perdía su lugar 30 veces.
+   */
+  const fetchExpenses = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const url = new URL("/api/expenses", window.location.origin);
       if (selectedBranch !== "ALL") {
@@ -141,7 +162,7 @@ export default function ExpensesPage() {
               ? "El gasto ha sido aprobado exitosamente."
               : "El gasto fue rechazado y el motivo quedó en la bitácora.",
         });
-        fetchExpenses();
+        fetchExpenses(true);
       } else {
         toast({
           title: type === "approve" ? "No se pudo aprobar" : "No se pudo rechazar",
@@ -173,7 +194,7 @@ export default function ExpensesPage() {
 
     if (!canResolve) {
       return (
-        <span className="text-muted-foreground/60 text-[10px] flex flex-col items-center gap-0.5">
+        <span className="text-muted-foreground/60 text-xs flex flex-col items-center gap-0.5">
           <Shield className="w-3 h-3" />
           <span>Requiere {ROLE_LABELS[requiredRole] || requiredRole}</span>
         </span>
@@ -183,11 +204,13 @@ export default function ExpensesPage() {
     const busy = actionInFlightId === item.id;
 
     return (
+      // 28px de alto quedaba muy por debajo del mínimo táctil, y esta es la
+      // acción que un gerente resuelve desde el teléfono en la cocina.
       <div className="flex items-center justify-center gap-1">
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs bg-success/10 text-success hover:bg-success/20 border-success/20"
+          className="h-9 text-xs bg-success/10 text-success hover:bg-success/20 border-success/20"
           onClick={() => openAction("approve", item)}
           disabled={busy}
         >
@@ -196,7 +219,7 @@ export default function ExpensesPage() {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/20"
+          className="h-9 text-xs bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/20"
           onClick={() => openAction("reject", item)}
           disabled={busy}
         >
@@ -206,29 +229,32 @@ export default function ExpensesPage() {
     );
   };
 
+  const visibleExpenses =
+    statusFilter === "ALL" ? expenses : expenses.filter((e) => e.status === statusFilter);
+
   const getStatusBadge = (status: ExpenseItem["status"]) => {
     switch (status) {
       case "APPROVED":
         return (
-          <Badge variant="outline" className="bg-success/10 text-success border-success/20 gap-1">
+          <Badge variant="outline" className={`gap-1 ${statusBadgeClasses("success")}`}>
             <CheckCircle className="w-3 h-3" /> Aprobado
           </Badge>
         );
       case "PENDING_APPROVAL":
         return (
-          <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 gap-1">
+          <Badge variant="outline" className={`gap-1 ${statusBadgeClasses("warning")}`}>
             <Clock className="w-3 h-3" /> Pendiente
           </Badge>
         );
       case "REJECTED":
         return (
-          <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 gap-1">
+          <Badge variant="outline" className={`gap-1 ${statusBadgeClasses("destructive")}`}>
             <XCircle className="w-3 h-3" /> Rechazado
           </Badge>
         );
       case "PAID":
         return (
-          <Badge variant="outline" className="bg-info/10 text-info border-info/20 gap-1">
+          <Badge variant="outline" className={`gap-1 ${statusBadgeClasses("info")}`}>
             <CheckCircle className="w-3 h-3" /> Pagado
           </Badge>
         );
@@ -248,16 +274,18 @@ export default function ExpensesPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="w-48">
-            <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={loadingBranches}>
-              <SelectTrigger>
-                <SelectValue placeholder="Todas las sucursales" />
+          {/* La sucursal la fija el encabezado; lo que faltaba aquí era poder
+              aislar la cola de pendientes sin cazar insignias ámbar entre todo
+              el historial. */}
+          <div className="w-52">
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+              <SelectTrigger aria-label="Filtrar por estatus">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">Todas las sucursales</SelectItem>
-                {branches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
+                {(Object.keys(STATUS_FILTER_LABELS) as StatusFilter[]).map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {STATUS_FILTER_LABELS[key]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -286,7 +314,7 @@ export default function ExpensesPage() {
               title="No se pudieron cargar los gastos"
               description={error}
               action={
-                <Button variant="outline" size="sm" onClick={fetchExpenses}>
+                <Button variant="outline" size="sm" onClick={() => fetchExpenses()}>
                   <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
                 </Button>
               }
@@ -298,9 +326,24 @@ export default function ExpensesPage() {
               description="Registra tu primer gasto operativo (renta, luz, gas, mantenimiento) para iniciar la cadena de autorización."
               action={<ExpenseForm branches={branches} onSuccess={fetchExpenses} />}
             />
+          ) : visibleExpenses.length === 0 ? (
+            <EmptyState
+              icon={Receipt}
+              title={`Sin gastos ${STATUS_FILTER_LABELS[statusFilter].toLowerCase()}`}
+              description="Hay gastos registrados, pero ninguno con este estatus en la sucursal en foco."
+              action={
+                <Button variant="outline" size="sm" onClick={() => setStatusFilter("ALL")}>
+                  Ver todos los estatus
+                </Button>
+              }
+            />
           ) : (
             <div className="border rounded-md overflow-x-auto">
               <Table>
+                <TableCaption className="sr-only">
+                  Gastos operativos: fecha, sucursal, categoría, descripción, evidencia, monto,
+                  quién lo solicitó, estatus de autorización y acción disponible.
+                </TableCaption>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
                     <TableHead>Fecha</TableHead>
@@ -315,7 +358,7 @@ export default function ExpensesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {expenses.map((item) => (
+                  {visibleExpenses.map((item) => (
                     <TableRow key={item.id} className="hover:bg-muted/40 transition text-xs">
                       <TableCell className="font-medium whitespace-nowrap">
                         {new Date(item.createdAt).toLocaleDateString("es-MX", {
@@ -345,11 +388,17 @@ export default function ExpensesPage() {
                             </a>
                           </Button>
                         ) : (
-                          <span className="text-muted-foreground/40 text-[10px]">—</span>
+                          <span className="text-muted-foreground/40 text-xs">—</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-bold">{formatCents(item.amountCents)}</TableCell>
-                      <TableCell>{item.requestedByName || "Gerente"}</TableCell>
+                      {/* Sin nombre real no se inventa uno: esta columna alimenta la
+                          bitácora de autorizaciones y un auditor la lee como un hecho. */}
+                      <TableCell>
+                        {item.requestedByName || (
+                          <span className="text-muted-foreground/70">Sin registrar</span>
+                        )}
+                      </TableCell>
                       <TableCell>{getStatusBadge(item.status)}</TableCell>
                       <TableCell className="text-center">
                         {item.status === "PENDING_APPROVAL" ? (

@@ -178,24 +178,7 @@ The palette is anchored by Operational Red — a deep, confident crimson that co
 ### Named Rules
 **The No-Orphan Rule.** Body text uses `text-wrap: pretty` to prevent single-word orphans. Headlines use `text-wrap: balance` for even line lengths.
 
-## 3. Typography
-
-**Display Font:** Geist (system-ui, sans-serif)
-**Body Font:** Geist (system-ui, sans-serif)
-**Label/Mono Font:** Geist Mono (monospace)
-
-**Character:** A single geometric sans-serif family across the entire system. Geist is precise and slightly condensed — it fits dense operational data without feeling cramped, and scales to headings with authority. No serif, no second family. The consistency reinforces the "one platform, one truth" principle.
-
-### Hierarchy
-- **Display** (700, clamp(1.5rem, 4vw, 3rem), 1.1, -0.02em): Page titles. Used once per page.
-- **Headline** (600, clamp(1.25rem, 3vw, 1.875rem), 1.2, -0.01em): Card titles, section headings.
-- **Title** (600, clamp(1rem, 2vw, 1.25rem), 1.3): Subsection headers, sidebar items, dialog titles.
-- **Body** (400, 0.875rem, 1.5): Primary reading text, table cells, descriptions. Max 70ch.
-- **Label** (500, 0.75rem, 1.4, 0.01em): Button text, form labels, badges, small metadata.
-- **Mono** (400, 0.8125rem, 1.5): Code, IDs, timestamps, numeric data in tables.
-
-### Named Rules
-**The No-Orphan Rule.** Body text uses `text-wrap: pretty`. Headlines use `text-wrap: balance`.
+**The Label-Floor Rule.** Label (12px / `text-xs`) is the smallest size in the system. There is no 9px, 10px or 11px step: those values were an undocumented sub-ramp that made the type scale punch through its own floor, and they are unreadable at arm's length on a tablet in a kitchen. Micro-metadata, helper text and glyph badges all sit at Label; separation comes from weight and color, not from shrinking below the floor.
 
 ## 4. Elevation
 

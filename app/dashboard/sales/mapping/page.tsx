@@ -177,14 +177,17 @@ export default function MappingTemplatesPage() {
                       </CardDescription>
                     </div>
 
+                    {/* Botón sólo-ícono: sin nombre accesible el lector de pantalla
+                        anunciaba "botón" a secas en una acción destructiva. */}
                     <Button
                       variant="ghost"
                       size="icon"
                       className="text-destructive hover:bg-destructive/10"
                       onClick={() => setPendingDelete(tpl)}
                       disabled={deletingId === tpl.id}
+                      aria-label={`Eliminar la plantilla ${tpl.name}`}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" aria-hidden />
                     </Button>
                   </div>
                 </CardHeader>
@@ -203,7 +206,7 @@ export default function MappingTemplatesPage() {
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-                    <span>Creada por: {tpl.createdByName || "Admin"}</span>
+                    <span>Creada por: {tpl.createdByName || "Sin registrar"}</span>
                     <span>{new Date(tpl.createdAt).toLocaleDateString("es-MX")}</span>
                   </div>
                 </CardContent>
