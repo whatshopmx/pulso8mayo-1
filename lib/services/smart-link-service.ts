@@ -1,12 +1,30 @@
 import { db } from "@/lib/db";
-import { magicLinks, workflowInstances, workflowAssignments } from "@/lib/db/schema";
-import { eq, and, gt } from "drizzle-orm";
+import { magicLinks, workflowInstances } from "@/lib/db/schema";
+import { eq, and, gt, desc, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || nanoid(32);
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface GetOrCreateSmartLinkOptions {
+  /** Id de la plantilla. Se deduce de la instancia si no se pasa. */
+  templateId?: string;
+  /** UUID del turno, o null/undefined si el flujo no cuelga de un turno. */
+  sessionId?: string | null;
+  expiresInMinutes?: number;
+  requiredRole?: string;
+  assignedTo?: string;
+  role?: string;
+  assignmentId?: string;
+  stepId?: string;
+}
+
+export interface ResolvedSmartLink extends SmartLinkContext {
+  /** true si se creó un token nuevo; false si se reutilizó uno vigente. */
+  fresh: boolean;
+}
 
 export interface SmartLinkContext {
   token: string;
@@ -40,6 +58,105 @@ export interface ValidatedSmartLink {
 }
 
 export class SmartLinkService {
+  /**
+   * Obtener (o crear) el enlace vigente de una instancia.
+   *
+   * Prioridad:
+   * 1. Reutilizar un enlace PENDING no vencido de la instancia (los enlaces no son
+   *    de un solo uso: el destinatario puede abrir, interrumpirse y volver).
+   * 2. Invalidar cualquier otro PENDING colgado (vencido o de una asignación previa)
+   *    y crear uno nuevo con el contexto actual (assignedTo/assignmentId).
+   *
+   * Así los recordatorios, vencidos y reasignaciones reutilizan el mismo token en
+   * lugar de emitir uno nuevo cada vez (ver plan smartlinks-flujos-programados 4.4).
+   */
+  static async getOrCreateForInstance(
+    instanceId: string,
+    templateId?: string,
+    opts: GetOrCreateSmartLinkOptions = {}
+  ): Promise<ResolvedSmartLink | null> {
+    // Contexto de la instancia en una sola consulta: además de deducir el
+    // templateId, sirve para el guard de plan 5.5 — una instancia ya completada
+    // no debe reabrirse por enlace (sus enlaces quedaron USED y no se resucitan).
+    const [instance] = await db
+      .select({
+        status: workflowInstances.status,
+        workflowTemplateId: workflowInstances.workflowTemplateId,
+      })
+      .from(workflowInstances)
+      .where(eq(workflowInstances.id, instanceId))
+      .limit(1);
+
+    if (!instance) {
+      console.warn(`[SmartLink] Instance ${instanceId} not found, refusing to create link`);
+      return null;
+    }
+
+    if (instance.status === 'COMPLETED') {
+      return null;
+    }
+
+    // 1. Enlace vigente (PENDING, no vencido)
+    const [active] = await db
+      .select()
+      .from(magicLinks)
+      .where(
+        and(
+          eq(magicLinks.instanceId, instanceId),
+          eq(magicLinks.status, "PENDING"),
+          gt(magicLinks.expiresAt, new Date())
+        )
+      )
+      .orderBy(desc(magicLinks.createdAt))
+      .limit(1);
+
+    if (active) {
+      return {
+        token: active.token,
+        expiresAt: active.expiresAt,
+        url: `${process.env.NEXT_PUBLIC_APP_URL}/workflow/public/${active.token}`,
+        instanceId,
+        workflowTemplateId: active.workflowTemplateId,
+        sessionId: active.sessionId,
+        requiredRole: opts.requiredRole,
+        assignedTo: opts.assignedTo,
+        role: opts.role,
+        assignmentId: opts.assignmentId,
+        fresh: false,
+      };
+    }
+
+    // 2. Invalidar los PENDING colgando de esta instancia para no acumular tokens.
+    await db
+      .update(magicLinks)
+      .set({ status: "USED", usedAt: new Date() })
+      .where(
+        and(eq(magicLinks.instanceId, instanceId), eq(magicLinks.status, "PENDING"))
+      );
+
+    // Si no trajeron templateId, lo deducimos de la instancia (ya consultada).
+    const resolvedTemplateId = templateId || instance.workflowTemplateId;
+    if (!resolvedTemplateId) {
+      console.warn(`[SmartLink] No templateId for instance ${instanceId}, refusing to create link`);
+      return null;
+    }
+
+    // 3. Crear uno nuevo con el contexto actual.
+    const link = await this.createSmartLink(
+      instanceId,
+      resolvedTemplateId,
+      opts.sessionId,
+      opts.expiresInMinutes,
+      opts.requiredRole,
+      opts.assignedTo,
+      opts.role,
+      opts.assignmentId,
+      opts.stepId
+    );
+
+    return { ...link, fresh: true };
+  }
+
   /**
    * Generate a new smart link with encrypted JWT token for a specific workflow instance
    * @param instanceId The ID of the workflow instance
@@ -196,6 +313,43 @@ export class SmartLinkService {
                 usedAt: new Date()
             })
             .where(eq(magicLinks.token, token));
+    }
+
+    /**
+     * Cerrar todos los enlaces PENDING de una instancia (plan 5.5): al completar
+     * el flujo, un enlace ya no debe seguir abriendo la ejecución. Se conserva el
+     * usedAt de la primera apertura si ya existía (coalesce), para no perder la
+     * traza de cuándo se abrió por primera vez.
+     */
+    static async markUsedForInstance(instanceId: string): Promise<void> {
+        await db
+            .update(magicLinks)
+            .set({
+                status: 'USED',
+                usedAt: sql`coalesce(${magicLinks.usedAt}, now())`,
+            })
+            .where(
+                and(
+                    eq(magicLinks.instanceId, instanceId),
+                    eq(magicLinks.status, 'PENDING')
+                )
+            );
+    }
+
+    /**
+     * Registrar la apertura del enlace (plan 5.5): llena usedAt la primera vez sin
+     * tocar status — el enlace NO es de un solo uso, el destinatario puede abrir,
+     * interrumpirse y volver. Idempotente por construcción (coalesce).
+     */
+    static async recordOpen(token: string): Promise<void> {
+        await db
+            .update(magicLinks)
+            .set({
+                usedAt: sql`coalesce(${magicLinks.usedAt}, now())`,
+            })
+            .where(
+                and(eq(magicLinks.token, token), eq(magicLinks.status, 'PENDING'))
+            );
     }
 
     /**

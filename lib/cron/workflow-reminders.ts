@@ -10,7 +10,7 @@
  */
 
 import { db } from '@/lib/db';
-import { workflowAssignments, workflowTemplates } from '@/lib/db/schema';
+import { workflowAssignments, workflowTemplates, workflowInstances } from '@/lib/db/schema';
 import { and, eq, sql } from 'drizzle-orm';
 import { NotificationDispatcher } from '@/lib/services/notification-dispatcher';
 
@@ -81,7 +81,9 @@ function getHoursUntilDue(dueDate: Date): number {
 async function sendReminder(
   assignment: typeof workflowAssignments.$inferSelect,
   reminderType: '24h' | '1h' | '30min',
-  templateName: string
+  templateName: string,
+  instanceId: string,
+  smartLinkUrl?: string
 ): Promise<boolean> {
   try {
     const hoursUntilDue = getHoursUntilDue(new Date(assignment.dueDate!));
@@ -98,8 +100,9 @@ async function sendReminder(
         hoursUntilDue,
         reminderType,
         assignmentId: assignment.id,
+        smartLinkUrl,
       },
-      actionUrl: `/dashboard/workflows/assignments/${assignment.id}`,
+      actionUrl: `/dashboard/workflows/${instanceId}/execute`,
       actionLabel: 'Ver Tarea',
     });
 
@@ -150,10 +153,38 @@ export async function sendWorkflowReminders() {
 
     for (const { assignment } of dueSoonAssignments) {
       try {
-        // Get template for this assignment to find reminder intervals
-        const template = await db.query.workflowTemplates.findFirst({
-          where: eq(workflowTemplates.id, assignment.instanceId),
+        // Bug corregido: el template se resuelve por la instancia, no por el id de
+        // la instancia contra workflowTemplates.id (que siempre daba null y el
+        // recordatorio salía como "Tarea" con intervalos por defecto).
+        const instance = await db.query.workflowInstances.findFirst({
+          where: eq(workflowInstances.id, assignment.instanceId),
         });
+        const template = instance
+          ? await db.query.workflowTemplates.findFirst({
+              where: eq(workflowTemplates.id, instance.workflowTemplateId),
+            })
+          : null;
+
+        // Reutilizar el enlace vigente de la ejecución (plan 4.4): un recordatorio
+        // no debe emitir un token nuevo cada vez que corre.
+        let smartLinkUrl: string | undefined;
+        try {
+          const { SmartLinkService } = await import('@/lib/services/smart-link-service');
+          const smartLink = instance
+            ? await SmartLinkService.getOrCreateForInstance(
+                assignment.instanceId,
+                instance.workflowTemplateId,
+                {
+                  sessionId: instance.sessionId,
+                  assignedTo: assignment.assignedTo,
+                  assignmentId: assignment.id,
+                }
+              )
+            : null;
+          smartLinkUrl = smartLink?.url;
+        } catch (linkErr) {
+          console.error(`[Cron] Failed to resolve smart link for assignment ${assignment.id}:`, linkErr);
+        }
 
         // Parse reminders already sent
         const remindersSentList: ReminderSent[] =
@@ -179,7 +210,13 @@ export async function sendWorkflowReminders() {
 
         // Send each reminder type
         for (const reminderType of remindersToSend) {
-          const sent = await sendReminder(assignment, reminderType, templateName);
+          const sent = await sendReminder(
+            assignment,
+            reminderType,
+            templateName,
+            assignment.instanceId,
+            smartLinkUrl
+          );
 
           if (sent) {
             // Track that reminder was sent
@@ -248,15 +285,40 @@ export async function sendManualReminder(
       return false;
     }
 
-    const template = await db.query.workflowTemplates.findFirst({
-      where: eq(workflowTemplates.id, assignment.instanceId),
+    const instance = await db.query.workflowInstances.findFirst({
+      where: eq(workflowInstances.id, assignment.instanceId),
     });
+    const template = instance
+      ? await db.query.workflowTemplates.findFirst({
+          where: eq(workflowTemplates.id, instance.workflowTemplateId),
+        })
+      : null;
 
     const remindersSentList: ReminderSent[] =
       (assignment.remindersSent as ReminderSent[]) || [];
 
+    // Reutilizar el enlace vigente si existe
+    let smartLinkUrl: string | undefined;
+    try {
+      const { SmartLinkService } = await import('@/lib/services/smart-link-service');
+      const smartLink = instance
+        ? await SmartLinkService.getOrCreateForInstance(
+            assignment.instanceId,
+            instance.workflowTemplateId,
+            {
+              sessionId: instance.sessionId,
+              assignedTo: assignment.assignedTo,
+              assignmentId: assignment.id,
+            }
+          )
+        : null;
+      smartLinkUrl = smartLink?.url;
+    } catch (linkErr) {
+      console.error(`[Manual Reminder] Failed to resolve smart link for ${assignmentId}:`, linkErr);
+    }
+
     const templateName = template?.name || 'Tarea';
-    const sent = await sendReminder(assignment, reminderType, templateName);
+    const sent = await sendReminder(assignment, reminderType, templateName, assignment.instanceId, smartLinkUrl);
 
     if (sent) {
       const newReminder: ReminderSent = {

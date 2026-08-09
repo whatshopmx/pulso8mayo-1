@@ -1,7 +1,9 @@
 export { cronExecuteSchedules } from "./cron-execute-schedules";
 export { cronCheckOverdue } from "./cron-check-overdue";
 export { cronWorkflowReminders } from "./cron-workflow-reminders";
-export { cronOverdueWorkflows } from "./cron-overdue-workflows";
+// cron-overdue-workflows eliminado: duplicaba a cron-check-overdue (misma hora,
+// mismo eventType workflow_overdue) con carrera de doble notificación. La lógica
+// (join con plantilla para el nombre real + smart link) vive ahora en check-overdue.
 export { cronSendReminders } from "./cron-send-reminders";
 export { cronInventoryChecks } from "./cron-inventory-checks";
 export { cronComplianceAlerts } from "./cron-compliance-alerts";

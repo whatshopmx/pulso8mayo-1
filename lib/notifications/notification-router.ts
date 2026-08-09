@@ -214,6 +214,18 @@ const routingRules: Record<NotificationEventType, RoutingRule> = {
     retryAttempts: 5,
     retryDelayMs: 1000,
     businessHoursOnly: false
+  },
+  workflow_unassigned: {
+    eventType: "workflow_unassigned",
+    // Plan 5.2: una programación sin destinatario es un hueco operativo que
+    // necesita a un gerente actuando — si el turno de cierre a las 21:00 no
+    // encontró nadie, avisar en la mañana es tarde. `high`, no `critical`
+    // (no es incidente/fraude), y fuera de horario a propósito.
+    priority: "high",
+    channels: ["whatsapp", "email", "in-app"],
+    retryAttempts: 3,
+    retryDelayMs: 2000,
+    businessHoursOnly: false
   }
 };
 

@@ -343,6 +343,42 @@ export async function sendWorkflowOverdueEmail(
 }
 
 /**
+ * Send workflow-unassigned email (plan 5.2): una programación no encontró
+ * destinatario elegible — el gerente de la sucursal debe asignarla a mano.
+ */
+export async function sendWorkflowUnassignedEmail(
+  to: string,
+  data: {
+    userName: string;
+    scheduleTitle: string;
+    branchName: string;
+    workflowUrl: string;
+  }
+): Promise<EmailResult> {
+  const html = buildEmailHtml({
+    title: '⚠️ Programación sin destinatario',
+    content: `
+      <p>Hola ${data.userName},</p>
+      <div class="alert-box warning">
+        <strong>${data.scheduleTitle}</strong><br>
+        Sucursal: ${data.branchName}
+      </div>
+      <p>La programación no encontró a <strong>nadie disponible</strong> para ejecutarla a la hora programada. La ejecución quedó creada pero <strong>sin asignar</strong>.</p>
+      <p>Asígnala a alguien o ajusta el horario/rol para que no se repita.</p>
+    `,
+    actionUrl: data.workflowUrl,
+    actionLabel: 'Ver Ejecución',
+  });
+
+  return sendEmail({
+    to,
+    subject: `⚠️ Programación sin destinatario: ${data.scheduleTitle}`,
+    html,
+  });
+}
+
+
+/**
  * Send incident alert email
  */
 export async function sendIncidentAlertEmail(

@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { workflowAssignments } from '@/lib/db/schema';
+import { workflowAssignments, workflowInstances, workflowTemplates } from '@/lib/db/schema';
 import { and, gte, lte, or, eq } from 'drizzle-orm';
 import { NotificationDispatcher } from '@/lib/services/notification-dispatcher';
 
@@ -50,6 +50,39 @@ export async function sendDueSoonReminders() {
             try {
                 console.log(`[Cron] Sending reminder for assignment: ${assignment.id}`);
 
+        // Resolver instancia + plantilla para el nombre real (antes salía
+        // "Tarea VENCIDA: undefined" porque workflowAssignments no tiene
+        // workflowTemplateId).
+        const instance = await db.query.workflowInstances.findFirst({
+          where: eq(workflowInstances.id, assignment.instanceId),
+        });
+        const template = instance
+          ? await db.query.workflowTemplates.findFirst({
+              where: eq(workflowTemplates.id, instance.workflowTemplateId),
+            })
+          : null;
+        const templateName = template?.name || 'Workflow';
+
+        // Reutilizar el enlace vigente de la ejecución (plan 4.4)
+        let smartLinkUrl: string | undefined;
+        try {
+          const { SmartLinkService } = await import('@/lib/services/smart-link-service');
+          const smartLink = instance
+            ? await SmartLinkService.getOrCreateForInstance(
+                assignment.instanceId,
+                instance.workflowTemplateId,
+                {
+                  sessionId: instance.sessionId,
+                  assignedTo: assignment.assignedTo,
+                  assignmentId: assignment.id,
+                }
+              )
+            : null;
+          smartLinkUrl = smartLink?.url;
+        } catch (linkErr) {
+          console.error(`[Cron] Failed to resolve smart link for assignment ${assignment.id}:`, linkErr);
+        }
+
         const dueDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
         const hoursUntilDue = dueDate
           ? Math.round((dueDate.getTime() - Date.now()) / (1000 * 60 * 60))
@@ -61,12 +94,13 @@ export async function sendDueSoonReminders() {
           message: `Tarea pendiente vence en ${hoursUntilDue} horas`,
           type: 'warning',
           eventType: 'workflow_due_soon',
-          actionUrl: `/dashboard/workflows/${assignment.id}`,
+          actionUrl: `/dashboard/workflows/${assignment.instanceId}/execute`,
           actionLabel: 'Completar Ahora',
           metadata: {
-            workflowName: (assignment as any).workflowTemplateId || 'Workflow',
+            workflowName: templateName,
             hoursUntilDue,
             dueDate: assignment.dueDate?.toISOString(),
+            smartLinkUrl,
           },
         });
                 console.log(`[Cron] Reminder sent for assignment ${assignment.id}`);

@@ -9,6 +9,7 @@ import {
   sendStockAlertEmail,
   sendShiftReminderEmail,
   sendDocumentExpirationEmail,
+  sendWorkflowUnassignedEmail,
 } from "./email-service";
 
 export type NotificationChannel = "whatsapp" | "email" | "in-app";
@@ -35,7 +36,8 @@ export type NotificationEventType =
   | "financial_kpi_deviation"
   | "cash_variance_detected"
   | "morning_brief"
-  | "supplier_bank_account_changed";
+  | "supplier_bank_account_changed"
+  | "workflow_unassigned";
 
 export interface UserData {
     id: string;
@@ -91,36 +93,36 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
         name: "Asignación de Workflow",
         eventType: "workflow_assignment",
         channels: ["whatsapp", "email", "in-app"],
-        whatsappTemplate: "📋 *Nueva Tarea Asignada*\n\nHola {userName},\n\nSe te ha asignado una nueva tarea: {workflowName}\n\nFecha límite: {dueDate}\n\nPor favor, revisa tu dashboard para más detalles.",
+        whatsappTemplate: "📋 *Nueva Tarea Asignada*\n\nHola {userName},\n\nSe te ha asignado una nueva tarea: {workflowName}\n\nFecha límite: {dueDate}\n\nÁbrelo y complétalo desde tu teléfono:\n{smartLinkUrl}",
         emailSubject: "Nueva Tarea Asignada: {workflowName}",
-        emailBody: `<h2>Nueva Tarea Asignada</h2><p>Hola {userName},</p><p>Se te ha asignado una nueva tarea: <strong>{workflowName}</strong></p><p><strong>Fecha límite:</strong> {dueDate}</p><p>Por favor, revisa tu dashboard para más detalles.</p>`,
+        emailBody: `<h2>Nueva Tarea Asignada</h2><p>Hola {userName},</p><p>Se te ha asignado una nueva tarea: <strong>{workflowName}</strong></p><p><strong>Fecha límite:</strong> {dueDate}</p><p><a href="{smartLinkUrl}">Abrir y completar la tarea</a></p>`,
         inAppTitle: "Nueva Tarea",
         inAppMessage: "Se te ha asignado: {workflowName}",
-        variables: ["userName", "workflowName", "dueDate"]
+        variables: ["userName", "workflowName", "dueDate", "smartLinkUrl"]
     },
     "workflow_due_soon": {
         id: "workflow_due_soon",
         name: "Workflow Por Vencer",
         eventType: "workflow_due_soon",
         channels: ["whatsapp", "in-app"],
-        whatsappTemplate: "⏰ *Recordatorio: Tarea Por Vencer*\n\nHola {userName},\n\nTu tarea \"{workflowName}\" vence en {hoursUntilDue} horas.\n\n¡No la olvides!",
+        whatsappTemplate: "⏰ *Recordatorio: Tarea Por Vencer*\n\nHola {userName},\n\nTu tarea \"{workflowName}\" vence en {hoursUntilDue} horas.\n\nContinúa donde la dejaste aquí:\n{smartLinkUrl}",
         emailSubject: "⏰ Recordatorio: Tarea por vencer",
-        emailBody: `<h2>Recordatorio de Tarea</h2><p>Hola {userName},</p><p>Tu tarea <strong>{workflowName}</strong> vence en <strong>{hoursUntilDue} horas</strong>.</p>`,
+        emailBody: `<h2>Recordatorio de Tarea</h2><p>Hola {userName},</p><p>Tu tarea <strong>{workflowName}</strong> vence en <strong>{hoursUntilDue} horas</strong>.</p><p><a href="{smartLinkUrl}">Abrir la tarea</a></p>`,
         inAppTitle: "Tarea Por Vencer",
         inAppMessage: "{workflowName} vence en {hoursUntilDue} horas",
-        variables: ["userName", "workflowName", "hoursUntilDue"]
+        variables: ["userName", "workflowName", "hoursUntilDue", "smartLinkUrl"]
     },
     "workflow_overdue": {
         id: "workflow_overdue",
         name: "Workflow Vencido",
         eventType: "workflow_overdue",
         channels: ["whatsapp", "email", "in-app"],
-        whatsappTemplate: "🚨 *TAREA VENCIDA*\n\nHola {userName},\n\nLa tarea \"{workflowName}\" está VENCIDA desde {overdueTime}.\n\nPor favor, complétala lo antes posible.",
+        whatsappTemplate: "🚨 *TAREA VENCIDA*\n\nHola {userName},\n\nLa tarea \"{workflowName}\" está VENCIDA desde {overdueTime}.\n\nComplétala ahora mismo aquí:\n{smartLinkUrl}",
         emailSubject: "🚨 TAREA VENCIDA: {workflowName}",
-        emailBody: `<h2 style="color: red;">Tarea Vencida</h2><p>Hola {userName},</p><p>La tarea <strong>{workflowName}</strong> está <strong style="color: red;">VENCIDA</strong> desde {overdueTime}.</p><p>Por favor, complétala lo antes posible.</p>`,
+        emailBody: `<h2 style="color: red;">Tarea Vencida</h2><p>Hola {userName},</p><p>La tarea <strong>{workflowName}</strong> está <strong style="color: red;">VENCIDA</strong> desde {overdueTime}.</p><p><a href="{smartLinkUrl}">Completar la tarea ahora</a></p>`,
         inAppTitle: "⚠️ Tarea Vencida",
         inAppMessage: "{workflowName} está vencida",
-        variables: ["userName", "workflowName", "overdueTime"]
+        variables: ["userName", "workflowName", "overdueTime", "smartLinkUrl"]
     },
     "incident": {
         id: "incident",
@@ -371,6 +373,19 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
       "bankName",
       "sharedLine",
     ]
+  },
+  "workflow_unassigned": {
+    id: "workflow_unassigned",
+    name: "Programación Sin Destinatario",
+    eventType: "workflow_unassigned",
+    channels: ["whatsapp", "email", "in-app"],
+    whatsappTemplate:
+      "⚠️ *Programación sin destinatario*\n\nHola {userName},\n\nLa programación *\"{scheduleTitle}\"* de {branchName} no encontró a nadie disponible para ejecutarla.\n\nLa ejecución quedó creada sin asignar. Asígnala a alguien o ajusta horario/rol aquí:\n{smartLinkUrl}",
+    emailSubject: "⚠️ Programación sin destinatario: {scheduleTitle}",
+    emailBody: `<h2>Programación sin destinatario</h2><p>Hola {userName},</p><p>La programación <strong>{scheduleTitle}</strong> de {branchName} no encontró a nadie disponible para ejecutarla.</p><p>La ejecución quedó creada <strong>sin asignar</strong>.</p><p><a href="{smartLinkUrl}">Ver la ejecución</a></p>`,
+    inAppTitle: "Programación sin destinatario",
+    inAppMessage: "{scheduleTitle} ({branchName}) no encontró a nadie disponible",
+    variables: ["userName", "scheduleTitle", "branchName", "smartLinkUrl"]
   }
 };
 
@@ -433,6 +448,22 @@ export class NotificationDispatcher {
     }
 
     /**
+     * Variables de plantilla comunes + degradación de smartLinkUrl (plan 5.4): si
+     * el emisor no mandó el enlace, se cae al actionUrl (in-app) para que la
+     * plantilla nunca quede con el literal o una frase colgando.
+     */
+    private static buildTemplateVariables(
+        payload: NotificationPayload,
+        userData: UserData | null
+    ): Record<string, unknown> {
+        return {
+            ...payload.metadata,
+            userName: userData?.name,
+            smartLinkUrl: payload.metadata?.smartLinkUrl || payload.actionUrl || '',
+        };
+    }
+
+    /**
      * Send WhatsApp notification
      */
   private static async sendWhatsAppNotification(
@@ -450,7 +481,7 @@ export class NotificationDispatcher {
 
       const message = this.replaceTemplateVariables(
         template.whatsappTemplate,
-        { ...payload.metadata, userName: userData.name }
+        this.buildTemplateVariables(payload, userData)
       );
 
       await this.sendWhatsAppMessage(userData.id, message);
@@ -507,6 +538,15 @@ export class NotificationDispatcher {
         });
         break;
 
+      case 'workflow_unassigned':
+        await sendWorkflowUnassignedEmail(userData.email, {
+          userName: userData.name || 'Usuario',
+          scheduleTitle: (payload.metadata?.scheduleTitle as string) || 'Programación',
+          branchName: (payload.metadata?.branchName as string) || 'La sucursal',
+          workflowUrl: payload.actionUrl || '#',
+        });
+        break;
+
       case 'incident':
         await sendIncidentAlertEmail(userData.email, {
           userName: userData.name || 'Usuario',
@@ -553,11 +593,11 @@ export class NotificationDispatcher {
           // Fallback to generic template
           const subject = this.replaceTemplateVariables(
             template.emailSubject,
-            { ...payload.metadata, userName: userData.name }
+            this.buildTemplateVariables(payload, userData)
           );
           const body = this.replaceTemplateVariables(
             template.emailBody,
-            { ...payload.metadata, userName: userData.name }
+            this.buildTemplateVariables(payload, userData)
           );
           // Generic email sending would go here if needed
           console.log(`[Email] Fallback: To: ${userData.email}, Subject: ${subject}`);
@@ -581,12 +621,12 @@ export class NotificationDispatcher {
             // Replace template variables
             const title = this.replaceTemplateVariables(
                 template.inAppTitle,
-                { ...payload.metadata, userName: userData.name }
+                this.buildTemplateVariables(payload, userData)
             );
 
             const message = this.replaceTemplateVariables(
                 template.inAppMessage,
-                { ...payload.metadata, userName: userData.name }
+                this.buildTemplateVariables(payload, userData)
             );
 
             // Store in database
@@ -687,8 +727,13 @@ export class NotificationDispatcher {
 
         Object.entries(variables).forEach(([key, value]) => {
             const regex = new RegExp(`\\{${key}\\}`, "g");
-            result = result.replace(regex, String(value || ""));
+            result = result.replace(regex, String(value ?? ""));
         });
+
+        // Última red (plan 5.4): si quedó algún literal {..} sin resolver — p.ej.
+        // {smartLinkUrl} que el emisor no mandó — se elimina en vez de enviarse
+        // tal cual en el mensaje.
+        result = result.replace(/\{[a-zA-Z0-9_]+}/g, "");
 
         return result;
     }

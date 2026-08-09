@@ -21,6 +21,14 @@ export default async function PublicWorkflowPage(props: PageProps) {
         return notFound();
     }
 
+    // Plan 5.5: registrar la apertura (usedAt = primera vez, el enlace no es de
+    // un solo uso). Best-effort: un fallo aquí no debe tumbar la página.
+    try {
+        await SmartLinkService.recordOpen(token);
+    } catch (error) {
+        console.error("Error recording smart link open:", error);
+    }
+
     const execution = await WorkflowExecutionService.getExecution(linkData.instance.id);
 
     if (!execution || !execution.template) {

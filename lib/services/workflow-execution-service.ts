@@ -572,6 +572,17 @@ export class WorkflowExecutionService {
                 })
                 .where(eq(workflowInstances.id, instanceId));
 
+            // Plan 5.5: al cerrar el flujo, los smart links de la instancia quedan
+            // USED (preservando el usedAt de la primera apertura) — ya no se puede
+            // reabrir la ejecución por enlace. Best-effort: un fallo aquí no debe
+            // impedir el cierre.
+            try {
+                const { SmartLinkService } = await import("./smart-link-service");
+                await SmartLinkService.markUsedForInstance(instanceId);
+            } catch (error) {
+                console.error(`[WorkflowExecution] Error marking smart links used for ${instanceId}:`, error);
+            }
+
             // Fase 5: al completar el template de recepción de mercancía,
             // extrae los datos a receiving_reports (best-effort fuera del request).
             // Debe ir DESPUÉS del update: el extractor descarta la instancia si

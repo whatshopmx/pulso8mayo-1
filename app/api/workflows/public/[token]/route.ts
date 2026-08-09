@@ -88,6 +88,16 @@ export async function GET(
       return new NextResponse("Execution not found", { status: 404 });
     }
 
+    // Plan 5.5: registrar la apertura (usedAt = primera vez, no se toca status:
+    // el enlace no es de un solo uso). Idempotente por coalesce; ambos puntos de
+    // entrada (la página y esta API) pueden registrar y el primero gana. Va
+    // después de los checks de acceso: un intento denegado (403) no es apertura.
+    try {
+      await SmartLinkService.recordOpen(token);
+    } catch (error) {
+      console.error("Error recording smart link open:", error);
+    }
+
     return NextResponse.json({
       execution,
       link: {

@@ -1,8 +1,12 @@
 import { db } from '@/lib/db';
-import { workflowAssignments, workflowInstances, workflowSchedules, users, workflowTemplates } from '@/lib/db/schema';
+import { workflowAssignments, workflowInstances, workflowSchedules, users, workflowTemplates, branches } from '@/lib/db/schema';
 import { eq, and, lte, gte, or, isNull, sql } from 'drizzle-orm';
 import { emitWorkflowEvent } from '@/lib/websocket/workflow-handlers';
 import { NotificationDispatcher } from '@/lib/services/notification-dispatcher';
+
+/** Error tipado para el caso "no hay destinatario elegible" (plan 5.2): el cron
+ * lo detecta por identidad y avisa al gerente de la sucursal. */
+export const NO_SUITABLE_USER_ERROR = 'No suitable user found for assignment';
 
 export type AssignmentStatus = 'PENDING' | 'NOTIFIED' | 'STARTED' | 'COMPLETED' | 'OVERDUE';
 export type AssignmentType = 'ROLE' | 'USER' | 'AUTO' | 'MANUAL';
@@ -42,11 +46,16 @@ export interface BranchAssignmentStats {
     averageCompletionTime: number; // in hours
 }
 
+export type WorkflowAssignmentResult = typeof workflowAssignments.$inferSelect & {
+  /** Enlace smart link generado para esta asignación, si la notificación salió con él. */
+  smartLinkUrl?: string;
+};
+
 export class WorkflowAssignmentService {
   /**
    * Assign a workflow to a user
    */
-  static async assignWorkflow(instanceId: string, config: AssignmentConfig) {
+  static async assignWorkflow(instanceId: string, config: AssignmentConfig): Promise<WorkflowAssignmentResult> {
     const [assignment] = await db.insert(workflowAssignments).values({
       instanceId,
       assignedTo: config.assignedTo,
@@ -81,7 +90,8 @@ export class WorkflowAssignmentService {
       createdAt: new Date().toISOString(),
     });
 
-    // Send training assignment notification if it is a training template
+    // Enviar notificación con smart link: el destinatario abre y ejecuta desde el
+    // teléfono sin login. Ya no es exclusivo de capacitación (ver plan 4.1).
     try {
         const instance = await db.query.workflowInstances.findFirst({
             where: eq(workflowInstances.id, instanceId),
@@ -92,48 +102,80 @@ export class WorkflowAssignmentService {
                 where: eq(workflowTemplates.id, instance.workflowTemplateId),
             });
 
-            const isTraining = template && (
-                template.category === 'TRAINING' || 
-                template.category === 'CAPACITACION' || 
-                template.name?.toLowerCase().includes('capacitacion') || 
+            const isTraining = !!template && (
+                template.category === 'TRAINING' ||
+                template.category === 'CAPACITACION' ||
+                template.name?.toLowerCase().includes('capacitacion') ||
                 template.name?.toLowerCase().includes('capacitación')
             );
 
-            if (isTraining && template) {
-                const { SmartLinkService } = await import('./smart-link-service');
-                const smartLink = await SmartLinkService.createSmartLink(
-                    instanceId,
-                    instance.workflowTemplateId,
-                    instance.sessionId,
-                    7 * 24 * 60, // 7 days expiration
-                    undefined,
-                    config.assignedTo,
-                    undefined,
-                    assignment.id
+            // Vigencia atada a dueDate (piso 2h, techo 30 días, margen de 12h) en
+            // vez de constantes: un flujo de cierre que vence a las 23:00 no debe
+            // traer un enlace de 7 días.
+            let expiresInMinutes = 60 * 24;
+            if (config.dueDate) {
+                const minutesUntilDue = Math.max(
+                    0,
+                    Math.ceil((config.dueDate.getTime() - Date.now()) / 60000)
                 );
-
-                const formattedDueDate = config.dueDate
-                    ? new Date(config.dueDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
-                    : 'Sin fecha límite';
-
-                await NotificationDispatcher.sendNotification({
-                    userId: config.assignedTo,
-                    title: `Nueva Capacitación: ${template.name}`,
-                    message: `Se te ha asignado la capacitación obligatoria: ${template.name}. Fecha límite: ${formattedDueDate}`,
-                    type: "info",
-                    eventType: "training_assigned",
-                    actionUrl: smartLink.url,
-                    actionLabel: "Iniciar Capacitación",
-                    metadata: {
-                        workflowName: template.name || 'Capacitación',
-                        dueDate: formattedDueDate,
-                        smartLinkUrl: smartLink.url,
-                    }
-                });
+                expiresInMinutes = Math.min(
+                    30 * 24 * 60,
+                    Math.max(2 * 60, minutesUntilDue + 12 * 60)
+                );
             }
+
+            // getOrCreateForInstance reutiliza el enlace vigente si lo hay (p.ej.
+            // retry del cron o reasignación) — no duplica tokens.
+            const { SmartLinkService } = await import('./smart-link-service');
+            const smartLink = await SmartLinkService.getOrCreateForInstance(
+                instanceId,
+                instance.workflowTemplateId,
+                {
+                    sessionId: instance.sessionId,
+                    expiresInMinutes,
+                    assignedTo: config.assignedTo,
+                    assignmentId: assignment.id,
+                }
+            );
+
+            const formattedDueDate = config.dueDate
+                ? new Date(config.dueDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+                : 'Sin fecha límite';
+
+            const workflowName = template?.name || 'Workflow';
+            const eventType = isTraining ? 'training_assigned' : 'workflow_assignment';
+            const title = isTraining
+                ? `Nueva Capacitación: ${workflowName}`
+                : `Nueva Tarea: ${workflowName}`;
+            const message = isTraining
+                ? `Se te ha asignado la capacitación obligatoria: ${workflowName}. Fecha límite: ${formattedDueDate}`
+                : `Se te ha asignado: ${workflowName}`;
+
+            await NotificationDispatcher.sendNotification({
+                userId: config.assignedTo,
+                title,
+                message,
+                type: "info",
+                eventType,
+                actionUrl: smartLink?.url || `/dashboard/workflows/${instanceId}/execute`,
+                actionLabel: isTraining ? 'Iniciar Capacitación' : 'Ver Tarea',
+                metadata: {
+                    workflowName,
+                    dueDate: formattedDueDate,
+                    smartLinkUrl: smartLink?.url,
+                }
+            });
+
+            // Adjuntar el enlace al resultado para que el cron (execute-schedules)
+            // lo pase como metadata sin volver a generar otro.
+            const result = assignment as WorkflowAssignmentResult;
+            result.smartLinkUrl = smartLink?.url;
+            return result;
         }
     } catch (notifErr) {
-        console.error("Error sending training assignment notification:", notifErr);
+        // La generación del enlace no puede tumbar la asignación: si falla, la
+        // notificación sale sin enlace (ver plan 5.4).
+        console.error("Error sending workflow assignment notification:", notifErr);
     }
 
     return assignment;
@@ -157,7 +199,7 @@ export class WorkflowAssignmentService {
         }
 
         if (!assignedTo) {
-            throw new Error('No suitable user found for assignment');
+            throw new Error(NO_SUITABLE_USER_ERROR);
         }
 
         return await this.assignWorkflow(instanceId, {
@@ -565,5 +607,72 @@ export class WorkflowAssignmentService {
             .limit(1);
 
         return instance?.dueDate || undefined;
+    }
+
+    /**
+     * Avisa al gerente de la sucursal que una programación no encontró
+     * destinatario (plan 5.2): la ejecución quedó creada sin asignar y nadie
+     * recibió WhatsApp — alguien debe asignarla a mano o ajustar horario/rol.
+     * Best-effort: un fallo aquí no debe tumbar el cron.
+     */
+    static async notifyManagerUnassigned(schedule: any, instanceId: string): Promise<void> {
+        try {
+            const [branch] = await db
+                .select({ name: branches.name })
+                .from(branches)
+                .where(eq(branches.id, schedule.branchId))
+                .limit(1);
+
+            // GERENTE de la sucursal; si no hay, SUPERVISOR/ADMIN como fallback.
+            const manager =
+                (await db.query.users.findFirst({
+                    where: and(eq(users.branchId, schedule.branchId), eq(users.role, 'GERENTE')),
+                })) ||
+                (await db.query.users.findFirst({
+                    where: and(
+                        eq(users.branchId, schedule.branchId),
+                        or(eq(users.role, 'SUPERVISOR'), eq(users.role, 'ADMIN'))
+                    ),
+                }));
+
+            if (!manager) {
+                console.warn(
+                    `[WorkflowAssignment] No manager found in branch ${schedule.branchId} ` +
+                    `to alert about unassigned schedule ${schedule.id}`
+                );
+                return;
+            }
+
+            const template = await db.query.workflowTemplates.findFirst({
+                where: eq(workflowTemplates.id, schedule.templateId),
+            });
+
+            const scheduleTitle = schedule.title || template?.name || 'Workflow';
+            const branchName = branch?.name || 'La sucursal';
+            // Enlace absoluto al dashboard: el gerente sí tiene login. El smart link
+            // público no aplica (no hay destinatario que lo abra sin sesión).
+            const executeUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/workflows/${instanceId}/execute`;
+
+            await NotificationDispatcher.sendNotification({
+                userId: manager.id,
+                title: '⚠️ Programación sin destinatario',
+                message: `La programación "${scheduleTitle}" de ${branchName} no encontró a nadie disponible.`,
+                type: 'warning',
+                eventType: 'workflow_unassigned',
+                actionUrl: executeUrl,
+                actionLabel: 'Ver Ejecución',
+                metadata: {
+                    scheduleTitle,
+                    branchName,
+                    smartLinkUrl: executeUrl,
+                },
+            });
+
+            console.log(
+                `[WorkflowAssignment] Manager ${manager.id} notified: schedule ${schedule.id} found no recipient`
+            );
+        } catch (error) {
+            console.error('[WorkflowAssignment] Error notifying manager of unassigned schedule:', error);
+        }
     }
 }
