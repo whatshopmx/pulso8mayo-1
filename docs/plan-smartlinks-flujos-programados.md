@@ -124,6 +124,8 @@ El enlace da acceso sin autenticación a una ejecución concreta. Con la vigenci
 
 ## 6. Verificación
 
+> **Automatizada:** `scripts/verify-smartlink-flow.ts` (16/16 checks PASS el 2026-08-09; hallazgo: 0044 no estaba aplicada en la BD viva — ver `docs/handoff-smartlink-flujos-programados.md`).
+
 1. Programar una plantilla **no** de capacitación con hora a 5 minutos y rol asignado.
 2. Confirmar que el cron crea ejecución, asignación y **un** registro en `magic_links` con `session_id` nulo.
 3. Confirmar que el WhatsApp llega con enlace y **sin** literales `{...}`.
