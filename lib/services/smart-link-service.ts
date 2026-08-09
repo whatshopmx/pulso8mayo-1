@@ -8,6 +8,14 @@ const JWT_SECRET = process.env.JWT_SECRET || nanoid(32);
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Base URL del smart link sin barra final: un NEXT_PUBLIC_APP_URL con "/"
+ * colgando producía URLs con doble barra (//workflow/public/...).
+ */
+function smartLinkBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/+$/, "");
+}
+
 export interface GetOrCreateSmartLinkOptions {
   /** Id de la plantilla. Se deduce de la instancia si no se pasa. */
   templateId?: string;
@@ -114,7 +122,7 @@ export class SmartLinkService {
       return {
         token: active.token,
         expiresAt: active.expiresAt,
-        url: `${process.env.NEXT_PUBLIC_APP_URL}/workflow/public/${active.token}`,
+        url: `${smartLinkBaseUrl()}/workflow/public/${active.token}`,
         instanceId,
         workflowTemplateId: active.workflowTemplateId,
         sessionId: active.sessionId,
@@ -224,7 +232,7 @@ export class SmartLinkService {
     return {
       token,
       expiresAt,
-      url: `${process.env.NEXT_PUBLIC_APP_URL}/workflow/public/${token}`,
+      url: `${smartLinkBaseUrl()}/workflow/public/${token}`,
       instanceId,
       workflowTemplateId: templateId,
       sessionId: normalizedSessionId,
