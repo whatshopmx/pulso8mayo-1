@@ -36,6 +36,9 @@ export default function WorkflowReviewPage() {
           score: execution.score,
           createdAt: execution.createdAt,
           completedAt: execution.completedAt,
+          reviewStatus: execution.reviewStatus ?? null,
+          reviewComment: execution.reviewComment ?? null,
+          reviewedAt: execution.reviewedAt ?? null,
           steps: execution.steps.map((step: any) => ({
             id: step.id,
             stepId: step.stepId,
@@ -66,49 +69,37 @@ export default function WorkflowReviewPage() {
     }
   }, [params.id]);
 
-  const handleApprove = async (workflowId: string, comment: string) => {
-    try {
-      const response = await fetch(`/api/workflows/executions/${workflowId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'APPROVED',
-          reviewComment: comment,
-          reviewedAt: new Date().toISOString(),
-        }),
-      });
+  // El servidor ya redacta sus errores en español; los propagamos tal cual en
+  // vez de inventar un mensaje genérico. WorkflowReview los muestra en el toast.
+  const submitReview = async (
+    workflowId: string,
+    reviewStatus: 'APPROVED' | 'REJECTED',
+    comment: string,
+  ) => {
+    const response = await fetch(`/api/workflows/executions/${workflowId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewStatus, reviewComment: comment }),
+    });
 
-      if (!response.ok) {
-        throw new Error('Failed to approve workflow');
-      }
-
-      router.push('/dashboard/workflows/history');
-    } catch (error: any) {
-      throw error;
+    if (!response.ok) {
+      const message = await response
+        .json()
+        .then((body) => body?.error)
+        .catch(() => null);
+      throw new Error(message || 'No pudimos guardar la revisión. Vuelve a intentarlo.');
     }
+
+    // Volvemos al historial señalando la fila revisada, para que el revisor
+    // vea el resultado de su acción en lugar de buscarla en la tabla.
+    router.push(`/dashboard/workflows/history?revisada=${workflowId}`);
   };
 
-  const handleReject = async (workflowId: string, comment: string) => {
-    try {
-      const response = await fetch(`/api/workflows/executions/${workflowId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'REJECTED',
-          reviewComment: comment,
-          reviewedAt: new Date().toISOString(),
-        }),
-      });
+  const handleApprove = (workflowId: string, comment: string) =>
+    submitReview(workflowId, 'APPROVED', comment);
 
-      if (!response.ok) {
-        throw new Error('Failed to reject workflow');
-      }
-
-      router.push('/dashboard/workflows/history');
-    } catch (error: any) {
-      throw error;
-    }
-  };
+  const handleReject = (workflowId: string, comment: string) =>
+    submitReview(workflowId, 'REJECTED', comment);
 
   if (loading) {
     return (

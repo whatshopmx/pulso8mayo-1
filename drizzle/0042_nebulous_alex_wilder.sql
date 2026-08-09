@@ -1,0 +1,1 @@
+ALTER TYPE "public"."incident_severity" ADD VALUE 'HIGH';

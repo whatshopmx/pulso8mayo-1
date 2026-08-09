@@ -202,6 +202,18 @@ const routingRules: Record<NotificationEventType, RoutingRule> = {
     retryAttempts: 2,
     retryDelayMs: 5000,
     businessHoursOnly: false
+  },
+  supplier_bank_account_changed: {
+    eventType: "supplier_bank_account_changed",
+    // `critical` y no `high`: es la señal de que alguien pudo estar redirigiendo
+    // un pago. Un cambio de CLABE a las 3 a.m. es MÁS sospechoso, no menos, así
+    // que `businessHoursOnly` queda en false a propósito — retenerlo hasta la
+    // mañana le regalaría al atacante la noche entera.
+    priority: "critical",
+    channels: ["whatsapp", "in-app"],
+    retryAttempts: 5,
+    retryDelayMs: 1000,
+    businessHoursOnly: false
   }
 };
 

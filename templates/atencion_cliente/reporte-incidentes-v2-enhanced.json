@@ -73,7 +73,7 @@
       "logicRules": [
         {
           "id": "rule-intoxicacion",
-          "condition": "tipo_incidente == 'Intoxicación alimentaria'",
+          "condition": "tipo_de_incidente == 'Intoxicación alimentaria'",
           "severity": "CRITICAL",
           "message": "Intoxicación alimentaria detectada - Se requiere reporte COFEPRIS y notificación inmediata al propietario",
           "escalationChain": ["OWNER"],
@@ -91,7 +91,7 @@
         },
         {
           "id": "rule-alergia",
-          "condition": "tipo_incidente == 'Alergia alimentaria'",
+          "condition": "tipo_de_incidente == 'Alergia alimentaria'",
           "severity": "CRITICAL",
           "message": "Alergia alimentaria reportada - Se requiere notificación inmediata y reporte COFEPRIS",
           "escalationChain": ["OWNER"],
@@ -109,7 +109,7 @@
         },
         {
           "id": "rule-accidente",
-          "condition": "tipo_incidente == 'Accidente'",
+          "condition": "tipo_de_incidente == 'Accidente'",
           "severity": "HIGH",
           "message": "Accidente reportado - Se requiere reporte STPS",
           "escalationChain": ["Gerente"],
@@ -188,7 +188,7 @@
       "logicRules": [
         {
           "id": "rule-gerente-no-notificado",
-          "condition": "gerente_notificado == false && severidad IN ['Alta', 'Crítica']",
+          "condition": "gerente_notificado == false && (severidad == 'Alta' || severidad == 'Crítica')",
           "severity": "CRITICAL",
           "message": "BLOCKED: Es obligatorio notificar al gerente para incidentes de severidad Alta o Crítica",
           "actions": [

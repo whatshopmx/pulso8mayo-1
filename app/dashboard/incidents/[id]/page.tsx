@@ -40,6 +40,7 @@ import { es } from "date-fns/locale";
 const SEVERITY_LABELS: Record<string, string> = {
     CRITICAL: "Crítico",
     WARNING: "Advertencia",
+    HIGH: "Alto",
     FATAL: "Fatal",
 };
 
@@ -55,6 +56,7 @@ const STATUS_LABELS: Record<string, string> = {
 const severityVariants: Record<string, string> = {
     CRITICAL: "bg-destructive/10 text-destructive border-destructive/20",
     WARNING: "bg-warning/10 text-warning-foreground border-warning/20",
+    HIGH: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20",
     FATAL: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
@@ -70,12 +72,13 @@ const statusVariants: Record<string, string> = {
 const severityIcons: Record<string, typeof XCircle> = {
     CRITICAL: XCircle,
     WARNING: AlertTriangle,
+    HIGH: AlertTriangle,
     FATAL: AlertCircle,
 };
 
 interface IncidentDetail {
     id: string;
-    severity: "CRITICAL" | "WARNING" | "FATAL";
+    severity: "CRITICAL" | "HIGH" | "WARNING" | "FATAL";
     status: "DETECTED" | "IN_REMEDIATION" | "AWAITING_EXTERNAL" | "CONFIRMED" | "RESOLVED" | "ESCALATED";
     title: string;
     description: string | null;
@@ -176,8 +179,9 @@ export default function IncidentDetailPage() {
             });
             if (!res.ok) throw new Error(`Error ${res.status}`);
             const data = await res.json();
-            fetchIncident();
-            return { success: true, message: data.message };
+            // El backend valida la evidencia: si no pasa, el paso no avanza.
+            await fetchIncident();
+            return { success: Boolean(data.success), message: data.message };
         } catch {
             return { success: false, message: "Error al enviar evidencia" };
         }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,6 +87,22 @@ export function WorkflowHistoryTable({ initialData, branchId: initialBranchId }:
   const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
   const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+
+  // Al volver de una revisión llegamos con ?revisada=<id>: llevamos al revisor
+  // hasta esa fila en vez de dejarlo buscándola en la tabla. Lo leemos al montar
+  // en vez de con useSearchParams() para no obligar a un boundary de Suspense
+  // en cada página que monte esta tabla.
+  const [reviewedId, setReviewedId] = useState<string | null>(null);
+  const reviewedRowRef = useRef<HTMLTableRowElement | null>(null);
+
+  useEffect(() => {
+    setReviewedId(new URLSearchParams(window.location.search).get("revisada"));
+  }, []);
+
+  useEffect(() => {
+    if (!reviewedId || loading) return;
+    reviewedRowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [reviewedId, loading, workflows]);
 
   // Update filters when branchId prop changes
   useEffect(() => {
@@ -367,7 +383,12 @@ const getStatusBadge = (status: WorkflowHistoryItem["status"]) => {
               </TableHeader>
               <TableBody>
                 {workflows.map((workflow) => (
-                <TableRow key={workflow.id}>
+                <TableRow
+                  key={workflow.id}
+                  ref={workflow.id === reviewedId ? reviewedRowRef : undefined}
+                  data-revisada={workflow.id === reviewedId || undefined}
+                  className="scroll-mt-24 data-[revisada]:bg-accent"
+                >
                   <TableCell className="font-medium">
                     <div className="space-y-1">
                       <div>{workflow.templateName}</div>

@@ -47,6 +47,14 @@ export const FINANCIAL_FIELDS: Record<string, readonly string[]> = {
   salary_history: ['previous_salary', 'new_salary'],
   cfdi_invoices: ['rfc_emisor', 'rfc_receptor'],
   corporate_twins: ['projected_cash_flow_cents', 'upcoming_obligations_cents'],
+  /**
+   * La cuenta a la que el grupo le transfiere dinero. `clabe_fingerprint` no se
+   * lista: es un HMAC derivado, no el dato en claro, así que no entra a
+   * ENCRYPTED_FIELDS. Aun así nunca sale en una respuesta — el servicio
+   * devuelve `clabe_last4`, no la cuenta, así que el enmascarado es la segunda
+   * línea de defensa y no la primera.
+   */
+  supplier_bank_accounts: ['clabe', 'bank_name'],
 } as const;
 
 /** All fields that require encryption-at-rest (Pilar 2). SENSITIVE ∪ FINANCIAL. */

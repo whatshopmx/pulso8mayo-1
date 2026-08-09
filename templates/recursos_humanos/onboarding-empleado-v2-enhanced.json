@@ -98,7 +98,7 @@
       },
       "branches": [
         {
-          "condition": "documento_faltante",
+          "condition": "ai_verification_failed",
           "targetStepId": "paso-registrar-pendiente"
         }
       ]

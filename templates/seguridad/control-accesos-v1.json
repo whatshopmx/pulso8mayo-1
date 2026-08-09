@@ -55,11 +55,11 @@
       "options": ["Empleado", "Proveedor", "Visitante", "Contratista"],
       "branches": [
         {
-          "condition": "Proveedor",
+          "condition": "value == 'Proveedor'",
           "targetStepId": "paso-verificacion-autorizacion"
         },
         {
-          "condition": "Visitante",
+          "condition": "value == 'Visitante'",
           "targetStepId": "paso-acompanante"
         }
       ]

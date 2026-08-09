@@ -60,7 +60,7 @@
       "logicRules": [
         {
           "id": "lr-plagas-critico",
-          "condition": "value == 'yes' || value == 'si'",
+          "condition": "value == true",
           "severity": "CRITICAL",
           "message": "Presencia de plagas detectada. Violación crítica a la NOM-251. Se requiere fumigación inmediata y plan de remediación.",
           "actions": ["ESCALATE", "CREATE_REMEDIATION_PLAN"]
@@ -81,7 +81,7 @@
       "logicRules": [
         {
           "id": "lr-violencia-critico",
-          "condition": "value == 'yes' || value == 'si'",
+          "condition": "value == true",
           "severity": "CRITICAL",
           "message": "Incidentes de violencia laboral reportados. Violación crítica a la NOM-035. Requiere intervención inmediata de RH.",
           "actions": ["ESCALATE", "CREATE_REMEDIATION_PLAN"]

@@ -1,0 +1,1 @@
+ALTER TABLE "magic_links" ALTER COLUMN "session_id" DROP NOT NULL;

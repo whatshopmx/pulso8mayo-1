@@ -21,7 +21,9 @@ export * from './schema/index';
 export const shiftTypeEnum = pgEnum("shift_type", ['MATUTINO', 'VESPERTINO', 'NOCTURNO', 'MIXTO']);
 export const dayOfWeekEnum = pgEnum("day_of_week", ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']);
 // roleEnum is re-exported from auth.ts via schema/index.ts
-export const incidentSeverityEnum = pgEnum("incident_severity", ['CRITICAL', 'WARNING', 'FATAL']);
+// 'HIGH' existe porque 17 reglas de la librería de plantillas la declaran; sin
+// ella el motor las degradaba a WARNING en silencio.
+export const incidentSeverityEnum = pgEnum("incident_severity", ['CRITICAL', 'WARNING', 'FATAL', 'HIGH']);
 export const incidentStatusEnum = pgEnum("incident_status", ['DETECTED', 'IN_REMEDIATION', 'AWAITING_EXTERNAL', 'CONFIRMED', 'RESOLVED', 'ESCALATED']);
 
 // Workflow Scheduling Enums
@@ -71,6 +73,16 @@ export const workflowInstances = pgTable("workflow_instances", {
     currentStepId: text("current_step_id"),
     data: jsonb("data").default(sql`'{}'::jsonb`), // Store full form state if needed
     score: integer("score"),
+
+    // Revisión del supervisor. Dimensión separada de `status`: una ejecución
+    // COMPLETED sigue siendo COMPLETED después de aprobarse. Meter APPROVED en
+    // `status` rompería el filtro y el badge del historial, que sólo conocen
+    // PENDING / IN_PROGRESS / COMPLETED / BLOCKED / FAILED / CANCELLED.
+    reviewStatus: text("review_status"), // null = sin revisar, PENDING_REVIEW, APPROVED, REJECTED
+    reviewComment: text("review_comment"),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewedBy: text("reviewed_by"), // User ID del revisor
+
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -680,6 +692,125 @@ export const suppliers = pgTable("suppliers", {
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Cuentas bancarias de proveedor — paso 2 de
+// `docs/plan-cuentas-por-pagar-reconciliado.md`.
+//
+// El fraude que este módulo existe para detener no es la factura falsa: es
+// cambiarle la CLABE a un proveedor real. La defensa es que la cuenta a la que
+// se paga sea un registro con ciclo de vida propio —capturada por alguien,
+// verificada por alguien MÁS, y congelada en el lote al cerrarse— en vez de un
+// campo editable dentro del proveedor.
+//
+// De ahí las tres reglas que el esquema impone por sí solo:
+//
+//   1. Una CLABE nunca nace confiable: `status` arranca en
+//      PENDING_VERIFICATION y solo el paso 3 (CEP de Banxico) la mueve.
+//   2. Un proveedor tiene **a lo más una** cuenta verificada y activa a la vez
+//      (índice único parcial). Capturar una nueva no desplaza a la vigente:
+//      conviven hasta que la nueva se verifica, así que un atacante que solo
+//      logra capturar no logra redirigir el pago.
+//   3. Quién capturó queda en `registeredBy` para que verificar pueda exigir
+//      una persona distinta (separación de funciones, paso 3).
+// ---------------------------------------------------------------------------
+
+export const supplierBankAccountStatusEnum = pgEnum("supplier_bank_account_status", [
+    'PENDING_VERIFICATION',
+    'VERIFIED',
+    'REJECTED',
+]);
+
+export const supplierBankAccounts = pgTable("supplier_bank_accounts", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    supplierId: uuid("supplier_id").notNull().references(() => suppliers.id),
+
+    /**
+     * CLABE cifrada en reposo (`enc::<base64>`, AES-256-GCM con el DEK del
+     * tenant — `lib/security/column-cipher.ts`). Es PII bancaria de la misma
+     * clase que `employee_profiles.clabe`; un dump de la base no debe entregar
+     * la cuenta a la que el grupo transfiere su dinero.
+     */
+    clabe: text("clabe").notNull(),
+    /** Últimos 4 dígitos en claro: es todo lo que la UI muestra jamás. */
+    clabeLast4: text("clabe_last4").notNull(),
+    /**
+     * HMAC-SHA256(CLABE, DEK del tenant) en hex — determinista dentro de una
+     * empresa. Existe porque el ciphertext usa un IV por valor y por lo tanto no
+     * se puede indexar ni comparar: sin esta columna no habría forma de detectar
+     * "esta CLABE ya está registrada" ni "dos proveedores comparten cuenta"
+     * (señal de fraude) sin descifrar la tabla completa.
+     *
+     * Atado al DEK: si el DEK se rota, `clabe` y esta huella quedan ilegibles a
+     * la vez. Es la misma deuda que ya tiene `DekService.rotateDek` (el
+     * re-cifrado de columnas nunca se implementó), no una nueva.
+     */
+    clabeFingerprint: text("clabe_fingerprint").notNull(),
+
+    /** Derivados de la CLABE al validarla; se guardan para no re-descifrar. */
+    bankCode: text("bank_code").notNull(),
+    bankName: text("bank_name").notNull(),
+
+    /**
+     * Titular declarado por el proveedor. No es prueba de nada por sí mismo:
+     * el paso 3 lo contrasta contra el nombre que devuelve el CEP de Banxico, y
+     * ahí es donde una CLABE suplantada se cae.
+     */
+    accountHolderName: text("account_holder_name").notNull(),
+
+    status: supplierBankAccountStatusEnum("status").default('PENDING_VERIFICATION').notNull(),
+    /** Baja lógica. Una cuenta nunca se borra: es evidencia de a quién se pagó. */
+    active: boolean("active").default(true).notNull(),
+
+    // --- Verificación de titularidad (el paso 3 llena esto; aquí solo vive) ---
+    verifiedAt: timestamp("verified_at"),
+    verifiedBy: text("verified_by").references(() => users.id),
+    /** 'MANUAL_CEP' en fase 1; el día que exista API bancaria entra otro valor. */
+    verificationMethod: text("verification_method"),
+    /** CEP de Banxico en R2 — la evidencia de la prueba de centavo. */
+    verificationEvidenceUrl: text("verification_evidence_url"),
+
+    rejectedAt: timestamp("rejected_at"),
+    rejectedBy: text("rejected_by").references(() => users.id),
+    rejectionReason: text("rejection_reason"),
+
+    /** Quién capturó. El verificador tiene que ser alguien distinto. */
+    registeredBy: text("registered_by").notNull().references(() => users.id),
+    /** Cuenta vigente que ésta pretende sustituir — la traza del cambio. */
+    replacesAccountId: uuid("replaces_account_id"),
+
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    /**
+     * Regla 2, impuesta por la base y no por el código de aplicación: un
+     * proveedor no puede tener dos cuentas verificadas y activas. Si la exclusión
+     * viviera solo en el servicio, dos peticiones concurrentes la burlarían.
+     */
+    oneVerifiedActivePerSupplier: uniqueIndex("supplier_bank_accounts_one_verified_active")
+        .on(table.supplierId)
+        .where(sql`${table.status} = 'VERIFIED' AND ${table.active}`),
+    /** Recapturar la misma CLABE de un proveedor no crea filas duplicadas. */
+    supplierClabeUnique: uniqueIndex("supplier_bank_accounts_supplier_clabe_unique")
+        .on(table.supplierId, table.clabeFingerprint)
+        .where(sql`${table.active}`),
+    companySupplierIdx: index("supplier_bank_accounts_company_supplier_idx").on(
+        table.companyId,
+        table.supplierId,
+    ),
+    /** Para la consulta "¿qué otro proveedor usa esta misma cuenta?". */
+    fingerprintIdx: index("supplier_bank_accounts_fingerprint_idx").on(
+        table.companyId,
+        table.clabeFingerprint,
+    ),
+    replacesAccountFk: foreignKey({
+        columns: [table.replacesAccountId],
+        foreignColumns: [table.id],
+        name: "supplier_bank_accounts_replaces_account_id_fk",
+    }),
+}));
 
 export const storageLocations = pgTable("storage_locations", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),

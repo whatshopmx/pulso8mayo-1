@@ -19,7 +19,7 @@ const PAGE_SIZE = 50;
 
 interface IncidentRow {
   id: string;
-  severity: 'CRITICAL' | 'WARNING' | 'FATAL';
+  severity: 'CRITICAL' | 'HIGH' | 'WARNING' | 'FATAL';
   title: string;
   status: 'DETECTED' | 'IN_REMEDIATION' | 'AWAITING_EXTERNAL' | 'CONFIRMED' | 'RESOLVED' | 'ESCALATED';
   createdAt: Date;

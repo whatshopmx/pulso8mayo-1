@@ -34,7 +34,8 @@ export type NotificationEventType =
   | "sales_cut_missing"
   | "financial_kpi_deviation"
   | "cash_variance_detected"
-  | "morning_brief";
+  | "morning_brief"
+  | "supplier_bank_account_changed";
 
 export interface UserData {
     id: string;
@@ -342,6 +343,34 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
     inAppTitle: "Morning Brief del grupo",
     inAppMessage: "{headline}",
     variables: ["briefDate", "headline", "prioritiesText"]
+  },
+  "supplier_bank_account_changed": {
+    id: "supplier_bank_account_changed",
+    name: "Cambio de CLABE de Proveedor",
+    eventType: "supplier_bank_account_changed",
+    // Sin canal email, por la misma razón que `morning_brief`:
+    // `sendEmailNotification` despacha por un switch de eventType y no hay
+    // plantilla de correo aquí, así que declararlo produciría un envío vacío en
+    // silencio — inaceptable en una alerta antifraude, donde creer que se envió
+    // es peor que saber que no.
+    channels: ["whatsapp", "in-app"],
+    whatsappTemplate:
+      "🏦 *Cambio de cuenta bancaria de proveedor*\n\n" +
+      "Proveedor: *{supplierName}*\n" +
+      "Cuenta anterior: ****{previousLast4}\n" +
+      "Cuenta nueva: ****{newLast4} ({bankName}){sharedLine}\n\n" +
+      "La cuenta nueva *todavía no está verificada* y NO se le puede pagar. " +
+      "La cuenta anterior sigue vigente.\n\n" +
+      "Si no autorizaste este cambio, recházalo desde Pulso ahora.",
+    inAppTitle: "Cambio de CLABE: {supplierName}",
+    inAppMessage: "****{previousLast4} → ****{newLast4} ({bankName}). Sin verificar.",
+    variables: [
+      "supplierName",
+      "previousLast4",
+      "newLast4",
+      "bankName",
+      "sharedLine",
+    ]
   }
 };
 

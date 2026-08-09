@@ -92,7 +92,7 @@
       "obligatorio": true,
       "branches": [
         {
-          "condition": "no",
+          "condition": "value == false",
           "targetStepId": "paso-reporte-mantenimiento"
         }
       ]

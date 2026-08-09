@@ -160,7 +160,7 @@
       "logicRules": [
         {
           "id": "lr-producto-caducado",
-          "condition": "expiredProductsDetected",
+          "condition": "ai_verification_failed",
           "severity": "HIGH",
           "message": "Se detectaron productos con fecha de caducidad vencida. Escalación inmediata.",
           "actions": ["ESCALATE"],
@@ -187,7 +187,7 @@
       "options": ["Aceptar", "Rechazar", "Aceptar con Descuento"],
       "branches": [
         {
-          "condition": "Rechazar",
+          "condition": "value == 'Rechazar'",
           "targetStepId": "paso-rechazo-total"
         }
       ]

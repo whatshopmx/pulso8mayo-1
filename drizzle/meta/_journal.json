@@ -288,6 +288,34 @@
       "when": 1786198857644,
       "tag": "0040_cuentas-por-pagar",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1786245446777,
+      "tag": "0041_supplier-bank-accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1786282931686,
+      "tag": "0042_nebulous_alex_wilder",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1786284799621,
+      "tag": "0043_workflow-review-fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1786299163578,
+      "tag": "0044_smartlink-session-optional",
+      "breakpoints": true
     }
   ]
 }

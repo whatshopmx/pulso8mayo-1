@@ -2,26 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { incidents, branches, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
 import { IncidentEngine } from '@/lib/services/incident-engine';
-import { EscalationService } from '@/lib/services/escalation-service';
+import { withTenantAuth, withRoleAuth } from '@/lib/api/with-auth';
+import { findIncidentForTenant } from '@/lib/api/incident-access';
 
 /**
  * GET /api/incidents/[id]
  * Get incident details with branch and user names
  */
-export async function GET(
+export const GET = withTenantAuth(async (
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+    { params, auth }
+) => {
     try {
-        const { id } = await params;
-        const [incident] = await db
-            .select()
-            .from(incidents)
-            .where(eq(incidents.id, id))
-            .limit(1);
+        const { id } = await (params as unknown as Promise<{ id: string }>);
+        const incident = await findIncidentForTenant(id, auth.tenantId);
 
         if (!incident) {
             return NextResponse.json(
@@ -64,20 +59,20 @@ export async function GET(
             { status: 500 }
         );
     }
-}
+});
 
 /**
  * PATCH /api/incidents/[id]
  * Resolve an incident
  */
-export async function PATCH(
+export const PATCH = withTenantAuth(async (
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+    { params, auth }
+) => {
     try {
         const body = await request.json();
         const { resolution } = body;
-        const { id } = await params;
+        const { id } = await (params as unknown as Promise<{ id: string }>);
 
         if (!resolution) {
             return NextResponse.json(
@@ -86,29 +81,20 @@ export async function PATCH(
             );
         }
 
-        const session = await auth.api.getSession({
-            headers: await headers(),
-        });
-
-        if (!session?.user?.id) {
-            return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 }
-            );
-        }
-
-        const incident = await IncidentEngine.resolveIncident(
-            id,
-            resolution,
-            session.user.id
-        );
-
-        if (!incident) {
+        const existing = await findIncidentForTenant(id, auth.tenantId);
+        if (!existing) {
             return NextResponse.json(
                 { error: 'Incident not found' },
                 { status: 404 }
             );
         }
+
+        // resolvedBy siempre sale de la sesión, nunca del body
+        const incident = await IncidentEngine.resolveIncident(
+            id,
+            resolution,
+            auth.user.id
+        );
 
         return NextResponse.json({ incident });
     } catch (error) {
@@ -118,28 +104,51 @@ export async function PATCH(
             { status: 500 }
         );
     }
-}
+});
 
 /**
  * DELETE /api/incidents/[id]
- * Delete an incident (soft delete)
+ * Descarta un incidente sin borrarlo: es evidencia de cumplimiento
+ * (NOM-251 / NOM-035) y el registro debe sobrevivir a la auditoría.
  */
-export async function DELETE(
+export const DELETE = withRoleAuth(['SUPER_ADMIN', 'ADMIN'], async (
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+    { params, auth }
+) => {
     try {
-        const { id } = await params;
-        await db
-            .delete(incidents)
-            .where(eq(incidents.id, id));
+        const { id } = await (params as unknown as Promise<{ id: string }>);
 
-        return NextResponse.json({ success: true });
+        const existing = await findIncidentForTenant(id, auth.tenantId);
+        if (!existing) {
+            return NextResponse.json(
+                { error: 'Incident not found' },
+                { status: 404 }
+            );
+        }
+
+        const [incident] = await db
+            .update(incidents)
+            .set({
+                status: 'RESOLVED',
+                resolution: 'Descartado por administración',
+                resolvedBy: auth.user.id,
+                resolvedAt: new Date(),
+                metadata: {
+                    ...(existing.metadata as Record<string, unknown> | null),
+                    dismissed: true,
+                    dismissedAt: new Date().toISOString(),
+                },
+                updatedAt: new Date(),
+            })
+            .where(eq(incidents.id, id))
+            .returning();
+
+        return NextResponse.json({ success: true, incident });
     } catch (error) {
-        console.error('[API] Error deleting incident:', error);
+        console.error('[API] Error dismissing incident:', error);
         return NextResponse.json(
-            { error: 'Failed to delete incident' },
+            { error: 'Failed to dismiss incident' },
             { status: 500 }
         );
     }
-}
+});

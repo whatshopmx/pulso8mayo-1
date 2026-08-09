@@ -1,6 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { RemediationService } from '@/lib/services/remediation-service';
 import { withTenantAuth } from '@/lib/api/with-auth';
+import { findIncidentForTenant } from '@/lib/api/incident-access';
+
+interface RemediationEvidence {
+    value?: unknown;
+    evidenceUrl?: string;
+    aiResult?: Record<string, unknown>;
+}
+
+/**
+ * Acepta evidencia como texto plano (lo que envía el wizard) o como objeto
+ * `{ value, evidenceUrl, aiResult }` para clientes que ya suben foto.
+ */
+function parseEvidence(raw: unknown): RemediationEvidence {
+    if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (trimmed.startsWith('{')) {
+            try {
+                return parseEvidence(JSON.parse(trimmed));
+            } catch {
+                // Se trata como texto libre
+            }
+        }
+        const isUrl = /^https?:\/\//i.test(trimmed);
+        return isUrl ? { value: trimmed, evidenceUrl: trimmed } : { value: trimmed };
+    }
+
+    if (raw && typeof raw === 'object') {
+        const obj = raw as Record<string, unknown>;
+        return {
+            value: obj.value ?? obj.evidenceUrl,
+            evidenceUrl: typeof obj.evidenceUrl === 'string' ? obj.evidenceUrl : undefined,
+            aiResult: (obj.aiResult ?? undefined) as Record<string, unknown> | undefined,
+        };
+    }
+
+    return {};
+}
 
 /**
  * POST /api/incidents/[id]/remediate
@@ -22,16 +59,51 @@ export const POST = withTenantAuth(async (
             );
         }
 
-        // Track the remediation attempt — validated by session
-        const success = await RemediationService.trackRemediationAttempt(
+        if (!await findIncidentForTenant(id, auth.tenantId)) {
+            return NextResponse.json(
+                { error: 'Incident not found' },
+                { status: 404 }
+            );
+        }
+
+        const parsed = parseEvidence(evidence);
+
+        // Si el paso exige verificación por IA y llegó una foto sin análisis,
+        // se analiza aquí: el servicio de validación necesita el aiResult.
+        let aiResult = parsed.aiResult;
+        if (!aiResult && parsed.evidenceUrl) {
+            const status = await RemediationService.getRemediationStatus(id);
+            const verification = status?.currentStepVerification;
+            if (verification?.type === 'ai_photo_verification') {
+                const { AIService } = await import('@/lib/services/ai-service');
+                aiResult = await AIService.verifyPhoto(
+                    parsed.evidenceUrl,
+                    verification.prompt || 'Verifica que la desviación reportada haya sido corregida.'
+                ) as unknown as Record<string, unknown>;
+            }
+        }
+
+        // La validación decide; el tracking solo registra el resultado.
+        const validation = await RemediationService.validateRemediationCompletion(
             id,
             stepIndex,
-            true // Assume success for now, validation happens in service
+            parsed.value,
+            aiResult
+        );
+
+        const progress = await RemediationService.trackRemediationAttempt(
+            id,
+            stepIndex,
+            validation.passed
         );
 
         return NextResponse.json({
-            success,
-            message: success ? 'Paso de remediación completado' : 'No se pudo completar el paso de remediación',
+            success: validation.passed,
+            message: validation.passed
+                ? (progress?.message ?? 'Paso de remediación completado')
+                : validation.reason,
+            reason: validation.reason,
+            progress,
         });
     } catch (error) {
         console.error('[API] Error submitting remediation:', error);

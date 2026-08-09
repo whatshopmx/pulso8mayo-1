@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { CheckCircle2, XCircle, Eye, Download, Calendar, User, MapPin, AlertTriangle, MessageSquare, ChevronDown, ImageIcon } from "lucide-react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -45,12 +45,17 @@ export interface WorkflowReviewData {
   createdAt: Date;
   completedAt: Date | null;
   steps: WorkflowReviewStep[];
+  /** null mientras nadie la ha revisado. */
+  reviewStatus: 'APPROVED' | 'REJECTED' | null;
+  reviewComment: string | null;
+  reviewedAt: string | null;
 }
 
 export interface WorkflowReviewProps {
   workflow: WorkflowReviewData;
-  onApprove?: (workflowId: string, comment: string) => void;
-  onReject?: (workflowId: string, comment: string) => void;
+  // Devuelven promesa: handleReviewSubmit las espera para saber si falló.
+  onApprove?: (workflowId: string, comment: string) => Promise<void> | void;
+  onReject?: (workflowId: string, comment: string) => Promise<void> | void;
   className?: string;
 }
 
@@ -77,6 +82,11 @@ export function WorkflowReview({
   const [reviewDialogOpen, setReviewDialogOpen] = React.useState(false);
   const [reviewAction, setReviewAction] = React.useState<'approve' | 'reject' | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+
+  // Sólo se revisa una ejecución terminada, y sólo una vez. El servidor lo
+  // vuelve a validar; aquí evitamos ofrecer una acción que va a fallar.
+  const isReviewed = workflow.reviewStatus === 'APPROVED' || workflow.reviewStatus === 'REJECTED';
+  const isCompleted = workflow.status === 'COMPLETED';
 
   const evidenceSteps = workflow.steps.filter(s => !!s.evidenceUrl);
   const aiVerifiedSteps = workflow.steps.filter(s => s.aiAnalysis && s.aiAnalysis.passed);
@@ -269,7 +279,7 @@ export function WorkflowReview({
                           <Badge
                             variant="outline"
                             className={cn(
-                              "text-[10px]",
+                              "text-xs",
                               step.aiAnalysis.passed
                                 ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
                                 : "bg-destructive/20 text-red-300 border-destructive/30"
@@ -380,60 +390,66 @@ export function WorkflowReview({
         </CardContent>
       </Card>
 
-      {/* Review Actions Card */}
-      <Card className="border border-border bg-card">
-        <CardHeader>
-          <CardTitle className="text-lg">Revisión del Workflow</CardTitle>
-          <CardDescription>
-            Aprueba o rechaza la ejecución del workflow
-          </CardDescription>
-        </CardHeader>
-        <CardFooter className="flex justify-between gap-4">
-          <Button
-            variant="outline"
-            onClick={() => openReviewDialog('reject')}
-            className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            <XCircle className="h-4 w-4" />
-            Rechazar Workflow
-          </Button>
-          <Button
-            onClick={() => openReviewDialog('approve')}
-            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-700"
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            Aprobar Workflow
-          </Button>
-        </CardFooter>
-      </Card>
-
-      {/* Sticky Quick Action Bar */}
-      <div className="sticky bottom-4 z-20 flex items-center justify-between gap-4 p-4 rounded-xl border border-border bg-background/95 backdrop-blur-md shadow-lg">
-        <div className="flex items-center gap-3 text-sm">
-          <span className="font-semibold text-foreground">{workflow.templateName}</span>
+      {/* Barra de decisión. Una sola: antes existían esta y una tarjeta idéntica
+          justo encima, visibles a la vez, y no había forma de saber si diferían. */}
+      <div className="sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-border bg-card">
+        <div className="flex items-center gap-3 text-sm min-w-0">
+          <span className="font-semibold text-foreground truncate">{workflow.templateName}</span>
           <span className="text-muted-foreground hidden sm:inline">•</span>
-          <span className="text-muted-foreground text-xs hidden sm:inline">{workflow.steps.length} pasos</span>
+          <span className="text-muted-foreground text-xs hidden sm:inline shrink-0">
+            {workflow.steps.length === 1 ? "1 paso" : `${workflow.steps.length} pasos`}
+          </span>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openReviewDialog('reject')}
-            className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive text-xs"
-          >
-            <XCircle className="h-3.5 w-3.5" />
-            Rechazar
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => openReviewDialog('approve')}
-            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-700 text-xs font-medium"
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Aprobar
-          </Button>
-        </div>
+
+        {isReviewed ? (
+          <div className="flex items-center gap-2 text-sm shrink-0">
+            {workflow.reviewStatus === 'APPROVED' ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            ) : (
+              <XCircle className="h-4 w-4 text-destructive" />
+            )}
+            <span className="font-medium">
+              {workflow.reviewStatus === 'APPROVED' ? "Aprobado" : "Rechazado"}
+            </span>
+            {workflow.reviewedAt && (
+              <span className="text-muted-foreground">
+                el {new Date(workflow.reviewedAt).toLocaleDateString('es-MX', { dateStyle: 'long' })}
+              </span>
+            )}
+          </div>
+        ) : !isCompleted ? (
+          <p className="text-sm text-muted-foreground shrink-0">
+            Podrás revisarla cuando la ejecución termine.
+          </p>
+        ) : (
+          <div className="flex items-center gap-3 shrink-0">
+            <Button
+              variant="outline"
+              onClick={() => openReviewDialog('reject')}
+              className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              <XCircle className="h-4 w-4" />
+              Rechazar
+            </Button>
+            <Button
+              onClick={() => openReviewDialog('approve')}
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-700"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Aprobar
+            </Button>
+          </div>
+        )}
       </div>
+
+      {isReviewed && workflow.reviewComment && (
+        <div className="rounded-lg border border-border bg-muted/40 p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-1">
+            {workflow.reviewStatus === 'APPROVED' ? "Nota de la revisión" : "Motivo del rechazo"}
+          </p>
+          <p className="text-sm">{workflow.reviewComment}</p>
+        </div>
+      )}
 
       {/* Image Preview Dialog */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
@@ -669,7 +685,7 @@ function StepDetail({ step, index, onSelectImage }: StepDetailProps) {
                 <AlertDescription className="text-xs mt-1 space-y-1">
                   <p>{step.aiAnalysis.reason || step.aiAnalysis.notes || 'Sin detalles'}</p>
                   {step.aiAnalysis.confidence !== undefined && (
-                    <span className="inline-block font-mono text-[11px] opacity-80">
+                    <span className="inline-block font-mono text-xs opacity-80">
                       Nivel de confianza: {Math.round(step.aiAnalysis.confidence * 100)}%
                     </span>
                   )}
@@ -679,7 +695,7 @@ function StepDetail({ step, index, onSelectImage }: StepDetailProps) {
           )}
 
           {step.completedAt && (
-            <div className="text-[11px] text-muted-foreground font-mono pt-1">
+            <div className="text-xs text-muted-foreground font-mono pt-1">
               Completado: {new Date(step.completedAt).toLocaleString('es-MX')}
             </div>
           )}

@@ -104,7 +104,7 @@ export class WorkflowAssignmentService {
                 const smartLink = await SmartLinkService.createSmartLink(
                     instanceId,
                     instance.workflowTemplateId,
-                    instance.sessionId || 'default',
+                    instance.sessionId,
                     7 * 24 * 60, // 7 days expiration
                     undefined,
                     config.assignedTo,

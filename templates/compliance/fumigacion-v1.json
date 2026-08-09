@@ -83,7 +83,7 @@
       "logicRules": [
         {
           "id": "lr-certificado-vencido",
-          "condition": "expiry_date < today || company_mismatch",
+          "condition": "ai_verification_failed",
           "severity": "CRITICAL",
           "message": "Certificado de fumigación VENCIDO o datos no coinciden. Bloquear operación inmediatamente según NOM-251 Sección 6.1.",
           "actions": ["BLOCK"],

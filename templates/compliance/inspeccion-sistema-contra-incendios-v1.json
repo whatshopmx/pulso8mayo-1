@@ -90,7 +90,7 @@
       "logicRules": [
         {
           "id": "lr-extintor-vencido",
-          "condition": "expiry_date < today",
+          "condition": "ai_verification_failed",
           "severity": "CRITICAL",
           "message": "Extintor VENCIDO detectado. Reemplazo urgente requerido inmediatamente según NOM-002-STPS.",
           "actions": ["CREATE_MAINTENANCE_TICKET", "BLOCK"],

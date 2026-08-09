@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
             const smartLink = await SmartLinkService.createSmartLink(
                 instance.id,
                 instance.workflowTemplateId,
-                instance.sessionId || user.id
+                instance.sessionId
             );
 
             // Call AI verification endpoint

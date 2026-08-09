@@ -78,7 +78,10 @@ export const verifications = pgTable("verifications", {
 // Magic links table for passwordless authentication
 export const magicLinks = pgTable("magic_links", {
   token: text("token").primaryKey().notNull(),
-  sessionId: uuid("session_id").notNull(),
+  // Opcional: un smart link puede existir sin turno asociado. Era NOT NULL y
+  // los llamadores rellenaban con '' o 'default', que Postgres rechaza al
+  // castear a uuid — por eso fallaba generar el enlace fuera de un turno.
+  sessionId: uuid("session_id"),
   instanceId: uuid("instance_id").notNull(), // Changed from executionId
   workflowTemplateId: text("workflow_template_id").notNull(),
   status: text("status").default('PENDING'),

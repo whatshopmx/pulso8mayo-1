@@ -8,10 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, AlertCircle, Camera, ArrowRight, Trash2, Video, Mic, Info, CalendarIcon, Upload } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Camera, ArrowRight, Trash2, Video, Mic, Info, CalendarIcon, Upload, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { CameraCapture } from "@/components/shared/camera-capture";
 import { usePhotoUpload } from "@/components/shared/use-photo-upload";
+import { useAudioRecorder } from "@/components/shared/use-audio-recorder";
 
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,7 +24,7 @@ interface WorkflowStep {
     id: string;
     title: string;
     description: string;
-    type: 'TEXT' | 'NUMBER' | 'SELECT' | 'CHECKBOX' | 'DATE' | 'INFO' | 'SIGNATURE' | 'PHOTO' | 'TIMER' | 'VIDEO' | 'AUDIO';
+    type: 'TEXT' | 'NUMBER' | 'SELECT' | 'CHECKBOX' | 'DATE' | 'INFO' | 'SIGNATURE' | 'PHOTO' | 'TIMER' | 'VIDEO' | 'AUDIO' | 'LOCATION';
     config?: Record<string, unknown>;
     required?: boolean;
 }
@@ -164,7 +165,9 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
     const [lastSaved] = useState<Date | null>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const { uploadPhotos, uploading: uploadingPhotos, progress: uploadProgress } = usePhotoUpload();
+  const audioRecorder = useAudioRecorder();
 
     // Remediation State
     const [remediation, setRemediation] = useState<{
@@ -312,6 +315,97 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
 
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [uploadPhotos]);
+
+  // Subida de un solo archivo de video o audio. /api/upload firma cualquier
+  // content-type, así que el mismo presign de las fotos sirve aquí.
+  const uploadMediaFile = useCallback(async (file: File, kind: 'video' | 'audio') => {
+    const limitMb = kind === 'video' ? 100 : 25;
+    if (file.size > limitMb * 1024 * 1024) {
+      toast.error(
+        kind === 'video'
+          ? `El video pesa más de ${limitMb} MB. Graba uno más corto.`
+          : `La nota de voz pesa más de ${limitMb} MB. Graba una más corta.`
+      );
+      return;
+    }
+
+    try {
+      const [result] = await uploadPhotos([file]);
+      if (!result) return;
+      setValue(result.url);
+      setEvidenceUrl(result.url);
+      setHasUnsavedChanges(true);
+    } catch {
+      toast.error(
+        kind === 'video'
+          ? "No pudimos subir el video. Revisa tu conexión e inténtalo de nuevo."
+          : "No pudimos subir la nota de voz. Revisa tu conexión e inténtalo de nuevo."
+      );
+    }
+  }, [uploadPhotos]);
+
+  const handleVideoSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await uploadMediaFile(file, 'video');
+    if (videoInputRef.current) videoInputRef.current.value = "";
+  }, [uploadMediaFile]);
+
+  // Captura de ubicación real. Antes este tipo de paso no tenía rama de render
+  // en el stepper: el paso quedaba sin control, `canSubmit` nunca se cumplía y
+  // la ejecución se atoraba ahí para siempre.
+  const [capturingLocation, setCapturingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  const captureLocation = useCallback(async () => {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+      setLocationError("Este navegador no puede obtener la ubicación. Abre el flujo desde otro dispositivo.");
+      return;
+    }
+
+    setCapturingLocation(true);
+    setLocationError(null);
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        });
+      });
+
+      const { latitude, longitude, accuracy } = position.coords;
+      // Guardamos la coordenada real: es la evidencia que se le muestra a un
+      // inspector, no una marca de que "algo se capturó".
+      setValue(JSON.stringify({
+        latitude,
+        longitude,
+        accuracy,
+        capturedAt: new Date().toISOString(),
+      }));
+      setHasUnsavedChanges(true);
+    } catch (error) {
+      const code = (error as GeolocationPositionError)?.code;
+      setLocationError(
+        code === 1
+          ? "Permiso de ubicación denegado. Habilítalo en tu navegador y vuelve a intentarlo."
+          : code === 3
+            ? "La ubicación tardó demasiado. Sal al exterior o revisa la señal e inténtalo de nuevo."
+            : "No pudimos obtener la ubicación. Inténtalo de nuevo."
+      );
+    } finally {
+      setCapturingLocation(false);
+    }
+  }, []);
+
+  const handleStopRecording = useCallback(async () => {
+    const file = await audioRecorder.stop();
+    if (!file) {
+      toast.error("No se grabó audio. Inténtalo de nuevo.");
+      return;
+    }
+    await uploadMediaFile(file, 'audio');
+  }, [audioRecorder, uploadMediaFile]);
 
   const handleCameraConfirm = useCallback(async (files: File[]) => {
     try {
@@ -739,6 +833,69 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
                         </div>
                     )}
 
+                    {/* ===== LOCATION ===== */}
+                    {currentStepDef.type === 'LOCATION' && (() => {
+                        const fix = (() => {
+                            try {
+                                const parsed = value ? JSON.parse(value) : null;
+                                return typeof parsed?.latitude === 'number' ? parsed : null;
+                            } catch {
+                                return null;
+                            }
+                        })();
+
+                        return (
+                            <div className="space-y-3">
+                                <Label>Ubicación</Label>
+                                {fix ? (
+                                    <div className="rounded-lg border p-4 space-y-2">
+                                        <div className="flex items-start gap-3">
+                                            <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                                            <div className="min-w-0">
+                                                <p className="font-mono text-sm">
+                                                    {fix.latitude.toFixed(6)}, {fix.longitude.toFixed(6)}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Precisión aproximada: {Math.round(fix.accuracy)} m
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            className="w-full h-12"
+                                            onClick={captureLocation}
+                                            disabled={capturingLocation}
+                                        >
+                                            {capturingLocation && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
+                                            Volver a capturar
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="rounded-lg border border-dashed p-6 flex flex-col items-center gap-4 text-center">
+                                        <MapPin className="h-10 w-10 text-muted-foreground" />
+                                        {locationError ? (
+                                            <p className="text-sm text-destructive max-w-xs">{locationError}</p>
+                                        ) : (
+                                            <p className="text-sm text-muted-foreground">
+                                                Captura la ubicación para dejar constancia de dónde se hizo este paso.
+                                            </p>
+                                        )}
+                                        <Button
+                                            variant="outline"
+                                            className="w-full max-w-xs h-12 gap-2"
+                                            onClick={captureLocation}
+                                            disabled={capturingLocation}
+                                        >
+                                            {capturingLocation
+                                                ? <><Loader2 className="animate-spin h-4 w-4" /> Obteniendo ubicación…</>
+                                                : <><MapPin className="h-4 w-4" /> {locationError ? "Reintentar" : "Capturar Ubicación"}</>}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
+
                     {/* ===== VIDEO ===== */}
                     {currentStepDef.type === 'VIDEO' && (
                         <div className="space-y-4">
@@ -752,10 +909,49 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
                                     </Button>
                                 </div>
                             ) : (
-                                <div className="border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center space-y-4 text-muted-foreground">
-                                    <Video className="h-12 w-12 opacity-50" />
-                                    <p>Sube un video o graba uno.</p>
-                                    <Input placeholder="URL del video" onChange={(e) => { setValue(e.target.value); setEvidenceUrl(e.target.value); }} className="max-w-xs" />
+                                <div className="rounded-lg border border-dashed p-6 flex flex-col items-center gap-4 text-center">
+                                    <Video className="h-10 w-10 text-muted-foreground" />
+                                    <p className="text-sm text-muted-foreground">
+                                        Graba el video con la cámara o elige uno de la galería.
+                                    </p>
+                                    <input
+                                        ref={videoInputRef}
+                                        type="file"
+                                        accept="video/*"
+                                        className="hidden"
+                                        onChange={handleVideoSelected}
+                                    />
+                                    {uploadingPhotos ? (
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Subiendo... {uploadProgress}%
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col gap-2 w-full max-w-xs">
+                                            <Button
+                                                variant="outline"
+                                                className="w-full h-12 gap-2"
+                                                onClick={() => {
+                                                    videoInputRef.current?.setAttribute("capture", "environment");
+                                                    videoInputRef.current?.click();
+                                                }}
+                                            >
+                                                <Video className="h-4 w-4" />
+                                                Grabar Video
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                className="w-full h-12 gap-2"
+                                                onClick={() => {
+                                                    videoInputRef.current?.removeAttribute("capture");
+                                                    videoInputRef.current?.click();
+                                                }}
+                                            >
+                                                <Upload className="h-4 w-4" />
+                                                Subir desde Galería
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -776,10 +972,61 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
                                     </Button>
                                 </div>
                             ) : (
-                                <div className="border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center space-y-4 text-muted-foreground">
-                                    <Mic className="h-12 w-12 opacity-50" />
-                                    <p>Graba una nota de voz.</p>
-                                    <Input placeholder="Audio URL" onChange={(e) => { setValue(e.target.value); setEvidenceUrl(e.target.value); }} className="max-w-xs" />
+                                <div className="rounded-lg border border-dashed p-6 flex flex-col items-center gap-4 text-center">
+                                    {audioRecorder.state === 'recording' ? (
+                                        <>
+                                            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+                                                <span className="h-3 w-3 rounded-full bg-destructive motion-safe:animate-pulse" />
+                                            </span>
+                                            <p className="font-mono text-lg tabular-nums">
+                                                {Math.floor(audioRecorder.elapsed / 60)}:{String(audioRecorder.elapsed % 60).padStart(2, '0')}
+                                            </p>
+                                            <div className="flex flex-col gap-2 w-full max-w-xs">
+                                                <Button className="w-full h-12 gap-2" onClick={handleStopRecording}>
+                                                    Detener y Guardar
+                                                </Button>
+                                                <Button variant="ghost" className="w-full h-12" onClick={audioRecorder.cancel}>
+                                                    Descartar
+                                                </Button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Mic className="h-10 w-10 text-muted-foreground" />
+                                            {audioRecorder.state === 'denied' ? (
+                                                <p className="text-sm text-destructive max-w-xs">
+                                                    No pudimos usar el micrófono. Permite el acceso en tu navegador
+                                                    y vuelve a intentarlo.
+                                                </p>
+                                            ) : audioRecorder.state === 'unsupported' ? (
+                                                <p className="text-sm text-destructive max-w-xs">
+                                                    Este navegador no puede grabar audio. Abre el flujo desde otro
+                                                    dispositivo para completar este paso.
+                                                </p>
+                                            ) : (
+                                                <p className="text-sm text-muted-foreground">
+                                                    Graba una nota de voz para dejar constancia.
+                                                </p>
+                                            )}
+                                            {uploadingPhotos ? (
+                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                    Subiendo... {uploadProgress}%
+                                                </div>
+                                            ) : (
+                                                audioRecorder.state !== 'unsupported' && (
+                                                    <Button
+                                                        variant="outline"
+                                                        className="w-full max-w-xs h-12 gap-2"
+                                                        onClick={audioRecorder.start}
+                                                    >
+                                                        <Mic className="h-4 w-4" />
+                                                        {audioRecorder.state === 'denied' ? "Reintentar" : "Grabar Nota de Voz"}
+                                                    </Button>
+                                                )
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </div>

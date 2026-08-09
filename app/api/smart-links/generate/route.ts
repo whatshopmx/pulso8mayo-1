@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         const result = await SmartLinkService.createSmartLink(
             instanceId,
             templateId,
-            sessionId || '',
+            sessionId ?? null,
             expiresInMinutes
         );
 

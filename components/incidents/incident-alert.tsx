@@ -19,7 +19,7 @@ import { AlertCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
 interface IncidentAlertProps {
     incident: {
         id: string;
-        severity: 'CRITICAL' | 'WARNING' | 'FATAL';
+        severity: 'CRITICAL' | 'HIGH' | 'WARNING' | 'FATAL';
         title: string;
         description?: string;
         status: 'DETECTED' | 'IN_REMEDIATION' | 'RESOLVED' | 'ESCALATED';
@@ -32,6 +32,7 @@ interface IncidentAlertProps {
 const SEVERITY_LABELS: Record<string, string> = {
     CRITICAL: 'Crítico',
     WARNING: 'Advertencia',
+    HIGH: 'Alto',
     FATAL: 'Fatal',
 };
 

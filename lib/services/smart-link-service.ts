@@ -6,13 +6,15 @@ import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || nanoid(32);
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface SmartLinkContext {
   token: string;
   expiresAt: Date;
   url: string;
   instanceId: string;
   workflowTemplateId: string;
-  sessionId: string;
+  sessionId: string | null;
   requiredRole?: string;
   assignedTo?: string;
   role?: string;
@@ -50,7 +52,8 @@ export class SmartLinkService {
   static async createSmartLink(
     instanceId: string,
     templateId: string,
-    sessionId: string,
+    /** UUID del turno, o null/undefined si el flujo no cuelga de un turno. */
+    sessionId?: string | null,
     expiresInMinutes: number = 60 * 24,
     requiredRole?: string,
     assignedTo?: string,
@@ -60,10 +63,15 @@ export class SmartLinkService {
   ): Promise<SmartLinkContext> {
     const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
 
+    // Sólo aceptamos un UUID real; cualquier otra cosa se trata como "sin turno"
+    // en vez de reventar el INSERT.
+    const normalizedSessionId =
+      typeof sessionId === "string" && UUID_PATTERN.test(sessionId) ? sessionId : null;
+
     const tokenPayload: any = {
       instanceId,
       templateId,
-      sessionId,
+      sessionId: normalizedSessionId,
       type: 'SMART_LINK',
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(expiresAt.getTime() / 1000)
@@ -91,7 +99,7 @@ export class SmartLinkService {
       token,
       instanceId,
       workflowTemplateId: templateId,
-      sessionId,
+      sessionId: normalizedSessionId,
       status: 'PENDING',
       expiresAt,
     });
@@ -102,7 +110,7 @@ export class SmartLinkService {
       url: `${process.env.NEXT_PUBLIC_APP_URL}/workflow/public/${token}`,
       instanceId,
       workflowTemplateId: templateId,
-      sessionId,
+      sessionId: normalizedSessionId,
       requiredRole,
       assignedTo,
       role,

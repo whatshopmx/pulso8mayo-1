@@ -161,11 +161,11 @@
       "options": ["Apto", "No apto", "Dudoso - requiere evaluación supervisor"],
       "branches": [
         {
-          "condition": "No apto",
+          "condition": "value == 'No apto'",
           "targetStepId": "paso-registro-merma"
         },
         {
-          "condition": "Dudoso - requiere evaluación supervisor",
+          "condition": "value == 'Dudoso - requiere evaluación supervisor'",
           "targetStepId": "paso-evaluacion-supervisor"
         }
       ]

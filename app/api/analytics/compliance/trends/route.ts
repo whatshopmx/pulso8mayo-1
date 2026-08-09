@@ -197,7 +197,7 @@ export async function GET(req: Request) {
         // Merge both alert sources
         const alertsQuery = [...incidentAlerts, ...autoAlerts]
             .sort((a, b) => {
-                const severityOrder = { CRITICAL: 0, FATAL: 0, WARNING: 1 } as Record<string, number>;
+                const severityOrder = { CRITICAL: 0, FATAL: 0, HIGH: 1, WARNING: 2 } as Record<string, number>;
                 return (severityOrder[a.severity || ''] || 2) - (severityOrder[b.severity || ''] || 2);
             })
             .slice(0, 15);

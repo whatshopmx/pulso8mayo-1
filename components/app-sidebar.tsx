@@ -20,6 +20,7 @@ import {
   Flame,
   Crown,
   Shield,
+  Landmark,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -375,6 +376,11 @@ const navMain = [
         title: "Cuentas por Pagar",
         url: "/dashboard/finance/payables",
         icon: FileText,
+      },
+      {
+        title: "Cuentas de Proveedores",
+        url: "/dashboard/finance/supplier-bank-accounts",
+        icon: Landmark,
       },
       {
         title: "Flujo de Efectivo",

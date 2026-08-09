@@ -216,13 +216,16 @@ export class RemediationService {
                     // Move to next step
                     const nextStep = protocol.steps[nextStepIndex];
 
+                    // Los intentos son por paso: avanzar reinicia el contador. Si
+                    // se acumularan, un protocolo de 3 pasos con maxAttempts=2
+                    // se bloquearía sin haber fallado nunca.
                     await db
                         .update(incidents)
                         .set({
                             metadata: {
                                 ...metadata,
                                 remediationCurrentStep: nextStepIndex,
-                                remediationAttempts: currentAttempts,
+                                remediationAttempts: 0,
                             },
                         })
                         .where(eq(incidents.id, incidentId));
@@ -441,19 +444,25 @@ export class RemediationService {
             return null;
         }
 
-        const metadata = incident.metadata as any;
+        const metadata = (incident.metadata ?? {}) as any;
         const protocol = incident.remediationProtocol as any;
+        const currentStep = metadata.remediationCurrentStep || 0;
 
         return {
             incidentId: incident.id,
             status: incident.status,
-            currentStep: metadata.remediationCurrentStep || 0,
+            currentStep,
             totalSteps: protocol?.steps?.length || 0,
             attempts: metadata.remediationAttempts || 0,
             maxAttempts: metadata.remediationMaxAttempts || protocol?.maxAttempts || 2,
             startedAt: metadata.remediationStartedAt,
             completedAt: metadata.remediationCompletedAt,
             failedAt: metadata.remediationFailedAt,
+            // Criterio de verificación del paso en curso: lo necesita quien
+            // recibe la evidencia para saber si debe analizar la foto con IA.
+            currentStepVerification: protocol?.steps?.[currentStep]?.verification as
+                | { type?: string; prompt?: string; targetCondition?: string; target?: unknown; operator?: string }
+                | undefined,
         };
     }
 

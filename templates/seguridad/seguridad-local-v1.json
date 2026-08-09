@@ -105,7 +105,7 @@
       "logicRules": [
         {
           "id": "lr-cctv-fuera-servicio",
-          "condition": "cameraNotWorking",
+          "condition": "ai_verification_failed",
           "severity": "HIGH",
           "message": "Cámara CCTV no funcionando. Se requiere atención inmediata de mantenimiento.",
           "escalationChain": [
@@ -159,7 +159,7 @@
       "logicRules": [
         {
           "id": "lr-extintor-vencido",
-          "condition": "extinguisherExpired",
+          "condition": "ai_verification_failed",
           "severity": "CRITICAL",
           "message": "Extintor vencido detectado. Reemplazo urgente requerido según NOM-002-STPS.",
           "escalationChain": [
@@ -192,7 +192,7 @@
       "logicRules": [
         {
           "id": "lr-rutas-bloqueadas",
-          "condition": "value == 'no'",
+          "condition": "value == false",
           "severity": "HIGH",
           "message": "Rutas de evacuación bloqueadas. Se requiere remedio inmediato para garantizar la seguridad del personal y clientes.",
           "escalationChain": [

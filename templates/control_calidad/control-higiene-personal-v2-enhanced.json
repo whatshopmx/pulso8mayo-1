@@ -112,7 +112,7 @@
       "obligatorio": true,
       "branches": [
         {
-          "condition": "no",
+          "condition": "value == false",
           "targetStepId": "paso-protocolo-guantes"
         }
       ]
@@ -140,7 +140,7 @@
       ],
       "branches": [
         {
-          "condition": "Heridas abiertas",
+          "condition": "value == 'Heridas abiertas'",
           "targetStepId": "paso-proteccion-heridas"
         }
       ]
@@ -187,7 +187,7 @@
       "logicRules": [
         {
           "id": "lr-no-aptio",
-          "condition": "value == 'no'",
+          "condition": "value == false",
           "severity": "CRITICAL",
           "message": "Empleado no apto para trabajar. Notificación inmediata al gerente.",
           "actions": ["BLOCK"],

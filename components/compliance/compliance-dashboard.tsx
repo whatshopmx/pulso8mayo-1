@@ -44,7 +44,7 @@ interface Deadline {
 interface Alert {
     id: string;
     title: string;
-    severity: "CRITICAL" | "WARNING" | "FATAL";
+    severity: "CRITICAL" | "HIGH" | "WARNING" | "FATAL";
     status: "DETECTED" | "IN_REMEDIATION" | "RESOLVED" | "ESCALATED";
     branchId?: string | null;
     createdAt: Date;

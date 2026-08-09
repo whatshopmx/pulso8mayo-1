@@ -187,13 +187,32 @@ export class EscalationService {
             console.log(`[EscalationService] Notifying roles: ${roles.join(', ')}`);
 
             // Get users with these roles in the branch
-            const { users } = await import('@/lib/db/schema');
-            const { inArray } = await import('drizzle-orm');
+            const { users, branches } = await import('@/lib/db/schema');
+            const { inArray, and, or, eq, isNull } = await import('drizzle-orm');
 
+            const [branch] = await db
+                .select({ companyId: branches.companyId })
+                .from(branches)
+                .where(eq(branches.id, branchId))
+                .limit(1);
+
+            if (!branch?.companyId) {
+                console.warn(`[EscalationService] Sucursal ${branchId} sin empresa; no se notifica`);
+                return;
+            }
+
+            // Alcance: la empresa dueña de la sucursal. Se incluyen los usuarios
+            // sin sucursal asignada (roles corporativos como ADMIN) y se excluyen
+            // los de otras sucursales para no filtrar el aviso a otro tenant.
             const usersToNotify = await db
                 .select()
                 .from(users)
-                .where(inArray(users.role, roles as any[]));
+                .where(and(
+                    inArray(users.role, roles as any[]),
+                    eq(users.companyId, branch.companyId),
+                    or(eq(users.branchId, branchId), isNull(users.branchId)),
+                    isNull(users.deletedAt)
+                ));
 
             if (usersToNotify.length === 0) {
                 console.log('[EscalationService] No users found with specified roles');

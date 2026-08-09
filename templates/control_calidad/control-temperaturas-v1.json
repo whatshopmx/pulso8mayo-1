@@ -206,7 +206,7 @@
       "logicRules": [
         {
           "id": "lr-buffet-temp-baja",
-          "condition": "foodTemperature < 60",
+          "condition": "ai_verification_failed",
           "severity": "WARNING",
           "message": "Alimentos cocidos en buffet por debajo de 60°C. Zona de peligro potencial.",
           "actions": ["ESCALATE"]

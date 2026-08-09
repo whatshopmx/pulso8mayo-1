@@ -6,6 +6,21 @@ import { STOCK_COUNT_TEMPLATE_NAME, DEFAULT_CATEGORIES } from "./stock-count-ser
 import { hasDynamicSteps, resolveDynamicSteps } from "@/lib/workflows/dynamic-steps";
 import { templateLibrary } from "@/templates";
 
+export type WorkflowReviewErrorCode =
+    | "NOT_FOUND"
+    | "FORBIDDEN"
+    | "NOT_REVIEWABLE"
+    | "ALREADY_REVIEWED"
+    | "COMMENT_REQUIRED";
+
+/** Error de revisión con mensaje ya redactado en español para el usuario. */
+export class WorkflowReviewError extends Error {
+    constructor(public code: WorkflowReviewErrorCode, message: string) {
+        super(message);
+        this.name = "WorkflowReviewError";
+    }
+}
+
 export class WorkflowExecutionService {
 
     static async createExecution(templateId: string, branchId: string, assigneeId: string | null = null, sessionId: string | null = null, categoryValue?: string, companyId?: string) {
@@ -144,6 +159,78 @@ export class WorkflowExecutionService {
         };
     }
 
+    /**
+     * Aprueba o rechaza una ejecución ya completada.
+     *
+     * La revisión vive en `reviewStatus`, no en `status`: una ejecución aprobada
+     * sigue siendo COMPLETED para el historial y los reportes de cumplimiento.
+     *
+     * Lanza WorkflowReviewError con un `code` que la ruta traduce a un HTTP
+     * status; el mensaje ya viene en español y es apto para mostrarse al usuario.
+     */
+    static async reviewExecution(
+        instanceId: string,
+        data: { reviewStatus: 'APPROVED' | 'REJECTED'; reviewComment?: string },
+        reviewer: { userId: string; companyId: string }
+    ) {
+        const instance = await db.query.workflowInstances.findFirst({
+            where: eq(workflowInstances.id, instanceId),
+        });
+
+        if (!instance) {
+            throw new WorkflowReviewError("NOT_FOUND", "No encontramos esta ejecución.");
+        }
+
+        // La ejecución pertenece a la empresa del revisor sólo a través de su
+        // plantilla; workflow_instances no guarda company_id.
+        const template = await db.query.workflowTemplates.findFirst({
+            where: eq(workflowTemplates.id, instance.workflowTemplateId),
+        });
+
+        if (!template || template.companyId !== reviewer.companyId) {
+            throw new WorkflowReviewError("FORBIDDEN", "No tienes acceso a esta ejecución.");
+        }
+
+        if (instance.status !== "COMPLETED") {
+            throw new WorkflowReviewError(
+                "NOT_REVIEWABLE",
+                "Sólo puedes revisar ejecuciones completadas."
+            );
+        }
+
+        if (instance.reviewStatus === "APPROVED" || instance.reviewStatus === "REJECTED") {
+            throw new WorkflowReviewError(
+                "ALREADY_REVIEWED",
+                instance.reviewStatus === "APPROVED"
+                    ? "Esta ejecución ya fue aprobada."
+                    : "Esta ejecución ya fue rechazada."
+            );
+        }
+
+        // Rechazar sin decir por qué deja al operador sin nada que corregir.
+        const comment = data.reviewComment?.trim() || "";
+        if (data.reviewStatus === "REJECTED" && comment.length === 0) {
+            throw new WorkflowReviewError(
+                "COMMENT_REQUIRED",
+                "Escribe el motivo del rechazo para que se pueda corregir."
+            );
+        }
+
+        const [updated] = await db
+            .update(workflowInstances)
+            .set({
+                reviewStatus: data.reviewStatus,
+                reviewComment: comment || null,
+                reviewedAt: new Date(),
+                reviewedBy: reviewer.userId,
+                updatedAt: new Date(),
+            })
+            .where(eq(workflowInstances.id, instanceId))
+            .returning();
+
+        return updated;
+    }
+
     static async updateStep(
         instanceId: string,
         stepId: string,
@@ -267,7 +354,8 @@ export class WorkflowExecutionService {
                     stepId,
                     data.value,
                     aiAnalysis,
-                    userId
+                    userId,
+                    currentStepDef ?? undefined
                 );
 
                 if (incidents.length > 0) {
@@ -403,6 +491,17 @@ export class WorkflowExecutionService {
     }
 
 
+    /**
+     * Recalcula el estado y la puntuación de una instancia.
+     *
+     * Público para que el motor de incidentes lo invoque al resolver un
+     * incidente bloqueante: la instancia debe cerrarse en ese momento si el
+     * checklist ya estaba terminado.
+     */
+    static async recalculateProgress(instanceId: string, userId?: string) {
+        return this.checkProgress(instanceId, userId);
+    }
+
     private static async checkProgress(instanceId: string, userId?: string) {
         // Logic to update instance status or calculate score
         const allSteps = await db.query.workflowInstanceSteps.findMany({
@@ -432,12 +531,30 @@ export class WorkflowExecutionService {
 
         const complianceScore = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0;
 
+        // Un incidente con acción BLOCK sin resolver impide cerrar el checklist:
+        // se puede seguir capturando evidencia y remediando, pero no darlo por
+        // hecho. Al resolverse, el motor de incidentes vuelve a llamar aquí.
+        const { IncidentEngine } = await import('./incident-engine');
+        const isBlocked = await IncidentEngine.hasBlockingIncidents(instanceId);
+
+        if (isBlocked) {
+            await db.update(workflowInstances)
+                .set({ status: 'BLOCKED', score: complianceScore })
+                .where(eq(workflowInstances.id, instanceId));
+
+            console.log(
+                `[WorkflowExecution] Instancia ${instanceId} bloqueada por incidente sin resolver; ` +
+                `no se cierra (pasos completos: ${allCompleted})`
+            );
+            return;
+        }
+
         if (allCompleted) {
             // Trigger completion actions (including inventory updates, notifications, etc.)
             const instance = await db.query.workflowInstances.findFirst({
                 where: eq(workflowInstances.id, instanceId)
             });
-            
+
             if (instance) {
                 try {
                     const { WorkflowActionRunner } = await import("./workflow-action-runner");

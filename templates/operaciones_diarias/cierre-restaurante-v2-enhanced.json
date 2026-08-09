@@ -136,7 +136,7 @@
       "logicRules": [
         {
           "id": "rule-plaga-detectada",
-          "condition": "value == 'Sí' || value == true || value == 'true'",
+          "condition": "value == true",
           "severity": "HIGH",
           "message": "Plaga detectada en la sucursal. Se requiere protocolo de fumigación y servicio externo.",
           "actions": ["BLOCK", "SCHEDULE_COMPLIANCE_SERVICE"],
@@ -199,7 +199,7 @@
       "logicRules": [
         {
           "id": "rule-equipos-encendidos",
-          "condition": "ai_verification_detected_equipment_on",
+          "condition": "ai_verification_failed",
           "severity": "HIGH",
           "message": "Se detectaron equipos encendidos. Todos los equipos deben apagarse antes del cierre.",
           "actions": ["BLOCK"]

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { EscalationService } from '@/lib/services/escalation-service';
 import { withTenantAuth } from '@/lib/api/with-auth';
+import { findIncidentForTenant } from '@/lib/api/incident-access';
 
 /**
  * POST /api/incidents/[id]/escalate
@@ -19,6 +20,13 @@ export const POST = withTenantAuth(async (
             return NextResponse.json(
                 { error: 'Missing targetLevel' },
                 { status: 400 }
+            );
+        }
+
+        if (!await findIncidentForTenant(id, auth.tenantId)) {
+            return NextResponse.json(
+                { error: 'Incident not found' },
+                { status: 404 }
             );
         }
 

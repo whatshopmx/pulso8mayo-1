@@ -46,6 +46,7 @@ import { toast } from 'sonner';
 
 const SEVERITY_LABELS: Record<string, string> = {
     CRITICAL: 'Crítico',
+    HIGH: 'Alto',
     WARNING: 'Advertencia',
     FATAL: 'Fatal',
 };
@@ -63,12 +64,14 @@ const STATUS_LABELS: Record<string, string> = {
 
 const severityIcons: Record<string, typeof XCircle> = {
     CRITICAL: XCircle,
+    HIGH: AlertTriangle,
     WARNING: AlertTriangle,
     FATAL: AlertCircle,
 };
 
 const severityVariants: Record<string, string> = {
     CRITICAL: 'bg-destructive/10 text-destructive border-destructive/20',
+    HIGH: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
     WARNING: 'bg-warning/10 text-warning-foreground border-warning/20',
     FATAL: 'bg-destructive/15 text-destructive border-destructive/30',
 };
@@ -86,7 +89,7 @@ const statusVariants: Record<string, string> = {
 
 interface Incident {
     id: string;
-    severity: 'CRITICAL' | 'WARNING' | 'FATAL';
+    severity: 'CRITICAL' | 'HIGH' | 'WARNING' | 'FATAL';
     title: string;
     status: 'DETECTED' | 'IN_REMEDIATION' | 'AWAITING_EXTERNAL' | 'CONFIRMED' | 'RESOLVED' | 'ESCALATED';
     createdAt: Date;
@@ -103,7 +106,7 @@ interface IncidentListProps {
 type SortField = 'severity' | 'createdAt' | 'status';
 type SortDir = 'asc' | 'desc';
 
-const SEVERITY_ORDER: Record<string, number> = { FATAL: 0, CRITICAL: 1, WARNING: 2 };
+const SEVERITY_ORDER: Record<string, number> = { FATAL: 0, CRITICAL: 1, HIGH: 2, WARNING: 3 };
 
 // ── Component ───────────────────────────────────────────────────────
 
@@ -237,6 +240,7 @@ export function IncidentList({ incidents, totalCount, page = 1, totalPages = 1 }
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Todas las severidades</SelectItem>
+                            <SelectItem value="HIGH">Alto</SelectItem>
                             <SelectItem value="FATAL">Fatal</SelectItem>
                             <SelectItem value="CRITICAL">Crítico</SelectItem>
                             <SelectItem value="WARNING">Advertencia</SelectItem>

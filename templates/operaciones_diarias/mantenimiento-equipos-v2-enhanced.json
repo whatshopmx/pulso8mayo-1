@@ -147,7 +147,7 @@
       "logicRules": [
         {
           "id": "rule-equipos-mal-estado",
-          "condition": "value == 'no'",
+          "condition": "value == false",
           "severity": "HIGH",
           "message": "Se detectaron equipos en mal estado. Se creará ticket de mantenimiento urgente.",
           "actions": ["CREATE_MAINTENANCE_TICKET", "BLOCK"],
