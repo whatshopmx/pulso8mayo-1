@@ -75,7 +75,7 @@ async function main() {
     process.exit(1);
   }
 
-  const branch = await db.query.branches.findFirst();
+  const [branch] = await db.select().from(branches).limit(1);
   if (!branch) { console.error("No hay sucursales"); process.exit(1); }
 
   const roleUsers = await db.select({ role: users.role }).from(users)

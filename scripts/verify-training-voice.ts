@@ -24,6 +24,7 @@ import {
   notifications,
   workflowTemplates,
   users,
+  branches,
 } from "@/lib/db/schema";
 import { eq, and, gte, isNull, desc } from "drizzle-orm";
 import { executeScheduledWorkflows } from "@/lib/cron/execute-schedules";
@@ -55,7 +56,7 @@ async function main() {
   console.log(`=== P5: voz de capacitación (${new Date().toISOString()}) ===\n`);
 
   // 0. Contexto: branch + usuario con rol
-  const branch = await db.query.branches.findFirst();
+  const [branch] = await db.select().from(branches).limit(1);
   if (!branch) { console.error("No hay sucursales"); process.exit(1); }
   const assigned = await db.query.users.findFirst({
     where: eq(users.branchId, branch.id),

@@ -64,7 +64,7 @@ async function main() {
   });
   if (!template) { console.error("No template with 30-min reminder interval"); process.exit(1); }
 
-  const branch = await db.query.branches.findFirst();
+  const [branch] = await db.select().from(branches).limit(1);
   if (!branch) { console.error("No branches"); process.exit(1); }
   const user = await db.query.users.findFirst({ where: eq(users.branchId, branch.id) });
   if (!user) { console.error("No users in branch"); process.exit(1); }
