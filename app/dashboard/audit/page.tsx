@@ -41,7 +41,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { exportToCSV, cn } from "@/lib/utils";
-import { StatCard } from "@/components/ui/stat-card";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
     Dialog,
@@ -455,25 +455,25 @@ export default function AuditPage() {
 
             {/* Stats Cards */}
             <div className="grid gap-4 md:grid-cols-4">
-                <StatCard
-                    title="Total de Logs"
+                <MetricCard
+                    label="Total de Logs"
                     value={stats.total}
-                    icon={FileText}
+                    icon={<FileText className="h-4 w-4" />}
                 />
-                <StatCard
-                    title="Flujos"
+                <MetricCard
+                    label="Flujos"
                     value={stats.workflows}
-                    icon={Shield}
+                    icon={<Shield className="h-4 w-4" />}
                 />
-                <StatCard
-                    title="Usuarios"
+                <MetricCard
+                    label="Usuarios"
                     value={stats.users}
-                    icon={User}
+                    icon={<User className="h-4 w-4" />}
                 />
-                <StatCard
-                    title="Evidencias"
+                <MetricCard
+                    label="Evidencias"
                     value={stats.evidence}
-                    icon={FileText}
+                    icon={<FileText className="h-4 w-4" />}
                 />
             </div>
 

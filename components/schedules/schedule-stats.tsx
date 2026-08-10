@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { StatCard } from '@/components/ui/stat-card';
+import { MetricCard } from '@/components/ui/metric-card';
 import { Calendar, CheckCircle, Clock, ListTodo } from 'lucide-react';
 
 interface ScheduleStatsProps {
@@ -64,30 +64,30 @@ export function ScheduleStats({ branchId }: ScheduleStatsProps) {
 
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-                title="Total Schedules"
+            <MetricCard
+                label="Total Schedules"
                 value={stats.totalSchedules}
-                icon={ListTodo}
-                description="All configured schedules"
+                icon={<ListTodo className="h-4 w-4" />}
+                subtitle="All configured schedules"
             />
-            <StatCard
-                title="Active Schedules"
+            <MetricCard
+                label="Active Schedules"
                 value={stats.activeSchedules}
-                icon={CheckCircle}
-                description="Currently running"
-                variant="success"
+                icon={<CheckCircle className="h-4 w-4" />}
+                subtitle="Currently running"
+                tone="success"
             />
-            <StatCard
-                title="Executions Today"
+            <MetricCard
+                label="Executions Today"
                 value={stats.executionsToday}
-                icon={Calendar}
-                description="Workflows executed today"
+                icon={<Calendar className="h-4 w-4" />}
+                subtitle="Workflows executed today"
             />
-            <StatCard
-                title="Upcoming"
+            <MetricCard
+                label="Upcoming"
                 value={stats.upcomingExecutions}
-                icon={Clock}
-                description="Next 24 hours"
+                icon={<Clock className="h-4 w-4" />}
+                subtitle="Next 24 hours"
             />
         </div>
     );

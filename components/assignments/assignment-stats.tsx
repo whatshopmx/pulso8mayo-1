@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { StatCard } from '@/components/ui/stat-card';
+import { MetricCard } from '@/components/ui/metric-card';
 import { AlertCircle, CheckCircle2, Clock, ListChecks, Play, Target } from 'lucide-react';
 
 interface AssignmentStatsProps {
@@ -67,44 +67,44 @@ export function AssignmentStats({ userId }: AssignmentStatsProps) {
 
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
-            <StatCard
-                title="Total"
+            <MetricCard
+                label="Total"
                 value={stats.total}
-                icon={Target}
-                description="All assignments"
+                icon={<Target className="h-4 w-4" />}
+                subtitle="All assignments"
             />
-            <StatCard
-                title="Pending"
+            <MetricCard
+                label="Pending"
                 value={stats.pending}
-                icon={ListChecks}
-                description="Not started"
-                variant={stats.pending > 0 ? 'warning' : 'default'}
+                icon={<ListChecks className="h-4 w-4" />}
+                subtitle="Not started"
+                tone={stats.pending > 0 ? 'warning' : 'neutral'}
             />
-            <StatCard
-                title="Started"
+            <MetricCard
+                label="Started"
                 value={stats.started}
-                icon={Play}
-                description="In progress"
+                icon={<Play className="h-4 w-4" />}
+                subtitle="In progress"
             />
-            <StatCard
-                title="Completed"
+            <MetricCard
+                label="Completed"
                 value={stats.completed}
-                icon={CheckCircle2}
-                description="Finished tasks"
-                variant="success"
+                icon={<CheckCircle2 className="h-4 w-4" />}
+                subtitle="Finished tasks"
+                tone="success"
             />
-            <StatCard
-                title="Overdue"
+            <MetricCard
+                label="Overdue"
                 value={stats.overdue}
-                icon={AlertCircle}
-                description="Past due date"
-                variant={stats.overdue > 0 ? 'danger' : 'default'}
+                icon={<AlertCircle className="h-4 w-4" />}
+                subtitle="Past due date"
+                tone={stats.overdue > 0 ? 'destructive' : 'neutral'}
             />
-            <StatCard
-                title="Today"
+            <MetricCard
+                label="Today"
                 value={stats.completedToday}
-                icon={Clock}
-                description="Completed today"
+                icon={<Clock className="h-4 w-4" />}
+                subtitle="Completed today"
             />
         </div>
     );

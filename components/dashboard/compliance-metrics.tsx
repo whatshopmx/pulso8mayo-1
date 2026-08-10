@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, TrendingUp, AlertCircle, CheckCircle, ClipboardList, Users, ShieldCheck } from "lucide-react";
-import { StatCard } from "@/components/ui/stat-card";
-import { Badge } from "@/components/ui/badge";
+import { AlertCircle, CheckCircle, ClipboardList, Users, ShieldCheck } from "lucide-react";
+import { MetricCard } from "@/components/ui/metric-card";
 
 interface Metrics {
     complianceRate: number;
@@ -63,55 +62,53 @@ export function ComplianceMetrics({ branch, startDate, endDate }: ComplianceMetr
 
     return (
         <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 md:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-                title="Flujos Ejecutados"
+            <MetricCard
+                label="Flujos Ejecutados"
                 value={metrics.totalInspections}
-                icon={ClipboardList}
-                description="Total en período"
-                trend={{ value: 12, isPositive: true }}
-                variant="default"
+                icon={<ClipboardList className="h-4 w-4" />}
+                subtitle="Total en período"
+                delta={{ value: 12, isPositive: true }}
             />
 
-            <StatCard
-                title="Cumplimiento NOM-251"
+            <MetricCard
+                label="Cumplimiento NOM-251"
                 value={`${metrics.complianceRate}%`}
-                icon={ShieldCheck}
-                description={
+                icon={<ShieldCheck className="h-4 w-4" />}
+                subtitle={
                     <span className="inline-flex items-center gap-1 font-medium">
-                        <CheckCircle className="h-3 w-3 text-emerald-500" />
+                        <CheckCircle className="h-3 w-3 text-success" />
                         <span>Estado: {metrics.complianceSentiment}</span>
                     </span>
                 }
-                trend={{ value: 3.2, isPositive: true }}
-                variant={metrics.complianceRate > 90 ? "success" : metrics.complianceRate > 75 ? "warning" : "danger"}
+                delta={{ value: 3.2, isPositive: true }}
+                tone={metrics.complianceRate > 90 ? "success" : metrics.complianceRate > 75 ? "warning" : "destructive"}
             />
 
-            <StatCard
-                title="Personal / Turnos"
+            <MetricCard
+                label="Personal / Turnos"
                 value={metrics.activeStaff || 0}
-                icon={Users}
-                description={
+                icon={<Users className="h-4 w-4" />}
+                subtitle={
                     <span className="inline-flex items-center gap-1 font-medium">
-                        <Users className="h-3 w-3 text-blue-500" />
+                        <Users className="h-3 w-3 text-info" />
                         <span>Operación: {metrics.activeStaffSentiment}</span>
                     </span>
                 }
-                trend={{ value: 5, isPositive: true }}
-                variant="default"
+                delta={{ value: 5, isPositive: true }}
             />
 
-            <StatCard
-                title="Incidentes Abiertos"
+            <MetricCard
+                label="Incidentes Abiertos"
                 value={metrics.openIncidents}
-                icon={AlertCircle}
-                description={
+                icon={<AlertCircle className="h-4 w-4" />}
+                subtitle={
                     <span className="inline-flex items-center gap-1 font-medium">
-                        <AlertCircle className={`h-3 w-3 ${metrics.openIncidents > 0 ? 'text-amber-500' : 'text-emerald-500'}`} />
+                        <AlertCircle className={`h-3 w-3 ${metrics.openIncidents > 0 ? 'text-warning-text' : 'text-success'}`} />
                         <span>Riesgo: {metrics.openIncidentsSentiment}</span>
                     </span>
                 }
-                trend={{ value: 0, isPositive: true }}
-                variant={metrics.openIncidents > 0 ? "danger" : "default"}
+                delta={{ value: 0, isPositive: true }}
+                tone={metrics.openIncidents > 0 ? "destructive" : "neutral"}
             />
         </div>
     );
