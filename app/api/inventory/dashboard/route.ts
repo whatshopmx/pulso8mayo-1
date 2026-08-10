@@ -195,7 +195,9 @@ export async function GET(req: NextRequest) {
       .where(and(
         eq(inventoryWaste.companyId, tenant.id),
         ...(branchId ? [eq(inventoryWaste.branchId, branchId)] : []),
-        gte(inventoryWaste.recordedAt, currentMonthStart)
+        gte(inventoryWaste.recordedAt, currentMonthStart),
+        // STAFF y COURTESY son consumo, no merma: no inflan el %. (OQ-1)
+        sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`
       ))
       .then(r => r[0]?.total || 0);
 

@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
 import { recipes, recipeItems, inventoryBatches, inventoryItems } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { InventoryService } from "./inventory-service";
 import { UnitConversionService } from "./unit-conversion-service";
+import { allocateFEFO } from "./fefo-allocator";
 
 export class TheoreticalConsumptionService {
   static async consume(params: {
@@ -75,72 +76,65 @@ export class TheoreticalConsumptionService {
       }
     }
 
-    const batches = await db.select()
-      .from(inventoryBatches)
-      .where(
-        and(
-          eq(inventoryBatches.branchId, branchId),
-          eq(inventoryBatches.itemId, itemId),
-          eq(inventoryBatches.status, 'AVAILABLE'),
-          sql`${inventoryBatches.currentQuantity} > 0`
-        )
-      )
-      .orderBy(inventoryBatches.expirationDate, inventoryBatches.createdAt);
+    // FEFO con lock (T14): la asignación toma `FOR UPDATE` dentro de la misma
+    // transacción que escribe, para que dos consumos concurrentes no asignen
+    // el mismo lote. `recordMovement` recibe el `tx` y corre en esta conexión.
+    await db.transaction(async (tx) => {
+      const allocations = await allocateFEFO(tx, itemId, branchId, adjustedQty);
+      const allocated = allocations.reduce((s, a) => s + a.quantity, 0);
 
-    let remainingToDeduct = adjustedQty;
-
-    for (const batch of batches) {
-      if (remainingToDeduct <= 0) break;
-
-      const currentQty = Number(batch.currentQuantity);
-      const deductQty = Math.min(currentQty, remainingToDeduct);
-
-      await InventoryService.recordMovement({
-        branchId,
-        itemId,
-        batchId: batch.id,
-        type: 'USAGE',
-        quantityChange: -deductQty,
-        reason,
-        performedBy: userId,
-      });
-
-      remainingToDeduct -= deductQty;
-    }
-
-    if (remainingToDeduct > 0) {
-      const lastBatch = batches[batches.length - 1];
-      if (lastBatch) {
-        const currentQty = Number(lastBatch.currentQuantity);
+      for (const alloc of allocations) {
         await InventoryService.recordMovement({
           branchId,
           itemId,
-          batchId: lastBatch.id,
+          batchId: alloc.batchId,
           type: 'USAGE',
-          quantityChange: -remainingToDeduct,
-          reason: `${reason} (Ajuste negativo por falta de stock)`,
+          quantityChange: -alloc.quantity,
+          reason,
           performedBy: userId,
-        });
-      } else {
-        const [dummyBatch] = await db.insert(inventoryBatches).values({
-          branchId,
-          itemId,
-          initialQuantity: 0,
-          currentQuantity: 0,
-          lotNumber: `DUMMY-NEG-${Date.now()}`,
-          status: 'AVAILABLE',
-        }).returning();
-
-        await InventoryService.recordMovement({
-          branchId,
-          itemId,
-          batchId: dummyBatch.id,
-          type: 'USAGE',
-          quantityChange: -remainingToDeduct,
-          reason: `${reason} (Ajuste negativo inicial)`,
-          performedBy: userId,
-        });
+        }, tx);
       }
-    }
+
+      if (allocated < adjustedQty) {
+        const remainingToDeduct = adjustedQty - allocated;
+        const lastBatch = allocations[allocations.length - 1];
+        if (lastBatch) {
+          const currentQty = await tx
+            .select({ qty: inventoryBatches.currentQuantity })
+            .from(inventoryBatches)
+            .where(eq(inventoryBatches.id, lastBatch.batchId))
+            .limit(1)
+            .then((rows) => Number(rows[0]?.qty ?? 0));
+          await InventoryService.recordMovement({
+            branchId,
+            itemId,
+            batchId: lastBatch.batchId,
+            type: 'USAGE',
+            quantityChange: -remainingToDeduct,
+            reason: `${reason} (Ajuste negativo por falta de stock)`,
+            performedBy: userId,
+          }, tx);
+        } else {
+          const [dummyBatch] = await tx.insert(inventoryBatches).values({
+            branchId,
+            itemId,
+            initialQuantity: 0,
+            currentQuantity: 0,
+            lotNumber: `DUMMY-NEG-${Date.now()}`,
+            status: 'AVAILABLE',
+          }).returning();
+
+          await InventoryService.recordMovement({
+            branchId,
+            itemId,
+            batchId: dummyBatch.id,
+            type: 'USAGE',
+            quantityChange: -remainingToDeduct,
+            reason: `${reason} (Ajuste negativo inicial)`,
+            performedBy: userId,
+          }, tx);
+        }
+      }
+    });
   }
 }

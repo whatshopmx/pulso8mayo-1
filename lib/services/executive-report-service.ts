@@ -183,6 +183,8 @@ export class ExecutiveReportService {
                 eq(inventoryWaste.branchId, branchId),
                 gte(inventoryWaste.recordedAt, startDate),
                 lte(inventoryWaste.recordedAt, endDate),
+                // STAFF y COURTESY son consumo, no merma (OQ-1).
+                sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
             ));
         return rows[0]?.total ?? 0;
     }

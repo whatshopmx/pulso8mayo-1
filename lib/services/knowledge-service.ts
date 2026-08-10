@@ -68,6 +68,8 @@ export class KnowledgeService {
                 eq(inventoryWaste.branchId, branchId),
                 eq(inventoryWaste.itemId, itemId),
                 gte(inventoryWaste.recordedAt, thirtyDaysAgo),
+                // STAFF y COURTESY son consumo, no merma: no ensucian el trend (OQ-1).
+                sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
             ));
 
         const totalWasteQty = wasteData[0]?.totalWaste ?? 0;

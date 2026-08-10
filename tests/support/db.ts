@@ -412,3 +412,416 @@ export async function deleteStockCountsForItems(itemIds: string[]): Promise<void
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+/**
+ * Siembra un lote AVAILABLE para un ítem en una sucursal y devuelve su id.
+ * `currentQuantity` es integer en `inventory_batches`: la fracción se pierde
+ * en la frontera (AD-6/R-2) — los specs de snapshots usan enteros.
+ */
+export async function seedBatch(opts: {
+  companyId: string;
+  branchId: string;
+  itemId: string;
+  quantity: number;
+  lotNumber?: string;
+  unitCostCents?: number;
+  expirationDate?: string; // ISO
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO inventory_batches (
+      item_id, branch_id, initial_quantity, current_quantity, lot_number, unit_cost,
+      status, expiration_date
+    )
+    VALUES (
+      ${opts.itemId}, ${opts.branchId}, ${opts.quantity}, ${opts.quantity},
+      ${opts.lotNumber ?? `E2E-LOT-${Date.now()}`},
+      ${opts.unitCostCents ?? null},
+      'AVAILABLE',
+      ${opts.expirationDate ?? null}::timestamp
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Borra un lote sembrado por los tests. */
+export async function deleteBatch(batchId: string): Promise<void> {
+  await sql`DELETE FROM inventory_batches WHERE id = ${batchId}`;
+}
+
+/**
+ * Inserta una fila directa en `stock_counts` (conteo físico de un día).
+ * `countedQuantity` y `systemQuantity` son `numeric(12,4)` — acepta strings.
+ */
+export async function seedStockCount(opts: {
+  companyId: string;
+  branchId: string;
+  itemId: string;
+  countedQuantity: number | string;
+  systemQuantity?: number | string;
+  countDate?: string;
+  countedBy?: string;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO stock_counts (
+      company_id, branch_id, item_id, counted_quantity, system_quantity, count_date, counted_by
+    )
+    VALUES (
+      ${opts.companyId}, ${opts.branchId}, ${opts.itemId},
+      ${String(opts.countedQuantity)}, ${String(opts.systemQuantity ?? 0)},
+      ${opts.countDate ?? today()}, ${opts.countedBy ?? null}
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Borra un conteo sembrado por los tests. */
+export async function deleteStockCount(countId: string): Promise<void> {
+  await sql`DELETE FROM stock_counts WHERE id = ${countId}`;
+}
+
+export interface InventorySnapshotRow {
+  id: string;
+  company_id: string;
+  branch_id: string;
+  item_id: string;
+  snapshot_date: string;
+  calculated_stock: string;
+  counted_stock: string | null;
+  variance: string | null;
+}
+
+/** Filas de `inventory_snapshots` para una sucursal y fecha. */
+export async function findSnapshotsForBranchDate(
+  branchId: string,
+  snapshotDate: string
+): Promise<InventorySnapshotRow[]> {
+  const rows = await sql`
+    SELECT id, company_id, branch_id, item_id, snapshot_date,
+           calculated_stock, counted_stock, variance
+    FROM inventory_snapshots
+    WHERE branch_id = ${branchId} AND snapshot_date = ${snapshotDate}
+    ORDER BY item_id
+  `;
+  return rows as InventorySnapshotRow[];
+}
+
+/** Borra los snapshots de una sucursal y fecha (y los que apunten a ítems de prueba). */
+export async function deleteSnapshots(opts: {
+  branchId?: string;
+  snapshotDate?: string;
+  itemIds?: string[];
+}): Promise<void> {
+  if (opts.branchId && opts.snapshotDate) {
+    await sql`
+      DELETE FROM inventory_snapshots
+      WHERE branch_id = ${opts.branchId} AND snapshot_date = ${opts.snapshotDate}
+    `;
+  }
+  if (opts.itemIds && opts.itemIds.length > 0) {
+    await sql`DELETE FROM inventory_snapshots WHERE item_id = ANY(${opts.itemIds})`;
+  }
+}
+
+/**
+ * Siembra un template de merma: 3 pasos dinámicos sobre `inventory_item`
+ * (cantidad, motivo, foto) + paso de cierre. Devuelve el id del template.
+ * El resolver genérico expande cada paso dinámico a N sub-pasos
+ * `{parentId}-{itemId}` — uno por SKU de alto valor con la etiqueta pedida.
+ */
+export async function seedMermaTemplate(
+  companyId: string,
+  tag: string,
+  closingStepId = "merma-obs"
+): Promise<string> {
+  const templateId = `e2e-tpl-merma-${Date.now()}`;
+  const source = {
+    entity: "inventory_item",
+    filter: { isHighValue: true, tags: [tag] },
+  };
+  const steps = [
+    {
+      id: "merma-qty",
+      type: "NUMBER",
+      title: "Cantidad en merma de {{name}}",
+      description: "Cantidad física a dar de baja",
+      required: true,
+      metadata: { dynamicSource: source },
+    },
+    {
+      id: "merma-reason",
+      type: "SELECT",
+      title: "Motivo de la merma de {{name}}",
+      required: true,
+      options: ["caducidad", "caida", "error_cocina", "cortesia"],
+      metadata: { dynamicSource: source },
+    },
+    {
+      id: "merma-evidence",
+      type: "PHOTO",
+      title: "Foto de la merma de {{name}}",
+      required: true,
+      metadata: { dynamicSource: source },
+    },
+    {
+      id: closingStepId,
+      type: "TEXT",
+      title: "Observaciones",
+      required: false,
+    },
+  ];
+
+  await sql`
+    INSERT INTO workflow_templates (id, company_id, name, description, steps, category, active)
+    VALUES (
+      ${templateId},
+      ${companyId},
+      ${`${E2E_TAG} Merma dinámica`},
+      'Template de prueba con pasos dinámicos de merma',
+      ${JSON.stringify(steps)}::jsonb,
+      'INVENTORY',
+      true
+    )
+  `;
+
+  return templateId;
+}
+
+export interface WasteRow {
+  id: string;
+  company_id: string;
+  branch_id: string;
+  item_id: string;
+  quantity: number;
+  unit: string;
+  reason: string;
+  recorded_by: string | null;
+  notes: string | null;
+}
+
+/** Filas de `inventory_waste` cuyo `notes` marca una instancia. */
+export async function findWasteForInstance(instanceId: string): Promise<WasteRow[]> {
+  const rows = await sql`
+    SELECT id, company_id, branch_id, item_id, quantity, unit, reason, recorded_by, notes
+    FROM inventory_waste
+    WHERE notes LIKE ${`%instance:${instanceId}%`}
+    ORDER BY item_id
+  `;
+  return rows as WasteRow[];
+}
+
+/** Borra merma por instancia, más pasos/instancia/template. */
+export async function cleanupMerma(instanceId: string, templateId?: string): Promise<void> {
+  await sql`DELETE FROM inventory_waste WHERE notes LIKE ${`%instance:${instanceId}%`}`;
+  await sql`DELETE FROM workflow_instance_steps WHERE instance_id = ${instanceId}`;
+  await sql`DELETE FROM workflow_instances WHERE id = ${instanceId}`;
+  if (templateId) {
+    await sql`DELETE FROM workflow_templates WHERE id = ${templateId}`;
+  }
+}
+
+/** Borra la merma que apunte a los SKUs de prueba. */
+export async function deleteWasteForItems(itemIds: string[]): Promise<void> {
+  if (itemIds.length === 0) return;
+  await sql`DELETE FROM inventory_waste WHERE item_id = ANY(${itemIds})`;
+}
+
+/** Ajusta el umbral de varianza de merma del tenant (T11). */
+export async function setMermaThreshold(companyId: string, pct: number): Promise<void> {
+  await sql`
+    INSERT INTO tenant_operating_config (company_id, merma_variance_threshold_pct)
+    VALUES (${companyId}, ${String(pct)})
+    ON CONFLICT (company_id) DO UPDATE
+    SET merma_variance_threshold_pct = EXCLUDED.merma_variance_threshold_pct
+  `;
+}
+
+/** Valor actual del umbral del tenant, o `null` si no hay fila configurada. */
+export async function getMermaThreshold(companyId: string): Promise<string | null> {
+  const rows = await sql`
+    SELECT merma_variance_threshold_pct FROM tenant_operating_config WHERE company_id = ${companyId} LIMIT 1
+  `;
+  return rows[0]?.merma_variance_threshold_pct ?? null;
+}
+
+/** Restaura el umbral a su valor previo (o borra la fila si no existía). */
+export async function restoreMermaThreshold(
+  companyId: string,
+  previous: string | null
+): Promise<void> {
+  if (previous === null) {
+    await sql`DELETE FROM tenant_operating_config WHERE company_id = ${companyId}`;
+  } else {
+    await sql`
+      UPDATE tenant_operating_config
+      SET merma_variance_threshold_pct = ${previous}
+      WHERE company_id = ${companyId}
+    `;
+  }
+}
+
+/** Borra las recetas creadas por los tests (y sus ingredientes). */
+export async function deleteTestRecipes(): Promise<void> {
+  await sql`
+    DELETE FROM recipe_items
+    WHERE recipe_id IN (SELECT id FROM recipes WHERE name LIKE ${`${E2E_TAG}%`})
+  `;
+  await sql`DELETE FROM recipes WHERE name LIKE ${`${E2E_TAG}%`}`;
+}
+
+// --- Producción (Fase 4) ---------------------------------------------------
+
+/** Crea una receta de prueba (marcada E2E) y devuelve su id. */
+export async function seedRecipe(
+  companyId: string,
+  name: string,
+  opts: { unit?: string; baseYield?: string; tags?: string[] } = {}
+): Promise<string> {
+  const rows = await sql`
+    INSERT INTO recipes (company_id, name, base_yield, unit, tags)
+    VALUES (
+      ${companyId},
+      ${`${E2E_TAG} ${name}`},
+      ${opts.baseYield ?? "1.00"},
+      ${opts.unit ?? "PORTION"},
+      ${JSON.stringify(opts.tags ?? [])}::jsonb
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Agrega un ingrediente a una receta (cantidad por porción). */
+export async function seedRecipeItem(opts: {
+  recipeId: string;
+  itemId: string;
+  quantity: number;
+  unit: string;
+  isSubRecipe?: boolean;
+  yieldPercent?: number;
+}): Promise<void> {
+  await sql`
+    INSERT INTO recipe_items (recipe_id, item_id, quantity, unit, is_sub_recipe, yield_percent)
+    VALUES (
+      ${opts.recipeId}, ${opts.itemId}, ${String(opts.quantity)},
+      ${opts.unit}, ${opts.isSubRecipe ?? false}, ${opts.yieldPercent ?? 100}
+    )
+  `;
+}
+
+/**
+ * Siembra un template de producción: UN paso dinámico `prod-qty` sobre
+ * `entity: 'recipe'` (filtro por tag) + paso de cierre.
+ */
+export async function seedProductionTemplate(
+  companyId: string,
+  tag: string,
+  closingStepId = "prod-obs"
+): Promise<string> {
+  const templateId = `e2e-tpl-produccion-${Date.now()}`;
+  const steps = [
+    {
+      id: "prod-qty",
+      type: "NUMBER",
+      title: "Porciones a producir de {{name}}",
+      description: "Cantidad de porciones producidas hoy",
+      required: true,
+      metadata: {
+        dynamicSource: {
+          entity: "recipe",
+          filter: { tags: [tag] },
+        },
+      },
+    },
+    {
+      id: closingStepId,
+      type: "TEXT",
+      title: "Observaciones de producción",
+      required: false,
+    },
+  ];
+
+  await sql`
+    INSERT INTO workflow_templates (id, company_id, name, description, steps, category, active)
+    VALUES (
+      ${templateId},
+      ${companyId},
+      ${`${E2E_TAG} Producción diaria`},
+      'Template de prueba con paso dinámico de recetas',
+      ${JSON.stringify(steps)}::jsonb,
+      'PRODUCTION',
+      true
+    )
+  `;
+  return templateId;
+}
+
+export interface ProductionResultRow {
+  id: string;
+  company_id: string;
+  branch_id: string;
+  recipe_id: string;
+  produced_quantity: number;
+  notes: string | null;
+}
+
+export interface ProductionIngredientRow {
+  id: string;
+  result_id: string;
+  item_id: string;
+  batch_id: string | null;
+  expected_quantity: number;
+  actual_quantity: number;
+  unit: string;
+}
+
+/** Resultados de producción generados por una instancia. */
+export async function findProductionResultsForInstance(
+  instanceId: string
+): Promise<ProductionResultRow[]> {
+  const rows = await sql`
+    SELECT id, company_id, branch_id, recipe_id, produced_quantity, notes
+    FROM production_results
+    WHERE notes LIKE ${`%instance:${instanceId}%`}
+    ORDER BY created_at
+  `;
+  return rows as ProductionResultRow[];
+}
+
+/** Ingredientes (por par item/lote) de un resultado de producción. */
+export async function findProductionIngredients(
+  resultId: string
+): Promise<ProductionIngredientRow[]> {
+  const rows = await sql`
+    SELECT id, result_id, item_id, batch_id, expected_quantity, actual_quantity, unit
+    FROM production_ingredients
+    WHERE result_id = ${resultId}
+    ORDER BY item_id, batch_id
+  `;
+  return rows as ProductionIngredientRow[];
+}
+
+/** Stock actual de un lote. */
+export async function findBatchQuantity(batchId: string): Promise<number> {
+  const rows = await sql`SELECT current_quantity::int AS q FROM inventory_batches WHERE id = ${batchId}`;
+  return rows[0]?.q ?? 0;
+}
+
+/** Limpia resultados, ingredientes, pasos, instancia y template de producción. */
+export async function cleanupProduction(
+  instanceId: string,
+  templateId?: string
+): Promise<void> {
+  await sql`DELETE FROM inventory_waste WHERE notes LIKE ${`%instance:${instanceId}%`}`;
+  await sql`
+    DELETE FROM production_ingredients
+    WHERE result_id IN (SELECT id FROM production_results WHERE notes LIKE ${`%instance:${instanceId}%`})
+  `;
+  await sql`DELETE FROM production_results WHERE notes LIKE ${`%instance:${instanceId}%`}`;
+  await sql`DELETE FROM workflow_instance_steps WHERE instance_id = ${instanceId}`;
+  await sql`DELETE FROM workflow_instances WHERE id = ${instanceId}`;
+  if (templateId) {
+    await sql`DELETE FROM workflow_templates WHERE id = ${templateId}`;
+  }
+}

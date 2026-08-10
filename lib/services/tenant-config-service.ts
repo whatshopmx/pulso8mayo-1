@@ -59,6 +59,8 @@ export const DEFAULT_TENANT_OPERATING_CONFIG: Omit<TenantOperatingConfigData, "c
     laborCostWarnPercent: "32.00",
     healthyMarginTargetPercent: "45.00",
     healthyMarginWarnPercent: "35.00",
+    // Umbral de varianza de conteo para merma automática (T11): 5%.
+    mermaVarianceThresholdPct: "5.00",
 };
 
 /**

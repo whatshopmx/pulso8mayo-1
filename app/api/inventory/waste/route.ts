@@ -154,15 +154,22 @@ export async function POST(request: NextRequest) {
       .returning();
 
     // Create inventory movement
+    // COURTESY se trata igual que STAFF: es consumo (regalo a cliente), no
+    // desperdicio — no debe inflar el % de merma (OQ-1).
+    const consumoInterno = reason === 'STAFF' || reason === 'COURTESY';
     await db
       .insert(inventoryMovements)
       .values({
         branchId,
         itemId,
         batchId: batchId || null,
-        type: reason === 'STAFF' ? 'USAGE' : 'WASTE',
+        type: consumoInterno ? 'USAGE' : 'WASTE',
         quantityChange: -quantity, // Negative because we're removing stock
-        reason: reason === 'STAFF' ? 'Consumo de Personal' : `WASTE: ${reason}`,
+        reason: consumoInterno
+          ? reason === 'STAFF'
+            ? 'Consumo de Personal'
+            : 'Cortesía a Cliente'
+          : `WASTE: ${reason}`,
         performedBy: session.user.id,
         timestamp: new Date(),
       });

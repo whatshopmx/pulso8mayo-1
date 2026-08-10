@@ -74,15 +74,22 @@ async function queryRecipes(
   companyId: string,
   filter: DynamicSourceFilter | undefined
 ): Promise<ResolvedEntity[]> {
-  // `recipes` no tiene `active`, `category`, `tags` ni `is_high_value`.
+  // `recipes` no tiene `active`, `category` ni `is_high_value`.
   // Se avisa en vez de fallar en silencio con un filtro que no se aplicó.
-  const unsupported = (["isHighValue", "category", "tags", "active"] as const).filter(
+  const unsupported = (["isHighValue", "category", "active"] as const).filter(
     (k) => filter?.[k] !== undefined
   );
   if (unsupported.length > 0) {
     console.warn(
       `[DynamicSteps] Filtros no soportados para entity 'recipe' (ignorados): ${unsupported.join(", ")}`
     );
+  }
+
+  const conditions: SQL[] = [eq(recipes.companyId, companyId)];
+  // jsonb containment, igual que `inventory_items.tags`: la receta debe llevar
+  // TODAS las etiquetas pedidas (p.ej. `receta_activa`, T15).
+  if (filter?.tags && filter.tags.length > 0) {
+    conditions.push(sql`${recipes.tags} @> ${JSON.stringify(filter.tags)}::jsonb`);
   }
 
   return db
@@ -92,7 +99,7 @@ async function queryRecipes(
       unit: recipes.unit,
     })
     .from(recipes)
-    .where(eq(recipes.companyId, companyId))
+    .where(and(...conditions))
     .orderBy(recipes.name);
 }
 

@@ -58,6 +58,7 @@ const updateConfigSchema = z
     laborCostWarnPercent: percentSchema,
     healthyMarginTargetPercent: percentSchema,
     healthyMarginWarnPercent: percentSchema,
+    mermaVarianceThresholdPct: percentSchema,
   })
   .partial()
   .superRefine((data, ctx) => {
@@ -103,6 +104,7 @@ const PERCENT_FIELDS = [
   "laborCostWarnPercent",
   "healthyMarginTargetPercent",
   "healthyMarginWarnPercent",
+  "mermaVarianceThresholdPct",
 ] as const;
 
 export async function GET() {
@@ -151,6 +153,7 @@ export async function PUT(req: NextRequest) {
       laborCostWarnPercent,
       healthyMarginTargetPercent,
       healthyMarginWarnPercent,
+      mermaVarianceThresholdPct,
       ...dimensions
     } = data;
 
@@ -162,6 +165,7 @@ export async function PUT(req: NextRequest) {
       laborCostWarnPercent,
       healthyMarginTargetPercent,
       healthyMarginWarnPercent,
+      mermaVarianceThresholdPct,
     };
     for (const field of PERCENT_FIELDS) {
       const value = incoming[field];

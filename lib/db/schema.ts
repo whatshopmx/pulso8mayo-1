@@ -1160,7 +1160,7 @@ export const inventoryAuditLog = pgTable("inventory_audit_log", {
 // Inventory Alerts table
 export const inventoryAlertStatusEnum = pgEnum("inventory_alert_status", ['ACTIVE', 'VIEWED', 'IN_PROGRESS', 'RESOLVED', 'DISMISSED']);
 export const inventoryAlertTypeEnum = pgEnum("inventory_alert_type", ['LOW_STOCK', 'OUT_OF_STOCK', 'EXPIRING_SOON', 'EXPIRED', 'PRICE_INCREASE', 'HIGH_VARIANCE', 'ANOMALOUS_WASTE', 'YIELD_DROP']);
-export const inventoryWasteReasonEnum = pgEnum("inventory_waste_reason", ['EXPIRED', 'DAMAGED', 'QUALITY', 'SPILLAGE', 'OTHER', 'STAFF']);
+export const inventoryWasteReasonEnum = pgEnum("inventory_waste_reason", ['EXPIRED', 'DAMAGED', 'QUALITY', 'SPILLAGE', 'OTHER', 'STAFF', 'COURTESY']);
 
 export const inventoryAlerts = pgTable("inventory_alerts", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -2472,6 +2472,10 @@ export const recipes = pgTable("recipes", {
     description: text("description"),
     baseYield: numeric("base_yield", { precision: 10, scale: 2 }).notNull().default("1.00"),
     unit: text("unit").notNull().default("PORTION"),
+    // Etiquetas libres por receta (p.ej. "receta_activa"). Mismo patrón que
+    // `inventory_items.tags`: filtro de los pasos dinámicos de workflow con
+    // `metadata.dynamicSource = { entity: 'recipe' }` (T15).
+    tags: jsonb("tags").default(sql`'[]'::jsonb`),
     calculatedCost: integer("calculated_cost").default(0).notNull(), // in cents
     priceSelling: integer("price_selling").default(0).notNull(), // in cents
     foodCostPercentage: numeric("food_cost_percentage", { precision: 5, scale: 2 }).default("0.00").notNull(),
@@ -2807,6 +2811,11 @@ export const tenantOperatingConfig = pgTable("tenant_operating_config", {
     healthyMarginTargetPercent: numeric("healthy_margin_target_percent", { precision: 5, scale: 2 }).default("45.00"),
     healthyMarginWarnPercent: numeric("healthy_margin_warn_percent", { precision: 5, scale: 2 }).default("35.00"),
 
+    // T11 (conteo/producción/merma): % de varianza entre lo contado y lo
+    // calculado que, cuando el faltante lo supera, genera merma automática
+    // con razón OTHER y origen `diferencia_conteo`. Default 5%.
+    mermaVarianceThresholdPct: numeric("merma_variance_threshold_pct", { precision: 5, scale: 2 }).default("5.00"),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
@@ -3089,5 +3098,56 @@ export const stockCounts = pgTable("stock_counts", {
     stockCountsBranchDateIdx: index("stock_counts_branch_date_idx").on(
         table.branchId,
         table.countDate.desc()
+    ),
+}));
+
+// ---------------------------------------------------------------------------
+// `inventory_snapshots` — el cierre contable diario del stock calculado vs
+// contado por SKU de alto valor (T7, `tasks/plan-conteo-produccion-merma.md`).
+//
+// Hoy el stock se deriva en vivo con `SUM(inventory_batches.currentQuantity
+// WHERE status='AVAILABLE')`; el snapshot congela ese cálculo por fecha y lo
+// cruza con el último conteo físico del día. `variance` (contado − calculado)
+// es una columna generada STORED: la deriva real —merma no capturada, robos,
+// errores— queda expuesta en vez de desaparecer entre reportes.
+//
+// Cantidades en `numeric(12,4)` (AD-6): un SKU que se compra en KG puede
+// moverse en fracciones; la conversión a `integer` ocurre sólo en la frontera
+// con `inventory_batches.currentQuantity`.
+// ---------------------------------------------------------------------------
+export const inventorySnapshots = pgTable("inventory_snapshots", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
+
+    /** Día del snapshot: una fila por (sucursal, ítem, fecha). */
+    snapshotDate: date("snapshot_date").notNull(),
+
+    /** Stock que el sistema cree tener: suma de lotes AVAILABLE del día. */
+    calculatedStock: numeric("calculated_stock", { precision: 12, scale: 4 }).notNull(),
+    /** Último stock contado físicamente ese día. Null = aún no se contó. */
+    countedStock: numeric("counted_stock", { precision: 12, scale: 4 }),
+
+    /**
+     * contado − calculado. Negativo = faltante (merma/robo/error no capturado);
+     * positivo = sobrante. GENERATED STORED: no puede divergir de sus insumos.
+     */
+    variance: numeric("variance", { precision: 12, scale: 4 }).generatedAlwaysAs(
+        sql`(counted_stock - calculated_stock)`
+    ),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+    // Idempotencia (AD-4): correr el snapshot 2× el mismo día actualiza, no duplica.
+    inventorySnapshotUnique: uniqueIndex("inventory_snapshots_unique").on(
+        table.companyId,
+        table.branchId,
+        table.itemId,
+        table.snapshotDate
+    ),
+    inventorySnapshotsBranchDateIdx: index("inventory_snapshots_branch_date_idx").on(
+        table.branchId,
+        table.snapshotDate.desc()
     ),
 }));

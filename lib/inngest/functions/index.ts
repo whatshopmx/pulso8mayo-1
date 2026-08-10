@@ -6,6 +6,7 @@ export { cronWorkflowReminders } from "./cron-workflow-reminders";
 // (join con plantilla para el nombre real + smart link) vive ahora en check-overdue.
 export { cronSendReminders } from "./cron-send-reminders";
 export { cronInventoryChecks } from "./cron-inventory-checks";
+export { cronInventorySnapshot } from "./cron-inventory-snapshot";
 export { cronComplianceAlerts } from "./cron-compliance-alerts";
 export { cronScheduledReports } from "./cron-scheduled-reports";
 export { cronStockCheck } from "./cron-stock-check";

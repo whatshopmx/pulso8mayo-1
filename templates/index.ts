@@ -44,6 +44,8 @@ import seguridadLocal from './seguridad/seguridad-local-v1.json';
 
 // Inventario
 import conteoInventarioV1 from './inventory/conteo-inventario-v1.json';
+import registroMermaV1 from './inventory/registro-merma-v1.json';
+import produccionDiariaV1 from './operaciones_diarias/produccion-diaria-v1.json';
 
 // Finanzas
 import retiroCajaChicaV1 from './finanzas/retiro-caja-chica-v1.json';
@@ -101,6 +103,9 @@ const normalizeTemplate = (json: any): Template => {
         validation: step.validation || step.validacion,
         readOnly,
         conditionalLogic: step.conditionalLogic || step.logicaCondicional,
+        // Se preserva tal cual: aquí vive `dynamicSource` (pasos dinámicos) y
+        // cualquier metadata de negocio que el ejecutor o los extractores lean.
+        metadata: step.metadata || step.metadatos || undefined,
         options: options.length > 0 ? options : undefined,
         placeholder: placeholder || undefined,
         defaultValue: defaultValue || undefined,
@@ -153,8 +158,10 @@ export const templateLibrary: Record<string, Template> = {
   'control-accesos-v1': normalizeTemplate(controlAccesos),
   'seguridad-local-v1': normalizeTemplate(seguridadLocal),
 
-  // Inventario (1)
+  // Inventario (2)
   'conteo-inventario-v1': normalizeTemplate(conteoInventarioV1),
+  'registro-merma-v1': normalizeTemplate(registroMermaV1),
+  'produccion-diaria-v1': normalizeTemplate(produccionDiariaV1),
 
   // Finanzas (3)
   'retiro-caja-chica-v1': normalizeTemplate(retiroCajaChicaV1),

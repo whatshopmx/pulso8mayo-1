@@ -604,6 +604,18 @@ export class WorkflowExecutionService {
                     // El extractor se auto-descarta si no hay pasos de conteo.
                     const { extractStockCountFromInstance } = await import("./stock-count-from-workflow");
                     void extractStockCountFromInstance(instanceId);
+
+                    // Merma manual: los pasos `merma-*-{itemId}` van a
+                    // `inventory_waste`. El extractor se auto-descarta si la
+                    // instancia no trae pasos de merma.
+                    const { extractMermaFromInstance } = await import("./merma-from-workflow");
+                    void extractMermaFromInstance(instanceId);
+
+                    // Producción diaria: los pasos `prod-qty-{recipeId}` se
+                    // convierten en `production_results` + descuento FEFO de
+                    // lotes. Se auto-descarta si no hay pasos de producción.
+                    const { extractProductionFromInstance } = await import("./production-from-workflow");
+                    void extractProductionFromInstance(instanceId);
                 } catch (error) {
                     console.error("[WorkflowExecution] Error scheduling receiving extraction:", error);
                 }

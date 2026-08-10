@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { inventoryItems, inventoryBatches, inventoryMovements, suppliers, inventoryPriceHistory, inventoryTransfers, inventoryTransferItems, inventoryWaste, inventoryPeriods, companies } from "@/lib/db/schema";
 import { eq, and, sql, desc, inArray, gte, lte, or, ilike, ne } from "drizzle-orm";
+import type { DbExecutor } from "./fefo-allocator";
 
 export class InventoryService {
 
@@ -140,9 +141,13 @@ export class InventoryService {
    referenceId?: string;
    fromLocationId?: string;
    toLocationId?: string;
-  }) {
-   return await db.transaction(async (tx) => {
-   const [movement] = await tx.insert(inventoryMovements).values({
+  }, executor?: DbExecutor) {
+   // Si el llamador ya está dentro de una transacción (p.ej. un `db.transaction`
+   // que tomó `FOR UPDATE` en el allocator FEFO), correr en esa misma conexión:
+   // abrir otra aquí haría que sus escrituras esperaran el lock del lote que
+   // esta transacción ya tomó → deadlock. Por defecto, transacción propia.
+   const run = async (q: DbExecutor) => {
+   const [movement] = await q.insert(inventoryMovements).values({
    branchId: data.branchId,
    itemId: data.itemId,
    batchId: data.batchId,
@@ -157,7 +162,7 @@ export class InventoryService {
 
             // 2. Update Batch if exists
             if (data.batchId) {
-                await tx.update(inventoryBatches)
+                await q.update(inventoryBatches)
                     .set({
                         currentQuantity: sql`${inventoryBatches.currentQuantity} + ${data.quantityChange}`,
                         updatedAt: new Date()
@@ -167,7 +172,7 @@ export class InventoryService {
 
             // 3. Recalculate averageCost for RECEIVING
             if (data.type === 'RECEIVING') {
-             const batches = await tx.select({
+             const batches = await q.select({
               unitCost: inventoryBatches.unitCost,
               currentQuantity: inventoryBatches.currentQuantity,
              })
@@ -186,7 +191,7 @@ export class InventoryService {
               const totalCost = batches.reduce((s, b) => s + Number(b.currentQuantity) * Number(b.unitCost), 0);
               const avgCost = totalQty > 0 ? Math.round(totalCost / totalQty) : 0;
 
-              await tx.update(inventoryItems)
+              await q.update(inventoryItems)
                .set({
                 averageCost: avgCost,
                 averageCostUpdatedAt: new Date(),
@@ -198,7 +203,12 @@ export class InventoryService {
             }
 
             return movement;
-        });
+        };
+
+   if (!executor || executor === db) {
+     return db.transaction((tx) => run(tx));
+   }
+   return run(executor);
     }
 
     // --- Period Validation ---

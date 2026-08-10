@@ -4,6 +4,7 @@ import {
     inventoryBatches, inventoryItems, inventoryMovements, recipes, recipeItems, salesEntries,
 } from "@/lib/db/schema";
 import { eq, and, gte, sql, sum, desc } from "drizzle-orm";
+import type { DbExecutor } from "./fefo-allocator";
 
 export interface ProductionSuggestion {
     recipeId: string;
@@ -65,8 +66,19 @@ export class ProductionService {
             unitCost?: number;
             yieldPercent?: number;
         }[];
-    }) {
+    }, executor?: DbExecutor) {
+        // T16: si no alcanza el lote, se descuenta lo disponible y el faltante se
+        // devuelve en `shortfalls` en vez de omitir el descuento en silencio
+        // (antes hacía `if (batch && batch.currentQuantity >= ing.actualQuantity)`
+        // y si no, no hacía NADA, perdiendo la señal de auditoría).
+        const q: DbExecutor = executor || db;
         const { ingredients, ...resultData } = data;
+        const shortfalls: {
+            itemId: string;
+            batchId: string | null;
+            missing: number;
+            unit: string;
+        }[] = [];
 
         // Calculate total ingredient cost
         let ingredientCost = 0;
@@ -77,32 +89,57 @@ export class ProductionService {
             const total = cost * ing.actualQuantity;
             ingredientCost += total;
 
-            // Deduct from a specific batch or the first available
             if (ing.batchId) {
-                const batch = await db.query.inventoryBatches.findFirst({
-                    where: eq(inventoryBatches.id, ing.batchId),
-                });
+                const [batch] = await q
+                    .select({
+                        id: inventoryBatches.id,
+                        currentQuantity: inventoryBatches.currentQuantity,
+                    })
+                    .from(inventoryBatches)
+                    .where(eq(inventoryBatches.id, ing.batchId))
+                    .limit(1);
 
-                if (batch && batch.currentQuantity >= ing.actualQuantity) {
-                    await db.update(inventoryBatches)
+                if (!batch) {
+                    shortfalls.push({ itemId: ing.itemId, batchId: ing.batchId, missing: ing.actualQuantity, unit: ing.unit });
+                    continue;
+                }
+
+                const available = Number(batch.currentQuantity);
+                const deduct = Math.min(available, ing.actualQuantity);
+
+                if (deduct > 0) {
+                    await q.update(inventoryBatches)
                         .set({
-                            currentQuantity: sql`${inventoryBatches.currentQuantity} - ${ing.actualQuantity}`,
+                            currentQuantity: sql`${inventoryBatches.currentQuantity} - ${deduct}`,
                             updatedAt: new Date(),
                         })
                         .where(eq(inventoryBatches.id, ing.batchId));
                 }
+
+                if (deduct < ing.actualQuantity) {
+                    shortfalls.push({
+                        itemId: ing.itemId,
+                        batchId: ing.batchId,
+                        missing: ing.actualQuantity - deduct,
+                        unit: ing.unit,
+                    });
+                }
+            } else {
+                // Sin lote asignado no hay nada que descontar: se reporta para
+                // que el llamador decida (p.ej. merma por lote insuficiente).
+                shortfalls.push({ itemId: ing.itemId, batchId: null, missing: ing.actualQuantity, unit: ing.unit });
             }
         }
 
         // Create the production result
-        const [result] = await db.insert(productionResults).values({
+        const [result] = await q.insert(productionResults).values({
             ...resultData,
             ingredientCost,
         }).returning();
 
         // Create ingredient records
         if (ingredients.length > 0) {
-            await db.insert(productionIngredients).values(
+            await q.insert(productionIngredients).values(
                 ingredients.map(ing => ({
                     resultId: result.id,
                     ...ing,
@@ -117,7 +154,7 @@ export class ProductionService {
 
         // Update order status if linked
         if (data.orderId) {
-            await db.update(productionOrders)
+            await q.update(productionOrders)
                 .set({
                     status: 'COMPLETED',
                     completedAt: new Date(),
@@ -126,7 +163,7 @@ export class ProductionService {
                 .where(eq(productionOrders.id, data.orderId));
         }
 
-        return result;
+        return { ...result, shortfalls };
     }
 
     static async getSuggestions(companyId: string, branchId: string): Promise<ProductionSuggestion[]> {

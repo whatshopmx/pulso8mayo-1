@@ -25,6 +25,8 @@ import {
   inventoryItems,
   inventoryBatches,
   stockCounts,
+  inventoryWaste,
+  tenantOperatingConfig,
 } from "@/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { roundQty } from "./stock-count-service";
@@ -178,10 +180,15 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
     // `stock_counts` lo exigen y un stepId manipulado no debe tumbar el insert.
     const candidateIds = [...parsedByItem.keys()];
     const validItems = await db
-      .select({ id: inventoryItems.id })
+      .select({
+        id: inventoryItems.id,
+        unit: inventoryItems.unit,
+        averageCost: inventoryItems.averageCost,
+      })
       .from(inventoryItems)
       .where(and(eq(inventoryItems.companyId, companyId), inArray(inventoryItems.id, candidateIds)));
     const validIds = new Set(validItems.map((i) => i.id));
+    const itemsById = new Map(validItems.map((i) => [i.id, i]));
 
     // Respaldo para `systemQuantity` cuando el paso no la trae (pasos dinámicos
     // genéricos): el stock que los lotes reportan ahora.
@@ -233,10 +240,96 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
     console.log(
       `[StockCountFromWorkflow] ${rows.length} conteos persistidos para instancia ${instanceId}`
     );
+
+    // T12 — merma automática por varianza: si el faltante supera el umbral del
+    // tenant (mermaVarianceThresholdPct, default 5%), la diferencia se registra
+    // como merma con motivo OTHER y origen `diferencia_conteo`. El sobrante
+    // NUNCA genera merma. No mueve stock: `applyStockCountAdjustments` sigue
+    // siendo el único punto que escribe ajustes (aprobación humana).
+    await maybeCreateMermaFromVariance({
+      instanceId,
+      companyId,
+      branchId: instance.branchId,
+      counts: rows.map((r) => ({
+        itemId: r.itemId,
+        counted: Number(r.countedQuantity),
+        system: Number(r.systemQuantity),
+      })),
+      itemsById,
+      recordedBy: countedBy,
+    });
   } catch (error) {
     console.error(
       `[StockCountFromWorkflow] Error persistiendo conteo de instancia ${instanceId}:`,
       error
     );
   }
+}
+
+/**
+ * T12 — convierte una varianza negativa (faltante) que supera el umbral en
+ * una fila de `inventory_waste`. Idempotente por el marcador
+ * `instance:{id}; origen=diferencia_conteo` en `notes` (AD-4).
+ */
+async function maybeCreateMermaFromVariance(params: {
+  instanceId: string;
+  companyId: string;
+  branchId: string;
+  counts: { itemId: string; counted: number; system: number }[];
+  itemsById: Map<string, { unit: string | null; averageCost: number | null }>;
+  recordedBy: string | null;
+}): Promise<void> {
+  const { instanceId, companyId, branchId, counts, itemsById, recordedBy } = params;
+
+  const cfg = await db.query.tenantOperatingConfig.findFirst({
+    where: eq(tenantOperatingConfig.companyId, companyId),
+  });
+  const thresholdPct = cfg?.mermaVarianceThresholdPct
+    ? Number(cfg.mermaVarianceThresholdPct)
+    : 5;
+
+  const wasteRows: (typeof inventoryWaste.$inferInsert)[] = [];
+  for (const c of counts) {
+    if (c.system <= 0) continue; // sin stock calculado no hay % que medir
+
+    const variancePct = ((c.counted - c.system) / c.system) * 100;
+    if (variancePct >= 0) continue; // sobrante nunca genera merma
+    if (Math.abs(variancePct) <= thresholdPct) continue; // dentro de tolerancia
+
+    const missing = c.system - c.counted; // faltante, positivo
+    if (missing <= 0) continue;
+
+    const item = itemsById.get(c.itemId);
+    const averageCost = item?.averageCost ?? null;
+    wasteRows.push({
+      companyId,
+      branchId,
+      batchId: null,
+      itemId: c.itemId,
+      quantity: Math.round(missing), // frontera con integer (AD-6)
+      unit: item?.unit || "UNIT",
+      reason: "OTHER",
+      costPerUnit: averageCost,
+      totalLoss: averageCost !== null ? Math.round(averageCost * missing) : null,
+      recordedBy: recordedBy || "system",
+      notes: `Varianza de conteo; instance:${instanceId}; origen=diferencia_conteo`,
+    });
+  }
+
+  if (wasteRows.length === 0) return;
+
+  // Idempotencia: el marcador del instance ya está en el histórico.
+  const existing = await db
+    .select({ id: inventoryWaste.id })
+    .from(inventoryWaste)
+    .where(
+      sql`${inventoryWaste.notes} LIKE ${`%instance:${instanceId}%origen=diferencia_conteo%`}`
+    )
+    .limit(1);
+  if (existing.length > 0) return;
+
+  await db.insert(inventoryWaste).values(wasteRows);
+  console.log(
+    `[StockCountFromWorkflow] ${wasteRows.length} mermas automáticas por varianza (instancia ${instanceId})`
+  );
 }

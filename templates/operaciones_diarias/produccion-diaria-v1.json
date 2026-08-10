@@ -1,0 +1,49 @@
+{
+  "id": "tpl-produccion-diaria-v1",
+  "nombre": "🍳 Producción Diaria",
+  "descripcion": "Registro de la producción diaria por receta (tag receta_activa). Al cerrar, el extractor descuenta insumos FEFO de los lotes, escribe production_results y convierte los faltantes en merma (Phase 4, plan conteo/producción/merma).",
+  "tipo": "OPERACIONES",
+  "version": 1,
+  "requiereIA": false,
+  "duracionEstimada": "5-10 min",
+  "activo": true,
+  "tags": ["producción", "recetas", "inventario", "costo"],
+  "complianceConfig": {
+    "complianceType": "NOM-251",
+    "regulationSection": "NOM-251-SSA1-2009-Trazabilidad",
+    "requiredFrequency": "daily",
+    "auditable": true,
+    "evidenceRequired": false,
+    "criticalForCompliance": false
+  },
+  "completionActions": [
+    {
+      "type": "SEND_NOTIFICATION",
+      "target": "GERENTE",
+      "channel": "in-app",
+      "message": "Producción diaria registrada - revisar faltantes de lote"
+    }
+  ],
+  "pasos": [
+    {
+      "id": "prod-qty",
+      "type": "Number",
+      "titulo": "Porciones a producir de {{name}}",
+      "descripcion": "Cantidad de porciones producidas hoy (0 = no se produjo esta receta)",
+      "obligatorio": true,
+      "metadata": {
+        "dynamicSource": {
+          "entity": "recipe",
+          "filter": { "tags": ["receta_activa"] }
+        }
+      }
+    },
+    {
+      "id": "prod-obs",
+      "type": "Text",
+      "titulo": "Observaciones de producción",
+      "descripcion": "Notas de cocina (opcional)",
+      "obligatorio": false
+    }
+  ]
+}

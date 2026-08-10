@@ -247,6 +247,8 @@ export const PredictiveScoringService = {
           eq(inventoryWaste.branchId, branchId),
           gte(inventoryWaste.recordedAt, twentyOneDaysAgo),
           sql`${inventoryWaste.recordedAt} < ${sevenDaysAgo.toISOString()}`,
+          // STAFF y COURTESY son consumo, no merma (OQ-1).
+          sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
         ),
       );
 
@@ -260,6 +262,7 @@ export const PredictiveScoringService = {
         and(
           eq(inventoryWaste.branchId, branchId),
           gte(inventoryWaste.recordedAt, sevenDaysAgo),
+          sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
         ),
       );
 

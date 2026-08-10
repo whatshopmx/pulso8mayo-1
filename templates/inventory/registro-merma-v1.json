@@ -1,0 +1,83 @@
+{
+  "id": "tpl-registro-merma-v1",
+  "nombre": "🧾 Registro de Merma",
+  "descripcion": "Registro diario de merma física por SKU de alto valor: cantidad, motivo y evidencia fotográfica obligatoria. Al cerrar, el extractor persiste en inventory_waste (Phase 3, plan conteo/producción/merma).",
+  "tipo": "INVENTARIO",
+  "version": 1,
+  "requiereIA": false,
+  "duracionEstimada": "10-15 min",
+  "activo": true,
+  "tags": ["inventario", "merma", "auditoría"],
+  "cumplimientoNormativo": [
+    {
+      "norma": "NOM-251",
+      "seccion": "Control de inventario y trazabilidad",
+      "descripcion": "Trazabilidad de pérdidas y mermas de alimentos"
+    }
+  ],
+  "complianceConfig": {
+    "complianceType": "NOM-251",
+    "regulationSection": "NOM-251-SSA1-2009-Trazabilidad",
+    "requiredFrequency": "daily",
+    "auditable": true,
+    "evidenceRequired": true,
+    "criticalForCompliance": false
+  },
+  "completionActions": [
+    {
+      "type": "SEND_NOTIFICATION",
+      "target": "GERENTE",
+      "channel": "in-app",
+      "message": "Registro de merma completado - revisar cortesías y pérdidas del día"
+    }
+  ],
+  "pasos": [
+    {
+      "id": "merma-qty",
+      "type": "Number",
+      "titulo": "Cantidad en merma de {{name}}",
+      "descripcion": "Cantidad física a dar de baja (0 = no hubo merma de este SKU)",
+      "obligatorio": true,
+      "metadata": {
+        "dynamicSource": {
+          "entity": "inventory_item",
+          "filter": { "isHighValue": true, "tags": ["merma"] }
+        }
+      }
+    },
+    {
+      "id": "merma-reason",
+      "type": "Select",
+      "titulo": "Motivo de la merma de {{name}}",
+      "descripcion": "Selecciona el motivo; la cortesía se registra aparte del % de merma",
+      "obligatorio": true,
+      "options": ["Caducidad", "Caída", "Error de cocina", "Cortesía"],
+      "metadata": {
+        "dynamicSource": {
+          "entity": "inventory_item",
+          "filter": { "isHighValue": true, "tags": ["merma"] }
+        }
+      }
+    },
+    {
+      "id": "merma-evidence",
+      "type": "PhotoField",
+      "titulo": "Foto de la merma de {{name}}",
+      "descripcion": "Fotografía del producto antes de desecharlo (obligatoria)",
+      "obligatorio": true,
+      "metadata": {
+        "dynamicSource": {
+          "entity": "inventory_item",
+          "filter": { "isHighValue": true, "tags": ["merma"] }
+        }
+      }
+    },
+    {
+      "id": "merma-obs",
+      "type": "Text",
+      "titulo": "Observaciones",
+      "descripcion": "Contexto adicional (opcional)",
+      "obligatorio": false
+    }
+  ]
+}
