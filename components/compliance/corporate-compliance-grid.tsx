@@ -30,6 +30,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, Cell } from "recharts";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { getRateTier, getRateColor, getRateTextClass } from "@/components/compliance/rate-badge";
 
 interface BranchStatus {
   branchId: string;
@@ -179,18 +180,6 @@ export function CorporateComplianceGrid() {
     "Cumplimiento %": b.complianceRate,
   }));
 
-  const getComplianceColor = (rate: number) => {
-    if (rate >= 90) return "oklch(0.60 0.16 150)";
-    if (rate >= 70) return "oklch(0.72 0.15 80)";
-    return "oklch(0.50 0.22 22)";
-  };
-
-  const getComplianceBg = (rate: number) => {
-    if (rate >= 90) return "bg-green-500/10 text-green-700 border-green-500/20";
-    if (rate >= 70) return "bg-yellow-500/10 text-yellow-700 border-yellow-500/20";
-    return "bg-red-500/10 text-red-700 border-red-500/20";
-  };
-
   return (
     <TooltipProvider>
     <div className="space-y-6">
@@ -292,17 +281,16 @@ export function CorporateComplianceGrid() {
                 <ChartTooltip
                   cursor={{ fill: "rgba(0,0,0,0.03)" }}
                   contentStyle={{
-                    background: "white",
+                    background: "var(--background)",
                     border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                    borderRadius: "6px",
                   }}
                 />
                 <Bar dataKey="Cumplimiento %" radius={[4, 4, 0, 0]} barSize={35}>
                   {chartData.map((entry, index) => (
                     <Cell
                       key={`cell-${index}`}
-                      fill={getComplianceColor(entry["Cumplimiento %"])}
+                      fill={getRateColor(getRateTier(entry["Cumplimiento %"]))}
                       fillOpacity={0.85}
                     />
                   ))}
@@ -340,11 +328,11 @@ export function CorporateComplianceGrid() {
                   <TableCell className="font-bold pl-6 flex items-center gap-2">
                     <span
                       className={`h-2.5 w-2.5 rounded-full`}
-                      style={{ backgroundColor: getComplianceColor(branch.complianceRate) }}
+                      style={{ backgroundColor: getRateColor(getRateTier(branch.complianceRate)) }}
                     />
                     {branch.branchName}
                     {!branch.active && (
-                      <Badge variant="outline" className="text-[10px] py-0 px-1 text-muted-foreground">
+                      <Badge variant="outline" className="text-xs py-0 px-1 text-muted-foreground">
                         Inactiva
                       </Badge>
                     )}
@@ -355,13 +343,7 @@ export function CorporateComplianceGrid() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span
-                        className={`text-sm font-bold min-w-[36px] ${
-                          branch.complianceRate >= 90
-                            ? "text-green-700"
-                            : branch.complianceRate >= 70
-                            ? "text-yellow-700"
-                            : "text-red-600"
-                        }`}
+                        className={`text-sm font-bold min-w-[36px] ${getRateTextClass(getRateTier(branch.complianceRate))}`}
                       >
                         {branch.complianceRate}%
                       </span>
@@ -370,7 +352,7 @@ export function CorporateComplianceGrid() {
                         className="h-1.5 w-24"
                         style={
                           {
-                            "--progress-background": getComplianceColor(branch.complianceRate),
+                            "--progress-background": getRateColor(getRateTier(branch.complianceRate)),
                           } as React.CSSProperties
                         }
                       />
@@ -388,7 +370,7 @@ export function CorporateComplianceGrid() {
                         <AlertTriangle className="h-3 w-3 text-yellow-600" />
                         {branch.incidents.open} activas
                         {branch.incidents.critical > 0 && (
-                          <span className="text-[10px] text-red-600 font-bold ml-1">
+                          <span className="text-xs text-destructive font-bold ml-1">
                             ({branch.incidents.critical} Críticas)
                           </span>
                         )}

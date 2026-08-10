@@ -1,5 +1,8 @@
 "use client";
 
+import { PageHeader } from "@/components/shared";
+import { CheckCircle2 } from "lucide-react";
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,12 +82,11 @@ export default function SATValidationPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold">Validación SAT</h1>
-                <p className="text-muted-foreground">
-                    Valida RFC y CURP de empleados
-                </p>
-            </div>
+            <PageHeader
+                title="Validación SAT"
+                description="Valida RFC y CURP de empleados para efectos fiscales"
+                icon={CheckCircle2}
+            />
 
             <Tabs defaultValue="rfc" className="space-y-4">
                 <TabsList>

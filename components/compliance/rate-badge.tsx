@@ -24,6 +24,50 @@ const TIER_VARIANT = {
     low: "destructive",
 } as const;
 
+export function getRateBadgeVariant(tier: RateTier): "success" | "warning" | "destructive" {
+    return TIER_VARIANT[tier];
+}
+
+const TIER_COLOR = {
+    high: "oklch(0.60 0.16 150)",
+    mid: "oklch(0.72 0.15 80)",
+    low: "oklch(0.50 0.22 22)",
+} as const;
+
+export function getRateColor(tier: RateTier): string {
+    return TIER_COLOR[tier];
+}
+
+const TIER_CLASSES = {
+    high: "text-success bg-success/10 border-success/20",
+    mid: "text-warning-text bg-warning/10 border-warning/20",
+    low: "text-destructive bg-destructive/10 border-destructive/20",
+} as const;
+
+export function getRateClasses(tier: RateTier): string {
+    return TIER_CLASSES[tier];
+}
+
+const TIER_TEXT_CLASS = {
+    high: "text-success",
+    mid: "text-warning-text",
+    low: "text-destructive",
+} as const;
+
+export function getRateTextClass(tier: RateTier): string {
+    return TIER_TEXT_CLASS[tier];
+}
+
+const TIER_PROGRESS_CLASSES = {
+    high: "bg-success",
+    mid: "bg-warning",
+    low: "bg-destructive",
+} as const;
+
+export function getRateProgressClasses(tier: RateTier): string {
+    return TIER_PROGRESS_CLASSES[tier];
+}
+
 const TIER_LABEL = {
     high: "Excelente",
     mid: "Bueno",
@@ -53,3 +97,4 @@ export function RateBadge({ rate, showLabel = true, className }: RateBadgeProps)
         </Badge>
     );
 }
+

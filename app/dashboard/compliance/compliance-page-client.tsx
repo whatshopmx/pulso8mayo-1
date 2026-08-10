@@ -4,14 +4,13 @@ import { NOM251Report } from "@/components/compliance/nom251-report";
 import { NOM035Report } from "@/components/compliance/nom035-report";
 import { ComplianceDashboard } from "@/components/compliance/compliance-dashboard";
 import { CorporateComplianceGrid } from "@/components/compliance/corporate-compliance-grid";
-import { SUAGenerator } from "@/components/compliance/imss/sua-generator";
-import { IDSEGenerator } from "@/components/compliance/imss/idse-generator";
-import { PayrollExport } from "@/components/compliance/payroll-export";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState, PageHeader } from "@/components/shared";
 import { useBranch } from "@/lib/branch-context";
-import { FileText, Shield, ClipboardCheck, Brain, Building2, DollarSign, ShieldCheck, MapPin } from "lucide-react";
+import { FileText, Shield, ClipboardCheck, Brain, Building2, DollarSign, ShieldCheck, MapPin, ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 interface BranchLite {
   id: string;
@@ -150,33 +149,63 @@ export function CompliancePageClient({ branches }: CompliancePageClientProps) {
           </section>
         </TabsContent>
 
-        <TabsContent value="imss" className="space-y-6">
-          <section className="space-y-4">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-green-600" />
-              <h2 className="text-2xl font-semibold">Integración IMSS</h2>
-            </div>
-            <p className="text-muted-foreground">
-              Genera archivos SUA e IDSE para reportar movimientos ante el IMSS.
-            </p>
-          </section>
-
-          <Tabs defaultValue="sua" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="sua">SUA (Salarios)</TabsTrigger>
-              <TabsTrigger value="idse">IDSE (Movimientos)</TabsTrigger>
-            </TabsList>
-            <TabsContent value="sua">
-              <SUAGenerator />
-            </TabsContent>
-            <TabsContent value="idse">
-              <IDSEGenerator />
-            </TabsContent>
-          </Tabs>
+        <TabsContent value="imss" className="space-y-4">
+          <Card>
+            <CardContent className="py-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-green-500/10 text-green-700">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Integración y Registros IMSS</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Gestión de altas, bajas, archivos SUA, reportes e incidencias laborales ante el IMSS.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button asChild variant="default">
+                  <Link href="/dashboard/compliance/imss">
+                    Ir a Gestión IMSS <ArrowRight className="h-4 w-4 ml-1" />
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/dashboard/compliance/imss/altas">Altas Pendientes</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/dashboard/compliance/imss/sua">Generador SUA</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/dashboard/compliance/imss/reports">Archivos IDSE</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="nomina" className="space-y-4">
-          <PayrollExport companyId={selectedBranchId || ''} />
+          <Card>
+            <CardContent className="py-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+                  <DollarSign className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Exportación de Nómina</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Generación y descarga de layouts de nómina por período y sucursal.
+                  </p>
+                </div>
+              </div>
+              <div className="pt-2">
+                <Button asChild variant="default">
+                  <Link href="/dashboard/compliance/payroll">
+                    Ir a Exportación de Nómina <ArrowRight className="h-4 w-4 ml-1" />
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
       </Tabs>

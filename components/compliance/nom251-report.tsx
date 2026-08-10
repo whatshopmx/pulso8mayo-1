@@ -19,6 +19,8 @@ import {
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
+import { RateBadge, getRateTier, getRateTextClass } from "@/components/compliance/rate-badge";
+
 
 export interface NOM251ReportData {
     companyInfo: {
@@ -153,18 +155,6 @@ export function NOM251Report({ branchId, defaultStartDate, defaultEndDate }: NOM
         } finally {
             setGeneratingPdf(false);
         }
-    };
-
-    const getComplianceColor = (rate: number) => {
-        if (rate >= 90) return "text-green-600";
-        if (rate >= 70) return "text-yellow-600";
-        return "text-red-600";
-    };
-
-    const getComplianceBadgeVariant = (rate: number) => {
-        if (rate >= 90) return "default" as const; // green
-        if (rate >= 70) return "secondary" as const; // yellow
-        return "destructive" as const; // red
     };
 
     const downloadExcel = () => {
@@ -392,13 +382,10 @@ export function NOM251Report({ branchId, defaultStartDate, defaultEndDate }: NOM
                                 <div className="space-y-2">
                                     <p className="text-sm font-medium text-muted-foreground">Tasa de Cumplimiento</p>
                                     <div className="flex items-center gap-2">
-                                        <p className={`text-3xl font-bold ${getComplianceColor(reportData.summary.complianceRate)}`}>
+                                        <p className={`text-3xl font-bold ${getRateTextClass(getRateTier(reportData.summary.complianceRate))}`}>
                                             {reportData.summary.complianceRate}%
                                         </p>
-                                        <Badge variant={getComplianceBadgeVariant(reportData.summary.complianceRate)}>
-                                            {reportData.summary.complianceRate >= 90 ? 'Excelente' : 
-                                             reportData.summary.complianceRate >= 70 ? 'Bueno' : 'Crítico'}
-                                        </Badge>
+                                        <RateBadge rate={reportData.summary.complianceRate} />
                                     </div>
                                 </div>
                             </div>
@@ -437,12 +424,7 @@ export function NOM251Report({ branchId, defaultStartDate, defaultEndDate }: NOM
                                                 <span className="text-sm text-muted-foreground">
                                                     {data.completed}/{data.total}
                                                 </span>
-                                                <Badge 
-                                                    variant={getComplianceBadgeVariant(data.rate)}
-                                                    className={getComplianceColor(data.rate)}
-                                                >
-                                                    {data.rate}%
-                                                </Badge>
+                                                 <RateBadge rate={data.rate} />
                                             </div>
                                         </div>
                                         <Progress value={data.rate} className="h-2" />

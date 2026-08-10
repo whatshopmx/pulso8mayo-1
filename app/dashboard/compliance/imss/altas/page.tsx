@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader } from "@/components/shared";
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -132,12 +134,11 @@ export default function IMSSAltasPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold">IMSS Altas — Registro de Empleados</h1>
-                <p className="text-muted-foreground">
-                    Registra nuevos empleados ante el IMSS dentro de los 5 días hábiles
-                </p>
-            </div>
+            <PageHeader
+                title="IMSS Altas — Registro de Empleados"
+                description="Registra nuevos empleados ante el IMSS dentro de los 5 días hábiles"
+                icon={UserPlus}
+            />
 
             <Alert>
                 <AlertTriangle className="h-4 w-4" />

@@ -1,5 +1,7 @@
 "use client"
 
+import { PageHeader } from "@/components/shared";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -170,12 +172,11 @@ export default function IMSSReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Reportes y Archivos IMSS</h1>
-        <p className="text-muted-foreground">
-          Genera y gestiona archivos de cumplimiento IMSS
-        </p>
-      </div>
+      <PageHeader
+        title="Reportes y Archivos IMSS"
+        description="Genera y gestiona archivos de cumplimiento IMSS"
+        icon={FileDown}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>

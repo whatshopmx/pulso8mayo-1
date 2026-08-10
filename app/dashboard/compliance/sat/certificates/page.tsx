@@ -1,5 +1,8 @@
 "use client";
 
+import { PageHeader } from "@/components/shared";
+import { FileText } from "lucide-react";
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -112,12 +115,11 @@ export default function SATCertificatesPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold">Constancias de Nómina</h1>
-                <p className="text-muted-foreground">
-                    Genera Constancias de Retenciones e Ingresos (SAT)
-                </p>
-            </div>
+            <PageHeader
+                title="Constancias de Nómina"
+                description="Genera Constancias de Retenciones e Ingresos (SAT)"
+                icon={FileText}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>

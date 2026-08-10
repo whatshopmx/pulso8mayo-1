@@ -266,6 +266,27 @@ const navMain = [
         title: "Verificaciones AI",
         url: "/dashboard/ai-verifications",
       },
+      { groupLabel: "Registros" },
+      {
+        title: "IMSS",
+        url: "/dashboard/compliance/imss",
+      },
+      {
+        title: "SAT",
+        url: "/dashboard/compliance/sat",
+      },
+      {
+        title: "Expediente",
+        url: "/dashboard/compliance/expediente",
+      },
+      {
+        title: "Horarios",
+        url: "/dashboard/compliance/schedules",
+      },
+      {
+        title: "Nómina",
+        url: "/dashboard/compliance/payroll",
+      },
     ],
   },
   {

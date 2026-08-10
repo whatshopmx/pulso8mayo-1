@@ -1,10 +1,13 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricGrid, MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
-import { Users, AlertTriangle, CheckCircle, PlusCircle, FileText, Loader2 } from "lucide-react";
+import { Users, AlertTriangle, CheckCircle, PlusCircle, FileText, Loader2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { PageHeader, ErrorState } from "@/components/shared";
+import { toast } from "sonner";
 
 interface IMSSStats {
     totalEmployees: number;
@@ -23,121 +26,114 @@ export default function IMSSPage() {
         overdueBajas: 0,
     });
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+
+    const fetchStats = async () => {
+        setLoading(true);
+        setError(false);
+        try {
+            const [altasRes, bajasRes, employeesRes] = await Promise.all([
+                fetch("/api/imss/altas"),
+                fetch("/api/imss/bajas"),
+                fetch("/api/employees"),
+            ]);
+
+            if (!altasRes.ok && !bajasRes.ok && !employeesRes.ok) {
+                throw new Error("No se pudo obtener la información de IMSS");
+            }
+
+            let pendingAltas = 0, pendingBajas = 0, overdueAltas = 0, overdueBajas = 0, totalEmployees = 0;
+
+            if (altasRes.ok) {
+                const altasData = await altasRes.json();
+                pendingAltas = (altasData.summary?.ready || 0) + (altasData.summary?.pending || 0);
+                overdueAltas = altasData.summary?.overdue || 0;
+            }
+            if (bajasRes.ok) {
+                const bajasData = await bajasRes.json();
+                pendingBajas = (bajasData.summary?.ready || 0) + (bajasData.summary?.pending || 0);
+                overdueBajas = bajasData.summary?.overdue || 0;
+            }
+            if (employeesRes.ok) {
+                const empData = await employeesRes.json();
+                totalEmployees = empData.pagination?.total || 0;
+            }
+
+            setStats({
+                totalEmployees,
+                pendingAltas,
+                pendingBajas,
+                overdueAltas,
+                overdueBajas,
+            });
+        } catch (e) {
+            console.error("Error loading stats", e);
+            toast.error("Error al cargar los datos del IMSS");
+            setError(true);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchStats = async () => {
-            setLoading(true);
-            try {
-                const [altasRes, bajasRes, employeesRes] = await Promise.all([
-                    fetch("/api/imss/altas"),
-                    fetch("/api/imss/bajas"),
-                    fetch("/api/employees"),
-                ]);
-
-                let pendingAltas = 0, pendingBajas = 0, overdueAltas = 0, overdueBajas = 0, totalEmployees = 0;
-
-                if (altasRes.ok) {
-                    const altasData = await altasRes.json();
-                    pendingAltas = (altasData.summary?.ready || 0) + (altasData.summary?.pending || 0);
-                    overdueAltas = altasData.summary?.overdue || 0;
-                }
-                if (bajasRes.ok) {
-                    const bajasData = await bajasRes.json();
-                    pendingBajas = (bajasData.summary?.ready || 0) + (bajasData.summary?.pending || 0);
-                    overdueBajas = bajasData.summary?.overdue || 0;
-                }
-                if (employeesRes.ok) {
-                    const empData = await employeesRes.json();
-                    totalEmployees = empData.pagination?.total || 0;
-                }
-
-                setStats({
-                    totalEmployees,
-                    pendingAltas,
-                    pendingBajas,
-                    overdueAltas,
-                    overdueBajas,
-                });
-            } catch (e) {
-                console.error("Error loading stats", e);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchStats();
     }, []);
 
+    const complianceRate = stats.totalEmployees > 0
+        ? Math.round(((stats.totalEmployees - stats.overdueAltas - stats.overdueBajas) / stats.totalEmployees) * 100)
+        : 100;
+
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold">Integración IMSS</h1>
-                <p className="text-muted-foreground">
-                    Cumplimiento y reportes ante el Instituto Mexicano del Seguro Social
-                </p>
-            </div>
+            <PageHeader
+                title="Integración IMSS"
+                description="Cumplimiento y reportes ante el Instituto Mexicano del Seguro Social"
+                icon={ShieldCheck}
+            />
 
             {loading ? (
                 <div className="flex justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
+            ) : error ? (
+                <ErrorState
+                    message="No se pudo obtener los indicadores de IMSS"
+                    onRetry={fetchStats}
+                />
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Empleados Activos</CardTitle>
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{stats.totalEmployees}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Registrados ante IMSS
-                            </p>
-                        </CardContent>
-                    </Card>
+                <MetricGrid columns={4}>
+                    <MetricCard
+                        label="Empleados Activos"
+                        value={stats.totalEmployees}
+                        icon={<Users className="h-4 w-4" />}
+                        subtitle="Registrados ante IMSS"
+                    />
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Altas Pendientes</CardTitle>
-                            <AlertTriangle className="h-4 w-4 text-orange-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-orange-600">{stats.pendingAltas}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Need IMSS registration
-                            </p>
-                        </CardContent>
-                    </Card>
+                    <MetricCard
+                        label="Altas Pendientes"
+                        value={stats.pendingAltas}
+                        icon={<AlertTriangle className="h-4 w-4" />}
+                        tone={stats.pendingAltas > 0 ? "warning" : "neutral"}
+                        subtitle="Requieren registro ante IMSS"
+                    />
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Bajas Pendientes</CardTitle>
-                            <AlertTriangle className="h-4 w-4 text-red-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-red-600">{stats.pendingBajas}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Need IMSS deregistration
-                            </p>
-                        </CardContent>
-                    </Card>
+                    <MetricCard
+                        label="Bajas Pendientes"
+                        value={stats.pendingBajas}
+                        icon={<AlertTriangle className="h-4 w-4" />}
+                        tone={stats.pendingBajas > 0 ? "destructive" : "neutral"}
+                        subtitle="Requieren baja ante IMSS"
+                    />
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Estado de Cumplimiento</CardTitle>
-                            <CheckCircle className="h-4 w-4 text-success" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-green-600">
-                                {stats.totalEmployees > 0
-                                    ? Math.round(((stats.totalEmployees - stats.overdueAltas - stats.overdueBajas) / stats.totalEmployees) * 100)
-                                    : 100}%
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                Empleados en cumplimiento
-                            </p>
-                        </CardContent>
-                    </Card>
-                </div>
+                    <MetricCard
+                        label="Estado de Cumplimiento"
+                        value={`${complianceRate}%`}
+                        icon={<CheckCircle className="h-4 w-4" />}
+                        tone={complianceRate >= 90 ? "success" : complianceRate >= 70 ? "warning" : "destructive"}
+                        subtitle="Empleados en cumplimiento"
+                        progress={{ value: complianceRate }}
+                    />
+                </MetricGrid>
             )}
 
             <Card>
@@ -214,3 +210,4 @@ export default function IMSSPage() {
         </div>
     );
 }
+

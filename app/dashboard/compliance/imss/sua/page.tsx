@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader } from "@/components/shared";
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -123,12 +125,11 @@ export default function SUAGeneratorPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold">SUA — Actualización Salarial</h1>
-                <p className="text-muted-foreground">
-                    Genera archivo SUA para reportar cambios salariales al IMSS
-                </p>
-            </div>
+            <PageHeader
+                title="SUA — Actualización Salarial"
+                description="Genera archivo SUA para reportar cambios salariales al IMSS"
+                icon={FileDown}
+            />
 
 <Alert className="bg-amber-50 border-amber-200">
                 <AlertTriangle className="h-4 w-4 text-amber-600" />

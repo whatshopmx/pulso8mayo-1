@@ -1,5 +1,8 @@
 "use client";
 
+import { PageHeader } from "@/components/shared";
+import { Folder } from "lucide-react";
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -136,12 +139,11 @@ export default function ExpedientePage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold">Expediente Laboral</h1>
-                <p className="text-muted-foreground">
-                    Gestión de documentos requeridos por ley mexicana
-                </p>
-            </div>
+            <PageHeader
+                title="Expediente Laboral"
+                description="Gestión de documentos requeridos por ley mexicana"
+                icon={Folder}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card>

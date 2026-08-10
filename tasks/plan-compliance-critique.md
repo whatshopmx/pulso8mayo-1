@@ -12,8 +12,27 @@ Remediate the 8 issues from the design critique of `app/dashboard/compliance/` +
 - **D2 — Canonical home per capability.** Breaks and overtime live under **Personal** (`/dashboard/labor/breaks`, `/dashboard/labor/overtime`), which already has full component implementations (`BreakManagementDashboard`, `OvertimeDashboard`) linked in the sidebar; the hand-rolled copies under `/dashboard/compliance/` become server-side `redirect()`s. IMSS/SAT/expediente/schedules/payroll stay under **Cumplimiento** and get sidebar links. Rationale: kill the drift (the compliance Breaks page already regressed — "Con Issues") and make orphaned features reachable.
 - **D3 — The header `BranchScopeControl` (AD-1, cookie-backed) owns branch scope.** The Dashboard tab's in-page branch Select is removed; the active scope is surfaced as a chip. The Nómina tab stops abusing `companyId={selectedBranchId || ''}` and receives the real companyId from the server component. Rationale: two scope controls forces the user to hold "which branch am I looking at?" in working memory.
 - **D4 — Error ≠ empty.** Typed `{ loading | error | data }` states with a retry affordance in compliance-dashboard, imss, sat. A failure must never render as "0%" or "No compliance data available". Rationale: an owner who can't load compliance data must not believe compliance is zero.
-- **D5 — Flat-by-default, nested-by-need.** The root tab bar's IMSS and Nómina tabs become hubs that link to canonical pages (removing the inline SUA/IDSE generators and the embedded PayrollExport), cutting the "6→5→2 nested tabs" stack. Dashboard sub-tabs stay but the control row drops to period + export only. Rationale: ≤4 simultaneous controls on first paint for a busy owner.
+- **D5 — Flat-by-default, nested-by-need.** The root tab bar's IMSS and Nómina tabs become hubs that link to canonical pages (removing the inline SUA/IDSE generators — `components/compliance/imss/{sua,idse}-generator.tsx` become orphaned and get deleted; `imss/sua` and `imss/reports` pages are the canonical SUA/IDSE homes — and the embedded PayrollExport), cutting the "6→5→2 nested tabs" stack. Dashboard sub-tabs stay but the control row drops to period + export only. Rationale: ≤4 simultaneous controls on first paint for a busy owner.
 - **D6 — PDFs are documents for inspectors.** `exportToPDF` becomes fully es-MX (headers, section names, formatted dates) and uses the brand palette (Operational Red `oklch(0.52 0.17 25)` for table headers) instead of the off-brand blue `[59,130,246]`.
+
+## Verificado contra el codebase (2026-08-10)
+
+| Afirmación del plan | Verificación | Resultado |
+|---|---|---|
+| Dashboard hardcodea `variant={rate >= 90 ? "default" : ...}` | `compliance-dashboard.tsx` | ✅ Confirmado (scorecards + tab "Por Sucursal" + progress bars `bg-green/bg-yellow/bg-red-500` crudas) |
+| Corporate grid duplica `getComplianceColor`/`getComplianceBg` | `corporate-compliance-grid.tsx` | ✅ Confirmado; además `text-[10px]` ×2 y tooltip `borderRadius: 8px` + boxShadow (P3 #7) |
+| `rate-badge.tsx` es el dueño único documentado pero incompleto | `rate-badge.tsx` | ✅ `getRateTier` existe; faltan exports `getRateBadgeVariant`/`getRateColor`/`getRateClasses` (TIER_VARIANT interno) |
+| nom251 duplica umbrales | `nom251-report.tsx:159-166,399-400` | ✅ Confirmado (`>= 90`/`>= 70` + `text-green-600`) |
+| Sidebar sin links a IMSS/SAT/expediente/schedules/payroll | `components/app-sidebar.tsx` sección Cumplimiento | ✅ Confirmado: solo Dashboard/Auditoría/Protección Civil/Reportes/Constructor/Verificaciones AI |
+| breaks/overtime duplicados bajo compliance | `app/dashboard/compliance/{breaks,overtime}` (317/476 líneas) vs `components/labor/{break-management-dashboard,overtime-dashboard}.tsx` | ✅ Confirmado; labor son componentes completos con wrappers de página de 1-2 líneas |
+| imss/sat silencian fallos | `imss/page.tsx`, `sat/page.tsx` | ✅ `console.error` + KPIs "0%"/"Sin datos" sin retry; KPIs hand-rolled `text-orange/red/green-600`; `text-3xl font-bold` |
+| Nómina inline pasa `companyId={selectedBranchId \|\| ''}` | `compliance-page-client.tsx:214` | ✅ Confirmado; página standalone `payroll/page.tsx` sí usa `/api/me` |
+| PDF en inglés + azul | `compliance-dashboard.tsx` `exportToPDF` (`fillColor: [59,130,246]`) | ✅ Confirmado; eje X chart `en-US` |
+| Schedules sin confirmación + a11y | `schedules/page.tsx` | ✅ `deleteTemplate` DELETE directo, `<Trash2>` sin aria-label, day-picker Buttons sin `aria-pressed` |
+| Infra disponible | `components/shared/error-state.tsx` (con `onRetry`), `alert-dialog.tsx`, Badge `success`/`warning` (tokens), `useBranch().selectedBranch` | ✅ Lista para reutilizar |
+| Generadores SUA/IDSE inline | `components/compliance/imss/{sua,idse}-generator.tsx` | Únicos consumidores = tab raíz; `imss/sua/page.tsx` y `imss/reports/page.tsx` son las casas canónicas (T3 los deja huérfanos → borrar) |
+
+Quedan fuera de alcance: `variant="default"` con umbrales en equipment (sistémico, otra superficie), `psychosocial-dashboard.tsx` (escalas NOM-035 propias, no rates).
 
 ## Task List
 

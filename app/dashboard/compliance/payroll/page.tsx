@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { PayrollExport } from '@/components/compliance/payroll-export';
 import { DollarSign } from 'lucide-react';
+import { PageHeader } from '@/components/shared';
 
 export default function PayrollPage() {
   const [companyId, setCompanyId] = useState<string>('');
@@ -24,15 +25,11 @@ export default function PayrollPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <DollarSign className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold">Exportación de Nómina</h1>
-          <p className="text-muted-foreground">
-            Genera archivos de exportación para tu sistema de nómina
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Exportación de Nómina"
+        description="Genera archivos de exportación para tu sistema de nómina"
+        icon={DollarSign}
+      />
 
       {companyId ? (
         <PayrollExport companyId={companyId} />
@@ -42,3 +39,4 @@ export default function PayrollPage() {
     </div>
   );
 }
+

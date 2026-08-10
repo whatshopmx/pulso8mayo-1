@@ -1,10 +1,13 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricGrid, MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
-import { FileText, Calculator, Loader2 } from "lucide-react";
+import { FileText, Calculator, Loader2, LandPlot } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { PageHeader, ErrorState } from "@/components/shared";
+import { toast } from "sonner";
 
 interface SATStats {
     certificatesGenerated: number;
@@ -15,76 +18,76 @@ export default function SATPage() {
         certificatesGenerated: 0,
     });
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+
+    const fetchStats = async () => {
+        setLoading(true);
+        setError(false);
+        try {
+            const certRes = await fetch("/api/sat/certificates");
+
+            if (!certRes.ok) {
+                throw new Error("Error al obtener datos del SAT");
+            }
+
+            const certData = await certRes.json();
+            const certificatesGenerated = certData.generated || 0;
+
+            setStats({ certificatesGenerated });
+        } catch (e) {
+            console.error("Error loading stats", e);
+            toast.error("Error al cargar los datos del SAT");
+            setError(true);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchStats = async () => {
-            setLoading(true);
-            try {
-                const certRes = await fetch("/api/sat/certificates");
-
-                let certificatesGenerated = 0;
-
-                if (certRes.ok) {
-                    const certData = await certRes.json();
-                    certificatesGenerated = certData.generated || 0;
-                }
-
-                setStats({ certificatesGenerated });
-            } catch (e) {
-                console.error("Error loading stats", e);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchStats();
     }, []);
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold">Integración SAT</h1>
-                <p className="text-muted-foreground">
-                    Cumplimiento y reportes ante el Servicio de Administración Tributaria
-                </p>
-            </div>
+            <PageHeader
+                title="Integración SAT"
+                description="Cumplimiento y reportes ante el Servicio de Administración Tributaria"
+                icon={LandPlot}
+            />
 
             {loading ? (
                 <div className="flex justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
+            ) : error ? (
+                <ErrorState
+                    message="No se pudo obtener la información de constancias del SAT"
+                    onRetry={fetchStats}
+                />
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Validación RFC/CURP</CardTitle>
-                            <Calculator className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-muted-foreground">Sin datos</div>
-                            <p className="text-xs text-muted-foreground mb-3">
-                                Valida los RFC/CURP de tus empleados para ver el estado aquí
-                            </p>
+                <MetricGrid columns={2}>
+                    <MetricCard
+                        label="Validación RFC/CURP"
+                        value="Sin datos"
+                        icon={<Calculator className="h-4 w-4" />}
+                        subtitle="Valida los RFC/CURP de tus empleados para ver el estado"
+                    >
+                        <div className="mt-2">
                             <Link href="/dashboard/compliance/sat/validation">
-                                <Button size="sm" variant="outline">
+                                <Button size="sm" variant="outline" className="h-7 text-xs">
                                     Validar RFC/CURP
                                 </Button>
                             </Link>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </MetricCard>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Constancias Anuales</CardTitle>
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{stats.certificatesGenerated}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Generadas este año
-                            </p>
-                        </CardContent>
-                    </Card>
-                </div>
+                    <MetricCard
+                        label="Constancias Anuales"
+                        value={stats.certificatesGenerated}
+                        icon={<FileText className="h-4 w-4" />}
+                        subtitle="Generadas este año"
+                    />
+                </MetricGrid>
             )}
 
             <Card>

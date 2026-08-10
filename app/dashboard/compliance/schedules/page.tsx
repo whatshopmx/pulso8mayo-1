@@ -1,5 +1,8 @@
 "use client";
 
+import { PageHeader } from "@/components/shared";
+import { Calendar } from "lucide-react";
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,8 +11,18 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Clock, Plus, Trash2, Calendar } from "lucide-react";
+import { Loader2, Clock, Plus, Trash2 } from "lucide-react";
 
 interface ShiftTemplate {
     id: string;
@@ -33,6 +46,7 @@ export default function SchedulesPage() {
     const [branches, setBranches] = useState<Branch[]>([]);
     const [loading, setLoading] = useState(true);
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         name: "",
         role: "COCINERO",
@@ -156,12 +170,11 @@ export default function SchedulesPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold">Horarios y Turnos</h1>
-                <p className="text-muted-foreground">
-                    Configura plantillas de turnos y turnos
-                </p>
-            </div>
+            <PageHeader
+                title="Horarios y Turnos"
+                description="Configura plantillas de turnos y turnos"
+                icon={Calendar}
+            />
 
             <div className="flex justify-end">
                 <Button onClick={() => setDialogOpen(true)}>
@@ -238,8 +251,9 @@ export default function SchedulesPage() {
                                     <Button
                                         size="sm"
                                         variant="destructive"
+                                        aria-label="Eliminar plantilla"
                                         onClick={() =>
-                                            deleteTemplate(template.id)
+                                            setTemplateToDelete(template.id)
                                         }
                                     >
                                         <Trash2 className="h-4 w-4" />
@@ -369,6 +383,8 @@ export default function SchedulesPage() {
                                                 ? "default"
                                                 : "outline"
                                         }
+                                        aria-pressed={formData.daysOfWeek.includes(i)}
+                                        aria-label={`Día ${day}`}
                                         onClick={() => toggleDay(i)}
                                     >
                                         {day}
@@ -394,6 +410,34 @@ export default function SchedulesPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog
+                open={!!templateToDelete}
+                onOpenChange={open => !open && setTemplateToDelete(null)}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar plantilla de turno?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción no se puede deshacer. Se eliminará la plantilla de turno seleccionada.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                if (templateToDelete) {
+                                    deleteTemplate(templateToDelete);
+                                    setTemplateToDelete(null);
+                                }
+                            }}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

@@ -7,16 +7,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, TrendingUp, AlertTriangle, CheckCircle, Calendar, FileText, Download, Shield, Activity } from "lucide-react";
+import { Loader2, TrendingUp, AlertTriangle, CheckCircle, Calendar, FileText, Download, Shield, Activity, Building2 } from "lucide-react";
 import {
     ChartContainer,
     ChartTooltip,
     ChartTooltipContent,
     type ChartConfig,
 } from "@/components/ui/chart";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
+import { RateBadge, getRateBadgeVariant, getRateColor, getRateClasses, getRateTextClass, getRateProgressClasses, getRateTier } from "@/components/compliance/rate-badge";
+import { toast } from "sonner";
+import { ErrorState } from "@/components/shared";
+import { useBranch } from "@/lib/branch-context";
 
 interface TrendData {
     date: string;
@@ -75,40 +79,46 @@ interface ComplianceData {
 
 const chartConfig = {
     complianceRate: {
-        label: "Compliance Rate",
+        label: "Tasa de Cumplimiento",
         color: "var(--primary)",
     },
 } satisfies ChartConfig;
 
 export function ComplianceDashboard() {
+    const { selectedBranchId, selectedBranch } = useBranch();
     const [data, setData] = useState<ComplianceData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [selectedBranch, setSelectedBranch] = useState<string>("all");
+    const [error, setError] = useState(false);
     const [selectedPeriod, setSelectedPeriod] = useState<string>("30");
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const params = new URLSearchParams();
-                if (selectedBranch !== "all") {
-                    params.set('branchId', selectedBranch);
-                }
-                params.set('days', selectedPeriod);
-
-                const res = await fetch(`/api/analytics/compliance/trends?${params.toString()}`);
-                if (res.ok) {
-                    const result = await res.json();
-                    setData(result);
-                }
-            } catch (error) {
-                console.error("Failed to fetch compliance data", error);
-            } finally {
-                setLoading(false);
+    const fetchData = async () => {
+        setLoading(true);
+        setError(false);
+        try {
+            const params = new URLSearchParams();
+            if (selectedBranchId) {
+                params.set('branchId', selectedBranchId);
             }
-        };
+            params.set('days', selectedPeriod);
+
+            const res = await fetch(`/api/analytics/compliance/trends?${params.toString()}`);
+            if (!res.ok) {
+                throw new Error(`Error ${res.status}: no se pudieron obtener los datos de cumplimiento`);
+            }
+            const result = await res.json();
+            setData(result);
+        } catch (err) {
+            console.error("Failed to fetch compliance data", err);
+            toast.error("Error al cargar los datos del tablero de cumplimiento");
+            setError(true);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchData();
-    }, [selectedBranch, selectedPeriod]);
+    }, [selectedBranchId, selectedPeriod]);
 
     const exportToPDF = async () => {
         if (!data) return;
@@ -117,7 +127,7 @@ export function ComplianceDashboard() {
         
         // Title
         doc.setFontSize(18);
-        doc.text("Compliance Dashboard Report", 14, 20);
+        doc.text("Reporte de Cumplimiento", 14, 20);
         
         // Period
         doc.setFontSize(10);
@@ -146,7 +156,7 @@ export function ComplianceDashboard() {
             head: [['Categoría', 'Tipo', 'Cumplimiento', 'Flujos Totales', 'Críticos']],
             body: scorecardData,
             theme: 'striped',
-            headStyles: { fillColor: [59, 130, 246] },
+            headStyles: { fillColor: [133, 22, 28] },
         });
 
         // Alerts Section
@@ -165,18 +175,18 @@ export function ComplianceDashboard() {
 
             autoTable(doc, {
                 startY: finalY + 5,
-                head: [['Alert', 'Severity', 'Status', 'Workflow', 'Date']],
+                head: [['Alerta', 'Gravedad', 'Estado', 'Flujo de Trabajo', 'Fecha']],
                 body: alertData,
                 theme: 'striped',
-                headStyles: { fillColor: [239, 68, 68] },
+                headStyles: { fillColor: [133, 22, 28] },
             });
         } else {
             doc.setFontSize(10);
-            doc.text("No active alerts", 14, finalY + 10);
+            doc.text("Sin alertas activas", 14, finalY + 10);
         }
 
         // Save the PDF
-        doc.save(`compliance-report-${new Date().toISOString().split('T')[0]}.pdf`);
+        doc.save(`reporte-cumplimiento-${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
     if (loading) {
@@ -187,11 +197,12 @@ export function ComplianceDashboard() {
         );
     }
 
-    if (!data) {
+    if (error || !data) {
         return (
-            <div className="p-8 text-center text-muted-foreground">
-                No compliance data available
-            </div>
+            <ErrorState
+                message="No se pudo cargar la información del tablero de cumplimiento."
+                onRetry={fetchData}
+            />
         );
     }
 
@@ -209,28 +220,19 @@ export function ComplianceDashboard() {
                 <div className="flex gap-2 items-center">
                     <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
                         <SelectTrigger className="w-[150px]">
-                            <SelectValue placeholder="Period" />
+                            <SelectValue placeholder="Período" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="7">Últimos 7 días</SelectItem>
-                            <SelectItem value="30">Last 30 days</SelectItem>
-                            <SelectItem value="90">Last 90 days</SelectItem>
+                            <SelectItem value="30">Últimos 30 días</SelectItem>
+                            <SelectItem value="90">Últimos 90 días</SelectItem>
                         </SelectContent>
                     </Select>
 
-                    <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-                        <SelectTrigger className="w-[200px]">
-                            <SelectValue placeholder="Todas las sucursales" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Todas las sucursales</SelectItem>
-                            {data.branchBreakdown.map(branch => (
-                                <SelectItem key={branch.branchId} value={branch.branchId || ''}>
-                                    {branch.branchName}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-xs font-medium bg-background border">
+                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        {selectedBranch ? `Sucursal: ${selectedBranch.name}` : "Todas las sucursales"}
+                    </Badge>
                 </div>
 
                 <Button onClick={exportToPDF} variant="outline" size="sm">
@@ -248,23 +250,23 @@ export function ComplianceDashboard() {
                     subtitle="Promedio general de cumplimiento"
                 />
                 <MetricCard
-                    label="Total Workflows"
+                    label="Total de Flujos"
                     value={data.scorecards.reduce((acc, s) => acc + s.totalWorkflows, 0)}
                     icon={<FileText className="h-4 w-4" />}
-                    subtitle="Completed in period"
+                    subtitle="Completados en el período"
                 />
                 <MetricCard
                     label="Alertas Activas"
                     value={totalAlerts}
                     icon={<AlertTriangle className="h-4 w-4" />}
                     tone={totalAlerts > 0 ? "warning" : "neutral"}
-                    subtitle={`${criticalAlerts} critical`}
+                    subtitle={`${criticalAlerts} críticas`}
                 />
                 <MetricCard
-                    label="Upcoming Deadlines"
+                    label="Próximos Vencimientos"
                     value={data.deadlines.length}
                     icon={<Calendar className="h-4 w-4" />}
-                    subtitle="Next 30 days"
+                    subtitle="Próximos 30 días"
                 />
             </MetricGrid>
 
@@ -291,10 +293,7 @@ export function ComplianceDashboard() {
                                                 {scorecard.complianceType || 'General'}
                                             </CardDescription>
                                         </div>
-                                        <Badge variant={scorecard.complianceRate >= 90 ? "default" : scorecard.complianceRate >= 70 ? "secondary" : "destructive"}>
-                                            {scorecard.complianceRate >= 90 ? <CheckCircle className="h-3 w-3 mr-1" /> : <AlertTriangle className="h-3 w-3 mr-1" />}
-                                            {scorecard.complianceRate}%
-                                        </Badge>
+                                        <RateBadge rate={scorecard.complianceRate} />
                                     </div>
                                 </CardHeader>
                                 <CardContent>
@@ -354,7 +353,7 @@ export function ComplianceDashboard() {
                                             tickMargin={8}
                                             tickFormatter={(value) => {
                                                 const date = new Date(value);
-                                                return date.toLocaleDateString("en-US", {
+                                                return date.toLocaleDateString("es-MX", {
                                                     month: "short",
                                                     day: "numeric",
                                                 });
@@ -370,7 +369,7 @@ export function ComplianceDashboard() {
                                             content={
                                                 <ChartTooltipContent
                                                     labelFormatter={(value) => {
-                                                        return new Date(value).toLocaleDateString("en-US", {
+                                                        return new Date(value).toLocaleDateString("es-MX", {
                                                             month: "short",
                                                             day: "numeric",
                                                             year: "numeric",
@@ -548,21 +547,13 @@ export function ComplianceDashboard() {
                                                         <p className="text-2xl font-bold">{branch.complianceRate}%</p>
                                                         <p className="text-xs text-muted-foreground">Cumplimiento</p>
                                                     </div>
-                                                    <Badge 
-                                                        variant={branch.complianceRate >= 90 ? "default" : branch.complianceRate >= 70 ? "secondary" : "destructive"}
-                                                    >
-                                                        {branch.complianceRate >= 90 ? 'Excelente' : branch.complianceRate >= 70 ? 'Bueno' : 'Requiere Atención'}
-                                                    </Badge>
+                                                    <RateBadge rate={branch.complianceRate} />
                                                 </div>
                                             </div>
                                             {/* Progress bar */}
                                             <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
                                                 <div 
-                                                    className={`h-full transition-all ${
-                                                        branch.complianceRate >= 90 ? 'bg-green-500' : 
-                                                        branch.complianceRate >= 70 ? 'bg-yellow-500' : 
-                                                        'bg-red-500'
-                                                    }`}
+                                                    className={`h-full transition-all ${getRateProgressClasses(getRateTier(branch.complianceRate))}`}
                                                     style={{ width: `${branch.complianceRate}%` }}
                                                 />
                                             </div>
