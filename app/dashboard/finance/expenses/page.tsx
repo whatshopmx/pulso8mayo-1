@@ -61,6 +61,8 @@ interface ExpenseItem {
   amountCents: number;
   description: string;
   evidenceUrl?: string | null;
+  payeeId?: string | null;
+  payeeName?: string | null;
   status: "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | "PAID";
   requestedBy?: string | null;
   requestedByName: string | null;
@@ -341,14 +343,16 @@ export default function ExpensesPage() {
             <div className="border rounded-md overflow-x-auto">
               <Table>
                 <TableCaption className="sr-only">
-                  Gastos operativos: fecha, sucursal, categoría, descripción, evidencia, monto,
-                  quién lo solicitó, estatus de autorización y acción disponible.
+                  Gastos operativos: fecha, sucursal, categoría, contraparte, descripción,
+                  evidencia, monto, quién lo solicitó, estatus de autorización y acción
+                  disponible.
                 </TableCaption>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
                     <TableHead>Fecha</TableHead>
                     <TableHead>Sucursal</TableHead>
                     <TableHead>Categoría</TableHead>
+                    <TableHead>Contraparte</TableHead>
                     <TableHead>Descripción</TableHead>
                     <TableHead>Evidencia</TableHead>
                     <TableHead className="text-right">Monto ($)</TableHead>
@@ -372,6 +376,16 @@ export default function ExpensesPage() {
                         <Badge variant="outline" className="text-xs font-normal">
                           {item.category}
                         </Badge>
+                      </TableCell>
+                      {/* Los gastos históricos sin contraparte muestran "—": no se
+                          inventa un beneficiario retroactivo. Los gastos con payee
+                          dado de baja siguen mostrando el nombre congelado. */}
+                      <TableCell className="whitespace-nowrap">
+                        {item.payeeName ? (
+                          <span className="font-medium">{item.payeeName}</span>
+                        ) : (
+                          <span className="text-muted-foreground/40">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="font-medium max-w-xs truncate">{item.description}</TableCell>
                       <TableCell>

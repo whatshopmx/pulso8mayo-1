@@ -245,21 +245,22 @@ export default function PayablesPage() {
           {/* A quién le debes */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold">Por proveedor</CardTitle>
+              <CardTitle className="text-base font-bold">Por contraparte</CardTitle>
               <CardDescription className="text-xs">
-                Ordenado por lo vencido primero. Los gastos operativos se agrupan por categoría.
+                Ordenado por lo vencido primero. Los gastos operativos se agrupan por contraparte
+                (&quot;Inmobiliaria X&quot;); los gastos casuales sin contraparte, por categoría.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="border rounded-md overflow-x-auto">
                 <Table>
                   <TableCaption className="sr-only">
-                    Deuda agrupada por proveedor o categoría: total, monto vencido y número de
-                    partidas.
+                    Deuda agrupada por contraparte (proveedor de mercancía, arrendador o servicio,
+                    o categoría del gasto casual): total, monto vencido y número de partidas.
                   </TableCaption>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead>Proveedor / Categoría</TableHead>
+                      <TableHead>Contraparte</TableHead>
                       <TableHead className="text-center">Partidas</TableHead>
                       <TableHead className="text-right">Vencido</TableHead>
                       <TableHead className="text-right">Total</TableHead>
@@ -305,13 +306,13 @@ export default function PayablesPage() {
               <div className="border rounded-md overflow-x-auto">
                 <Table>
                   <TableCaption className="sr-only">
-                    Partidas por pagar: referencia, proveedor, sucursal, origen, vencimiento, monto y
-                    acción de pago.
+                    Partidas por pagar: referencia, contraparte, sucursal, origen, vencimiento,
+                    monto y acción de pago.
                   </TableCaption>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead>Referencia</TableHead>
-                      <TableHead>Proveedor / Categoría</TableHead>
+                      <TableHead>Contraparte</TableHead>
                       <TableHead>Sucursal</TableHead>
                       <TableHead>Origen</TableHead>
                       <TableHead>Vence</TableHead>

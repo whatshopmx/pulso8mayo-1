@@ -1135,7 +1135,7 @@ export const notificationPreferences = pgTable("notification_preferences", {
 });
 
 export const inventoryAuditActionEnum = pgEnum("inventory_audit_action", ['CREATE', 'UPDATE', 'DELETE']);
-export const inventoryAuditEntityEnum = pgEnum("inventory_audit_entity", ['ITEM', 'BATCH', 'MOVEMENT', 'TRANSFER', 'WASTE', 'RECEIVING', 'ADJUSTMENT', 'SUPPLIER', 'PURCHASE_ORDER']);
+export const inventoryAuditEntityEnum = pgEnum("inventory_audit_entity", ['ITEM', 'BATCH', 'MOVEMENT', 'TRANSFER', 'WASTE', 'RECEIVING', 'ADJUSTMENT', 'SUPPLIER', 'PURCHASE_ORDER', 'PAYEE']);
 
 export const inventoryAuditLog = pgTable("inventory_audit_log", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -2862,10 +2862,58 @@ export const pettyCashTransactions = pgTable("petty_cash_transactions", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ---------------------------------------------------------------------------
+// Contrapartes (payees) — Fase 1 de `tasks/plan-payees-contrapartes.md`.
+//
+// El módulo de finanzas modeló "a quién le pagamos" con `suppliers`, pero esa
+// entidad es 100% de inventario (3-way match, SKUs, reclamaciones de
+// mercancía). La renta, la luz, el gas, el internet y el contador —los gastos
+// operativos más grandes— no tienen dónde vivir su identidad: el "a quién"
+// quedaba enterrado en la descripción del gasto y la CxP agrupaba por
+// categoría en vez de por beneficiario real.
+//
+// `payees` es la contraparte universal del módulo de finanzas: a quién se le
+// paga. No distingue tipo en esta fase (la especialización `kind='SUPPLIER'`
+// llega en Fase 3, cuando `suppliers` pase a ser un payee con atributos de
+// compra). El RFC es opcional a propósito: un plomero o una ferretería que no
+// emiten CFDI son contrapartes legítimas de gasto.
+// ---------------------------------------------------------------------------
+export const payees = pgTable("payees", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    name: text("name").notNull(),
+    /** RFC opcional: hay contrapartes de gasto que no emiten CFDI. */
+    taxId: text("tax_id"),
+    contactName: text("contact_name"),
+    email: text("email"),
+    phone: text("phone"),
+    /** Baja lógica. Los gastos históricos conservan el nombre aunque se dé de baja. */
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    /**
+     * Antifragmentación: "CFE" y "Comisión Federal de Electricidad" son la
+     * misma contraparte. Sin esto, la CxP que esta fase intenta arreglar
+     * ("a quién le debo") se rompe sola con dos filas para el mismo pagador.
+     */
+    payeesCompanyNameUnique: uniqueIndex("payees_company_name_unique").on(
+        table.companyId,
+        sql`lower(${table.name})`
+    ),
+}));
+
 export const operatingExpenses = pgTable("operating_expenses", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
     companyId: uuid("company_id").notNull().references(() => companies.id),
     branchId: uuid("branch_id").notNull().references(() => branches.id),
+    /**
+     * A quién se le paga. NULLABLE a propósito: los gastos casuales (taxi,
+     * hielo, plomero) no tienen contraparte recurrente y no deben forzar crear
+     * un catálogo. Los que sí la tienen alimentan "a quién le debo" en CxP y,
+     * en Fase 2, el flujo de CLABE/lote (`tasks/plan-payees-contrapartes.md`).
+     */
+    payeeId: uuid("payee_id").references(() => payees.id),
 
     category: operatingExpenseCategoryEnum("category").notNull(),
     amount: integer("amount").notNull(), // in cents

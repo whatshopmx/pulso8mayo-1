@@ -4,7 +4,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'VIEW' | 'EXPORT' | 'IMPORT';
 export type InventoryAuditAction = 'CREATE' | 'UPDATE' | 'DELETE';
-export type InventoryAuditEntity = 'ITEM' | 'BATCH' | 'MOVEMENT' | 'TRANSFER' | 'WASTE' | 'RECEIVING' | 'ADJUSTMENT' | 'SUPPLIER' | 'PURCHASE_ORDER';
+export type InventoryAuditEntity = 'ITEM' | 'BATCH' | 'MOVEMENT' | 'TRANSFER' | 'WASTE' | 'RECEIVING' | 'ADJUSTMENT' | 'SUPPLIER' | 'PURCHASE_ORDER' | 'PAYEE';
 
 export interface AuditLogRequest {
     userId: string;

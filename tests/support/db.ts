@@ -166,12 +166,31 @@ export async function deleteTestExpenses(): Promise<void> {
   await sql`DELETE FROM operating_expenses WHERE description LIKE ${`${E2E_TAG}%`}`;
 }
 
+/** Borra las contrapartes (payees) creadas por los tests. */
+export async function deleteTestPayees(): Promise<void> {
+  // Los gastos de test que las referencian se borran primero: la FK
+  // `operating_expenses.payee_id → payees.id` exige el orden.
+  await sql`DELETE FROM operating_expenses WHERE description LIKE ${`${E2E_TAG}%`}`;
+  await sql`DELETE FROM payees WHERE name LIKE ${`${E2E_TAG}%`}`;
+}
+
+/** Lee una contraparte por nombre. */
+export async function findPayeeByName(name: string): Promise<any | null> {
+  const rows = await sql`
+    SELECT id, name, tax_id, active
+    FROM payees
+    WHERE name = ${name}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
 /** Lee un gasto por descripción. */
 export async function findExpenseByDescription(description: string): Promise<any | null> {
   // La columna se llama `amount` y ya está en centavos (`schema.ts:2688`); se
   // expone como `amount_cents` para que el spec lea el nombre con la unidad.
   const rows = await sql`
-    SELECT id, description, amount AS amount_cents, evidence_url, status
+    SELECT id, description, amount AS amount_cents, evidence_url, status, payee_id
     FROM operating_expenses
     WHERE description = ${description}
     LIMIT 1

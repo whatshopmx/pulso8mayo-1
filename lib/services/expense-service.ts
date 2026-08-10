@@ -7,10 +7,13 @@ import {
   expenseAuthorizationRules,
   users,
   branches,
+  payees,
 } from "@/lib/db/schema";
 import { eq, and, desc, lte, gte, or, isNull } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { roleIsAtLeast } from "@/lib/permissions";
+import { getPayeeForCompany } from "./payee-service";
+import { ApiError } from "@/lib/api/error";
 
 export interface CreateExpenseInput {
   companyId: string;
@@ -22,6 +25,8 @@ export interface CreateExpenseInput {
   dueDate?: string;
   /** URL del ticket/foto de evidencia (R2). */
   evidenceUrl?: string;
+  /** Contraparte (payee) a la que se le paga. Opcional: los gastos casuales no la tienen. */
+  payeeId?: string;
   requestedBy: string;
   userRole?: string;
 }
@@ -50,6 +55,18 @@ async function findAuthorizationRule(companyId: string, amountCents: number) {
 }
 
 export async function createOperatingExpense(input: CreateExpenseInput) {
+  // La contraparte es un dato de la empresa: se valida aquí, en el servicio,
+  // y no confiando en el cliente. Un payee de otra empresa no existe para
+  // este tenant — se rechaza sin revelar por qué (sin leak de datos).
+  if (input.payeeId) {
+    const payee = await getPayeeForCompany(input.companyId, input.payeeId);
+    if (!payee) {
+      throw ApiError.badRequest(
+        "La contraparte seleccionada no existe para esta empresa. Recarga el catálogo e inténtalo de nuevo.",
+      );
+    }
+  }
+
   // Query expenseAuthorizationRules to determine the required approver role
   const rule = await findAuthorizationRule(input.companyId, input.amountCents);
   const requiredApproverRole = rule?.approverRole ?? "OWNER"; // default to OWNER if no rule
@@ -75,6 +92,7 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
       description: input.description,
       invoiceId: input.invoiceId || null,
       evidenceUrl: input.evidenceUrl || null,
+      payeeId: input.payeeId || null,
       status: initialStatus,
       requestedBy: input.requestedBy,
       approvedBy,
@@ -254,6 +272,8 @@ export async function getOperatingExpenses(companyId: string, branchId?: string)
       amountCents: operatingExpenses.amount,
       description: operatingExpenses.description,
       evidenceUrl: operatingExpenses.evidenceUrl,
+      payeeId: operatingExpenses.payeeId,
+      payeeName: payees.name,
       status: operatingExpenses.status,
       requestedBy: operatingExpenses.requestedBy,
       requestedByName: requestedUser.name,
@@ -267,6 +287,7 @@ export async function getOperatingExpenses(companyId: string, branchId?: string)
     .innerJoin(branches, eq(operatingExpenses.branchId, branches.id))
     .leftJoin(requestedUser, eq(operatingExpenses.requestedBy, requestedUser.id))
     .leftJoin(approvedUser, eq(operatingExpenses.approvedBy, approvedUser.id))
+    .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
     .where(and(...conditions))
     .orderBy(desc(operatingExpenses.createdAt));
 

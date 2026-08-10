@@ -1,0 +1,1 @@
+ALTER TYPE "public"."inventory_audit_entity" ADD VALUE 'PAYEE';

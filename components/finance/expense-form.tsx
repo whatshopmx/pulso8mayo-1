@@ -1,18 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Receipt, Loader2, ImagePlus, X, Check } from "lucide-react";
+import { Plus, Receipt, Loader2, ImagePlus, X, Check, UserPlus, Building2 } from "lucide-react";
 
 interface ExpenseFormProps {
   branches: Array<{ id: string; name: string }>;
   onSuccess?: () => void;
 }
+
+interface Payee {
+  id: string;
+  name: string;
+  taxId: string | null;
+}
+
+/** Valor centinela del Select para "sin contraparte" (el gasto casual). */
+const NO_PAYEE = "__none__";
 
 export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
   const { toast } = useToast();
@@ -25,6 +34,73 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
   const [evidenceUrl, setEvidenceUrl] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Contrapartes (Fase 1 — tasks/plan-payees-contrapartes.md). El campo es
+  // OPCIONAL: un gasto casual (taxi, hielo) no debe forzar el catálogo.
+  const [payees, setPayees] = useState<Payee[]>([]);
+  const [payeeId, setPayeeId] = useState<string>(NO_PAYEE);
+  const [payeesLoading, setPayeesLoading] = useState(false);
+  // Creación al vuelo: un mini-form dentro del mismo diálogo, no otra página.
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
+  const [newPayeeName, setNewPayeeName] = useState("");
+  const [newPayeeTaxId, setNewPayeeTaxId] = useState("");
+  const [creatingPayee, setCreatingPayee] = useState(false);
+
+  const loadPayees = async () => {
+    setPayeesLoading(true);
+    try {
+      const res = await fetch("/api/finance/payees");
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPayees(data.data || []);
+      }
+      // Sin toast: el catálogo es apoyo, no debe romper la captura si cae.
+    } catch (err) {
+      console.error("Error fetching payees:", err);
+    } finally {
+      setPayeesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPayees();
+  }, []);
+
+  const handleCreatePayee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newPayeeName.trim();
+    if (!name) {
+      toast({ title: "Error", description: "El nombre de la contraparte es obligatorio.", variant: "destructive" });
+      return;
+    }
+    setCreatingPayee(true);
+    try {
+      const res = await fetch("/api/finance/payees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, taxId: newPayeeTaxId.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || data.error || "No se pudo crear la contraparte.");
+      }
+      const created = data.data;
+      setPayees((prev) => [...prev, created]);
+      setPayeeId(created.id);
+      setShowQuickCreate(false);
+      setNewPayeeName("");
+      setNewPayeeTaxId("");
+      toast({ title: "Contraparte creada", description: `"${created.name}" quedó seleccionada en este gasto.` });
+    } catch (err: any) {
+      toast({
+        title: "No se pudo crear la contraparte",
+        description: err.message || "Revisa e inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingPayee(false);
+    }
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -76,6 +152,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
           description,
           dueDate: dueDate || undefined,
           evidenceUrl: evidenceUrl || undefined,
+          payeeId: payeeId !== NO_PAYEE ? payeeId : undefined,
         }),
       });
 
@@ -109,15 +186,23 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
     }
   };
 
+  const resetPayeeState = () => {
+    setPayeeId(NO_PAYEE);
+    setShowQuickCreate(false);
+    setNewPayeeName("");
+    setNewPayeeTaxId("");
+  };
+
   return (
     <Dialog open={open} onOpenChange={(next) => {
       setOpen(next);
       if (!next) {
-        // Reabrir limpio: no arrastrar foto/montos de un intento cancelado.
+        // Reabrir limpio: no arrastrar foto/montos/contraparte de un intento cancelado.
         setAmount("");
         setDescription("");
         setDueDate("");
         setEvidenceUrl("");
+        resetPayeeState();
       }
     }}>
       <DialogTrigger asChild>
@@ -168,6 +253,104 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
               </SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="expense-payee">A quién le pagas (opcional)</Label>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <Select
+                  value={payeeId}
+                  onValueChange={(v) => {
+                    // Radix sintetiza onChange("") cuando el value apunta a un
+                    // item recién agregado (la option nativa se registra un
+                    // layout-effect después del commit; el navegador reencauza
+                    // el select oculto a "" y React lo reporta). No existe item
+                    // con valor vacío, así que "" nunca es una selección real:
+                    // se ignora para no pisar la contraparte elegida.
+                    if (v === "") return;
+                    setPayeeId(v);
+                  }}
+                  disabled={payeesLoading}
+                >
+                  <SelectTrigger id="expense-payee">
+                    <SelectValue placeholder="Sin contraparte" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_PAYEE}>Sin contraparte (gasto casual)</SelectItem>
+                    {payees.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 shrink-0 gap-1"
+                onClick={() => setShowQuickCreate((v) => !v)}
+              >
+                <UserPlus className="w-3.5 h-3.5" /> Nueva
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              La renta, la luz y el contador tienen contraparte fija; el taxi o el hielo de hoy, no.
+            </p>
+          </div>
+
+          {showQuickCreate && (
+            <div className="rounded-md border border-border bg-muted/40 p-3 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-medium">
+                <Building2 className="w-3.5 h-3.5 text-primary" /> Nueva contraparte
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quick-payee-name" className="text-xs">Nombre</Label>
+                <Input
+                  id="quick-payee-name"
+                  placeholder="ej. Inmobiliaria Condesa, CFE, Contador Alanís"
+                  value={newPayeeName}
+                  onChange={(e) => setNewPayeeName(e.target.value)}
+                  disabled={creatingPayee}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quick-payee-taxid" className="text-xs">RFC (opcional)</Label>
+                <Input
+                  id="quick-payee-taxid"
+                  placeholder="ej. XXXX000000XXX — solo si emite CFDI"
+                  value={newPayeeTaxId}
+                  onChange={(e) => setNewPayeeTaxId(e.target.value)}
+                  disabled={creatingPayee}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={creatingPayee}
+                  onClick={() => {
+                    setShowQuickCreate(false);
+                    setNewPayeeName("");
+                    setNewPayeeTaxId("");
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCreatePayee}
+                  disabled={creatingPayee}
+                >
+                  {creatingPayee && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+                  Crear y seleccionar
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="expense-amount">Monto ($ MXN)</Label>

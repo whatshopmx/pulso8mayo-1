@@ -12,7 +12,7 @@
 // total de "por pagar a proveedores" dejara de ser comparable con la realidad.
 
 import { db } from "@/lib/db";
-import { invoices, operatingExpenses, suppliers, branches } from "@/lib/db/schema";
+import { invoices, operatingExpenses, suppliers, branches, payees } from "@/lib/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import {
   AGING_BUCKET_ORDER,
@@ -101,9 +101,12 @@ export async function getAccountsPayable(
             dueDate: operatingExpenses.dueDate,
             branchId: operatingExpenses.branchId,
             branchName: branches.name,
+            payeeId: operatingExpenses.payeeId,
+            payeeName: payees.name,
           })
           .from(operatingExpenses)
           .leftJoin(branches, eq(operatingExpenses.branchId, branches.id))
+          .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
           .where(and(...expenseConditions)),
   ]);
 
@@ -126,6 +129,7 @@ export async function getAccountsPayable(
       reference,
       counterparty: row.supplierName ?? row.nombreEmisor ?? row.rfcEmisor,
       supplierId: row.supplierId,
+      payeeId: null,
       branchId: row.branchId,
       branchName: row.branchName,
       amountCents: row.total,
@@ -141,12 +145,19 @@ export async function getAccountsPayable(
     const due = row.dueDate ?? null;
     const days = due ? daysUntil(due, todayMs) : null;
 
+    // Fase payees: la contraparte real del gasto ("Inmobiliaria X") vence a
+    // la categoría ("RENTA") como la identidad que la CxP muestra y agrupa.
+    // El gasto casual — taxi, hielo, plomero— no tiene payee y cae a categoría,
+    // que es lo que decía el comportamiento anterior.
+    const counterparty = row.payeeName ?? row.category;
+
     items.push({
       id: row.id,
       source: "OPERATING_EXPENSE",
       reference: row.description,
-      counterparty: row.category,
+      counterparty,
       supplierId: null,
+      payeeId: row.payeeId ?? null,
       branchId: row.branchId,
       branchName: row.branchName,
       amountCents: row.amount,
@@ -195,9 +206,10 @@ export async function getAccountsPayable(
       dueThisWeekCents += item.amountCents;
     }
 
-    // Los gastos operativos se agrupan por categoría (no tienen proveedor), así
-    // que la llave combina el id cuando existe y el nombre cuando no.
-    const key = item.supplierId ?? `label:${item.counterparty}`;
+    // La llave de agrupación separa los tres orígenes de identidad para que
+    // nunca colisionen entre sí: un proveedor (factura), un payee (gasto con
+    // contraparte) y una categoría (gasto casual) viven en espacios distintos.
+    const key = item.supplierId ?? (item.payeeId ? `payee:${item.payeeId}` : `label:${item.counterparty}`);
     const existing = counterpartyMap.get(key);
     if (existing) {
       existing.totalCents += item.amountCents;
@@ -206,6 +218,7 @@ export async function getAccountsPayable(
     } else {
       counterpartyMap.set(key, {
         supplierId: item.supplierId,
+        payeeId: item.payeeId,
         name: item.counterparty,
         totalCents: item.amountCents,
         overdueCents: item.bucket === "OVERDUE" ? item.amountCents : 0,

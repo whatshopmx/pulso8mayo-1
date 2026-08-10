@@ -43,6 +43,8 @@ export interface PayableItem {
   reference: string;
   counterparty: string;
   supplierId: string | null;
+  /** Contraparte (payee) del gasto operativo. `null` en facturas y gastos casuales. */
+  payeeId: string | null;
   branchId: string | null;
   branchName: string | null;
   amountCents: number;
@@ -64,6 +66,8 @@ export interface BucketTotal {
 
 export interface CounterpartyTotal {
   supplierId: string | null;
+  /** Contraparte (payee) del gasto operativo. `null` cuando se agrupa por categoría o proveedor. */
+  payeeId: string | null;
   name: string;
   totalCents: number;
   overdueCents: number;

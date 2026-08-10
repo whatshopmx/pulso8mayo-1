@@ -316,6 +316,20 @@
       "when": 1786299163578,
       "tag": "0044_smartlink-session-optional",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1786317692091,
+      "tag": "0045_regular_sebastian_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1786321075751,
+      "tag": "0046_tricky_wendigo",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,7 @@ import {
   Calendar,
   Coins,
   FileText,
+  Handshake,
   Receipt,
   Shield,
   Target,
@@ -52,6 +53,12 @@ const SUBSECTIONS = [
     description: "Lo que se debe, con antigüedad y vencimientos",
     href: "/dashboard/finance/payables",
     icon: FileText,
+  },
+  {
+    title: "Contrapartes",
+    description: "A quién se le paga: renta, luz, gas, servicios",
+    href: "/dashboard/finance/payees",
+    icon: Handshake,
   },
   {
     title: "Caja Chica",
