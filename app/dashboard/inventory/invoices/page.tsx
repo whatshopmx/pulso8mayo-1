@@ -11,7 +11,7 @@ import { PageHeader, PageContainer } from "@/components/shared";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Upload, Check, AlertTriangle, ArrowRight, Loader2, RefreshCw, Eye, AlertCircle, CheckCircle2, TrendingUp, Printer } from "lucide-react";
+import { FileText, Upload, Check, AlertTriangle, ArrowRight, Loader2, RefreshCw, Eye, AlertCircle, CheckCircle2, TrendingUp, Printer, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -87,6 +87,8 @@ export default function InvoiceUploadPage() {
     const [isLoadingDetail, setIsLoadingDetail] = useState(false);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [isClaimOpen, setIsClaimOpen] = useState(false);
+    const [selectedReceivingReportId, setSelectedReceivingReportId] = useState<string>("");
+    const [isAssociating, setIsAssociating] = useState(false);
 
     // Credit Notes State
     const [creditNotesList, setCreditNotesList] = useState<any[]>([]);
@@ -258,6 +260,7 @@ export default function InvoiceUploadPage() {
 
     const handleViewInvoiceDetail = async (id: string) => {
         setIsLoadingDetail(true);
+        setSelectedReceivingReportId("");
         try {
             const res = await fetch(`/api/inventory/invoices?id=${id}`);
             const data = await res.json();
@@ -272,6 +275,30 @@ export default function InvoiceUploadPage() {
             toast.error(err.message || "Error al cargar detalle");
         } finally {
             setIsLoadingDetail(false);
+        }
+    };
+
+    const handleAssociateReceiving = async () => {
+        if (!selectedInvoiceDetail || !selectedReceivingReportId) return;
+        setIsAssociating(true);
+        try {
+            const res = await fetch(`/api/inventory/invoices/${selectedInvoiceDetail.invoice.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ receivingReportId: selectedReceivingReportId }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Error al asociar la recepción");
+
+            setSelectedInvoiceDetail(data);
+            setSelectedReceivingReportId("");
+            toast.success("Recepción asociada y conciliación ejecutada");
+            fetchInvoices();
+        } catch (err: any) {
+            console.error(err);
+            toast.error(err.message || "Error al asociar la recepción");
+        } finally {
+            setIsAssociating(false);
         }
     };
 
@@ -780,6 +807,50 @@ export default function InvoiceUploadPage() {
                                     </span>
                                 </div>
                             </div>
+
+                            {/* Associate existing receiving (invoice arrived after goods) */}
+                            {!selectedInvoiceDetail.receivingReport && (
+                                <div className="border border-dashed rounded-lg p-4 bg-slate-50/50 space-y-3">
+                                    <div className="flex items-start gap-2">
+                                        <Link2 className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-semibold">Vincular recepción de mercancía</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                                La mercancía ya fue recibida en sucursal. Asocia el reporte de recepción a esta factura
+                                                para ejecutar la conciliación (3-way con OC, 2-way sin ella).
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <Select value={selectedReceivingReportId} onValueChange={setSelectedReceivingReportId}>
+                                            <SelectTrigger className="flex-1">
+                                                <SelectValue placeholder="Seleccionar recepción..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {(selectedInvoiceDetail.receivingCandidates || []).map((cand: any) => (
+                                                    <SelectItem key={cand.id} value={cand.id}>
+                                                        {cand.receivedAt ? new Date(cand.receivedAt).toLocaleDateString('es-MX') : 'Sin fecha'}
+                                                        {' — '}{cand.itemCount} ítems{cand.poNumber ? ` (${cand.poNumber})` : ''}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <Button
+                                            onClick={handleAssociateReceiving}
+                                            disabled={!selectedReceivingReportId || isAssociating}
+                                            className="gap-2 shrink-0"
+                                        >
+                                            {isAssociating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                                            Asociar y conciliar
+                                        </Button>
+                                    </div>
+                                    {(!selectedInvoiceDetail.receivingCandidates || selectedInvoiceDetail.receivingCandidates.length === 0) && (
+                                        <p className="text-xs text-amber-600">
+                                            No hay recepciones sin conciliar para este proveedor.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Discrepancy Alerts */}
                             {selectedInvoiceDetail.invoice.matchStatus === "DISCREPANCY" && selectedInvoiceDetail.matchDetails && (

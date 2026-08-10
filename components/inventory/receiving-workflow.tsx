@@ -45,6 +45,8 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
     const [selectedSupplier, setSelectedSupplier] = useState<string>("");
     const [purchaseOrdersList, setPurchaseOrdersList] = useState<any[]>([]);
     const [selectedPOId, setSelectedPOId] = useState<string>("");
+    const [invoicesList, setInvoicesList] = useState<any[]>([]);
+    const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>("");
     const [notes, setNotes] = useState<string>("");
     const [scanMode, setScanMode] = useState(false);
     const [scannedBarcode, setScannedBarcode] = useState("");
@@ -104,6 +106,15 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                 setPurchaseOrdersList(filtered);
             })
             .catch(() => {});
+
+        // Candidatas: facturas sin reporte de recepción vinculado todavía
+        fetch("/api/inventory/invoices")
+            .then(res => res.ok && res.json())
+            .then(data => {
+                const list = (data.invoices || []).filter((inv: any) => !inv.receivingReportId);
+                setInvoicesList(list);
+            })
+            .catch(() => {});
     }, []);
 
     const handlePOChange = async (poId: string) => {
@@ -120,6 +131,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
             
             if (poData.supplierId) {
                 setSelectedSupplier(poData.supplierId);
+                setSelectedInvoiceId("");
             }
 
             if (poData.items) {
@@ -326,6 +338,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                     })),
                     supplierId: selectedSupplier || undefined,
                     purchaseOrderId: selectedPOId || undefined,
+                    invoiceId: selectedInvoiceId || undefined,
                     notes: notes || undefined,
                 }),
             });
@@ -352,6 +365,11 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
     };
 
     const isStep2Valid = receivingItems.length > 0 && receivingItems.every(item => item.itemId && item.quantity > 0);
+
+    // Facturas sin conciliar del proveedor seleccionado
+    const availableInvoices = selectedSupplier
+        ? invoicesList.filter((inv: any) => inv.supplierId === selectedSupplier)
+        : [];
 
     return (
         <>
@@ -409,7 +427,13 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label htmlFor="supplier">Proveedor *</Label>
-                                    <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
+                                    <Select
+                                        value={selectedSupplier}
+                                        onValueChange={(v) => {
+                                            setSelectedSupplier(v);
+                                            setSelectedInvoiceId("");
+                                        }}
+                                    >
                                         <SelectTrigger id="supplier">
                                             <SelectValue placeholder="Seleccionar proveedor" />
                                         </SelectTrigger>
@@ -438,6 +462,32 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                                         </SelectContent>
                                     </Select>
                                 </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="invoice">Factura / CFDI (Opcional)</Label>
+                                <Select
+                                    value={selectedInvoiceId || "none"}
+                                    onValueChange={(v) => setSelectedInvoiceId(v === "none" ? "" : v)}
+                                >
+                                    <SelectTrigger id="invoice">
+                                        <SelectValue placeholder="Seleccionar factura..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Sin factura</SelectItem>
+                                        {availableInvoices.map((inv: any) => (
+                                            <SelectItem key={inv.id} value={inv.id}>
+                                                {inv.serie && `${inv.serie}-`}{inv.folio || 'S/F'}
+                                                {' — $'}{((inv.total || 0) / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    {availableInvoices.length === 0 && selectedSupplier
+                                        ? "No hay facturas sin conciliar para este proveedor."
+                                        : "Al confirmar la recepción se ejecutará la conciliación (PO vs recepción vs factura)."}
+                                </p>
                             </div>
 
                             <div className="border border-dashed rounded-lg p-6 flex flex-col items-center justify-center bg-muted/30">

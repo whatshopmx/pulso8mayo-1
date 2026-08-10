@@ -2,7 +2,7 @@
 
 > **Documento de referencia para nuevas sesiones**
 > 
-> **Última actualización:** 2026-04-27
+> **Última actualización:** 2026-08-10
 > **Estado del Build:** ✅ EXITOSO
 > **Commit:** Ver git log para cambios recientes
 
@@ -147,6 +147,7 @@ propia migración (nunca `db:push`) y su spec E2E en `tests/`.
 | `lib/whatsapp/workflow-conversation-handler.ts` | 356 | Salto de pasos con aprobación de supervisor | Baja |
 | `lib/tenant-context.ts` | 30 | Verificar acceso del usuario al tenant | Alta |
 | `app/api/workflows/history/route.ts` | 98 | Agregar verificación de incidentes | Media |
+| `—` (feature nueva) | — | Cola de revisión por sucursal ("N por revisar en Sucursal X") + revisión por lote — requiere query de cola y página nueva (deferido 2026-08-10, plan `tasks/plan-workflow-review-critique.md`) | Media |
 | `app/api/employees/documents/expiring/route.ts` | 91 | Notificaciones via email/WhatsApp/in-app | Media |
 
 ### Baja Prioridad (Mejoras UX)
@@ -156,6 +157,7 @@ propia migración (nunca `db:push`) y su spec E2E en `tests/`.
 | `components/workflow/workflow-history-table.tsx` | 177 | Exportación CSV | Baja |
 | `app/dashboard/ai-verifications/page.tsx` | 163 | Exportación CSV | Baja |
 | `components/labor/attendance-report.tsx` | 106 | PDF export con jsPDF | Baja |
+| `components/dashboard/recent-workflows-table.tsx` | — | Badge de `reviewStatus` reutilizando `components/workflow/review-status-badge.tsx` (deferido 2026-08-10) | Baja |
 
 ---
 

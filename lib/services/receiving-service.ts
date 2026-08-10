@@ -91,6 +91,25 @@ export async function processReceiving(
             .where(eq(purchaseOrderItems.poId, validatedData.purchaseOrderId));
     }
 
+    // Validate the linked invoice BEFORE inserting anything, so a bad
+    // association can't leave a half-processed receiving behind.
+    if (validatedData.invoiceId) {
+        const [linkedInvoice] = await db.select({
+            supplierId: invoices.supplierId,
+            purchaseOrderId: invoices.purchaseOrderId,
+        })
+            .from(invoices)
+            .where(eq(invoices.id, validatedData.invoiceId))
+            .limit(1);
+
+        if (!linkedInvoice) {
+            throw new Error("Factura no encontrada");
+        }
+        if (validatedData.supplierId && linkedInvoice.supplierId && linkedInvoice.supplierId !== validatedData.supplierId) {
+            throw new Error("La factura está asociada a otro proveedor");
+        }
+    }
+
     // Ensure there's an open period for this branch
     await InventoryService.ensureOpenPeriod(companyId, branchId);
 
