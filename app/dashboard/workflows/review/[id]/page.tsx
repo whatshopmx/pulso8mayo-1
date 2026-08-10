@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkflowReview, WorkflowReviewData } from "@/components/workflow/workflow-review";
 import { toast } from "sonner";
@@ -14,60 +14,65 @@ export default function WorkflowReviewPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    const fetchWorkflow = async () => {
-      try {
-        // Fetch execution details
-        const response = await fetch(`/api/workflows/executions/${params.id}`);
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch workflow');
-        }
+  // Extraída fuera del efecto para que "Reintentar" pueda re-ejecutar la
+  // misma carga; un fallo de fetch no debe dejar la página en un callejón
+  // sin salida (heuristic 9: no retry).
+  const fetchWorkflow = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch execution details
+      const response = await fetch(`/api/workflows/executions/${params.id}`);
 
-        const execution = await response.json();
-
-        // Transform to review format
-        const reviewData: WorkflowReviewData = {
-          id: execution.id,
-          templateName: execution.template?.name || 'Unknown Template',
-          assigneeName: execution.assignee?.name || null,
-          branchName: execution.branch?.name || null,
-          status: execution.status,
-          score: execution.score,
-          createdAt: execution.createdAt,
-          completedAt: execution.completedAt,
-          reviewStatus: execution.reviewStatus ?? null,
-          reviewComment: execution.reviewComment ?? null,
-          reviewedAt: execution.reviewedAt ?? null,
-          steps: execution.steps.map((step: any) => ({
-            id: step.id,
-            stepId: step.stepId,
-            title: step.title || `Step ${step.stepId}`,
-            type: step.type || 'TEXT',
-            status: step.status,
-            value: step.value,
-            evidenceUrl: step.evidenceUrl,
-            aiAnalysis: step.aiAnalysis,
-            comment: step.comment,
-            completedAt: step.completedAt,
-          })),
-        };
-
-        setWorkflow(reviewData);
-      } catch (err: any) {
-        setError(err.message || 'Unknown error occurred');
-        toast.error('Error loading workflow', {
-          description: err.message,
-        });
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error('Failed to fetch workflow');
       }
-    };
 
+      const execution = await response.json();
+
+      // Transform to review format
+      const reviewData: WorkflowReviewData = {
+        id: execution.id,
+        templateName: execution.template?.name || 'Unknown Template',
+        assigneeName: execution.assignee?.name || null,
+        branchName: execution.branch?.name || null,
+        status: execution.status,
+        score: execution.score,
+        createdAt: execution.createdAt,
+        completedAt: execution.completedAt,
+        reviewStatus: execution.reviewStatus ?? null,
+        reviewComment: execution.reviewComment ?? null,
+        reviewedAt: execution.reviewedAt ?? null,
+        steps: execution.steps.map((step: any) => ({
+          id: step.id,
+          stepId: step.stepId,
+          title: step.title || `Step ${step.stepId}`,
+          type: step.type || 'TEXT',
+          status: step.status,
+          value: step.value,
+          evidenceUrl: step.evidenceUrl,
+          aiAnalysis: step.aiAnalysis,
+          comment: step.comment,
+          completedAt: step.completedAt,
+        })),
+      };
+
+      setWorkflow(reviewData);
+    } catch (err: any) {
+      setError(err.message || 'Unknown error occurred');
+      toast.error('Error loading workflow', {
+        description: err.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [params.id]);
+
+  React.useEffect(() => {
     if (params.id) {
       fetchWorkflow();
     }
-  }, [params.id]);
+  }, [fetchWorkflow]);
 
   // El servidor ya redacta sus errores en español; los propagamos tal cual en
   // vez de inventar un mensaje genérico. WorkflowReview los muestra en el toast.
@@ -122,7 +127,11 @@ export default function WorkflowReviewPage() {
           </Button>
         </div>
         <div className="text-center py-12">
-          <p className="text-red-500 text-lg">{error || 'Workflow not found'}</p>
+          <p className="text-destructive text-lg">{error || 'Workflow no encontrado'}</p>
+          <Button variant="outline" onClick={fetchWorkflow} className="mt-4">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Reintentar
+          </Button>
         </div>
       </div>
     );

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, XCircle, Eye, Download, Calendar, User, MapPin, AlertTriangle, MessageSquare, ChevronDown, ImageIcon } from "lucide-react";
+import { CheckCircle2, XCircle, Eye, Download, Calendar, User, MapPin, AlertTriangle, MessageSquare, ChevronDown, ImageIcon, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
+import { scoreColorClass } from "@/lib/utils/score";
 import { toast } from "sonner";
 
 export interface AIVerificationData {
@@ -77,7 +78,7 @@ export function WorkflowReview({
   onReject,
   className
 }: WorkflowReviewProps) {
-  const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
+  const [selectedEvidence, setSelectedEvidence] = React.useState<{ url: string; step: WorkflowReviewStep; stepNumber: number } | null>(null);
   const [reviewComment, setReviewComment] = React.useState("");
   const [reviewDialogOpen, setReviewDialogOpen] = React.useState(false);
   const [reviewAction, setReviewAction] = React.useState<'approve' | 'reject' | null>(null);
@@ -94,6 +95,15 @@ export function WorkflowReview({
   const stepsToReview = workflow.steps.filter(
     s => (s.aiAnalysis && !s.aiAnalysis.passed) || (s.comment && s.comment.trim() !== "") || s.status === 'FAILED' || s.status === 'REJECTED'
   );
+
+  // Número de paso canónico: posición en workflow.steps (orden de creación del
+  // template), NO el índice del arreglo filtrado del tab activo. Si un tab
+  // filtra pasos del medio, "Paso 3" debe seguir siendo el paso 3 del workflow.
+  const stepNumbers = React.useMemo(() => {
+    const map = new Map<string, number>();
+    workflow.steps.forEach((s, i) => map.set(s.id, i + 1));
+    return map;
+  }, [workflow.steps]);
 
   const handleReviewSubmit = async () => {
     if (!reviewAction) return;
@@ -124,6 +134,12 @@ export function WorkflowReview({
     setReviewDialogOpen(true);
   };
 
+  // La evidencia se abre con contexto: paso canónico + veredicto, para que el
+  // diálogo anuncie algo con significado y no "una imagen".
+  const handleSelectEvidence = React.useCallback((url: string, step: WorkflowReviewStep, stepNumber: number) => {
+    setSelectedEvidence({ url, step, stepNumber });
+  }, []);
+
   return (
     <div className={cn("space-y-6 pb-20 relative", className)}>
       {/* Workflow Summary */}
@@ -143,17 +159,21 @@ export function WorkflowReview({
               </CardDescription>
             </div>
             <div>
-              {workflow.status === 'COMPLETED' ? (
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-sm font-semibold px-3 py-1">
-                  Completado
+              {workflow.reviewStatus === 'REJECTED' ? (
+                <Badge variant="destructive" className="text-sm font-semibold px-3 py-1">
+                  Rechazado
                 </Badge>
-              ) : workflow.status === 'APPROVED' ? (
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-sm font-semibold px-3 py-1">
+              ) : workflow.reviewStatus === 'APPROVED' ? (
+                <Badge variant="success" className="text-sm font-semibold px-3 py-1">
                   Aprobado
                 </Badge>
-              ) : workflow.status === 'REJECTED' || workflow.status === 'FAILED' ? (
+              ) : workflow.status === 'COMPLETED' ? (
+                <Badge variant="outline" className="text-sm font-semibold px-3 py-1">
+                  Completado
+                </Badge>
+              ) : workflow.status === 'FAILED' ? (
                 <Badge variant="destructive" className="text-sm font-semibold px-3 py-1">
-                  {workflow.status === 'REJECTED' ? 'Rechazado' : 'Fallido'}
+                  Fallido
                 </Badge>
               ) : (
                 <Badge variant="secondary" className="text-sm font-semibold px-3 py-1">
@@ -189,7 +209,7 @@ export function WorkflowReview({
               <CheckCircle2 className="h-4 w-4 text-muted-foreground shrink-0" />
               <div>
                 <div className="text-xs text-muted-foreground">Puntuación</div>
-                <div className="font-medium font-mono">{workflow.score !== null ? `${workflow.score}%` : 'N/A'}</div>
+                <div className={cn("font-mono", scoreColorClass(workflow.score))}>{workflow.score !== null ? `${workflow.score}%` : 'N/A'}</div>
               </div>
             </div>
           </div>
@@ -208,19 +228,19 @@ export function WorkflowReview({
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {aiVerifiedSteps.length > 0 && (
-                <Alert className="border-emerald-500/30 bg-emerald-500/5 text-emerald-900 dark:text-emerald-200">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  <AlertTitle className="font-semibold text-emerald-950 dark:text-emerald-100">
+                <Alert className="border-success/30 bg-success/5 text-success">
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <AlertTitle className="font-semibold">
                     {aiVerifiedSteps.length} paso(s) verificado(s)
                   </AlertTitle>
-                  <AlertDescription className="text-xs text-emerald-800 dark:text-emerald-300 mt-1">
+                  <AlertDescription className="text-xs mt-1">
                     Estos pasos fueron verificados exitosamente por AI
                   </AlertDescription>
                 </Alert>
               )}
 
               {aiFailedSteps.length > 0 && (
-                <Alert className="border-destructive/30 bg-destructive/5 text-destructive dark:text-red-300">
+                <Alert className="border-destructive/30 bg-destructive/5 text-destructive">
                   <AlertTriangle className="h-4 w-4 text-destructive" />
                   <AlertTitle className="font-semibold">
                     {aiFailedSteps.length} paso(s) con observaciones
@@ -235,68 +255,8 @@ export function WorkflowReview({
         </Card>
       )}
 
-      {/* Evidence Gallery */}
-      {evidenceSteps.length > 0 && (
-        <Card className="border border-border bg-card">
-          <CardHeader>
-            <CardTitle className="text-lg">Galería de Evidencias</CardTitle>
-            <CardDescription>
-              {evidenceSteps.length} paso(s) con evidencia fotográfica
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {evidenceSteps.flatMap((step, index) => {
-                const urls = getEvidenceUrls(step.evidenceUrl);
-                return urls.map((url, urlIndex) => (
-                  <div
-                    key={`${step.id}-${urlIndex}`}
-                    className="group relative aspect-square overflow-hidden rounded-lg bg-muted border border-border cursor-pointer hover:ring-2 hover:ring-primary transition-all"
-                    onClick={() => setSelectedImage(url)}
-                  >
-                    <img
-                      src={url}
-                      alt={`${step.title} - Evidencia ${urlIndex + 1}`}
-                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        target.style.display = 'none';
-                        if (target.nextElementSibling) {
-                          (target.nextElementSibling as HTMLElement).style.display = 'flex';
-                        }
-                      }}
-                    />
-                    <div className="hidden absolute inset-0 items-center justify-center bg-muted text-muted-foreground text-xs p-2 text-center flex-col gap-1">
-                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                      <span>Evidencia</span>
-                    </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="absolute bottom-0 left-0 right-0 p-3">
-                        <p className="text-xs text-white font-medium mb-1 line-clamp-1">
-                          Paso {index + 1}: {step.title}
-                        </p>
-                        {step.aiAnalysis && (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-xs",
-                              step.aiAnalysis.passed
-                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                                : "bg-destructive/20 text-red-300 border-destructive/30"
-                            )}
-                          >
-                            {step.aiAnalysis.passed ? '✓ AI Verified' : '✗ AI Fail'}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ));
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* La evidencia vive sólo en el ledger tabulado ("Con Evidencia" + miniaturas
+          por paso expandido); el ledger es la única superficie de evidencia de la página. */}
 
       {/* Step Details */}
       <Card className="border border-border bg-card">
@@ -314,7 +274,7 @@ export function WorkflowReview({
                 Por Revisar ({stepsToReview.length})
               </TabsTrigger>
               <TabsTrigger value="evidence">Con Evidencia ({evidenceSteps.length})</TabsTrigger>
-              <TabsTrigger value="ai-verified">AI Verified ({aiVerifiedSteps.length})</TabsTrigger>
+              <TabsTrigger value="ai-verified">Verificados por IA ({aiVerifiedSteps.length})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="all" className="mt-4">
@@ -323,8 +283,8 @@ export function WorkflowReview({
                   <StepDetail
                     key={step.id}
                     step={step}
-                    index={index}
-                    onSelectImage={setSelectedImage}
+                    stepNumber={stepNumbers.get(step.id) ?? index + 1}
+                    onSelectImage={handleSelectEvidence}
                   />
                 ))}
               </div>
@@ -337,8 +297,8 @@ export function WorkflowReview({
                     <StepDetail
                       key={step.id}
                       step={step}
-                      index={index}
-                      onSelectImage={setSelectedImage}
+                      stepNumber={stepNumbers.get(step.id) ?? index + 1}
+                      onSelectImage={handleSelectEvidence}
                     />
                   ))}
                 </div>
@@ -356,8 +316,8 @@ export function WorkflowReview({
                     <StepDetail
                       key={step.id}
                       step={step}
-                      index={index}
-                      onSelectImage={setSelectedImage}
+                      stepNumber={stepNumbers.get(step.id) ?? index + 1}
+                      onSelectImage={handleSelectEvidence}
                     />
                   ))}
                 </div>
@@ -375,8 +335,8 @@ export function WorkflowReview({
                     <StepDetail
                       key={step.id}
                       step={step}
-                      index={index}
-                      onSelectImage={setSelectedImage}
+                      stepNumber={stepNumbers.get(step.id) ?? index + 1}
+                      onSelectImage={handleSelectEvidence}
                     />
                   ))}
                 </div>
@@ -404,7 +364,7 @@ export function WorkflowReview({
         {isReviewed ? (
           <div className="flex items-center gap-2 text-sm shrink-0">
             {workflow.reviewStatus === 'APPROVED' ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <CheckCircle2 className="h-4 w-4 text-success" />
             ) : (
               <XCircle className="h-4 w-4 text-destructive" />
             )}
@@ -432,8 +392,9 @@ export function WorkflowReview({
               Rechazar
             </Button>
             <Button
+              variant="default"
               onClick={() => openReviewDialog('approve')}
-              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-700"
+              className="gap-1.5"
             >
               <CheckCircle2 className="h-4 w-4" />
               Aprobar
@@ -451,17 +412,29 @@ export function WorkflowReview({
         </div>
       )}
 
-      {/* Image Preview Dialog */}
-      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+      {/* Image Preview Dialog. Anuncia paso + veredicto: sin contexto, la
+          evidencia es un rectángulo sin significado. */}
+      <Dialog open={!!selectedEvidence} onOpenChange={() => setSelectedEvidence(null)}>
         <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Vista Previa de Evidencia</DialogTitle>
+            {selectedEvidence && (
+              <DialogDescription>
+                Paso {selectedEvidence.stepNumber}: {selectedEvidence.step.title}
+                {selectedEvidence.step.aiAnalysis && (
+                  <>
+                    {' · '}
+                    {selectedEvidence.step.aiAnalysis.passed ? 'Verificado por IA' : 'Requiere revisión'}
+                  </>
+                )}
+              </DialogDescription>
+            )}
           </DialogHeader>
-          {selectedImage && (
+          {selectedEvidence && (
             <div className="relative aspect-video max-h-[70vh] flex items-center justify-center bg-black/5 dark:bg-black/40 rounded-lg overflow-hidden">
               <img
-                src={selectedImage}
-                alt="Evidencia"
+                src={selectedEvidence.url}
+                alt={`Evidencia del paso ${selectedEvidence.stepNumber}: ${selectedEvidence.step.title}`}
                 className="max-w-full max-h-full object-contain rounded-lg"
                 onError={(e) => {
                   const target = e.currentTarget;
@@ -471,15 +444,18 @@ export function WorkflowReview({
             </div>
           )}
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => window.open(selectedImage || '', '_blank')}
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Descargar
+            <Button variant="outline" asChild className="gap-2">
+              <a
+                href={selectedEvidence?.url || ''}
+                download={true}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Download className="h-4 w-4" />
+                Descargar
+              </a>
             </Button>
-            <Button onClick={() => setSelectedImage(null)}>
+            <Button variant="outline" onClick={() => setSelectedEvidence(null)}>
               Cerrar
             </Button>
           </DialogFooter>
@@ -495,8 +471,8 @@ export function WorkflowReview({
             </DialogTitle>
             <DialogDescription>
               {reviewAction === 'approve'
-                ? '¿Estás seguro de aprobar este workflow? Puedes agregar un comentario opcional.'
-                : '¿Estás seguro de rechazar este workflow? Por favor proporciona una razón.'}
+                ? 'Esta acción es definitiva y quedará registrada en el historial. Puedes agregar un comentario opcional.'
+                : 'Esta acción es definitiva y quedará registrada en el historial. Por favor proporciona una razón.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -521,15 +497,24 @@ export function WorkflowReview({
               Cancelar
             </Button>
             <Button
-              onClick={handleReviewSubmit}
+              variant={reviewAction === 'approve' ? 'default' : 'outline'}
               className={cn(
-                reviewAction === 'approve'
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                  : 'bg-destructive text-white hover:bg-destructive/90'
+                'gap-1.5',
+                reviewAction === 'reject' && 'border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive'
               )}
+              onClick={handleReviewSubmit}
               disabled={submitting || (reviewAction === 'reject' && !reviewComment.trim())}
             >
-              {submitting ? 'Procesando...' : reviewAction === 'approve' ? 'Aprobar' : 'Rechazar'}
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Procesando...
+                </>
+              ) : reviewAction === 'approve' ? (
+                'Aprobar'
+              ) : (
+                'Rechazar'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -540,32 +525,35 @@ export function WorkflowReview({
 
 interface StepDetailProps {
   step: WorkflowReviewStep;
-  index: number;
-  onSelectImage: (url: string) => void;
+  stepNumber: number;
+  onSelectImage: (url: string, step: WorkflowReviewStep, stepNumber: number) => void;
 }
 
-function StepDetail({ step, index, onSelectImage }: StepDetailProps) {
+function StepDetail({ step, stepNumber, onSelectImage }: StepDetailProps) {
   const [expanded, setExpanded] = React.useState(false);
   const urls = getEvidenceUrls(step.evidenceUrl);
 
   return (
     <div className="transition-colors hover:bg-muted/30">
-      <div
-        className="p-4 cursor-pointer flex items-center justify-between gap-4 select-none"
+      <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls={`step-detail-${step.id}`}
+        className="w-full p-4 cursor-pointer flex items-center justify-between gap-4 select-none text-left"
       >
         <div className="flex items-center gap-3 flex-wrap">
           {step.status === 'COMPLETED' ? (
-            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs font-medium">
-              Paso {index + 1}
+            <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs font-medium">
+              Paso {stepNumber}
             </Badge>
           ) : step.status === 'SKIPPED' ? (
             <Badge variant="secondary" className="text-xs font-medium">
-              Paso {index + 1} (Omitido)
+              Paso {stepNumber} (Omitido)
             </Badge>
           ) : (
             <Badge variant="destructive" className="text-xs font-medium">
-              Paso {index + 1}
+              Paso {stepNumber}
             </Badge>
           )}
           <span className="font-medium text-sm text-foreground">{step.title}</span>
@@ -577,11 +565,11 @@ function StepDetail({ step, index, onSelectImage }: StepDetailProps) {
               className={cn(
                 "text-xs font-medium",
                 step.aiAnalysis.passed
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                  ? "bg-success/10 text-success border-success/20"
                   : "bg-destructive/10 text-destructive border-destructive/20"
               )}
             >
-              {step.aiAnalysis.passed ? '✓ AI Verified' : '✗ AI Fail'}
+              {step.aiAnalysis.passed ? '✓ Verificado por IA' : '✗ Requiere revisión'}
             </Badge>
           )}
           {urls.length > 0 && (
@@ -597,7 +585,7 @@ function StepDetail({ step, index, onSelectImage }: StepDetailProps) {
             )}
           />
         </div>
-      </div>
+      </button>
 
       {step.comment && !expanded && (
         <div className="px-4 pb-3 -mt-1">
@@ -609,7 +597,7 @@ function StepDetail({ step, index, onSelectImage }: StepDetailProps) {
       )}
 
       {expanded && (
-        <div className="p-4 pt-3 border-t border-border/60 bg-muted/20 space-y-4">
+        <div id={`step-detail-${step.id}`} className="p-4 pt-3 border-t border-border/60 bg-muted/20 space-y-4">
           {step.comment && (
             <div>
               <Label className="text-xs font-semibold text-muted-foreground">Comentario del Operador:</Label>
@@ -633,14 +621,17 @@ function StepDetail({ step, index, onSelectImage }: StepDetailProps) {
               <Label className="text-xs font-semibold text-muted-foreground">Evidencias ({urls.length}):</Label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
                 {urls.map((url, idx) => (
-                  <div
+                  <button
                     key={idx}
-                    className="group relative aspect-video overflow-hidden rounded-md bg-muted border border-border cursor-pointer hover:ring-2 hover:ring-primary transition-all"
-                    onClick={() => onSelectImage(url)}
+                    type="button"
+                    onClick={() => onSelectImage(url, step, stepNumber)}
+                    aria-label={`Ampliar evidencia ${idx + 1} del paso ${stepNumber}`}
+                    className="group relative aspect-video overflow-hidden rounded-md bg-muted border border-border cursor-pointer hover:ring-2 hover:ring-primary transition-all text-left"
                   >
                     <img
                       src={url}
-                      alt={`Evidencia ${idx + 1}`}
+                      alt={`Evidencia ${idx + 1} del paso ${stepNumber}`}
+                      loading="lazy"
                       className="w-full h-full object-cover transition-transform group-hover:scale-105"
                       onError={(e) => {
                         const target = e.currentTarget;
@@ -657,7 +648,7 @@ function StepDetail({ step, index, onSelectImage }: StepDetailProps) {
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-medium gap-1">
                       <Eye className="h-3.5 w-3.5" /> Ampliar
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -670,12 +661,12 @@ function StepDetail({ step, index, onSelectImage }: StepDetailProps) {
                 className={cn(
                   "mt-1.5",
                   step.aiAnalysis.passed
-                    ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-900 dark:text-emerald-200"
-                    : "border-destructive/30 bg-destructive/5 text-destructive dark:text-red-300"
+                    ? "border-success/30 bg-success/5 text-success"
+                    : "border-destructive/30 bg-destructive/5 text-destructive"
                 )}
               >
                 {step.aiAnalysis.passed ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <CheckCircle2 className="h-4 w-4 text-success" />
                 ) : (
                   <AlertTriangle className="h-4 w-4 text-destructive" />
                 )}

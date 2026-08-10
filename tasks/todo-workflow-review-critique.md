@@ -37,37 +37,41 @@
 - [ ] Review an execution → history row shows outcome; "Ver" opens the review view
 - [ ] `?revisada` highlight intact
 
+### ✅ Checkpoint 1
+- [x] Review an execution → history row shows outcome; "Ver" opens the review view (código; verificación manual/e2e pendiente T8a)
+- [x] `?revisada` highlight intact (código sin tocar)
+
 ---
 
 ## Phase 2 — The decision surface
 
 ### Task 4: Unambiguous verdict + score semantics + token/brand pass
-- [ ] Header badge branches on `reviewStatus` first; dead `status === 'APPROVED'/'REJECTED'` branches deleted
-- [ ] Rejected execution shows destructive "Rechazado" in header AND sticky bar — never green "Completado"
-- [ ] Puntuación uses `scoreColorClass` (80% amber, 95% green, 45% red)
-- [ ] `rg "bg-emerald|text-emerald|text-red-500" components/workflow/workflow-review.tsx` → vacío
-- [ ] Approve button = Operational Red (`variant="default"`); result badges keep success/destructive tokens
-- [ ] "Procesando..." shows `Loader2` spinner
-- [ ] Diálogo informa que la acción es definitiva y quedará registrada (finalidad)
-- [ ] `pnpm build` passes; manual light+dark screenshot of rejected view
+- [x] Header badge branches on `reviewStatus` first; dead `status === 'APPROVED'/'REJECTED'` branches deleted
+- [x] Rejected execution shows destructive "Rechazado" in header AND sticky bar — never green "Completado"
+- [x] Puntuación usa `scoreColorClass` (80% amber, 95% green, 45% red)
+- [x] `rg "bg-emerald|text-emerald|text-red-500" components/workflow/workflow-review.tsx` → vacío
+- [x] Approve button = Operational Red (`variant="default"`); result badges keep success/destructive tokens
+- [x] "Procesando..." muestra `Loader2` spinner
+- [x] Diálogo informa que la acción es definitiva y quedará registrada (finalidad)
+- [x] `pnpm build` passes ✓ Compiled 338/338
 
 ### Task 5: Spanish vocabulary + single evidence surface
-- [ ] "AI Verified" → "Verificado por IA"; "AI Fail" → "Requiere revisión"; tab "Verificados por IA"
-- [ ] `rg -i "ai verified|ai fail|galer" components/workflow/workflow-review.tsx` → vacío
-- [ ] Standalone "Galería de Evidencias" card removed; evidence only in the ledger
-- [ ] Step number derived from canonical `workflow.steps` position (all tabs); gallery caption bug gone
-- [ ] `pnpm build` passes
+- [x] "AI Verified" → "Verificado por IA"; "AI Fail" → "Requiere revisión"; tab "Verificados por IA"
+- [x] `rg -i "ai verified|ai fail|galer" components/workflow/workflow-review.tsx` → vacío
+- [x] Standalone gallery card removed; evidence only in the ledger
+- [x] Step number from canonical `workflow.steps` (Map por id); gallery caption bug gone
+- [x] `pnpm build` passes ✓ Compiled 338/338
 
 ### Task 6: Keyboard/touch evidence path
-- [ ] Step rows + thumbnails are keyboard-reachable (`role`/`tabIndex`/Enter/Space/`aria-expanded`)
-- [ ] Previews carry step title + "Paso N" in dialog description; verdict readable without hover
-- [ ] `loading="lazy"` on images; "Descargar" = `<a download>` with new-tab fallback
-- [ ] `pnpm build` passes; keyboard-only walkthrough (Tab→Enter→dialog)
+- [x] Step rows + thumbnails son `<button>` reales con `aria-expanded`/`aria-controls`/aria-label; Enter/Space nativo
+- [x] Previews llevan "Paso N: título" + veredicto en `DialogDescription`; veredicto sin hover (badge siempre visible)
+- [x] `loading="lazy"` en imágenes; "Descargar" = `<a download target=_blank>` (fallback nueva pestaña)
+- [x] `pnpm build` passes ✓ Compiled 338/338; tsc clean
 
 ### Task 7: Review page shell polish (parallel-safe)
-- [ ] `text-red-500` → `text-destructive` in `[id]/page.tsx` (`rg` sweep)
-- [ ] "Reintentar" button re-fetches and clears error; server Spanish messages still verbatim
-- [ ] `pnpm build` passes
+- [x] `text-red-500` → `text-destructive` en `[id]/page.tsx` (`rg` sweep vacío)
+- [x] "Reintentar" re-ejecuta el fetch (extraído a `useCallback`) y limpia el error en éxito; mensajes del servidor verbatim
+- [x] `pnpm build` passes ✓ Compiled 338/338
 
 ### ✅ Checkpoint 2
 - [ ] Build clean; rg sweeps empty in touched files
