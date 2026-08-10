@@ -7,8 +7,6 @@ export { ErrorState } from "./error-state"
 export { SectionErrorBoundary } from "./section-error-boundary"
 export {
   DataTableSkeleton,
-  CardSkeleton,
-  KpiCardsSkeleton,
   ChartSkeleton,
   PageHeaderSkeleton,
 } from "./skeletons"

@@ -12,8 +12,8 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { MetricCardSkeleton } from "@/components/ui/metric-card";
 import {
-  KpiCardsSkeleton,
   ChartSkeleton,
 } from "@/components/shared";
 import { MorningBrief } from "@/components/dashboard/morning-brief";
@@ -96,17 +96,17 @@ export default async function ExecutiveDashboardPage() {
       </div>
 
       {/* Section 0: Morning Brief — la rutina diaria del dueño */}
-      <Suspense fallback={<KpiCardsSkeleton />}>
+      <Suspense fallback={<MetricCardSkeleton />}>
         <MorningBrief companyId={companyId} />
       </Suspense>
 
       {/* Section 0.5: Copiloto ejecutivo — pregunta abierta sobre el twin */}
-      <Suspense fallback={<KpiCardsSkeleton />}>
+      <Suspense fallback={<MetricCardSkeleton />}>
         <ExecutiveCopilot companyId={companyId} />
       </Suspense>
 
       {/* Section 1: KPI Hero Cards */}
-      <Suspense fallback={<KpiCardsSkeleton />}>
+      <Suspense fallback={<MetricCardSkeleton />}>
         <KpiHeroCards companyId={companyId} />
       </Suspense>
 

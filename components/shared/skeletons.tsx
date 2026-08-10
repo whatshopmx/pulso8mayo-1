@@ -38,26 +38,6 @@ export function DataTableSkeleton({ columns = 5, rows = 8, className }: DataTabl
   )
 }
 
-export function CardSkeleton({ className }: { className?: string }) {
-  return (
-    <div className={cn("bg-card border rounded-xl p-6 space-y-3", className)}>
-      <Skeleton className="h-4 w-24" />
-      <Skeleton className="h-8 w-16" />
-      <Skeleton className="h-3 w-32" />
-    </div>
-  )
-}
-
-export function KpiCardsSkeleton({ count = 4, className }: { count?: number; className?: string }) {
-  return (
-    <div className={cn("grid gap-4 md:grid-cols-2 lg:grid-cols-4", className)}>
-      {Array.from({ length: count }).map((_, i) => (
-        <CardSkeleton key={i} />
-      ))}
-    </div>
-  )
-}
-
 export function ChartSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn("bg-card border rounded-xl p-6", className)}>
