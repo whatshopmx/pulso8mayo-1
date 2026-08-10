@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,19 +39,47 @@ interface Criteria {
   weight: number;
 }
 
+interface CriteriaResponse {
+  criteriaId: string;
+  rating: number;
+  comments?: string;
+}
+
+const FILLED_STAR = 'fill-chart-1 text-chart-1';
+const EMPTY_STAR = 'fill-transparent text-muted-foreground';
+
 export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [criteria, setCriteria] = useState<Criteria[]>([]);
-  const [criteriaRatings, setCriteriaRatings] = useState<Record<string, { rating: number; comments: string }>>({});
+
+  // Seed criteria ratings from initial data when editing
+  const initialResponses = useMemo(() => {
+    const responses: Record<string, { rating: number; comments: string }> = {};
+    const source = initialData?.criteriaResponses;
+    if (Array.isArray(source)) {
+      for (const r of source) {
+        if (r?.criteriaId && r?.rating) {
+          responses[r.criteriaId] = { rating: r.rating, comments: r.comments || '' };
+        }
+      }
+    }
+    return responses;
+  }, [initialData]);
+
+  const [criteriaRatings, setCriteriaRatings] = useState<Record<string, { rating: number; comments: string }>>(initialResponses);
+
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth(); // 0-based
+  const currentQuarter = `${currentYear}-Q${Math.floor(currentMonth / 3) + 1}`;
 
   const [formData, setFormData] = useState({
     userId: initialData?.userId || '',
     reviewerId: initialData?.reviewerId || userId,
     reviewType: initialData?.reviewType || 'MANAGER',
-    reviewPeriod: initialData?.reviewPeriod || '',
+    reviewPeriod: initialData?.reviewPeriod || currentQuarter,
     overallRating: initialData?.overallRating || 0,
     strengths: initialData?.strengths || '',
     areasForImprovement: initialData?.areasForImprovement || '',
@@ -101,6 +129,24 @@ export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewF
     }));
   };
 
+  // Live weighted average (same formula the server applies)
+  const weightedPreview = useMemo(() => {
+    const entries = Object.entries(criteriaRatings).filter(([, v]) => v.rating > 0);
+    if (!entries.length || !criteria.length) return null;
+
+    const weightMap = new Map(criteria.map((c) => [c.id, c.weight || 1]));
+    let totalWeight = 0;
+    let sum = 0;
+    for (const [criteriaId, v] of entries) {
+      const w = weightMap.get(criteriaId) ?? 1;
+      totalWeight += w;
+      sum += v.rating * w;
+    }
+    return totalWeight > 0 ? Math.round((sum / totalWeight) * 10) / 10 : null;
+  }, [criteriaRatings, criteria]);
+
+  const hasCriteriaRatings = Object.values(criteriaRatings).some((v) => v.rating > 0);
+
   const handleSubmit = async (status: 'DRAFT' | 'SUBMITTED') => {
     if (!formData.userId) {
       toast({ title: 'Error', description: 'Selecciona un empleado a evaluar', variant: 'destructive' });
@@ -118,10 +164,23 @@ export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewF
         : '/api/performance/reviews';
       const method = reviewId ? 'PATCH' : 'POST';
 
+      const criteriaRatingsPayload: CriteriaResponse[] = Object.entries(criteriaRatings)
+        .filter(([, v]) => v.rating > 0)
+        .map(([criteriaId, v]) => ({
+          criteriaId,
+          rating: v.rating,
+          comments: v.comments || undefined,
+        }));
+
+      // overallRating 0 means "unrated" — omit so zod's min(1) passes;
+      // the server computes the weighted rating when criteria exist.
+      const { overallRating, ...rest } = formData;
       const body = {
-        ...formData,
+        ...rest,
+        ...(overallRating > 0 ? { overallRating } : {}),
         companyId,
         status,
+        ...(criteriaRatingsPayload.length ? { criteriaRatings: criteriaRatingsPayload } : {}),
       };
 
       const res = await fetch(url, {
@@ -151,7 +210,6 @@ export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewF
     }
   };
 
-  const currentYear = new Date().getFullYear();
   const periods = [
     `${currentYear}-Q1`, `${currentYear}-Q2`, `${currentYear}-Q3`, `${currentYear}-Q4`,
     `${currentYear}-H1`, `${currentYear}-H2`,
@@ -166,6 +224,26 @@ export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewF
     PROBLEM_SOLVING: 'Resolución de Problemas',
     TEAMWORK: 'Trabajo en Equipo',
   };
+
+  const renderStars = (current: number, onSelect: (value: number) => void, size = 'h-6 w-6') => (
+    <div className="flex items-center gap-1" role="radiogroup" aria-label="Calificación de 1 a 5">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          role="radio"
+          aria-checked={current === star}
+          aria-label={`${star} de 5 estrellas`}
+          onClick={() => onSelect(star)}
+          className="rounded-sm p-1 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <Star
+            className={`${size} ${star <= current ? FILLED_STAR : EMPTY_STAR}`}
+          />
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -233,23 +311,23 @@ export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewF
 
             <div className="space-y-2">
               <Label htmlFor="overall-rating">Calificación General</Label>
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, overallRating: star }))}
-                    className="p-1 transition-colors"
-                  >
-                    <Star
-                      className={`h-6 w-6 ${star <= formData.overallRating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-                    />
-                  </button>
-                ))}
-                <span className="ml-2 text-sm text-muted-foreground">
-                  {formData.overallRating > 0 ? `${formData.overallRating}/5` : 'Sin calificar'}
-                </span>
-              </div>
+              {hasCriteriaRatings && weightedPreview !== null ? (
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-2xl font-bold">{weightedPreview}/5</span>
+                  <span className="text-sm text-muted-foreground">
+                    promedio ponderado de criterios
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {renderStars(formData.overallRating, (star) =>
+                    setFormData(prev => ({ ...prev, overallRating: star }))
+                  )}
+                  <span className="ml-2 text-sm text-muted-foreground">
+                    {formData.overallRating > 0 ? `${formData.overallRating}/5` : 'Sin calificar'}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </CardContent>
@@ -272,22 +350,14 @@ export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewF
                       <div className="text-sm text-muted-foreground">{c.description}</div>
                     )}
                   </div>
-                  <Badge variant="outline">{categoryLabels[c.category] || c.category}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{categoryLabels[c.category] || c.category}</Badge>
+                    {c.weight > 1 && (
+                      <Badge variant="secondary">Peso {c.weight}</Badge>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => handleRatingClick(c.id, star)}
-                      className="p-0.5 transition-colors"
-                    >
-                      <Star
-                        className={`h-5 w-5 ${star <= (criteriaRatings[c.id]?.rating || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-                      />
-                    </button>
-                  ))}
-                </div>
+                {renderStars(criteriaRatings[c.id]?.rating || 0, (star) => handleRatingClick(c.id, star), 'h-5 w-5')}
                 <Input
                   placeholder="Comentario sobre este criterio..."
                   value={criteriaRatings[c.id]?.comments || ''}

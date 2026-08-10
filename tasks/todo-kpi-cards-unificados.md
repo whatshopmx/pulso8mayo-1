@@ -54,11 +54,13 @@
 
 ## Phase 5: Casos especiales
 
-- [ ] **Task 8 (S)**: `components/analytics/kpi-card.tsx` — alinear layout base, conservar drill-down/dropdown/badges. `components/sales/financial-kpi-cards.tsx` — verificar alineación (probablemente sin cambios)
+- [x] **Task 8 (S)**: `components/analytics/kpi-card.tsx` — alinear layout base, conservar drill-down/dropdown/badges. `components/sales/financial-kpi-cards.tsx` — verificar alineación (probablemente sin cambios)
+  - kpi-card: h3 → text-sm font-medium text-muted-foreground (OQ-2); valor → font-mono text-2xl bold tracking-tight (OQ-1). Drill-down/dropdown/tooltip/badges/targets intactos
+  - financial-kpi-cards: verificado — 100% tokens (bg-success, statusBadgeClasses, text-success/warning-text, chart tokens); sin cambios (OQ-4)
 
 ## Checkpoint: Completo
 
-- [ ] Acceptance criteria de Tasks 1-8 cumplidos
+- [x] Acceptance criteria de Tasks 1-8 cumplidos
 - [ ] `pnpm run build` + `pnpm run lint` en verde
 - [ ] `pnpm test:e2e` sin regresiones
 - [ ] Review humana final · listo para merge

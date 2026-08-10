@@ -1,12 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Target, Calendar, Edit, Trash2, CheckCircle } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { ArrowLeft, Target, Calendar, Trash2, CheckCircle, Pencil } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -27,26 +37,35 @@ interface GoalDetail {
   userName: string | null;
 }
 
+type PendingAction = 'delete' | 'cancel' | null;
+
 export default function GoalDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
   const [goal, setGoal] = useState<GoalDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   const goalId = params.id as string;
 
   useEffect(() => {
     const fetchGoal = async () => {
       try {
-        const res = await fetch(`/api/performance/goals?companyId=all`);
-        if (res.ok) {
-          const data = await res.json();
-          const found = data.goals?.find((g: any) => g.id === goalId);
-          if (found) setGoal(found);
+        const res = await fetch(`/api/performance/goals?id=${goalId}`);
+        if (res.status === 404) {
+          setNotFound(true);
+          return;
         }
+        if (!res.ok) {
+          throw new Error(`Request failed: ${res.status}`);
+        }
+        const data = await res.json();
+        setGoal(data.goal || null);
       } catch (e) {
         console.error('Error fetching goal:', e);
+        setNotFound(true);
       } finally {
         setLoading(false);
       }
@@ -66,15 +85,16 @@ export default function GoalDetailPage() {
       if (res.ok) {
         const data = await res.json();
         setGoal(prev => prev ? { ...prev, ...data.goal } : null);
-        toast({ title: 'Estado actualizado' });
+        toast({ title: 'Estado actualizado', description: statusLabels[newStatus] || newStatus });
       }
     } catch (e) {
       toast({ title: 'Error', description: 'No se pudo actualizar', variant: 'destructive' });
+    } finally {
+      setPendingAction(null);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm('¿Estás seguro de eliminar este objetivo?')) return;
     try {
       const res = await fetch(`/api/performance/goals?id=${goalId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -83,7 +103,16 @@ export default function GoalDetailPage() {
       }
     } catch (e) {
       toast({ title: 'Error', description: 'No se pudo eliminar', variant: 'destructive' });
+    } finally {
+      setPendingAction(null);
     }
+  };
+
+  const statusLabels: Record<string, string> = {
+    NOT_STARTED: 'No Iniciado',
+    IN_PROGRESS: 'En Progreso',
+    COMPLETED: 'Completado',
+    CANCELLED: 'Cancelado',
   };
 
   const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; color: string }> = {
@@ -103,17 +132,24 @@ export default function GoalDetailPage() {
     }
   };
 
+  const isOverdue = (() => {
+    if (!goal) return false;
+    if (goal.status === 'COMPLETED' || goal.status === 'CANCELLED') return false;
+    if (!goal.targetDate) return false;
+    return new Date(goal.targetDate).getTime() < Date.now();
+  })();
+
   if (loading) {
     return (
       <div className="container mx-auto py-6">
-        <div className="flex items-center justify-center h-64">
+        <div className="flex items-center justify-center h-64" role="status" aria-live="polite">
           <div className="text-muted-foreground">Cargando objetivo...</div>
         </div>
       </div>
     );
   }
 
-  if (!goal) {
+  if (notFound || !goal) {
     return (
       <div className="container mx-auto py-6">
         <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -133,7 +169,7 @@ export default function GoalDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <Button variant="ghost" size="icon" aria-label="Volver" onClick={() => router.back()}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -146,7 +182,23 @@ export default function GoalDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={si.variant}>{si.label}</Badge>
-          <Button variant="ghost" size="icon" onClick={handleDelete}>
+          {isOverdue && (
+            <Badge variant="destructive">Atrasada</Badge>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Editar objetivo"
+            onClick={() => router.push(`/dashboard/performance/goals/${goal.id}/edit`)}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Eliminar objetivo"
+            onClick={() => setPendingAction('delete')}
+          >
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
@@ -162,7 +214,7 @@ export default function GoalDetailPage() {
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>Creado: {format(new Date(goal.createdAt), 'dd MMM yyyy', { locale: es })}</span>
             {goal.targetDate && (
-              <span className="flex items-center gap-1">
+              <span className={`flex items-center gap-1 ${isOverdue ? 'font-medium text-destructive' : ''}`}>
                 <Calendar className="h-3 w-3" />
                 Meta: {format(new Date(goal.targetDate), 'dd MMM yyyy', { locale: es })}
               </span>
@@ -214,13 +266,53 @@ export default function GoalDetailPage() {
               </Button>
             )}
             {(goal.status === 'NOT_STARTED' || goal.status === 'IN_PROGRESS') && (
-              <Button variant="destructive" className="w-full" onClick={() => handleStatusChange('CANCELLED')}>
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => setPendingAction('cancel')}
+              >
                 Cancelar Objetivo
               </Button>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <Separator />
+
+      {/* Confirmation dialogs */}
+      <AlertDialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => { if (!open) setPendingAction(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction === 'delete' ? '¿Eliminar este objetivo?' : '¿Cancelar este objetivo?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction === 'delete'
+                ? 'Esta acción no se puede deshacer. El objetivo se eliminará permanentemente.'
+                : 'El objetivo quedará marcado como cancelado. Podrás crear uno nuevo si lo necesitas.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No, volver</AlertDialogCancel>
+            <AlertDialogAction
+              variant={pendingAction === 'delete' ? 'destructive' : 'default'}
+              onClick={() => {
+                if (pendingAction === 'delete') {
+                  handleDelete();
+                } else if (pendingAction === 'cancel') {
+                  handleStatusChange('CANCELLED');
+                }
+              }}
+            >
+              {pendingAction === 'delete' ? 'Sí, eliminar' : 'Sí, cancelar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

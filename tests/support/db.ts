@@ -825,3 +825,112 @@ export async function cleanupProduction(
     await sql`DELETE FROM workflow_templates WHERE id = ${templateId}`;
   }
 }
+
+// --- Revisión de workflows (T8 del plan workflow-review-critique) -------------
+
+/** Cómo se ve cada paso de una instancia sembrada para la revisión. */
+export interface ReviewStepSeed {
+  /** ID del paso dentro del template (p. ej. "paso-3"). */
+  stepId: string;
+  /** Veredicto de la verificación AI simulada (se guarda en `ai_analysis`). */
+  passed: boolean;
+  confidence?: number;
+  reason?: string;
+  evidenceUrl?: string | null;
+  comment?: string | null;
+  value?: unknown;
+}
+
+/**
+ * Siembra una ejecución COMPLETADA lista para revisar: template propio de la
+ * empresa (para que pase el filtro del historial y el chequeo de tenant del
+ * service), instancia con `score` y sin `review_status`, y pasos en orden de
+ * creación con `ai_analysis`, `evidence_url` y `comment`.
+ *
+ * Devuelve la instancia y el template para limpiarlos con
+ * `cleanupReviewInstance`. La instalación de los pasos se hace en orden, en
+ * inserts consecutivos: `getExecution` los devuelve sin ORDER BY y la
+ * numeración canónica de pasos depende de ese orden físico (plan T8b).
+ */
+export async function seedReviewInstance(
+  companyId: string,
+  opts: {
+    branchId: string;
+    assigneeId: string;
+    score: number;
+    steps: ReviewStepSeed[];
+  }
+): Promise<{ instanceId: string; workflowTemplateId: string }> {
+  const workflowTemplateId = `e2e-tpl-revision-${Date.now()}`;
+  const templateSteps = opts.steps.map((s) => ({
+    id: s.stepId,
+    type: s.passed ? "TEXT" : "PHOTO",
+    title: `Paso ${s.stepId}`,
+    description: "",
+    required: true,
+  }));
+
+  await sql`
+    INSERT INTO workflow_templates (id, company_id, name, description, steps, category, active)
+    VALUES (
+      ${workflowTemplateId},
+      ${companyId},
+      ${`${E2E_TAG} Revisión e2e`},
+      'Template de prueba para la revisión de workflows',
+      ${JSON.stringify(templateSteps)}::jsonb,
+      'QUALITY',
+      true
+    )
+  `;
+
+  const [inst] = await sql`
+    INSERT INTO workflow_instances (
+      workflow_template_id, branch_id, assignee_id, status, score, started_at, completed_at, data
+    )
+    VALUES (
+      ${workflowTemplateId}, ${opts.branchId}, ${opts.assigneeId},
+      'COMPLETED', ${opts.score}, NOW(), NOW(), '{}'::jsonb
+    )
+    RETURNING id
+  `;
+  const instanceId = inst.id as string;
+
+  // Insertar en orden; un solo paso por INSERT para respetar el patrón del resto
+  // de la suite (el heap del driver devuelve las filas en orden de inserción).
+  for (const s of opts.steps) {
+    await sql`
+      INSERT INTO workflow_instance_steps (
+        instance_id, step_id, status, value, ai_analysis, evidence_url, comment, completed_at, completed_by
+      )
+      VALUES (
+        ${instanceId},
+        ${s.stepId},
+        'COMPLETED',
+        ${s.value !== undefined ? JSON.stringify(s.value) : null}::jsonb,
+        ${JSON.stringify({
+          passed: s.passed,
+          confidence: s.confidence ?? null,
+          reason: s.reason ?? null,
+        })}::jsonb,
+        ${s.evidenceUrl ?? null},
+        ${s.comment ?? null},
+        NOW(),
+        ${opts.assigneeId}
+      )
+    `;
+  }
+
+  return { instanceId, workflowTemplateId };
+}
+
+/** Limpia pasos, instancia y template sembrados por `seedReviewInstance`. */
+export async function cleanupReviewInstance(
+  instanceId: string,
+  workflowTemplateId?: string
+): Promise<void> {
+  await sql`DELETE FROM workflow_instance_steps WHERE instance_id = ${instanceId}`;
+  await sql`DELETE FROM workflow_instances WHERE id = ${instanceId}`;
+  if (workflowTemplateId) {
+    await sql`DELETE FROM workflow_templates WHERE id = ${workflowTemplateId}`;
+  }
+}

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { performanceGoals, users } from '@/lib/db/schema';
-import { eq, and, desc, or, sql } from 'drizzle-orm';
+import { eq, and, desc, or, ilike, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { withTenantAuth } from '@/lib/api/with-auth';
+import { NotificationService } from '@/lib/services/notification-service';
 
 // Validation schemas — userId and companyId from session
 const createGoalSchema = z.object({
@@ -18,47 +19,69 @@ const createGoalSchema = z.object({
 
 const updateGoalSchema = createGoalSchema.partial();
 
-// GET - List performance goals
+const goalColumns = {
+  id: performanceGoals.id,
+  userId: performanceGoals.userId,
+  companyId: performanceGoals.companyId,
+  branchId: performanceGoals.branchId,
+  title: performanceGoals.title,
+  description: performanceGoals.description,
+  category: performanceGoals.category,
+  status: performanceGoals.status,
+  targetDate: performanceGoals.targetDate,
+  completedDate: performanceGoals.completedDate,
+  metrics: performanceGoals.metrics,
+  createdAt: performanceGoals.createdAt,
+  updatedAt: performanceGoals.updatedAt,
+  userName: users.name,
+};
+
+// GET - List performance goals (optionally a single one by `id`)
 export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
   try {
     const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
     const userId = searchParams.get('userId');
     const status = searchParams.get('status');
     const category = searchParams.get('category');
+    const search = searchParams.get('search');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
     const conditions = [eq(performanceGoals.companyId, auth.tenantId)];
 
+    if (id) conditions.push(eq(performanceGoals.id, id));
     if (userId) conditions.push(eq(performanceGoals.userId, userId));
     if (status) conditions.push(eq(performanceGoals.status, status as any));
     if (category) conditions.push(eq(performanceGoals.category, category));
+    if (search) {
+      conditions.push(or(
+        ilike(performanceGoals.title, `%${search}%`),
+        ilike(users.name, `%${search}%`)
+      ));
+    }
+
+    const baseQuery = db
+      .select(goalColumns)
+      .from(performanceGoals)
+      .leftJoin(users, eq(performanceGoals.userId, users.id))
+      .where(and(...conditions));
+
+    if (id) {
+      const [goal] = await baseQuery.limit(1);
+      if (!goal) {
+        return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+      }
+      return NextResponse.json({ goal });
+    }
 
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(performanceGoals)
+      .leftJoin(users, eq(performanceGoals.userId, users.id))
       .where(and(...conditions));
 
-    const goals = await db
-      .select({
-        id: performanceGoals.id,
-        userId: performanceGoals.userId,
-        companyId: performanceGoals.companyId,
-        branchId: performanceGoals.branchId,
-        title: performanceGoals.title,
-        description: performanceGoals.description,
-        category: performanceGoals.category,
-        status: performanceGoals.status,
-        targetDate: performanceGoals.targetDate,
-        completedDate: performanceGoals.completedDate,
-        metrics: performanceGoals.metrics,
-        createdAt: performanceGoals.createdAt,
-        updatedAt: performanceGoals.updatedAt,
-        userName: users.name,
-      })
-      .from(performanceGoals)
-      .leftJoin(users, eq(performanceGoals.userId, users.id))
-      .where(and(...conditions))
+    const goals = await baseQuery
       .orderBy(desc(performanceGoals.createdAt))
       .limit(limit)
       .offset((page - 1) * limit);
@@ -89,17 +112,17 @@ export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
     const { userId: goalUserId, ...rest } = body;
     const validated = createGoalSchema.safeParse(rest);
 
-  if (!validated.success || !goalUserId) {
-    if (!goalUserId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    if (!validated.success || !goalUserId) {
+      if (!goalUserId) {
+        return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+      }
+      return NextResponse.json(
+        { error: 'Invalid input', details: validated.error.issues },
+        { status: 400 }
+      );
     }
-    return NextResponse.json(
-      { error: 'Invalid input', details: validated.error.issues },
-      { status: 400 }
-    );
-  }
 
-  const data = validated.data;
+    const data = validated.data;
 
     const [newGoal] = await db
       .insert(performanceGoals)
@@ -141,14 +164,14 @@ export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
     const body = await request.json();
     const validated = updateGoalSchema.safeParse(body);
 
-  if (!validated.success) {
-    return NextResponse.json(
-      { error: 'Invalid input', details: validated.error.issues },
-      { status: 400 }
-    );
-  }
+    if (!validated.success) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: validated.error.issues },
+        { status: 400 }
+      );
+    }
 
-  const updateData: any = {
+    const updateData: any = {
       ...validated.data,
       updatedAt: new Date(),
     };
@@ -166,7 +189,10 @@ export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
     const [updatedGoal] = await db
       .update(performanceGoals)
       .set(updateData)
-      .where(eq(performanceGoals.id, goalId))
+      .where(and(
+        eq(performanceGoals.id, goalId),
+        eq(performanceGoals.companyId, auth.tenantId)
+      ))
       .returning();
 
     if (!updatedGoal) {
@@ -174,6 +200,22 @@ export const PATCH = withTenantAuth(async (request: NextRequest, { auth }) => {
         { error: 'Performance goal not found' },
         { status: 404 }
       );
+    }
+
+    // Notify the employee on WhatsApp when the goal is completed
+    if (validated.data.status === 'COMPLETED') {
+      const [goalUser] = await db
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(eq(users.id, updatedGoal.userId))
+        .limit(1);
+
+      if (goalUser) {
+        const message = `¡Felicidades, ${goalUser.name || 'tu'}! 🎯 Completaste la meta "${updatedGoal.title}". ¡Sigue así! — Pulso`;
+        // Fire-and-forget; sendWhatsAppNotification degrades gracefully when
+        // the user has no phone or WhatsApp is not configured.
+        await NotificationService.sendWhatsAppNotification(goalUser.id, message);
+      }
     }
 
     return NextResponse.json({
@@ -204,7 +246,10 @@ export const DELETE = withTenantAuth(async (request: NextRequest, { auth }) => {
 
     const deleted = await db
       .delete(performanceGoals)
-      .where(eq(performanceGoals.id, goalId))
+      .where(and(
+        eq(performanceGoals.id, goalId),
+        eq(performanceGoals.companyId, auth.tenantId)
+      ))
       .returning();
 
     if (deleted.length === 0) {

@@ -32,8 +32,6 @@ export default async function ReviewsPage() {
 
       <PerformanceReviewList
         companyId={user.companyId}
-        userId={user.id}
-        userRole={user.role || 'EMPLEADO'}
       />
     </div>
   );

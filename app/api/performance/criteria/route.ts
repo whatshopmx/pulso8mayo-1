@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { performanceReviewCriteria, performanceReviewResponses } from '@/lib/db/schema';
+import { performanceReviewCriteria } from '@/lib/db/schema';
 import { eq, and, desc, asc } from 'drizzle-orm';
 import { z } from 'zod';
 import { withTenantAuth } from '@/lib/api/with-auth';

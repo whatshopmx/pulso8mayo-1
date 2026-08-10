@@ -130,6 +130,54 @@ propia migración (nunca `db:push`) y su spec E2E en `tests/`.
 
 ---
 
+### Módulo de Desempeño — Reparación integral - COMPLETADA ✅ (2026-08-10)
+
+Surgida de la crítica Impeccable (17/40) y ejecutada según
+`tasks/plan-performance.md` (16 tareas, 6 fases).
+
+**P0 — Integridad de datos:**
+- **Criterios persistidos** — el scoring por criterios ya no se descarta: el form
+  envía `criteriaRatings` y la API escribe `performance_review_responses` (tablas
+  que existían sin uso); el servidor calcula el **rating ponderado** por `weight`
+  y lo guarda en `overallRating`. El detalle muestra la tarjeta de criterios con
+  comentarios, peso y ponderado.
+- **Rutas de edición reales** — `reviews/[id]/edit` y `goals/[id]/edit`; los
+  botones Editar ya no hacen 404.
+- **Búsqueda funcional** — `search` con `ilike` sobre empleado/objetivo + debounce
+  (`hooks/use-debounced-value.ts`).
+- **REVIEWER_NAME corregido** — segundo `leftJoin` en `reviewerId` (antes duplicaba
+  el nombre del empleado).
+
+**P1 — Números honestos:**
+- **`GET /api/performance/stats`** (counts por status + `trend` por período) —
+  los KPIs del dashboard dejan de contar la primera página; pendiente incluye
+  SUBMITTED; "Sin datos" cuando no hay evaluaciones.
+- **Detalles por id** — `GET ...?id=` en vez de `companyId=all` + filtrado en
+  cliente; 404 solo real.
+- **Analítica honesta** — la gráfica consume datos reales del `trend`;
+  <5 evaluaciones completadas muestra "Sin suficientes datos" en vez de la
+  gráfica mock Q1-Q6 2026; eje dual corregido, tokens `chart-1..5`, español.
+
+**Producto (preguntas abiertas de la crítica):**
+- **Vista por persona** — `performance/personas/[id]` agrupa metas, vencimientos,
+  evaluaciones, rating promedio y evaluador; los nombres en listas son enlaces.
+- **Metas vencidas** — badge "Atrasada" (destructive) en lista, detalle y persona.
+- **WhatsApp** — meta completada notifica al empleado
+  (`NotificationService.sendWhatsAppNotification`); cron diario
+  `cron-performance-reminders` (9:00) nudges evaluadores de evaluaciones
+  DRAFT/IN_PROGRESS de más de 7 días.
+
+**Consistencia y accesibilidad:** naming unificado en español (Desempeño /
+Evaluaciones / Objetivos / Analítica), estrellas con tokens, período por defecto
+= trimestre actual, toasts traducidos, `confirm()` → `AlertDialog`, aria-labels,
+estrellas con semántica radio, `aria-live` en cargas, sin emojis en headings,
+empty states con CTA.
+
+**Seguridad:** PATCH/DELETE de reviews y goals ahora acotan a `auth.tenantId`
+(antes solo por id).
+
+---
+
 ## 📋 TODOs Pendientes (Priorizados)
 
 ### Alta Prioridad

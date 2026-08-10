@@ -12,6 +12,7 @@ export { cronScheduledReports } from "./cron-scheduled-reports";
 export { cronStockCheck } from "./cron-stock-check";
 export { cronDocumentExpirationCheck } from "./cron-document-expiration-check";
 export { cronBreakReminders } from "./cron-break-reminders";
+export { cronPerformanceReminders } from "./cron-performance-reminders";
 export { imssAlerts } from "./imss-alerts";
 export { cronSalesCutReminder } from "./cron-sales-cut-reminder";
 export { checkFinancialAlerts } from "./check-financial-alerts";

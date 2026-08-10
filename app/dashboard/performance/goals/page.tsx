@@ -43,8 +43,6 @@ export default async function GoalsPage() {
 
       <GoalsList
         companyId={user.companyId}
-        userId={user.id}
-        userRole={user.role || 'EMPLEADO'}
       />
     </div>
   );

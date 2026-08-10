@@ -338,7 +338,7 @@ const navMain = [
         url: "/dashboard/performance/reviews",
       },
       {
-        title: "Metas",
+        title: "Objetivos",
         url: "/dashboard/performance/goals",
       },
     ],
