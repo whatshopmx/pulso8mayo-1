@@ -82,10 +82,10 @@ interface Conflict {
 }
 
 const SHIFT_TYPES = {
-    MATUTINO: { label: "Matutino", start: "07:00", end: "15:00", color: "bg-blue-500" },
-    VESPERTINO: { label: "Vespertino", start: "15:00", end: "23:00", color: "bg-orange-500" },
-    NOCTURNO: { label: "Nocturno", start: "23:00", end: "07:00", color: "bg-purple-500" },
-    MIXTO: { label: "Mixto", start: "10:00", end: "18:00", color: "bg-green-500" },
+    MATUTINO: { label: "Matutino", start: "07:00", end: "15:00", color: "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 border-blue-200/50", dotColor: "bg-blue-500" },
+    VESPERTINO: { label: "Vespertino", start: "15:00", end: "23:00", color: "bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400 border-orange-200/50", dotColor: "bg-orange-500" },
+    NOCTURNO: { label: "Nocturno", start: "23:00", end: "07:00", color: "bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 border-purple-200/50", dotColor: "bg-purple-500" },
+    MIXTO: { label: "Mixto", start: "10:00", end: "18:00", color: "bg-green-500/10 text-green-600 dark:bg-green-500/20 dark:text-green-400 border-green-200/50", dotColor: "bg-green-500" },
 }
 
 interface WeeklyShiftPlannerProps {
@@ -426,10 +426,10 @@ export function WeeklyShiftPlanner({ employees: propEmployees, branches: propBra
 
     const getShiftTypeColor = (startTime: string, endTime: string) => {
         const start = parseInt(startTime.split(":")[0])
-        if (start >= 5 && start < 12) return "bg-blue-500"
-        if (start >= 12 && start < 18) return "bg-orange-500"
-        if (start >= 18 || start < 5) return "bg-purple-500"
-        return "bg-green-500"
+        if (start >= 5 && start < 12) return "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 border-blue-200/50"
+        if (start >= 12 && start < 18) return "bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400 border-orange-200/50"
+        if (start >= 18 || start < 5) return "bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 border-purple-200/50"
+        return "bg-green-500/10 text-green-600 dark:bg-green-500/20 dark:text-green-400 border-green-200/50"
     }
 
     if (loading) {
@@ -638,7 +638,7 @@ export function WeeklyShiftPlanner({ employees: propEmployees, branches: propBra
                                                                                 </DropdownMenu>
                                                                             </div>
                                                                             {shift.notes && (
-                                                                                <div className="text-[10px] opacity-80 mt-0.5 truncate">
+                                                                                <div className="text-xs opacity-80 mt-0.5 truncate">
                                                                                     {shift.notes}
                                                                                 </div>
                                                                             )}
@@ -757,7 +757,7 @@ export function WeeklyShiftPlanner({ employees: propEmployees, branches: propBra
                                             setShiftEnd(config.end)
                                         }}
                                     >
-                                        <div className={cn("w-2 h-2 rounded-full mr-2", config.color)} />
+                                        <div className={cn("w-2 h-2 rounded-full mr-2", config.dotColor)} />
                                         {config.label}
                                     </Button>
                                 ))}

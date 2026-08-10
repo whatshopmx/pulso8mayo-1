@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { 
     ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, User, Save, Eye, Repeat,
     Copy, Download, AlertTriangle, CheckCircle2, Clock, Filter, Trash2,
-    FileSpreadsheet, FileText, Tag
+    FileSpreadsheet, FileText, Tag, MoreHorizontal
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -130,10 +130,10 @@ type ViewMode = "matrix" | "calendar" | "list" | "compliance"
 
 // Shift type configurations
 const SHIFT_TYPES = {
-    MATUTINO: { label: "Matutino", start: "07:00", end: "15:00", color: "bg-blue-500" },
-    VESPERTINO: { label: "Vespertino", start: "15:00", end: "23:00", color: "bg-orange-500" },
-    NOCTURNO: { label: "Nocturno", start: "23:00", end: "07:00", color: "bg-purple-500" },
-    MIXTO: { label: "Mixto", start: "10:00", end: "18:00", color: "bg-green-500" },
+    MATUTINO: { label: "Matutino", start: "07:00", end: "15:00", color: "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 border-blue-200/50", dotColor: "bg-blue-500" },
+    VESPERTINO: { label: "Vespertino", start: "15:00", end: "23:00", color: "bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400 border-orange-200/50", dotColor: "bg-orange-500" },
+    NOCTURNO: { label: "Nocturno", start: "23:00", end: "07:00", color: "bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 border-purple-200/50", dotColor: "bg-purple-500" },
+    MIXTO: { label: "Mixto", start: "10:00", end: "18:00", color: "bg-green-500/10 text-green-600 dark:bg-green-500/20 dark:text-green-400 border-green-200/50", dotColor: "bg-green-500" },
 }
 
 // Predefined templates
@@ -229,6 +229,19 @@ export function UnifiedShiftScheduler() {
 
     // Track original shifts
     const [originalShifts, setOriginalShifts] = React.useState<Shift[]>([])
+
+    const isDirty = React.useMemo(() => {
+        if (shifts.length !== originalShifts.length) return true
+        return shifts.some(s => {
+            const os = originalShifts.find(o => o.id === s.id)
+            if (!os) return true
+            return os.role !== s.role || 
+                   os.startTime !== s.startTime || 
+                   os.endTime !== s.endTime || 
+                   os.status !== s.status || 
+                   os.notes !== s.notes
+        })
+    }, [shifts, originalShifts])
 
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
     const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 })
@@ -746,10 +759,10 @@ export function UnifiedShiftScheduler() {
         const start = parseInt(startTime.split(":")[0])
         const end = parseInt(endTime.split(":")[0])
         
-        if (start >= 5 && start < 12) return "bg-blue-500"
-        if (start >= 12 && start < 18) return "bg-orange-500"
-        if (start >= 18 || start < 5) return "bg-purple-500"
-        return "bg-green-500"
+        if (start >= 5 && start < 12) return "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 border-blue-200/50"
+        if (start >= 12 && start < 18) return "bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400 border-orange-200/50"
+        if (start >= 18 || start < 5) return "bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 border-purple-200/50"
+        return "bg-green-500/10 text-green-600 dark:bg-green-500/20 dark:text-green-400 border-green-200/50"
     }
 
     const getShiftConflict = (shiftId: string) => {
@@ -769,7 +782,9 @@ export function UnifiedShiftScheduler() {
             {/* Header Controls */}
             <div className="flex flex-col gap-4 bg-card p-4 rounded-lg border shadow-sm">
                 <div className="flex items-center justify-between flex-wrap gap-4">
+                    {/* Left: Week Navigation & View Segmented Switcher */}
                     <div className="flex items-center gap-4 flex-wrap">
+                        {/* Week Navigation */}
                         <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigateWeek("prev")}>
                                 <ChevronLeft className="h-4 w-4" />
@@ -783,31 +798,48 @@ export function UnifiedShiftScheduler() {
                             </Button>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        {/* View Segmented Control */}
+                        <div className="flex items-center gap-1 bg-muted rounded-md p-0.5 border">
                             <Button
-                                variant={viewMode === "matrix" ? "default" : "outline"}
+                                variant={viewMode === "matrix" ? "secondary" : "ghost"}
                                 size="sm"
+                                className={cn(
+                                    "h-7 px-3 text-xs rounded-sm transition-all",
+                                    viewMode === "matrix" ? "bg-background shadow-xs text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
+                                )}
                                 onClick={() => setViewMode("matrix")}
                             >
                                 Matriz
                             </Button>
                             <Button
-                                variant={viewMode === "calendar" ? "default" : "outline"}
+                                variant={viewMode === "calendar" ? "secondary" : "ghost"}
                                 size="sm"
+                                className={cn(
+                                    "h-7 px-3 text-xs rounded-sm transition-all",
+                                    viewMode === "calendar" ? "bg-background shadow-xs text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
+                                )}
                                 onClick={() => setViewMode("calendar")}
                             >
                                 Calendario
                             </Button>
                             <Button
-                                variant={viewMode === "list" ? "default" : "outline"}
+                                variant={viewMode === "list" ? "secondary" : "ghost"}
                                 size="sm"
+                                className={cn(
+                                    "h-7 px-3 text-xs rounded-sm transition-all",
+                                    viewMode === "list" ? "bg-background shadow-xs text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
+                                )}
                                 onClick={() => setViewMode("list")}
                             >
                                 Lista
                             </Button>
                             <Button
-                                variant={viewMode === "compliance" ? "default" : "outline"}
+                                variant={viewMode === "compliance" ? "secondary" : "ghost"}
                                 size="sm"
+                                className={cn(
+                                    "h-7 px-3 text-xs rounded-sm transition-all",
+                                    viewMode === "compliance" ? "bg-background shadow-xs text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
+                                )}
                                 onClick={() => setViewMode("compliance")}
                             >
                                 Cumplimiento
@@ -815,35 +847,65 @@ export function UnifiedShiftScheduler() {
                         </div>
                     </div>
 
-                    <div className="flex gap-2 flex-wrap">
-                        <Button variant="outline" size="sm" onClick={() => setTemplateDialogOpen(true)}>
-                            <Tag className="h-4 w-4 mr-2" />
-                            Plantilla
+                    {/* Right: Actions (Primary Action Pair & Utilities Dropdown) */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* Utilities Dropdown Menu */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" className="h-8">
+                                    <MoreHorizontal className="h-4 w-4 mr-2" />
+                                    Acciones
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuLabel>Operaciones</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => setTemplateDialogOpen(true)}>
+                                    <Tag className="h-4 w-4 mr-2" />
+                                    Plantilla
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setCopyDialogOpen(true)}>
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    Copiar Semana
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setExportDialogOpen(true)}>
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Exportar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                                    <Tag className="h-4 w-4 mr-2" />
+                                    Configuración
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setBulkMode(!bulkMode)}>
+                                    <Repeat className="h-4 w-4 mr-2" />
+                                    {bulkMode ? "Modo Normal" : "Asignación Masiva"}
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        {/* Save Button */}
+                        <Button
+                            variant={isDirty ? "default" : "outline"}
+                            size="sm"
+                            className="h-8"
+                            onClick={handleSave}
+                            disabled={selectedBranch === "all"}
+                        >
+                            <Save className="h-4 w-4 mr-2" />
+                            Guardar
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => setCopyDialogOpen(true)}>
-                            <Copy className="h-4 w-4 mr-2" />
-                            Copiar
+
+                        {/* Publish Button */}
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            className="h-8"
+                            onClick={handlePublish}
+                            disabled={selectedBranch === "all"}
+                        >
+                            <Eye className="h-4 w-4 mr-2" />
+                            Publicar
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => setExportDialogOpen(true)}>
-                            <Download className="h-4 w-4 mr-2" />
-                            Exportar
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
-                            <Tag className="h-4 w-4 mr-2" />
-                            Configuración
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setBulkMode(!bulkMode)}>
-                            <Repeat className="h-4 w-4 mr-2" />
-                            {bulkMode ? "Normal" : "Masivo"}
-                        </Button>
-                        <Button size="sm" onClick={handleSave} disabled={selectedBranch === "all"}>
-                             <Save className="h-4 w-4 mr-2" />
-                             Guardar
-                         </Button>
-                         <Button size="sm" variant="default" onClick={handlePublish} disabled={selectedBranch === "all"}>
-                             <Eye className="h-4 w-4 mr-2" />
-                             Publicar
-                         </Button>
                     </div>
                 </div>
 
@@ -935,13 +997,13 @@ export function UnifiedShiftScheduler() {
             {!bulkMode && viewMode === "matrix" && (
                 <Card>
                     <CardContent className="p-0">
-                        <div className="border rounded-xl overflow-hidden">
-                            <div className="grid grid-cols-[200px_repeat(7,1fr)] bg-muted/30 divide-x divide-muted">
-                                <div className="p-4 font-medium text-sm text-muted-foreground flex items-center">
+                        <div className="border rounded-xl overflow-hidden" role="grid" aria-label="Matriz de Horarios Semanal">
+                            <div className="grid grid-cols-[200px_repeat(7,1fr)] bg-muted/30 divide-x divide-muted" role="row">
+                                <div className="p-4 font-medium text-sm text-muted-foreground flex items-center" role="columnheader">
                                     <User className="mr-2 h-4 w-4" /> Empleado
                                 </div>
                                 {weekDays.map(day => (
-                                    <div key={day.toString()} className={cn(
+                                    <div key={day.toString()} role="columnheader" aria-label={format(day, "EEEE d 'de' MMMM", { locale: es })} className={cn(
                                         "p-3 text-center border-b-2 border-transparent transition-colors",
                                         isSameDay(day, new Date()) ? "bg-primary/5 border-primary" : ""
                                     )}>
@@ -960,8 +1022,8 @@ export function UnifiedShiftScheduler() {
 
                             <div className="divide-y divide-muted">
                                 {filteredUsers.map(user => (
-                                    <div key={user.id} className="grid grid-cols-[200px_repeat(7,1fr)] divide-x divide-muted group transition-colors hover:bg-muted/5">
-                                        <div className="p-3 pl-4 flex items-center gap-3 bg-card/50 sticky left-0 z-10">
+                                    <div key={user.id} className="grid grid-cols-[200px_repeat(7,1fr)] divide-x divide-muted group transition-colors hover:bg-muted/5" role="row">
+                                        <div className="p-3 pl-4 flex items-center gap-3 bg-card/50 sticky left-0 z-10" role="rowheader">
                                             <Avatar className="h-9 w-9 border">
                                                 <AvatarImage src={user.image} />
                                                 <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
@@ -976,6 +1038,8 @@ export function UnifiedShiftScheduler() {
                                             return (
                                                 <div
                                                     key={day.toString()}
+                                                    role="gridcell"
+                                                    aria-label={`Turnos de ${user.name} el ${format(day, "EEEE d 'de' MMMM", { locale: es })}`}
                                                     className={cn(
                                                         "p-2 min-h-20 relative group/cell transition-colors",
                                                         isSameDay(day, new Date()) ? "bg-primary/5" : ""
@@ -1005,10 +1069,11 @@ export function UnifiedShiftScheduler() {
                                                                         <Button
                                                                             variant="ghost"
                                                                             size="icon"
-                                                                            className="absolute top-0 right-0 h-4 w-4 opacity-0 hover:opacity-100"
+                                                                            className="absolute top-0 right-0 h-6 w-6 opacity-0 group-hover/cell:opacity-100 focus:opacity-100 flex items-center justify-center p-1 rounded-full text-destructive hover:bg-destructive/10 transition-opacity"
                                                                             onClick={() => handleDeleteShift(shift.id)}
+                                                                            aria-label="Eliminar turno"
                                                                         >
-                                                                            <Trash2 className="h-3 w-3" />
+                                                                            <Trash2 className="h-3.5 w-3.5" />
                                                                         </Button>
                                                                     </div>
                                                                 )
@@ -1243,7 +1308,7 @@ export function UnifiedShiftScheduler() {
                                             setShiftEnd(config.end)
                                         }}
                                     >
-                                        <div className={cn("w-2 h-2 rounded-full mr-2", config.color)} />
+                                        <div className={cn("w-2 h-2 rounded-full mr-2", config.dotColor)} />
                                         {config.label}
                                     </Button>
                                 ))}

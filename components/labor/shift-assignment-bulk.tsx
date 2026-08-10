@@ -59,6 +59,7 @@ interface ShiftTypeConfig {
     defaultStart: string
     defaultEnd: string
     color: string
+    dotColor?: string
 }
 
 const SHIFT_TYPES: Record<string, ShiftTypeConfig> = {
@@ -66,31 +67,36 @@ const SHIFT_TYPES: Record<string, ShiftTypeConfig> = {
         label: "Matutino",
         defaultStart: "07:00",
         defaultEnd: "15:00",
-        color: "bg-blue-500",
+        color: "bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 border-blue-200/50",
+        dotColor: "bg-blue-500",
     },
     VESPERTINO: {
         label: "Vespertino",
         defaultStart: "15:00",
         defaultEnd: "23:00",
-        color: "bg-orange-500",
+        color: "bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400 border-orange-200/50",
+        dotColor: "bg-orange-500",
     },
     NOCTURNO: {
         label: "Nocturno",
         defaultStart: "23:00",
         defaultEnd: "07:00",
-        color: "bg-purple-500",
+        color: "bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 border-purple-200/50",
+        dotColor: "bg-purple-500",
     },
     MIXTO: {
         label: "Mixto",
         defaultStart: "10:00",
         defaultEnd: "18:00",
-        color: "bg-green-500",
+        color: "bg-green-500/10 text-green-600 dark:bg-green-500/20 dark:text-green-400 border-green-200/50",
+        dotColor: "bg-green-500",
     },
     CUSTOM: {
         label: "Personalizado",
         defaultStart: "09:00",
         defaultEnd: "17:00",
-        color: "bg-gray-500",
+        color: "bg-gray-500/10 text-gray-600 dark:bg-gray-500/20 dark:text-gray-400 border-gray-200/50",
+        dotColor: "bg-gray-500",
     }
 }
 
@@ -315,7 +321,7 @@ export function BulkShiftAssignment({
                                         <div className="font-medium flex items-center gap-2">
                                             {employee.name}
                                             {onVacation && (
-                                                <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 text-[10px]">
+                                                <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 text-xs">
                                                     🏖️ Vacaciones
                                                 </Badge>
                                             )}
@@ -353,7 +359,7 @@ export function BulkShiftAssignment({
                                     {Object.entries(SHIFT_TYPES).map(([key, config]) => (
                                         <SelectItem key={key} value={key}>
                                             <div className="flex items-center gap-2">
-                                                <div className={cn("w-3 h-3 rounded-full", config.color)} />
+                                                <div className={cn("w-3 h-3 rounded-full", config.dotColor)} />
                                                 {config.label}
                                             </div>
                                         </SelectItem>
@@ -486,11 +492,11 @@ export function BulkShiftAssignment({
                                 <div
                                     key={assignment.id}
                                     className={cn(
-                                        "p-3 rounded-lg border-l-4",
-                                        assignment.shiftType === "MATUTINO" && "border-l-blue-500",
-                                        assignment.shiftType === "VESPERTINO" && "border-l-orange-500",
-                                        assignment.shiftType === "NOCTURNO" && "border-l-purple-500",
-                                        assignment.shiftType === "MIXTO" && "border-l-green-500"
+                                        "p-3 rounded-lg border bg-card",
+                                        assignment.shiftType === "MATUTINO" && "border-blue-200 bg-blue-50/10 dark:border-blue-800/30 dark:bg-blue-950/10",
+                                        assignment.shiftType === "VESPERTINO" && "border-orange-200 bg-orange-50/10 dark:border-orange-800/30 dark:bg-orange-950/10",
+                                        assignment.shiftType === "NOCTURNO" && "border-purple-200 bg-purple-50/10 dark:border-purple-800/30 dark:bg-purple-950/10",
+                                        assignment.shiftType === "MIXTO" && "border-green-200 bg-green-50/10 dark:border-green-800/30 dark:bg-green-950/10"
                                     )}
                                 >
                                     <div className="flex items-center justify-between">

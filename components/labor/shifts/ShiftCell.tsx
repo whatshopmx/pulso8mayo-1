@@ -107,7 +107,7 @@ export function ShiftCell({
           {isHovered && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1 -mt-1">
+                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1 -mt-1" aria-label="Acciones de turno">
                   <MoreHorizontal className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -136,7 +136,7 @@ export function ShiftCell({
           <span className="text-xs font-mono">
             {shift.startTime} - {shift.endTime}
           </span>
-          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+          <Badge variant="outline" className="text-xs px-1 py-0 h-4">
             {getStatusLabel(shift.status)}
           </Badge>
         </div>

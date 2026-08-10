@@ -194,7 +194,7 @@ export function ScheduleCalendar({
                                             <div className="space-y-1">
                                                 <Badge 
                                                     variant="outline" 
-                                                    className="w-full bg-blue-100 text-blue-800 border-blue-300 text-[10px]"
+                                                    className="w-full bg-blue-100 text-blue-800 border-blue-300 text-xs"
                                                 >
                                                     🏖️ Vacaciones
                                                 </Badge>
@@ -236,7 +236,7 @@ export function ScheduleCalendar({
                                                             {shift.shiftType}
                                                         </div>
                                                         {shift.status === "DRAFT" && (
-                                                            <Badge variant="secondary" className="mt-1 text-[10px]">
+                                                            <Badge variant="secondary" className="mt-1 text-xs">
                                                                 Borrador
                                                             </Badge>
                                                         )}
@@ -297,7 +297,7 @@ export function ScheduleCalendar({
                                         <div
                                             key={shift.id}
                                             className={cn(
-                                                "mb-1 p-1.5 rounded border text-[10px] cursor-pointer hover:shadow-sm transition-shadow",
+                                                "mb-1 p-1.5 rounded border text-xs cursor-pointer hover:shadow-sm transition-shadow",
                                                 getShiftTypeColor(shift.shiftType)
                                             )}
                                             onClick={(e) => {
@@ -314,7 +314,7 @@ export function ScheduleCalendar({
                                         </div>
                                     ))}
                                     {dayShifts.length > 3 && (
-                                        <div className="text-[10px] text-muted-foreground">
+                                        <div className="text-xs text-muted-foreground">
                                             +{dayShifts.length - 3} más
                                         </div>
                                     )}

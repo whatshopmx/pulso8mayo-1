@@ -200,7 +200,7 @@ export function ShiftScheduler() {
                                 </Avatar>
                                 <div className="overflow-hidden min-w-0">
                                     <div className="text-sm font-medium truncate leading-none mb-1">{user.name}</div>
-                                    <Badge variant="outline" className="text-[10px] px-1.5 h-5">{user.role}</Badge>
+                                    <Badge variant="outline" className="text-xs px-1.5 h-5">{user.role}</Badge>
                                 </div>
                             </div>
 
@@ -211,7 +211,7 @@ export function ShiftScheduler() {
                                         <div className="absolute inset-0 group-hover/cell:bg-muted/20 transition-all pointer-events-none" />
 
                                         {cellShifts.map(shift => (
-                                            <div key={shift.id} className="relative z-10 mb-1 bg-primary/10 border-l-2 border-primary p-1.5 rounded text-xs hover:bg-primary/20 cursor-pointer transition-colors shadow-sm">
+                                            <div key={shift.id} className="relative z-10 mb-1 bg-primary/5 border border-primary/20 p-1.5 rounded text-xs hover:bg-primary/10 cursor-pointer transition-colors">
                                                 <div className="font-semibold">{format(new Date(shift.startTime), "HH:mm")} - {format(new Date(shift.endTime), "HH:mm")}</div>
                                                 <div className="text-muted-foreground truncate opacity-80">{shift.role}</div>
                                             </div>

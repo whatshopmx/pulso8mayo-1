@@ -225,7 +225,7 @@ export function EmployeeDocumentManager() {
                                                 </TableCell>
                                                 <TableCell className="min-w-[150px]">
                                                     <div className="space-y-1">
-                                                        <div className="flex justify-between text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                                         <div className="flex justify-between text-xs font-medium uppercase tracking-wider text-muted-foreground">
                                                             <span>Progreso</span>
                                                             <span>{emp.compliancePercentage}%</span>
                                                         </div>

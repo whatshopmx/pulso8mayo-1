@@ -274,7 +274,7 @@ export function HolidayCalendar({ initialYear }: HolidayCalendarProps) {
                                             >
                                                 <div className="font-medium truncate">{holiday.name}</div>
                                                 {holiday.description && (
-                                                    <div className="text-[10px] text-muted-foreground truncate">
+                                                    <div className="text-xs text-muted-foreground truncate">
                                                         {holiday.description}
                                                     </div>
                                                 )}

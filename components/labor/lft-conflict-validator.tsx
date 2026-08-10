@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, AlertCircle, Info, Download, CheckCircle } from 'lucide-react';
 import { LFTConflictDetector, LFTConflict, ShiftSchedule } from '@/lib/services/lft-conflict-detector';
@@ -200,15 +201,12 @@ export function LFTConflictValidator({ schedules, dateRange }: LFTConflictValida
                                     {conflicts.map((conflict) => (
                                         <div
                                             key={conflict.id}
-                                            className="p-4 border-l-4 rounded-lg bg-card"
-                                            style={{
-                                                borderLeftColor:
-                                                    conflict.severity === 'MUY_GRAVE'
-                                                        ? '#7f1d1d'
-                                                        : conflict.severity === 'GRAVE'
-                                                        ? '#dc2626'
-                                                        : '#ca8a04',
-                                            }}
+                                            className={cn(
+                                                "p-4 border rounded-lg bg-card",
+                                                conflict.severity === 'MUY_GRAVE' && "border-destructive/30 bg-destructive/[0.02]",
+                                                conflict.severity === 'GRAVE' && "border-destructive/20 bg-destructive/[0.01]",
+                                                conflict.severity === 'LEVE' && "border-amber-500/20 bg-amber-500/[0.01]"
+                                            )}
                                         >
                                             <div className="flex items-start gap-3">
                                                 {getSeverityIcon(conflict.severity)}

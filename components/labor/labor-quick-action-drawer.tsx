@@ -93,7 +93,7 @@ export function LaborQuickActionDrawer({
                         >
                             <Zap className="h-3.5 w-3.5" />
                             Acción Rápida
-                            <kbd className="hidden md:inline-flex ml-1 px-1.5 py-0.5 text-[10px] bg-primary-foreground/20 rounded font-mono">
+                            <kbd className="hidden md:inline-flex ml-1 px-1.5 py-0.5 text-xs bg-primary-foreground/20 rounded font-mono">
                                 Alt+A
                             </kbd>
                         </Button>
@@ -105,7 +105,7 @@ export function LaborQuickActionDrawer({
                         <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                         <span>Sin pendientes críticos. Toda la operación de personal está al día.</span>
                     </div>
-                    <Badge variant="outline" className="text-[10px] text-muted-foreground font-normal">
+                    <Badge variant="outline" className="text-xs text-muted-foreground font-normal">
                         Al día
                     </Badge>
                 </div>
@@ -164,7 +164,7 @@ export function LaborQuickActionDrawer({
                                 <div className="p-3 border rounded-lg bg-card space-y-3">
                                     <div className="flex items-center justify-between text-xs">
                                         <span className="font-semibold text-foreground">Solicitud de Turno Extra</span>
-                                        <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">Pendiente</Badge>
+                                        <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">Pendiente</Badge>
                                     </div>
                                     <p className="text-xs text-muted-foreground">
                                         Turno adicional solicitado por supervisión de cocina para cubrir pico de fin de semana.
@@ -192,7 +192,7 @@ export function LaborQuickActionDrawer({
                                 <div className="p-3 border rounded-lg bg-card space-y-3">
                                     <div className="flex items-center justify-between text-xs">
                                         <span className="font-semibold text-foreground">Intercambio entre Meseros</span>
-                                        <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">Pendiente</Badge>
+                                        <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">Pendiente</Badge>
                                     </div>
                                     <p className="text-xs text-muted-foreground">
                                         Cambio voluntario de horario entre turno matutino y vespertino.
@@ -220,7 +220,7 @@ export function LaborQuickActionDrawer({
                                 <div className="p-3 border rounded-lg bg-card space-y-3">
                                     <div className="flex items-center justify-between text-xs">
                                         <span className="font-semibold text-foreground">Permiso Personal</span>
-                                        <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">Pendiente</Badge>
+                                        <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">Pendiente</Badge>
                                     </div>
                                     <p className="text-xs text-muted-foreground">
                                         Solicitud de salida anticipada con justificación médica.
