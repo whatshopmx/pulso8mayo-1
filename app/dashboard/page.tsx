@@ -13,8 +13,8 @@ import { KpiSummaryCards } from "@/components/dashboard/kpi-summary-cards"
 import { ExecutiveSummary } from "@/components/dashboard/executive-summary"
 import { PendingRemediationActionsCard } from "@/components/dashboard/pending-actions"
 import { Suspense } from "react"
+import { MetricCardSkeleton } from "@/components/ui/metric-card"
 import {
-  KpiCardsSkeleton,
   ChartSkeleton,
   DataTableSkeleton,
 } from "@/components/shared"
@@ -92,19 +92,19 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
       <PendingRemediationActionsCard />
 
       {/* #2 — Primary KPI metrics */}
-      <Suspense fallback={<KpiCardsSkeleton />}>
+      <Suspense fallback={<MetricCardSkeleton />}>
         <ComplianceMetrics branch={selectedBranch} startDate={startDate} endDate={endDate} />
       </Suspense>
 
       {/* #3 — Operational alerts & executive overview */}
-      <Suspense fallback={<KpiCardsSkeleton count={2} />}>
+      <Suspense fallback={<MetricCardSkeleton count={2} />}>
         <SectionErrorBoundary>
           <ExecutiveSummary branch={selectedBranch} startDate={startDate} endDate={endDate} />
         </SectionErrorBoundary>
       </Suspense>
 
       {/* #4 — KPI summary cards */}
-      <Suspense fallback={<KpiCardsSkeleton />}>
+      <Suspense fallback={<MetricCardSkeleton />}>
         <KpiSummaryCards branchId={selectedBranch} startDate={startDate} endDate={endDate} />
       </Suspense>
 

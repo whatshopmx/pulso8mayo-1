@@ -31,7 +31,11 @@
 
 ## Phase 3: Tablero principal
 
-- [ ] **Task 4 (M)**: Migrar `components/dashboard/kpi-summary-cards.tsx` (preservar barra de meta vía `progress`) y `components/dashboard/executive-summary.tsx` (5 cards alert strip)
+- [x] **Task 4 (M)**: Migrar `components/dashboard/kpi-summary-cards.tsx` (preservar barra de meta vía `progress`) y `components/dashboard/executive-summary.tsx` (5 cards alert strip)
+  - kpi-summary-cards: status→tone (NORMAL→success, WARNING→warning, CRITICAL→destructive); barra de meta→`progress` con caption "Meta: Xunit Y%" (extensión `progress.label`); skeleton→MetricCardSkeleton
+  - executive-summary: 4 cards alert strip → MetricCard (⚠️ el strip tiene 4, no 5 — verificado en analytics-service); tone condicional count>0 ? semántico : neutral; Lotes por Vencer usa nuevo tone `primary` (conserva bg-primary/10 original)
+  - Extensión canónica aprobada: tone `primary` (bg-primary/10 text-primary) + `progress.label` optativo
+  - dashboard/page.tsx + loading.tsx: KpiCardsSkeleton → MetricCardSkeleton
 
 ## Checkpoint: `/dashboard` consistente · review humana
 

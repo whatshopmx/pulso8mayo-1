@@ -1,11 +1,12 @@
 import { PageContainer } from "@/components/shared/page-container"
-import { PageHeaderSkeleton, KpiCardsSkeleton, ChartSkeleton, DataTableSkeleton } from "@/components/shared/skeletons"
+import { PageHeaderSkeleton, ChartSkeleton, DataTableSkeleton } from "@/components/shared/skeletons"
+import { MetricCardSkeleton } from "@/components/ui/metric-card"
 
 export default function DashboardLoading() {
   return (
     <PageContainer>
       <PageHeaderSkeleton />
-      <KpiCardsSkeleton />
+      <MetricCardSkeleton />
       <div className="grid gap-4 md:grid-cols-2">
         <ChartSkeleton />
         <ChartSkeleton />

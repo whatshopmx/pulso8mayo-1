@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard, MetricGrid } from "@/components/ui/metric-card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Clock, PackageOpen, CalendarClock, Building2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { auth } from "@/lib/auth";
@@ -51,63 +52,32 @@ export async function ExecutiveSummary({ branch }: ExecutiveSummaryProps) {
   return (
     <div className="space-y-4">
       {/* Consolidated Operational Alerts Strip */}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-md ${data.alertSummary.criticalIncidents > 0 ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
-                <AlertTriangle className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Incidentes Críticos</p>
-                <p className="text-xl font-bold">{data.alertSummary.criticalIncidents}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-md ${data.alertSummary.overdueWorkflows > 0 ? "bg-amber-500/10 text-amber-600" : "bg-muted text-muted-foreground"}`}>
-                <Clock className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Flujos Vencidos</p>
-                <p className="text-xl font-bold">{data.alertSummary.overdueWorkflows}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-md ${data.alertSummary.lowStockItems > 0 ? "bg-amber-500/10 text-amber-600" : "bg-muted text-muted-foreground"}`}>
-                <PackageOpen className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Stock Bajo</p>
-                <p className="text-xl font-bold">{data.alertSummary.lowStockItems}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-md ${data.alertSummary.expiringBatches > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-                <CalendarClock className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Lotes por Vencer</p>
-                <p className="text-xl font-bold">{data.alertSummary.expiringBatches}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <MetricGrid columns={4}>
+        <MetricCard
+          label="Incidentes Críticos"
+          value={data.alertSummary.criticalIncidents}
+          icon={<AlertTriangle className="h-4 w-4" />}
+          tone={data.alertSummary.criticalIncidents > 0 ? "destructive" : "neutral"}
+        />
+        <MetricCard
+          label="Flujos Vencidos"
+          value={data.alertSummary.overdueWorkflows}
+          icon={<Clock className="h-4 w-4" />}
+          tone={data.alertSummary.overdueWorkflows > 0 ? "warning" : "neutral"}
+        />
+        <MetricCard
+          label="Stock Bajo"
+          value={data.alertSummary.lowStockItems}
+          icon={<PackageOpen className="h-4 w-4" />}
+          tone={data.alertSummary.lowStockItems > 0 ? "warning" : "neutral"}
+        />
+        <MetricCard
+          label="Lotes por Vencer"
+          value={data.alertSummary.expiringBatches}
+          icon={<CalendarClock className="h-4 w-4" />}
+          tone={data.alertSummary.expiringBatches > 0 ? "primary" : "neutral"}
+        />
+      </MetricGrid>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="border border-border">

@@ -32,7 +32,7 @@ export interface MetricCardProps {
   /** Icono opcional; se muestra en caja tonal arriba-derecha (h-4 w-4). */
   icon?: ReactNode;
   /** Tono semántico: colorea icono, delta y barra de progreso. */
-  tone?: "neutral" | "success" | "warning" | "destructive" | "info";
+  tone?: "neutral" | "success" | "warning" | "destructive" | "info" | "primary";
   /** Subtítulo de contexto bajo el valor. */
   subtitle?: ReactNode;
   /** Variación vs. período anterior. `isPositive` es semántico: el
@@ -42,10 +42,12 @@ export interface MetricCardProps {
     isPositive: boolean;
     label?: string;
   };
-  /** Barra de progreso hacia una meta (0-100). */
+  /** Barra de progreso hacia una meta (0-100). `label` opcional: texto
+   *  sobre la barra (p. ej. "Meta: 90%"), con el % calculado a la derecha. */
   progress?: {
     value: number;
     max?: number;
+    label?: ReactNode;
   };
   /** Convierte la tarjeta en un enlace (patrón alertas de inventario). */
   href?: string;
@@ -62,6 +64,7 @@ const TONE_CLASSES: Record<NonNullable<MetricCardProps["tone"]>, string> = {
   warning: "bg-warning/10 text-warning-text",
   destructive: "bg-destructive/10 text-destructive",
   info: "bg-info/10 text-info",
+  primary: "bg-primary/10 text-primary",
 };
 
 const PROGRESS_FILL: Record<NonNullable<MetricCardProps["tone"]>, string> = {
@@ -70,6 +73,7 @@ const PROGRESS_FILL: Record<NonNullable<MetricCardProps["tone"]>, string> = {
   warning: "bg-warning",
   destructive: "bg-destructive",
   info: "bg-info",
+  primary: "bg-primary",
 };
 
 function MetricCardInner({ ...props }: MetricCardProps) {
@@ -162,6 +166,12 @@ function MetricCardInner({ ...props }: MetricCardProps) {
 
         {pct !== null && (
           <div className="mt-3">
+            {progress?.label && (
+              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                <span>{progress.label}</span>
+                <span>{pct}%</span>
+              </div>
+            )}
             <div
               role="progressbar"
               aria-valuenow={pct}
