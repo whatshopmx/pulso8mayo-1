@@ -38,6 +38,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReviewStatusBadge } from "@/components/workflow/review-status-badge";
+import { scoreColorClass } from "@/lib/utils/score";
 import { toast } from "sonner";
 
 interface WorkflowHistoryItem {
@@ -45,6 +47,8 @@ interface WorkflowHistoryItem {
     templateName: string;
     templateId: string;
     status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED" | "FAILED" | "CANCELLED";
+    reviewStatus: "APPROVED" | "REJECTED" | null;
+    reviewedAt: Date | null;
     score: number | null;
     assigneeName: string | null;
     assigneeId: string | null;
@@ -174,13 +178,6 @@ const getStatusBadge = (status: WorkflowHistoryItem["status"]) => {
       return <Badge variant="secondary">{status}</Badge>;
   }
 };
-
-    const getScoreColor = (score: number | null) => {
-        if (score === null) return "text-muted-foreground";
-        if (score >= 90) return "text-green-600 font-bold";
-        if (score >= 70) return "text-yellow-600 font-bold";
-        return "text-red-600 font-bold";
-    };
 
     const getProgressPercentage = (completed: number, total: number) => {
         if (total === 0) return 0;
@@ -408,7 +405,12 @@ const getStatusBadge = (status: WorkflowHistoryItem["status"]) => {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>{getStatusBadge(workflow.status)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {getStatusBadge(workflow.status)}
+                      {workflow.reviewStatus && <ReviewStatusBadge status={workflow.reviewStatus} />}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <div className="w-24">
@@ -424,7 +426,7 @@ const getStatusBadge = (status: WorkflowHistoryItem["status"]) => {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className={getScoreColor(workflow.score)}>
+                  <TableCell className={scoreColorClass(workflow.score)}>
                     {workflow.score !== null ? `${workflow.score}%` : "-"}
                   </TableCell>
                   <TableCell>
@@ -451,7 +453,8 @@ const getStatusBadge = (status: WorkflowHistoryItem["status"]) => {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Link href={`/dashboard/workflows/${workflow.id}/execute`}>
+                      {/* Revisadas: el veredicto y la evidencia viven en la vista de revisión. */}
+                      <Link href={workflow.reviewStatus ? `/dashboard/workflows/review/${workflow.id}` : `/dashboard/workflows/${workflow.id}/execute`}>
                         <Button variant="ghost" size="sm">
                           <Eye className="h-4 w-4 mr-2" />
                           {tCommon("view")}

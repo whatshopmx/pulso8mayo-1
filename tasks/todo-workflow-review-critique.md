@@ -14,24 +14,24 @@
 ## Phase 1 — History closes the loop
 
 ### Task 1: History API exposes review state
-- [ ] `reviewStatus` + `reviewedAt` added to select in `app/api/workflows/history/route.ts`
-- [ ] Unreviewed rows return `reviewStatus: null`; existing fields unchanged
-- [ ] `pnpm build` passes
+- [x] `reviewStatus` + `reviewedAt` added to select in `app/api/workflows/history/route.ts`
+- [x] Unreviewed rows return `reviewStatus: null`; existing fields unchanged
+- [x] `pnpm build` passes ✓ Compiled 338/338
 
 ### Task 2: Shared score-color helper (tokens)
-- [ ] `lib/utils/score.ts` exports `scoreColorClass(score: number | null): string`
-- [ ] ≥90 `text-success`, ≥70 `text-warning-text`, else `text-destructive`, all bold; null → muted
-- [ ] No raw Tailwind palette classes in the helper (`rg` sweep)
-- [ ] `pnpm build` passes
+- [x] `lib/utils/score.ts` exports `scoreColorClass(score: number | null): string`
+- [x] ≥90 `text-success`, ≥70 `text-warning-text`, else `text-destructive`, all bold; null → muted
+- [x] No raw Tailwind palette classes in the helper (`rg` sweep)
+- [x] `pnpm build` passes
 
 ### Task 3: History table shows the verdict and links to it
-- [ ] Item interface carries `reviewStatus`/`reviewedAt`
-- [ ] Reviewed rows render "Aprobado" (success) / "Rechazado" (destructive) badge
-- [ ] Badge comes from shared `components/workflow/review-status-badge.tsx` (reusable para dashboard)
-- [ ] "Ver" routes reviewed rows → `/review/<id>`, unreviewed → `/execute` (unchanged)
-- [ ] Score cell uses `scoreColorClass`; local `getScoreColor` deleted (T2)
-- [ ] `?revisada` highlight + scroll still works
-- [ ] `pnpm build` passes
+- [x] Item interface carries `reviewStatus`/`reviewedAt`
+- [x] Reviewed rows render "Aprobado" (success) / "Rechazado" (destructive) badge
+- [x] Badge comes from shared `components/workflow/review-status-badge.tsx` (reusable para dashboard)
+- [x] "Ver" routes reviewed rows → `/review/<id>`, unreviewed → `/execute` (unchanged)
+- [x] Score cell uses `scoreColorClass`; local `getScoreColor` deleted (T2)
+- [x] `?revisada` highlight + scroll still works
+- [x] `pnpm build` passes ✓ Compiled 338/338; `tsc --noEmit` clean; eslint 0 errors
 
 ### ✅ Checkpoint 1
 - [ ] Review an execution → history row shows outcome; "Ver" opens the review view

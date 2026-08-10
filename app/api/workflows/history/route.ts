@@ -64,6 +64,8 @@ export async function GET(request: NextRequest) {
             templateName: workflowTemplates.name,
             templateId: workflowTemplates.id,
             status: workflowInstances.status,
+            reviewStatus: workflowInstances.reviewStatus,
+            reviewedAt: workflowInstances.reviewedAt,
             score: workflowInstances.score,
             assigneeName: users.name,
             assigneeId: workflowInstances.assigneeId,
