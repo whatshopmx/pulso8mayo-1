@@ -46,7 +46,9 @@
 - [x] **Task 6 (M)**: `components/inventory/dashboard-kpis.tsx` (4; preservar href/tooltips/dot) · `components/inventory/executive-dashboard.tsx` (KPICard inline)
   - dashboard-kpis: href→prop de MetricCard, tooltip Info en subtitle, dot rojo inline al value (extensión `value: ReactNode`), affordance "Ver detalle"→children
   - executive-dashboard: KPICard local eliminado; color crudo → tone (purple→info); loading spinner → prop loading (skeleton)
-- [ ] **Task 7 (M)**: `components/equipment/equipment-stats.tsx` (5; tones semánticos, eliminar bg crudo sin dark) · `components/dashboard/executive/kpi-hero-cards.tsx` (HeroCard)
+- [x] **Task 7 (M)**: `components/equipment/equipment-stats.tsx` (5; tones semánticos, eliminar bg crudo sin dark) · `components/dashboard/executive/kpi-hero-cards.tsx` (HeroCard)
+  - equipment: bg-*-50/border-*-200 crudo → tone (info/success/warning/destructive/destructive); círculo blanco shadow-sm → caja tonal; loading "..." → prop loading
+  - kpi-hero-cards: HeroCard → MetricCard; color green/amber/red/blue → success/warning/destructive/info; delta nativo de MetricCard (para delta:null no se renderiza); grid → MetricGrid columns={3}
 
 ## Checkpoint: módulos consistentes · sin `bg-blue-50|bg-green-50|bg-purple-50` en KPI · verificación visual dark
 

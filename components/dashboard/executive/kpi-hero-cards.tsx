@@ -11,6 +11,7 @@ import { CrossBranchService } from "@/lib/services/cross-branch-service";
 import { ExecutiveTwinEngine } from "@/lib/services/executive-twin-engine";
 import type { ExecutiveTwin } from "@/lib/services/intelligence/types";
 import { Card, CardContent } from "@/components/ui/card";
+import { MetricCard, MetricGrid } from "@/components/ui/metric-card";
 import {
   ShieldCheck,
   AlertTriangle,
@@ -31,25 +32,12 @@ interface KpiCardData {
   delta: number | null; // percentage change; null = no previous data
   deltaLabel: string;
   icon: React.ElementType;
-  color: "green" | "amber" | "red" | "blue";
+  color: "success" | "warning" | "destructive" | "info";
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function deltaColor(delta: number | null): "emerald" | "red" | "muted" {
-  if (delta === null) return "muted";
-  if (delta > 0) return "emerald";
-  return "red";
-}
-
-// DeltaIcon + deltaColor retained for the (optional) delta badge on cards.
-// All Sprint 1 cards use delta: null, so the badge never renders; the helpers
-// stay so future cards can opt into a delta without touching HeroCard.
-function DeltaIcon({ className }: { delta: number | null; className: string }) {
-  return <Activity className={className} />;
-}
 
 function fmtPercent(n: number): string {
   return `${Math.round(n)}%`;
@@ -63,78 +51,40 @@ function fmtMxnCompact(cents: number): string {
   return `$${(cents / 100).toLocaleString("es-MX", { maximumFractionDigits: 0 })}`;
 }
 
-/** Risk score color (0-100, high = bad): green < 30, amber 30-60, red > 60. */
+/** Risk score color (0-100, high = bad): destructiv < 30 success, 30-60 warning, > 60 destructive. */
 function riskColor(score: number): KpiCardData["color"] {
-  if (score >= 60) return "red";
-  if (score >= 30) return "amber";
-  return "green";
+  if (score >= 60) return "destructive";
+  if (score >= 30) return "warning";
+  return "success";
 }
 
 /** Health score color (0-100, high = good). */
 function healthColor(score: number): KpiCardData["color"] {
-  if (score >= 85) return "green";
-  if (score >= 70) return "amber";
-  return "red";
+  if (score >= 85) return "success";
+  if (score >= 70) return "warning";
+  return "destructive";
 }
 
 // ---------------------------------------------------------------------------
 // Card component
 // ---------------------------------------------------------------------------
 
-const deltaTextColorMap: Record<string, string> = {
-  emerald: "text-emerald-600 dark:text-emerald-400",
-  red: "text-red-600 dark:text-red-400",
-  muted: "text-muted-foreground",
-};
-
 function HeroCard({ data }: { data: KpiCardData }) {
   const Icon = data.icon;
-  const dColor = deltaColor(data.delta);
-
-  const bgMap: Record<string, string> = {
-    green: "bg-emerald-50 dark:bg-emerald-950/30",
-    amber: "bg-amber-50 dark:bg-amber-950/30",
-    red: "bg-red-50 dark:bg-red-950/30",
-    blue: "bg-blue-50 dark:bg-blue-950/30",
-  };
-
-  const iconColorMap: Record<string, string> = {
-    green: "text-emerald-600 dark:text-emerald-400",
-    amber: "text-amber-600 dark:text-amber-400",
-    red: "text-destructive",
-    blue: "text-blue-600 dark:text-blue-400",
-  };
 
   return (
-    <Card className="border-border hover:border-muted-foreground/20 transition-colors">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-muted-foreground">
-              {data.label}
-            </p>
-            <p className="text-3xl font-bold tracking-tight">{data.value}</p>
-            <p className="text-xs text-muted-foreground">{data.secondary}</p>
-          </div>
-          <div className={`p-2.5 rounded-xl ${bgMap[data.color]}`}>
-            <Icon className={`h-5 w-5 ${iconColorMap[data.color]}`} />
-          </div>
-        </div>
-
-        {data.delta !== null && (
-          <div className="mt-3 flex items-center gap-1 text-xs">
-            <DeltaIcon delta={data.delta} className={`h-3.5 w-3.5 ${deltaTextColorMap[dColor]}`} />
-            <span
-              className={`font-semibold ${deltaTextColorMap[dColor]}`}
-            >
-              {data.delta > 0 ? "+" : ""}
-              {data.delta}%
-            </span>
-            <span className="text-muted-foreground">{data.deltaLabel}</span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <MetricCard
+      label={data.label}
+      value={data.value}
+      subtitle={data.secondary}
+      icon={<Icon className="h-4 w-4" />}
+      tone={data.color}
+      delta={
+        data.delta !== null
+          ? { value: data.delta, isPositive: data.delta > 0, label: data.deltaLabel }
+          : undefined
+      }
+    />
   );
 }
 
@@ -254,10 +204,10 @@ export async function KpiHeroCards({ companyId }: { companyId: string }) {
   });
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <MetricGrid columns={3}>
       {cards.map((card) => (
         <HeroCard key={card.label} data={card} />
       ))}
-    </div>
+    </MetricGrid>
   );
 }

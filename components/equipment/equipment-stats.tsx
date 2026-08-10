@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard, MetricGrid } from "@/components/ui/metric-card";
 import { Badge } from "@/components/ui/badge";
 import { 
   Wrench, 
@@ -9,7 +10,6 @@ import {
   CheckCircle2, 
   Clock, 
   AlertCircle,
-  Shield,
   TrendingUp
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -75,32 +75,32 @@ export function EquipmentStats() {
     {
       title: "Total de Equipos",
       value: stats.total,
-      icon: <Wrench className="w-5 h-5 text-blue-500" />,
-      color: "bg-blue-50 border-blue-200",
+      icon: <Wrench className="h-4 w-4" />,
+      tone: "info" as const,
     },
     {
       title: "Equipos Activos",
       value: stats.active,
-      icon: <CheckCircle2 className="w-5 h-5 text-green-500" />,
-      color: "bg-green-50 border-green-200",
+      icon: <CheckCircle2 className="h-4 w-4" />,
+      tone: "success" as const,
     },
     {
       title: "En Mantenimiento",
       value: stats.underMaintenance,
-      icon: <Clock className="w-5 h-5 text-yellow-500" />,
-      color: "bg-yellow-50 border-yellow-200",
+      icon: <Clock className="h-4 w-4" />,
+      tone: "warning" as const,
     },
     {
       title: "Fuera de Servicio",
       value: stats.outOfOrder,
-      icon: <AlertTriangle className="w-5 h-5 text-red-500" />,
-      color: "bg-red-50 border-red-200",
+      icon: <AlertTriangle className="h-4 w-4" />,
+      tone: "destructive" as const,
     },
     {
       title: "Equipos Críticos",
       value: stats.critical,
-      icon: <AlertCircle className="w-5 h-5 text-purple-500" />,
-      color: "bg-purple-50 border-purple-200",
+      icon: <AlertCircle className="h-4 w-4" />,
+      tone: "destructive" as const,
     },
   ];
 
@@ -110,31 +110,18 @@ export function EquipmentStats() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <MetricGrid columns={5}>
         {statCards.map((stat, index) => (
-          <Card key={index} className={`${stat.color} border`}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {stat.title}
-                  </p>
-                  <p className="text-2xl font-bold mt-1">
-                    {isLoading ? (
-                      <span className="animate-pulse">...</span>
-                    ) : (
-                      stat.value
-                    )}
-                  </p>
-                </div>
-                <div className="p-2 bg-white rounded-full shadow-sm">
-                  {stat.icon}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <MetricCard
+            key={index}
+            label={stat.title}
+            value={stat.value}
+            icon={stat.icon}
+            tone={stat.tone}
+            loading={isLoading}
+          />
         ))}
-      </div>
+      </MetricGrid>
 
       {topTypes.length > 0 && (
         <Card>
