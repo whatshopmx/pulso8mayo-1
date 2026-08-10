@@ -111,7 +111,7 @@ export function KpiCard({
                 <div className="flex items-start justify-between">
                     <div className="space-y-1 flex-1">
                         <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-sm">{kpi.name}</h3>
+                            <h3 className="text-sm font-medium text-muted-foreground">{kpi.name}</h3>
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -149,7 +149,7 @@ export function KpiCard({
             <CardContent className="space-y-3">
                 {/* Current Value */}
                 <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold">{formatValue(currentValue)}</span>
+                    <span className="font-mono text-2xl font-bold tracking-tight">{formatValue(currentValue)}</span>
                     <Badge variant="outline" className={`text-xs ${getStatusColor()}`}>
                         {kpi.thresholdType || "TARGET"}
                     </Badge>
