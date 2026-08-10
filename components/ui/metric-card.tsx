@@ -49,6 +49,9 @@ export interface MetricCardProps {
     max?: number;
     label?: ReactNode;
   };
+  /** Contenido extra bajo el delta/progress (p. ej. fila de tooltips,
+   *  dot de alerta, fila de detalle). Se mantiene fuera del layout canónico. */
+  children?: ReactNode;
   /** Convierte la tarjeta en un enlace (patrón alertas de inventario). */
   href?: string;
   /** Skeleton de carga inline. */
@@ -87,6 +90,7 @@ function MetricCardInner({ ...props }: MetricCardProps) {
     progress,
     loading,
     className,
+    children,
   } = props;
 
   if (loading) {
@@ -186,6 +190,8 @@ function MetricCardInner({ ...props }: MetricCardProps) {
             </div>
           </div>
         )}
+
+        {children && <div className="mt-3">{children}</div>}
       </CardContent>
     </Card>
   );

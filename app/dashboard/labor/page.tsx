@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { plannedShifts, shiftSessions, users, shiftApprovals, employeeDocuments, leaveRequests, vacationRequests, breakLogs, shiftTemplates, shiftChangeRequests, holidays, incidents, branches } from "@/lib/db/schema"
 import { eq, and, sql, gte, isNull, inArray, count } from "drizzle-orm"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { MetricCard, MetricGrid } from "@/components/ui/metric-card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, Users, MapPin, TrendingUp, FileText, ArrowLeftRight, Flag, CheckSquare, Coffee, FolderOpen, UserCheck, AlertTriangle, CheckCircle, BarChart3, ClipboardList, Shield, Zap, ChevronRight } from "lucide-react"
@@ -217,59 +218,33 @@ export default async function LaborManagementPage() {
             />
 
             {/* Top Operational Metrics Ribbon */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="bg-card border-border shadow-none">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Empleados Activos</CardTitle>
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold tracking-tight">{activeCount}</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            +{newEmployeesCount} nuevos esta semana
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="bg-card border-border shadow-none">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Horas Semanales</CardTitle>
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold tracking-tight">{weeklyHours}h</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Últimos 7 días
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="bg-card border-border shadow-none">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Aprobaciones Pendientes</CardTitle>
-                        <AlertTriangle className={`h-4 w-4 ${pendingApprovalsCount > 0 ? 'text-amber-500' : 'text-muted-foreground'}`} />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold tracking-tight">{pendingApprovalsCount}</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            {pendingApprovalsCount > 0 ? 'Requieren acción inmediata' : 'Sin pendientes'}
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="bg-card border-border shadow-none">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cumplimiento General</CardTitle>
-                        <Shield className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold tracking-tight">{complianceRate}%</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Semana actual
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
+            <MetricGrid columns={4}>
+                <MetricCard
+                    label="Empleados Activos"
+                    value={activeCount}
+                    icon={<Users className="h-4 w-4" />}
+                    subtitle={`+${newEmployeesCount} nuevos esta semana`}
+                />
+                <MetricCard
+                    label="Horas Semanales"
+                    value={`${weeklyHours}h`}
+                    icon={<Clock className="h-4 w-4" />}
+                    subtitle="Últimos 7 días"
+                />
+                <MetricCard
+                    label="Aprobaciones Pendientes"
+                    value={pendingApprovalsCount}
+                    icon={<AlertTriangle className="h-4 w-4" />}
+                    tone={pendingApprovalsCount > 0 ? "warning" : "neutral"}
+                    subtitle={pendingApprovalsCount > 0 ? "Requieren acción inmediata" : "Sin pendientes"}
+                />
+                <MetricCard
+                    label="Cumplimiento General"
+                    value={`${complianceRate}%`}
+                    icon={<Shield className="h-4 w-4" />}
+                    subtitle="Semana actual"
+                />
+            </MetricGrid>
 
             {/* Asymmetric Command Center Grid (2 Columns) */}
             <div className="grid gap-6 lg:grid-cols-12">

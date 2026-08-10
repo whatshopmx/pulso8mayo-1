@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PerformanceReviewList } from '@/components/performance/review-list';
 import { GoalsList } from '@/components/performance/goals-list';
 import { PerformanceChart } from '@/components/performance/performance-chart';
-import { Plus, BarChart3, TrendingUp, Users } from 'lucide-react';
+import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
+import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface PerformanceDashboardProps {
@@ -73,61 +74,28 @@ export function PerformanceDashboard({ companyId, userId, userRole }: Performanc
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Reviews</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{loading ? '...' : stats.totalReviews}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.completedReviews} completed
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Reviews</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{loading ? '...' : stats.pendingReviews}</div>
-            <p className="text-xs text-muted-foreground">
-              In progress or draft
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Goals</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{loading ? '...' : stats.totalGoals}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.completedGoals} completed
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {loading ? '...' : stats.totalReviews > 0 ? Math.round((stats.completedReviews / stats.totalReviews) * 100) : 0}%
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Review completion
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <MetricGrid columns={4}>
+        <MetricCard
+          label="Total Reviews"
+          value={loading ? '...' : stats.totalReviews}
+          subtitle={`${stats.completedReviews} completed`}
+        />
+        <MetricCard
+          label="Pending Reviews"
+          value={loading ? '...' : stats.pendingReviews}
+          subtitle="In progress or draft"
+        />
+        <MetricCard
+          label="Total Goals"
+          value={loading ? '...' : stats.totalGoals}
+          subtitle={`${stats.completedGoals} completed`}
+        />
+        <MetricCard
+          label="Completion Rate"
+          value={loading ? '...' : stats.totalReviews > 0 ? `${Math.round((stats.completedReviews / stats.totalReviews) * 100)}%` : '0%'}
+          subtitle="Review completion"
+        />
+      </MetricGrid>
 
       {/* Tabs */}
       <Tabs defaultValue="reviews" className="space-y-4">

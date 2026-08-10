@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard, MetricGrid } from "@/components/ui/metric-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -239,69 +240,33 @@ export function ComplianceDashboard() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Cumplimiento General
-                        </CardTitle>
-                        <Shield className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{overallComplianceRate}%</div>
-                        <p className="text-xs text-muted-foreground">
-                            Promedio general de cumplimiento
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Total Workflows
-                        </CardTitle>
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {data.scorecards.reduce((acc, s) => acc + s.totalWorkflows, 0)}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            Completed in period
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Alertas Activas
-                        </CardTitle>
-                        <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{totalAlerts}</div>
-                        <p className="text-xs text-muted-foreground">
-                            {criticalAlerts} critical
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Upcoming Deadlines
-                        </CardTitle>
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{data.deadlines.length}</div>
-                        <p className="text-xs text-muted-foreground">
-                            Next 30 days
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
+            <MetricGrid columns={4}>
+                <MetricCard
+                    label="Cumplimiento General"
+                    value={`${overallComplianceRate}%`}
+                    icon={<Shield className="h-4 w-4" />}
+                    subtitle="Promedio general de cumplimiento"
+                />
+                <MetricCard
+                    label="Total Workflows"
+                    value={data.scorecards.reduce((acc, s) => acc + s.totalWorkflows, 0)}
+                    icon={<FileText className="h-4 w-4" />}
+                    subtitle="Completed in period"
+                />
+                <MetricCard
+                    label="Alertas Activas"
+                    value={totalAlerts}
+                    icon={<AlertTriangle className="h-4 w-4" />}
+                    tone={totalAlerts > 0 ? "warning" : "neutral"}
+                    subtitle={`${criticalAlerts} critical`}
+                />
+                <MetricCard
+                    label="Upcoming Deadlines"
+                    value={data.deadlines.length}
+                    icon={<Calendar className="h-4 w-4" />}
+                    subtitle="Next 30 days"
+                />
+            </MetricGrid>
 
             {/* Main Dashboard Tabs */}
             <Tabs defaultValue="scorecards" className="space-y-4">

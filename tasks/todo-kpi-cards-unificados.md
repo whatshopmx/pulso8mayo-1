@@ -41,7 +41,8 @@
 
 ## Phase 4: Módulos con cards inline
 
-- [ ] **Task 5 (M)**: `app/dashboard/labor/page.tsx` (4 KPI) · `components/performance/performance-dashboard.tsx` (3) · `components/compliance/compliance-dashboard.tsx` (4) · `components/compliance/corporate-compliance-grid.tsx` (3 KPI; grid tabular fuera)
+- [x] **Task 5 (M)**: `app/dashboard/labor/page.tsx` (4 KPI) · `components/performance/performance-dashboard.tsx` (4, no 3: hay también Completion Rate) · `components/compliance/compliance-dashboard.tsx` (4) · `components/compliance/corporate-compliance-grid.tsx` (4 KPI; el 4to "Desviaciones y Alertas" también es card de métrica → migrado; tabular = chart comparación, fuera)
+  - Extensión canónica: prop `children` (fila extra bajo delta/progress — necesaria para best/worst branch, y en Task 6 para tooltips/"Ver detalle")
 - [ ] **Task 6 (M)**: `components/inventory/dashboard-kpis.tsx` (4; preservar href/tooltips/dot) · `components/inventory/executive-dashboard.tsx` (KPICard inline)
 - [ ] **Task 7 (M)**: `components/equipment/equipment-stats.tsx` (5; tones semánticos, eliminar bg crudo sin dark) · `components/dashboard/executive/kpi-hero-cards.tsx` (HeroCard)
 

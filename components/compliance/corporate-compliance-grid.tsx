@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard, MetricGrid } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -221,93 +222,56 @@ export function CorporateComplianceGrid() {
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <MetricGrid columns={4}>
         {/* Card 1: Corporate Average */}
-        <Card className="border-primary/10">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold">
-              Cumplimiento Corporativo
-            </CardDescription>
-            <CardTitle className="text-3xl font-bold tracking-tight text-primary flex items-baseline gap-1">
-              {avgCompliance}%
-              <span className="text-xs text-muted-foreground font-normal">promedio</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Progress value={avgCompliance} className="h-2" />
-            <div className="flex items-center gap-1.5 mt-2.5 text-xs text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-yellow-500" />
-              <span>Calificación global NOM-251</span>
-            </div>
-          </CardContent>
-        </Card>
+        <MetricCard
+          label="Cumplimiento Corporativo"
+          value={`${avgCompliance}%`}
+          subtitle={
+            <span className="inline-flex items-center gap-1">
+              <Sparkles className="h-3 w-3 text-warning-text" />
+              promedio · Calificación global NOM-251
+            </span>
+          }
+          progress={{ value: avgCompliance }}
+        />
 
         {/* Card 2: Best Branch */}
-        <Card className="border-green-500/10">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold">
-              Mayor Cumplimiento
-            </CardDescription>
-            <CardTitle className="text-xl font-bold truncate text-green-700 flex items-center gap-1.5">
-              <TrendingUp className="h-5 w-5 text-green-600" />
-              {bestBranch ? bestBranch.branchName : "N/A"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-extrabold">{bestBranch ? `${bestBranch.complianceRate}%` : "N/A"}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Gerente: {bestBranch ? bestBranch.managerName : "N/A"}
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          label="Mayor Cumplimiento"
+          value={bestBranch ? `${bestBranch.complianceRate}%` : "N/A"}
+          icon={<TrendingUp className="h-4 w-4" />}
+          tone="success"
+          subtitle={bestBranch ? bestBranch.branchName : "N/A"}
+        >
+          <p className="text-xs text-muted-foreground">
+            Gerente: {bestBranch ? bestBranch.managerName : "N/A"}
+          </p>
+        </MetricCard>
 
         {/* Card 3: Worst Branch */}
-        <Card className="border-red-500/10">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold">
-              Menor Cumplimiento
-            </CardDescription>
-            <CardTitle className="text-xl font-bold truncate text-red-700 flex items-center gap-1.5">
-              <TrendingDown className="h-5 w-5 text-red-600" />
-              {worstBranch ? worstBranch.branchName : "N/A"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-extrabold text-red-600">
-              {worstBranch ? `${worstBranch.complianceRate}%` : "N/A"}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Requiere supervisión e intervención
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          label="Menor Cumplimiento"
+          value={worstBranch ? `${worstBranch.complianceRate}%` : "N/A"}
+          icon={<TrendingDown className="h-4 w-4" />}
+          tone="destructive"
+          subtitle={worstBranch ? worstBranch.branchName : "N/A"}
+        >
+          <p className="text-xs text-muted-foreground">Requiere supervisión e intervención</p>
+        </MetricCard>
 
         {/* Card 4: Incidents */}
-        <Card className="border-yellow-500/10">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold">
-              Desviaciones y Alertas
-            </CardDescription>
-            <CardTitle className="text-3xl font-extrabold text-yellow-600 flex items-baseline gap-1.5">
-              {totalOpenIncidents}
-              <span className="text-xs text-muted-foreground font-normal">activas</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex justify-between items-center text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3 text-red-500" />
-                {totalCriticalIncidents} críticas
-              </span>
-              <span>De {validBranches.reduce((acc, b) => acc + b.incidents.total, 0)} totales</span>
-            </div>
-            <Progress
-              value={totalOpenIncidents > 0 ? (totalCriticalIncidents / totalOpenIncidents) * 100 : 0}
-              className="h-1.5 mt-2.5 bg-yellow-100"
-            />
-          </CardContent>
-        </Card>
-      </div>
+        <MetricCard
+          label="Desviaciones y Alertas"
+          value={totalOpenIncidents}
+          icon={<AlertTriangle className="h-4 w-4" />}
+          tone={totalOpenIncidents > 0 ? "destructive" : "neutral"}
+          subtitle={`${totalCriticalIncidents} críticas · de ${validBranches.reduce((acc, b) => acc + b.incidents.total, 0)} totales`}
+          progress={{
+            value: totalOpenIncidents > 0 ? (totalCriticalIncidents / totalOpenIncidents) * 100 : 0,
+          }}
+        />
+      </MetricGrid>
 
       {/* Comparison Chart */}
       <Card>
