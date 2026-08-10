@@ -2,15 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/shared";
-import { Badge } from "@/components/ui/badge";
 import {
     DollarSign, TrendingDown, TrendingUp, Package,
-    AlertTriangle, RefreshCw, Loader2, Building2
+    AlertTriangle, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -53,31 +52,6 @@ const ROLE_VIEWS: Record<string, { title: string; description: string; kpis: str
 
 function formatCents(cents: number): string {
     return "$" + (cents / 100).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function KPICard({
-    title, value, subtitle, icon, color, loading,
-}: {
-    title: string; value: string; subtitle: string; icon: React.ReactNode; color: string; loading: boolean;
-}) {
-    return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-                <div className={`h-5 w-5 ${color}`}>{icon}</div>
-            </CardHeader>
-            <CardContent>
-                {loading ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                ) : (
-                    <>
-                        <div className="text-2xl font-bold font-mono">{value}</div>
-                        <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
-                    </>
-                )}
-            </CardContent>
-        </Card>
-    );
 }
 
 export function ExecutiveDashboard() {
@@ -157,89 +131,89 @@ export function ExecutiveDashboard() {
             {/* KPIs Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {show("foodCost") && (
-                    <KPICard
-                        title="Food Cost"
+                    <MetricCard
+                        label="Food Cost"
                         value={kpi ? `${kpi.foodCostPercent}%` : "—"}
                         subtitle={`COGS ${kpi ? formatCents(kpi.cogsCents) : "—"} · Revenue ${kpi ? formatCents(kpi.revenueCents) : "—"}`}
-                        icon={<TrendingDown className="h-5 w-5" />}
-                        color={kpi && kpi.foodCostPercent > 35 ? "text-red-500" : kpi && kpi.foodCostPercent > 28 ? "text-amber-500" : "text-green-500"}
+                        icon={<TrendingDown className="h-4 w-4" />}
+                        tone={kpi && kpi.foodCostPercent > 35 ? "destructive" : kpi && kpi.foodCostPercent > 28 ? "warning" : "success"}
                         loading={loading}
                     />
                 )}
 
                 {show("cogs") && (
-                    <KPICard
-                        title="COGS (Costo de Ventas)"
+                    <MetricCard
+                        label="COGS (Costo de Ventas)"
                         value={kpi ? formatCents(kpi.cogsCents) : "—"}
                         subtitle={`Período: ${startDate} → ${endDate}`}
-                        icon={<DollarSign className="h-5 w-5" />}
-                        color="text-blue-500"
+                        icon={<DollarSign className="h-4 w-4" />}
+                        tone="info"
                         loading={loading}
                     />
                 )}
 
                 {show("revenue") && (
-                    <KPICard
-                        title="Ingresos (Ventas)"
+                    <MetricCard
+                        label="Ingresos (Ventas)"
                         value={kpi ? formatCents(kpi.revenueCents) : "—"}
                         subtitle="Revenue total del período"
-                        icon={<TrendingUp className="h-5 w-5" />}
-                        color="text-green-500"
+                        icon={<TrendingUp className="h-4 w-4" />}
+                        tone="success"
                         loading={loading}
                     />
                 )}
 
                 {show("turnover") && (
-                    <KPICard
-                        title="Rotación de Inventario"
+                    <MetricCard
+                        label="Rotación de Inventario"
                         value={kpi ? kpi.inventoryTurnover.toString() : "—"}
                         subtitle={`${kpi?.stockDays ?? "—"} días de stock`}
-                        icon={<RefreshCw className="h-5 w-5" />}
-                        color="text-purple-500"
+                        icon={<RefreshCw className="h-4 w-4" />}
+                        tone="info"
                         loading={loading}
                     />
                 )}
 
                 {show("stockDays") && (
-                    <KPICard
-                        title="Días de Stock"
+                    <MetricCard
+                        label="Días de Stock"
                         value={kpi ? kpi.stockDays.toString() : "—"}
                         subtitle="Cobertura de inventario actual"
-                        icon={<Package className="h-5 w-5" />}
-                        color={kpi && kpi.stockDays > 30 ? "text-amber-500" : "text-blue-500"}
+                        icon={<Package className="h-4 w-4" />}
+                        tone={kpi && kpi.stockDays > 30 ? "warning" : "info"}
                         loading={loading}
                     />
                 )}
 
                 {show("shrinkage") && (
-                    <KPICard
-                        title="Merma / Shrinkage"
+                    <MetricCard
+                        label="Merma / Shrinkage"
                         value={kpi ? `${kpi.shrinkagePercent}%` : "—"}
                         subtitle="% de pérdida sobre consumo total"
-                        icon={<AlertTriangle className="h-5 w-5" />}
-                        color={kpi && kpi.shrinkagePercent > 5 ? "text-red-500" : "text-muted-foreground"}
+                        icon={<AlertTriangle className="h-4 w-4" />}
+                        tone={kpi && kpi.shrinkagePercent > 5 ? "destructive" : "neutral"}
                         loading={loading}
                     />
                 )}
 
                 {show("fillRate") && (
-                    <KPICard
-                        title="Fill Rate"
+                    <MetricCard
+                        label="Fill Rate"
                         value={kpi ? `${kpi.fillRate}%` : "—"}
                         subtitle="% de items con stock ≥ mínimo"
-                        icon={<Package className="h-5 w-5" />}
-                        color={kpi && kpi.fillRate < 80 ? "text-red-500" : kpi && kpi.fillRate < 90 ? "text-amber-500" : "text-green-500"}
+                        icon={<Package className="h-4 w-4" />}
+                        tone={kpi && kpi.fillRate < 80 ? "destructive" : kpi && kpi.fillRate < 90 ? "warning" : "success"}
                         loading={loading}
                     />
                 )}
 
                 {show("countAccuracy") && (
-                    <KPICard
-                        title="Exactitud de Conteo"
+                    <MetricCard
+                        label="Exactitud de Conteo"
                         value={kpi?.countAccuracy != null ? `${kpi.countAccuracy}%` : "N/A"}
                         subtitle="Último conteo: items con varianza ≤5%"
-                        icon={<TrendingUp className="h-5 w-5" />}
-                        color={kpi && kpi.countAccuracy != null && kpi.countAccuracy < 80 ? "text-red-500" : "text-green-500"}
+                        icon={<TrendingUp className="h-4 w-4" />}
+                        tone={kpi && kpi.countAccuracy != null && kpi.countAccuracy < 80 ? "destructive" : "success"}
                         loading={loading}
                     />
                 )}

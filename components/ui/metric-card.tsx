@@ -27,8 +27,8 @@ import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 export interface MetricCardProps {
   /** Etiqueta corta del KPI, en español ("Valor del Inventario"). */
   label: string;
-  /** Valor formateado o número crudo. */
-  value: string | number;
+  /** Valor formateado, número crudo o nodo con adornos (p. ej. dot de alerta). */
+  value: ReactNode;
   /** Icono opcional; se muestra en caja tonal arriba-derecha (h-4 w-4). */
   icon?: ReactNode;
   /** Tono semántico: colorea icono, delta y barra de progreso. */
