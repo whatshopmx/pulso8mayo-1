@@ -32,8 +32,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle, Package, TrendingDown, Clock, RefreshCw, Eye, CheckCircle2, XCircle, AlertTriangle, Bell } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, PageContainer, KpiCard, KpiGrid } from "@/components/shared";
-import { KpiCardsSkeleton, DataTableSkeleton, PageHeaderSkeleton } from "@/components/shared/skeletons";
+import { PageHeader, PageContainer } from "@/components/shared";
+import { DataTableSkeleton, PageHeaderSkeleton } from "@/components/shared/skeletons";
+import { MetricCard, MetricGrid, MetricCardSkeleton } from "@/components/ui/metric-card";
 
 interface AlertRecord {
     id: string;
@@ -189,7 +190,7 @@ const getSeverityBadge = (severity: string) => {
         return (
             <div className="p-6 space-y-6">
                 <PageHeaderSkeleton />
-                <KpiCardsSkeleton count={5} />
+                <MetricCardSkeleton count={5} />
                 <DataTableSkeleton columns={6} rows={8} />
             </div>
         );
@@ -204,13 +205,13 @@ const getSeverityBadge = (severity: string) => {
             />
             {/* Summary Cards */}
             {summary && (
-                <KpiGrid columns={5}>
-                    <KpiCard title="Total" value={summary.total} icon={<AlertCircle />} />
-                    <KpiCard title="Activas" value={summary.active} icon={<AlertCircle />} valueClassName="text-red-600" />
-                    <KpiCard title="En Proceso" value={summary.inProgress} icon={<Clock />} valueClassName="text-blue-600" />
-                    <KpiCard title="Resueltas" value={summary.resolved} icon={<CheckCircle2 />} valueClassName="text-green-600" />
-                    <KpiCard title="Descartadas" value={summary.dismissed} icon={<XCircle />} valueClassName="text-muted-foreground" />
-                </KpiGrid>
+                <MetricGrid columns={5}>
+                    <MetricCard label="Total" value={summary.total} icon={<AlertCircle className="h-4 w-4" />} />
+                    <MetricCard label="Activas" value={summary.active} icon={<AlertCircle className="h-4 w-4" />} tone="destructive" />
+                    <MetricCard label="En Proceso" value={summary.inProgress} icon={<Clock className="h-4 w-4" />} tone="info" />
+                    <MetricCard label="Resueltas" value={summary.resolved} icon={<CheckCircle2 className="h-4 w-4" />} tone="success" />
+                    <MetricCard label="Descartadas" value={summary.dismissed} icon={<XCircle className="h-4 w-4" />} tone="neutral" />
+                </MetricGrid>
             )}
 
             {/* Filters */}

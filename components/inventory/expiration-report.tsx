@@ -23,7 +23,7 @@ import { AlertTriangle, Calendar, Download, Package } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { KpiCard, KpiGrid } from "@/components/shared";
+import { MetricCard, MetricGrid } from "@/components/ui/metric-card";
 import { useExportCsv } from "@/components/shared/use-export-csv";
 
 interface ExpirationItem {
@@ -144,34 +144,34 @@ export function ExpirationReport({ branchId }: ExpirationReportProps) {
     <div className="space-y-6">
       {/* Summary Cards */}
       {summary && (
-        <KpiGrid columns={4}>
-          <KpiCard
-            title="Total Productos"
+        <MetricGrid columns={4}>
+          <MetricCard
+            label="Total Productos"
             value={summary.totalItems}
-            icon={<Package />}
-            description="Próximos a vencer"
+            icon={<Package className="h-4 w-4" />}
+            subtitle="Próximos a vencer"
           />
-          <KpiCard
-            title="Vencen Pronto"
+          <MetricCard
+            label="Vencen Pronto"
             value={summary.expiringSoon}
-            icon={<Calendar className="text-amber-600" />}
-            description="En los próximos 7 días"
-            valueClassName="text-amber-600"
+            icon={<Calendar className="h-4 w-4" />}
+            subtitle="En los próximos 7 días"
+            tone="warning"
           />
-          <KpiCard
-            title="Ya Vencidos"
+          <MetricCard
+            label="Ya Vencidos"
             value={summary.alreadyExpired}
-            icon={<AlertTriangle className="text-red-600" />}
-            description="Requieren acción inmediata"
-            valueClassName="text-red-600"
+            icon={<AlertTriangle className="h-4 w-4" />}
+            subtitle="Requieren acción inmediata"
+            tone="destructive"
           />
-          <KpiCard
-            title="Pérdida Estimada"
+          <MetricCard
+            label="Pérdida Estimada"
             value={`$${summary.estimatedLoss.toFixed(2)}`}
-            icon={<Package />}
-            description="Valor del inventario en riesgo"
+            icon={<Package className="h-4 w-4" />}
+            subtitle="Valor del inventario en riesgo"
           />
-        </KpiGrid>
+        </MetricGrid>
       )}
 
       {/* Filters */}

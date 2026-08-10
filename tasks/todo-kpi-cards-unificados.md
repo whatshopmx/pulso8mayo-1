@@ -5,26 +5,27 @@
 
 ## Phase 1: Fundación
 
-- [ ] **Task 1 (M)**: Crear `components/ui/metric-card.tsx` (MetricCard + MetricGrid + MetricCardSkeleton)
+- [x] **Task 1 (M)**: Crear `components/ui/metric-card.tsx` (MetricCard + MetricGrid + MetricCardSkeleton)
   - Props: `label, value, icon?, tone?, delta?, subtitle?, href?, progress?, loading?, className?`
   - Grid 2/3/4/5 col; sin sombras; tokens semánticos; dark mode; variante clickeable con focus ring
-  - Verificación: build; demo visual en `/dashboard`
+  - Verificación: eslint 0 · tsc --noEmit 0 errores · next compile OK (visual demo pendiente: browser no disponible)
 
 ## Checkpoint: Fundación · review humana de OQ-1..3 antes de migrar
 
 ## Phase 2: Gemelos compartidos
 
-- [ ] **Task 2 (M)**: Migrar 4 consumidores de `StatCard` → MetricCard y borrar `components/ui/stat-card.tsx`
+- [x] **Task 2 (M)**: Migrar 4 consumidores de `StatCard` → MetricCard y borrar `components/ui/stat-card.tsx`
   - `app/dashboard/audit/page.tsx`
   - `components/assignments/assignment-stats.tsx`
   - `components/dashboard/compliance-metrics.tsx`
   - `components/schedules/schedule-stats.tsx`
-- [ ] **Task 3 (M)**: Migrar 5 consumidores de `shared/kpi-card` → MetricCard/MetricGrid y borrar `components/shared/kpi-card.tsx`
-  - `app/dashboard/civil-protection/page.tsx`
-  - `app/dashboard/inventory/alerts/page.tsx`
-  - `components/analytics/kpi-templates.tsx`
-  - `components/inventory/expiration-report.tsx`
-  - `components/inventory/stock-alerts.tsx`
+- [x] **Task 3 (M)**: Migrar 5 consumidores de `shared/kpi-card` → MetricCard/MetricGrid y borrar `components/shared/kpi-card.tsx`
+  - `app/dashboard/civil-protection/page.tsx` ✅ (3 cards; tones warning/destructive)
+  - `app/dashboard/inventory/alerts/page.tsx` ✅ (5 cards; tones destructive/info/success; skeleton→MetricCardSkeleton)
+  - `components/analytics/kpi-templates.tsx` ⛔ **excluido**: NO importa `shared/kpi-card`; su `KpiCard`/`KpiGrid` local es un catálogo de plantillas (botón +, badges, benchmark) — no una card de métrica. Verificado por grep. Decisión: no forzar MetricCard (espíritu "casos especiales NO se fuerza").
+  - `components/inventory/expiration-report.tsx` ✅ (4 cards; tones warning/destructive)
+  - `components/inventory/stock-alerts.tsx` ✅ (4 cards; tones warning/destructive; skeleton→MetricCardSkeleton)
+  - Borrado `components/shared/kpi-card.tsx` + re-export en `shared/index.ts` ✅ (grep global 0 referencias)
 
 ## Checkpoint: gemelos eliminados · grep limpio · build + lint
 

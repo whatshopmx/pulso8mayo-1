@@ -30,7 +30,8 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PageHeader, PageContainer, EmptyState, KpiCard, KpiGrid } from "@/components/shared";
+import { PageHeader, PageContainer, EmptyState } from "@/components/shared";
+import { MetricCard, MetricGrid } from "@/components/ui/metric-card";
 import {
     Plus,
     ShieldCheck,
@@ -246,26 +247,28 @@ export default function CivilProtectionPage() {
             />
 
             {/* KPIs */}
-            <KpiGrid className="mb-6">
-                <KpiCard
-                    title="Simulacros registrados"
+            <MetricGrid className="mb-6">
+                <MetricCard
+                    label="Simulacros registrados"
                     value={kpis?.drillsTotal ?? "—"}
                     icon={<ShieldCheck className="h-4 w-4" />}
-                    description={kpis?.drillsLastDate ? `Ultimo: ${formatDate(kpis.drillsLastDate)}` : "Sin registros"}
+                    subtitle={kpis?.drillsLastDate ? `Ultimo: ${formatDate(kpis.drillsLastDate)}` : "Sin registros"}
                 />
-                <KpiCard
-                    title="Extintores por vencer (30 dias)"
+                <MetricCard
+                    label="Extintores por vencer (30 dias)"
                     value={kpis?.extinguishersExpiringSoon ?? "—"}
                     icon={<Clock className="h-4 w-4" />}
-                    description={kpis?.extinguishersExpired ? `${kpis.extinguishersExpired} vencidos` : "Ninguno vencido"}
+                    subtitle={kpis?.extinguishersExpired ? `${kpis.extinguishersExpired} vencidos` : "Ninguno vencido"}
+                    tone="warning"
                 />
-                <KpiCard
-                    title="Salidas con incidencias"
+                <MetricCard
+                    label="Salidas con incidencias"
                     value={kpis?.exitsWithIssues ?? "—"}
                     icon={<AlertTriangle className="h-4 w-4" />}
-                    description={kpis?.exitsLastInspection ? `Ultima revision: ${formatDate(kpis.exitsLastInspection)}` : "Sin revisiones"}
+                    subtitle={kpis?.exitsLastInspection ? `Ultima revision: ${formatDate(kpis.exitsLastInspection)}` : "Sin revisiones"}
+                    tone="destructive"
                 />
-            </KpiGrid>
+            </MetricGrid>
 
             {error && (
                 <Card className="mb-6 border-destructive">

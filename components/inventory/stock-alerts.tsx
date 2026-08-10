@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/table";
 import { AlertCircle, Package, TrendingDown, Clock, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { KpiCard, KpiGrid } from "@/components/shared";
-import { KpiCardsSkeleton, DataTableSkeleton } from "@/components/shared/skeletons";
+import { DataTableSkeleton } from "@/components/shared/skeletons";
+import { MetricCard, MetricGrid, MetricCardSkeleton } from "@/components/ui/metric-card";
 
 const formatUnit = (unit?: string | null) => {
     if (!unit) return "unidades";
@@ -115,7 +115,7 @@ export function StockAlerts({ branchId, onRefresh }: StockAlertsProps) {
     if (loading) {
         return (
             <div className="space-y-6">
-                <KpiCardsSkeleton count={4} />
+                <MetricCardSkeleton count={4} />
                 <DataTableSkeleton columns={5} rows={8} />
             </div>
         );
@@ -133,32 +133,36 @@ export function StockAlerts({ branchId, onRefresh }: StockAlertsProps) {
     return (
         <div className="space-y-6">
             {/* Summary Cards */}
-            <KpiGrid columns={4}>
-                <KpiCard
-                    title="Stock Bajo"
+            <MetricGrid columns={4}>
+                <MetricCard
+                    label="Stock Bajo"
                     value={alerts.summary.lowStockCount}
-                    icon={<TrendingDown className="text-yellow-600" />}
-                    description="Items por debajo del mínimo"
+                    icon={<TrendingDown className="h-4 w-4" />}
+                    subtitle="Items por debajo del mínimo"
+                    tone="warning"
                 />
-                <KpiCard
-                    title="Agotados"
+                <MetricCard
+                    label="Agotados"
                     value={alerts.summary.outOfStockCount}
-                    icon={<Package className="text-red-600" />}
-                    description="Items sin stock"
+                    icon={<Package className="h-4 w-4" />}
+                    subtitle="Items sin stock"
+                    tone="destructive"
                 />
-                <KpiCard
-                    title="Por Vencer"
+                <MetricCard
+                    label="Por Vencer"
                     value={alerts.summary.expiringSoonCount}
-                    icon={<Clock className="text-orange-600" />}
-                    description="Vencen en 7 días"
+                    icon={<Clock className="h-4 w-4" />}
+                    subtitle="Vencen en 7 días"
+                    tone="warning"
                 />
-                <KpiCard
-                    title="Vencidos"
+                <MetricCard
+                    label="Vencidos"
                     value={alerts.summary.expiredCount}
-                    icon={<AlertCircle className="text-red-600" />}
-                    description="Items vencidos"
+                    icon={<AlertCircle className="h-4 w-4" />}
+                    subtitle="Items vencidos"
+                    tone="destructive"
                 />
-            </KpiGrid>
+            </MetricGrid>
 
             {/* Action Bar */}
             <div className="flex justify-between items-center">
