@@ -69,7 +69,7 @@ export default function SUAGeneratorPage() {
 
     const generateSUAFile = async () => {
         if (selectedEmployees.size === 0) {
-            toast.error("Ingresa al menos un salary");
+            toast.error("Ingresa al menos un salario");
             return;
         }
         setGenerating(true);
@@ -217,7 +217,7 @@ export default function SUAGeneratorPage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="font-medium">
-                                    {selectedEmployees.size} empleado(s) con salary nuevo
+                                    {selectedEmployees.size} empleado(s) con salario nuevo
                                 </p>
                                 <p className="text-sm text-muted-foreground">
                                     Generará archivo SUA para IMSS

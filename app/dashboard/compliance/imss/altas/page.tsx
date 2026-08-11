@@ -4,11 +4,13 @@ import { PageHeader } from "@/components/shared";
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricGrid, MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, UserPlus, FileDown, AlertTriangle, Building2 } from "lucide-react";
+import { Loader2, UserPlus, FileDown, AlertTriangle, Building2, Clock } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 interface IMSSAlta {
@@ -148,35 +150,29 @@ export default function IMSSAltasPage() {
                 </AlertDescription>
             </Alert>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-orange-600">{pendingCount}</div>
-                        <p className="text-xs text-muted-foreground">Sin datos completos</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-sm font-medium">Listos</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-green-600">{readyCount}</div>
-                        <p className="text-xs text-muted-foreground">Con NSS, CURP y RFC</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-sm font-medium">Vencidos</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-red-600">{overdueCount}</div>
-                        <p className="text-xs text-muted-foreground">Pasaron deadline</p>
-                    </CardContent>
-                </Card>
-            </div>
+            <MetricGrid columns={3}>
+                <MetricCard
+                    label="Pendientes"
+                    value={pendingCount}
+                    icon={<Clock className="h-4 w-4" />}
+                    tone="warning"
+                    subtitle="Sin datos completos"
+                />
+                <MetricCard
+                    label="Listos"
+                    value={readyCount}
+                    icon={<UserPlus className="h-4 w-4" />}
+                    tone="success"
+                    subtitle="Con NSS, CURP y RFC"
+                />
+                <MetricCard
+                    label="Vencidos"
+                    value={overdueCount}
+                    icon={<AlertTriangle className="h-4 w-4" />}
+                    tone="destructive"
+                    subtitle="Plazo vencido"
+                />
+            </MetricGrid>
 
             {altas.length > 0 ? (
                 <Card>
@@ -191,14 +187,17 @@ export default function IMSSAltasPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-12">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={toggleAll}
-                                            className="h-8 px-2"
-                                        >
-                                            {selectedEmployees.size === readyCount && readyCount > 0 ? "✓" : "○"}
-                                        </Button>
+                                        <Checkbox
+                                            checked={
+                                                readyCount > 0 && selectedEmployees.size === readyCount
+                                                    ? true
+                                                    : selectedEmployees.size > 0
+                                                        ? "indeterminate"
+                                                        : false
+                                            }
+                                            onCheckedChange={toggleAll}
+                                            aria-label="Seleccionar todos"
+                                        />
                                     </TableHead>
                                     <TableHead>Nombre</TableHead>
                                     <TableHead>No. Empleado</TableHead>
@@ -214,18 +213,15 @@ export default function IMSSAltasPage() {
                                 {altas.map(alta => (
                                     <TableRow
                                         key={alta.userId}
-                                        className={alta.status === "READY" ? "bg-green-50/50" : ""}
+                                        className={alta.status === "READY" ? "border-l-2 border-success" : ""}
                                     >
                                         <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
+                                            <Checkbox
+                                                checked={selectedEmployees.has(alta.userId)}
+                                                onCheckedChange={() => toggleEmployee(alta.userId)}
                                                 disabled={alta.status !== "READY"}
-                                                onClick={() => toggleEmployee(alta.userId)}
-                                                className="h-8 px-2"
-                                            >
-                                                {selectedEmployees.has(alta.userId) ? "✓" : "○"}
-                                            </Button>
+                                                aria-label={`Seleccionar ${alta.name}`}
+                                            />
                                         </TableCell>
                                         <TableCell>
                                             <div className="font-medium">{alta.name}</div>

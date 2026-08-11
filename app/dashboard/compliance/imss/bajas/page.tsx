@@ -3,11 +3,13 @@
 import { PageHeader } from "@/components/shared";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricGrid, MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, UserMinus, FileDown, AlertTriangle, Clock } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 interface IMSSBaja {
@@ -109,7 +111,7 @@ export default function IMSSBajasPage() {
     const getStatusBadge = (status: string) => {
         switch (status) {
             case "READY":
-                return <Badge variant="default" className="bg-blue-600">Listo</Badge>;
+                return <Badge variant="default" className="bg-success">Listo</Badge>;
             case "DEREGISTERED":
                 return <Badge variant="secondary">Baja Completada</Badge>;
             case "OVERDUE":
@@ -130,7 +132,7 @@ export default function IMSSBajasPage() {
     return (
         <div className="space-y-6">
             <PageHeader
-                title="IMSS Bajas — Desregistro de Empleados"
+                title="IMSS Bajas — Aviso de Baja"
                 description="Notifica las bajas de empleados ante el IMSS dentro de los 5 días hábiles"
                 icon={UserMinus}
             />
@@ -138,47 +140,41 @@ export default function IMSSBajasPage() {
             <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                    El desregistro debe completarse antes de 5 días hábiles después de la terminación.
-                    No desregistrar puede resultar en obligaciones de contribución continuadas.
+                    El aviso de baja debe completarse antes de 5 días hábiles después de la terminación.
+                    No dar de baja puede resultar en obligaciones de contribución continuadas.
                 </AlertDescription>
             </Alert>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-orange-600">{pendingCount}</div>
-                        <p className="text-xs text-muted-foreground">Sin datos completos</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-sm font-medium">Listos</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-blue-600">{readyCount}</div>
-                        <p className="text-xs text-muted-foreground">Con NSS válido</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-sm font-medium">Vencidos</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-red-600">{overdueCount}</div>
-                        <p className="text-xs text-muted-foreground">Pasaron deadline</p>
-                    </CardContent>
-                </Card>
-            </div>
+            <MetricGrid columns={3}>
+                <MetricCard
+                    label="Pendientes"
+                    value={pendingCount}
+                    icon={<Clock className="h-4 w-4" />}
+                    tone="warning"
+                    subtitle="Sin datos completos"
+                />
+                <MetricCard
+                    label="Listos"
+                    value={readyCount}
+                    icon={<UserMinus className="h-4 w-4" />}
+                    tone="success"
+                    subtitle="Con NSS válido"
+                />
+                <MetricCard
+                    label="Vencidos"
+                    value={overdueCount}
+                    icon={<AlertTriangle className="h-4 w-4" />}
+                    tone="destructive"
+                    subtitle="Plazo vencido"
+                />
+            </MetricGrid>
 
             {bajas.length > 0 ? (
                 <Card>
                     <CardHeader>
                         <CardTitle>Empleados Dados de Baja</CardTitle>
                         <CardDescription>
-                            {bajas.length} empleado(s) terminated(s)
+                            {bajas.length} empleado(s) dado(s) de baja
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -186,14 +182,17 @@ export default function IMSSBajasPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-12">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={toggleAll}
-                                            className="h-8 px-2"
-                                        >
-                                            {selectedEmployees.size === bajas.length ? "✓" : "○"}
-                                        </Button>
+                                        <Checkbox
+                                            checked={
+                                                readyCount > 0 && selectedEmployees.size === readyCount
+                                                    ? true
+                                                    : selectedEmployees.size > 0
+                                                        ? "indeterminate"
+                                                        : false
+                                            }
+                                            onCheckedChange={toggleAll}
+                                            aria-label="Seleccionar todos"
+                                        />
                                     </TableHead>
                                     <TableHead>Nombre</TableHead>
                                     <TableHead>No. Empleado</TableHead>
@@ -208,14 +207,12 @@ export default function IMSSBajasPage() {
                                 {bajas.map(baja => (
                                     <TableRow key={baja.userId}>
                                         <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => toggleEmployee(baja.userId)}
-                                                className="h-8 px-2"
-                                            >
-                                                {selectedEmployees.has(baja.userId) ? "✓" : "○"}
-                                            </Button>
+                                            <Checkbox
+                                                checked={selectedEmployees.has(baja.userId)}
+                                                onCheckedChange={() => toggleEmployee(baja.userId)}
+                                                disabled={baja.status !== "READY"}
+                                                aria-label={`Seleccionar ${baja.name}`}
+                                            />
                                         </TableCell>
                                         <TableCell>
                                             <div className="font-medium">{baja.name}</div>
@@ -311,7 +308,7 @@ export default function IMSSBajasPage() {
                         <div>
                             <p className="font-medium">Liquidación Final</p>
                             <p className="text-sm text-muted-foreground">
-                                Asegura que todos los pagos finales estén completados antes de desregistrar
+                                Asegura que todos los pagos finales estén completados antes de dar de baja
                                 del IMSS para evitar complicaciones.
                             </p>
                         </div>
@@ -321,7 +318,7 @@ export default function IMSSBajasPage() {
                         <div>
                             <p className="font-medium">Plazo de 5 Días</p>
                             <p className="text-sm text-muted-foreground">
-                                El desregistro IMSS debe completarse dentro de los 5 días hábiles.
+                                La baja ante el IMSS debe completarse dentro de los 5 días hábiles.
                                 Las bajas tardías pueden resultar en multas.
                             </p>
                         </div>

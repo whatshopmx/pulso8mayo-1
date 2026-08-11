@@ -3,6 +3,7 @@
 import { PageHeader } from "@/components/shared";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricGrid, MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -178,63 +179,38 @@ export default function IMSSReportsPage() {
         icon={FileDown}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Archivos SUA</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.suaCount}</div>
-            <p className="text-xs text-muted-foreground">
-              Generados
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Archivos IDSE</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.idseCount}</div>
-            <p className="text-xs text-muted-foreground">
-              Movimientos de empleados
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Reportes de Cuotas</CardTitle>
-            <FileDown className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.totalContributions > 0
-                ? `$${(stats.totalContributions / 1000000).toFixed(1)}M`
-                : "—"}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Cuotas totales
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Tasa de Cumplimiento</CardTitle>
-            <AlertTriangle className={`h-4 w-4 ${stats.complianceRate >= 90 ? "text-green-500" : stats.complianceRate >= 70 ? "text-yellow-500" : "text-red-500"}`} />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.complianceRate}%</div>
-            <p className="text-xs text-muted-foreground">
-              Archivos enviados a tiempo
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <MetricGrid columns={4}>
+        <MetricCard
+          label="Archivos SUA"
+          value={stats.suaCount}
+          icon={<Calendar className="h-4 w-4" />}
+          tone="info"
+          subtitle="Generados"
+        />
+        <MetricCard
+          label="Archivos IDSE"
+          value={stats.idseCount}
+          icon={<TrendingUp className="h-4 w-4" />}
+          tone="neutral"
+          subtitle="Movimientos de empleados"
+        />
+        <MetricCard
+          label="Reportes de Cuotas"
+          value={stats.totalContributions > 0
+            ? `$${(stats.totalContributions / 1000000).toFixed(1)}M`
+            : "—"}
+          icon={<FileDown className="h-4 w-4" />}
+          tone="neutral"
+          subtitle="Cuotas totales"
+        />
+        <MetricCard
+          label="Tasa de Cumplimiento"
+          value={`${stats.complianceRate}%`}
+          icon={<AlertTriangle className="h-4 w-4" />}
+          tone={stats.complianceRate >= 90 ? "success" : stats.complianceRate >= 70 ? "warning" : "destructive"}
+          subtitle="Archivos enviados a tiempo"
+        />
+      </MetricGrid>
 
       <Tabs defaultValue="generate" className="space-y-4">
         <TabsList>

@@ -164,7 +164,7 @@ export default function IMSSPage() {
                             <div>
                                 <p className="font-medium">Bajas de Empleados</p>
                                 <p className="text-sm text-muted-foreground">
-                                    Desregistro de empleados ante IMSS
+                                    Baja de empleados ante IMSS
                                 </p>
                             </div>
                             <Link href="/dashboard/compliance/imss/bajas">
