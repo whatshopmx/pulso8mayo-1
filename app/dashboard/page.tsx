@@ -40,7 +40,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
 
   const workflowConditions = [eq(workflowTemplates.companyId, session?.user?.companyId ?? '')];
   if (selectedBranch && selectedBranch !== 'all') {
-    // @ts-expect-error: branchId type compatibility with string
     workflowConditions.push(eq(workflowInstances.branchId, selectedBranch));
   }
 

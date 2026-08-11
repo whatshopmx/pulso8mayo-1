@@ -4,6 +4,7 @@ import { Building2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getExecutiveSummary } from "@/lib/services/analytics-service";
+import type { Role } from "@/lib/permissions";
 import { ExecutiveSummaryCostChart } from "./executive-summary-cost-chart";
 
 interface ExecutiveSummaryProps {
@@ -29,7 +30,7 @@ interface ExecutiveSummaryProps {
 export async function ExecutiveSummary({ branch }: ExecutiveSummaryProps) {
   const session = await auth.api.getSession({ headers: await headers() });
   const companyId = session?.user?.companyId;
-  const userRole = (session?.user as { role?: string })?.role;
+  const userRole = (session?.user as { role?: Role })?.role;
   const userBranchId = (session?.user as { branchId?: string })?.branchId;
   const requestedBranchId = branch && branch !== "all" ? branch : null;
 
