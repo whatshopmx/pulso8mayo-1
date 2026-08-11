@@ -105,7 +105,7 @@ export class ExecutiveReportService {
                 gte(salesEntries.saleDate, startDate),
                 lte(salesEntries.saleDate, endDate),
             ));
-        return rows[0]?.total ?? 0;
+        return Number(rows[0]?.total ?? 0); // sum() SQL devuelve string
     }
 
     private static async calcCOGS(
@@ -171,7 +171,7 @@ export class ExecutiveReportService {
                 eq(inventoryBatches.status, 'AVAILABLE'),
                 sql`${inventoryBatches.unitCost} IS NOT NULL`,
             ));
-        return rows[0]?.value ?? 0;
+        return Number(rows[0]?.value ?? 0); // sum() SQL devuelve string
     }
 
     private static async calcWasteTotal(branchId: string, startDate: Date, endDate: Date): Promise<number> {
@@ -186,7 +186,7 @@ export class ExecutiveReportService {
                 // STAFF y COURTESY son consumo, no merma (OQ-1).
                 sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
             ));
-        return rows[0]?.total ?? 0;
+        return Number(rows[0]?.total ?? 0); // sum() SQL devuelve string
     }
 
     private static async calcFillRate(branchId: string): Promise<number> {

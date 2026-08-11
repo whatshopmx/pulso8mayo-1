@@ -268,7 +268,7 @@ export class KpiCalculator {
   private async countStockouts(companyId: string, branchId?: string): Promise<number> {
     const conditions: any[] = [
       inArray(inventoryBatches.branchId, this.companyBranches(companyId)),
-      eq(inventoryBatches.currentQuantity, 0),
+      eq(inventoryBatches.currentQuantity, '0'),
     ];
     if (branchId && branchId !== 'all') conditions.push(eq(inventoryBatches.branchId, branchId));
     const [result] = await db

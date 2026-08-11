@@ -36,7 +36,7 @@ export class KnowledgeService {
             ))
             .groupBy(sql`DATE(${inventoryMovements.timestamp})`);
 
-        const dailyTotals = consumptionData.map(d => d.total);
+        const dailyTotals = consumptionData.map(d => Number(d.total)); // sum() SQL devuelve string
         const avgDailyConsumption = dailyTotals.length > 0
             ? Math.round(dailyTotals.reduce((a, b) => a + b, 0) / dailyTotals.length)
             : null;
@@ -44,8 +44,8 @@ export class KnowledgeService {
         // Consumption trend: compare recent 7 days vs prior 21
         const recent7 = consumptionData.filter(d => new Date(d.day) >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
         const prior21 = consumptionData.filter(d => new Date(d.day) < new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
-        const avgRecent = recent7.length > 0 ? recent7.reduce((a, b) => a + b.total, 0) / recent7.length : 0;
-        const avgPrior = prior21.length > 0 ? prior21.reduce((a, b) => a + b.total, 0) / prior21.length : 1;
+        const avgRecent = recent7.length > 0 ? recent7.reduce((a, b) => a + Number(b.total), 0) / recent7.length : 0;
+        const avgPrior = prior21.length > 0 ? prior21.reduce((a, b) => a + Number(b.total), 0) / prior21.length : 1;
         const consumptionTrend = Math.round(((avgRecent - avgPrior) / avgPrior) * 100);
 
         // Consumption volatility: coefficient of variation
@@ -72,8 +72,8 @@ export class KnowledgeService {
                 sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
             ));
 
-        const totalWasteQty = wasteData[0]?.totalWaste ?? 0;
-        const totalWasteLoss = wasteData[0]?.totalLoss ?? 0;
+        const totalWasteQty = Number(wasteData[0]?.totalWaste ?? 0);
+        const totalWasteLoss = Number(wasteData[0]?.totalLoss ?? 0);
 
         // Waste % = waste qty / total consumption * 10000 (basis points)
         const totalConsumed = dailyTotals.reduce((a, b) => a + b, 0);
@@ -103,8 +103,8 @@ export class KnowledgeService {
                 lte(inventoryWaste.recordedAt, new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)),
             ));
 
-        const wasteRecentTotal = wasteRecent[0]?.total ?? 0;
-        const wastePriorTotal = wastePrior[0]?.total ?? 1;
+        const wasteRecentTotal = Number(wasteRecent[0]?.total ?? 0);
+        const wastePriorTotal = Number(wastePrior[0]?.total ?? 1);
         const wasteTrend = Math.round(((wasteRecentTotal - wastePriorTotal) / wastePriorTotal) * 100);
 
         // Stockout count
@@ -115,7 +115,7 @@ export class KnowledgeService {
             .where(and(
                 eq(inventoryBatches.branchId, branchId),
                 eq(inventoryBatches.itemId, itemId),
-                eq(inventoryBatches.currentQuantity, 0),
+                eq(inventoryBatches.currentQuantity, '0'),
                 gte(inventoryBatches.updatedAt, thirtyDaysAgo),
             ));
         const stockoutCount = stockoutData[0]?.count ?? 0;
@@ -129,7 +129,7 @@ export class KnowledgeService {
                 eq(inventoryBatches.branchId, branchId),
                 eq(inventoryBatches.itemId, itemId),
             ));
-        const avgStockLevel = Math.round(avgStockData[0]?.avgStock ?? 0);
+        const avgStockLevel = Math.round(Number(avgStockData[0]?.avgStock ?? 0));
 
         // Last movement
         const lastMovement = await db.select({ timestamp: inventoryMovements.timestamp })

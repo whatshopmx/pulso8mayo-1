@@ -396,7 +396,7 @@ async function getInventoryReportData(companyId: string, branchId?: string) {
       .from(inventoryBatches)
       .where(and(...batchConditions));
 
-    const currentStock = batches.reduce((sum, b) => sum + (b.currentQuantity || 0), 0);
+    const currentStock = batches.reduce((sum, b) => sum + Number(b.currentQuantity || 0), 0);
     const minLevel = item.minLevel || 0;
 
     let stockStatus = "OK";

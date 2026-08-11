@@ -63,7 +63,7 @@ export class StockAlertService {
 
                 if (!item || !item.minLevel) continue;
 
-                const currentStock = parseInt(stock.currentStock?.toString() || "0");
+                const currentStock = Number(stock.currentStock ?? 0); // sum() devuelve string; parseInt trunca fracciones
                 const minLevel = item.minLevel;
 
                 if (currentStock <= minLevel) {
@@ -227,7 +227,7 @@ export class StockAlertService {
                 .where(
                     and(
                         eq(inventoryBatches.branchId, branchId),
-                        eq(inventoryBatches.currentQuantity, 0),
+                        eq(inventoryBatches.currentQuantity, '0'),
                         eq(inventoryBatches.status, "AVAILABLE")
                     )
                 );

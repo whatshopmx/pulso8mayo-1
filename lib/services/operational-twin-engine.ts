@@ -95,7 +95,7 @@ export async function recalculateTwin(branchId: string): Promise<any> {
   let adjustmentCostCents = 0;
 
   for (const m of movements) {
-    const cost = Math.abs(m.quantityChange) * (m.lastCost || 0);
+    const cost = Math.abs(Number(m.quantityChange)) * (m.lastCost || 0);
     if (m.type === "WASTE") {
       wasteCostCents += cost;
     } else if (m.type === "ADJUSTMENT") {

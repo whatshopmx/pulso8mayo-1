@@ -118,8 +118,8 @@ export class TheoreticalConsumptionService {
           const [dummyBatch] = await tx.insert(inventoryBatches).values({
             branchId,
             itemId,
-            initialQuantity: 0,
-            currentQuantity: 0,
+            initialQuantity: '0', // numeric(12,4): string en TS
+            currentQuantity: '0',
             lotNumber: `DUMMY-NEG-${Date.now()}`,
             status: 'AVAILABLE',
           }).returning();

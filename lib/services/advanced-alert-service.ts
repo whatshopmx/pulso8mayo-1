@@ -72,7 +72,7 @@ export class AdvancedAlertService {
           )
         );
 
-      const recentWaste = recentMovements[0]?.qty ?? 0;
+      const recentWaste = Number(recentMovements[0]?.qty ?? 0); // sum() SQL devuelve string
       const avgWaste = avgWastePct / 10000;
 
       const item = await db.query.inventoryItems.findFirst({
@@ -136,7 +136,7 @@ export class AdvancedAlertService {
           eq(inventoryBatches.status, 'AVAILABLE')
         )
       );
-    return result[0]?.total ?? 0;
+    return Number(result[0]?.total ?? 0); // sum() SQL devuelve string
   }
 
   private static async createAlert(params: {

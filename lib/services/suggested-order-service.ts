@@ -132,7 +132,7 @@ export class SuggestedOrderService {
           eq(inventoryBatches.status, 'AVAILABLE')
         )
       );
-    return result[0]?.total ?? 0;
+    return Number(result[0]?.total ?? 0); // sum() SQL devuelve string
   }
 
   private static async getAvgDailyConsumption(itemId: string, branchId: string): Promise<number> {
@@ -164,7 +164,7 @@ export class SuggestedOrderService {
         )
       );
 
-    const totalUsage = result[0]?.totalUsage ?? 0;
+    const totalUsage = Number(result[0]?.totalUsage ?? 0); // sum() SQL devuelve string
     return Math.round(totalUsage / 30);
   }
 }
