@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, UserPlus, FileDown, AlertTriangle, Building2, Clock } from "lucide-react";
+import { Loader2, UserPlus, FileDown, AlertTriangle, Clock, ArrowRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ImssSubNav } from "@/components/compliance/imss-sub-nav";
+import Link from "next/link";
 import { toast } from "sonner";
 
 interface IMSSAlta {
@@ -116,7 +118,7 @@ export default function IMSSAltasPage() {
     const getStatusBadge = (status: string) => {
         switch (status) {
             case "READY":
-                return <Badge variant="default" className="bg-green-600">Listo</Badge>;
+                return <Badge variant="default" className="bg-success">Listo</Badge>;
             case "REGISTERED":
                 return <Badge variant="secondary">Registrado</Badge>;
             case "OVERDUE":
@@ -141,6 +143,8 @@ export default function IMSSAltasPage() {
                 description="Registra nuevos empleados ante el IMSS dentro de los 5 días hábiles"
                 icon={UserPlus}
             />
+
+            <ImssSubNav />
 
             <Alert>
                 <AlertTriangle className="h-4 w-4" />
@@ -250,7 +254,7 @@ export default function IMSSAltasPage() {
                                             <span
                                                 className={
                                                     alta.daysSinceHire > 5
-                                                        ? "text-red-600 font-bold"
+                                                        ? "text-destructive font-bold"
                                                         : ""
                                                 }
                                             >
@@ -299,6 +303,16 @@ export default function IMSSAltasPage() {
                     </CardContent>
                 </Card>
             )}
+
+            <div className="flex justify-end">
+                <Link
+                    href="/dashboard/compliance/imss/reports"
+                    className="inline-flex items-center gap-1 rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                    Ver historial de archivos generados
+                    <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+            </div>
         </div>
     );
 }

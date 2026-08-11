@@ -192,15 +192,15 @@ export default function IMSSPage() {
 
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="font-medium">Archivos IDSE y Reportes</p>
+                                <p className="font-medium">Historial de Archivos</p>
                                 <p className="text-sm text-muted-foreground">
-                                    Reporte de movimientos y resumen mensual de cumplimiento
+                                    Archivos IDSE y SUA generados, con su estado ante el IMSS
                                 </p>
                             </div>
                             <Link href="/dashboard/compliance/imss/reports">
                                 <Button size="sm" variant="outline">
                                     <FileText className="h-4 w-4 mr-2" />
-                                    Generar IDSE y Reportes
+                                    Ver Historial
                                 </Button>
                             </Link>
                         </div>

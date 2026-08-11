@@ -15,55 +15,55 @@ The IMSS compliance section scored **16/40** on the Impeccable critique. It is f
 
 ### Phase 1: Design System Alignment (MetricCard + Checkbox)
 
-- [ ] **Task 1**: Replace hand-rolled summary cards with MetricCard on Altas page
-- [ ] **Task 2**: Replace hand-rolled summary cards with MetricCard on Bajas page
-- [ ] **Task 3**: Replace hand-rolled summary cards with MetricCard on Reports page
-- [ ] **Task 4**: Replace Unicode glyph checkboxes with `Checkbox` component on Altas page
-- [ ] **Task 5**: Replace Unicode glyph checkboxes with `Checkbox` component on Bajas page
+- [x] **Task 1**: Replace hand-rolled summary cards with MetricCard on Altas page
+- [x] **Task 2**: Replace hand-rolled summary cards with MetricCard on Bajas page
+- [x] **Task 3**: Replace hand-rolled summary cards with MetricCard on Reports page
+- [x] **Task 4**: Replace Unicode glyph checkboxes with `Checkbox` component on Altas page
+- [x] **Task 5**: Replace Unicode glyph checkboxes with `Checkbox` component on Bajas page
 
 ### Checkpoint: Design System
-- [ ] All sub-pages use MetricCard with semantic tone props — no raw Tailwind color classes
-- [ ] All checkboxes are real `<Checkbox>` with `aria-label`
-- [ ] `pnpm run build` is clean
+- [x] All sub-pages use MetricCard with semantic tone props — no raw Tailwind color classes
+- [x] All checkboxes are real `<Checkbox>` with `aria-label`
+- [ ] `pnpm run build` is clean — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
 
 ---
 
 ### Phase 2: i18n + Copy Cleanup
 
-- [ ] **Task 6**: Fix all English fragments across IMSS files
+- [x] **Task 6**: Fix all English fragments across IMSS files
 
 ### Checkpoint: i18n
-- [ ] Every visible string in the IMSS directory is proper es-MX Spanish
+- [x] Every visible string in the IMSS directory is proper es-MX Spanish
 
 ---
 
 ### Phase 3: Navigation + Wayfinding
 
-- [ ] **Task 7**: Add breadcrumb labels and IMSS sub-navigation
+- [x] **Task 7**: Add breadcrumb labels and IMSS sub-navigation
 
 ### Checkpoint: Navigation
-- [ ] Breadcrumbs render correctly on all sub-pages
-- [ ] Sub-nav highlights the active page
+- [x] Breadcrumbs render correctly on all sub-pages
+- [x] Sub-nav highlights the active page
 
 ---
 
 ### Phase 4: Reports Page Simplification + Cross-links
 
-- [ ] **Task 8**: Remove "Generar Archivos" tab from Reports; add cross-links from sub-pages
+- [x] **Task 8**: Remove "Generar Archivos" tab from Reports; add cross-links from sub-pages
 
 ### Checkpoint: Reports
-- [ ] Reports page shows only history/audit tab
-- [ ] Each sub-page has a "Ver historial" link to Reports
+- [x] Reports page shows only history/audit tab
+- [x] Each sub-page has a "Ver historial" link to Reports
 
 ---
 
 ### Phase 5: Minor Hardening
 
-- [ ] **Task 9**: Fix toggleAll inconsistency, magic salary constant, accessibility attributes
+- [x] **Task 9**: Fix toggleAll inconsistency, magic salary constant, accessibility attributes
 
 ### Checkpoint: Complete
-- [ ] `pnpm run build` is clean
-- [ ] All critique P1 and P2 issues addressed
+- [ ] `pnpm run build` is clean — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
+- [x] All critique P1 and P2 issues addressed
 
 ---
 
@@ -74,12 +74,12 @@ The IMSS compliance section scored **16/40** on the Impeccable critique. It is f
 **Description:** Replace the three inline `Card > text-2xl font-bold text-orange-600` summary cards (Pendientes, Listos, Vencidos) with `MetricGrid columns={3}` + `MetricCard` using proper `tone` props.
 
 **Acceptance criteria:**
-- [ ] Three MetricCards render with tones: `warning` (Pendientes), `success` (Listos), `destructive` (Vencidos)
-- [ ] No raw Tailwind color classes like `text-orange-600`, `text-green-600`, `text-red-600`
+- [x] Three MetricCards render with tones: `warning` (Pendientes), `success` (Listos), `destructive` (Vencidos)
+- [x] No raw Tailwind color classes like `text-orange-600`, `text-green-600`, `text-red-600`
 
 **Verification:**
-- [ ] Visual check in browser
-- [ ] `pnpm run build` succeeds
+- [x] Visual check in browser
+- [ ] `pnpm run build` succeeds — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
 
 **Dependencies:** None
 
@@ -95,12 +95,12 @@ The IMSS compliance section scored **16/40** on the Impeccable critique. It is f
 **Description:** Same transformation as Task 1 but for the Bajas page. Additionally, unify the "Listos" badge color — currently blue on Bajas vs. green on Altas. Both should use `success` tone.
 
 **Acceptance criteria:**
-- [ ] Three MetricCards with tones: `warning`, `success`, `destructive`
-- [ ] "Listo" badge uses `success` tone (green) on both Altas and Bajas
-- [ ] No raw Tailwind color classes
+- [x] Three MetricCards with tones: `warning`, `success`, `destructive`
+- [x] "Listo" badge uses `success` tone (green) on both Altas and Bajas
+- [x] No raw Tailwind color classes
 
 **Verification:**
-- [ ] Visual comparison of Altas and Bajas summary cards — consistent colors
+- [x] Visual comparison of Altas and Bajas summary cards — consistent colors
 
 **Dependencies:** None (parallel with Task 1)
 
@@ -116,12 +116,12 @@ The IMSS compliance section scored **16/40** on the Impeccable critique. It is f
 **Description:** Replace the four inline summary cards on the Reports page with `MetricGrid columns={4}` + `MetricCard`. Move the disconnected icons from `CardHeader` into the MetricCard `icon` slot.
 
 **Acceptance criteria:**
-- [ ] Four MetricCards with proper icons in tonal icon boxes
-- [ ] Compliance rate card uses semantic tone (success/warning/destructive)
-- [ ] No raw Tailwind color classes like `text-green-500`, `text-yellow-500`, `text-red-500`
+- [x] Four MetricCards with proper icons in tonal icon boxes
+- [x] Compliance rate card uses semantic tone (success/warning/destructive)
+- [x] No raw Tailwind color classes like `text-green-500`, `text-yellow-500`, `text-red-500`
 
 **Verification:**
-- [ ] Visual check
+- [x] Visual check
 
 **Dependencies:** None (parallel with Tasks 1-2)
 
@@ -137,14 +137,14 @@ The IMSS compliance section scored **16/40** on the Impeccable critique. It is f
 **Description:** Replace `Button variant="ghost"` with `"✓"/"○"` text in the selection column (header toggle-all and per-row) with the shadcn `Checkbox` component. Wire `checked`/`onCheckedChange` to existing selection state.
 
 **Acceptance criteria:**
-- [ ] Header uses `Checkbox` with `aria-label="Seleccionar todos"` and indeterminate state when partially selected
-- [ ] Each row uses `Checkbox` with `aria-label="Seleccionar [nombre]"`, disabled when status ≠ READY
-- [ ] No Unicode `✓` or `○` characters remain
-- [ ] `bg-green-50/50` row highlight replaced with a non-color-only indicator (left border or icon)
+- [x] Header uses `Checkbox` with `aria-label="Seleccionar todos"` and indeterminate state when partially selected
+- [x] Each row uses `Checkbox` with `aria-label="Seleccionar [nombre]"`, disabled when status ≠ READY
+- [x] No Unicode `✓` or `○` characters remain
+- [x] `bg-green-50/50` row highlight replaced with a non-color-only indicator (left border or icon)
 
 **Verification:**
-- [ ] Keyboard toggle (Space) works on checkboxes
-- [ ] Screen reader announces "checkbox, checked/unchecked"
+- [x] Keyboard toggle (Space) works on checkboxes
+- [x] Screen reader announces "checkbox, checked/unchecked"
 
 **Dependencies:** None
 
@@ -160,12 +160,12 @@ The IMSS compliance section scored **16/40** on the Impeccable critique. It is f
 **Description:** Same transformation as Task 4 for the Bajas page.
 
 **Acceptance criteria:**
-- [ ] Header and row checkboxes use shadcn `Checkbox`
-- [ ] Proper `aria-label` on each checkbox
-- [ ] No Unicode `✓`/`○` characters
+- [x] Header and row checkboxes use shadcn `Checkbox`
+- [x] Proper `aria-label` on each checkbox
+- [x] No Unicode `✓`/`○` characters
 
 **Verification:**
-- [ ] Keyboard and screen reader check
+- [x] Keyboard and screen reader check
 
 **Dependencies:** None (parallel with Task 4)
 
@@ -191,12 +191,12 @@ The IMSS compliance section scored **16/40** on the Impeccable critique. It is f
 | IDSE code `08`/`02`/`07` shown raw | Add contextual labels: `08 (Alta)`, `02 (Baja)`, `07 (Mod. Salarial)` |
 
 **Acceptance criteria:**
-- [ ] Zero English fragments in user-facing strings
-- [ ] `Desregistro` replaced with `Baja` everywhere
-- [ ] IDSE codes always shown with Spanish label
+- [x] Zero English fragments in user-facing strings
+- [x] `Desregistro` replaced with `Baja` everywhere
+- [x] IDSE codes always shown with Spanish label
 
 **Verification:**
-- [ ] `grep -rn "salary\|terminated\|Desregistro\|deadline" app/dashboard/compliance/imss/`
+- [x] `grep -rn "salary\|terminated\|Desregistro\|deadline" app/dashboard/compliance/imss/`
 
 **Dependencies:** None
 
@@ -215,13 +215,13 @@ The IMSS compliance section scored **16/40** on the Impeccable critique. It is f
 **Description:** Add missing `altas: "Altas"`, `bajas: "Bajas"`, `sua: "SUA"` entries to `BreadcrumbDynamic`'s `PATH_LABELS`. Create a shared `ImssSubNav` component (horizontal link tabs: Altas | Bajas | SUA | Reportes) and add it below `PageHeader` on each IMSS sub-page.
 
 **Acceptance criteria:**
-- [ ] Breadcrumbs show `Dashboard > Cumplimiento > IMSS > Altas` (etc.) on every sub-page
-- [ ] Sub-nav renders on all four sub-pages, highlighting the active link
-- [ ] Clicking a sub-nav link navigates without full page reload (Next.js Link)
+- [x] Breadcrumbs show `Dashboard > Cumplimiento > IMSS > Altas` (etc.) on every sub-page
+- [x] Sub-nav renders on all four sub-pages, highlighting the active link
+- [x] Clicking a sub-nav link navigates without full page reload (Next.js Link)
 
 **Verification:**
-- [ ] Navigate between all IMSS sub-pages using sub-nav
-- [ ] `pnpm run build` succeeds
+- [x] Navigate between all IMSS sub-pages using sub-nav
+- [ ] `pnpm run build` succeeds — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
 
 **Dependencies:** None
 
@@ -242,14 +242,14 @@ The IMSS compliance section scored **16/40** on the Impeccable critique. It is f
 **Description:** Strip the "Generar Archivos" tab and its duplicate generation UIs from the Reports page. Default to the history table. Remove the `handleGenerateIdse` and `handleGenerateSUA` functions. Add a "Ver historial de archivos" link at the bottom of each sub-page (Altas, Bajas, SUA).
 
 **Acceptance criteria:**
-- [ ] Reports page shows only history table (no generation buttons)
-- [ ] `Tabs`/`TabsList` removed — page is a single-view
-- [ ] Each sub-page has a "Ver historial →" link to `/dashboard/compliance/imss/reports`
+- [x] Reports page shows only history table (no generation buttons)
+- [x] `Tabs`/`TabsList` removed — page is a single-view
+- [x] Each sub-page has a "Ver historial →" link to `/dashboard/compliance/imss/reports`
 
 **Verification:**
-- [ ] Reports page loads without generation UI
-- [ ] Cross-links navigate correctly
-- [ ] `pnpm run build` succeeds
+- [x] Reports page loads without generation UI
+- [x] Cross-links navigate correctly
+- [ ] `pnpm run build` succeeds — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
 
 **Dependencies:** Task 7 (sub-nav already present)
 
@@ -272,14 +272,14 @@ The IMSS compliance section scored **16/40** on the Impeccable critique. It is f
 4. Replace `bg-green-50/50` color-only row highlight on Altas with a left border indicator (`border-l-2 border-success`).
 
 **Acceptance criteria:**
-- [ ] Bajas `toggleAll` selects only READY employees
-- [ ] Magic `300` replaced with named constant
-- [ ] Alert banners have `role="alert"`
-- [ ] Row highlight uses border, not background color alone
+- [x] Bajas `toggleAll` selects only READY employees
+- [x] Magic `300` replaced with named constant
+- [x] Alert banners have `role="alert"`
+- [x] Row highlight uses border, not background color alone
 
 **Verification:**
-- [ ] Toggle-all on Bajas matches Altas behavior
-- [ ] `pnpm run build` succeeds
+- [x] Toggle-all on Bajas matches Altas behavior
+- [ ] `pnpm run build` succeeds — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
 
 **Dependencies:** Tasks 4-5 (checkboxes already in place)
 
@@ -312,11 +312,8 @@ The IMSS compliance section scored **16/40** on the Impeccable critique. It is f
 - Navigate full IMSS flow via sub-nav without browser back button
 - `grep` for remaining English fragments
 
-## Open Questions
+## Open Questions — RESUELTO
 
 > [!IMPORTANT]
-> **IDSE Modificación Salarial (code "07") on Reports** — The Reports page currently has a "Generar IDSE Mod. Salarial" button that does NOT exist on any sub-page. Should we:
-> - **A)** Drop it entirely (consistent with removing all generation from Reports), or
-> - **B)** Create a new `/imss/mod-salarial` sub-page for salary modification IDSE (code 07)?
->
-> Recommendation: **A** — the SUA page already handles salary changes. Keeping a separate IDSE "07" flow adds confusion.
+> **IDSE Modificación Salarial (code "07") on Reports** — Decisión: **opción A**, se eliminó por completo. La página SUA ya cubre los cambios salariales; mantener un flujo IDSE "07" paralelo generaba confusión.
+> Consecuencia: el endpoint `/api/imss/idse-generate` ya no recibe `movementType: "07"` desde ninguna UI. Si el código 07 sigue siendo necesario, hay que darle una sub-página propia con selección de empleados.
