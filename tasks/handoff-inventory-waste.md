@@ -14,12 +14,12 @@ Regla estricta del plan: **nada de la Fase 2 en adelante arranca antes de que pa
 | 0 | **T1** Migrar columnas a `numeric(12,4)` | ✅ Commiteado `df764fd` |
 | 0 | **T2** Barrer rutas de escritura + marcadores AD-6 | ✅ Commiteado `0989fec` |
 | 0 | **T3** Barrer agregaciones | ✅ Commiteado `72362e5` |
-| 0 | **T4** Barrer lecturas API/UI | 🔶 **EN CURSO** — 2 archivos editados, SIN commit |
-| 0 | **Checkpoint 0** (build + e2e + round-trip) | ⛔ Pendiente |
+| 0 | **T4** Barrer lecturas API/UI | ✅ Commiteado `7a33da6` (incluye fix `gte('0')` batches/expirations) |
+| 0 | **Checkpoint 0** (build + e2e + round-trip) | 🔶 Parcial — build/e2e/round-trip OK; **pendiente revisión humana** |
 | 1 | T5–T6 (waste route tenancy + input fraccionario) | Pendiente |
 | 2–6 | T7–T21 | Pendientes (requieren Checkpoint 0) |
 
-**Working tree ahora mismo:** solo `app/api/inventory/batches/route.ts` y `app/api/inventory/expirations/route.ts` modificados (fix `gte(currentQuantity, '0')`). `tsc --noEmit`: **LIMPIO (0 errores)**.
+**Working tree ahora mismo:** limpio. Commits nuevos: `7a33da6` (T4) y `412d3b1` (fixes e2e).
 
 **Atención:** otro stream (workflow-review-bitacora, migración 0050) se commiteó en paralelo como `5d345f3` a mitad de sesión. Antes de cada commit, re-chequear `git status` por trabajo ajeno entrelazado.
 
@@ -83,11 +83,15 @@ Los 2 fixes de rutas ya hechos (`'0'` en `gte` de batches/expirations). Falta:
 
 ## 5. Checkpoint 0 — la puerta (después de commitear T4)
 
-- [ ] `pnpm run build` limpio — ⚠️ **tarda 7+ min con Turbopack** (compila ~6.5 min + type-check). Usar `tsc --noEmit` (2.5 min) como gate por slice; `next build` solo aquí. El primer intento con `timeout 300`/`700` se mató; dar ≥900s.
-- [ ] `pnpm test:e2e` — el `webServer` de Playwright usa `npm run dev` por defecto; el plan exige contra **build** (`PLAYWRIGHT_WEB_SERVER_CMD='npm run build && npm start'` o similar) porque `next dev` y `next start` comparten `.next`.
-- [ ] Round-trip fraccionario por **ambas puertas** (workflow y form): 0.5 kg → `0.5000` en todo el camino.
-- [ ] Merma % y food-cost **idénticos a pre-migración** sobre datos enteros históricos.
+- [x] `pnpm run build` limpio (exit 0, Turbopack ~6.5 min, timeout ≥900s).
+- [x] `pnpm test:e2e` contra build (`PLAYWRIGHT_WEB_SERVER_CMD="npm run start" npx playwright test`) — **46/46 verdes (5.9m)**.
+- [x] Round-trip fraccionario por **ambas puertas**: workflow (`merma-manual.spec.ts` ahora parchea 0.5 kg determinísticamente) + form (script `tmp-checkpoint0-roundtrip.ts`, ya borrado: POST real 0.5 → lote `2.0000`, merma `0.5000`, movimiento `-0.5000`; entero 1 → `1.0000` sin drift; escaneo de corrupción 0 filas; SUM SQL == Σ Number()).
+- [x] Merma % / food-cost: sin NaN ni concat (T3) + consistencia de agregación exacta en las 3 sucursales.
 - [ ] **Revisión humana** — es la parte irreversible.
+
+**Fix e2e en `412d3b1` (leer antes de tocar esos specs):**
+- `tests/support/db.ts` `findWasteForInstance` ahora coacciona `quantity` con `Number()` — tras la migración 0051 Postgres devuelve `"1.0000"` (string) y los specs hacían `toBe(1)` estricto.
+- `tests/merma-manual.spec.ts` (test cortesía): la API ordena pasos por `completedAt ASC NULLS LAST, id` (UUID aleatorio), así que el índice de `qtySteps`/`reasonSteps` NO coincide con `itemIds` — era un flake (~1/6). Ahora parchea por stepId explícito (`merma-qty-{itemId}`/`merma-reason-{itemId}`). Verificado con `--repeat-each=3`.
 
 ---
 
