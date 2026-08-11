@@ -154,19 +154,27 @@ test.describe("Fase 3 · merma manual", () => {
     const steps = instance.steps as { stepId: string; status: string }[];
 
     const qtySteps = steps.filter((s) => s.stepId?.startsWith("merma-qty-"));
-    const reasonSteps = steps.filter((s) => s.stepId?.startsWith("merma-reason-"));
     const evidenceSteps = steps.filter((s) => s.stepId?.startsWith("merma-evidence-"));
 
-    for (const [i, paso] of qtySteps.entries()) {
-      await page.request.patch(`/api/workflows/executions/${instanceId}/steps/${paso.stepId}`, {
-        data: { value: CANTIDADES[i] ?? "1", status: "COMPLETED" },
-      });
+    // Los pasos se devuelven ordenados por `completedAt, id` (UUID aleatorio),
+    // así que NO se puede asumir que el índice de la lista coincida con
+    // `itemIds`. Se parchea por stepId explícito (`merma-*-{itemId}`).
+    for (const itemId of itemIds) {
+      const qtyIdx = itemIds.indexOf(itemId);
+      const res = await page.request.patch(
+        `/api/workflows/executions/${instanceId}/steps/merma-qty-${itemId}`,
+        { data: { value: CANTIDADES[qtyIdx] ?? "1", status: "COMPLETED" } }
+      );
+      expect(res.ok(), await res.text()).toBeTruthy();
     }
-    for (const [i, paso] of reasonSteps.entries()) {
+    for (const itemId of itemIds) {
       // El primer SKU es cortesía; el resto caducidad.
-      await page.request.patch(`/api/workflows/executions/${instanceId}/steps/${paso.stepId}`, {
-        data: { value: i === 0 ? "cortesia" : "caducidad", status: "COMPLETED" },
-      });
+      const reason = itemId === itemIds[0] ? "cortesia" : "caducidad";
+      const res = await page.request.patch(
+        `/api/workflows/executions/${instanceId}/steps/merma-reason-${itemId}`,
+        { data: { value: reason, status: "COMPLETED" } }
+      );
+      expect(res.ok(), await res.text()).toBeTruthy();
     }
     for (const paso of evidenceSteps) {
       await page.request.patch(`/api/workflows/executions/${instanceId}/steps/${paso.stepId}`, {

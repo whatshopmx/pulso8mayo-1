@@ -608,7 +608,7 @@ export async function findWasteForInstance(instanceId: string): Promise<WasteRow
     WHERE notes LIKE ${`%instance:${instanceId}%`}
     ORDER BY item_id
   `;
-  return rows as WasteRow[];
+  return (rows as WasteRow[]).map((row) => ({ ...row, quantity: Number(row.quantity) }));
 }
 
 /** Borra merma por instancia, más pasos/instancia/template. */
