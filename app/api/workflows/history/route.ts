@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
-import { workflowInstances, workflowTemplates, branches, users, workflowInstanceSteps } from "@/lib/db/schema";
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { workflowInstances, workflowTemplates, branches, users, workflowInstanceSteps, incidents } from "@/lib/db/schema";
+import { eq, desc, and, gte, lte, sql, inArray } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
     try {
@@ -82,6 +82,17 @@ export async function GET(request: NextRequest) {
             .orderBy(desc(workflowInstances.createdAt))
             .limit(100);
 
+        // Which of these instances produced incidents. One grouped query instead of
+        // one per instance; this is a history view, so incidents count whatever their
+        // current status (a resolved incident still happened on that run).
+        const instanceIds = instances.map(i => i.id);
+        const incidentRows = instanceIds.length
+            ? await db.selectDistinct({ instanceId: incidents.instanceId })
+                .from(incidents)
+                .where(inArray(incidents.instanceId, instanceIds))
+            : [];
+        const instanceIdsWithIncidents = new Set(incidentRows.map(r => r.instanceId));
+
         // Get step counts for each instance
         const instancesWithSteps = await Promise.all(
             instances.map(async (instance) => {
@@ -97,7 +108,7 @@ export async function GET(request: NextRequest) {
                     ...instance,
                     stepsTotal: steps.length,
                     stepsCompleted: steps.filter(s => s.status === "COMPLETED").length,
-                    hasIncidents: false, // TODO: Add incidents check
+                    hasIncidents: instanceIdsWithIncidents.has(instance.id),
                     hasEvidence: steps.some(s => s.evidenceUrl !== null && s.evidenceUrl !== ""),
                     evidenceCount: steps.filter(s => s.evidenceUrl !== null && s.evidenceUrl !== "").length,
                 };

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkflowReview, WorkflowReviewData } from "@/components/workflow/workflow-review";
+import { resolveStepDefinitions } from "@/lib/workflows/step-definitions";
 import { toast } from "sonner";
 
 export default function WorkflowReviewPage() {
@@ -30,10 +31,12 @@ export default function WorkflowReviewPage() {
 
       const execution = await response.json();
 
-      // Transform to review format
+      // La instancia guarda la respuesta; la plantilla, la pregunta. Unirlas es
+      // lo que convierte "Step <uuid>" en un paso legible — ver
+      // `lib/workflows/step-definitions.ts`.
       const reviewData: WorkflowReviewData = {
         id: execution.id,
-        templateName: execution.template?.name || 'Unknown Template',
+        templateName: execution.template?.name || 'Plantilla desconocida',
         assigneeName: execution.assignee?.name || null,
         branchName: execution.branch?.name || null,
         status: execution.status,
@@ -43,18 +46,7 @@ export default function WorkflowReviewPage() {
         reviewStatus: execution.reviewStatus ?? null,
         reviewComment: execution.reviewComment ?? null,
         reviewedAt: execution.reviewedAt ?? null,
-        steps: execution.steps.map((step: any) => ({
-          id: step.id,
-          stepId: step.stepId,
-          title: step.title || `Step ${step.stepId}`,
-          type: step.type || 'TEXT',
-          status: step.status,
-          value: step.value,
-          evidenceUrl: step.evidenceUrl,
-          aiAnalysis: step.aiAnalysis,
-          comment: step.comment,
-          completedAt: step.completedAt,
-        })),
+        steps: resolveStepDefinitions(execution.template?.steps, execution.steps ?? []),
       };
 
       setWorkflow(reviewData);

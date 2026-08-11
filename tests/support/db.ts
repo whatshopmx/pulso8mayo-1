@@ -839,6 +839,20 @@ export interface ReviewStepSeed {
   evidenceUrl?: string | null;
   comment?: string | null;
   value?: unknown;
+  /** Tipo del paso en la plantilla. Por defecto TEXT/PHOTO según `passed`. */
+  type?: string;
+  /** Título en la plantilla. Por defecto `Paso <stepId>`. */
+  title?: string;
+  description?: string;
+  unit?: string;
+  /** Rango esperado, para probar el marcado de valores fuera de rango. */
+  validation?: { min?: number; max?: number };
+  /**
+   * Siembra el paso en la instancia pero NO en la plantilla, para reproducir un
+   * paso cuya definición no es localizable (plantilla editada, paso dinámico
+   * nunca persistido). La revisión debe degradarlo, no inventarle un título.
+   */
+  omitFromTemplate?: boolean;
 }
 
 /**
@@ -859,16 +873,26 @@ export async function seedReviewInstance(
     assigneeId: string;
     score: number;
     steps: ReviewStepSeed[];
+    /**
+     * Congela la definición en la instancia (migración 0050), como hace
+     * `createExecution` desde T8. Sin esto se siembra una instancia "antigua",
+     * que resuelve contra la plantilla viva.
+     */
+    freeze?: boolean;
   }
 ): Promise<{ instanceId: string; workflowTemplateId: string }> {
   const workflowTemplateId = `e2e-tpl-revision-${Date.now()}`;
-  const templateSteps = opts.steps.map((s) => ({
-    id: s.stepId,
-    type: s.passed ? "TEXT" : "PHOTO",
-    title: `Paso ${s.stepId}`,
-    description: "",
-    required: true,
-  }));
+  const templateSteps = opts.steps
+    .filter((s) => !s.omitFromTemplate)
+    .map((s) => ({
+      id: s.stepId,
+      type: s.type ?? (s.passed ? "TEXT" : "PHOTO"),
+      title: s.title ?? `Paso ${s.stepId}`,
+      description: s.description ?? "",
+      required: true,
+      ...(s.unit ? { unit: s.unit } : {}),
+      ...(s.validation ? { validation: s.validation } : {}),
+    }));
 
   await sql`
     INSERT INTO workflow_templates (id, company_id, name, description, steps, category, active)
@@ -897,10 +921,21 @@ export async function seedReviewInstance(
 
   // Insertar en orden; un solo paso por INSERT para respetar el patrón del resto
   // de la suite (el heap del driver devuelve las filas en orden de inserción).
-  for (const s of opts.steps) {
+  for (const [index, s] of opts.steps.entries()) {
+    const definition = {
+      id: s.stepId,
+      type: s.type ?? (s.passed ? "TEXT" : "PHOTO"),
+      title: s.title ?? `Paso ${s.stepId}`,
+      description: s.description ?? "",
+      required: true,
+      ...(s.unit ? { unit: s.unit } : {}),
+      ...(s.validation ? { validation: s.validation } : {}),
+    };
+
     await sql`
       INSERT INTO workflow_instance_steps (
-        instance_id, step_id, status, value, ai_analysis, evidence_url, comment, completed_at, completed_by
+        instance_id, step_id, status, value, ai_analysis, evidence_url, comment, completed_at, completed_by,
+        step_order, title, type, definition
       )
       VALUES (
         ${instanceId},
@@ -915,12 +950,39 @@ export async function seedReviewInstance(
         ${s.evidenceUrl ?? null},
         ${s.comment ?? null},
         NOW(),
-        ${opts.assigneeId}
+        ${opts.assigneeId},
+        ${opts.freeze ? index : null},
+        ${opts.freeze ? definition.title : null},
+        ${opts.freeze ? definition.type : null},
+        ${opts.freeze ? JSON.stringify(definition) : null}::jsonb
       )
     `;
   }
 
   return { instanceId, workflowTemplateId };
+}
+
+/**
+ * Reescribe el título de un paso en la plantilla, para probar que una revisión
+ * ya ejecutada no cambia con ella (la definición congelada manda).
+ */
+export async function renameReviewTemplateStep(
+  workflowTemplateId: string,
+  stepId: string,
+  nuevoTitulo: string
+): Promise<void> {
+  const [row] = await sql`
+    SELECT steps FROM workflow_templates WHERE id = ${workflowTemplateId}
+  `;
+  const steps = (row?.steps ?? []) as Array<{ id: string; title?: string }>;
+  const actualizados = steps.map((s) =>
+    s.id === stepId ? { ...s, title: nuevoTitulo } : s
+  );
+  await sql`
+    UPDATE workflow_templates
+    SET steps = ${JSON.stringify(actualizados)}::jsonb
+    WHERE id = ${workflowTemplateId}
+  `;
 }
 
 /** Limpia pasos, instancia y template sembrados por `seedReviewInstance`. */

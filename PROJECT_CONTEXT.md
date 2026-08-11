@@ -197,6 +197,7 @@ empty states con CTA.
 | `app/api/workflows/history/route.ts` | 98 | Agregar verificación de incidentes | Media |
 | `—` (feature nueva) | — | Cola de revisión por sucursal ("N por revisar en Sucursal X") + revisión por lote — requiere query de cola y página nueva (deferido 2026-08-10, plan `tasks/plan-workflow-review-critique.md`) | Media |
 | `app/api/employees/documents/expiring/route.ts` | 91 | Notificaciones via email/WhatsApp/in-app | Media |
+| `lib/services/workflow-execution-service.ts` | ~94 | `createExecution` pre-siembra `value` con `step.metadata`, así que un paso jamás contestado guarda un blob que parece respuesta. La revisión ya lo oculta (sólo muestra valor si el paso está COMPLETED), pero el dato sigue sucio en BD. Desenredarlo toca el executor y el conteo de inventario (`systemQuantity`/`itemId`), así que merece su propio cambio con pruebas (deferido 2026-08-11, plan `tasks/plan-workflow-review-bitacora.md`) | Media |
 
 ### Baja Prioridad (Mejoras UX)
 

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, XCircle, Eye, Download, Calendar, User, MapPin, AlertTriangle, MessageSquare, ChevronDown, ImageIcon, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Eye, Download, Calendar, User, MapPin, AlertTriangle, MessageSquare, ChevronDown, ImageIcon, Loader2, Circle, MinusCircle, Info } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,29 +12,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { scoreColorClass } from "@/lib/utils/score";
+import { StepValue } from "@/components/workflow/step-value";
+import {
+  stepNeedsAttention,
+  stepWasAnswered,
+  type ResolvedReviewStep,
+} from "@/lib/workflows/step-definitions";
 import { toast } from "sonner";
 
-export interface AIVerificationData {
-    passed?: boolean;
-    confidence?: number;
-    notes?: string;
-    reason?: string;
-    detectedIssues?: string;
-    [key: string]: unknown;
-}
-
-export interface WorkflowReviewStep {
-    id: string;
-    stepId: string;
-    title: string;
-    type: string;
-    status: string;
-    value: unknown;
-    evidenceUrl: string | null;
-    aiAnalysis: AIVerificationData | null;
-    comment: string | null;
-    completedAt: Date | null;
-}
+export type { AIVerificationData, ResolvedReviewStep } from "@/lib/workflows/step-definitions";
 
 export interface WorkflowReviewData {
   id: string;
@@ -45,7 +31,8 @@ export interface WorkflowReviewData {
   score: number | null;
   createdAt: Date;
   completedAt: Date | null;
-  steps: WorkflowReviewStep[];
+  /** Ya unidos con su definición y en orden canónico (`resolveStepDefinitions`). */
+  steps: ResolvedReviewStep[];
   /** null mientras nadie la ha revisado. */
   reviewStatus: 'APPROVED' | 'REJECTED' | null;
   reviewComment: string | null;
@@ -72,13 +59,20 @@ function getEvidenceUrls(evidenceUrl: string | null): string[] {
   }
 }
 
+function formatTime(value: string | Date | null): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function WorkflowReview({
   workflow,
   onApprove,
   onReject,
   className
 }: WorkflowReviewProps) {
-  const [selectedEvidence, setSelectedEvidence] = React.useState<{ url: string; step: WorkflowReviewStep; stepNumber: number } | null>(null);
+  const [selectedEvidence, setSelectedEvidence] = React.useState<{ url: string; step: ResolvedReviewStep } | null>(null);
   const [reviewComment, setReviewComment] = React.useState("");
   const [reviewDialogOpen, setReviewDialogOpen] = React.useState(false);
   const [reviewAction, setReviewAction] = React.useState<'approve' | 'reject' | null>(null);
@@ -89,21 +83,13 @@ export function WorkflowReview({
   const isReviewed = workflow.reviewStatus === 'APPROVED' || workflow.reviewStatus === 'REJECTED';
   const isCompleted = workflow.status === 'COMPLETED';
 
-  const evidenceSteps = workflow.steps.filter(s => !!s.evidenceUrl);
-  const aiVerifiedSteps = workflow.steps.filter(s => s.aiAnalysis && s.aiAnalysis.passed);
-  const aiFailedSteps = workflow.steps.filter(s => s.aiAnalysis && !s.aiAnalysis.passed);
-  const stepsToReview = workflow.steps.filter(
-    s => (s.aiAnalysis && !s.aiAnalysis.passed) || (s.comment && s.comment.trim() !== "") || s.status === 'FAILED' || s.status === 'REJECTED'
+  const evidenceCount = workflow.steps.filter(s => !!s.evidenceUrl).length;
+  const aiVerifiedCount = workflow.steps.filter(s => s.aiAnalysis?.passed === true).length;
+  const aiFailedCount = workflow.steps.filter(s => s.aiAnalysis?.passed === false).length;
+  const stepsToReview = React.useMemo(
+    () => workflow.steps.filter(stepNeedsAttention),
+    [workflow.steps]
   );
-
-  // Número de paso canónico: posición en workflow.steps (orden de creación del
-  // template), NO el índice del arreglo filtrado del tab activo. Si un tab
-  // filtra pasos del medio, "Paso 3" debe seguir siendo el paso 3 del workflow.
-  const stepNumbers = React.useMemo(() => {
-    const map = new Map<string, number>();
-    workflow.steps.forEach((s, i) => map.set(s.id, i + 1));
-    return map;
-  }, [workflow.steps]);
 
   const handleReviewSubmit = async () => {
     if (!reviewAction) return;
@@ -136,8 +122,8 @@ export function WorkflowReview({
 
   // La evidencia se abre con contexto: paso canónico + veredicto, para que el
   // diálogo anuncie algo con significado y no "una imagen".
-  const handleSelectEvidence = React.useCallback((url: string, step: WorkflowReviewStep, stepNumber: number) => {
-    setSelectedEvidence({ url, step, stepNumber });
+  const handleSelectEvidence = React.useCallback((url: string, step: ResolvedReviewStep) => {
+    setSelectedEvidence({ url, step });
   }, []);
 
   return (
@@ -216,74 +202,80 @@ export function WorkflowReview({
         </CardHeader>
       </Card>
 
-      {/* AI Verification Summary */}
-      {(aiVerifiedSteps.length > 0 || aiFailedSteps.length > 0) && (
+      {/* Verificación AI. Además del veredicto agregado, es donde viven los
+          conteos de evidencia y de pasos verificados: los tabs que antes los
+          exponían fragmentaban la secuencia del flujo, que es justo lo que hay
+          que poder leer de corrido. */}
+      {(aiVerifiedCount > 0 || aiFailedCount > 0 || evidenceCount > 0) && (
         <Card className="border border-border bg-card">
           <CardHeader>
-            <CardTitle className="text-lg">Verificación AI</CardTitle>
+            <CardTitle className="text-lg">Verificación IA</CardTitle>
             <CardDescription>
-              Resumen de verificación automática por inteligencia artificial
+              Resumen de verificación automática y evidencia recolectada
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {aiVerifiedSteps.length > 0 && (
+              {aiVerifiedCount > 0 && (
                 <Alert className="border-success/30 bg-success/5 text-success">
                   <CheckCircle2 className="h-4 w-4 text-success" />
                   <AlertTitle className="font-semibold">
-                    {aiVerifiedSteps.length} paso(s) verificado(s)
+                    {aiVerifiedCount} paso(s) verificado(s)
                   </AlertTitle>
                   <AlertDescription className="text-xs mt-1">
-                    Estos pasos fueron verificados exitosamente por AI
+                    Estos pasos fueron verificados exitosamente por IA
                   </AlertDescription>
                 </Alert>
               )}
 
-              {aiFailedSteps.length > 0 && (
+              {aiFailedCount > 0 && (
                 <Alert className="border-destructive/30 bg-destructive/5 text-destructive">
                   <AlertTriangle className="h-4 w-4 text-destructive" />
                   <AlertTitle className="font-semibold">
-                    {aiFailedSteps.length} paso(s) con observaciones
+                    {aiFailedCount} paso(s) con observaciones
                   </AlertTitle>
                   <AlertDescription className="text-xs mt-1">
-                    Estos pasos requieren revisión manual por discrepancias en la verificación AI
+                    Estos pasos requieren revisión manual por discrepancias en la verificación IA
                   </AlertDescription>
                 </Alert>
               )}
             </div>
+
+            {evidenceCount > 0 && (
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <ImageIcon className="h-4 w-4 shrink-0" />
+                {evidenceCount === 1
+                  ? '1 paso con evidencia adjunta'
+                  : `${evidenceCount} pasos con evidencia adjunta`}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* La evidencia vive sólo en el ledger tabulado ("Con Evidencia" + miniaturas
-          por paso expandido); el ledger es la única superficie de evidencia de la página. */}
-
-      {/* Step Details */}
+      {/* Bitácora de la ejecución */}
       <Card className="border border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-lg">Detalle de Pasos</CardTitle>
+          <CardTitle className="text-lg">Bitácora de la ejecución</CardTitle>
           <CardDescription>
-            Información completa de cada paso del workflow
+            Qué se pidió en cada paso y qué registró el operador
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="all">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1">
-              <TabsTrigger value="all">Todos ({workflow.steps.length})</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 gap-1">
+              <TabsTrigger value="all">Todo ({workflow.steps.length})</TabsTrigger>
               <TabsTrigger value="review">
-                Por Revisar ({stepsToReview.length})
+                Requiere atención ({stepsToReview.length})
               </TabsTrigger>
-              <TabsTrigger value="evidence">Con Evidencia ({evidenceSteps.length})</TabsTrigger>
-              <TabsTrigger value="ai-verified">Verificados por IA ({aiVerifiedSteps.length})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="all" className="mt-4">
               <div className="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden">
-                {workflow.steps.map((step, index) => (
+                {workflow.steps.map((step) => (
                   <StepDetail
                     key={step.id}
                     step={step}
-                    stepNumber={stepNumbers.get(step.id) ?? index + 1}
                     onSelectImage={handleSelectEvidence}
                   />
                 ))}
@@ -293,11 +285,10 @@ export function WorkflowReview({
             <TabsContent value="review" className="mt-4">
               {stepsToReview.length > 0 ? (
                 <div className="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden">
-                  {stepsToReview.map((step, index) => (
+                  {stepsToReview.map((step) => (
                     <StepDetail
                       key={step.id}
                       step={step}
-                      stepNumber={stepNumbers.get(step.id) ?? index + 1}
                       onSelectImage={handleSelectEvidence}
                     />
                   ))}
@@ -305,44 +296,6 @@ export function WorkflowReview({
               ) : (
                 <div className="text-center py-8 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
                   No hay pasos con fallas o comentarios que requieran atención manual
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="evidence" className="mt-4">
-              {evidenceSteps.length > 0 ? (
-                <div className="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden">
-                  {evidenceSteps.map((step, index) => (
-                    <StepDetail
-                      key={step.id}
-                      step={step}
-                      stepNumber={stepNumbers.get(step.id) ?? index + 1}
-                      onSelectImage={handleSelectEvidence}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
-                  No hay pasos con evidencia
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="ai-verified" className="mt-4">
-              {aiVerifiedSteps.length > 0 ? (
-                <div className="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden">
-                  {aiVerifiedSteps.map((step, index) => (
-                    <StepDetail
-                      key={step.id}
-                      step={step}
-                      stepNumber={stepNumbers.get(step.id) ?? index + 1}
-                      onSelectImage={handleSelectEvidence}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
-                  No hay pasos verificados por AI
                 </div>
               )}
             </TabsContent>
@@ -420,7 +373,7 @@ export function WorkflowReview({
             <DialogTitle>Vista Previa de Evidencia</DialogTitle>
             {selectedEvidence && (
               <DialogDescription>
-                Paso {selectedEvidence.stepNumber}: {selectedEvidence.step.title}
+                Paso {selectedEvidence.step.position}: {stepLabel(selectedEvidence.step)}
                 {selectedEvidence.step.aiAnalysis && (
                   <>
                     {' · '}
@@ -434,7 +387,7 @@ export function WorkflowReview({
             <div className="relative aspect-video max-h-[70vh] flex items-center justify-center bg-black/5 dark:bg-black/40 rounded-lg overflow-hidden">
               <img
                 src={selectedEvidence.url}
-                alt={`Evidencia del paso ${selectedEvidence.stepNumber}: ${selectedEvidence.step.title}`}
+                alt={`Evidencia del paso ${selectedEvidence.step.position}: ${stepLabel(selectedEvidence.step)}`}
                 className="max-w-full max-h-full object-contain rounded-lg"
                 onError={(e) => {
                   const target = e.currentTarget;
@@ -523,15 +476,44 @@ export function WorkflowReview({
   );
 }
 
-interface StepDetailProps {
-  step: WorkflowReviewStep;
-  stepNumber: number;
-  onSelectImage: (url: string, step: WorkflowReviewStep, stepNumber: number) => void;
+/**
+ * Un paso sin definición localizable no recibe un título inventado: se rotula
+ * como lo que es. Antes esta pantalla mostraba `Step <uuid>` y parecía un
+ * título de verdad.
+ */
+function stepLabel(step: ResolvedReviewStep): string {
+  return step.title ?? "Paso sin definición en la plantilla";
 }
 
-function StepDetail({ step, stepNumber, onSelectImage }: StepDetailProps) {
-  const [expanded, setExpanded] = React.useState(false);
+interface StepDetailProps {
+  step: ResolvedReviewStep;
+  onSelectImage: (url: string, step: ResolvedReviewStep) => void;
+}
+
+function StepDetail({ step, onSelectImage }: StepDetailProps) {
+  const needsAttention = stepNeedsAttention(step);
+  // Los pasos con hallazgo son la razón por la que el revisor abrió la página:
+  // llegan abiertos. Los limpios se leen de un vistazo y no piden espacio.
+  const [expanded, setExpanded] = React.useState(needsAttention);
   const urls = getEvidenceUrls(step.evidenceUrl);
+  const answered = stepWasAnswered(step);
+  const time = formatTime(step.completedAt);
+
+  // INFO no es una pregunta: es contexto que el operador leyó. Ni se responde ni
+  // se revisa, así que no ocupa una fila de bitácora con estado y respuesta.
+  if (step.type === 'INFO') {
+    return (
+      <div className="flex items-start gap-3 px-4 py-3 bg-muted/20">
+        <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">{stepLabel(step)}</p>
+          {step.description && (
+            <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="transition-colors hover:bg-muted/30">
@@ -540,23 +522,27 @@ function StepDetail({ step, stepNumber, onSelectImage }: StepDetailProps) {
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
         aria-controls={`step-detail-${step.id}`}
-        className="w-full p-4 cursor-pointer flex items-center justify-between gap-4 select-none text-left"
+        className="w-full p-4 cursor-pointer flex items-start justify-between gap-4 select-none text-left"
       >
-        <div className="flex items-center gap-3 flex-wrap">
-          {step.status === 'COMPLETED' ? (
-            <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs font-medium">
-              Paso {stepNumber}
-            </Badge>
-          ) : step.status === 'SKIPPED' ? (
-            <Badge variant="secondary" className="text-xs font-medium">
-              Paso {stepNumber} (Omitido)
-            </Badge>
-          ) : (
-            <Badge variant="destructive" className="text-xs font-medium">
-              Paso {stepNumber}
-            </Badge>
-          )}
-          <span className="font-medium text-sm text-foreground">{step.title}</span>
+        <div className="flex items-start gap-3 min-w-0">
+          <StepStatusIcon status={step.status} needsAttention={needsAttention} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="text-xs font-medium text-muted-foreground shrink-0">
+                Paso {step.position}
+              </span>
+              <span className={cn("font-medium text-sm", step.resolved ? "text-foreground" : "text-muted-foreground italic")}>
+                {stepLabel(step)}
+              </span>
+            </div>
+            {/* Quién y cuándo, visible sin expandir: en una revisión de
+                cumplimiento la autoría del registro es parte del dato. */}
+            {(step.completedByName || time) && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {[step.completedByName, time].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {step.aiAnalysis && (
@@ -598,39 +584,60 @@ function StepDetail({ step, stepNumber, onSelectImage }: StepDetailProps) {
 
       {expanded && (
         <div id={`step-detail-${step.id}`} className="p-4 pt-3 border-t border-border/60 bg-muted/20 space-y-4">
+          {!step.resolved && (
+            <p className="text-xs text-muted-foreground">
+              La plantilla ya no contiene la definición de este paso. Identificador registrado:{' '}
+              <code className="font-mono text-foreground">{step.stepId}</code>
+            </p>
+          )}
+
+          {step.description && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground">Se pidió</p>
+              <p className="text-sm mt-1 text-foreground">{step.description}</p>
+            </div>
+          )}
+
+          {/* Un paso que nunca se completó no tiene respuesta que mostrar: el
+              `value` que trae es metadata sembrada al crear la instancia, no
+              algo que el operador haya registrado. */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground">Registró</p>
+            <div className="mt-1">
+              {answered ? (
+                <StepValue step={step} />
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  {step.status === 'SKIPPED' ? 'Paso omitido' : 'Sin registrar'}
+                </p>
+              )}
+            </div>
+          </div>
+
           {step.comment && (
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground">Comentario del Operador:</Label>
+              <p className="text-xs font-semibold text-muted-foreground">Nota del operador</p>
               <p className="text-sm mt-1 text-foreground bg-background p-2.5 rounded-md border border-border">
                 {step.comment}
               </p>
             </div>
           )}
 
-          {step.value !== null && step.value !== undefined && (
-            <div>
-              <Label className="text-xs font-semibold text-muted-foreground">Valor Registrado:</Label>
-              <div className="text-sm mt-1 font-mono bg-background p-2.5 rounded-md border border-border">
-                {typeof step.value === 'object' ? JSON.stringify(step.value, null, 2) : String(step.value)}
-              </div>
-            </div>
-          )}
-
           {urls.length > 0 && (
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground">Evidencias ({urls.length}):</Label>
+              <p className="text-xs font-semibold text-muted-foreground">Evidencia ({urls.length})</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
                 {urls.map((url, idx) => (
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => onSelectImage(url, step, stepNumber)}
-                    aria-label={`Ampliar evidencia ${idx + 1} del paso ${stepNumber}`}
+                    onClick={() => onSelectImage(url, step)}
+                    aria-label={`Ampliar evidencia ${idx + 1} del paso ${step.position}`}
                     className="group relative aspect-video overflow-hidden rounded-md bg-muted border border-border cursor-pointer hover:ring-2 hover:ring-primary transition-all text-left"
                   >
                     <img
                       src={url}
-                      alt={`Evidencia ${idx + 1} del paso ${stepNumber}`}
+                      alt={`Evidencia ${idx + 1} del paso ${step.position}`}
                       loading="lazy"
                       className="w-full h-full object-cover transition-transform group-hover:scale-105"
                       onError={(e) => {
@@ -656,7 +663,7 @@ function StepDetail({ step, stepNumber, onSelectImage }: StepDetailProps) {
 
           {step.aiAnalysis && (
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground">Análisis de Inteligencia Artificial:</Label>
+              <p className="text-xs font-semibold text-muted-foreground">Verificación IA</p>
               <Alert
                 className={cn(
                   "mt-1.5",
@@ -675,7 +682,7 @@ function StepDetail({ step, stepNumber, onSelectImage }: StepDetailProps) {
                 </AlertTitle>
                 <AlertDescription className="text-xs mt-1 space-y-1">
                   <p>{step.aiAnalysis.reason || step.aiAnalysis.notes || 'Sin detalles'}</p>
-                  {step.aiAnalysis.confidence !== undefined && (
+                  {step.aiAnalysis.confidence !== undefined && step.aiAnalysis.confidence !== null && (
                     <span className="inline-block font-mono text-xs opacity-80">
                       Nivel de confianza: {Math.round(step.aiAnalysis.confidence * 100)}%
                     </span>
@@ -694,4 +701,20 @@ function StepDetail({ step, stepNumber, onSelectImage }: StepDetailProps) {
       )}
     </div>
   );
+}
+
+/** El estado del paso como icono; el texto lo lleva la fila. */
+function StepStatusIcon({ status, needsAttention }: { status: string; needsAttention: boolean }) {
+  const className = "h-4 w-4 shrink-0 mt-0.5";
+
+  if (needsAttention) {
+    return <AlertTriangle className={cn(className, "text-destructive")} aria-hidden="true" />;
+  }
+  if (status === 'COMPLETED') {
+    return <CheckCircle2 className={cn(className, "text-success")} aria-hidden="true" />;
+  }
+  if (status === 'SKIPPED') {
+    return <MinusCircle className={cn(className, "text-muted-foreground")} aria-hidden="true" />;
+  }
+  return <Circle className={cn(className, "text-muted-foreground")} aria-hidden="true" />;
 }

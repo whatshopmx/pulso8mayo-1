@@ -237,20 +237,28 @@ export class StockCountService {
             },
         }).returning();
 
-        for (const step of steps) {
-            const stepData = 'systemQuantity' in step 
-                ? JSON.stringify({ 
-                    systemQuantity: (step as { systemQuantity: number }).systemQuantity, 
+        for (const [index, step] of steps.entries()) {
+            const stepData = 'systemQuantity' in step
+                ? JSON.stringify({
+                    systemQuantity: (step as { systemQuantity: number }).systemQuantity,
                     itemId: (step as { itemId: string }).itemId,
-                    inputValue: 'value' in step ? (step as { value: string }).value ?? null : null 
+                    inputValue: 'value' in step ? (step as { value: string }).value ?? null : null
                 })
                 : ('value' in step ? (step as { value: string }).value ?? null : null);
-            
+
             await db.insert(workflowInstanceSteps).values({
                 instanceId: instance.id,
                 stepId: step.id,
                 status: "PENDING",
                 value: stepData,
+                // Estos pasos se generan por SKU y no existen en la plantilla:
+                // si no se congela la definición aquí, su título es
+                // irrecuperable en la revisión. Misma razón que en
+                // `workflow-execution-service.createExecution`.
+                stepOrder: index,
+                title: step.title ?? null,
+                type: step.type ?? null,
+                definition: step,
             });
         }
 

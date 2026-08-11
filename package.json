@@ -22,7 +22,8 @@
     "seed:8": "npx tsx scripts/seed-08-hr-advanced.ts",
     "seed:9": "npx tsx scripts/seed-09-whatsapp.ts",
     "seed:10": "npx tsx scripts/seed-10-final.ts",
-    "seed:pass": "npx tsx scripts/seed-passwords.ts"
+    "seed:pass": "npx tsx scripts/seed-passwords.ts",
+    "backfill:step-definitions": "npx tsx scripts/backfill-step-definitions.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1029.0",

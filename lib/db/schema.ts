@@ -98,6 +98,20 @@ export const workflowInstanceSteps = pgTable("workflow_instance_steps", {
     comment: text("comment"),
     completedAt: timestamp("completed_at"),
     completedBy: text("completed_by"), // User ID
+
+    // Definición del paso congelada al crear la instancia. Sin esto, la fila
+    // sólo guarda la *respuesta*: la *pregunta* vivía únicamente en
+    // `workflow_templates.steps`, así que editar la plantilla reescribía el
+    // pasado de una revisión ya firmada, y los pasos dinámicos (conteo de
+    // inventario, `metadata.dynamicSource`) quedaban sin título recuperable —
+    // se resuelven en memoria al arrancar y nunca se persistían.
+    //
+    // Nullable a propósito: el backfill es incremental y el resolver sabe caer
+    // a la plantilla mientras estas columnas estén vacías.
+    stepOrder: integer("step_order"),
+    title: text("title"),
+    type: text("type"),
+    definition: jsonb("definition"), // WorkflowStep completo (unit, options, validation)
 });
 
 export const workflowTemplates = pgTable("workflow_templates", {

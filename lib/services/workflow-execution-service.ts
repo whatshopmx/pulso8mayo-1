@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
-import { workflowInstances, workflowInstanceSteps, workflowTemplates, users, companies } from "@/lib/db/schema";
+import { workflowInstances, workflowInstanceSteps, workflowTemplates, users, companies, branches } from "@/lib/db/schema";
 import { WorkflowStep } from "@/lib/types/workflow";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { STOCK_COUNT_TEMPLATE_NAME, DEFAULT_CATEGORIES } from "./stock-count-service";
 import { hasDynamicSteps, resolveDynamicSteps } from "@/lib/workflows/dynamic-steps";
 import { templateLibrary } from "@/templates";
@@ -83,7 +83,7 @@ export class WorkflowExecutionService {
 
             if (steps.length > 0) {
                 await tx.insert(workflowInstanceSteps).values(
-                    steps.map(step => {
+                    steps.map((step, index) => {
                         const hasDirectFields = 'systemQuantity' in step;
                         const value = hasDirectFields
                             ? JSON.stringify({
@@ -99,6 +99,17 @@ export class WorkflowExecutionService {
                             stepId: step.id,
                             status: 'PENDING',
                             value,
+                            // Congelamos la definición aquí porque este es el
+                            // único punto donde los pasos existen completos: el
+                            // conteo de inventario y `dynamicSource` ya se
+                            // expandieron arriba y ese resultado no vive en
+                            // ningún otro lado. Una revisión es un acta: debe
+                            // seguir diciendo lo que se pidió el día que se
+                            // ejecutó, aunque la plantilla cambie después.
+                            stepOrder: index,
+                            title: step.title ?? null,
+                            type: step.type ?? null,
+                            definition: step,
                         };
                     })
                 );
@@ -115,9 +126,18 @@ export class WorkflowExecutionService {
 
         if (!instance) return null;
 
-        // Fetch steps separately if relations aren't set up perfectly or for clarity
+        // Orden explícito: la tabla no tiene columna de orden y el heap de
+        // Postgres no garantiza ninguno, así que dos peticiones podían devolver
+        // los pasos en secuencias distintas. Cronológico (los no completados al
+        // final) y desempatado por `id` para que sea estable entre llamadas. El
+        // orden *canónico* de la bitácora lo impone la plantilla, en
+        // `resolveStepDefinitions`.
         const steps = await db.query.workflowInstanceSteps.findMany({
-            where: eq(workflowInstanceSteps.instanceId, instanceId)
+            where: eq(workflowInstanceSteps.instanceId, instanceId),
+            orderBy: [
+                sql`${workflowInstanceSteps.completedAt} ASC NULLS LAST`,
+                workflowInstanceSteps.id,
+            ],
         });
 
         // Fetch user if needed
@@ -127,6 +147,24 @@ export class WorkflowExecutionService {
                 where: eq(users.id, instance.assigneeId)
             });
         }
+
+        // La sucursal nunca se consultaba: la vista de revisión mostraba
+        // "Sucursal: N/A" de forma permanente.
+        const branch = await db.query.branches.findFirst({
+            where: eq(branches.id, instance.branchId),
+            columns: { id: true, name: true },
+        });
+
+        // Quién registró cada paso, en una sola consulta (no N+1). En una
+        // revisión de cumplimiento la autoría del registro es parte del dato.
+        const completedByIds = [...new Set(steps.map(s => s.completedBy).filter((id): id is string => !!id))];
+        const stepAuthors = completedByIds.length > 0
+            ? await db.query.users.findMany({
+                where: inArray(users.id, completedByIds),
+                columns: { id: true, name: true },
+            })
+            : [];
+        const authorNames = new Map(stepAuthors.map(u => [u.id, u.name]));
 
         // Fetch template
         const template = await db.query.workflowTemplates.findFirst({
@@ -151,9 +189,11 @@ export class WorkflowExecutionService {
                 ...s,
                 value: s.value as string || "",
                 status: s.status as "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED",
-                completedAt: s.completedAt?.toISOString()
+                completedAt: s.completedAt?.toISOString(),
+                completedByName: s.completedBy ? authorNames.get(s.completedBy) ?? null : null,
             })),
             assignee,
+            branch,
             template,
             blindCount: isBlindCount
         };
