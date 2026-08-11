@@ -7,9 +7,9 @@ import { MetricGrid, MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileDown, Calendar, TrendingUp, AlertTriangle, Loader2, RefreshCw } from "lucide-react";
-import { SUAFileGenerator } from "@/components/compliance/sua-file-generator";
+import { ImssSubNav } from "@/components/compliance/imss-sub-nav";
+import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 
@@ -38,7 +38,6 @@ export default function IMSSReportsPage() {
     complianceRate: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [generatingIdse, setGeneratingIdse] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -49,7 +48,7 @@ export default function IMSSReportsPage() {
       ]);
 
       const allReports: IMSSReport[] = [];
-      let suaCount = 0;
+      const suaCount = 0;
       let idseCount = 0;
 
       if (altasRes.ok) {
@@ -108,76 +107,15 @@ export default function IMSSReportsPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleGenerateIdse = async (movementType: string) => {
-    setGeneratingIdse(true);
-    try {
-      const res = await fetch("/api/imss/idse-generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ movementType }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error generando archivo");
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `IDSE_${movementType}_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      toast.success("Archivo IDSE generado exitosamente");
-      fetchData();
-    } catch (error: any) {
-      toast.error(error.message || "Error al generar archivo IDSE");
-    } finally {
-      setGeneratingIdse(false);
-    }
-  };
-
-  const handleGenerateSUA = async () => {
-    try {
-      const res = await fetch("/api/imss/sua-generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Error generando archivo SUA");
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `SUA_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      toast.success("Archivo SUA generado exitosamente");
-      fetchData();
-    } catch (error: any) {
-      toast.error(error.message || "Error al generar archivo SUA");
-    }
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Reportes y Archivos IMSS"
-        description="Genera y gestiona archivos de cumplimiento IMSS"
+        description="Historial de archivos de cumplimiento IMSS generados"
         icon={FileDown}
       />
+
+      <ImssSubNav />
 
       <MetricGrid columns={4}>
         <MetricCard
@@ -212,177 +150,100 @@ export default function IMSSReportsPage() {
         />
       </MetricGrid>
 
-      <Tabs defaultValue="generate" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="generate">Generar Archivos</TabsTrigger>
-          <TabsTrigger value="history">Historial de Archivos</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="generate" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Generar Archivo SUA</CardTitle>
-              <CardDescription>
-                Archivo de Actualización de Salarios para reporte mensual IMSS
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Genera el archivo SUA con las actualizaciones salariales del período seleccionado.
-                Debe presentarse antes del día 17 de cada mes.
-              </p>
-              <Button onClick={handleGenerateSUA} disabled={generatingIdse}>
-                <FileDown className="h-4 w-4 mr-2" />
-                {generatingIdse ? "Generando..." : "Generar Archivo SUA"}
-              </Button>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">IDSE - Altas</CardTitle>
-                <CardDescription>
-                  Archivo de movimientos - Nuevos empleados dados de alta
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Reporta altas de empleados ante el IMSS dentro de los 5 días hábiles posteriores al inicio de labores.
-                </p>
-                <Button
-                  onClick={() => handleGenerateIdse("08")}
-                  disabled={generatingIdse}
-                  className="w-full"
-                >
-                  <FileDown className="h-4 w-4 mr-2" />
-                  {generatingIdse ? "Generando..." : "Generar IDSE Altas"}
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">IDSE - Bajas</CardTitle>
-                <CardDescription>
-                  Archivo de movimientos - Empleados dados de baja
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Reporta bajas de empleados ante el IMSS dentro de los 5 días hábiles posteriores a la separación.
-                </p>
-                <Button
-                  onClick={() => handleGenerateIdse("02")}
-                  disabled={generatingIdse}
-                  className="w-full"
-                >
-                  <FileDown className="h-4 w-4 mr-2" />
-                  {generatingIdse ? "Generando..." : "Generar IDSE Bajas"}
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">IDSE - Modificación Salarial</CardTitle>
-                <CardDescription>
-                  Archivo de movimientos - Cambios de salario
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Reporta modificaciones salariales de empleados ante el IMSS.
-                </p>
-                <Button
-                  onClick={() => handleGenerateIdse("07")}
-                  disabled={generatingIdse}
-                  className="w-full"
-                >
-                  <FileDown className="h-4 w-4 mr-2" />
-                  {generatingIdse ? "Generando..." : "Generar IDSE Mod. Salarial"}
-                </Button>
-              </CardContent>
-            </Card>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Historial de Archivos Generados</CardTitle>
+            <CardDescription>
+              Ver y descargar archivos IMSS generados previamente
+            </CardDescription>
           </div>
-        </TabsContent>
-
-        <TabsContent value="history" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Historial de Archivos Generados</CardTitle>
-                <CardDescription>
-                  Ver y descargar archivos IMSS generados previamente
-                </CardDescription>
-              </div>
-              <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-                Actualizar
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : reports.length === 0 ? (
-                <div className="text-center py-12">
-                  <FileDown className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold">Sin archivos generados</h3>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    No se han generado archivos IMSS aún. Usa la pestaña "Generar Archivos" para crear uno.
-                  </p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Período</TableHead>
-                      <TableHead>Generado</TableHead>
-                      <TableHead>Empleados</TableHead>
-                      <TableHead>Estado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reports.map((report) => (
-                      <TableRow key={report.id}>
-                        <TableCell>
-                          <Badge variant="outline">{report.type}</Badge>
-                        </TableCell>
-                        <TableCell>{report.period || "—"}</TableCell>
-                        <TableCell>
-                          {report.generatedAt
-                            ? new Date(report.generatedAt).toLocaleDateString("es-MX")
-                            : "—"}
-                        </TableCell>
-                        <TableCell>{report.employeeCount}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              report.status === "SUBMITTED" || report.status === "APPROVED"
-                                ? "default"
-                                : report.status === "PENDING"
-                                ? "secondary"
-                                : "destructive"
-                            }
-                          >
-                            {report.status === "SUBMITTED" ? "Enviado" :
-                             report.status === "APPROVED" ? "Aprobado" :
-                             report.status === "PENDING" ? "Pendiente" :
-                             report.status === "REJECTED" ? "Rechazado" : report.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : reports.length === 0 ? (
+            <div className="text-center py-12">
+              <FileDown className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold">Sin archivos generados</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                Los archivos se generan desde las secciones de{" "}
+                <Link
+                  href="/dashboard/compliance/imss/altas"
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Altas
+                </Link>
+                ,{" "}
+                <Link
+                  href="/dashboard/compliance/imss/bajas"
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Bajas
+                </Link>{" "}
+                y{" "}
+                <Link
+                  href="/dashboard/compliance/imss/sua"
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  SUA
+                </Link>
+                , donde puedes seleccionar los empleados a incluir.
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Generado</TableHead>
+                  <TableHead>Empleados</TableHead>
+                  <TableHead>Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reports.map((report) => (
+                  <TableRow key={report.id}>
+                    <TableCell>
+                      <Badge variant="outline">{report.type}</Badge>
+                    </TableCell>
+                    <TableCell>{report.period || "—"}</TableCell>
+                    <TableCell>
+                      {report.generatedAt
+                        ? new Date(report.generatedAt).toLocaleDateString("es-MX")
+                        : "—"}
+                    </TableCell>
+                    <TableCell>{report.employeeCount}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          report.status === "SUBMITTED" || report.status === "APPROVED"
+                            ? "default"
+                            : report.status === "PENDING"
+                            ? "secondary"
+                            : "destructive"
+                        }
+                      >
+                        {report.status === "SUBMITTED" ? "Enviado" :
+                         report.status === "APPROVED" ? "Aprobado" :
+                         report.status === "PENDING" ? "Pendiente" :
+                         report.status === "REJECTED" ? "Rechazado" : report.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

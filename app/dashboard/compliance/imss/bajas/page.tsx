@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, UserMinus, FileDown, AlertTriangle, Clock } from "lucide-react";
+import { Loader2, UserMinus, FileDown, AlertTriangle, Clock, ArrowRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ImssSubNav } from "@/components/compliance/imss-sub-nav";
+import Link from "next/link";
 import { toast } from "sonner";
 
 interface IMSSBaja {
@@ -60,7 +62,7 @@ export default function IMSSBajasPage() {
     };
 
     const toggleAll = () => {
-        const ready = bajas.filter(b => b.status === "READY" || b.status === "PENDING");
+        const ready = bajas.filter(b => b.status === "READY");
         if (selectedEmployees.size === ready.length) {
             setSelectedEmployees(new Set());
         } else {
@@ -136,6 +138,8 @@ export default function IMSSBajasPage() {
                 description="Notifica las bajas de empleados ante el IMSS dentro de los 5 días hábiles"
                 icon={UserMinus}
             />
+
+            <ImssSubNav />
 
             <Alert>
                 <AlertTriangle className="h-4 w-4" />
@@ -241,14 +245,14 @@ export default function IMSSBajasPage() {
                                                 <span
                                                     className={
                                                         baja.daysSinceTermination > 5
-                                                            ? "text-red-600 font-bold"
+                                                            ? "text-destructive font-bold"
                                                             : ""
                                                     }
                                                 >
                                                     {baja.daysSinceTermination}d
                                                 </span>
                                                 {baja.daysSinceTermination > 5 && (
-                                                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                                                    <AlertTriangle className="h-4 w-4 text-destructive" />
                                                 )}
                                             </div>
                                         </TableCell>
@@ -304,7 +308,7 @@ export default function IMSSBajasPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex items-start space-x-3">
-                        <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5" />
+                        <AlertTriangle className="h-5 w-5 text-warning mt-0.5" />
                         <div>
                             <p className="font-medium">Liquidación Final</p>
                             <p className="text-sm text-muted-foreground">
@@ -314,7 +318,7 @@ export default function IMSSBajasPage() {
                         </div>
                     </div>
                     <div className="flex items-start space-x-3">
-                        <Clock className="h-5 w-5 text-blue-500 mt-0.5" />
+                        <Clock className="h-5 w-5 text-info mt-0.5" />
                         <div>
                             <p className="font-medium">Plazo de 5 Días</p>
                             <p className="text-sm text-muted-foreground">
@@ -325,6 +329,16 @@ export default function IMSSBajasPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            <div className="flex justify-end">
+                <Link
+                    href="/dashboard/compliance/imss/reports"
+                    className="inline-flex items-center gap-1 rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                    Ver historial de archivos generados
+                    <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+            </div>
         </div>
     );
 }

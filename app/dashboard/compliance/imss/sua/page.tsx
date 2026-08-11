@@ -5,12 +5,16 @@ import { PageHeader } from "@/components/shared";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, FileDown, DollarSign, AlertTriangle, Calendar } from "lucide-react";
+import { Loader2, FileDown, AlertTriangle, ArrowRight } from "lucide-react";
+import { ImssSubNav } from "@/components/compliance/imss-sub-nav";
+import Link from "next/link";
 import { toast } from "sonner";
+
+/** Salario diario de referencia cuando el empleado no tiene salario base capturado. */
+const IMSS_MIN_SALARY_DEFAULT = 300;
 
 interface EmployeeSalary {
     userId: string;
@@ -64,7 +68,7 @@ export default function SUAGeneratorPage() {
 
     const getDefaultSalary = (userId: string) => {
         const emp = employees.find(e => e.userId === userId);
-        return selectedEmployees.get(userId) || emp?.baseSalary || 300;
+        return selectedEmployees.get(userId) || emp?.baseSalary || IMSS_MIN_SALARY_DEFAULT;
     };
 
     const generateSUAFile = async () => {
@@ -111,8 +115,6 @@ export default function SUAGeneratorPage() {
         }
     };
 
-    const totalRecords = selectedEmployees.size;
-
     const readyCount = employees.filter(e => e.nss && e.nss.length === 11).length;
 
     if (loading) {
@@ -131,8 +133,10 @@ export default function SUAGeneratorPage() {
                 icon={FileDown}
             />
 
-<Alert className="bg-amber-50 border-amber-200">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <ImssSubNav />
+
+            <Alert>
+                <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
                     El formato SUA se usa para actualizar salarios base en el IMSS.
                     El SDI (Salario Diario Integrado) se calcula automáticamente.
@@ -188,7 +192,7 @@ export default function SUAGeneratorPage() {
                                         </TableCell>
                                         <TableCell>{emp.position || "-"}</TableCell>
                                         <TableCell className="text-muted-foreground">
-                                            ${emp.baseSalary || 300}/día
+                                            ${emp.baseSalary || IMSS_MIN_SALARY_DEFAULT}/día
                                         </TableCell>
                                         <TableCell>
                                             <Input
@@ -235,6 +239,16 @@ export default function SUAGeneratorPage() {
                     </CardContent>
                 </Card>
             )}
+
+            <div className="flex justify-end">
+                <Link
+                    href="/dashboard/compliance/imss/reports"
+                    className="inline-flex items-center gap-1 rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                    Ver historial de archivos generados
+                    <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+            </div>
         </div>
     );
 }
