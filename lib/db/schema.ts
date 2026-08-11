@@ -904,6 +904,18 @@ export const unitConversions = pgTable("unit_conversions", {
     updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// ---------------------------------------------------------------------------
+// Cantidades en `numeric(12,4)` — misma convención que `stock_counts` (AD-6;
+// `stockCounts.countedQuantity` más abajo): una merma o ajuste de 2.5 kg
+// guarda 2.5, no 2. `inventory_waste.quantity` y `inventory_movements`
+// comparten la convención.
+//
+// Drizzle 0.45 tipa `numeric` como `string` (verificado 2026-08-11, T1 de
+// tasks/plan-inventory-waste.md: `mode: 'number'` existe en drizzle-orm 0.45
+// pero este repo no lo usa): toda lectura se coacciona con `Number()` antes
+// de operar y toda escritura va como string. Un `+` sobre el valor crudo
+// concatenaría en vez de sumar.
+// ---------------------------------------------------------------------------
 export const inventoryBatches = pgTable("inventory_batches", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
     itemId: uuid("item_id").notNull(), // References inventoryItems.id
@@ -913,8 +925,8 @@ export const inventoryBatches = pgTable("inventory_batches", {
     productionDate: timestamp("production_date"),
     expirationDate: timestamp("expiration_date"),
     receivedAt: timestamp("received_at").defaultNow(),
-    initialQuantity: integer("initial_quantity").notNull(),
-    currentQuantity: integer("current_quantity").notNull(),
+    initialQuantity: numeric("initial_quantity", { precision: 12, scale: 4 }).notNull(),
+    currentQuantity: numeric("current_quantity", { precision: 12, scale: 4 }).notNull(),
     unitCost: integer("unit_cost"), // Cost per unit for this specific batch
     status: inventoryBatchStatusEnum("status").default('AVAILABLE'),
     supplierBatchInfo: jsonb("supplier_batch_info"),
@@ -928,7 +940,7 @@ export const inventoryMovements = pgTable("inventory_movements", {
     itemId: uuid("item_id").notNull(),
     batchId: uuid("batch_id"), // Optional, if tracking by batch
     type: inventoryTransactionTypeEnum("type").notNull(),
-    quantityChange: integer("quantity_change").notNull(), // Positive or negative
+    quantityChange: numeric("quantity_change", { precision: 12, scale: 4 }).notNull(), // Positive or negative
     fromLocationId: uuid("from_location_id"), // Origin storage location
     toLocationId: uuid("to_location_id"), // Destination storage location
     reason: text("reason"),
@@ -1248,7 +1260,9 @@ export const inventoryWaste = pgTable("inventory_waste", {
     itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
 
     // Waste details
-    quantity: integer("quantity").notNull(),
+    // Cantidad en `numeric(12,4)` (string en TS, ver arriba en inventoryBatches):
+    // una merma de 0.4 kg guarda 0.4000, no 0.
+    quantity: numeric("quantity", { precision: 12, scale: 4 }).notNull(),
     unit: text("unit").notNull(),
     reason: inventoryWasteReasonEnum("reason").notNull(),
     costPerUnit: integer("cost_per_unit"), // In cents
