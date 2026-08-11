@@ -1,44 +1,42 @@
-# Todo List: Schedule Builder UI Remediation
+# Todo List: Dashboard UI Remediation
 
-## Phase 1: Header Toolbar & Action Hierarchy ($impeccable layout)
-- [ ] **Task 1**: Refactor `UnifiedShiftScheduler` toolbar layout into visual clusters
-  - **Description**: Group view mode buttons into a segmented control, primary actions (`Guardar`, `Publicar`) into prominent buttons, and secondary utilities (`Plantilla`, `Copiar`, `Exportar`, `Configuración`, `Asignación Masiva`) into a dropdown menu.
+## Phase 1: Core Layout Consolidation ($impeccable layout & distill)
+- [x] **Task 1**: Create a unified tabbed metrics switcher client component
+  - **Description**: Introduce `DashboardTabbedMetrics` to manage tabs ("Overview", "Compliance", "Inventory", "Labor") and wrap/display metric cards and metrics grid conditionally based on the active tab.
   - **Acceptance criteria**:
-    - [ ] View switchers use a cohesive segmented control UI
-    - [ ] `Publicar` button uses Operational Red primary button styling
-    - [ ] Utility actions consolidated into an overflow dropdown menu
-    - [ ] Filter bar sits cleanly below action bar
-  - **Verification**: Visual check & `pnpm run build`
-  - **Files**: `components/labor/unified-shift-scheduler.tsx`
+    - [x] Tab buttons for Overview, Compliance, Inventory, Labor exist and toggle active state
+    - [x] Standard tabs show only the relevant subset of metrics
+  - **Verification**: UI verification & `pnpm run build`
+  - **Files**: `components/dashboard/dashboard-tabbed-metrics.tsx`, `app/dashboard/page.tsx`
 
-## Phase 2: Design Token & Label Floor Standardization ($impeccable extract & typeset)
-- [ ] **Task 2**: Upgrade all off-ramp font sizes to 12px Label Floor
-  - **Description**: Replace all 10px and 9px font size utility classes (`text-[10px]`, `text-[9px]`) with `text-xs`.
+- [x] **Task 2**: Consolidate top-level metric cards to 4 core items at rest
+  - **Description**: Show only Flujos Ejecutados, Cumplimiento NOM-251, Stock Bajo, and Incidentes Abiertos as the default overview KPIs.
   - **Acceptance criteria**:
-    - [ ] Zero instances of `text-[10px]` or `text-[9px]` in `components/labor/`
-  - **Verification**: `node .agents/skills/impeccable/scripts/detect.mjs --json components/labor`
-  - **Files**: `components/labor/schedule-calendar.tsx`, `components/labor/shift-assignment-bulk.tsx`, `components/labor/shift-assignment.tsx`, `components/labor/shift-scheduler.tsx`, `components/labor/shifts/ShiftCell.tsx`, `components/labor/weekly-shift-planner.tsx`, `components/labor/labor-quick-action-drawer.tsx`
+    - [x] Exactly 4 cards visible under the default Overview tab
+    - [x] Other 8 cards grouped/loaded only when switching tabs
+  - **Verification**: Visual check
+  - **Files**: `app/dashboard/page.tsx`, `components/dashboard/dashboard-tabbed-metrics.tsx`
 
-- [ ] **Task 3**: Standardize shift color badges with design tokens
-  - **Description**: Replace hardcoded `bg-blue-500`, `bg-orange-500`, `bg-purple-500` classes with semantic badge variants and token background classes.
+## Phase 2: Contextual Help & Tooltips ($impeccable clarify)
+- [x] **Task 3**: Add tooltip / helpText support to MetricCard
+  - **Description**: Update `MetricCard` to accept a `helpText` prop, rendering a hoverable info icon. Inject calculation explanation text for NOM-251 and Labor cost metrics.
   - **Acceptance criteria**:
-    - [ ] Shift badges adapt seamlessly to light and dark modes using theme tokens
-  - **Verification**: `pnpm run build`
-  - **Files**: `components/labor/unified-shift-scheduler.tsx`, `components/labor/shifts/ShiftCell.tsx`, `components/labor/shift-assignment-bulk.tsx`
+    - [x] Help info icon visible on cards with a defined `helpText` prop
+    - [x] Hovering over the icon displays calculations correctly
+  - **Verification**: Manual hover test on browser
+  - **Files**: `components/ui/metric-card.tsx`, `components/dashboard/compliance-metrics.tsx`, `components/dashboard/kpi-summary-cards.tsx`
 
-## Phase 3: AI Slop Removal & Flat Surface Styling ($impeccable distill)
-- [ ] **Task 4**: Remove `border-l-4` side-tab accent borders
-  - **Description**: Eliminate `border-l-4` and `border-l-2` colored left borders from cards across labor components. Use flat 1px borders with subtle surface background fills.
+## Phase 3: Announcements & Accessibility ($impeccable quieter & adapt)
+- [x] **Task 4**: Make pinned announcements collapsible
+  - **Description**: Convert the pinned announcements grid at the bottom into a collapsible section with an expand/collapse toggle.
   - **Acceptance criteria**:
-    - [ ] Zero instances of `border-l-4` or `border-l-2` in `components/labor/`
-  - **Verification**: `node .agents/skills/impeccable/scripts/detect.mjs --json components/labor`
-  - **Files**: `components/labor/lft-conflict-validator.tsx`, `components/labor/shift-assignment-bulk.tsx`, `components/labor/shift-assignment.tsx`, `components/labor/shift-scheduler.tsx`
+    - [x] Grid collapses, reducing mobile height
+  - **Verification**: Verify toggle on mobile viewport emulator
+  - **Files**: `app/dashboard/page.tsx`
 
-## Phase 4: Grid Accessibility & Polish ($impeccable harden & polish)
-- [ ] **Task 5**: Add ARIA grid semantics and touch target polish to Matrix View
-  - **Description**: Add `role="grid"`, `role="row"`, `role="gridcell"` to matrix layout divs. Expand hover action buttons for mobile touch safety.
+- [x] **Task 5**: Implement keyboard shortcuts
+  - **Description**: Listen for `/` key to focus search table input, `Tab` keys to cycle tabs, and key modifiers for resetting selectors.
   - **Acceptance criteria**:
-    - [ ] ARIA grid roles added to matrix header, rows, and cells
-    - [ ] Hover delete button has at least 24px touch target padding
-  - **Verification**: `pnpm run build`
-  - **Files**: `components/labor/unified-shift-scheduler.tsx`, `components/labor/shifts/ShiftCell.tsx`
+    - [x] Pressing `/` focuses table search
+  - **Verification**: Keyboard input verification
+  - **Files**: `app/dashboard/page.tsx`

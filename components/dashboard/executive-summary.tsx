@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MetricCard, MetricGrid } from "@/components/ui/metric-card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Clock, PackageOpen, CalendarClock, Building2, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Building2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getExecutiveSummary } from "@/lib/services/analytics-service";
@@ -30,8 +29,8 @@ interface ExecutiveSummaryProps {
 export async function ExecutiveSummary({ branch }: ExecutiveSummaryProps) {
   const session = await auth.api.getSession({ headers: await headers() });
   const companyId = session?.user?.companyId;
-  const userRole = (session?.user as any)?.role;
-  const userBranchId = (session?.user as any)?.branchId as string | undefined;
+  const userRole = (session?.user as { role?: string })?.role;
+  const userBranchId = (session?.user as { branchId?: string })?.branchId;
   const requestedBranchId = branch && branch !== "all" ? branch : null;
 
   if (!companyId || !userRole) {
@@ -51,34 +50,6 @@ export async function ExecutiveSummary({ branch }: ExecutiveSummaryProps) {
 
   return (
     <div className="space-y-4">
-      {/* Consolidated Operational Alerts Strip */}
-      <MetricGrid columns={4}>
-        <MetricCard
-          label="Incidentes Críticos"
-          value={data.alertSummary.criticalIncidents}
-          icon={<AlertTriangle className="h-4 w-4" />}
-          tone={data.alertSummary.criticalIncidents > 0 ? "destructive" : "neutral"}
-        />
-        <MetricCard
-          label="Flujos Vencidos"
-          value={data.alertSummary.overdueWorkflows}
-          icon={<Clock className="h-4 w-4" />}
-          tone={data.alertSummary.overdueWorkflows > 0 ? "warning" : "neutral"}
-        />
-        <MetricCard
-          label="Stock Bajo"
-          value={data.alertSummary.lowStockItems}
-          icon={<PackageOpen className="h-4 w-4" />}
-          tone={data.alertSummary.lowStockItems > 0 ? "warning" : "neutral"}
-        />
-        <MetricCard
-          label="Lotes por Vencer"
-          value={data.alertSummary.expiringBatches}
-          icon={<CalendarClock className="h-4 w-4" />}
-          tone={data.alertSummary.expiringBatches > 0 ? "primary" : "neutral"}
-        />
-      </MetricGrid>
-
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="border border-border">
           <CardHeader className="pb-3">

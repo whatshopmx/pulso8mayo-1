@@ -4,7 +4,8 @@ import type { ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { Minus, TrendingDown, TrendingUp, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * MetricCard — tarjeta canónica de KPI (plan-kpi-cards-unificados).
@@ -57,6 +58,8 @@ export interface MetricCardProps {
   /** Skeleton de carga inline. */
   loading?: boolean;
   className?: string;
+  /** Texto de ayuda/cálculo que se muestra en un tooltip al pasar el cursor. */
+  helpText?: string;
 }
 
 const TONE_CLASSES: Record<NonNullable<MetricCardProps["tone"]>, string> = {
@@ -91,6 +94,7 @@ function MetricCardInner({ ...props }: MetricCardProps) {
     loading,
     className,
     children,
+    helpText,
   } = props;
 
   if (loading) {
@@ -118,7 +122,27 @@ function MetricCardInner({ ...props }: MetricCardProps) {
     <Card className={cn("py-5", className)}>
       <CardContent className="px-5">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-medium text-muted-foreground">{label}</span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm font-medium text-muted-foreground truncate">{label}</span>
+            {helpText && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-full shrink-0"
+                      aria-label={`Información sobre ${label}`}
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="center" className="max-w-[260px] p-2 bg-popover text-popover-foreground border border-border shadow-md">
+                    {helpText}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
           {icon && (
             <span
               aria-hidden

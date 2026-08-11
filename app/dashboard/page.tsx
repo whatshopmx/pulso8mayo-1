@@ -1,4 +1,5 @@
-import { ComplianceMetrics } from "@/components/dashboard/compliance-metrics"
+import { DashboardTabbedMetrics } from "@/components/dashboard/dashboard-tabbed-metrics"
+import { CollapsibleAnnouncements } from "@/components/dashboard/collapsible-announcements"
 import { DashboardCharts } from "@/components/dashboard/dashboard-charts"
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -9,7 +10,6 @@ import { RecentWorkflowsTable } from "@/components/dashboard/recent-workflows-ta
 import { ComplianceReportGenerator } from "@/components/compliance/report-generator";
 import { AlertDistributionChart } from "@/components/dashboard/alert-distribution-chart";
 import { getTranslations } from "next-intl/server";
-import { KpiSummaryCards } from "@/components/dashboard/kpi-summary-cards"
 import { ExecutiveSummary } from "@/components/dashboard/executive-summary"
 import { PendingRemediationActionsCard } from "@/components/dashboard/pending-actions"
 import { Suspense } from "react"
@@ -40,7 +40,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
 
   const workflowConditions = [eq(workflowTemplates.companyId, session?.user?.companyId ?? '')];
   if (selectedBranch && selectedBranch !== 'all') {
-    // @ts-ignore
+    // @ts-expect-error: branchId type compatibility with string
     workflowConditions.push(eq(workflowInstances.branchId, selectedBranch));
   }
 
@@ -91,9 +91,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
       {/* #1 — Attention queue: act first, then measure (AD-3). */}
       <PendingRemediationActionsCard />
 
-      {/* #2 — Primary KPI metrics */}
-      <Suspense fallback={<MetricCardSkeleton />}>
-        <ComplianceMetrics branch={selectedBranch} startDate={startDate} endDate={endDate} />
+      {/* #2 — Unified Tabbed KPI Control */}
+      <Suspense fallback={<MetricCardSkeleton count={4} />}>
+        <DashboardTabbedMetrics branchId={selectedBranch} startDate={startDate} endDate={endDate} />
       </Suspense>
 
       {/* #3 — Operational alerts & executive overview */}
@@ -101,11 +101,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
         <SectionErrorBoundary>
           <ExecutiveSummary branch={selectedBranch} startDate={startDate} endDate={endDate} />
         </SectionErrorBoundary>
-      </Suspense>
-
-      {/* #4 — KPI summary cards */}
-      <Suspense fallback={<MetricCardSkeleton />}>
-        <KpiSummaryCards branchId={selectedBranch} startDate={startDate} endDate={endDate} />
       </Suspense>
 
       {/* #5 — Charts */}
@@ -131,23 +126,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
       </Suspense>
 
       {/* #8 — Pinned announcements: low-priority section (Q2). */}
-      {pinnedAnnouncements.length > 0 && (
-        <section aria-label={t("announcement")}>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {pinnedAnnouncements.map((announcement) => (
-              <div key={announcement.id} className="bg-card border border-border rounded-xl p-4 relative overflow-hidden group hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
-                    {announcement.communicationType === 'ANNOUNCEMENT' ? t("announcement") : announcement.communicationType === 'NOTIFICATION' ? t("notification") : t("message")}
-                  </span>
-                </div>
-                <h3 className="font-bold text-base mb-1 group-hover:text-primary transition-colors">{announcement.title}</h3>
-                <p className="text-sm text-muted-foreground line-clamp-2">{announcement.content}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <CollapsibleAnnouncements
+        announcements={pinnedAnnouncements}
+        titleLabel={t("announcement")}
+        announcementLabel={t("announcement")}
+        notificationLabel={t("notification")}
+        messageLabel={t("message")}
+      />
     </PageContainer>
   )
 }
