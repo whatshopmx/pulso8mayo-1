@@ -13,6 +13,7 @@ import { addBatch, recordUsage } from "@/app/actions/inventory-transactions";
 import { format } from "date-fns";
 import { PackagePlus, MinusCircle, AlertTriangle } from "lucide-react";
 import Link from "next/link";
+import { formatQty } from "@/lib/utils";
 
 interface Props {
   item: any;
@@ -122,7 +123,7 @@ export function StockManager({ item, batches, movements, priceHistory, totalStoc
                                     <option value="">Cualquiera / FIFO</option>
                                     {batches.filter(b => b.status === 'AVAILABLE').map(b => (
                                         <option key={b.id} value={b.id}>
-                                            {b.lotNumber} (Q: {b.currentQuantity}) - Exp: {b.expirationDate ? format(b.expirationDate, 'dd/MM/yyyy') : 'N/A'}
+                                            {b.lotNumber} (Q: {formatQty(b.currentQuantity)}) - Exp: {b.expirationDate ? format(b.expirationDate, 'dd/MM/yyyy') : 'N/A'}
                                         </option>
                                     ))}
                                 </select>
@@ -173,7 +174,7 @@ export function StockManager({ item, batches, movements, priceHistory, totalStoc
                                     {batches.map((batch) => (
                                         <TableRow key={batch.id}>
                                             <TableCell className="font-medium">{batch.lotNumber || 'Sin Lote'}</TableCell>
-                                            <TableCell>{batch.currentQuantity} {item.unit}</TableCell>
+                                            <TableCell>{formatQty(batch.currentQuantity)} {item.unit}</TableCell>
                                             <TableCell>{batch.receivedAt ? format(new Date(batch.receivedAt), 'dd/MM/yyyy') : '-'}</TableCell>
                                             <TableCell>{batch.expirationDate ? format(new Date(batch.expirationDate), 'dd/MM/yyyy') : '-'}</TableCell>
                                             <TableCell>
@@ -219,7 +220,7 @@ export function StockManager({ item, batches, movements, priceHistory, totalStoc
                                                 <Badge variant="outline">{MOVEMENT_TRANSLATIONS[mov.type] || mov.type}</Badge>
                                             </TableCell>
                                             <TableCell className={mov.quantityChange > 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                                                {mov.quantityChange > 0 ? "+" : ""}{mov.quantityChange}
+                                                {mov.quantityChange > 0 ? "+" : ""}{formatQty(mov.quantityChange)}
                                             </TableCell>
                                             <TableCell>{mov.reason || "-"}</TableCell>
                                             <TableCell className="text-xs text-muted-foreground truncate max-w-[100px]">{mov.performedBy}</TableCell>

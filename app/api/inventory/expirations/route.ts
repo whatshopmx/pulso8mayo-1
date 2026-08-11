@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     let whereClause = and(
-      gte(inventoryBatches.currentQuantity, 0),
+      gte(inventoryBatches.currentQuantity, '0'),
       status ? eq(inventoryBatches.status, status as any) : undefined
     );
 

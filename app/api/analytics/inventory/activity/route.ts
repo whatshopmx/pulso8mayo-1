@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
         type: m.type,
         typeLabel: typeLabels[m.type] || m.type,
         itemName: m.itemName || 'Producto desconocido',
-        quantityChange: m.quantityChange,
+        quantityChange: Number(m.quantityChange),
         reason: m.reason,
         performerName: m.performerName || 'Sistema',
         timestamp: m.timestamp,

@@ -260,7 +260,7 @@ export class InventoryService {
                 )
             );
 
-        return result[0]?.total || 0;
+        return Number(result[0]?.total || 0);
     }
 
     static async getMovements(itemId: string, branchId: string) {

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     let whereClause = and(
-      gte(inventoryBatches.currentQuantity, 0)
+      gte(inventoryBatches.currentQuantity, '0')
     );
 
     if (itemId) {

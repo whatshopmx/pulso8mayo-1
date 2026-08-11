@@ -22,6 +22,17 @@ export function formatCents(cents: number, currency = 'MXN'): string {
 }
 
 /**
+ * Formatea una cantidad fraccionaria devuelta por la DB (numeric llega como
+ * string): quita ceros redundantes — `"2.5000"` → `"2.5"`, `"10.0000"` → `"10"`,
+ * `"-0.4000"` → `"-0.4"`. Nunca devuelve `"5.0000"`.
+ */
+export function formatQty(n: number | string | null | undefined): string {
+  const num = typeof n === "string" ? parseFloat(n) : typeof n === "number" ? n : NaN;
+  if (Number.isNaN(num)) return "0";
+  return String(parseFloat(num.toFixed(4)));
+}
+
+/**
  * Helper que produce clases de badge compuestas para estados semánticos.
  * Usa las variantes nativas de Badge (outline) + tonalidades de diseño.
  *

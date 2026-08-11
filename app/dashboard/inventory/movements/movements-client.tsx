@@ -12,6 +12,7 @@ import { PageHeader, PageContainer, EmptyState } from "@/components/shared";
 import { useBranch } from "@/lib/branch-context";
 import { useMovements } from "@/hooks/queries";
 import { ChevronLeft, Download, Package, Search } from "lucide-react";
+import { formatQty } from "@/lib/utils";
 import { DataTableSkeleton } from "@/components/shared/skeletons";
 import { useExportCsv } from "@/components/shared/use-export-csv";
 
@@ -78,7 +79,7 @@ export function MovementsClient() {
         m.itemName || "",
         m.itemSku || "",
         m.batchNumber || "",
-        String(m.quantityChange),
+        String(formatQty(m.quantityChange)),
         formatCurrency(m.unitCost ? m.unitCost * Math.abs(m.quantityChange) : null),
         m.reason || "",
       ]),
@@ -205,7 +206,7 @@ export function MovementsClient() {
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{m.batchNumber || "-"}</TableCell>
                         <TableCell className={`text-right font-medium tabular-nums ${m.quantityChange > 0 ? "text-success" : "text-destructive"}`}>
-                          {m.quantityChange > 0 ? "+" : ""}{m.quantityChange}
+                          {m.quantityChange > 0 ? "+" : ""}{formatQty(m.quantityChange)}
                         </TableCell>
                         <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
                           {formatCurrency(m.unitCost ? m.unitCost * Math.abs(m.quantityChange) : null)}

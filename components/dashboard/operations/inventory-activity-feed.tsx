@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Package, ArrowDown, ArrowUp, AlertTriangle, RefreshCw } from "lucide-react";
+import { formatQty } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
 interface MovementItem {
@@ -70,7 +71,7 @@ export function InventoryActivityFeed({ branchId }: { branchId?: string }) {
                 <p className="text-xs text-muted-foreground">{m.performerName} · {time}</p>
               </div>
               <span className={`text-sm font-semibold ${m.quantityChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {m.quantityChange >= 0 ? '+' : ''}{m.quantityChange}
+                {m.quantityChange >= 0 ? '+' : ''}{formatQty(m.quantityChange)}
               </span>
             </div>
           );

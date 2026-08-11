@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
       .offset(offset);
 
     return NextResponse.json({
-      movements,
+      movements: movements.map((m) => ({ ...m, quantityChange: Number(m.quantityChange) })),
       total: count,
       limit,
       offset,
