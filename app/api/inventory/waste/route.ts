@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (batch.currentQuantity < quantity) {
+      if (Number(batch.currentQuantity) < quantity) {
         return NextResponse.json(
           { error: 'Insufficient batch stock' },
           { status: 400 }
@@ -121,11 +121,11 @@ export async function POST(request: NextRequest) {
       }
 
       // Update batch quantity
-      const newQuantity = batch.currentQuantity - quantity;
+      const newQuantity = Number(batch.currentQuantity) - quantity;
       await db
         .update(inventoryBatches)
         .set({
-          currentQuantity: newQuantity,
+          currentQuantity: String(newQuantity), // numeric(12,4): string en TS
           status: newQuantity === 0 ? 'DEPLETED' : batch.status,
           updatedAt: new Date(),
         })
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
         itemId,
         batchId: batchId || null,
         type: consumoInterno ? 'USAGE' : 'WASTE',
-        quantityChange: -quantity, // Negative because we're removing stock
+        quantityChange: String(-quantity), // numeric(12,4): string en TS; negativo porque quita stock
         reason: consumoInterno
           ? reason === 'STAFF'
             ? 'Consumo de Personal'

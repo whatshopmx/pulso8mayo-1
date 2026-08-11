@@ -236,7 +236,7 @@ export async function extractMermaFromInstance(instanceId: string): Promise<void
           branchId: instance.branchId,
           batchId: null,
           itemId: m.itemId,
-          quantity: Math.round(m.quantity), // frontera con integer (AD-6)
+          quantity: String(m.quantity), // numeric(12,4): string en TS; la fracción se conserva
           unit: item.unit || "UNIT",
           reason: m.reasonKey as WasteReason,
           costPerUnit: unitCost,

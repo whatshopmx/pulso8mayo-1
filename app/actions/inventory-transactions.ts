@@ -19,8 +19,8 @@ export async function addBatch(itemId: string, formData: FormData) {
     const batch = await InventoryService.createBatch({
         itemId,
         branchId: session.user.branchId,
-        initialQuantity: quantity,
-        currentQuantity: quantity,
+        initialQuantity: String(quantity), // numeric(12,4): string en TS
+        currentQuantity: String(quantity),
         lotNumber,
         expirationDate,
         supplierId: supplierId || null,

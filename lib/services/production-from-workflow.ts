@@ -213,13 +213,15 @@ export async function extractProductionFromInstance(instanceId: string): Promise
 
           const info = itemInfo.get(leaf.itemId);
           for (const alloc of allocations) {
-            // `actualQuantity` es integer (frontera AD-6): la fracción se redondea
-            // aquí, el valor exacto vive en `stock_counts`/`inventory_snapshots`.
+            // El lote ya es numeric(12,4) (T1): la fracción se conserva en el
+            // descuento del lote (`recordProduction` descuenta por
+            // `actualQuantity`). La columna `production_ingredients.actual_quantity`
+            // sigue siendo integer; el redondeo explícito vive ahí, en el insert.
             ingredients.push({
               itemId: leaf.itemId,
               batchId: alloc.batchId,
               expectedQuantity: leaf.quantity,
-              actualQuantity: Math.round(alloc.quantity),
+              actualQuantity: alloc.quantity,
               unit: info?.unit || leaf.unit || "UNIT",
               unitCost: alloc.unitCost ?? undefined,
             });
@@ -269,7 +271,7 @@ export async function extractProductionFromInstance(instanceId: string): Promise
             branchId: instance.branchId,
             batchId: null,
             itemId,
-            quantity: Math.round(missing),
+            quantity: String(missing), // numeric(12,4): string en TS; la fracción se conserva
             unit: info?.unit || "UNIT",
             reason: "OTHER",
             costPerUnit: averageCost,

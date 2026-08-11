@@ -143,6 +143,11 @@ export class ProductionService {
                 ingredients.map(ing => ({
                     resultId: result.id,
                     ...ing,
+                    // `production_ingredients.actual_quantity` sigue siendo integer
+                    // (pendiente de migrar a numeric): se redondea EXPLÍCITAMENTE
+                    // aquí, en el borde. El valor exacto ya se aplicó al descuento
+                    // del lote (`deduct`) y al `totalCost` de abajo.
+                    actualQuantity: Math.round(ing.actualQuantity),
                     totalCost: (ing.unitCost ?? 0) * ing.actualQuantity,
                     yieldPercent: ing.yieldPercent ?? 100,
                 }))

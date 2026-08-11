@@ -175,8 +175,8 @@ export async function processReceiving(
         const batch = await InventoryService.createBatch({
             itemId,
             branchId,
-            initialQuantity: quantity,
-            currentQuantity: quantity,
+            initialQuantity: String(quantity), // numeric(12,4): string en TS
+            currentQuantity: String(quantity),
             lotNumber: batchNumber || `BATCH-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             expirationDate: expirationDate ? new Date(expirationDate) : undefined,
             productionDate: productionDate ? new Date(productionDate) : undefined,

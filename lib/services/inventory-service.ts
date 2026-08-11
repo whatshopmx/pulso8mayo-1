@@ -152,7 +152,7 @@ export class InventoryService {
    itemId: data.itemId,
    batchId: data.batchId,
    type: data.type,
-   quantityChange: data.quantityChange,
+   quantityChange: String(data.quantityChange), // numeric(12,4): string en TS
    reason: data.reason,
    performedBy: data.performedBy,
    referenceId: data.referenceId,
@@ -581,7 +581,7 @@ static async shipTransfer(transferId: string, shippedBy: string) {
                     itemId: item.itemId,
                     batchId: item.batchId,
                     type: 'TRANSFER',
-                    quantityChange: -item.requestedQuantity,
+                    quantityChange: String(-item.requestedQuantity), // numeric(12,4): string en TS
                     reason: `Transfer to branch ${transfer.toBranchId}`,
                     performedBy: shippedBy,
                     referenceId: transferId,
@@ -656,8 +656,8 @@ static async shipTransfer(transferId: string, shippedBy: string) {
           const [newBatch] = await tx.insert(inventoryBatches).values({
             itemId: item.itemId,
             branchId: transfer.toBranchId,
-            initialQuantity: receivedQty,
-            currentQuantity: receivedQty,
+            initialQuantity: String(receivedQty), // numeric(12,4): string en TS
+            currentQuantity: String(receivedQty),
             lotNumber: sourceBatch?.lotNumber || `TRF-BATCH-${Date.now()}`,
             expirationDate: sourceBatch?.expirationDate,
             productionDate: sourceBatch?.productionDate,
@@ -670,7 +670,7 @@ static async shipTransfer(transferId: string, shippedBy: string) {
             itemId: item.itemId,
             batchId: newBatch.id,
             type: 'TRANSFER',
-            quantityChange: receivedQty,
+            quantityChange: String(receivedQty), // numeric(12,4): string en TS
             reason: `Transfer from branch ${transfer.fromBranchId}`,
             performedBy: receivedBy,
             referenceId: transferId,
@@ -693,7 +693,7 @@ static async shipTransfer(transferId: string, shippedBy: string) {
               branchId: transfer.toBranchId,
               batchId: item.batchId || null,
               itemId: item.itemId,
-              quantity: wasteQty,
+              quantity: String(wasteQty), // numeric(12,4): string en TS
               unit: inventoryItem.unit || 'UNIT',
               reason: 'DAMAGED',
               costPerUnit: unitCost,
@@ -708,7 +708,7 @@ static async shipTransfer(transferId: string, shippedBy: string) {
               itemId: item.itemId,
               batchId: item.batchId || null,
               type: 'WASTE',
-              quantityChange: -wasteQty,
+              quantityChange: String(-wasteQty), // numeric(12,4): string en TS
               reason: `Merma de transporte en transferencia ${transfer.transferNumber}`,
               performedBy: receivedBy,
               referenceId: transferId,
@@ -759,8 +759,8 @@ static async shipTransfer(transferId: string, shippedBy: string) {
         const [newBatch] = await db.insert(inventoryBatches).values({
           itemId: data.itemId,
           branchId: data.branchId,
-          currentQuantity: 0,
-          initialQuantity: 0,
+          currentQuantity: '0', // numeric(12,4): string en TS
+          initialQuantity: '0',
           status: 'AVAILABLE',
           lotNumber: `SC-${Date.now()}`,
           receivedAt: new Date(),

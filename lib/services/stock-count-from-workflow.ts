@@ -306,7 +306,7 @@ async function maybeCreateMermaFromVariance(params: {
       branchId,
       batchId: null,
       itemId: c.itemId,
-      quantity: Math.round(missing), // frontera con integer (AD-6)
+      quantity: String(missing), // numeric(12,4): string en TS; la fracción se conserva
       unit: item?.unit || "UNIT",
       reason: "OTHER",
       costPerUnit: averageCost,

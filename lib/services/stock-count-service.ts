@@ -428,11 +428,10 @@ export class StockCountService {
         let applied = 0;
         for (const r of results) {
             if (r.variance !== 0) {
-                // `inventory_batches.currentQuantity` sigue siendo integer (OQ-2):
-                // el ajuste se redondea AQUÍ, en el borde. La varianza fraccionaria
-                // se conserva íntegra en `results[]` y en `stock_counts`.
-                const quantityChange = Math.round(r.variance);
-                if (quantityChange === 0) continue;
+                // `inventory_batches.currentQuantity` ya es numeric(12,4) (T1):
+                // la varianza fraccionaria se aplica íntegra, sin redondear. La
+                // exacta también queda en `results[]` y en `stock_counts`.
+                const quantityChange = r.variance;
                 await InventoryService.recordAdjustment({
                     branchId: instance.branchId,
                     itemId: r.itemId,
