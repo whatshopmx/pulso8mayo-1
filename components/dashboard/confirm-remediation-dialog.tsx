@@ -76,8 +76,9 @@ export function ConfirmRemediationDialog({
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Error al confirmar la visita");
+        // La ruta responde con el envelope { success, error: { message } }.
+        const json = await res.json().catch(() => ({} as any));
+        throw new Error(json?.error?.message || "Error al confirmar la visita");
       }
 
       toast.success("Visita de proveedor confirmada y workflow programado exitosamente");

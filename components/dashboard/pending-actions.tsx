@@ -42,8 +42,8 @@ export function PendingRemediationActionsCard() {
       setLoading(true);
       const res = await fetch("/api/remediation/actions?status=PENDING,CONFIRMED");
       if (res.ok) {
-        const data = await res.json();
-        setActions(data);
+        const json = await res.json();
+        setActions(json.data ?? []);
       }
     } catch (err) {
       console.error("Error loading remediation actions:", err);
