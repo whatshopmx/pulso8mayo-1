@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { ApiError } from "./error";
+import { ApiError, isApiError } from "./error";
 import type { UserRole } from "@/lib/rbac/permissions";
 
 /**
@@ -135,9 +135,16 @@ export function withTenantAuth(handler: AuthenticatedHandler): ApiRouteHandler {
   return async (req, ctx) => {
     try {
       const auth = await requireTenantAuth();
-      return handler(req, { ...ctx, auth });
+      // `await` OBLIGADO: un `return promise` sin await hace que el rechazo del
+      // handler salte el try/catch (el catch solo ve rechazos await-eados) y
+      // turbopack lo convierte en 500 genérico vacío. Detectado en T5
+      // (plan-inventory-waste), 2026-08-11.
+      return await handler(req, { ...ctx, auth });
     } catch (error) {
-      if (error instanceof ApiError) {
+      // `isApiError` en vez de `instanceof` puro: si el error se lanzó desde otro
+      // chunk con una copia distinta de la clase, instanceof falla y esto se
+      // convertiría en un 500 genérico. Ver lib/api/error.ts → isApiError.
+      if (isApiError(error)) {
         return Response.json(
           { success: false, error: { message: error.message, details: error.details } },
           { status: error.statusCode }
@@ -162,9 +169,11 @@ export function withRoleAuth(
   return async (req, ctx) => {
     try {
       const auth = await requireRoleAuth(allowedRoles);
-      return handler(req, { ...ctx, auth });
+      // `await` OBLIGADO — ver nota en withTenantAuth.
+      return await handler(req, { ...ctx, auth });
     } catch (error) {
-      if (error instanceof ApiError) {
+      // Mismo criterio que withTenantAuth: `isApiError` (ver lib/api/error.ts).
+      if (isApiError(error)) {
         return Response.json(
           { success: false, error: { message: error.message, details: error.details } },
           { status: error.statusCode }

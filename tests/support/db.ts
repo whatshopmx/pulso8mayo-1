@@ -415,8 +415,9 @@ export function today(): string {
 
 /**
  * Siembra un lote AVAILABLE para un ítem en una sucursal y devuelve su id.
- * `currentQuantity` es integer en `inventory_batches`: la fracción se pierde
- * en la frontera (AD-6/R-2) — los specs de snapshots usan enteros.
+ * Desde la migración `0051`, `initial_quantity`/`current_quantity` son
+ * `numeric(12,4)`: `quantity` acepta fracciones y la DB las devuelve como
+ * string (`"2.5000"`) — usa `findBatchExactQuantity` para compararlas.
  */
 export async function seedBatch(opts: {
   companyId: string;
@@ -659,6 +660,130 @@ export async function restoreMermaThreshold(
       WHERE company_id = ${companyId}
     `;
   }
+}
+
+// --- Merma por API directa (T5, plan-inventory-waste) -------------------------
+
+/** { "id": "...", "quantity": "0.4000", "unit": ... } — quantity como string de la DB. */
+export interface WasteApiRow {
+  id: string;
+  /** Dato numérico (coercionado con `Number()`). */
+  quantity: number;
+  /** Valor crudo en la DB (numeric → string, p. ej. "0.4000"). */
+  quantityRaw: string;
+  unit: string;
+  reason: string;
+  totalLoss: number | null;
+}
+
+/** Filas de `inventory_waste` de un ítem (más recientes primero). */
+export async function findWasteForItem(itemId: string): Promise<WasteApiRow[]> {
+  const rows = await sql`
+    SELECT id, quantity, unit, reason, total_loss
+    FROM inventory_waste
+    WHERE item_id = ${itemId}
+    ORDER BY recorded_at DESC
+  `;
+  return (rows as Array<Record<string, unknown>>).map((r) => ({
+    id: r.id as string,
+    quantity: Number(r.quantity),
+    quantityRaw: String(r.quantity),
+    unit: r.unit as string,
+    reason: r.reason as string,
+    totalLoss: r.total_loss == null ? null : Number(r.total_loss),
+  }));
+}
+
+export interface WasteMovementRow {
+  id: string;
+  /** quantity_change crudo (numeric → string, p. ej. "-0.4000"). */
+  quantityChangeRaw: string;
+  type: string;
+  reason: string | null;
+}
+
+/** Movimientos de inventario de un ítem (más recientes primero). */
+export async function findMovementsForItem(itemId: string): Promise<WasteMovementRow[]> {
+  const rows = await sql`
+    SELECT id, quantity_change, type, reason
+    FROM inventory_movements
+    WHERE item_id = ${itemId}
+    ORDER BY timestamp DESC
+  `;
+  return (rows as Array<Record<string, unknown>>).map((r) => ({
+    id: r.id as string,
+    quantityChangeRaw: String(r.quantity_change),
+    type: r.type as string,
+    reason: (r.reason as string | null) ?? null,
+  }));
+}
+
+/** `current_quantity` exacto (string) de un lote — sin truncar a entero. */
+export async function findBatchExactQuantity(batchId: string): Promise<string> {
+  const rows = await sql`
+    SELECT current_quantity FROM inventory_batches WHERE id = ${batchId}
+  `;
+  return rows[0] == null ? "0" : String(rows[0].current_quantity);
+}
+
+/** Borra los movimientos de inventario de los ítems indicados. */
+export async function deleteMovementsForItems(itemIds: string[]): Promise<void> {
+  if (itemIds.length === 0) return;
+  await sql`DELETE FROM inventory_movements WHERE item_id = ANY(${itemIds})`;
+}
+
+/**
+ * Siembra un tenant ajeno (empresa + sucursal + ítem + lote) para probar que la
+ * ruta de mermas NO deja escribir cross-tenant. Devuelve los IDs para limpiar.
+ */
+export async function seedForeignTenant(): Promise<{
+  companyId: string;
+  branchId: string;
+  itemId: string;
+  batchId: string;
+}> {
+  const stamp = Date.now();
+  const [company] = await sql`
+    INSERT INTO companies (name) VALUES (${`${E2E_TAG} tenant ajeno`}) RETURNING id
+  `;
+  const [branch] = await sql`
+    INSERT INTO branches (company_id, name)
+    VALUES (${company.id}, ${`${E2E_TAG} sucursal ajena`})
+    RETURNING id
+  `;
+  const [item] = await sql`
+    INSERT INTO inventory_items (company_id, name, sku, unit, active)
+    VALUES (${company.id}, ${`${E2E_TAG} ítem ajeno`}, ${`E2E-FOREIGN-${stamp}`}, 'KG', true)
+    RETURNING id
+  `;
+  const [batch] = await sql`
+    INSERT INTO inventory_batches (item_id, branch_id, initial_quantity, current_quantity, lot_number, status)
+    VALUES (${item.id}, ${branch.id}, 5, 5, ${`E2E-FOREIGN-LOT-${stamp}`}, 'AVAILABLE')
+    RETURNING id
+  `;
+  return {
+    companyId: company.id as string,
+    branchId: branch.id as string,
+    itemId: item.id as string,
+    batchId: batch.id as string,
+  };
+}
+
+/** Limpia el tenant ajeno sembrado por `seedForeignTenant`. */
+export async function cleanupForeignTenant(opts: {
+  companyId: string;
+  branchId: string;
+  itemId: string;
+  batchId: string;
+}): Promise<void> {
+  // `inventory_waste` es la única tabla con FKs hacia estos ítems/lotes/sucursales.
+  await sql`DELETE FROM inventory_waste WHERE item_id = ${opts.itemId}`;
+  await sql`DELETE FROM inventory_waste WHERE batch_id = ${opts.batchId}`;
+  await sql`DELETE FROM inventory_movements WHERE item_id = ${opts.itemId}`;
+  await sql`DELETE FROM inventory_batches WHERE id = ${opts.batchId}`;
+  await sql`DELETE FROM inventory_items WHERE id = ${opts.itemId}`;
+  await sql`DELETE FROM branches WHERE id = ${opts.branchId}`;
+  await sql`DELETE FROM companies WHERE id = ${opts.companyId}`;
 }
 
 /** Borra las recetas creadas por los tests (y sus ingredientes). */

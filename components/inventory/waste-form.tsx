@@ -46,18 +46,37 @@ const reasonLabels: Record<string, string> = {
   OTHER: 'Otro',
 };
 
-function humanizeWasteError(message: string): string {
-  if (/insufficient batch stock/i.test(message)) {
-    return 'El lote seleccionado ya no tiene suficiente stock. Actualiza la página e intenta de nuevo.';
+/**
+ * Traduce el fallo de la API a lenguaje de cocina.
+ *
+ * Se apoya en el código ESTABLE de `error.details.code` (`WASTE_ERROR_CODES` en
+ * `app/api/inventory/waste/route.ts`), nunca en substrings del mensaje: la ruta
+ * responde en español y su copy va a cambiar.
+ */
+function humanizeWasteError(
+  code: string | null,
+  message: string,
+  status?: number
+): string {
+  // El servidor ya arma el mensaje con la cantidad restante y su unidad.
+  if (code === 'OVER_QUANTITY') {
+    return (
+      message ||
+      'El lote seleccionado ya no tiene suficiente stock. Actualiza la página e intenta de nuevo.'
+    );
   }
-  if (/batch not found/i.test(message)) {
+  if (code === 'BATCH_NOT_FOUND') {
     return 'No se encontró el lote seleccionado. Vuelve a elegirlo.';
   }
-  if (/missing required fields/i.test(message)) {
-    return 'Faltan datos obligatorios. Revisa el formulario.';
+  if (code === 'BRANCH_FORBIDDEN') {
+    return 'Solo puedes registrar mermas en tu sucursal.';
   }
-  if (/unauthorized/i.test(message)) {
+  if (status === 401) {
     return 'Tu sesión expiró. Vuelve a iniciar sesión.';
+  }
+  // Errores de validación sin código: el mensaje de la ruta ya viene en español.
+  if (status === 400 && message) {
+    return message;
   }
   return 'No se pudo registrar la merma. Revisa tu conexión e intenta de nuevo.';
 }
@@ -220,9 +239,19 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
         }),
       });
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.error || 'Error al registrar merma');
+      // Envelope de la API: { success, data } | { success:false, error:{ message, details } }.
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        setPendingSubmission(null);
+        toast.error('No se registró la merma', {
+          description: humanizeWasteError(
+            payload?.error?.details?.code ?? null,
+            payload?.error?.message ?? '',
+            response.status
+          ),
+        });
+        return;
       }
 
       setPendingSubmission(null);
@@ -237,10 +266,12 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
       form.reset();
       onSuccess?.();
     } catch (error) {
+      // Solo llega aquí un fallo de red / JSON ilegible: el error de la API se
+      // maneja arriba con su código estable.
       console.error('Error submitting waste form:', error);
       setPendingSubmission(null);
       toast.error('No se registró la merma', {
-        description: humanizeWasteError(error instanceof Error ? error.message : ''),
+        description: humanizeWasteError(null, ''),
       });
     } finally {
       setSubmitting(false);
