@@ -94,6 +94,9 @@ export async function listRemediationActionsForIncident(incidentId: string) {
  * contratado, "confirmar visita" no le sirve a nadie y el bloqueo real es
  * configurar el proveedor.
  */
+type ComplianceServiceType =
+    (typeof branchComplianceServices.serviceType.enumValues)[number];
+
 export async function findActiveProviderForBranch(branchId: string, serviceType: string) {
     const [provider] = await db
         .select({
@@ -105,7 +108,7 @@ export async function findActiveProviderForBranch(branchId: string, serviceType:
         .from(branchComplianceServices)
         .where(and(
             eq(branchComplianceServices.branchId, branchId),
-            eq(branchComplianceServices.serviceType, serviceType as any),
+            eq(branchComplianceServices.serviceType, serviceType as ComplianceServiceType),
             eq(branchComplianceServices.isActive, true)
         ))
         .limit(1);
