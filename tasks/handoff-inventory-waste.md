@@ -1,6 +1,6 @@
 # Handoff — Registro de Mermas (plan-inventory-waste)
 
-**Actualizado:** 2026-08-11 (sesión 2, tras Checkpoint 0) · **Plan:** `tasks/plan-inventory-waste.md` · **TODO:** `tasks/todo-inventory-waste.md`
+**Actualizado:** 2026-08-11 (sesión 3, tras T5) · **Plan:** `tasks/plan-inventory-waste.md` · **TODO:** `tasks/todo-inventory-waste.md`
 **Crítica fuente:** `.impeccable/critique/2026-08-11T17-12-38Z__app-dashboard-inventory-waste.md` (18/40)
 
 Regla estricta del plan: **nada de la Fase 2 en adelante arranca antes de que pase el Checkpoint 0.**
@@ -49,8 +49,8 @@ Phase 6                               └── "Por vencer": data ── checkl
 | 0 | **T3** Barrer agregaciones | ✅ `72362e5` |
 | 0 | **T4** Barrer lecturas API/UI | ✅ `7a33da6` |
 | 0 | **Checkpoint 0** (build + e2e + round-trip) | 🔶 Parcial — todo verde; **pendiente revisión humana** |
-| 1 | **T5** Waste route (tenancy + decimal-safe) | Pendiente — deps: 1 |
-| 1 | **T6** Input fraccionario validado pre-diálogo | Pendiente — deps: 1, 5 |
+| 1 | **T5** Waste route (tenancy + decimal-safe) | ✅ `9e2f121` — suite 50/50 |
+| 1 | **T6** Input fraccionario validado pre-diálogo | Pendiente — deps: 1, 5 · **parte ya hecha en T5** (ver §3) |
 | 2 | **T7** Quitar `Cancelar` muerto | Pendiente — sin deps (paralelizable) |
 | 2 | **T8** Matar remount + cache catálogo | Pendiente — sin deps (paralelizable) |
 | 2 | **T9** Guardar y registrar otra + recibo | Pendiente — deps: 8 |
@@ -67,7 +67,7 @@ Phase 6                               └── "Por vencer": data ── checkl
 | 6 | **T19** UI checklist + pestañas | Pendiente — deps: 18 |
 | 6 | **T20** Envío en lote (transacción) | Pendiente — deps: 19, 11 |
 
-**Working tree ahora mismo:** limpio. Rama `main`, sin pushes pendientes de esta sesión (3 commits locales sobre origin).
+**Working tree ahora mismo:** limpio. Rama `main`, **sin push** — 4 commits locales sobre origin.
 
 ---
 
@@ -111,6 +111,52 @@ Phase 6                               └── "Por vencer": data ── checkl
 
 ---
 
+## 3-bis. Fase 1 — T5 implementada (`9e2f121`)
+
+**Ruta reescrita** (`app/api/inventory/waste/route.ts`): `withTenantAuth`, `enforceBranchScope`,
+envelope `ApiHandler`, lookup de lote scopeado al tenant vía `inArray(branchId, tenantBranchIds)`.
+Cerrada la fuga cross-tenant. Sucursal/lote ajenos → **404**; sucursal propia del tenant pero
+ajena al rol → **403**.
+
+- **`WASTE_ERROR_CODES` exportado desde la ruta** (`OVER_QUANTITY`, `BATCH_NOT_FOUND`,
+  `BRANCH_FORBIDDEN`) y viaja en `error.details.code`. `OVER_QUANTITY` incluye
+  `details.maxQuantity` (string ya formateado con `formatQty`) — la T6 lo usa para el `.max()` de Zod.
+- `totalLoss` se deriva de `qty × costPerUnitCents` (costo YA redondeado), no del `totalLoss`
+  enviado por el cliente; sin `costPerUnit` se respeta el total enviado.
+- `COURTESY` y `STAFF` escriben movimiento `USAGE`, no `WASTE` (consumo, no desperdicio — OQ-1).
+
+**Cambios en helpers compartidos — superficie global, no solo mermas:**
+
+- `lib/api/with-auth.ts`: `return await handler(...)` en `withTenantAuth` y `withRoleAuth`. Sin el
+  `await`, el rechazo del handler **esquiva el try/catch** y todo `ApiError` lanzado dentro de un
+  handler async salía como 500 vacío. Esto afectaba a **todas** las rutas con estos wrappers.
+- `lib/api/error.ts`: nuevo `isApiError`, porque el `instanceof` fallaba cuando el error cruzaba
+  chunks de turbopack. Acotado a `name === "ApiError"` **y** status 400–599 a propósito: el
+  duck-typing solo por `statusCode` numérico habría reflejado al cliente errores de otras librerías
+  (better-auth expone `statusCode`) con su mensaje interno.
+
+**`components/inventory/waste-form.tsx` adaptado (era parte de T6, se adelantó por necesidad):**
+la T5 cambió el envelope y pasó los mensajes a español; el form leía `error.error` como *string* y
+matcheaba substrings **en inglés** (`insufficient batch stock`, …), así que todo fallo caía al
+mensaje genérico. Ahora lee `payload.error.details.code` + `payload.error.message` y `humanizeWasteError`
+despacha por código. **Lo que sigue pendiente de T6**: `step`/`inputMode="decimal"`, quitar `min="1"`,
+Zod `.positive()` + `.max(maxQuantity)` fallando en `FormMessage` antes del AlertDialog, y `aria-describedby`.
+
+**Tests** — nuevo `tests/inventory-waste.spec.ts` (4 casos: fraccionaria 0.4→`0.4000` con lote
+2.5→`2.1000`, sobre-cantidad con código estable, lote cross-tenant 404 sin efectos, GET envelope
+numérico). Helpers nuevos en `tests/support/db.ts`: `findWasteForItem`, `findMovementsForItem`,
+`findBatchExactQuantity`, `deleteMovementsForItems`, `seedForeignTenant`/`cleanupForeignTenant`.
+El docstring de `seedBatch` decía "integer / AD-6" — corregido, hoy acepta fracciones.
+
+**Verificación:** `pnpm run build` exit 0 · suite completa **50/50 (6.6m)** contra `npm run start` ·
+eslint limpio en los 4 archivos tocados.
+
+**No hecho a propósito:** la escritura (update del lote + insert de merma + insert de movimiento)
+**sigue sin transacción**, igual que la ruta original. El repo usa driver WS justamente para esto y
+la T12 ya trae transacción; envolver T5 es una mejora pendiente pero fuera del scope declarado.
+
+---
+
 ## 4. Checkpoint 0 — la puerta
 
 | Ítem | Resultado |
@@ -145,24 +191,17 @@ Phase 6                               └── "Por vencer": data ── checkl
 ### Paso 0 (ahora mismo): revisión humana del Checkpoint 0
 Nada más escribe a la DB de verdad. Si la revisión encuentra algo, se corrige aquí antes de tocar la ruta.
 
-### Fase 1 — T5 (primero, solo) luego T6
+### Fase 1 — T5 ✅ hecha (`9e2f121`, ver §3-bis). Sigue T6.
 
-**T5 — Reescribir `app/api/inventory/waste/route.ts`** (hoy: `db` directo, `auth.api.getSession`, mira el lote con `eq(inventoryBatches.id, batchId)` **sin filtro de tenant** — fuga cross-tenant `:105`):
-- `withTenantAuth` de `lib/api/with-auth.ts` (wrapper `AuthenticatedHandler`; `{ params, auth }`).
-- `branchId` por `enforceBranchScope` de `lib/branch-scope.ts` (GERENTE/SUPERVISOR pinned a su sucursal).
-- Lookup de lote scopeado al tenant → id cross-tenant = **404**, no 403.
-- Matemática decimal-safe (la coerción mecánica de T2 ya está; mantenerla).
-- Envelope `{ success, data|error }` vía `ApiHandler` de `lib/api/response.ts`.
-- Error de sobre-cantidad con **código estable** para la T6 (no depender de substrings en inglés).
-- **Nuevo `tests/inventory-waste.spec.ts`**: merma fraccionaria OK, sobre-cantidad rechazada, batch cross-tenant 404; post 0.4 kg → `0.4000` y decremento exacto del lote.
-
-**T6 — `components/inventory/waste-form.tsx`**:
+**T6 — `components/inventory/waste-form.tsx`** (el manejo de errores por código estable **ya se hizo
+en T5**; queda el input y la validación):
 - `step="0.001"` + `inputMode="decimal"`; quitar `min="1"`.
-- Zod `.positive()` + `.max(maxQuantity, 'Solo quedan {N} {unidad} en este lote')` fallando en `FormMessage` **antes** del AlertDialog.
+- Zod `.positive()` + `.max(maxQuantity, 'Solo quedan {N} {unidad} en este lote')` fallando en `FormMessage` **antes** del AlertDialog. `maxQuantity` sale hoy de `selectedBatch?.currentQuantity || 1` (`waste-form.tsx:252`) — **ojo:** el fallback `|| 1` y el default entero vienen de la era integer; con lotes fraccionarios revisar que el batch traiga número, no el string `"2.5000"` del API de lotes.
+- El schema Zod aún tiene `quantity: z.coerce.number().min(1, …)` y el enum de `reason` **sin `COURTESY`** (la ruta sí lo acepta) — corregir aquí o dejarlo anotado para T14.
 - Error vía `aria-describedby`, no burbuja nativa.
-- `humanizeWasteError` (ya vive en waste-form.tsx) con códigos estables.
 
-**Checkpoint 1**: 0.5 kg end-to-end y todo aguas abajo refleja 0.5. El round-trip de form ya está probado (Fase 0), así que esto es cerrar el lazo UI+API.
+**Checkpoint 1**: 0.5 kg end-to-end y todo aguas abajo refleja 0.5. El round-trip API ya está probado
+por `tests/inventory-waste.spec.ts`, así que esto es cerrar el lazo del formulario.
 
 ### Luego — orden recomendado respetando dependencias y paralelización
 - **Fase 2 (T7→9, en orden, T7 y T8 son paralelizables entre sí)** — P0 queda cerrado aquí (Checkpoint 1). T7: `Cancelar`→`Limpiar` (`waste-form.tsx:497`). T8: matar `key={refreshKey}` (`waste-client.tsx:23`), TanStack Query para el catálogo, `ErrorState` con retry. T9: "Guardar y registrar otra" conserva `itemId` y foco→Cantidad, tira "Registradas hoy: N · $X" desde el `GET /api/inventory/waste` (ya construido, sin consumidor UI), toast con unidad humana.
@@ -172,7 +211,11 @@ Nada más escribe a la DB de verdad. Si la revisión encuentra algo, se corrige 
 - **Fase 6 (T18→19→20)** — pestaña "Por vencer" + batch submit en UNA transacción reusando la validación de T5 (una sola copia de las reglas).
 
 ### Riesgos vivos para el siguiente agente
-- Fuga cross-tenant en la ruta de waste (T5) — el hallazgo más grave del plan.
+- ~~Fuga cross-tenant en la ruta de waste (T5)~~ — **cerrada en `9e2f121`**, con spec que la cubre.
+- El `return await` de `with-auth.ts` cambió el comportamiento de **todas** las rutas que usan
+  `withTenantAuth`/`withRoleAuth`: antes cualquier `ApiError` lanzado dentro de un handler async salía
+  como 500 vacío, ahora sale con su status real. La suite pasa 50/50, pero si alguna UI dependía del
+  500 genérico, se nota aquí.
 - Foto obligatoria puede suprimir reporte (T11) — umbral configurable ayuda.
 - T21 es una apuesta: disclosure sin reciprocidad = desconfianza. Enviar completa.
 - Drift de migraciones: `check-migration-drift.ts` antes/después de cada `db:migrate`.
@@ -186,6 +229,12 @@ Nada más escribe a la DB de verdad. Si la revisión encuentra algo, se corrige 
 - `db:generate --name foo` produce `005X_foo.sql` + snapshot + journal; re-ejecutarlo sin nombre debe decir "No schema changes".
 - Scripts temporales: `scripts/tmp-*.ts` con `import "dotenv/config"` **primero** (lib/db lee `process.env.DATABASE_URL` en evaluación de módulo); para DB directa, `pg` + `connectionString` (ver `scripts/check-migration-drift.ts`) o `neon` de `tests/support/db.ts`.
 - Build: foreground, timeout ≥900s. `next dev` y `next start` comparten `.next` — apagar el dev server antes de construir.
+- **Build que falla con `Failed to fetch 'Geist' from Google Fonts` / "TLS-related"**: no es el código
+  ni falta de red (`curl https://fonts.googleapis.com` responde 200) — turbopack usa sus propios
+  certificados. Correr con `NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS=1 pnpm run build`.
+  Se dejó como variable de entorno a propósito, sin tocar `next.config.js` (es del entorno, no del repo).
+- E2E: el `[setup]` de auth puede tardar ~60s con el servidor frío y **hace timeout a los 60s**. Arrancar
+  `npm run start` aparte y esperar a que `/sign-in` devuelva 200 antes de lanzar playwright (`reuseExistingServer` lo aprovecha).
 - E2E: `PLAYWRIGHT_WEB_SERVER_CMD="npm run start" npx playwright test` (el webServer por defecto usa `next dev`). Setup crea `tests/.auth/admin.json` (cookie para peticiones autenticadas, útil en scripts).
 - `formatQty` en `lib/utils.ts` para TODO render de cantidades — nunca interpolar el string crudo de la DB.
 - El otro stream (workflow-review) tocó `lib/services/stock-count-service.ts` y `tests/support/db.ts` — al editar esos archivos revisar `git diff` por trabajo ajeno; antes de cada commit, `git status`.
