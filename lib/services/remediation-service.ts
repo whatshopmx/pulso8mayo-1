@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { incidents, remediationActions, branchComplianceServices, complianceServiceHistory } from '@/lib/db/schema';
+import { incidents, remediationActions, branchComplianceServices, complianceServiceHistory, branches } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 
 /**
@@ -90,13 +90,31 @@ export class RemediationService {
                 ))
                 .limit(1);
 
+            // El companyId sale de la sucursal, NO del serviceConfig: el caso que
+            // más importa es justamente el de una sucursal sin proveedor activo
+            // (no hay serviceConfig del que sacarlo), y company_id es uuid NOT NULL,
+            // así que el `|| ''` anterior reventaba el insert y tumbaba el paso entero.
+            const [branch] = await db
+                .select({ companyId: branches.companyId })
+                .from(branches)
+                .where(eq(branches.id, incident.branchId))
+                .limit(1);
+
+            if (!branch?.companyId) {
+                console.error(
+                    `[RemediationService] Branch ${incident.branchId} not found for incident ${incident.id}; ` +
+                    'no se crea la acción de remediación (evitar fila sin tenant).'
+                );
+                throw new Error(`Sucursal ${incident.branchId} no encontrada al crear la acción de remediación`);
+            }
+
             const [action] = await db
                 .insert(remediationActions)
                 .values({
                     incidentId: incident.id,
-                    serviceConfigId: serviceConfig?.id,
+                    serviceConfigId: serviceConfig?.id ?? null,
                     branchId: incident.branchId,
-                    companyId: serviceConfig?.companyId || '',
+                    companyId: branch.companyId,
                     actionType: 'SCHEDULE_COMPLIANCE_SERVICE',
                     serviceType: step.complianceServiceType,
                     workflowTemplateId: step.workflowTemplateId || serviceConfig?.workflowTemplateId,
