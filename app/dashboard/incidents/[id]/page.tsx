@@ -20,6 +20,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { IncidentTimeline } from "@/components/incidents/incident-timeline";
 import { RemediationWizard } from "@/components/incidents/remediation-wizard";
+import {
+    IncidentActionPanel,
+    type RecommendedAction,
+} from "@/components/incidents/incident-action-panel";
 import { useSession } from "@/hooks/use-session";
 import {
     ArrowLeft,
@@ -110,6 +114,8 @@ export default function IncidentDetailPage() {
     const [showResolveDialog, setShowResolveDialog] = useState(false);
     const [resolutionNote, setResolutionNote] = useState("");
     const [isResolving, setIsResolving] = useState(false);
+    const [recommended, setRecommended] = useState<RecommendedAction | null>(null);
+    const [actionsRefreshToken, setActionsRefreshToken] = useState(0);
 
     const SeverityIcon = incident ? severityIcons[incident.severity] || AlertCircle : AlertCircle;
 
@@ -181,6 +187,8 @@ export default function IncidentDetailPage() {
             const data = await res.json();
             // El backend valida la evidencia: si no pasa, el paso no avanza.
             await fetchIncident();
+            // El paso en curso pudo cambiar, así que la recomendación también.
+            setActionsRefreshToken((t) => t + 1);
             return { success: Boolean(data.success), message: data.message };
         } catch {
             return { success: false, message: "Error al enviar evidencia" };
@@ -229,6 +237,9 @@ export default function IncidentDetailPage() {
 
     const isResolved = incident.status === "RESOLVED";
     const hasRemediationProtocol = incident.remediationProtocol?.steps && incident.remediationProtocol.steps.length > 0;
+    // Mientras la recomendación no haya cargado, `recommended` es null y el
+    // wizard no se pinta: preferimos eso a mostrarlo y tener que retirarlo.
+    const showWizard = recommended?.kind === "RUN_PROTOCOL_STEP";
     const remediationMeta = (incident.metadata ?? {}) as {
         remediationCurrentStep?: number;
         remediationAttempts?: number;
@@ -335,6 +346,18 @@ export default function IncidentDetailPage() {
                 )}
             </div>
 
+            {/* Acción recomendada: la única cosa que hay que hacer ahora */}
+            {!isResolved && (
+                <IncidentActionPanel
+                    incidentId={incident.id}
+                    incidentTitle={incident.title}
+                    incidentSeverity={incident.severity}
+                    refreshToken={actionsRefreshToken}
+                    onRecommendationChange={setRecommended}
+                    onActionConfirmed={fetchIncident}
+                />
+            )}
+
             {/* Timeline + Resolution */}
             <div className="grid gap-6 lg:grid-cols-2">
                 <Card>
@@ -351,7 +374,13 @@ export default function IncidentDetailPage() {
                     </CardContent>
                 </Card>
 
-                {hasRemediationProtocol && !isResolved && (
+                {/*
+                  * El wizard sólo aparece cuando el paso en curso es self-fix
+                  * (AD-5). Antes se renderizaba con sólo tener protocolo, así
+                  * que en AWAITING_EXTERNAL pedía evidencia de texto para un
+                  * paso que en realidad requiere agendar a un proveedor.
+                  */}
+                {hasRemediationProtocol && !isResolved && showWizard && (
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-base">Protocolo de remediación</CardTitle>
