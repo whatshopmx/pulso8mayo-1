@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Calendar, Clock, CheckCircle2, ShieldAlert, ArrowRight, RefreshCw } from "lucide-react";
-import { ConfirmRemediationDialog } from "./confirm-remediation-dialog";
+import { ConfirmRemediationDialog } from "@/components/incidents/confirm-remediation-dialog";
 
 interface RemediationAction {
   id: string;

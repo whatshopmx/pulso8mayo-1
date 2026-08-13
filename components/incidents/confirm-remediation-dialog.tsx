@@ -77,7 +77,7 @@ export function ConfirmRemediationDialog({
 
       if (!res.ok) {
         // La ruta responde con el envelope { success, error: { message } }.
-        const json = await res.json().catch(() => ({} as any));
+        const json: { error?: { message?: string } } = await res.json().catch(() => ({}));
         throw new Error(json?.error?.message || "Error al confirmar la visita");
       }
 
@@ -98,7 +98,7 @@ export function ConfirmRemediationDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Calendar className="w-5 h-5 text-amber-500" />
-            Confirmar Visita de Proveedor Extero
+            Confirmar Visita de Proveedor Externo
           </DialogTitle>
           <DialogDescription>
             Programa la fecha y hora en que el proveedor realizará el servicio de remediación para resolver el incidente.
