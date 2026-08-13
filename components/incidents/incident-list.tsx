@@ -37,7 +37,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, AlertTriangle, XCircle, CheckCircle2, Eye, ArrowUpDown, Search, Loader2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, XCircle, CheckCircle2, Eye, ArrowUpDown, Search, Loader2, ShieldAlert } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -94,6 +94,8 @@ interface Incident {
     status: 'DETECTED' | 'IN_REMEDIATION' | 'AWAITING_EXTERNAL' | 'CONFIRMED' | 'RESOLVED' | 'ESCALATED';
     createdAt: Date;
     instanceId: string;
+    /** Acciones de remediación externa esperando que gerencia agende la visita. */
+    pendingActionCount?: number;
 }
 
 interface IncidentListProps {
@@ -118,6 +120,7 @@ export function IncidentList({ incidents, totalCount, page = 1, totalPages = 1 }
     const [severityFilter, setSeverityFilter] = useState<string>('all');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [requiresActionOnly, setRequiresActionOnly] = useState(false);
 
     // Sort
     const [sortField, setSortField] = useState<SortField>('createdAt');
@@ -184,6 +187,7 @@ export function IncidentList({ incidents, totalCount, page = 1, totalPages = 1 }
     const filtered = incidents.filter((incident) => {
         if (severityFilter !== 'all' && incident.severity !== severityFilter) return false;
         if (statusFilter !== 'all' && incident.status !== statusFilter) return false;
+        if (requiresActionOnly && !(incident.pendingActionCount ?? 0)) return false;
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
             const matchesTitle = incident.title.toLowerCase().includes(q);
@@ -262,11 +266,27 @@ export function IncidentList({ incidents, totalCount, page = 1, totalPages = 1 }
                         </SelectContent>
                     </Select>
 
-                    {(severityFilter !== 'all' || statusFilter !== 'all' || searchQuery) && (
+                    <Button
+                        variant={requiresActionOnly ? 'default' : 'outline'}
+                        size="sm"
+                        aria-pressed={requiresActionOnly}
+                        onClick={() => setRequiresActionOnly(v => !v)}
+                        className={requiresActionOnly ? 'bg-amber-600 hover:bg-amber-700 text-white gap-1.5' : 'gap-1.5'}
+                    >
+                        <ShieldAlert className="h-3.5 w-3.5" />
+                        Requieren acción
+                    </Button>
+
+                    {(severityFilter !== 'all' || statusFilter !== 'all' || searchQuery || requiresActionOnly) && (
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => { setSeverityFilter('all'); setStatusFilter('all'); setSearchQuery(''); }}
+                            onClick={() => {
+                                setSeverityFilter('all');
+                                setStatusFilter('all');
+                                setSearchQuery('');
+                                setRequiresActionOnly(false);
+                            }}
                             className="text-muted-foreground"
                         >
                             Limpiar filtros
@@ -329,8 +349,19 @@ export function IncidentList({ incidents, totalCount, page = 1, totalPages = 1 }
                                                     {SEVERITY_LABELS[incident.severity] || incident.severity}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="font-medium max-w-[300px] truncate">
-                                                {incident.title}
+                                            <TableCell className="font-medium max-w-[300px]">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <span className="truncate">{incident.title}</span>
+                                                    {(incident.pendingActionCount ?? 0) > 0 && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="shrink-0 gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-300"
+                                                        >
+                                                            <ShieldAlert className="h-3 w-3" />
+                                                            Requiere acción
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                             <TableCell>
                                                 <Badge

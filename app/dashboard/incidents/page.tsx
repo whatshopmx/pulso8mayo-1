@@ -4,11 +4,11 @@ import { headers } from 'next/headers';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/db';
-import { incidents, branches } from '@/lib/db/schema';
+import { incidents, branches, remediationActions } from '@/lib/db/schema';
 import { eq, desc, and, inArray, sql } from 'drizzle-orm';
 import { IncidentList, IncidentListSkeleton } from '@/components/incidents/incident-list';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, AlertTriangle, XCircle, CheckCircle2, Building2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, XCircle, CheckCircle2, Building2, ShieldAlert } from 'lucide-react';
 import { BRANCH_COOKIE_NAME } from '@/lib/tenant-context';
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -25,6 +25,8 @@ interface IncidentRow {
   createdAt: Date;
   instanceId: string;
   branchId: string;
+  /** Acciones de remediación externa esperando que gerencia agende la visita. */
+  pendingActionCount: number;
 }
 
 function buildConditions(companyId: string, branchId?: string) {
@@ -63,31 +65,67 @@ async function getIncidentsPage(companyId: string, branchId: string | undefined,
   const conditions = await build();
   if (!conditions) return [];
 
-  return await db
-    .select()
+  // El conteo de acciones pendientes va agregado en la misma query: un leftJoin
+  // filtrado por PENDING más un group by, en vez de una consulta por incidente.
+  const rows = await db
+    .select({
+      id: incidents.id,
+      severity: incidents.severity,
+      title: incidents.title,
+      status: incidents.status,
+      createdAt: incidents.createdAt,
+      instanceId: incidents.instanceId,
+      branchId: incidents.branchId,
+      pendingActionCount: sql<number>`count(${remediationActions.id})`,
+    })
     .from(incidents)
+    .leftJoin(
+      remediationActions,
+      and(
+        eq(remediationActions.incidentId, incidents.id),
+        eq(remediationActions.status, 'PENDING')
+      )
+    )
     .where(and(...conditions))
+    .groupBy(incidents.id)
     .orderBy(desc(incidents.createdAt))
     .limit(PAGE_SIZE)
-    .offset((page - 1) * PAGE_SIZE) as IncidentRow[];
+    .offset((page - 1) * PAGE_SIZE);
+
+  return rows.map((row) => ({
+    ...row,
+    pendingActionCount: Number(row.pendingActionCount ?? 0),
+  })) as IncidentRow[];
 }
 
 async function getStats(companyId: string, branchId?: string) {
   const build = buildConditions(companyId, branchId);
   const conditions = await build();
-  if (!conditions) return { total: 0, active: 0, critical: 0, resolved: 0 };
+  if (!conditions) return { total: 0, active: 0, critical: 0, resolved: 0, requiresAction: 0 };
 
   const rows = await db
-    .select()
+    .select({
+      status: incidents.status,
+      severity: incidents.severity,
+    })
     .from(incidents)
     .where(and(...conditions))
-    .limit(500) as IncidentRow[];
+    .limit(500);
+
+  // Incidentes —no acciones— con al menos una acción de remediación pendiente.
+  // Es la única query extra que añade el badge a la carga de la página.
+  const [pending] = await db
+    .select({ count: sql<number>`count(distinct ${incidents.id})` })
+    .from(incidents)
+    .innerJoin(remediationActions, eq(remediationActions.incidentId, incidents.id))
+    .where(and(...conditions, eq(remediationActions.status, 'PENDING')));
 
   return {
     total: rows.length,
     active: rows.filter(i => i.status !== 'RESOLVED').length,
     critical: rows.filter(i => i.severity === 'CRITICAL' || i.severity === 'FATAL').length,
     resolved: rows.filter(i => i.status === 'RESOLVED').length,
+    requiresAction: Number(pending?.count ?? 0),
   };
 }
 
@@ -177,6 +215,18 @@ export default async function IncidentsPage(props: { searchParams: Promise<{ pag
           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
           <span className="font-medium text-foreground">{stats.resolved}</span> resueltos
         </span>
+
+        {stats.requiresAction > 0 && (
+          <>
+            <span className="text-border">·</span>
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+              <span className="font-medium text-amber-700 dark:text-amber-400">
+                {stats.requiresAction}
+              </span> requieren acción
+            </span>
+          </>
+        )}
       </div>
 
       {/* Incidents table */}
