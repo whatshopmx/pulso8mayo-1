@@ -193,9 +193,12 @@ expectKind(
 
 console.log('\n--- Formas degradadas de remediationProtocol (AD-8) ---\n');
 
+// Sin título ni descripción reconocibles, el catálogo no aplica y se degrada.
+const sinContexto = { ...baseIncident, title: 'Incidente 4821', description: null, stepId: null };
+
 expectKind(
   'Degradado 1 · remediationProtocol null → RESOLVE_MANUAL',
-  { incident: { ...baseIncident, status: 'DETECTED', remediationProtocol: null }, actions: [] },
+  { incident: { ...sinContexto, status: 'DETECTED', remediationProtocol: null }, actions: [] },
   'RESOLVE_MANUAL'
 );
 
@@ -203,10 +206,10 @@ expectKind(
   'Degradado 2 · remediationProtocol string → RESOLVE_MANUAL',
   {
     incident: {
-      ...baseIncident,
+      ...sinContexto,
       status: 'DETECTED',
       remediationProtocol:
-        'Revisar manómetro, verificar presión y registrar lectura en bitácora',
+        'Revisar el manometro, verificar presion y registrar lectura en bitacora',
     },
     actions: [],
   },
@@ -216,10 +219,62 @@ expectKind(
 expectKind(
   'Degradado 3 · protocolo sin steps → RESOLVE_MANUAL',
   {
-    incident: { ...baseIncident, status: 'DETECTED', remediationProtocol: { enabled: true } },
+    incident: { ...sinContexto, status: 'DETECTED', remediationProtocol: { enabled: true } },
     actions: [],
   },
   'RESOLVE_MANUAL'
+);
+
+console.log('\n--- Catálogo por tipo de incidente (sin protocolo) ---\n');
+
+const casosCatalogo: Array<[string, string, string]> = [
+  ['Producto vencido en refrigerador', 'caducidad', 'Retirar el producto y registrar la merma'],
+  ['Incumplimiento en limpieza de campana', 'limpieza', 'Reprogramar la limpieza y adjuntar evidencia fotográfica'],
+  ['Temperatura de refrigerador elevada', 'temperatura', 'Revisar el equipo, ajustarlo y volver a tomar la temperatura'],
+  ['Plaga de cucarachas en almacén Roma', 'plaga', 'Solicitar fumigación al proveedor de control de plagas'],
+  ['Fuga de gas en cocina Condesa', 'gas', 'Cerrar el paso de gas y solicitar inspección inmediata'],
+  ['Extintor con carga vencida', 'caducidad', 'Retirar el producto y registrar la merma'],
+];
+
+for (const [titulo, categoria, labelEsperado] of casosCatalogo) {
+  const result = resolveRecommendedAction({
+    incident: { ...baseIncident, title: titulo, status: 'DETECTED', remediationProtocol: null },
+    actions: [],
+  });
+
+  if (result.kind !== 'SUGGESTED_FIX' || result.label !== labelEsperado) {
+    failures++;
+    console.error(`❌ "${titulo}" (${categoria})`);
+    console.error(`     esperado SUGGESTED_FIX "${labelEsperado}"`);
+    console.error(`     recibido ${result.kind} "${result.label}"`);
+  } else {
+    console.log(`✅ "${titulo}" → ${result.label}`);
+  }
+}
+
+// El protocolo manda sobre el catálogo: si el incidente trae pasos, se usan.
+expectKind(
+  'Catálogo NO pisa al protocolo · título de plaga con protocolo self-fix',
+  {
+    incident: {
+      ...baseIncident,
+      title: 'Plaga de cucarachas en almacén',
+      remediationProtocol: selfFixProtocol,
+      metadata: { remediationCurrentStep: 0, remediationAttempts: 0 },
+    },
+    actions: [],
+  },
+  'RUN_PROTOCOL_STEP'
+);
+
+// Y una acción pendiente sigue ganando sobre todo lo demás.
+expectKind(
+  'Catálogo NO pisa a la acción pendiente',
+  {
+    incident: { ...baseIncident, title: 'Producto vencido en refrigerador', remediationProtocol: null },
+    actions: [{ id: 'act-1', status: 'PENDING', serviceType: 'FUMIGATION' }],
+  },
+  'CONFIRM_EXTERNAL'
 );
 
 console.log('\n--- Bordes adicionales ---\n');

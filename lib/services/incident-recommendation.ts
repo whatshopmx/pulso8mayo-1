@@ -1,4 +1,5 @@
 import { getServiceNameForType } from '@/lib/compliance-mapping';
+import { findSuggestedAction } from '@/lib/services/incident-action-catalog';
 
 /**
  * Resolver determinista de "la única cosa que hay que hacer ahora" en un incidente.
@@ -18,6 +19,7 @@ export type RecommendedActionKind =
   | 'CONFIGURE_PROVIDER'
   | 'REQUEST_EXTERNAL'
   | 'RUN_PROTOCOL_STEP'
+  | 'SUGGESTED_FIX'
   | 'ESCALATE'
   | 'RESOLVE_MANUAL';
 
@@ -45,6 +47,10 @@ export interface RecommendationIncident {
   branchId?: string | null;
   status?: string | null;
   severity?: string | null;
+  /** Contexto del que el catálogo deriva la acción cuando no hay protocolo. */
+  title?: string | null;
+  description?: string | null;
+  stepId?: string | null;
   remediationProtocol?: unknown;
   escalationChain?: unknown;
   metadata?: unknown;
@@ -219,6 +225,30 @@ export function resolveRecommendedAction(input: RecommendationInput): Recommende
   const isEscalated = incident.status === 'ESCALATED';
 
   if (!protocol) {
+    // Sin protocolo, el catálogo deriva la acción del tipo de incidente. Es el
+    // caso mayoritario: sólo 8 de 28 plantillas definen remediationProtocol, y
+    // sin esto la mayoría de los incidentes sólo podría decir "resuélvelo tú".
+    const suggested = findSuggestedAction({
+      title: incident.title,
+      description: incident.description,
+      stepId: incident.stepId,
+    });
+
+    if (suggested) {
+      return {
+        kind: 'SUGGESTED_FIX',
+        label: suggested.label,
+        // El rationale declara que es una sugerencia por tipo, no un protocolo
+        // configurado: quien la ejecuta debe saber de dónde salió.
+        rationale:
+          `Detectado como ${suggested.detectedAs}. Este incidente no trae protocolo de ` +
+          'remediación configurado, así que la acción es la sugerida para su tipo; ' +
+          'ajústala si el caso lo pide.',
+        urgency: isEscalated ? 'HIGH' : suggested.urgency,
+        payload: { branchId: incident.branchId || undefined },
+      };
+    }
+
     return {
       kind: 'RESOLVE_MANUAL',
       label: 'Resolver el incidente manualmente',
