@@ -1121,3 +1121,177 @@ export async function cleanupReviewInstance(
     await sql`DELETE FROM workflow_templates WHERE id = ${workflowTemplateId}`;
   }
 }
+
+// --- Acciones de remediación en incidentes ---------------------------------
+
+/** Protocolo de un solo paso `external_service`, el que dispara la acción externa. */
+const EXTERNAL_PROTOCOL = {
+  enabled: true,
+  maxAttempts: 2,
+  steps: [
+    {
+      type: "external_service",
+      complianceServiceType: "FUMIGATION",
+      instruction: "Coordinar visita del proveedor de fumigación",
+    },
+  ],
+};
+
+/** Protocolo self-fix: el incidente lo resuelve el propio personal con el wizard. */
+const SELF_FIX_PROTOCOL = {
+  enabled: true,
+  maxAttempts: 3,
+  steps: [
+    { type: "self_fix", instruction: "Ajustar el termostato a 4 °C" },
+    { type: "self_fix", instruction: "Volver a tomar la temperatura" },
+  ],
+};
+
+/**
+ * Siembra un incidente en `AWAITING_EXTERNAL` con su acción de remediación
+ * PENDING, que es el estado en el que el detalle debe ofrecer "Confirmar visita".
+ */
+export async function seedIncidentWithRemediationAction(opts: {
+  companyId: string;
+  branchId: string;
+  serviceType?: string;
+}): Promise<{ incidentId: string; actionId: string }> {
+  const serviceType = opts.serviceType ?? "FUMIGATION";
+
+  const [incident] = await sql`
+    INSERT INTO incidents (
+      instance_id, step_id, branch_id, severity, status, title, description,
+      remediation_protocol, metadata
+    )
+    VALUES (
+      gen_random_uuid(),
+      'e2e-remediation-step',
+      ${opts.branchId},
+      'HIGH',
+      'AWAITING_EXTERNAL',
+      ${`${E2E_TAG} Plaga detectada en almacén`},
+      'Incidente sembrado por tests/incident-remediation-actions.spec.ts',
+      ${JSON.stringify(EXTERNAL_PROTOCOL)}::jsonb,
+      ${JSON.stringify({ remediationCurrentStep: 0, remediationAttempts: 0 })}::jsonb
+    )
+    RETURNING id
+  `;
+
+  const [action] = await sql`
+    INSERT INTO remediation_actions (
+      incident_id, service_config_id, branch_id, company_id,
+      action_type, service_type, status
+    )
+    VALUES (
+      ${incident.id}, NULL, ${opts.branchId}, ${opts.companyId},
+      'SCHEDULE_COMPLIANCE_SERVICE', ${serviceType}, 'PENDING'
+    )
+    RETURNING id
+  `;
+
+  return { incidentId: incident.id as string, actionId: action.id as string };
+}
+
+/** Siembra un incidente con protocolo self-fix (el wizard sí debe aparecer). */
+export async function seedIncidentWithSelfFixProtocol(opts: {
+  branchId: string;
+}): Promise<string> {
+  const [incident] = await sql`
+    INSERT INTO incidents (
+      instance_id, step_id, branch_id, severity, status, title, description,
+      remediation_protocol, metadata
+    )
+    VALUES (
+      gen_random_uuid(),
+      'e2e-selffix-step',
+      ${opts.branchId},
+      'HIGH',
+      'IN_REMEDIATION',
+      ${`${E2E_TAG} Temperatura fuera de rango`},
+      'Incidente sembrado por tests/incident-remediation-actions.spec.ts',
+      ${JSON.stringify(SELF_FIX_PROTOCOL)}::jsonb,
+      ${JSON.stringify({
+        remediationCurrentStep: 0,
+        remediationAttempts: 0,
+        remediationMaxAttempts: 3,
+      })}::jsonb
+    )
+    RETURNING id
+  `;
+
+  return incident.id as string;
+}
+
+/** Estado y schedule de una acción de remediación, para asertar tras confirmar. */
+export async function findRemediationAction(actionId: string): Promise<{
+  status: string;
+  scheduleId: string | null;
+  scheduledDate: string | null;
+} | null> {
+  const [row] = await sql`
+    SELECT status, schedule_id, scheduled_date
+    FROM remediation_actions
+    WHERE id = ${actionId}
+  `;
+  if (!row) return null;
+  return {
+    status: row.status as string,
+    scheduleId: (row.schedule_id as string) ?? null,
+    scheduledDate: (row.scheduled_date as string) ?? null,
+  };
+}
+
+/** El `workflow_schedules` que creó la confirmación de la visita. */
+export async function findScheduleById(scheduleId: string): Promise<{
+  id: string;
+  frequency: string;
+  branchId: string;
+  title: string;
+} | null> {
+  const [row] = await sql`
+    SELECT id, frequency, branch_id, title
+    FROM workflow_schedules
+    WHERE id = ${scheduleId}
+  `;
+  if (!row) return null;
+  return {
+    id: row.id as string,
+    frequency: row.frequency as string,
+    branchId: row.branch_id as string,
+    title: row.title as string,
+  };
+}
+
+/**
+ * Borra todo lo que deja el circuito de remediación en los incidentes `[E2E]`,
+ * incluidos los schedules que se hayan creado al confirmar una visita.
+ *
+ * Es idempotente a propósito: los specs corren serial contra la base de dev y
+ * deben poder repetirse sin limpiar a mano.
+ */
+export async function cleanupIncidentRemediation(): Promise<void> {
+  const incidentRows = await sql`
+    SELECT id FROM incidents WHERE title LIKE ${`${E2E_TAG}%`}
+  `;
+  const incidentIds = incidentRows.map((r: any) => r.id as string);
+  if (incidentIds.length === 0) return;
+
+  const scheduleRows = await sql`
+    SELECT schedule_id FROM remediation_actions
+    WHERE incident_id = ANY(${incidentIds}) AND schedule_id IS NOT NULL
+  `;
+  const scheduleIds = scheduleRows.map((r: any) => r.schedule_id as string);
+
+  await sql`
+    DELETE FROM compliance_service_history
+    WHERE description LIKE ${`%${E2E_TAG}%`}
+  `;
+  await sql`DELETE FROM remediation_actions WHERE incident_id = ANY(${incidentIds})`;
+
+  if (scheduleIds.length > 0) {
+    await sql`DELETE FROM workflow_instances WHERE schedule_id = ANY(${scheduleIds})`;
+    await sql`DELETE FROM workflow_schedules WHERE id = ANY(${scheduleIds})`;
+  }
+
+  await sql`DELETE FROM incidents WHERE id = ANY(${incidentIds})`;
+}
