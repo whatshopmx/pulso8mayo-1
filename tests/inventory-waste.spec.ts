@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { BRANCH_POLANCO, COMPANY_ID, E2E_TAG } from "./support/constants";
+import { ADMIN_EMAIL, BRANCH_POLANCO, COMPANY_ID, E2E_TAG } from "./support/constants";
 import {
   cleanupForeignTenant,
   createTestSkus,
@@ -8,7 +8,9 @@ import {
   deleteTestSkus,
   deleteWasteForItems,
   findBatchExactQuantity,
+  findItemLabel,
   findMovementsForItem,
+  findUserBranchId,
   findWasteForItem,
   seedBatch,
   seedForeignTenant,
@@ -187,5 +189,128 @@ test.describe("T5 · API de mermas (ruta reescrita)", () => {
     expect(row).toBeTruthy();
     expect(row.waste.quantity).toBe(0.75);
     expect(row.item.unit).toBe(UNIT);
+  });
+});
+
+/**
+ * T6 (tasks/plan-inventory-waste.md) — el formulario acepta fracciones y valida
+ * el máximo del lote ANTES de abrir el diálogo destructivo.
+ *
+ * El lote se siembra en la sucursal que la sesión trae asignada: la página toma
+ * `branchId` de la sesión, no de la URL, y la sucursal del usuario semilla ha
+ * cambiado entre seeds — leerla de la DB evita fijarla a mano.
+ */
+test.describe("T6 · Formulario de mermas (entrada fraccionaria)", () => {
+  let sessionBranchId = "";
+
+  test.beforeEach(async () => {
+    sessionBranchId = await findUserBranchId(ADMIN_EMAIL);
+    itemIds = await createTestSkus(COMPANY_ID, 1, { unit: UNIT, tags: [TAG] });
+  });
+
+  test.afterEach(async () => {
+    await deleteWasteForItems(itemIds);
+    await deleteMovementsForItems(itemIds);
+    if (batchId) await deleteBatch(batchId);
+    await deleteTestSkus();
+    batchId = "";
+    itemIds = [];
+  });
+
+  /** Deja el formulario con producto y lote elegidos, listo para la cantidad. */
+  async function selectProductAndBatch(
+    page: import("@playwright/test").Page,
+    itemLabel: string
+  ) {
+    // Los dos `<Select>` se habilitan cuando su fetch responde. Esperar la
+    // respuesta —y no solo el estado del control— evita depender de si la
+    // página está fría: con Neon en frío el catálogo tarda más que el timeout
+    // por defecto de `expect`.
+    const productos = page.waitForResponse(
+      (r) => r.url().includes("/api/inventory/products") && r.status() === 200,
+      { timeout: 90_000 }
+    );
+    await page.goto("/dashboard/inventory/waste");
+    await productos;
+
+    const producto = page.getByLabel("Producto");
+    await expect(producto).toBeEnabled({ timeout: 30_000 });
+    await producto.click();
+
+    // El waiter se arma ANTES del click que dispara la petición.
+    const lotes = page.waitForResponse(
+      (r) => r.url().includes("/api/inventory/batches") && r.status() === 200,
+      { timeout: 90_000 }
+    );
+    await page.getByRole("option", { name: itemLabel }).click();
+    await lotes;
+
+    const lote = page.getByLabel("Lote");
+    await expect(lote).toBeEnabled({ timeout: 30_000 });
+    await lote.click();
+    await page.getByRole("option").first().click();
+  }
+
+  test("0.5 kg se registra desde el formulario y descuenta el lote exacto", async ({ page }) => {
+    const itemId = itemIds[0];
+    batchId = await seedBatch({
+      companyId: COMPANY_ID,
+      branchId: sessionBranchId,
+      itemId,
+      quantity: 2.5,
+      lotNumber: "E2E-T6-LOTE-01",
+    });
+
+    await selectProductAndBatch(page, await findItemLabel(itemId));
+
+    // El campo acepta decimales: antes tenía `min="1"` y un Zod `.min(1)`.
+    await page.getByLabel("Cantidad", { exact: true }).fill("0.5");
+    await page.getByRole("button", { name: "Registrar Merma" }).click();
+
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("0.5");
+    // El toast se desvanece solo, así que la evidencia estable del guardado es
+    // la respuesta del POST y el diálogo cerrado — no el texto del toast, que
+    // además T9 va a reescribir.
+    const guardado = page.waitForResponse(
+      (r) =>
+        r.url().includes("/api/inventory/waste") &&
+        r.request().method() === "POST",
+      { timeout: 60_000 }
+    );
+    await dialog.getByRole("button", { name: "Sí, dar de baja" }).click();
+    expect((await guardado).status()).toBe(200);
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+
+    const wasteRows = await findWasteForItem(itemId);
+    expect(wasteRows).toHaveLength(1);
+    expect(wasteRows[0].quantityRaw).toBe("0.5000");
+    expect(await findBatchExactQuantity(batchId)).toBe("2.0000");
+  });
+
+  test("la sobre-cantidad se detiene en el campo, sin abrir el diálogo destructivo", async ({ page }) => {
+    const itemId = itemIds[0];
+    batchId = await seedBatch({
+      companyId: COMPANY_ID,
+      branchId: sessionBranchId,
+      itemId,
+      quantity: 1,
+      lotNumber: "E2E-T6-LOTE-02",
+    });
+
+    await selectProductAndBatch(page, await findItemLabel(itemId));
+
+    await page.getByLabel("Cantidad", { exact: true }).fill("2");
+    await page.getByRole("button", { name: "Registrar Merma" }).click();
+
+    // El error vive en el `FormMessage` (anunciable), no en una burbuja nativa,
+    // y el diálogo de confirmación no llega a abrirse.
+    await expect(page.getByText(`Solo quedan 1 ${UNIT} en este lote`)).toBeVisible();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+
+    // Y nada se escribió.
+    expect(await findWasteForItem(itemId)).toHaveLength(0);
+    expect(await findBatchExactQuantity(batchId)).toBe("1.0000");
   });
 });

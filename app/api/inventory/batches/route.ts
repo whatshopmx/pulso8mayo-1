@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch batches with branch info
-    const batches = await db
+    const rows = await db
       .select({
         id: inventoryBatches.id,
         itemId: inventoryBatches.itemId,
@@ -56,6 +56,19 @@ export async function GET(request: NextRequest) {
       .innerJoin(branches, eq(inventoryBatches.branchId, branches.id))
       .where(whereClause)
       .orderBy(inventoryBatches.expirationDate);
+
+    // `initial_quantity`/`current_quantity` son numeric(12,4) desde la 0051 →
+    // drizzle las devuelve como string ("2.5000"). Los tres consumidores del
+    // endpoint (waste-form, lot-selector, product-detail-drawer) las declaran
+    // `number` y las comparan y renderizan como tales: sin esta coerción el
+    // stock se pinta "2.5000" y `currentQuantity === 1` nunca es cierto.
+    // Va DESPUÉS de la query — drizzle no acepta `Number(col)` dentro del
+    // objeto de `db.select()` (patrón T4).
+    const batches = rows.map((b) => ({
+      ...b,
+      initialQuantity: Number(b.initialQuantity),
+      currentQuantity: Number(b.currentQuantity),
+    }));
 
     return NextResponse.json({ batches });
   } catch (error) {

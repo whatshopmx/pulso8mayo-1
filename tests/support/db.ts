@@ -100,6 +100,29 @@ export async function createTestSkus(
   return ids;
 }
 
+/**
+ * Sucursal asignada a un usuario. Las páginas del dashboard toman `branchId` de
+ * la sesión, no de la URL, así que un spec de UI tiene que sembrar en ESTA
+ * sucursal — leerla evita que el spec se rompa si el seed cambia de sucursal.
+ */
+export async function findUserBranchId(email: string): Promise<string> {
+  const rows = await sql`SELECT branch_id FROM users WHERE email = ${email} LIMIT 1`;
+  const branchId = rows[0]?.branch_id as string | null | undefined;
+  if (!branchId) {
+    throw new Error(`El usuario ${email} no tiene sucursal asignada`);
+  }
+  return branchId;
+}
+
+/**
+ * Etiqueta de un artículo tal como la pinta el `<Select>` de productos
+ * (`{name} ({sku})`), para poder elegirlo por rol en un spec de UI.
+ */
+export async function findItemLabel(itemId: string): Promise<string> {
+  const rows = await sql`SELECT name, sku FROM inventory_items WHERE id = ${itemId} LIMIT 1`;
+  return `${rows[0].name} (${rows[0].sku})`;
+}
+
 /** Cuenta artículos activos de una categoría, opcionalmente solo alto valor. */
 export async function countItemsInCategory(
   companyId: string,

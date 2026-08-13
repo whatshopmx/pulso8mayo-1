@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -36,6 +36,7 @@ import {
 import { AlertTriangle, Package, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { formatQty } from '@/lib/utils';
 
 const reasonLabels: Record<string, string> = {
   EXPIRED: 'Caducidad',
@@ -81,17 +82,44 @@ function humanizeWasteError(
   return 'No se pudo registrar la merma. Revisa tu conexión e intenta de nuevo.';
 }
 
-const wasteFormSchema = z.object({
-  itemId: z.string().min(1, 'Selecciona un producto'),
-  batchId: z.string().min(1, 'Selecciona un lote'),
-  quantity: z.coerce.number().min(1, 'Cantidad debe ser mayor a 0'),
-  unit: z.string().min(1, 'Unidad es requerida'),
-  reason: z.enum(['EXPIRED', 'DAMAGED', 'QUALITY', 'SPILLAGE', 'OTHER', 'STAFF']),
-  costPerUnit: z.coerce.number().min(0).optional(),
-  notes: z.string().optional(),
-});
+/** Cantidad restante del lote elegido, con su unidad, para el mensaje de error. */
+type BatchLimit = { maxQuantity: number; unit: string } | null;
 
-type WasteFormValues = z.infer<typeof wasteFormSchema>;
+/**
+ * El máximo depende del lote seleccionado, pero la validación tiene que correr
+ * ANTES de que se abra el diálogo destructivo — no después de que el usuario ya
+ * confirmó. Leer el límite de un ref dentro del `superRefine` deja el schema (y
+ * con él el resolver) estable entre renders, y aun así valida contra el lote
+ * vigente en el momento del submit.
+ *
+ * `min(1)` desapareció a propósito: la cocina se mide en kg y L, y 0.5 kg es una
+ * merma perfectamente válida (plan-inventory-waste, T6).
+ */
+function buildWasteFormSchema(limitRef: { current: BatchLimit }) {
+  return z
+    .object({
+      itemId: z.string().min(1, 'Selecciona un producto'),
+      batchId: z.string().min(1, 'Selecciona un lote'),
+      quantity: z.coerce.number().positive('La cantidad debe ser mayor a 0'),
+      unit: z.string().min(1, 'Unidad es requerida'),
+      reason: z.enum(['EXPIRED', 'DAMAGED', 'QUALITY', 'SPILLAGE', 'OTHER', 'STAFF']),
+      costPerUnit: z.coerce.number().min(0).optional(),
+      notes: z.string().optional(),
+    })
+    .superRefine((data, ctx) => {
+      const limit = limitRef.current;
+      if (!limit) return;
+      if (data.quantity > limit.maxQuantity) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['quantity'],
+          message: `Solo quedan ${formatQty(limit.maxQuantity)} ${limit.unit} en este lote`,
+        });
+      }
+    });
+}
+
+type WasteFormValues = z.infer<ReturnType<typeof buildWasteFormSchema>>;
 
 interface Product {
   id: string;
@@ -124,6 +152,10 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
   const [pendingSubmission, setPendingSubmission] = useState<WasteFormValues | null>(null);
   const router = useRouter();
 
+  // Se rellena más abajo, en cuanto se conocen el lote y el producto elegidos.
+  const batchLimitRef = useRef<BatchLimit>(null);
+  const wasteFormSchema = useMemo(() => buildWasteFormSchema(batchLimitRef), []);
+
   const form = useForm({
     resolver: zodResolver(wasteFormSchema),
     defaultValues: {
@@ -137,8 +169,11 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
     },
   });
 
-  const quantity = form.watch('quantity') as number;
-  const costPerUnit = (form.watch('costPerUnit') as number) || 0;
+  // Los campos numéricos guardan el texto crudo mientras se escribe (para que
+  // "2." no colapse a 2 y bloquee el punto decimal); Zod lo coacciona al validar
+  // y aquí se coacciona para el cálculo en vivo de la pérdida.
+  const quantity = Number(form.watch('quantity')) || 0;
+  const costPerUnit = Number(form.watch('costPerUnit')) || 0;
   const totalLoss = quantity * costPerUnit;
 
   // Load products on mount
@@ -280,11 +315,22 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
 
   const selectedProduct = products.find(p => p.id === selectedItemId);
   const selectedBatch = batches.find(b => b.id === selectedBatchId);
-  const maxQuantity = selectedBatch?.currentQuantity || 1;
+  // Sin lote elegido no hay máximo que imponer (`batchId` es obligatorio, así
+  // que el formulario no llega a enviarse). El viejo fallback `|| 1` venía de la
+  // era integer y habría rechazado cualquier merma mayor a 1.
+  const maxQuantity = selectedBatch ? Number(selectedBatch.currentQuantity) : null;
+  batchLimitRef.current =
+    maxQuantity === null
+      ? null
+      : { maxQuantity, unit: selectedProduct?.unit ?? form.getValues('unit') };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      {/* `noValidate`: la validación es la de Zod, que se muestra en el
+          `FormMessage` (enlazado por `aria-describedby` desde `FormControl`).
+          Sin esto el navegador se adelanta con su burbuja nativa, que el lector
+          de pantalla no anuncia y el usuario no puede releer. */}
+      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-6">
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="h-5 w-5 text-amber-600" />
           <div>
@@ -369,7 +415,7 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
                     ) : (
                       batches.map((batch) => (
                         <SelectItem key={batch.id} value={batch.id}>
-                          {batch.lotNumber || 'Sin lote'} - Stock: {batch.currentQuantity}{' '}
+                          {batch.lotNumber || 'Sin lote'} - Stock: {formatQty(batch.currentQuantity)}{' '}
                           {selectedProduct?.unit}
                           {batch.expirationDate &&
                             ` - Vence: ${new Date(batch.expirationDate).toLocaleDateString()}`}
@@ -397,16 +443,17 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
                 <FormControl>
                   <Input
                     type="number"
-                    min="1"
-                    max={maxQuantity}
+                    step="0.001"
+                    inputMode="decimal"
+                    max={maxQuantity ?? undefined}
                     {...field}
-                    value={field.value as number}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
+                    value={(field.value as string | number) ?? ''}
+                    onChange={(e) => field.onChange(e.target.value)}
                   />
                 </FormControl>
-                {selectedBatch && (
+                {maxQuantity !== null && (
                   <FormDescription>
-                    Máximo: {maxQuantity} {selectedProduct?.unit}
+                    Máximo: {formatQty(maxQuantity)} {selectedProduct?.unit}
                   </FormDescription>
                 )}
                 <FormMessage />
@@ -481,10 +528,11 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
                   type="number"
                   min="0"
                   step="0.01"
+                  inputMode="decimal"
                   placeholder="0.00"
                   {...field}
-                  value={field.value as number}
-                  onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                  value={(field.value as string | number) ?? ''}
+                  onChange={(e) => field.onChange(e.target.value === '' ? undefined : e.target.value)}
                 />
               </FormControl>
               <FormDescription>

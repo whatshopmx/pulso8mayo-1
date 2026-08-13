@@ -1,6 +1,6 @@
 # Handoff — Registro de Mermas (plan-inventory-waste)
 
-**Actualizado:** 2026-08-11 (sesión 3, tras T5) · **Plan:** `tasks/plan-inventory-waste.md` · **TODO:** `tasks/todo-inventory-waste.md`
+**Actualizado:** 2026-08-12 (sesión 4, tras T6) · **Plan:** `tasks/plan-inventory-waste.md` · **TODO:** `tasks/todo-inventory-waste.md`
 **Crítica fuente:** `.impeccable/critique/2026-08-11T17-12-38Z__app-dashboard-inventory-waste.md` (18/40)
 
 Regla estricta del plan: **nada de la Fase 2 en adelante arranca antes de que pase el Checkpoint 0.**
@@ -50,7 +50,8 @@ Phase 6                               └── "Por vencer": data ── checkl
 | 0 | **T4** Barrer lecturas API/UI | ✅ `7a33da6` |
 | 0 | **Checkpoint 0** (build + e2e + round-trip) | 🔶 Parcial — todo verde; **pendiente revisión humana** |
 | 1 | **T5** Waste route (tenancy + decimal-safe) | ✅ `9e2f121` — suite 50/50 |
-| 1 | **T6** Input fraccionario validado pre-diálogo | Pendiente — deps: 1, 5 · **parte ya hecha en T5** (ver §3) |
+| 1 | **T6** Input fraccionario validado pre-diálogo | ✅ sin commitear — spec 7/7 (ver §3-ter) |
+| 1 | **Checkpoint 1** (0.5 kg end-to-end) | ✅ probado por `tests/inventory-waste.spec.ts` |
 | 2 | **T7** Quitar `Cancelar` muerto | Pendiente — sin deps (paralelizable) |
 | 2 | **T8** Matar remount + cache catálogo | Pendiente — sin deps (paralelizable) |
 | 2 | **T9** Guardar y registrar otra + recibo | Pendiente — deps: 8 |
@@ -67,7 +68,10 @@ Phase 6                               └── "Por vencer": data ── checkl
 | 6 | **T19** UI checklist + pestañas | Pendiente — deps: 18 |
 | 6 | **T20** Envío en lote (transacción) | Pendiente — deps: 19, 11 |
 
-**Working tree ahora mismo:** limpio. Rama `main`, **sin push** — 4 commits locales sobre origin.
+**Working tree ahora mismo:** ⚠️ **compartido con otro stream en curso** (remediation/incidents:
+`app/api/remediation/*`, `lib/services/remediation-service.ts`, `components/dashboard/pending-actions.tsx`,
+`tasks/plan-incident-remediation-actions.md` sin trackear). La T6 está **sin commitear**; al commitear,
+**stagear archivo por archivo**, nunca `git add -A`. Rama `main`, **sin push** — 2 commits locales sobre origin.
 
 ---
 
@@ -157,6 +161,58 @@ la T12 ya trae transacción; envolver T5 es una mejora pendiente pero fuera del 
 
 ---
 
+## 3-ter. Fase 1 — T6 implementada (sin commitear)
+
+**`components/inventory/waste-form.tsx`:**
+
+- `step="0.001"` + `inputMode="decimal"`; fuera `min="1"`.
+- El schema Zod dejó de ser una constante de módulo: `buildWasteFormSchema(limitRef)` con
+  `.positive()` y un `superRefine` que lee el **máximo del lote desde un ref**. El máximo depende
+  del lote elegido pero la validación tiene que correr antes del `AlertDialog`; el ref mantiene
+  estable el resolver de RHF y aun así valida contra el lote vigente. Verificado en aislamiento
+  contra zod 4.3.6: `"0.5"`→`0.5`, el máximo exacto pasa, `9` sobre lote de 2.5 emite
+  `{code:"custom", path:["quantity"]}`, `""`→"La cantidad debe ser mayor a 0".
+- **`noValidate` en el `<form>`**: sin eso el navegador se adelanta con su burbuja nativa. El
+  `FormControl` de shadcn ya cablea `aria-describedby`/`aria-invalid` al `FormMessage`, así que el
+  criterio de a11y se cumple quitando la validación nativa, no agregando atributos.
+- **Los campos numéricos guardan el texto crudo mientras se escribe.** El `onChange` anterior
+  (`Number(e.target.value)`) colapsaba `"2."` a `2` y hacía **imposible teclear el punto decimal** —
+  bug de la misma familia que el P0. Zod coacciona al validar; `form.watch` se coacciona a mano para
+  la pérdida en vivo. Aplica a `quantity` y a `costPerUnit`.
+- Fuera el fallback `maxQuantity = selectedBatch?.currentQuantity || 1` (era integer): ahora es
+  `null` cuando no hay lote, y `batchId` es obligatorio de todas formas.
+- Stock del lote y "Máximo:" renderizados con `formatQty`.
+
+**`app/api/inventory/batches/route.ts` — resto de T4 que bloqueaba T6.** El endpoint devolvía
+`current_quantity`/`initial_quantity` como string (`"2.5000"`) y sus **tres** consumidores
+(`waste-form`, `lot-selector`, `product-detail-drawer`) las declaran `number`: el stock se pintaba
+`"2.5000"` y `currentQuantity === 1` (`lot-selector.tsx:187`, singular/plural) nunca era cierto.
+Coerción en el `.map()` **después** de la query.
+
+**Tests** — `tests/inventory-waste.spec.ts` gana el bloque T6 con dos casos de UI: 0.5 kg
+end-to-end (lote 2.5 → `2.0000`, merma `0.5000`) y sobre-cantidad que se detiene en el `FormMessage`
+**sin abrir el diálogo**. Helpers nuevos en `tests/support/db.ts`: `findItemLabel` (etiqueta
+`{name} ({sku})` para elegir la opción por rol) y `findUserBranchId`.
+
+**Ojo con los specs de UI de este dashboard:**
+- La página toma `branchId` **de la sesión**, no de la URL. `carlos@pulso.mx` está hoy en
+  **Polanco** en la DB de desarrollo, no en Condesa como dice `seed-01-foundation` — por eso el
+  spec lee la sucursal con `findUserBranchId` en vez de fijarla.
+- Esperar `page.waitForResponse` de `/api/inventory/products` y `/api/inventory/batches` en vez de
+  `toBeEnabled()` a secas: con Neon frío el catálogo tarda más que los 20s de `expect`.
+- **No aseverar sobre el texto del toast**: se desvanece antes de que el `expect` lo atrape. La
+  evidencia estable es la respuesta del POST y el diálogo cerrado. (Además T9 reescribe ese toast.)
+
+**Verificación:** `tsc --noEmit` 0 errores · `pnpm run build` exit 0 · eslint limpio en
+`waste-form.tsx` (los 3 `no-explicit-any` de `batches/route.ts` son preexistentes, líneas no
+tocadas) · `tests/inventory-waste.spec.ts` **7/7** contra `npm run start`.
+
+**Pendiente que T6 NO cerró (es de T14):** el enum de `reason` del formulario sigue sin `COURTESY`,
+que la ruta sí acepta. Se dejó ahí a propósito: agregarlo al Zod sin agregarlo al `<Select>` es
+código muerto, y el `<Select>` es exactamente lo que T14 reescribe con el vocabulario compartido.
+
+---
+
 ## 4. Checkpoint 0 — la puerta
 
 | Ítem | Resultado |
@@ -191,7 +247,10 @@ la T12 ya trae transacción; envolver T5 es una mejora pendiente pero fuera del 
 ### Paso 0 (ahora mismo): revisión humana del Checkpoint 0
 Nada más escribe a la DB de verdad. Si la revisión encuentra algo, se corrige aquí antes de tocar la ruta.
 
-### Fase 1 — T5 ✅ hecha (`9e2f121`, ver §3-bis). Sigue T6.
+### Fase 1 — ✅ completa: T5 (`9e2f121`, §3-bis) y T6 (§3-ter, sin commitear). Sigue la Fase 2.
+
+<details>
+<summary>Notas originales de T6 (ya implementadas, se conservan por trazabilidad)</summary>
 
 **T6 — `components/inventory/waste-form.tsx`** (el manejo de errores por código estable **ya se hizo
 en T5**; queda el input y la validación):
@@ -203,12 +262,29 @@ en T5**; queda el input y la validación):
 **Checkpoint 1**: 0.5 kg end-to-end y todo aguas abajo refleja 0.5. El round-trip API ya está probado
 por `tests/inventory-waste.spec.ts`, así que esto es cerrar el lazo del formulario.
 
+</details>
+
 ### Luego — orden recomendado respetando dependencias y paralelización
 - **Fase 2 (T7→9, en orden, T7 y T8 son paralelizables entre sí)** — P0 queda cerrado aquí (Checkpoint 1). T7: `Cancelar`→`Limpiar` (`waste-form.tsx:497`). T8: matar `key={refreshKey}` (`waste-client.tsx:23`), TanStack Query para el catálogo, `ErrorState` con retry. T9: "Guardar y registrar otra" conserva `itemId` y foco→Cantidad, tira "Registradas hoy: N · $X" desde el `GET /api/inventory/waste` (ya construido, sin consumidor UI), toast con unidad humana.
 - **Fase 3 (T10→11→12)** — T10: migración `0052_merma-evidencia-anulacion.sql` (evidence_url/voided_* en waste; `merma_photo_required_above_cents` integer default 50000 en `tenant_operating_config`, precedente `mermaVarianceThresholdPct` :2831). T11: **persistir `evidenceUrl` en `merma-from-workflow.ts`** (hoy lo parsea y lo tira en el insert — la foto obligatoria del workflow se pierde); foto en form con el componente existente (hay `components/inventory/product-photo-upload.tsx` y `lib/r2-client.ts`; el plan nombra `camera-capture.tsx`/`use-photo-upload.ts` que NO existen con esos nombres — reusar lo que hay); exigencia también server-side. T12: `POST /api/inventory/waste/[id]/void` en **transacción** (el repo usa driver WS `neon-serverless` justamente para eso), `requireRoleApi` de `lib/rbac/require-role.ts`, **nunca borra**, excluir anuladas de las agregaciones de T3, `AuditService`.
 - **Fase 4 (T13→14→15, T21 al final)** — T13 columna única; T14 nuevo `lib/inventory/waste-reasons.ts` (inverso de `REASON_MAP` en `merma-from-workflow.ts:39` — mover, no migrar el enum; cubrir los 7 valores incl. `STAFF`/`COURTESY`; etiquetas de cocina; `STAFF`/`COURTESY` como *consumo* suprimen "Pérdida Estimada"); T15 tokens `bg-warning/...` y `text-warning-text` (hoy `bg-amber-50 border-amber-200 text-amber-900` en `waste-form.tsx:468` y 4 iconos amber crudos). **T21 completa, nunca la línea de copy sola** — watch item crítico.
 - **Fase 5 (T16→17)** — `Intl.NumberFormat('es-MX')`, deep-link `?item={id}` desde expiraciones, `components/inventory/lot-selector.tsx` (ya existe) + búsqueda con Popover+Input (sin `cmdk`).
 - **Fase 6 (T18→19→20)** — pestaña "Por vencer" + batch submit en UNA transacción reusando la validación de T5 (una sola copia de las reglas).
+
+### Pregunta abierta heredada (NO es de este plan, pero bloquea "suite verde")
+
+`tests/workflow-review.spec.ts:373` ("un paso dinámico congelado muestra su título real") **falla de
+forma consistente**; `:340` falla solo en suite completa (estado compartido). Lo que se comprobó:
+
+- El diff de T6 no solapa con esa ruta: `app/dashboard/workflows/review/[id]/page.tsx` importa
+  `lib/workflows/step-definitions.ts` y `components/workflow/workflow-review.tsx`, **ninguno con
+  cambios locales** (`git status` limpio en `lib/workflows/` y `components/workflow/`).
+- `tests/support/db.ts` solo tiene mis 23 líneas añadidas; `seedReviewInstance` intacto.
+- `check-migration-drift.ts` limpio, 52 migraciones aplicadas.
+
+**No queda atribuido.** Pasaba contra el build de la sesión anterior y falla contra el build actual,
+pero ese build también incluye el trabajo sin commitear del otro stream, así que la comparación no
+es limpia. Quien retome: reproducir sobre un árbol sin cambios ajenos antes de culpar a nada.
 
 ### Riesgos vivos para el siguiente agente
 - ~~Fuga cross-tenant en la ruta de waste (T5)~~ — **cerrada en `9e2f121`**, con spec que la cubre.
@@ -236,6 +312,22 @@ por `tests/inventory-waste.spec.ts`, así que esto es cerrar el lazo del formula
 - E2E: el `[setup]` de auth puede tardar ~60s con el servidor frío y **hace timeout a los 60s**. Arrancar
   `npm run start` aparte y esperar a que `/sign-in` devuelva 200 antes de lanzar playwright (`reuseExistingServer` lo aprovecha).
 - E2E: `PLAYWRIGHT_WEB_SERVER_CMD="npm run start" npx playwright test` (el webServer por defecto usa `next dev`). Setup crea `tests/.auth/admin.json` (cookie para peticiones autenticadas, útil en scripts).
+- **⚠️ Un `next start` huérfano de una sesión anterior envenena la suite entera y no lo parece.**
+  `reuseExistingServer: true` reutiliza lo que haya en :3000. Si ese proceso arrancó **antes** de tu
+  build, sirve HTML apuntando a chunks que tu build ya borró → la página que tocaste muere con
+  `ChunkLoadError` / "Application error", y **el resto de la suite pasa igual** (los chunks sin
+  cambios conservan su hash), así que parece que solo tu trabajo está roto. Antes de correr:
+  `Get-NetTCPConnection -LocalPort 3000` → verificar que el PID sea el que tú arrancaste **después**
+  del build; si no, matarlo. Síntoma inequívoco: el chunk que pide el HTML no existe en
+  `.next/static/chunks/`.
+- **El rate limiter cae a memoria cuando Redis no está** (`"Redis not available, falling back to
+  in-memory"`). Se agota tras ~6 logins seguidos en el mismo proceso y `auth.setup.ts` empieza a
+  colgarse 180s en `waitForURL` con el formulario relleno y sin error visible. Reiniciar el servidor
+  lo resetea — no es un bug de credenciales ni de la sesión.
+- **Este repo tiene más de un stream trabajando a la vez.** Puede haber un `next build` ajeno en
+  vuelo (borra `.next/BUILD_ID` mientras corre → `next start` responde "Could not find a production
+  build"). Comprobar con `Get-CimInstance Win32_Process -Filter "Name='node.exe'"` antes de
+  reconstruir; dos builds simultáneos se corrompen entre sí.
 - `formatQty` en `lib/utils.ts` para TODO render de cantidades — nunca interpolar el string crudo de la DB.
 - El otro stream (workflow-review) tocó `lib/services/stock-count-service.ts` y `tests/support/db.ts` — al editar esos archivos revisar `git diff` por trabajo ajeno; antes de cada commit, `git status`.
 - **Strict mode es `strict: false`** — `tsc --noEmit` no detecta concat de strings. La disciplina es coercer en la frontera y revisar agregaciones a mano.
@@ -245,7 +337,7 @@ por `tests/inventory-waste.spec.ts`, así que esto es cerrar el lazo del formula
 
 ## 8. Anclas de archivos (referencia rápida)
 
-- Ruta a reescribir (T5): `app/api/inventory/waste/route.ts` · form (T6/7/11/13/14/15): `components/inventory/waste-form.tsx` · cliente (T8/9): `app/dashboard/inventory/waste/waste-client.tsx` · página (T15/17): `app/dashboard/inventory/waste/page.tsx`
+- Ruta (T5 ✅): `app/api/inventory/waste/route.ts` · form (T6 ✅; T7/11/13/14/15): `components/inventory/waste-form.tsx` · cliente (T8/9): `app/dashboard/inventory/waste/waste-client.tsx` · página (T15/17): `app/dashboard/inventory/waste/page.tsx`
 - Helpers existentes: `lib/api/with-auth.ts` (`withTenantAuth`) · `lib/api/response.ts` (`ApiHandler`/`apiResponse`/`apiError`) · `lib/branch-scope.ts` (`enforceBranchScope`) · `lib/rbac/require-role.ts` (`requireRoleApi`) · `lib/r2-client.ts` · `components/inventory/product-photo-upload.tsx` · `components/inventory/lot-selector.tsx` · `lib/utils.ts` (`formatQty`)
 - Extractores: `lib/services/merma-from-workflow.ts` (`REASON_MAP` :39 → T14; evidencia :233-246 → T11) · `lib/services/stock-count-from-workflow.ts` · `lib/services/production-from-workflow.ts` · `lib/services/production-service.ts` (~:143 redondeo explícito)
 - Agregaciones ya barridas (T12 debe excluir anuladas aquí): `knowledge-service.ts`, `executive-report-service.ts`, `stock-alert-service.ts`, `operational-twin-engine.ts`, `kpi-calculator.ts`, `suggested-order-service.ts`, `advanced-alert-service.ts`, `food-cost-service.ts`, `app/api/reports/generate/route.ts`
