@@ -117,7 +117,9 @@ test.describe("Remediación externa desde el detalle del incidente", () => {
     // El panel recomienda ejecutar el paso, y el wizard aparece con él.
     await expect(page.getByText("Acción recomendada")).toBeVisible();
     await expect(page.getByText(/Ejecutar: Ajustar el termostato/i)).toBeVisible();
-    await expect(page.getByText("Protocolo de remediación")).toBeVisible({
+    // El texto aparece dos veces (la tarjeta del detalle y el propio wizard);
+    // basta con la primera, que sólo se pinta cuando el wizard se monta.
+    await expect(page.getByText("Protocolo de remediación").first()).toBeVisible({
       timeout: 15_000,
     });
 
