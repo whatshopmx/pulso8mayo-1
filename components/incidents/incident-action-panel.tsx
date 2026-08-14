@@ -27,6 +27,7 @@ export type RecommendedActionKind =
   | "CONFIGURE_PROVIDER"
   | "REQUEST_EXTERNAL"
   | "RUN_PROTOCOL_STEP"
+  | "DECLARED_ACTION"
   | "SUGGESTED_FIX"
   | "ESCALATE"
   | "RESOLVE_MANUAL";
@@ -114,6 +115,13 @@ const KIND_STYLES: Record<
     card: "border-blue-200/60 dark:border-blue-900/50",
     chip: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-300",
     chipLabel: "EN PROCESO",
+  },
+  // Declarada por la regla: no es una sugerencia, es lo que se configuró.
+  DECLARED_ACTION: {
+    icon: ClipboardCheck,
+    card: "border-amber-200/60 dark:border-amber-900/50",
+    chip: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-300",
+    chipLabel: "ACCIÓN DEL FLUJO",
   },
   SUGGESTED_FIX: {
     icon: Wrench,
@@ -295,7 +303,9 @@ export function IncidentActionPanel({
             {/* El catálogo trae a dónde ir; sin destino, la sugerencia queda
                 sólo como texto (p. ej. higiene personal, que se corrige con
                 la persona y no en una pantalla). */}
-            {recommended.kind === "SUGGESTED_FIX" && recommended.payload?.href && (
+            {(recommended.kind === "SUGGESTED_FIX" ||
+              recommended.kind === "DECLARED_ACTION") &&
+              recommended.payload?.href && (
               <Button
                 asChild
                 size="sm"

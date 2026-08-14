@@ -379,6 +379,11 @@ export class IncidentEngine {
                     stepId,
                     value: context.value,
                     aiResult: context.aiResult,
+                    // Las acciones declaradas en la regla se persisten para que
+                    // el incidente sepa después qué había que hacer. Sin esto la
+                    // intención del diseñador se pierde al terminar el motor, y
+                    // la recomendación tiene que adivinarla desde el título.
+                    actions: rule.actions ?? null,
                 },
             };
 

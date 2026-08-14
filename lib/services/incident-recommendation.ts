@@ -1,5 +1,8 @@
 import { getServiceNameForType } from '@/lib/compliance-mapping';
-import { findSuggestedAction } from '@/lib/services/incident-action-catalog';
+import {
+  findSuggestedAction,
+  findDeclaredActionFollowUp,
+} from '@/lib/services/incident-action-catalog';
 
 /**
  * Resolver determinista de "la única cosa que hay que hacer ahora" en un incidente.
@@ -19,6 +22,7 @@ export type RecommendedActionKind =
   | 'CONFIGURE_PROVIDER'
   | 'REQUEST_EXTERNAL'
   | 'RUN_PROTOCOL_STEP'
+  | 'DECLARED_ACTION'
   | 'SUGGESTED_FIX'
   | 'ESCALATE'
   | 'RESOLVE_MANUAL';
@@ -42,6 +46,8 @@ export interface RecommendedAction {
     /** A dónde lleva el CTA cuando la acción viene del catálogo por tipo. */
     href?: string;
     cta?: string;
+    /** Tipo de `STEP_ACTION_TYPES` cuando la acción la declaró la regla. */
+    actionType?: string;
   };
 }
 
@@ -228,9 +234,30 @@ export function resolveRecommendedAction(input: RecommendationInput): Recommende
   const isEscalated = incident.status === 'ESCALATED';
 
   if (!protocol) {
-    // Sin protocolo, el catálogo deriva la acción del tipo de incidente. Es el
-    // caso mayoritario: sólo 8 de 28 plantillas definen remediationProtocol, y
-    // sin esto la mayoría de los incidentes sólo podría decir "resuélvelo tú".
+    // Preferimos SIEMPRE lo que la regla declaró sobre cualquier heurística:
+    // el diseñador ya eligió la acción en el builder (STEP_ACTION_TYPES), y
+    // `incident-engine` la persiste en metadata.actions. Es un dato, no una
+    // inferencia, y además el usuario puede cambiarlo sin tocar código.
+    const declared = findDeclaredActionFollowUp(metadata.actions);
+    if (declared) {
+      return {
+        kind: 'DECLARED_ACTION',
+        label: declared.label,
+        rationale:
+          'Es la acción que la regla del flujo declaró para esta desviación; ' +
+          'se configura en el constructor de plantillas.',
+        urgency: isEscalated ? 'HIGH' : declared.urgency,
+        payload: {
+          branchId: incident.branchId || undefined,
+          actionType: declared.actionType,
+          href: declared.destination?.href,
+          cta: declared.destination?.cta,
+        },
+      };
+    }
+
+    // Sin protocolo ni acción declarada, el catálogo deriva la acción del tipo
+    // de incidente. Es heurística por texto: última red antes del genérico.
     const suggested = findSuggestedAction({
       title: incident.title,
       description: incident.description,

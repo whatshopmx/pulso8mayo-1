@@ -225,6 +225,104 @@ expectKind(
   'RESOLVE_MANUAL'
 );
 
+console.log('\n--- Acción declarada en la regla (gana al catálogo) ---\n');
+
+// Forma objeto, como la guarda el builder.
+expectKind(
+  'Declarada · builder guarda { type } → DECLARED_ACTION',
+  {
+    incident: {
+      ...baseIncident,
+      title: 'Producto vencido en refrigerador',
+      remediationProtocol: null,
+      metadata: { actions: [{ type: 'CREATE_PURCHASE_ORDER', quantity: 2 }] },
+    },
+    actions: [],
+  },
+  'DECLARED_ACTION'
+);
+
+// Forma string, como las trata el motor (`case 'BLOCK'`).
+expectKind(
+  'Declarada · motor usa strings → DECLARED_ACTION',
+  {
+    incident: {
+      ...baseIncident,
+      title: 'Producto vencido en refrigerador',
+      remediationProtocol: null,
+      metadata: { actions: ['CREATE_MAINTENANCE_TICKET'] },
+    },
+    actions: [],
+  },
+  'DECLARED_ACTION'
+);
+
+// La acción declarada debe pisar la heurística del título.
+const pisa = resolveRecommendedAction({
+  incident: {
+    ...baseIncident,
+    title: 'Producto vencido en refrigerador',
+    remediationProtocol: null,
+    metadata: { actions: ['CREATE_MAINTENANCE_TICKET'] },
+  },
+  actions: [],
+});
+if (pisa.payload?.href !== '/dashboard/equipment/maintenance') {
+  failures++;
+  console.error(`❌ la acción declarada no pisó al catálogo: ${pisa.payload?.href}`);
+} else {
+  console.log(`✅ declarada pisa al título → ${pisa.label} (${pisa.payload.href})`);
+}
+
+// Las acciones automáticas no dejan trabajo humano: se ignoran y sigue la cascada.
+expectKind(
+  'Declarada · sólo acciones automáticas → cae al catálogo',
+  {
+    incident: {
+      ...baseIncident,
+      title: 'Producto vencido en refrigerador',
+      remediationProtocol: null,
+      metadata: { actions: ['SEND_NOTIFICATION', 'LOG_VIOLATION'] },
+    },
+    actions: [],
+  },
+  'SUGGESTED_FIX'
+);
+
+// Formas basura no deben lanzar.
+expectKind(
+  'Declarada · metadata.actions basura no lanza',
+  {
+    incident: {
+      ...baseIncident,
+      title: 'Producto vencido en refrigerador',
+      remediationProtocol: null,
+      metadata: { actions: 'CREATE_MAINTENANCE_TICKET' },
+    },
+    actions: [],
+  },
+  'SUGGESTED_FIX'
+);
+
+// Y el protocolo sigue mandando sobre la acción declarada.
+expectKind(
+  'Declarada · el protocolo sigue teniendo prioridad',
+  {
+    incident: {
+      ...baseIncident,
+      title: 'Producto vencido en refrigerador',
+      remediationProtocol: selfFixProtocol,
+      metadata: {
+        actions: ['CREATE_MAINTENANCE_TICKET'],
+        remediationCurrentStep: 0,
+        remediationAttempts: 0,
+      },
+    },
+    actions: [],
+  },
+  'RUN_PROTOCOL_STEP'
+);
+
 console.log('\n--- Catálogo por tipo de incidente (sin protocolo) ---\n');
 
 const casosCatalogo: Array<[string, string, string]> = [

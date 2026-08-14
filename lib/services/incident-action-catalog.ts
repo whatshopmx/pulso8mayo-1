@@ -135,6 +135,116 @@ const CATALOG: CatalogEntry[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Acciones declaradas en la regla (señal preferida sobre el texto)
+// ---------------------------------------------------------------------------
+
+/**
+ * Seguimiento humano que amerita cada tipo de `STEP_ACTION_TYPES`.
+ *
+ * Sólo aparecen las acciones que dejan trabajo pendiente para una persona. Las
+ * puramente automáticas —notificar, registrar un retardo, rechazar— ya se
+ * ejecutaron cuando el incidente se creó: pedirle al gerente que las "haga"
+ * sería ruido, así que se omiten y la cascada sigue de largo.
+ */
+const DECLARED_ACTION_FOLLOWUP: Record<
+  string,
+  { label: string; urgency: SuggestionUrgency; destination?: SuggestionDestination }
+> = {
+  CREATE_MAINTENANCE_TICKET: {
+    label: 'Dar seguimiento al ticket de mantenimiento',
+    urgency: 'HIGH',
+    destination: { href: '/dashboard/equipment/maintenance', cta: 'Ver mantenimiento' },
+  },
+  SCHEDULE_COMPLIANCE_SERVICE: {
+    label: 'Agendar el servicio de cumplimiento con el proveedor',
+    urgency: 'HIGH',
+    destination: { href: '/dashboard/equipment/compliance', cta: 'Ver proveedores' },
+  },
+  CREATE_PURCHASE_ORDER: {
+    label: 'Revisar y autorizar la orden de compra',
+    urgency: 'MEDIUM',
+    destination: { href: '/dashboard/inventory/purchase-orders', cta: 'Ver órdenes' },
+  },
+  GENERATE_ACTION_PLAN: {
+    label: 'Completar el plan de acción correctivo',
+    urgency: 'HIGH',
+    destination: { href: '/dashboard/compliance', cta: 'Abrir cumplimiento' },
+  },
+  CREATE_REMEDIATION_PLAN: {
+    label: 'Completar el plan de remediación',
+    urgency: 'HIGH',
+    destination: { href: '/dashboard/compliance', cta: 'Abrir cumplimiento' },
+  },
+  CREATE_COFEPRIS_REPORT: {
+    label: 'Revisar el reporte COFEPRIS generado',
+    urgency: 'HIGH',
+    destination: { href: '/dashboard/compliance', cta: 'Abrir cumplimiento' },
+  },
+  CREATE_STPS_REPORT: {
+    label: 'Revisar el reporte STPS generado',
+    urgency: 'HIGH',
+    destination: { href: '/dashboard/compliance', cta: 'Abrir cumplimiento' },
+  },
+  CREATE_CLAIM: {
+    label: 'Dar seguimiento al reclamo con el proveedor',
+    urgency: 'MEDIUM',
+    destination: { href: '/dashboard/inventory/claims', cta: 'Ver reclamos' },
+  },
+  SEND_HOME_PROTOCOL: {
+    label: 'Confirmar que el colaborador fue enviado a casa',
+    urgency: 'HIGH',
+  },
+  BLOCK_WORKFLOW_COMPLETION: {
+    label: 'Resolver el bloqueo para que el flujo pueda cerrarse',
+    urgency: 'HIGH',
+  },
+  BLOCK: {
+    label: 'Resolver el bloqueo para que el flujo pueda cerrarse',
+    urgency: 'HIGH',
+  },
+  REQUIRE_REMEDIATION: {
+    label: 'Ejecutar la remediación guiada del paso',
+    urgency: 'HIGH',
+  },
+};
+
+export interface DeclaredActionFollowUp {
+  actionType: string;
+  label: string;
+  urgency: SuggestionUrgency;
+  destination?: SuggestionDestination;
+}
+
+/**
+ * Primera acción de la regla que deja trabajo humano pendiente.
+ *
+ * `rule.actions` viene en dos formas: el motor las trata como strings
+ * (`case 'BLOCK'`) y el builder las guarda como objetos `{ type, ... }`. Se
+ * aceptan ambas y se ignora cualquier otra cosa sin lanzar.
+ */
+export function findDeclaredActionFollowUp(actions: unknown): DeclaredActionFollowUp | null {
+  if (!Array.isArray(actions)) return null;
+
+  for (const raw of actions) {
+    const type =
+      typeof raw === 'string'
+        ? raw
+        : raw && typeof raw === 'object' && typeof (raw as { type?: unknown }).type === 'string'
+          ? (raw as { type: string }).type
+          : null;
+
+    if (!type) continue;
+
+    const followUp = DECLARED_ACTION_FOLLOWUP[type];
+    if (followUp) {
+      return { actionType: type, ...followUp };
+    }
+  }
+
+  return null;
+}
+
 /** Minúsculas y sin acentos, para que "fumigación" haga match con /fumigac/. */
 function normalize(text: string): string {
   return text
