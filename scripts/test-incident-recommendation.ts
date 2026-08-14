@@ -252,6 +252,49 @@ for (const [titulo, categoria, labelEsperado] of casosCatalogo) {
   }
 }
 
+// Cada sugerencia con destino debe traer href + cta en el payload, y el href
+// tiene que apuntar a una ruta real de app/dashboard (ver el catálogo).
+const destinosEsperados: Array<[string, string]> = [
+  ['Producto vencido en refrigerador', '/dashboard/inventory/waste'],
+  ['Incumplimiento en limpieza de campana', '/dashboard/schedules'],
+  ['Temperatura de refrigerador elevada', '/dashboard/equipment/maintenance'],
+  ['Refrigerador descompuesto en cocina', '/dashboard/equipment/maintenance'],
+  // "vencido" es ambiguo: un certificado se resuelve en el expediente, no
+  // dando de baja producto. Fija el orden documentacion > caducidad.
+  ['Certificado de fumigación vencido', '/dashboard/compliance/expediente'],
+];
+
+for (const [titulo, hrefEsperado] of destinosEsperados) {
+  const r = resolveRecommendedAction({
+    incident: { ...baseIncident, title: titulo, remediationProtocol: null },
+    actions: [],
+  });
+
+  if (r.payload?.href !== hrefEsperado || !r.payload?.cta) {
+    failures++;
+    console.error(`❌ destino de "${titulo}"`);
+    console.error(`     esperado ${hrefEsperado}, recibido ${r.payload?.href} / cta=${r.payload?.cta}`);
+  } else {
+    console.log(`✅ "${titulo}" → ${r.payload.cta} → ${r.payload.href}`);
+  }
+}
+
+// Higiene personal se corrige con la persona: sugerencia sin destino ni CTA.
+const higiene = resolveRecommendedAction({
+  incident: {
+    ...baseIncident,
+    title: 'Colaborador sin cofia en cocina',
+    remediationProtocol: null,
+  },
+  actions: [],
+});
+if (higiene.kind !== 'SUGGESTED_FIX' || higiene.payload?.href) {
+  failures++;
+  console.error(`❌ higiene personal no debe traer destino, recibido ${higiene.payload?.href}`);
+} else {
+  console.log(`✅ "Colaborador sin cofia" → sugerencia sin CTA (${higiene.label})`);
+}
+
 // El protocolo manda sobre el catálogo: si el incidente trae pasos, se usan.
 expectKind(
   'Catálogo NO pisa al protocolo · título de plaga con protocolo self-fix',

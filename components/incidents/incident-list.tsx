@@ -353,13 +353,22 @@ export function IncidentList({ incidents, totalCount, page = 1, totalPages = 1 }
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     <span className="truncate">{incident.title}</span>
                                                     {(incident.pendingActionCount ?? 0) > 0 && (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="shrink-0 gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-300"
+                                                        // Clicable: la acción se ejecuta en el detalle,
+                                                        // así que el badge es el atajo hasta ella.
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleViewDetails(incident.id)}
+                                                            aria-label={`Ver la acción pendiente de: ${incident.title}`}
+                                                            className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                                                         >
-                                                            <ShieldAlert className="h-3 w-3" />
-                                                            Requiere acción
-                                                        </Badge>
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                                                            >
+                                                                <ShieldAlert className="h-3 w-3" />
+                                                                Requiere acción
+                                                            </Badge>
+                                                        </button>
                                                     )}
                                                 </div>
                                             </TableCell>

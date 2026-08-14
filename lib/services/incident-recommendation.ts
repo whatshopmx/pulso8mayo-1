@@ -39,6 +39,9 @@ export interface RecommendedAction {
     escalationLevel?: number;
     scheduledDate?: string;
     branchId?: string;
+    /** A dónde lleva el CTA cuando la acción viene del catálogo por tipo. */
+    href?: string;
+    cta?: string;
   };
 }
 
@@ -245,7 +248,11 @@ export function resolveRecommendedAction(input: RecommendationInput): Recommende
           'remediación configurado, así que la acción es la sugerida para su tipo; ' +
           'ajústala si el caso lo pide.',
         urgency: isEscalated ? 'HIGH' : suggested.urgency,
-        payload: { branchId: incident.branchId || undefined },
+        payload: {
+          branchId: incident.branchId || undefined,
+          href: suggested.destination?.href,
+          cta: suggested.destination?.cta,
+        },
       };
     }
 

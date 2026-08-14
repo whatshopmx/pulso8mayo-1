@@ -43,6 +43,8 @@ export interface RecommendedAction {
     escalationLevel?: number;
     scheduledDate?: string;
     branchId?: string;
+    href?: string;
+    cta?: string;
   };
 }
 
@@ -287,6 +289,23 @@ export function IncidentActionPanel({
               >
                 Confirmar visita
                 <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+            )}
+
+            {/* El catálogo trae a dónde ir; sin destino, la sugerencia queda
+                sólo como texto (p. ej. higiene personal, que se corrige con
+                la persona y no en una pantalla). */}
+            {recommended.kind === "SUGGESTED_FIX" && recommended.payload?.href && (
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs font-semibold w-full sm:w-auto"
+              >
+                <Link href={recommended.payload.href}>
+                  {recommended.payload.cta || "Ir"}
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </Button>
             )}
 
