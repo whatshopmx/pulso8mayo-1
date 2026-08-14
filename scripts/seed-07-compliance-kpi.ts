@@ -39,19 +39,30 @@ export async function main() {
   await db.delete(incidents).where(sql`1=1`);
 
   console.log("Inserting incidents...");
+  // `actions` replica lo que `incident-engine` persiste en metadata cuando la
+  // regla del flujo declara qué hacer (STEP_ACTION_TYPES del constructor de
+  // plantillas). Sin esto los incidentes sembrados no se parecen a los reales
+  // y el panel de acción recomendada cae en la heurística por título.
+  // Se mezclan acciones automáticas a propósito: deben ignorarse.
   const incidentData = [
-    { branchIdx: 0, severity: "CRITICAL" as const, status: "RESOLVED" as const, title: "Fuga de gas en cocina Condesa", description: "Se detectó olor a gas en la cocina principal. Se evacuó el área y se cerró la válvula general.", detectedByIdx: 3 },
-    { branchIdx: 0, severity: "WARNING" as const, status: "RESOLVED" as const, title: "Temperatura de refrigerador elevada", description: "Refrigerador principal marcó 12°C durante 30 minutos. Se revisó y corrigió.", detectedByIdx: 0 },
-    { branchIdx: 1, severity: "WARNING" as const, status: "CONFIRMED" as const, title: "Incumplimiento en limpieza de campana", description: "La campana extractora de Polanco no se limpió en la fecha programada.", detectedByIdx: 3 },
-    { branchIdx: 2, severity: "CRITICAL" as const, status: "IN_REMEDIATION" as const, title: "Plaga de cucarachas en almacén Roma", description: "Se detectaron cucarachas en el almacén seco. Se requiere fumigación urgente.", detectedByIdx: 1 },
-    { branchIdx: 0, severity: "FATAL" as const, status: "ESCALATED" as const, title: "Incendio menor en parrilla", description: "Una llamarada en la parrilla activó los rociadores. Daños menores.", detectedByIdx: 2 },
-    { branchIdx: 1, severity: "WARNING" as const, status: "DETECTED" as const, title: "Producto vencido en refrigerador", description: "Se encontraron 3 kg de queso caducado en el refrigerador de Polanco.", detectedByIdx: 1 },
+    { branchIdx: 0, severity: "CRITICAL" as const, status: "RESOLVED" as const, title: "Fuga de gas en cocina Condesa", description: "Se detectó olor a gas en la cocina principal. Se evacuó el área y se cerró la válvula general.", detectedByIdx: 3, ruleId: "rule-gas-leak", stepId: "verificar-instalacion-gas", actions: ["SEND_NOTIFICATION", "SCHEDULE_COMPLIANCE_SERVICE"] },
+    { branchIdx: 0, severity: "WARNING" as const, status: "RESOLVED" as const, title: "Temperatura de refrigerador elevada", description: "Refrigerador principal marcó 12°C durante 30 minutos. Se revisó y corrigió.", detectedByIdx: 0, ruleId: "rule-temp-refri", stepId: "registrar-temperatura-refrigerador", actions: ["SEND_NOTIFICATION", "CREATE_MAINTENANCE_TICKET"] },
+    { branchIdx: 1, severity: "WARNING" as const, status: "CONFIRMED" as const, title: "Incumplimiento en limpieza de campana", description: "La campana extractora de Polanco no se limpió en la fecha programada.", detectedByIdx: 3, ruleId: "rule-limpieza-campana", stepId: "limpieza-campana-extractora", actions: ["GENERATE_ACTION_PLAN"] },
+    { branchIdx: 2, severity: "CRITICAL" as const, status: "IN_REMEDIATION" as const, title: "Plaga de cucarachas en almacén Roma", description: "Se detectaron cucarachas en el almacén seco. Se requiere fumigación urgente.", detectedByIdx: 1, ruleId: "rule-plaga-almacen", stepId: "inspeccion-almacen-seco", actions: ["SCHEDULE_COMPLIANCE_SERVICE"] },
+    { branchIdx: 0, severity: "FATAL" as const, status: "ESCALATED" as const, title: "Incendio menor en parrilla", description: "Una llamarada en la parrilla activó los rociadores. Daños menores.", detectedByIdx: 2, ruleId: "rule-conato-incendio", stepId: "revision-parrilla", actions: ["ESCALATE", "CREATE_COFEPRIS_REPORT"] },
+    { branchIdx: 1, severity: "WARNING" as const, status: "DETECTED" as const, title: "Producto vencido en refrigerador", description: "Se encontraron 3 kg de queso caducado en el refrigerador de Polanco.", detectedByIdx: 1, ruleId: "rule-caducidad", stepId: "revision-fechas-consumo", actions: ["LOG_VIOLATION", "CREATE_PURCHASE_ORDER"] },
   ];
 
   const incidentValues = incidentData.map(inc => ({
     instanceId: "00000000-0000-0000-0000-000000000001",
-    stepId: "incident-auto",
+    stepId: inc.stepId,
     branchId: BRANCHES[inc.branchIdx],
+    // Misma forma que arma `IncidentEngine.createIncident`.
+    metadata: {
+      ruleId: inc.ruleId,
+      stepId: inc.stepId,
+      actions: inc.actions,
+    },
     severity: inc.severity,
     status: inc.status,
     title: inc.title,
