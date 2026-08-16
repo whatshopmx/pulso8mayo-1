@@ -287,6 +287,38 @@ export async function seedSalesCutHistory(opts: {
   return porDiaDeLaSemana;
 }
 
+/** Borra los supuestos de flujo de efectivo de una compañía. */
+export async function deleteCashFlowAssumptions(companyId: string): Promise<void> {
+  await sql`DELETE FROM cash_flow_assumptions WHERE company_id = ${companyId}`;
+}
+
+/**
+ * Captura un saldo inicial. `branchId` null = supuesto del grupo completo.
+ *
+ * `asOfDaysAgo` permite envejecer el dato para ejercitar el aviso de "conviene
+ * actualizarlo": un saldo sin fecha no dice nada, y uno de hace nueve días dice
+ * algo distinto que uno de hoy.
+ */
+export async function seedCashFlowAssumption(opts: {
+  companyId: string;
+  branchId?: string | null;
+  openingBalanceCents: number;
+  asOfDaysAgo?: number;
+}): Promise<void> {
+  const diasAtras = opts.asOfDaysAgo ?? 0;
+  await sql`
+    INSERT INTO cash_flow_assumptions (
+      company_id, branch_id, opening_balance_cents, as_of_date
+    )
+    VALUES (
+      ${opts.companyId},
+      ${opts.branchId ?? null},
+      ${opts.openingBalanceCents},
+      (CURRENT_DATE - ${diasAtras}::int)
+    )
+  `;
+}
+
 /** Borra las contrapartes (payees) creadas por los tests. */
 export async function deleteTestPayees(): Promise<void> {
   // Los gastos de test que las referencian se borran primero: la FK

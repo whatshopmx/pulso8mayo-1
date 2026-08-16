@@ -6,8 +6,8 @@
 //   - Invoices from procurement (CFDI XML received but not linked to a paid expense)
 
 import { db } from "@/lib/db";
-import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users, branches } from "@/lib/db/schema";
-import { eq, and, gte, lte, sql, inArray, asc } from "drizzle-orm";
+import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users, branches, cashFlowAssumptions } from "@/lib/db/schema";
+import { eq, and, gte, lte, sql, inArray, asc, isNull } from "drizzle-orm";
 import { addCalendarDays, localDateString } from "@/lib/workflows/today";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -36,6 +36,25 @@ export interface CashFlowDay {
  * - `NONE`: no hay un solo corte de venta. No se estima: se declara.
  */
 export type InflowBasis = "SEASONAL" | "AVERAGE" | "NONE";
+
+/**
+ * De dónde salió el saldo inicial.
+ *
+ * - `BRANCH`: capturado para esta sucursal.
+ * - `COMPANY`: capturado para el grupo; se usa cuando la sucursal no tiene el suyo.
+ * - `NONE`: nadie lo ha capturado. No se inventa.
+ */
+export type OpeningBalanceSource = "BRANCH" | "COMPANY" | "NONE";
+
+export interface OpeningBalance {
+  source: OpeningBalanceSource;
+  /** Fecha a la que corresponde el saldo capturado */
+  asOfDate: string | null;
+  /** Días transcurridos desde `asOfDate`; `null` sin captura */
+  ageInDays: number | null;
+  /** `true` cuando conviene volver a capturarlo (más de una semana) */
+  isStale: boolean;
+}
 
 export interface InflowEstimate {
   basis: InflowBasis;
@@ -90,7 +109,14 @@ export interface CashFlowProjection {
   weeklyAggregation: WeeklyAggregation[];
   overdueItems: OutflowItem[];
   upcomingItems: OutflowItem[];
-  initialBalanceCents: number;
+  /**
+   * Saldo del que arranca la proyección. `null` cuando nadie lo ha capturado:
+   * el esquema no tiene banco ni libro mayor, así que no hay de dónde derivarlo
+   * y la pantalla lo pide en vez de proyectar sobre una constante.
+   */
+  initialBalanceCents: number | null;
+  /** De dónde salió el saldo inicial, para declararlo en pantalla */
+  openingBalance: OpeningBalance;
   /** Sobre qué base se estimaron las entradas, para declararlo en pantalla */
   inflow: InflowEstimate;
   /**
@@ -147,8 +173,16 @@ export interface CashFlowProjection {
 
 // ── Constants ────────────────────────────────────────────────────
 
-const INITIAL_BALANCE = 2000000; // $20,000 MXN baseline
 const PO_COMMITTED_STATUSES = ["APPROVED", "SENT", "PARTIALLY_RECEIVED"] as const;
+
+/**
+ * A partir de cuántos días un saldo capturado se considera viejo.
+ *
+ * No se rechaza —un saldo de hace nueve días sigue siendo mejor que ninguno—
+ * pero la pantalla pide actualizarlo, porque cada día que pasa la proyección
+ * arrastra un punto de partida más lejano.
+ */
+const OPENING_BALANCE_STALE_DAYS = 7;
 
 /** Ventana histórica de cortes que alimenta la estimación de entradas. */
 const INFLOW_LOOKBACK_DAYS = 90;
@@ -227,6 +261,54 @@ export async function getCashFlowProjection(
   // un día que ninguna fila cubre — se cobraban en "Total egresos" y en ninguna
   // barra de la gráfica.
   const endDateStr = addCalendarDays(startDateStr, days - 1);
+
+  // ── 0. Saldo inicial capturado ──────────────────────────────────
+  //
+  // Antes esto era `INITIAL_BALANCE = 2000000`: los mismos $20,000 para un café
+  // de 3 sucursales y para un grupo hotelero de 15, renderizados en negritas
+  // como "Saldo inicial proyectado". "Saldo mínimo", las bandas de color y "Te
+  // alcanza para N días" heredaban esa invención.
+  //
+  // Se lee el supuesto de la sucursal y se cae al del grupo. Sin ninguno de los
+  // dos, `null`: la pantalla pide el dato en vez de proyectar sobre una cifra
+  // que nadie capturó.
+  const supuestos = await db
+    .select({
+      branchId: cashFlowAssumptions.branchId,
+      openingBalanceCents: cashFlowAssumptions.openingBalanceCents,
+      asOfDate: cashFlowAssumptions.asOfDate,
+    })
+    .from(cashFlowAssumptions)
+    .where(
+      and(
+        eq(cashFlowAssumptions.companyId, companyId),
+        branchId
+          ? sql`(${cashFlowAssumptions.branchId} = ${branchId} OR ${cashFlowAssumptions.branchId} IS NULL)`
+          : isNull(cashFlowAssumptions.branchId)
+      )
+    );
+
+  const supuestoSucursal = branchId
+    ? supuestos.find((s) => s.branchId === branchId)
+    : undefined;
+  const supuestoGrupo = supuestos.find((s) => s.branchId === null);
+  const supuesto = supuestoSucursal ?? supuestoGrupo;
+
+  const openingBalanceSource: OpeningBalanceSource = supuestoSucursal
+    ? "BRANCH"
+    : supuestoGrupo
+      ? "COMPANY"
+      : "NONE";
+
+  const initialBalanceCents = supuesto?.openingBalanceCents ?? null;
+  const openingAsOfDate = supuesto?.asOfDate ?? null;
+  const openingAgeInDays = openingAsOfDate
+    ? Math.round(
+        (Date.parse(`${startDateStr}T00:00:00Z`) -
+          Date.parse(`${openingAsOfDate}T00:00:00Z`)) /
+          86_400_000
+      )
+    : null;
 
   // ── 1. Entradas estimadas desde los cortes de venta ─────────────
   //
@@ -585,7 +667,7 @@ export async function getCashFlowProjection(
 
   // ── 8. Build daily projection timeline ─────────────────────────
   const projectionDays: CashFlowDay[] = [];
-  let runningBalance = INITIAL_BALANCE;
+  let runningBalance = initialBalanceCents ?? 0;
 
   for (let i = 0; i < days; i++) {
     const dateStr = addCalendarDays(startDateStr, i);
@@ -631,6 +713,11 @@ export async function getCashFlowProjection(
     const netFlow = dayInflow === null ? null : dayInflow - totalOutflow;
     if (netFlow !== null) runningBalance += netFlow;
 
+    // El saldo acumulado necesita las dos cosas: de dónde parte y cuánto entra.
+    // Sin saldo capturado, la trayectoria arrancaría de cero y todo el mes se
+    // vería en rojo por un dato que nadie dio.
+    const saldoConocido = netFlow !== null && initialBalanceCents !== null;
+
     const hasHighConcentration =
       dayOutflows.count >= 3 ||
       (dayInflow !== null && totalOutflow > dayInflow * 2.5);
@@ -640,7 +727,7 @@ export async function getCashFlowProjection(
       projectedInflowCents: dayInflow,
       projectedOutflowCents: totalOutflow,
       netFlowCents: netFlow,
-      cumulativeBalanceCents: netFlow === null ? null : runningBalance,
+      cumulativeBalanceCents: saldoConocido ? runningBalance : null,
       outflowItemsCount: dayOutflows.count,
       hasHighConcentration,
     });
@@ -747,7 +834,14 @@ export async function getCashFlowProjection(
     weeklyAggregation: weeklyList,
     overdueItems,
     upcomingItems,
-    initialBalanceCents: INITIAL_BALANCE,
+    initialBalanceCents,
+    openingBalance: {
+      source: openingBalanceSource,
+      asOfDate: openingAsOfDate,
+      ageInDays: openingAgeInDays,
+      isStale:
+        openingAgeInDays !== null && openingAgeInDays > OPENING_BALANCE_STALE_DAYS,
+    },
     inflow: {
       basis: inflowBasis,
       historyDays,

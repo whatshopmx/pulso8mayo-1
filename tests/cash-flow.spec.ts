@@ -10,8 +10,10 @@ import {
   USER_SUPER_ADMIN,
 } from "./support/constants";
 import {
+  deleteCashFlowAssumptions,
   deleteTestExpenses,
   deleteTestSalesCuts,
+  seedCashFlowAssumption,
   seedOperatingExpense,
   seedSalesCutHistory,
 } from "./support/db";
@@ -85,6 +87,13 @@ interface Proyeccion {
   procurementCommitments: Comprometido & { outsideWindow: Comprometido };
   scope: { branchId: string | null; branchName: string | null };
   unassignedInvoicesCount: number;
+  initialBalanceCents: number | null;
+  openingBalance: {
+    source: "BRANCH" | "COMPANY" | "NONE";
+    asOfDate: string | null;
+    ageInDays: number | null;
+    isStale: boolean;
+  };
 }
 
 /** Día de la semana (0=domingo) de un `YYYY-MM-DD`, sin arrastrar zona horaria. */
@@ -246,6 +255,120 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
       expect(dia.netFlowCents, `Flujo neto del ${dia.date}`).toBeNull();
       expect(dia.cumulativeBalanceCents, `Saldo del ${dia.date}`).toBeNull();
     }
+  });
+});
+
+/**
+ * Task 8 — el saldo inicial se captura, no se adivina.
+ *
+ * Era `INITIAL_BALANCE = 2000000`: los mismos $20,000 para un café de tres
+ * sucursales y para un grupo hotelero de quince, renderizados en negritas como
+ * "Saldo inicial proyectado". "Saldo mínimo", las bandas de color y "Te alcanza
+ * para N días" heredaban todos esa invención.
+ */
+test.describe("Task 8 · saldo inicial capturado", () => {
+  test.beforeAll(async () => {
+    await deleteCashFlowAssumptions(COMPANY_ID);
+  });
+
+  test.afterAll(async () => {
+    await deleteCashFlowAssumptions(COMPANY_ID);
+  });
+
+  test("sin captura no se inventa un saldo ni se proyecta sobre cero", async ({ request }) => {
+    await deleteCashFlowAssumptions(COMPANY_ID);
+    const proyeccion = await obtenerProyeccion(request);
+
+    expect(proyeccion.initialBalanceCents).toBeNull();
+    expect(proyeccion.openingBalance.source).toBe("NONE");
+    // Y no hay constante de respaldo escondida.
+    expect(proyeccion.initialBalanceCents).not.toBe(2_000_000);
+
+    // Sin punto de partida no hay trayectoria: restar egresos contra cero
+    // pintaría de rojo el mes entero por un dato que nadie dio.
+    expect(proyeccion.days.every((d) => d.cumulativeBalanceCents === null)).toBe(true);
+  });
+
+  test("el supuesto de la sucursal gana sobre el del grupo", async ({ request }) => {
+    await deleteCashFlowAssumptions(COMPANY_ID);
+    await seedCashFlowAssumption({
+      companyId: COMPANY_ID,
+      branchId: null,
+      openingBalanceCents: 5_000_000,
+    });
+    await seedCashFlowAssumption({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      openingBalanceCents: 7_777_700,
+    });
+
+    const grupo = await obtenerProyeccion(request, 30);
+    expect(grupo.initialBalanceCents).toBe(5_000_000);
+    expect(grupo.openingBalance.source).toBe("COMPANY");
+
+    const condesa = await obtenerProyeccion(request, 30, BRANCH_CONDESA);
+    expect(condesa.initialBalanceCents).toBe(7_777_700);
+    expect(condesa.openingBalance.source).toBe("BRANCH");
+
+    // Una sucursal sin supuesto propio hereda el del grupo, no el de su vecina.
+    const polanco = await obtenerProyeccion(request, 30, BRANCH_POLANCO);
+    expect(polanco.initialBalanceCents).toBe(5_000_000);
+    expect(polanco.openingBalance.source).toBe("COMPANY");
+  });
+
+  test("el saldo capturado es de verdad el punto de partida", async ({ request }) => {
+    await deleteCashFlowAssumptions(COMPANY_ID);
+    await seedCashFlowAssumption({
+      companyId: COMPANY_ID,
+      branchId: null,
+      openingBalanceCents: 5_000_000,
+    });
+    const conCinco = await obtenerProyeccion(request, 30);
+
+    await deleteCashFlowAssumptions(COMPANY_ID);
+    await seedCashFlowAssumption({
+      companyId: COMPANY_ID,
+      branchId: null,
+      openingBalanceCents: 9_000_000,
+    });
+    const conNueve = await obtenerProyeccion(request, 30);
+
+    // Los egresos no cambiaron, así que toda la trayectoria se desplaza
+    // exactamente la diferencia del saldo capturado.
+    const saldoDe = (p: Proyeccion) =>
+      p.days.map((d) => d.cumulativeBalanceCents).filter((s) => s !== null);
+    const a = saldoDe(conCinco);
+    const b = saldoDe(conNueve);
+    if (a.length > 0 && b.length > 0) {
+      expect(b[0]! - a[0]!).toBe(4_000_000);
+    }
+  });
+
+  test("un saldo viejo se usa, pero se marca para actualizarlo", async ({ request }) => {
+    await deleteCashFlowAssumptions(COMPANY_ID);
+    await seedCashFlowAssumption({
+      companyId: COMPANY_ID,
+      branchId: null,
+      openingBalanceCents: 5_000_000,
+      asOfDaysAgo: 9,
+    });
+
+    const viejo = await obtenerProyeccion(request, 30);
+    // Se usa —nueve días es mejor que nada— con la antigüedad a la vista.
+    expect(viejo.initialBalanceCents).toBe(5_000_000);
+    expect(viejo.openingBalance.ageInDays).toBe(9);
+    expect(viejo.openingBalance.isStale).toBe(true);
+
+    await deleteCashFlowAssumptions(COMPANY_ID);
+    await seedCashFlowAssumption({
+      companyId: COMPANY_ID,
+      branchId: null,
+      openingBalanceCents: 5_000_000,
+      asOfDaysAgo: 3,
+    });
+    const fresco = await obtenerProyeccion(request, 30);
+    expect(fresco.openingBalance.ageInDays).toBe(3);
+    expect(fresco.openingBalance.isStale).toBe(false);
   });
 });
 

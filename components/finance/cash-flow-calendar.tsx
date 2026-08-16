@@ -94,7 +94,14 @@ export interface CashFlowProjection {
   weeklyAggregation: WeeklyAggregation[];
   overdueItems: OutflowItem[];
   upcomingItems: OutflowItem[];
-  initialBalanceCents: number;
+  /** `null` cuando nadie ha capturado el saldo: ya no hay constante de respaldo. */
+  initialBalanceCents: number | null;
+  openingBalance?: {
+    source: "BRANCH" | "COMPANY" | "NONE";
+    asOfDate: string | null;
+    ageInDays: number | null;
+    isStale: boolean;
+  };
   inflow?: InflowEstimate;
   /** Alcance realmente aplicado — puede diferir del solicitado (`enforceBranchScope`). */
   scope?: {
@@ -253,7 +260,7 @@ export function CashFlowCalendar({ projection, horizonDays }: CashFlowCalendarPr
         weeklyAggregation: [],
         overdueItems: [],
         upcomingItems: [],
-        initialBalanceCents: 0,
+        initialBalanceCents: null,
       };
 
   const {
@@ -276,6 +283,19 @@ export function CashFlowCalendar({ projection, horizonDays }: CashFlowCalendarPr
   // Horizonte que la pantalla está describiendo. Se rotula en la gráfica, el
   // resumen y el CSV para que las tres digan la misma ventana.
   const horizonte = horizonDays ?? days.length;
+
+  // Sin saldo capturado no hay punto de partida, así que no hay trayectoria:
+  // nada que dependa del saldo acumulado se dibuja.
+  const sinSaldoCapturado = initialBalanceCents === null;
+  const saldoDesactualizado = data.openingBalance?.isStale === true;
+
+  // El saldo proyectado necesita las dos cosas: de dónde parte y cuánto entra.
+  // Falte la que falte, no se proyecta — y se dice cuál falta, porque "captura
+  // tu saldo" y "captura tus ventas" son acciones distintas.
+  const sinProyeccionDeSaldo = sinSaldoCapturado || sinHistorialDeVentas;
+  const faltante = sinSaldoCapturado
+    ? "Necesita el saldo en caja y bancos para proyectar"
+    : "Necesita cortes de venta para proyectar el saldo";
 
   // Comprometido que existe pero vence después de la ventana: se declara, no se
   // suma a las cifras de la proyección.
@@ -439,10 +459,31 @@ export function CashFlowCalendar({ projection, horizonDays }: CashFlowCalendarPr
             {/* Se lee del payload, no de `metrics`: el saldo inicial no depende
                 de que haya entradas estimadas. Cuando `metrics` es null por
                 falta de cortes de venta, esta tarjeta mostraba $0.00 — una
-                cifra que nadie calculó. */}
-            <div className="text-2xl font-bold text-foreground">
-              {formatMXN(initialBalanceCents)}
-            </div>
+                cifra que nadie calculó.
+
+                Y cuando nadie lo ha capturado, `null`: ya no existe la
+                constante de $20,000 que se mostraba igual a todo inquilino. */}
+            {initialBalanceCents === null ? (
+              <>
+                <div className="text-2xl font-bold text-muted-foreground">
+                  Sin capturar
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Captura tu saldo en caja y bancos para proyectar
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-foreground tabular-nums">
+                  {formatMXN(initialBalanceCents)}
+                </div>
+                {saldoDesactualizado && (
+                  <p className="text-xs text-warning-text mt-1">
+                    Capturado hace {data.openingBalance?.ageInDays} días · conviene actualizarlo
+                  </p>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -461,14 +502,12 @@ export function CashFlowCalendar({ projection, horizonDays }: CashFlowCalendarPr
               <TrendingDown className="w-4 h-4" />
               Saldo mínimo proyectado
             </div>
-            {sinHistorialDeVentas ? (
+            {sinProyeccionDeSaldo ? (
               <>
                 <div className="text-2xl font-bold text-muted-foreground">
                   Sin estimar
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Necesita cortes de venta para proyectar el saldo
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">{faltante}</p>
               </>
             ) : (
               <>
@@ -510,14 +549,12 @@ export function CashFlowCalendar({ projection, horizonDays }: CashFlowCalendarPr
               <Calendar className="w-4 h-4" />
               Te alcanza para
             </div>
-            {sinHistorialDeVentas ? (
+            {sinProyeccionDeSaldo ? (
               <>
                 <div className="text-2xl font-bold text-muted-foreground">
                   Sin estimar
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Captura los cortes de venta para estimar las entradas
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">{faltante}</p>
               </>
             ) : metrics?.daysUntilNegative ? (
               <>

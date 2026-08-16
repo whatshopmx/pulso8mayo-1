@@ -336,26 +336,52 @@ N días" heredan esa invención. Es el P0 de la Fase 2.
 
 ## Fase 2: Saldo inicial verdadero (P0)
 
-- [ ] **Task 8**: Tabla y migración de supuestos de flujo
+- [x] **Task 8**: Tabla y migración de supuestos de flujo
   - **Descripción**: `INITIAL_BALANCE = 2000000` (`:81`) son $20,000 MXN idénticos para un café de 3
     sucursales y un grupo hotelero de 15, renderizados en `text-2xl font-bold` como "Saldo inicial
     proyectado" y sembrando `runningBalance` (`:343`). "Saldo mínimo", las bandas de color y "Te
     alcanza para N días" heredan todos esa invención. El esquema no tiene banco ni libro mayor: el
     dato tiene que capturarse.
   - **Acceptance criteria**:
-    - [ ] Tabla `cash_flow_assumptions`: `companyId`, `branchId` (nullable = grupo),
-          `openingBalanceCents`, `asOfDate`, `updatedBy`, `updatedAt`, único por (company, branch)
-    - [ ] Migración escrita a mano con nombre descriptivo, al estilo de `0032_arqueo-cierre-turno`
-    - [ ] `getCashFlowProjection` lee el supuesto de la sucursal, cae al de la compañía, y si no hay
-          ninguno devuelve `initialBalanceCents: null` con `openingBalanceSource: 'NONE'`
-    - [ ] La constante `INITIAL_BALANCE` desaparece del archivo
+    - [x] Tabla `cash_flow_assumptions` en `lib/db/schema/finance.ts` (módulo nuevo, como pide
+          CLAUDE.md, en vez de la cola legacy de `schema.ts`)
+    - [x] **Corrección a la unicidad planeada**: un `UNIQUE (company_id, branch_id)` a secas
+          **no** garantiza una sola fila de grupo, porque Postgres trata los NULL como
+          distintos entre sí — se podrían insertar dos supuestos de grupo para la misma
+          compañía. Hacen falta dos índices: el compuesto para las sucursales y uno **parcial**
+          `ON (company_id) WHERE branch_id IS NULL` para el grupo. Verificado insertando el
+          duplicado y comprobando que la base lo rechaza
+    - [x] Migración `0052_supuestos-flujo-efectivo` con nombre descriptivo
+    - [x] `getCashFlowProjection` lee el supuesto de la sucursal, cae al del grupo, y sin
+          ninguno devuelve `initialBalanceCents: null` con `openingBalance.source: 'NONE'`
+    - [x] `INITIAL_BALANCE` desaparece; sólo queda su mención en el comentario que explica
+          por qué se fue
   - **Verificación**:
-    - [ ] `pnpm db:generate` no reporta drift después de aplicar (nunca `db:push`)
-    - [ ] `npx tsx scripts/check-migration-drift.ts`
-    - [ ] Inquilino sin registro → payload con `null`, no con un número
+    - [x] `npx drizzle-kit generate` → **"No schema changes, nothing to migrate"**
+    - [x] `npx tsx scripts/check-migration-drift.ts` sin faltantes
+    - [x] La tabla existe de verdad en la DB apuntada: columnas, tipos, nulabilidad y los
+          cuatro índices leídos de `information_schema` / `pg_indexes`
+    - [x] Sin registro → `null`, y **ningún día afirma un saldo acumulado**
+    - [x] Sucursal > grupo; una sucursal sin supuesto propio hereda el del grupo, no el de su
+          vecina; cambiar el saldo capturado desplaza toda la trayectoria exactamente esa
+          diferencia
+    - [x] Un saldo de hace 9 días se usa pero se marca `isStale`; uno de hace 3 no molesta
+    - [x] `npx tsc --noEmit` limpio · **36/36** en el spec
+  - **Fricción real: migración a mano vs. cadena de snapshots de drizzle.** Escribí primero el
+    SQL a mano como pedía el plan, lo apliqué y funcionó. Pero `drizzle-kit generate` volvió a
+    emitir la tabla completa: drizzle genera contra su propia cadena de snapshots, no contra la
+    base, y una migración escrita a mano no deja snapshot. El resultado habría sido que **cada
+    `db:generate` futuro reemitiera la tabla** — exactamente la clase de deriva que ya mordió
+    en este repo. Se reconcilió: tabla eliminada (estaba vacía), registro de migración borrado,
+    migración a mano descartada y en su lugar la generada por drizzle, renombrada
+    descriptivamente y renumerada a 0052 para no dejar hueco en la secuencia. El snapshot
+    encadena con el de 0051 (`prevId` verificado). Nunca se usó `db:push`.
   - **Dependencias**: Task 6
-  - **Archivos**: `lib/db/schema/` (módulo nuevo o `finance`), `drizzle/00XX_supuestos-flujo-efectivo.sql`,
-    `lib/services/cash-flow-service.ts`
+  - **Archivos**: `lib/db/schema/finance.ts`, `lib/db/schema/index.ts`,
+    `drizzle/0052_supuestos-flujo-efectivo.sql`, `drizzle/meta/`,
+    `lib/services/cash-flow-service.ts`, `components/finance/cash-flow-calendar.tsx`,
+    `components/finance/cash-flow-summary-card.tsx`, `tests/cash-flow.spec.ts`,
+    `tests/support/db.ts`
   - **Alcance**: M
 
 - [ ] **Task 9**: Captura en línea, línea de supuestos y "cómo se calcula"

@@ -17,7 +17,8 @@ import { ArrowRight, Calendar, Loader2, RefreshCw, TrendingDown } from "lucide-r
 const HORIZON_DAYS = 30;
 
 interface Summary {
-  initialBalanceCents: number;
+  /** `null` cuando nadie lo ha capturado: no hay constante de respaldo. */
+  initialBalanceCents: number | null;
   totalOutflowCents: number;
   /** `null` cuando no hay entradas estimadas y por lo tanto no hay saldo proyectado. */
   endingBalanceCents: number | null;
@@ -48,7 +49,7 @@ function toSummary(payload: CashFlowProjection | CashFlowDay[]): Summary | null 
   );
 
   return {
-    initialBalanceCents: Array.isArray(payload) ? 0 : payload.initialBalanceCents,
+    initialBalanceCents: Array.isArray(payload) ? null : payload.initialBalanceCents,
     totalOutflowCents: days.reduce((sum, d) => sum + d.projectedOutflowCents, 0),
     endingBalanceCents: conSaldo.length
       ? conSaldo[conSaldo.length - 1].cumulativeBalanceCents
@@ -134,9 +135,15 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">Saldo inicial</p>
-                <p className="text-lg font-bold tabular-nums">
-                  {formatCents(summary.initialBalanceCents)}
-                </p>
+                {summary.initialBalanceCents === null ? (
+                  <p className="text-lg font-bold text-muted-foreground">
+                    Sin capturar
+                  </p>
+                ) : (
+                  <p className="text-lg font-bold tabular-nums">
+                    {formatCents(summary.initialBalanceCents)}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Salidas proyectadas</p>
