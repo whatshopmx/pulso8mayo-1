@@ -540,22 +540,46 @@ las cuatro estimaciones que cargan la proyección se nombran y se explican.
     `app/dashboard/inventory/purchase-orders/page.tsx`, `tests/cash-flow.spec.ts`
   - **Alcance**: M
 
-- [ ] **Task 12**: Endpoints de pago y reprogramación de gastos
+- [x] **Task 12**: Endpoints de pago y reprogramación de gastos
   - **Descripción**: `expense-service.ts` tiene `create`, `approve`, `reject` y `get`, pero no
     `markPaid` ni `reschedule`. El enum `operating_expense_status` ya incluye `PAID`. Los endpoints
     van en el dominio de gastos, no en cash-flow: esta pantalla es un consumidor más.
   - **Acceptance criteria**:
-    - [ ] `markPaidOperatingExpense` y `rescheduleOperatingExpense` en `lib/services/expense-service.ts`
-    - [ ] Rutas con `withTenantAuth`/`withRoleAuth`, `tenantId` y `userId` de sesión
-    - [ ] Ambas registran auditoría con el mismo patrón que `approve`/`reject`
-    - [ ] Reprogramar valida que la fecha nueva no sea anterior a hoy
-    - [ ] Un gasto ya `PAID` no se puede volver a pagar (idempotente o error claro)
+    - [x] `markPaidOperatingExpense` y `rescheduleOperatingExpense` en `expense-service.ts`
+    - [x] Rutas con `withRoleAuth` (SUPER_ADMIN, ADMIN, GERENTE); `tenantId` y el actor salen
+          de la sesión, nunca del body
+    - [x] Bitácora con el mismo patrón que `approve`/`reject`: nota en `approvalNotes`
+          ("Pagado por X", "Reprogramado de A a B por X"). **No se toca `approvedBy`** —
+          sobrescribirlo borraría quién autorizó el gasto, que es justo lo que la bitácora
+          existe para conservar
+    - [x] Reprogramar rechaza fechas anteriores a hoy: mover un vencimiento al pasado no
+          reprograma nada, sólo maquilla un vencido para que deje de aparecer como tal
+    - [x] Pagar dos veces es **idempotente** y no reescribe la fecha de pago original (dos
+          clics o dos personas a la vez no son un error del usuario). Lleva además un cerrojo
+          optimista en el `WHERE` para el caso de carrera entre la lectura y la escritura
+  - **Decisión no planeada: sólo se paga lo aprobado.** Marcar pagado un gasto en
+    `PENDING_APPROVAL` saltaría la cadena de autorización por la puerta de atrás. El servicio
+    lo rechaza con mensaje explícito.
+  - **Sobre la auditoría**: se evaluó `logDataAccess` (`data_access_logs`) vía
+    `requirePermissionApi`, pero el vocabulario ABAC (`lib/permissions.ts`) no tiene recurso
+    `expenses` — el más cercano es `reports`, y escribir un gasto no es leer un reporte. El
+    plan pedía "el mismo patrón que approve/reject", y ese patrón es actor + nota en la fila.
   - **Verificación**:
-    - [ ] `curl` de pago cambia `status` y deja fila de auditoría
-    - [ ] Rol sin permiso recibe 403 con el envelope `{ success:false, error }`
-  - **Dependencias**: Ninguna (paralelizable con Tasks 10-11)
+    - [x] Pago cambia `status` a PAID, escribe `paidAt` y deja la nota con el actor
+    - [x] Segundo pago devuelve la misma `paidAt`
+    - [x] Gasto sin aprobar → rechazado · fecha al pasado → rechazada · gasto pagado no se
+          reprograma
+    - [x] **EMPLEADO recibe 403** en ambas rutas, con el envelope `{ success:false, error }`
+    - [x] `npx tsc --noEmit` limpio · **59/59** en el spec
+  - **Hallazgo que el test dejó fijado**: la consulta de gastos **proyectados** no filtra por
+    estado (a diferencia de la de vencidos, que sí excluye `PAID`), así que un gasto pagado
+    sigue contando en "Total egresos" del período. El test lo afirma tal cual — se nombró
+    primero "el gasto sale de la ventana" y hubo que corregir el nombre y la aserción a lo que
+    de verdad ocurre. **Si el comportamiento correcto es excluirlos, ese test falla, que es
+    exactamente lo que debe hacer.** Queda como pregunta abierta.
+  - **Dependencias**: Ninguna
   - **Archivos**: `lib/services/expense-service.ts`, `app/api/expenses/[id]/pay/route.ts`,
-    `app/api/expenses/[id]/reschedule/route.ts`
+    `app/api/expenses/[id]/reschedule/route.ts`, `tests/cash-flow.spec.ts`
   - **Alcance**: M
 
 - [ ] **Task 13**: Acciones en línea con RBAC

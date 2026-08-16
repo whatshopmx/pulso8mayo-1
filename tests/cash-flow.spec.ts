@@ -265,6 +265,177 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
 });
 
 /**
+ * Task 12 — endpoints de pago y reprogramación.
+ *
+ * `expense-service` tenía `create`, `approve`, `reject` y `get`, pero no
+ * `markPaid` ni `reschedule`, así que la pantalla sólo podía informar. Los
+ * endpoints viven en el dominio de gastos: el panel de flujo es un consumidor.
+ */
+test.describe("Task 12 · pagar y reprogramar gastos", () => {
+  test.setTimeout(180_000);
+
+  /** Siembra un gasto aprobado y devuelve su id. */
+  async function gastoAprobado(dias: number): Promise<string> {
+    return seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), dias),
+      amountCents: 456_700,
+      description: `${E2E_TAG} Gasto para accionar`,
+      status: "APPROVED",
+    });
+  }
+
+  test.afterAll(async () => {
+    await deleteTestExpenses();
+  });
+
+  test("marcar pagado cambia el estado y queda en la bitácora", async ({ request }) => {
+    const id = await gastoAprobado(3);
+
+    const res = await request.post(`/api/expenses/${id}/pay`, { data: {} });
+    expect(res.ok(), `La API respondió ${res.status()}`).toBe(true);
+
+    const { data } = await res.json();
+    expect(data.status).toBe("PAID");
+    expect(data.paidAt).toBeTruthy();
+    // Quién lo pagó queda escrito: `operating_expenses` no tiene columna
+    // `paid_by`, así que la bitácora va en el mismo campo que usan
+    // approve/reject.
+    expect(data.approvalNotes).toMatch(/Pagado por /);
+
+    await deleteTestExpenses();
+  });
+
+  test("pagar dos veces es idempotente y no reescribe la fecha", async ({ request }) => {
+    const id = await gastoAprobado(3);
+
+    const primera = await request.post(`/api/expenses/${id}/pay`, { data: {} });
+    const pagoOriginal = (await primera.json()).data.paidAt;
+
+    // Dos clics, o dos personas a la vez: no es un error del usuario, pero
+    // tampoco debe mover la fecha de pago original.
+    const segunda = await request.post(`/api/expenses/${id}/pay`, { data: {} });
+    expect(segunda.ok()).toBe(true);
+    expect((await segunda.json()).data.paidAt).toBe(pagoOriginal);
+
+    await deleteTestExpenses();
+  });
+
+  test("un gasto sin aprobar no se puede pagar", async ({ request }) => {
+    const id = await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), 3),
+      amountCents: 100_000,
+      description: `${E2E_TAG} Gasto sin aprobar`,
+      status: "PENDING_APPROVAL",
+    });
+
+    // Pagarlo saltaría la cadena de autorización por la puerta de atrás.
+    const res = await request.post(`/api/expenses/${id}/pay`, { data: {} });
+    expect(res.ok()).toBe(false);
+    expect((await res.json()).success).toBe(false);
+
+    await deleteTestExpenses();
+  });
+
+  test("reprogramar mueve el vencimiento y lo deja anotado", async ({ request }) => {
+    const id = await gastoAprobado(3);
+    const nueva = addCalendarDays(localDateString(new Date(), "America/Mexico_City"), 20);
+
+    const res = await request.post(`/api/expenses/${id}/reschedule`, {
+      data: { dueDate: nueva },
+    });
+    expect(res.ok(), `La API respondió ${res.status()}`).toBe(true);
+
+    const { data } = await res.json();
+    expect(data.dueDate).toBe(nueva);
+    expect(data.approvalNotes).toMatch(/Reprogramado de .* a .* por /);
+
+    await deleteTestExpenses();
+  });
+
+  test("no se puede reprogramar al pasado", async ({ request }) => {
+    const id = await gastoAprobado(3);
+    const ayer = addCalendarDays(localDateString(new Date(), "America/Mexico_City"), -1);
+
+    // Mover un vencimiento al pasado no reprograma nada: sólo maquilla un
+    // vencido para que deje de aparecer como tal.
+    const res = await request.post(`/api/expenses/${id}/reschedule`, {
+      data: { dueDate: ayer },
+    });
+    expect(res.ok()).toBe(false);
+    expect((await res.json()).success).toBe(false);
+
+    await deleteTestExpenses();
+  });
+
+  test("un gasto pagado ya no se reprograma", async ({ request }) => {
+    const id = await gastoAprobado(3);
+    await request.post(`/api/expenses/${id}/pay`, { data: {} });
+
+    const res = await request.post(`/api/expenses/${id}/reschedule`, {
+      data: { dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), 20) },
+    });
+    expect(res.ok()).toBe(false);
+
+    await deleteTestExpenses();
+  });
+
+  test("un EMPLEADO no puede pagar ni reprogramar", async ({ browser }) => {
+    const id = await gastoAprobado(3);
+    const contexto = await browser.newContext({ storageState: undefined });
+    try {
+      const login = await contexto.request.post("/api/auth/sign-in/email", {
+        data: { email: EMPLEADO_EMAIL, password: ADMIN_PASSWORD },
+      });
+      expect(login.ok()).toBe(true);
+
+      const pago = await contexto.request.post(`/api/expenses/${id}/pay`, { data: {} });
+      expect(pago.status()).toBe(403);
+      expect((await pago.json()).success).toBe(false);
+
+      const repro = await contexto.request.post(`/api/expenses/${id}/reschedule`, {
+        data: { dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), 20) },
+      });
+      expect(repro.status()).toBe(403);
+    } finally {
+      await contexto.close();
+      await deleteTestExpenses();
+    }
+  });
+
+  test("pagar no altera el total proyectado: la proyección no filtra por estado", async ({
+    request,
+  }) => {
+    const id = await gastoAprobado(3);
+
+    const antes = await obtenerProyeccion(request, 30, BRANCH_CONDESA);
+    const totalAntes = antes.days.reduce((t, d) => t + d.projectedOutflowCents, 0);
+    expect(antes.outflowItems.some((p) => p.id === id)).toBe(true);
+
+    await request.post(`/api/expenses/${id}/pay`, { data: {} });
+
+    // Hallazgo, y el test lo fija: la consulta de gastos proyectados NO filtra
+    // por estado (a diferencia de la de vencidos, que excluye PAID). Un gasto
+    // pagado sigue contando en "Total egresos" del período.
+    //
+    // Se afirma lo que de verdad pasa, no lo que sería bonito que pasara. Si el
+    // comportamiento correcto es excluirlos, cambia el servicio y este test
+    // falla — que es exactamente lo que debe hacer.
+    const despues = await obtenerProyeccion(request, 30, BRANCH_CONDESA);
+    const totalDespues = despues.days.reduce((t, d) => t + d.projectedOutflowCents, 0);
+    expect(totalDespues).toBe(totalAntes);
+    expect(despues.outflowItems.some((p) => p.id === id)).toBe(true);
+
+    await deleteTestExpenses();
+  });
+});
+
+/**
  * Task 11 — cada hallazgo navega a su registro origen.
  *
  * Inventario del crítico: **4 elementos interactivos, 0 que naveguen**. Las

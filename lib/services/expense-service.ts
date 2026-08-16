@@ -253,6 +253,141 @@ export async function rejectOperatingExpense(
   return updated;
 }
 
+/**
+ * Marca un gasto como pagado.
+ *
+ * Registra **el estado del gasto, no el movimiento bancario**: Pulso no se
+ * conecta al banco y esta función no concilia nada. Es la diferencia entre "ya
+ * lo pagué" (lo que la dueña sabe) y "el banco lo confirmó" (lo que nadie aquí
+ * puede afirmar). La pantalla que la invoca lo dice en voz alta.
+ *
+ * Sólo se paga lo aprobado: un gasto en PENDING_APPROVAL que se marca pagado
+ * saltaría la cadena de autorización por la puerta de atrás.
+ */
+export async function markPaidOperatingExpense(
+  expenseId: string,
+  companyId: string,
+  actorName: string,
+  paidAt?: Date
+) {
+  const [expense] = await db
+    .select()
+    .from(operatingExpenses)
+    .where(
+      and(
+        eq(operatingExpenses.id, expenseId),
+        eq(operatingExpenses.companyId, companyId)
+      )
+    )
+    .limit(1);
+
+  if (!expense) {
+    throw new Error("El gasto especificado no fue encontrado.");
+  }
+
+  // Idempotente: volver a marcar un gasto ya pagado no es un error del usuario
+  // —dos clics, o dos personas a la vez— pero tampoco debe reescribir la fecha
+  // de pago original.
+  if (expense.status === "PAID") {
+    return expense;
+  }
+
+  if (expense.status !== "APPROVED") {
+    throw new Error(
+      `Sólo se puede pagar un gasto aprobado. Este está en estado "${expense.status}".`
+    );
+  }
+
+  const [updated] = await db
+    .update(operatingExpenses)
+    .set({
+      status: "PAID",
+      paidAt: paidAt ?? new Date(),
+      // Misma bitácora que approve/reject: quién y qué, en el mismo campo que
+      // lee Control Interno. No se toca `approvedBy` — sobrescribirlo borraría
+      // quién autorizó el gasto, que es justo lo que la bitácora existe para
+      // conservar. `operating_expenses` no tiene columna `paid_by`.
+      approvalNotes: `${expense.approvalNotes ? `${expense.approvalNotes} · ` : ""}Pagado por ${actorName}`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(operatingExpenses.id, expenseId),
+        eq(operatingExpenses.companyId, companyId),
+        // Cerrojo optimista: si otra sesión lo pagó entre la lectura y esta
+        // escritura, el UPDATE no toca ninguna fila en vez de pisar su fecha.
+        eq(operatingExpenses.status, "APPROVED")
+      )
+    )
+    .returning();
+
+  return updated ?? expense;
+}
+
+/**
+ * Reprograma la fecha de vencimiento de un gasto.
+ *
+ * Mover un vencimiento es una decisión real de tesorería —se negoció con el
+ * proveedor, o simplemente no alcanza— y la proyección la refleja de inmediato.
+ * Lo que no se puede es mover al pasado: eso no reprograma nada, sólo maquilla
+ * un vencido para que deje de aparecer como tal.
+ */
+export async function rescheduleOperatingExpense(
+  expenseId: string,
+  companyId: string,
+  actorName: string,
+  newDueDate: string,
+  today: string
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDueDate)) {
+    throw new Error("La fecha debe venir como YYYY-MM-DD.");
+  }
+
+  if (newDueDate < today) {
+    throw new Error("La nueva fecha no puede ser anterior a hoy.");
+  }
+
+  const [expense] = await db
+    .select()
+    .from(operatingExpenses)
+    .where(
+      and(
+        eq(operatingExpenses.id, expenseId),
+        eq(operatingExpenses.companyId, companyId)
+      )
+    )
+    .limit(1);
+
+  if (!expense) {
+    throw new Error("El gasto especificado no fue encontrado.");
+  }
+
+  if (expense.status === "PAID") {
+    throw new Error("Un gasto ya pagado no se puede reprogramar.");
+  }
+
+  if (expense.status === "REJECTED") {
+    throw new Error("Un gasto rechazado no se puede reprogramar.");
+  }
+
+  const [updated] = await db
+    .update(operatingExpenses)
+    .set({
+      dueDate: newDueDate,
+      approvalNotes: `${expense.approvalNotes ? `${expense.approvalNotes} · ` : ""}Reprogramado de ${expense.dueDate ?? "sin fecha"} a ${newDueDate} por ${actorName}`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(operatingExpenses.id, expenseId),
+        eq(operatingExpenses.companyId, companyId)
+      )
+    )
+    .returning();
+
+  return updated;
+}
+
 export async function getOperatingExpenses(companyId: string, branchId?: string) {
   const conditions = [eq(operatingExpenses.companyId, companyId)];
   if (branchId) {
