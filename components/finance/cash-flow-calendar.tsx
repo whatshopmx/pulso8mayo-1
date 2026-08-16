@@ -33,12 +33,23 @@ import {
 
 export interface CashFlowDay {
   date: string;
-  projectedInflowCents: number;
+  /** `null` cuando el inquilino no tiene cortes de venta (`inflow.basis === 'NONE'`) */
+  projectedInflowCents: number | null;
   projectedOutflowCents: number;
-  netFlowCents: number;
-  cumulativeBalanceCents: number;
+  netFlowCents: number | null;
+  cumulativeBalanceCents: number | null;
   outflowItemsCount: number;
   hasHighConcentration: boolean;
+}
+
+/** Ver `InflowBasis` en `lib/services/cash-flow-service.ts`. */
+export type InflowBasis = "SEASONAL" | "AVERAGE" | "NONE";
+
+export interface InflowEstimate {
+  basis: InflowBasis;
+  historyDays: number;
+  lookbackDays: number;
+  avgDailyInflowCents: number | null;
 }
 
 interface OutflowItem {
@@ -77,6 +88,7 @@ export interface CashFlowProjection {
   overdueItems: OutflowItem[];
   upcomingItems: OutflowItem[];
   initialBalanceCents: number;
+  inflow?: InflowEstimate;
   procurementCommitments?: {
     purchaseOrdersCount: number;
     purchaseOrdersTotalCents: number;
@@ -214,25 +226,37 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
     overdueItems,
     upcomingItems,
     initialBalanceCents,
+    inflow,
   } = data;
+
+  // Sin un solo corte de venta no hay de dónde estimar entradas, y el servicio
+  // manda `null` en vez de $0/día. Nada que dependa del saldo proyectado —las
+  // bandas de color, "te alcanza para N días", el saldo mínimo— se dibuja:
+  // proyectar sobre cero pintaba de rojo la pantalla de estreno de cualquier
+  // inquilino nuevo.
+  const sinHistorialDeVentas = inflow?.basis === "NONE";
 
   // ── Derived metrics ──────────────────────────────────────────
   const metrics = useMemo(() => {
     if (!days.length) return null;
 
+    // Días con saldo conocido: los demás no participan de ningún extremo.
+    const conSaldo = days.filter((d) => d.cumulativeBalanceCents !== null);
+    if (!conSaldo.length) return null;
+
     let minBalance = Infinity;
     let minDay: CashFlowDay | null = null;
 
-    for (const day of days) {
-      if (day.cumulativeBalanceCents < minBalance) {
-        minBalance = day.cumulativeBalanceCents;
+    for (const day of conSaldo) {
+      if (day.cumulativeBalanceCents! < minBalance) {
+        minBalance = day.cumulativeBalanceCents!;
         minDay = day;
       }
     }
 
     const daysUntilNegative =
-      days.find((d) => d.cumulativeBalanceCents < 0)?.date ?? null;
-    const negativeDays = days.filter((d) => d.cumulativeBalanceCents < 0).length;
+      conSaldo.find((d) => d.cumulativeBalanceCents! < 0)?.date ?? null;
+    const negativeDays = conSaldo.filter((d) => d.cumulativeBalanceCents! < 0).length;
 
     const criticalDays = days
       .filter((d) => d.hasHighConcentration)
@@ -240,7 +264,7 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
 
     const totalInflow = days
       .slice(0, 14)
-      .reduce((sum, d) => sum + d.projectedInflowCents, 0);
+      .reduce((sum, d) => sum + (d.projectedInflowCents ?? 0), 0);
     const totalOutflow = days
       .slice(0, 14)
       .reduce((sum, d) => sum + d.projectedOutflowCents, 0);
@@ -261,9 +285,14 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
   }, [days, initialBalanceCents]);
 
   // ── Chart data ──────────────────────────────────────────────
+  // `null` en Entradas deja el hueco a la vista en la gráfica en vez de dibujar
+  // una serie en cero que se leería como "hoy no entró nada".
   const chartData = days.slice(0, 14).map((pt) => ({
     fecha: formatDate(pt.date),
-    Entradas: (pt.projectedInflowCents / 100).toFixed(2),
+    Entradas:
+      pt.projectedInflowCents === null
+        ? null
+        : (pt.projectedInflowCents / 100).toFixed(2),
     Salidas: (pt.projectedOutflowCents / 100).toFixed(2),
   }));
 
@@ -277,13 +306,17 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
   const handleExportCSV = () => {
     const header =
       "Fecha,Entradas (MXN),Salidas (MXN),Flujo Neto (MXN),Saldo Acumulado (MXN),Egresos (cantidad)";
+    // Celda vacía —no "0.00"— cuando la cifra no se pudo estimar: un cero en una
+    // hoja de cálculo es una afirmación, y aquí no hay nada que afirmar.
+    const pesos = (cents: number | null) =>
+      cents === null ? "" : (cents / 100).toFixed(2);
     const rows = days.map((d) =>
       [
         d.date,
-        (d.projectedInflowCents / 100).toFixed(2),
-        (d.projectedOutflowCents / 100).toFixed(2),
-        (d.netFlowCents / 100).toFixed(2),
-        (d.cumulativeBalanceCents / 100).toFixed(2),
+        pesos(d.projectedInflowCents),
+        pesos(d.projectedOutflowCents),
+        pesos(d.netFlowCents),
+        pesos(d.cumulativeBalanceCents),
         d.outflowItemsCount,
       ].join(",")
     );
@@ -346,24 +379,37 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
               <TrendingDown className="w-4 h-4" />
               Saldo mínimo proyectado
             </div>
-            <div
-              className={`text-2xl font-bold ${
-                metrics && metrics.minBalance < 0
-                  ? "text-destructive"
-                  : metrics && metrics.minBalance < 50000
-                  ? "text-warning"
-                  : "text-foreground"
-              }`}
-            >
-              {formatMXN(metrics?.minBalance ?? 0)}
-            </div>
-            {metrics?.minDay && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Día más crítico:{" "}
-                <span className="font-medium text-foreground">
-                  {formatDate(metrics.minDay.date)}
-                </span>
-              </p>
+            {sinHistorialDeVentas ? (
+              <>
+                <div className="text-2xl font-bold text-muted-foreground">
+                  Sin estimar
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Necesita cortes de venta para proyectar el saldo
+                </p>
+              </>
+            ) : (
+              <>
+                <div
+                  className={`text-2xl font-bold ${
+                    metrics && metrics.minBalance < 0
+                      ? "text-destructive"
+                      : metrics && metrics.minBalance < 50000
+                      ? "text-warning"
+                      : "text-foreground"
+                  }`}
+                >
+                  {formatMXN(metrics?.minBalance ?? 0)}
+                </div>
+                {metrics?.minDay && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Día más crítico:{" "}
+                    <span className="font-medium text-foreground">
+                      {formatDate(metrics.minDay.date)}
+                    </span>
+                  </p>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -382,7 +428,16 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
               <Calendar className="w-4 h-4" />
               Te alcanza para
             </div>
-            {metrics?.daysUntilNegative ? (
+            {sinHistorialDeVentas ? (
+              <>
+                <div className="text-2xl font-bold text-muted-foreground">
+                  Sin estimar
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Captura los cortes de venta para estimar las entradas
+                </p>
+              </>
+            ) : metrics?.daysUntilNegative ? (
               <>
                 <div className="text-2xl font-bold text-destructive">
                   {metrics.runway} días

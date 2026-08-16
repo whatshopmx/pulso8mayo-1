@@ -226,6 +226,67 @@ export async function seedOperatingExpense(opts: {
   return rows[0].id as string;
 }
 
+/**
+ * Marca de los cortes de venta sembrados por los tests. `daily_sales_cuts` no
+ * tiene columna de descripción, así que la etiqueta viaja en `validation_notes`
+ * — es el único campo de texto libre de la tabla.
+ */
+export const E2E_SALES_CUT_NOTE = `${E2E_TAG} corte de prueba`;
+
+/** Borra los cortes de venta sembrados por los tests. */
+export async function deleteTestSalesCuts(): Promise<void> {
+  await sql`DELETE FROM daily_sales_cuts WHERE validation_notes = ${E2E_SALES_CUT_NOTE}`;
+}
+
+/**
+ * Siembra `days` cortes de venta hacia atrás desde hoy, con un monto distinto
+ * por día de la semana.
+ *
+ * Lo usa `cash-flow.spec.ts` para ejercitar la estimación de entradas: con la
+ * base sembrada la compañía no tiene ningún corte, así que sin esto la
+ * proyección solo puede probarse en su rama `NONE`. El monto por día de la
+ * semana es lo que hace visible la estacionalidad — un sábado no vende lo mismo
+ * que un martes, y el promedio plano anterior borraba justo esa diferencia.
+ *
+ * Devuelve el monto sembrado por día de la semana (índice 0 = domingo).
+ */
+export async function seedSalesCutHistory(opts: {
+  companyId: string;
+  branchId: string;
+  days: number;
+}): Promise<number[]> {
+  const porDiaDeLaSemana = [
+    1_800_000, // domingo
+    900_000, // lunes
+    950_000,
+    1_000_000,
+    1_200_000,
+    1_900_000,
+    2_400_000, // sábado
+  ];
+
+  const hoy = new Date();
+  for (let i = 1; i <= opts.days; i++) {
+    const fecha = new Date(hoy.getTime() - i * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const diaDeLaSemana = new Date(`${fecha}T00:00:00Z`).getUTCDay();
+    await sql`
+      INSERT INTO daily_sales_cuts (
+        company_id, branch_id, business_date, shift, channel,
+        total_sales, source, status, validation_notes
+      )
+      VALUES (
+        ${opts.companyId}, ${opts.branchId}, ${fecha}::date, 'COMPLETO', 'TOTAL',
+        ${porDiaDeLaSemana[diaDeLaSemana]}, 'MANUAL_FORM', 'VALIDATED',
+        ${E2E_SALES_CUT_NOTE}
+      )
+    `;
+  }
+
+  return porDiaDeLaSemana;
+}
+
 /** Borra las contrapartes (payees) creadas por los tests. */
 export async function deleteTestPayees(): Promise<void> {
   // Los gastos de test que las referencian se borran primero: la FK

@@ -13,12 +13,37 @@ import { eq, and, gte, lte, sql, inArray, asc } from "drizzle-orm";
 
 export interface CashFlowDay {
   date: string;
-  projectedInflowCents: number;
+  /** `null` cuando no hay historial de ventas del que estimar (`inflow.basis === 'NONE'`) */
+  projectedInflowCents: number | null;
   projectedOutflowCents: number;
-  netFlowCents: number;
-  cumulativeBalanceCents: number;
+  /** `null` cuando no hay entradas estimadas: sin ellas no hay flujo neto que afirmar */
+  netFlowCents: number | null;
+  /** `null` cuando no hay entradas estimadas */
+  cumulativeBalanceCents: number | null;
   outflowItemsCount: number;
   hasHighConcentration: boolean;
+}
+
+/**
+ * De dónde salen las entradas proyectadas.
+ *
+ * - `SEASONAL`: promedio por día de la semana sobre la ventana histórica. Un
+ *   restaurante no vende lo mismo un martes que un sábado; el promedio plano
+ *   dibujaba una línea recta que no informaba nada.
+ * - `AVERAGE`: promedio simple. Con menos de dos semanas de cortes, partir la
+ *   muestra en siete no deja suficientes datos por día para decir nada.
+ * - `NONE`: no hay un solo corte de venta. No se estima: se declara.
+ */
+export type InflowBasis = "SEASONAL" | "AVERAGE" | "NONE";
+
+export interface InflowEstimate {
+  basis: InflowBasis;
+  /** Días distintos con corte dentro de la ventana histórica */
+  historyDays: number;
+  /** Ventana histórica leída, en días */
+  lookbackDays: number;
+  /** Promedio simple de los días con corte; `null` sin historial */
+  avgDailyInflowCents: number | null;
 }
 
 export interface OutflowItem {
@@ -59,6 +84,8 @@ export interface CashFlowProjection {
   overdueItems: OutflowItem[];
   upcomingItems: OutflowItem[];
   initialBalanceCents: number;
+  /** Sobre qué base se estimaron las entradas, para declararlo en pantalla */
+  inflow: InflowEstimate;
   /** PO + facturas comprometidas incluidas en la proyección */
   procurementCommitments: {
     purchaseOrdersCount: number;
@@ -81,6 +108,20 @@ export interface CashFlowProjection {
 const INITIAL_BALANCE = 2000000; // $20,000 MXN baseline
 const PO_COMMITTED_STATUSES = ["APPROVED", "SENT", "PARTIALLY_RECEIVED"] as const;
 
+/** Ventana histórica de cortes que alimenta la estimación de entradas. */
+const INFLOW_LOOKBACK_DAYS = 90;
+/**
+ * Piso de días con corte para partir la muestra por día de la semana. Con menos
+ * de dos semanas quedan uno o dos sábados: un promedio de esa muestra es ruido
+ * presentado como estacionalidad.
+ */
+const MIN_DAYS_FOR_SEASONAL = 14;
+
+/** Día de la semana (0=domingo) de un `YYYY-MM-DD`, leído sin zona horaria. */
+function dayOfWeekOf(dateStr: string): number {
+  return new Date(`${dateStr}T00:00:00Z`).getUTCDay();
+}
+
 // ── Main function ────────────────────────────────────────────────
 
 export async function getCashFlowProjection(
@@ -96,19 +137,77 @@ export async function getCashFlowProjection(
   const endDate = new Date(startDate.getTime() + (days - 1) * 24 * 60 * 60 * 1000);
   const endDateStr = endDate.toISOString().slice(0, 10);
 
-  // ── 1. Estimate average daily inflow from past cuts ─────────────
-  const [pastSalesRow] = await db
+  // ── 1. Entradas estimadas desde los cortes de venta ─────────────
+  //
+  // Antes esto era el promedio de TODA la historia aplicado plano a los 30 días:
+  // la serie "Entradas" de la gráfica era una línea recta por construcción. Y el
+  // fallback `1500000` era inalcanzable —`Number(daysCount || 1)` nunca da 0—,
+  // así que un inquilino sin cortes recibía $0/día de entradas y estrenaba la
+  // pantalla en rojo completo. Ahora: promedio por día de la semana sobre los
+  // últimos 90 días, y sin historial se declara en vez de inventarse.
+  const lookbackStartStr = new Date(
+    startDate.getTime() - INFLOW_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
+  )
+    .toISOString()
+    .slice(0, 10);
+
+  const salesByDate = await db
     .select({
+      businessDate: dailySalesCuts.businessDate,
       totalSales: sql<number>`COALESCE(SUM(${dailySalesCuts.totalSales}), 0)`,
-      daysCount: sql<number>`COUNT(DISTINCT ${dailySalesCuts.businessDate})`,
     })
     .from(dailySalesCuts)
-    .where(eq(dailySalesCuts.companyId, companyId));
+    .where(
+      and(
+        eq(dailySalesCuts.companyId, companyId),
+        gte(dailySalesCuts.businessDate, lookbackStartStr),
+        lte(dailySalesCuts.businessDate, startDateStr)
+      )
+    )
+    .groupBy(dailySalesCuts.businessDate);
 
-  const pastTotalSales = Number(pastSalesRow?.totalSales || 0);
-  const pastDays = Number(pastSalesRow?.daysCount || 1);
+  const historyDays = salesByDate.length;
+  const historyTotalCents = salesByDate.reduce(
+    (sum, row) => sum + Number(row.totalSales || 0),
+    0
+  );
   const avgDailyInflowCents =
-    pastDays > 0 ? Math.round(pastTotalSales / pastDays) : 1500000;
+    historyDays > 0 ? Math.round(historyTotalCents / historyDays) : null;
+
+  const inflowBasis: InflowBasis =
+    historyDays === 0
+      ? "NONE"
+      : historyDays >= MIN_DAYS_FOR_SEASONAL
+        ? "SEASONAL"
+        : "AVERAGE";
+
+  // Promedio por día de la semana. Un día sin muestra en la ventana cae al
+  // promedio simple: preferimos la cifra menos precisa a un hueco.
+  const inflowByDayOfWeek: (number | null)[] = new Array(7).fill(null);
+  if (inflowBasis === "SEASONAL") {
+    const buckets: { total: number; count: number }[] = Array.from(
+      { length: 7 },
+      () => ({ total: 0, count: 0 })
+    );
+    for (const row of salesByDate) {
+      const bucket = buckets[dayOfWeekOf(row.businessDate)];
+      bucket.total += Number(row.totalSales || 0);
+      bucket.count += 1;
+    }
+    for (let dow = 0; dow < 7; dow++) {
+      inflowByDayOfWeek[dow] =
+        buckets[dow].count > 0
+          ? Math.round(buckets[dow].total / buckets[dow].count)
+          : avgDailyInflowCents;
+    }
+  }
+
+  /** Entradas estimadas para una fecha; `null` cuando no hay de dónde estimarlas. */
+  const inflowFor = (dateStr: string): number | null => {
+    if (inflowBasis === "NONE") return null;
+    if (inflowBasis === "AVERAGE") return avgDailyInflowCents;
+    return inflowByDayOfWeek[dayOfWeekOf(dateStr)] ?? avgDailyInflowCents;
+  };
 
   // ── 2. Operating expenses (scheduled) ──────────────────────────
   const opExList = await db
@@ -379,18 +478,24 @@ export async function getCashFlowProjection(
 
     const dayOutflows = outflowsByDate[dateStr] || { amount: 0, count: 0, items: [] };
     const totalOutflow = dayOutflows.amount;
-    const netFlow = avgDailyInflowCents - totalOutflow;
-    runningBalance += netFlow;
+    const dayInflow = inflowFor(dateStr);
+
+    // Sin entradas estimadas no hay flujo neto ni saldo acumulado que afirmar.
+    // Restar los egresos contra cero produciría exactamente la pantalla roja
+    // que un inquilino nuevo no se ha ganado.
+    const netFlow = dayInflow === null ? null : dayInflow - totalOutflow;
+    if (netFlow !== null) runningBalance += netFlow;
 
     const hasHighConcentration =
-      dayOutflows.count >= 3 || totalOutflow > avgDailyInflowCents * 2.5;
+      dayOutflows.count >= 3 ||
+      (dayInflow !== null && totalOutflow > dayInflow * 2.5);
 
     projectionDays.push({
       date: dateStr,
-      projectedInflowCents: avgDailyInflowCents,
+      projectedInflowCents: dayInflow,
       projectedOutflowCents: totalOutflow,
       netFlowCents: netFlow,
-      cumulativeBalanceCents: runningBalance,
+      cumulativeBalanceCents: netFlow === null ? null : runningBalance,
       outflowItemsCount: dayOutflows.count,
       hasHighConcentration,
     });
@@ -467,6 +572,12 @@ export async function getCashFlowProjection(
     overdueItems,
     upcomingItems,
     initialBalanceCents: INITIAL_BALANCE,
+    inflow: {
+      basis: inflowBasis,
+      historyDays,
+      lookbackDays: INFLOW_LOOKBACK_DAYS,
+      avgDailyInflowCents,
+    },
     procurementCommitments: {
       purchaseOrdersCount: poRows.length,
       purchaseOrdersTotalCents: poRows.reduce((s, po) => s + (po.totalAmount || 0), 0),

@@ -5,7 +5,12 @@ import {
   E2E_TAG,
   USER_SUPER_ADMIN,
 } from "./support/constants";
-import { deleteTestExpenses, seedOperatingExpense } from "./support/db";
+import {
+  deleteTestExpenses,
+  deleteTestSalesCuts,
+  seedOperatingExpense,
+  seedSalesCutHistory,
+} from "./support/db";
 
 /**
  * Fase 0 — invariantes aritméticos del Panel de Flujo de Efectivo.
@@ -25,10 +30,11 @@ const VENTANA_DIAS = 30;
 
 interface DiaProyectado {
   date: string;
-  projectedInflowCents: number;
+  /** `null` cuando no hay cortes de venta de los que estimar (Task 2). */
+  projectedInflowCents: number | null;
   projectedOutflowCents: number;
-  netFlowCents: number;
-  cumulativeBalanceCents: number;
+  netFlowCents: number | null;
+  cumulativeBalanceCents: number | null;
   outflowItemsCount: number;
 }
 
@@ -53,6 +59,17 @@ interface Proyeccion {
   weeklyAggregation: Semana[];
   overdueItems: Partida[];
   upcomingItems: Partida[];
+  inflow: {
+    basis: "SEASONAL" | "AVERAGE" | "NONE";
+    historyDays: number;
+    lookbackDays: number;
+    avgDailyInflowCents: number | null;
+  };
+}
+
+/** Día de la semana (0=domingo) de un `YYYY-MM-DD`, sin arrastrar zona horaria. */
+function diaDeLaSemana(fecha: string): number {
+  return new Date(`${fecha}T00:00:00Z`).getUTCDay();
 }
 
 async function obtenerProyeccion(
@@ -196,9 +213,95 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
     expect(cubiertos.size).toBe(proyeccion.days.length);
   });
 
-  // Task 2 del plan: sin `dailySalesCuts` el promedio de entradas cae a $0/día y
-  // el inquilino nuevo estrena la pantalla en rojo. No se puede ejercitar con la
-  // sesión sembrada —que sí tiene cortes— hasta que el payload declare
-  // `inflowBasis: 'NONE'` y la proyección deje de dibujarse sobre cero.
-  test.fixme("un inquilino sin cortes de venta no proyecta saldo negativo", async () => {});
+  test("sin entradas estimadas ningún día afirma un saldo", async ({ request }) => {
+    const proyeccion = await obtenerProyeccion(request);
+
+    // Invariante que no depende de si la base tiene cortes o no: restar egresos
+    // contra un cero inventado es exactamente lo que pintaba de rojo la pantalla
+    // de estreno de un inquilino nuevo.
+    for (const dia of proyeccion.days) {
+      if (dia.projectedInflowCents !== null) continue;
+      expect(dia.netFlowCents, `Flujo neto del ${dia.date}`).toBeNull();
+      expect(dia.cumulativeBalanceCents, `Saldo del ${dia.date}`).toBeNull();
+    }
+  });
+});
+
+/**
+ * Task 2 — de dónde salen las entradas proyectadas.
+ *
+ * La compañía sembrada no tiene un solo corte de venta, así que ejercita la
+ * rama `NONE` tal cual está; la estacionalidad exige sembrar historial.
+ */
+test.describe("Task 2 · base de las entradas proyectadas", () => {
+  test.beforeAll(async () => {
+    await deleteTestSalesCuts();
+  });
+
+  test.afterAll(async () => {
+    await deleteTestSalesCuts();
+  });
+
+  test("un inquilino sin cortes de venta no proyecta saldo negativo", async ({ request }) => {
+    await deleteTestSalesCuts();
+    const proyeccion = await obtenerProyeccion(request);
+
+    // El caso solo existe si la base no trae cortes propios. Hoy `pnpm seed` no
+    // siembra ninguno; si algún día lo hace, esto se salta con la razón a la
+    // vista en vez de fallar por un cambio de datos que no es el sujeto.
+    test.skip(
+      proyeccion.inflow.historyDays > 0,
+      "La base sembrada ya trae cortes de venta propios"
+    );
+
+    expect(proyeccion.inflow.basis).toBe("NONE");
+    expect(proyeccion.inflow.historyDays).toBe(0);
+    expect(proyeccion.inflow.avgDailyInflowCents).toBeNull();
+
+    // Ni entradas inventadas, ni el saldo negativo que se derivaba de ellas.
+    expect(proyeccion.days.every((d) => d.projectedInflowCents === null)).toBe(true);
+    const negativos = proyeccion.days.filter((d) => (d.cumulativeBalanceCents ?? 0) < 0);
+    expect(negativos.map((d) => d.date)).toEqual([]);
+  });
+
+  test("con historial suficiente las entradas siguen el día de la semana", async ({ request }) => {
+    const montos = await seedSalesCutHistory({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      days: 60,
+    });
+
+    const proyeccion = await obtenerProyeccion(request);
+    expect(proyeccion.inflow.basis).toBe("SEASONAL");
+
+    // El promedio de cada día de la semana es el monto que se sembró para ese
+    // día: si la serie fuera plana, todos darían la misma cifra.
+    for (const dia of proyeccion.days) {
+      expect(dia.projectedInflowCents, `Entradas del ${dia.date}`).toBe(
+        montos[diaDeLaSemana(dia.date)]
+      );
+    }
+
+    // La afirmación que importa: la serie dejó de ser una línea recta.
+    const distintos = new Set(proyeccion.days.map((d) => d.projectedInflowCents));
+    expect(distintos.size).toBeGreaterThan(1);
+  });
+
+  test("con poco historial cae al promedio simple y lo declara", async ({ request }) => {
+    await deleteTestSalesCuts();
+    await seedSalesCutHistory({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      days: 10,
+    });
+
+    const proyeccion = await obtenerProyeccion(request);
+    expect(proyeccion.inflow.basis).toBe("AVERAGE");
+    expect(proyeccion.inflow.historyDays).toBe(10);
+
+    // Diez días no alcanzan para partir la muestra en siete: promedio plano,
+    // pero marcado como tal en vez de disfrazado de estacionalidad.
+    const distintos = new Set(proyeccion.days.map((d) => d.projectedInflowCents));
+    expect([...distintos]).toEqual([proyeccion.inflow.avgDailyInflowCents]);
+  });
 });
