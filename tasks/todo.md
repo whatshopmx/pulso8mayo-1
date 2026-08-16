@@ -109,21 +109,39 @@ Archivos principales:
     `tests/cash-flow.spec.ts`, `tests/support/db.ts`
   - **Alcance**: M
 
-- [ ] **Task 3**: Semana 5 fantasma y la mediana que contamina
+- [x] **Task 3**: Semana 5 fantasma y la mediana que contamina
   - **Descripción**: `floor(i/7)+1` sobre 30 días emite **5** semanas en un grid `lg:grid-cols-4`
     (`:640`), así que siempre hay una tarjeta huérfana. La semana 5 cubre 2 días reales pero imprime
     una etiqueta de 7 días (`:420-423`), y ese muñón casi vacío jala la mediana hacia abajo
     (`:440-441`), marcando *más* semanas como `isHeavy`. Falsas alarmas por un artefacto de división.
   - **Acceptance criteria**:
-    - [ ] La etiqueta de la semana refleja los días que realmente cubre
-    - [ ] La mediana se calcula sólo sobre semanas completas
-    - [ ] El número de columnas del grid concuerda con el número de semanas emitidas
-    - [ ] La semana parcial se distingue visualmente de una completa
+    - [x] La etiqueta de la semana refleja los días que realmente cubre: `endDate` se cierra
+          con el último día que la semana toca, en vez de `weekStart + 6` a ciegas
+    - [x] La mediana se calcula sólo sobre semanas completas (`isPartial === false`), y una
+          semana parcial nunca se marca `isHeavy`: su total es más chico por dónde cae el
+          corte de la ventana, no por estar descargada
+    - [x] El grid se ajusta al número de semanas
+          (`lg:grid-cols-[repeat(auto-fit,minmax(180px,1fr))]`) en vez de `lg:grid-cols-4`
+          fijo, que con 30 días (5 semanas) dejaba siempre una tarjeta huérfana
+    - [x] La semana parcial se distingue: borde punteado, fondo atenuado y el conteo de días
+          que cubre junto a los compromisos
   - **Verificación**:
-    - [ ] Con `days=30`, la última tarjeta dice 2 días, no un rango de 7
-    - [ ] Con `days=7` y `days=60` no aparece ninguna tarjeta huérfana
+    - [x] Con `days=30`: 5 semanas, la última con `dayCount: 2`, `isPartial: true` y
+          `endDate` == último día de la ventana
+    - [x] Con `days=7`, `30` y `60`: el número de semanas es `ceil(días/7)`, la suma de
+          `dayCount` es exactamente la ventana, y el rango declarado de cada semana contiene
+          exactamente `dayCount` días
+    - [x] `npx tsc --noEmit` limpio · `pnpm exec playwright test tests/cash-flow.spec.ts` 15/15
+  - **Añadido sobre lo planeado**: `key` estable (`week-N`) en el payload. La etiqueta ahora
+    se deriva de las fechas, así que usarla de llave de React —lo que hacía el render— es
+    todavía más frágil que antes. Adelanta un punto de la Task 19.
+  - **No cubierto por test**: que la mediana excluya el muñón se sostiene por construcción,
+    no por aserción — probarlo directo exigiría sembrar montos controlados semana por semana.
+    El síntoma que la crítica nombró (falsas alarmas por el muñón) sí queda cerrado por
+    "una semana parcial nunca se marca pesada".
   - **Dependencias**: Ninguna
-  - **Archivos**: `lib/services/cash-flow-service.ts`, `components/finance/cash-flow-calendar.tsx`
+  - **Archivos**: `lib/services/cash-flow-service.ts`, `components/finance/cash-flow-calendar.tsx`,
+    `tests/cash-flow.spec.ts`
   - **Alcance**: S
 
 - [ ] **Task 4**: Frontera de fecha en zona horaria de la sucursal

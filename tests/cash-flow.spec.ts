@@ -46,11 +46,15 @@ interface Partida {
 }
 
 interface Semana {
+  key: string;
   weekLabel: string;
   startDate: string;
   endDate: string;
   totalOutflowCents: number;
   itemCount: number;
+  isHeavy: boolean;
+  dayCount: number;
+  isPartial: boolean;
 }
 
 interface Proyeccion {
@@ -225,6 +229,69 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
       expect(dia.cumulativeBalanceCents, `Saldo del ${dia.date}`).toBeNull();
     }
   });
+});
+
+/**
+ * Task 3 — la semana parcial del final de la ventana.
+ *
+ * `floor(i/7)+1` sobre 30 días emite cinco semanas: la última cubre dos días.
+ * Antes se le imprimía igual un rango de siete y entraba a la mediana, jalándola
+ * hacia abajo y marcando como "pesada" cualquier semana normal.
+ */
+test.describe("Task 3 · semanas parciales", () => {
+  test("la semana final declara los días que de verdad cubre", async ({ request }) => {
+    const proyeccion = await obtenerProyeccion(request, 30);
+
+    expect(proyeccion.weeklyAggregation.length).toBe(5);
+
+    const ultima = proyeccion.weeklyAggregation[4];
+    expect(ultima.dayCount).toBe(2);
+    expect(ultima.isPartial).toBe(true);
+    // La etiqueta ya no promete un rango de siete días: termina donde termina la
+    // ventana proyectada.
+    expect(ultima.endDate).toBe(proyeccion.days[proyeccion.days.length - 1].date);
+
+    // Las cuatro primeras son completas.
+    for (const semana of proyeccion.weeklyAggregation.slice(0, 4)) {
+      expect(semana.dayCount, semana.weekLabel).toBe(7);
+      expect(semana.isPartial, semana.weekLabel).toBe(false);
+    }
+  });
+
+  test("una semana parcial nunca se marca pesada", async ({ request }) => {
+    const proyeccion = await obtenerProyeccion(request, 30);
+    const parcialesPesadas = proyeccion.weeklyAggregation.filter(
+      (s) => s.isPartial && s.isHeavy
+    );
+    expect(parcialesPesadas.map((s) => s.weekLabel)).toEqual([]);
+  });
+
+  for (const dias of [7, 30, 60]) {
+    test(`con ${dias} días las semanas cubren la ventana exactamente`, async ({ request }) => {
+      const proyeccion = await obtenerProyeccion(request, dias);
+
+      // Ni una tarjeta de más ni una de menos: el número de semanas es el que la
+      // rejilla tiene que acomodar.
+      expect(proyeccion.weeklyAggregation.length).toBe(Math.ceil(dias / 7));
+
+      const diasCubiertos = proyeccion.weeklyAggregation.reduce(
+        (t, s) => t + s.dayCount,
+        0
+      );
+      expect(diasCubiertos).toBe(dias);
+      expect(proyeccion.weeklyAggregation.every((s) => s.dayCount >= 1 && s.dayCount <= 7)).toBe(
+        true
+      );
+
+      // El rango declarado tiene que corresponder al número de días declarado.
+      for (const semana of proyeccion.weeklyAggregation) {
+        const enElRango = proyeccion.days.filter(
+          (d) => d.date >= semana.startDate && d.date <= semana.endDate
+        );
+        expect(enElRango.length, semana.weekLabel).toBe(semana.dayCount);
+      }
+    });
+  }
 });
 
 /**

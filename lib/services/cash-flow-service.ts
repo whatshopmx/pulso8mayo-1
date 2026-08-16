@@ -68,12 +68,18 @@ export interface CategorySummary {
 }
 
 export interface WeeklyAggregation {
+  /** Identificador estable (`week-1`), independiente de la etiqueta que se pinte */
+  key: string;
   weekLabel: string;
   startDate: string;
   endDate: string;
   totalOutflowCents: number;
   itemCount: number;
   isHeavy: boolean;
+  /** Días de la ventana que esta semana cubre de verdad (1..7) */
+  dayCount: number;
+  /** `true` cuando la ventana se corta a media semana */
+  isPartial: boolean;
 }
 
 export interface CashFlowProjection {
@@ -522,6 +528,15 @@ export async function getCashFlowProjection(
     .sort((a, b) => b.amountCents - a.amountCents);
 
   // ── 10. Weekly aggregation ─────────────────────────────────────
+  //
+  // Con `days = 30`, `floor(i/7)+1` emite CINCO semanas: la última cubre 2 días
+  // reales. Antes se le imprimía igual una etiqueta de 7 días —el rango salía de
+  // `weekStart + 6` sin mirar dónde termina la ventana— y ese muñón casi vacío
+  // entraba a la mediana, jalándola hacia abajo y marcando como "pesada"
+  // cualquier semana normal. Falsas alarmas nacidas de una división entera.
+  //
+  // Ahora la semana parcial se rotula por los días que de verdad cubre y se
+  // excluye de la mediana, pero se sigue mostrando: son egresos que existen.
   const weeklyMap: Record<string, WeeklyAggregation> = {};
   for (let i = 0; i < days; i++) {
     const current = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
@@ -530,30 +545,55 @@ export async function getCashFlowProjection(
     const weekKey = `week-${weekNum}`;
 
     if (!weeklyMap[weekKey]) {
-      const weekStart = new Date(current);
-      const weekEnd = new Date(current.getTime() + 6 * 24 * 60 * 60 * 1000);
       weeklyMap[weekKey] = {
-        weekLabel: `Semana ${weekNum} (${weekStart.toLocaleDateString("es-MX", { day: "numeric", month: "short" })}-${weekEnd.toLocaleDateString("es-MX", { day: "numeric", month: "short" })})`,
-        startDate: weekStart.toISOString().slice(0, 10),
-        endDate: weekEnd.toISOString().slice(0, 10),
+        key: weekKey,
+        weekLabel: "",
+        startDate: dateStr,
+        endDate: dateStr,
         totalOutflowCents: 0,
         itemCount: 0,
         isHeavy: false,
+        dayCount: 0,
+        isPartial: false,
       };
     }
 
+    const week = weeklyMap[weekKey];
+    week.endDate = dateStr;
+    week.dayCount += 1;
+
     const dayData = outflowsByDate[dateStr];
     if (dayData) {
-      weeklyMap[weekKey].totalOutflowCents += dayData.amount;
-      weeklyMap[weekKey].itemCount += dayData.count;
+      week.totalOutflowCents += dayData.amount;
+      week.itemCount += dayData.count;
     }
   }
 
   const weeklyList = Object.values(weeklyMap);
-  const amounts = weeklyList.map((w) => w.totalOutflowCents).sort((a, b) => a - b);
+  const formatoDia = (dateStr: string) =>
+    new Date(`${dateStr}T12:00:00Z`).toLocaleDateString("es-MX", {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    });
+
+  for (const week of weeklyList) {
+    week.isPartial = week.dayCount < 7;
+    const numero = week.key.replace("week-", "");
+    week.weekLabel = `Semana ${numero} (${formatoDia(week.startDate)}-${formatoDia(week.endDate)})`;
+  }
+
+  // La mediana sale solo de las semanas completas: comparar una semana de 7 días
+  // contra el total de un muñón de 2 no mide concentración, mide el calendario.
+  const semanasCompletas = weeklyList.filter((w) => !w.isPartial);
+  const baseMediana = semanasCompletas.length > 0 ? semanasCompletas : weeklyList;
+  const amounts = baseMediana.map((w) => w.totalOutflowCents).sort((a, b) => a - b);
   const median = amounts.length > 0 ? amounts[Math.floor(amounts.length / 2)] : 0;
   for (const week of weeklyList) {
-    week.isHeavy = week.totalOutflowCents > median * 1.5 && week.totalOutflowCents > 0;
+    // Una semana parcial nunca se marca pesada: su total es más chico por
+    // definición, no por estar descargada.
+    week.isHeavy =
+      !week.isPartial && week.totalOutflowCents > median * 1.5 && week.totalOutflowCents > 0;
   }
 
   // ── 11. Upcoming items (next 7 days) ───────────────────────────

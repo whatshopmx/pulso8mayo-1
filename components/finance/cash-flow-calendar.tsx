@@ -72,12 +72,17 @@ interface CategorySummary {
 }
 
 interface WeeklyAggregation {
+  key?: string;
   weekLabel: string;
   startDate: string;
   endDate: string;
   totalOutflowCents: number;
   itemCount: number;
   isHeavy: boolean;
+  /** Días de la ventana que la semana cubre de verdad (1..7) */
+  dayCount?: number;
+  /** `true` cuando la ventana se corta a media semana */
+  isPartial?: boolean;
 }
 
 export interface CashFlowProjection {
@@ -692,13 +697,18 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Rejilla que se ajusta al número de semanas emitidas. Con `lg:grid-cols-4`
+                fijo, una ventana de 30 días (5 semanas) dejaba siempre una tarjeta
+                huérfana en su propio renglón. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
               {weeklyAggregation.map((week) => (
                 <div
-                  key={week.weekLabel}
+                  key={week.key ?? week.startDate}
                   className={`rounded-lg border p-3 ${
                     week.isHeavy
                       ? "border-destructive/30 bg-destructive/5"
+                      : week.isPartial
+                      ? "border-dashed border-muted bg-muted/20"
                       : "border-muted bg-card"
                   }`}
                 >
@@ -721,6 +731,11 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {week.itemCount} compromisos
+                    {/* Un total más chico porque la ventana se cortó no es una semana
+                        descargada. Se dice, en vez de dejarlo comparar de más. */}
+                    {week.isPartial && week.dayCount != null && (
+                      <> · {week.dayCount} {week.dayCount === 1 ? "día" : "días"} en la ventana</>
+                    )}
                   </p>
                 </div>
               ))}
