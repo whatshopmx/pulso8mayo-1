@@ -189,6 +189,43 @@ export async function deleteTestExpenses(): Promise<void> {
   await sql`DELETE FROM operating_expenses WHERE description LIKE ${`${E2E_TAG}%`}`;
 }
 
+/**
+ * Inserta un gasto operativo con vencimiento en una fecha exacta.
+ *
+ * Lo usa `cash-flow.spec.ts` para forzar la colisión que destapa la nómina
+ * contada dos veces: el bug solo aparece cuando un día de nómina (15 o 30)
+ * comparte fecha con otro egreso, así que el spec tiene que sembrar ese otro
+ * egreso en vez de esperar a que el seed lo traiga por casualidad.
+ */
+export async function seedOperatingExpense(opts: {
+  companyId: string;
+  branchId: string;
+  requestedBy: string;
+  dueDate: string;
+  amountCents: number;
+  description: string;
+  category?: string;
+  status?: string;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO operating_expenses (
+      company_id, branch_id, category, amount, description, status, requested_by, due_date
+    )
+    VALUES (
+      ${opts.companyId},
+      ${opts.branchId},
+      ${opts.category ?? "OTROS"}::operating_expense_category,
+      ${opts.amountCents},
+      ${opts.description},
+      ${opts.status ?? "APPROVED"}::operating_expense_status,
+      ${opts.requestedBy},
+      ${opts.dueDate}::date
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
 /** Borra las contrapartes (payees) creadas por los tests. */
 export async function deleteTestPayees(): Promise<void> {
   // Los gastos de test que las referencian se borran primero: la FK
