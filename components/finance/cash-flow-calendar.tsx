@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ import {
   BarChart3,
   Building2,
   HelpCircle,
+  ArrowRight,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -207,6 +209,56 @@ function formatDate(dateStr: string) {
 
 
 // ── Sub-components ───────────────────────────────────────────────
+
+/**
+ * Destino de cada partida según su origen.
+ *
+ * El inventario del crítico: 4 elementos interactivos, 0 que naveguen. La dueña
+ * se enteraba de que tenía 6 gastos vencidos y después tenía que salir, abrir la
+ * lista y buscar a mano por una descripción truncada.
+ *
+ * `PROCUREMENT_INVOICE` va a Cuentas por Pagar y no a `/finance/fiscal` como
+ * decía el plan: esa pantalla es un validador de CFDI, no una lista — no tiene
+ * fila que enfocar. `payables` sí lista las facturas pendientes por id.
+ */
+const SOURCE_ROUTES: Record<string, string> = {
+  OPERATING_EXPENSE: "/dashboard/finance/expenses",
+  PROCUREMENT_INVOICE: "/dashboard/finance/payables",
+  PURCHASE_ORDER: "/dashboard/inventory/purchase-orders",
+};
+
+function hrefParaPartida(item: OutflowItem): string | null {
+  // La nómina se sintetiza en el servicio (`payroll-<fecha>`): no hay registro
+  // que abrir, así que esa fila no enlaza a ninguna parte.
+  if (item.isPayroll) return null;
+  const base = item.source ? SOURCE_ROUTES[item.source] : null;
+  return base ? `${base}?focus=${encodeURIComponent(item.id)}` : null;
+}
+
+/** Fila enlazada al registro origen, o `div` cuando no hay a dónde ir. */
+function ItemRow({
+  item,
+  className,
+  children,
+}: {
+  item: OutflowItem;
+  className: string;
+  children: React.ReactNode;
+}) {
+  const href = hrefParaPartida(item);
+  if (!href) return <div className={className}>{children}</div>;
+
+  return (
+    <Link
+      href={href}
+      // El foco de teclado y el hover se ven en la fila completa, no sólo en
+      // un fragmento de texto.
+      className={`${className} hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset transition-colors`}
+    >
+      {children}
+    </Link>
+  );
+}
 
 /**
  * Segunda línea de una partida: categoría, proveedor, sucursal y fecha.
@@ -507,8 +559,9 @@ export function CashFlowCalendar({
             </div>
             <div className="divide-y divide-destructive/10 rounded-md border border-destructive/20 bg-background">
               {visibleOverdue.map((item) => (
-                <div
+                <ItemRow
                   key={item.id}
+                  item={item}
                   className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
                 >
                   <div className="flex-1 min-w-0">
@@ -536,7 +589,7 @@ export function CashFlowCalendar({
                       {STATUS_LABELS[item.status] || item.status}
                     </Badge>
                   </div>
-                </div>
+                </ItemRow>
               ))}
             </div>
             {overdueItems.length > 5 && (
@@ -883,8 +936,9 @@ export function CashFlowCalendar({
               {upcomingItems.length > 0 ? (
                 <div className="divide-y divide-border rounded-md border">
                   {upcomingItems.slice(0, 8).map((item) => (
-                    <div
+                    <ItemRow
                       key={item.id}
+                      item={item}
                       className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
                     >
                       <div className="flex-1 min-w-0">
@@ -901,10 +955,10 @@ export function CashFlowCalendar({
                         </p>
                         <ItemMeta item={item} showBranch={esAlcanceGrupo} prefix="Vence" />
                       </div>
-                      <p className="font-bold text-foreground shrink-0">
+                      <p className="font-bold text-foreground shrink-0 tabular-nums">
                         {formatMXN(item.amountCents)}
                       </p>
-                    </div>
+                    </ItemRow>
                   ))}
                 </div>
               ) : (
@@ -1099,6 +1153,18 @@ export function CashFlowCalendar({
             </table>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Salida al detalle completo. Esta pantalla proyecta; el saldo real de lo
+          que se debe, con su antigüedad y conciliación, vive en Cuentas por
+          Pagar. */}
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/dashboard/finance/payables">
+            Ver Cuentas por Pagar
+            <ArrowRight className="w-4 h-4 ml-1.5" />
+          </Link>
+        </Button>
       </div>
     </div>
   );

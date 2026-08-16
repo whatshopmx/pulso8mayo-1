@@ -498,7 +498,7 @@ las cuatro estimaciones que cargan la proyección se nombran y se explican.
     `tests/cash-flow.spec.ts`
   - **Alcance**: S
 
-- [ ] **Task 11**: Cada hallazgo enlaza a su registro origen
+- [x] **Task 11**: Cada hallazgo enlaza a su registro origen
   - **Descripción**: Inventario del crítico: **4 elementos interactivos, 0 que naveguen.** Las filas
     (`:457-491`, `:587-613`) son `<div>` planos. La dueña se entera de que tiene 6 facturas vencidas
     y después tiene que salir, abrir `/dashboard/finance/expenses` y buscar por descripción truncada.
@@ -506,17 +506,38 @@ las cuatro estimaciones que cargan la proyección se nombran y se explican.
     `/dashboard/finance/fiscal`, `PURCHASE_ORDER` → `/dashboard/inventory/purchase-orders`.
     Ninguna de las tres listas acepta hoy un parámetro de foco.
   - **Acceptance criteria**:
-    - [ ] Cada fila es un `Link` al registro origen según su `source`
-    - [ ] Las tres páginas destino aceptan `?focus=<id>` y resaltan/desplazan a esa fila
-    - [ ] Enlace al pie hacia Cuentas por Pagar
-    - [ ] El foco de teclado y el estado hover son visibles en la fila completa
+    - [x] Cada fila de vencidos y de próximos 7 días es un `Link` al registro origen según su
+          `source`, vía el sub-componente `ItemRow`
+    - [x] Las páginas destino aceptan `?focus=<id>`, resaltan la fila y se desplazan a ella
+    - [x] Enlace al pie hacia Cuentas por Pagar
+    - [x] Foco de teclado (`focus-visible:ring`) y hover visibles en la fila completa, no en
+          un fragmento de texto
+  - **Corrección al plan — el destino de las facturas**: el plan mandaba `PROCUREMENT_INVOICE`
+    a `/dashboard/finance/fiscal`. Esa pantalla es un **validador de CFDI**, no una lista: no
+    tiene fila que enfocar. Las facturas pendientes se listan en `/dashboard/finance/payables`
+    (con `source` e `id` por fila), que es el destino real. `fiscal` no se tocó.
+  - **Decisión: la nómina no enlaza.** Se sintetiza en el servicio (`payroll-<fecha>`) y no
+    existe como registro. Ofrecer un enlace que lleva a una lista donde no está sería peor que
+    no ofrecerlo; `hrefParaPartida` devuelve `null` y la fila se renderiza como `div`.
+  - **Hook compartido en vez de tres copias**: `hooks/use-focused-row.ts`. Tercer caso de uso,
+    comportamiento idéntico — es donde una abstracción se gana su costo.
   - **Verificación**:
-    - [ ] Click en una fila de vencidos aterriza en el gasto correcto y resaltado
-    - [ ] `pnpm exec playwright test tests/cash-flow.spec.ts -g "navega"`
+    - [x] La fila expone `href=/dashboard/finance/expenses?focus=<id>` con el id real
+    - [x] El clic aterriza en el gasto correcto y la fila destino queda con `aria-current`,
+          no sólo con color: el resaltado cromático no se anuncia en un lector de pantalla
+    - [x] La fila es enfocable por teclado
+    - [x] La nómina no expone enlace
+    - [x] `npx tsc --noEmit` limpio · eslint sin hallazgos nuevos · **51/51** en el spec
+  - **Nota de implementación (lint que enseñó algo)**: el hook leía `?focus` de
+    `window.location.search` en un `useEffect` para evitar el requisito de `Suspense` de
+    `useSearchParams`. `react-hooks/set-state-in-effect` lo marcó con razón: provoca render en
+    cascada, y además habría causado desajuste de hidratación (el servidor renderiza sin
+    resaltado, el cliente con él). Se usa `useSearchParams` y se añadió el límite de `Suspense`
+    a `expenses` y `payables`, siguiendo el patrón que `purchase-orders` ya tenía.
   - **Dependencias**: Task 10
-  - **Archivos**: `components/finance/cash-flow-calendar.tsx`,
-    `app/dashboard/finance/expenses/page.tsx`, `app/dashboard/finance/fiscal/page.tsx`,
-    `app/dashboard/inventory/purchase-orders/page.tsx`
+  - **Archivos**: `components/finance/cash-flow-calendar.tsx`, `hooks/use-focused-row.ts` (nuevo),
+    `app/dashboard/finance/expenses/page.tsx`, `app/dashboard/finance/payables/page.tsx`,
+    `app/dashboard/inventory/purchase-orders/page.tsx`, `tests/cash-flow.spec.ts`
   - **Alcance**: M
 
 - [ ] **Task 12**: Endpoints de pago y reprogramación de gastos

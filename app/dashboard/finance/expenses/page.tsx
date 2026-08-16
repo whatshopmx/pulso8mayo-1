@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExpenseForm } from "@/components/finance/expense-form";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useFocusedRow } from "@/hooks/use-focused-row";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,6 +75,15 @@ interface ExpenseItem {
 }
 
 export default function ExpensesPage() {
+  // `useFocusedRow` usa `useSearchParams`, que exige límite de Suspense.
+  return (
+    <Suspense>
+      <ExpensesContent />
+    </Suspense>
+  );
+}
+
+function ExpensesContent() {
   const { toast } = useToast();
   const { session } = useSession();
   const currentUserRole = session?.user?.role || "EMPLEADO";
@@ -83,6 +93,9 @@ export default function ExpensesPage() {
   // "todas" mientras el header seguía anunciando una sucursal concreta.
   const { selectedBranchId } = useBranch();
   const selectedBranch = selectedBranchId ?? "ALL";
+  // `?focus=<id>` llega desde el panel de flujo de efectivo: resalta y desplaza
+  // hacia el gasto que la dueña acaba de ver como vencido.
+  const { focusProps } = useFocusedRow();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -363,7 +376,10 @@ export default function ExpensesPage() {
                 </TableHeader>
                 <TableBody>
                   {visibleExpenses.map((item) => (
-                    <TableRow key={item.id} className="hover:bg-muted/40 transition text-xs">
+                    <TableRow
+                      key={item.id}
+                      {...focusProps(item.id, "hover:bg-muted/40 transition text-xs")}
+                    >
                       <TableCell className="font-medium whitespace-nowrap">
                         {new Date(item.createdAt).toLocaleDateString("es-MX", {
                           day: "numeric",

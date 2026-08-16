@@ -265,6 +265,85 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
 });
 
 /**
+ * Task 11 — cada hallazgo navega a su registro origen.
+ *
+ * Inventario del crítico: **4 elementos interactivos, 0 que naveguen**. Las
+ * filas eran `<div>` planos, así que la dueña se enteraba de que tenía seis
+ * gastos vencidos y después tenía que salir, abrir la lista y buscarlos a mano
+ * por una descripción truncada.
+ */
+test.describe("Task 11 · navegación al registro origen", () => {
+  test.setTimeout(180_000);
+  const PANTALLA = "/dashboard/finance/cash-flow";
+  let gastoId: string;
+
+  test.beforeAll(async () => {
+    await deleteTestExpenses();
+    gastoId = await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), 3),
+      amountCents: 777_700,
+      description: `${E2E_TAG} Gasto navegable`,
+    });
+  });
+
+  test.afterAll(async () => {
+    await deleteTestExpenses();
+  });
+
+  test("la fila de un gasto enlaza a su registro con foco", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+
+    const fila = page.getByRole("link", { name: /Gasto navegable/ });
+    await expect(fila).toBeVisible();
+    // El destino lleva el id del registro, no sólo la lista.
+    await expect(fila).toHaveAttribute(
+      "href",
+      `/dashboard/finance/expenses?focus=${gastoId}`
+    );
+  });
+
+  test("hacer clic aterriza en el gasto correcto y resaltado", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+    await page
+      .getByRole("link", { name: /Gasto navegable/ })
+      .click();
+
+    await expect(page).toHaveURL(new RegExp(`/dashboard/finance/expenses\\?focus=${gastoId}`));
+
+    // La fila destino queda marcada con `aria-current`, no sólo con color: el
+    // resaltado cromático no se anuncia en un lector de pantalla.
+    const filaDestino = page.locator('tr[aria-current="true"]');
+    await expect(filaDestino).toBeVisible({ timeout: 30_000 });
+    await expect(filaDestino).toContainText(`${E2E_TAG} Gasto navegable`);
+  });
+
+  test("la fila es alcanzable por teclado", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+    const fila = page.getByRole("link", { name: /Gasto navegable/ });
+    await fila.focus();
+    await expect(fila).toBeFocused();
+  });
+
+  test("la nómina no enlaza a ningún lado", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=60&branchId=${BRANCH_CONDESA}`);
+    // Se sintetiza en el servicio (`payroll-<fecha>`): no hay registro que abrir,
+    // así que ofrecer un enlace roto sería peor que no ofrecerlo.
+    const nomina = page.getByRole("link", { name: /Nómina quincenal/ });
+    await expect(nomina).toHaveCount(0);
+  });
+
+  test("hay salida al detalle de Cuentas por Pagar", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30`);
+    const enlace = page.getByRole("link", { name: /Ver Cuentas por Pagar/ });
+    await expect(enlace).toBeVisible();
+    await expect(enlace).toHaveAttribute("href", "/dashboard/finance/payables");
+  });
+});
+
+/**
  * Task 10 — higiene de datos del render.
  *
  * `supplierName` venía en el payload y no se pintaba en ningún lado, así que
