@@ -6,8 +6,9 @@
 //   - Invoices from procurement (CFDI XML received but not linked to a paid expense)
 
 import { db } from "@/lib/db";
-import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users } from "@/lib/db/schema";
+import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users, branches } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, inArray, asc } from "drizzle-orm";
+import { addCalendarDays, localDateString } from "@/lib/workflows/today";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -128,20 +129,54 @@ function dayOfWeekOf(dateStr: string): number {
   return new Date(`${dateStr}T00:00:00Z`).getUTCDay();
 }
 
+/** Día del mes (1-31) de un `YYYY-MM-DD`, sin pasar por `Date`. */
+function dayOfMonthOf(dateStr: string): number {
+  return Number(dateStr.slice(8, 10));
+}
+
+/** Mes (1-12) de un `YYYY-MM-DD`. */
+function monthOf(dateStr: string): number {
+  return Number(dateStr.slice(5, 7));
+}
+
+/**
+ * Zona horaria con la que se decide qué día es "hoy" para esta proyección.
+ *
+ * `branches.timezone` es la única fuente de husos del esquema — `companies` no
+ * tiene columna. La proyección todavía es de grupo completo (la sucursal se hila
+ * en la Task 6), así que se usa la zona de las sucursales sólo cuando todas
+ * coinciden: un grupo repartido entre Cancún y Tijuana no tiene un "hoy" único,
+ * y elegir la de una sucursal al azar sería peor que caer al default de
+ * `localDateString` (America/Mexico_City).
+ */
+async function resolveProjectionTimezone(companyId: string): Promise<string | null> {
+  const zonas = await db
+    .selectDistinct({ timezone: branches.timezone })
+    .from(branches)
+    .where(and(eq(branches.companyId, companyId), eq(branches.active, true)));
+
+  const distintas = zonas.map((z) => z.timezone).filter(Boolean);
+  return distintas.length === 1 ? distintas[0] : null;
+}
+
 // ── Main function ────────────────────────────────────────────────
 
 export async function getCashFlowProjection(
   companyId: string,
   days = 30
 ): Promise<CashFlowProjection> {
+  // Qué día es "hoy" se decide con el reloj de la sucursal, no con el del
+  // servidor. `toISOString()` calcula en UTC: en UTC-6, después de las 6pm local
+  // —la hora a la que una dueña revisa el dinero— la ventana se recorría un día
+  // y las partidas saltaban entre "vencido" y "próximo".
+  const timeZone = await resolveProjectionTimezone(companyId);
   const startDate = new Date();
-  const startDateStr = startDate.toISOString().slice(0, 10);
+  const startDateStr = localDateString(startDate, timeZone);
   // Último día que el timeline emite de verdad: el bucle de abajo produce `days`
   // filas (índices 0..days-1). Cerrar la ventana en `+days` admitía partidas de
   // un día que ninguna fila cubre — se cobraban en "Total egresos" y en ninguna
   // barra de la gráfica.
-  const endDate = new Date(startDate.getTime() + (days - 1) * 24 * 60 * 60 * 1000);
-  const endDateStr = endDate.toISOString().slice(0, 10);
+  const endDateStr = addCalendarDays(startDateStr, days - 1);
 
   // ── 1. Entradas estimadas desde los cortes de venta ─────────────
   //
@@ -151,11 +186,7 @@ export async function getCashFlowProjection(
   // así que un inquilino sin cortes recibía $0/día de entradas y estrenaba la
   // pantalla en rojo completo. Ahora: promedio por día de la semana sobre los
   // últimos 90 días, y sin historial se declara en vez de inventarse.
-  const lookbackStartStr = new Date(
-    startDate.getTime() - INFLOW_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
-  )
-    .toISOString()
-    .slice(0, 10);
+  const lookbackStartStr = addCalendarDays(startDateStr, -INFLOW_LOOKBACK_DAYS);
 
   const salesByDate = await db
     .select({
@@ -377,16 +408,18 @@ export async function getCashFlowProjection(
   for (const po of poRows) {
     // Use expectedDeliveryDate as proxy for payment date (typically 7-30 days after delivery)
     // Fallback to dateRequired, then to today + 14 days
+    // `expected_delivery_date` y `date_required` son `timestamp`, no `date`: se
+    // leen en la zona de la operación. Con `toISOString()` una entrega fechada a
+    // las 19:00 del día 20 se cobraba el 21.
     let poDate = po.expectedDeliveryDate
-      ? new Date(po.expectedDeliveryDate).toISOString().slice(0, 10)
+      ? localDateString(new Date(po.expectedDeliveryDate), timeZone)
       : po.dateRequired
-        ? new Date(po.dateRequired).toISOString().slice(0, 10)
+        ? localDateString(new Date(po.dateRequired), timeZone)
         : null;
 
     // If no date or date is in the past, estimate 14 days from now
     if (!poDate || poDate < startDateStr) {
-      const estimated = new Date(startDate.getTime() + 14 * 24 * 60 * 60 * 1000);
-      poDate = estimated.toISOString().slice(0, 10);
+      poDate = addCalendarDays(startDateStr, 14);
     }
 
     // Only include if within the projection window
@@ -452,8 +485,7 @@ export async function getCashFlowProjection(
   let runningBalance = INITIAL_BALANCE;
 
   for (let i = 0; i < days; i++) {
-    const current = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
-    const dateStr = current.toISOString().slice(0, 10);
+    const dateStr = addCalendarDays(startDateStr, i);
 
     // Nómina real el 15 y el 30 (desde contratos, no hardcodeada).
     //
@@ -464,11 +496,15 @@ export async function getCashFlowProjection(
     // cobraba la quincena dos veces en cualquier fecha que ya tuviera otro
     // egreso. La agregación semanal leía el mapa una sola vez, y por eso la
     // barra "Salidas", el total de la semana y "Total egresos" se contradecían.
-    const dayOfMonth = current.getDate();
+    // El día se lee de la propia cadena de la fecha. `getDate()`/`getMonth()`
+    // leían el reloj del servidor mientras `dateStr` era el corte UTC del mismo
+    // instante: con datos reales la nómina caía en el 16 y el 31, no en el 15 y
+    // el 30 (hallazgo de la Task 1).
+    const dayOfMonth = dayOfMonthOf(dateStr);
     const isPayrollDay =
       dayOfMonth === 15 ||
       dayOfMonth === 30 ||
-      (dayOfMonth === 28 && current.getMonth() === 1); // Feb
+      (dayOfMonth === 28 && monthOf(dateStr) === 2); // Feb
     if (isPayrollDay && biweeklyPayrollCents > 0) {
       addItem({
         id: `payroll-${dateStr}`,
@@ -539,8 +575,7 @@ export async function getCashFlowProjection(
   // excluye de la mediana, pero se sigue mostrando: son egresos que existen.
   const weeklyMap: Record<string, WeeklyAggregation> = {};
   for (let i = 0; i < days; i++) {
-    const current = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
-    const dateStr = current.toISOString().slice(0, 10);
+    const dateStr = addCalendarDays(startDateStr, i);
     const weekNum = Math.floor(i / 7) + 1;
     const weekKey = `week-${weekNum}`;
 
@@ -597,9 +632,7 @@ export async function getCashFlowProjection(
   }
 
   // ── 11. Upcoming items (next 7 days) ───────────────────────────
-  const sevenDaysFromNow = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const sevenDaysFromNow = addCalendarDays(startDateStr, 7);
   const upcomingItems = allOutflowItems.filter(
     (item) => item.date >= startDateStr && item.date <= sevenDaysFromNow
   );

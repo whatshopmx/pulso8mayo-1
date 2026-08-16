@@ -144,20 +144,40 @@ Archivos principales:
     `tests/cash-flow.spec.ts`
   - **Alcance**: S
 
-- [ ] **Task 4**: Frontera de fecha en zona horaria de la sucursal
+- [x] **Task 4**: Frontera de fecha en zona horaria de la sucursal
   - **Descripción**: `toISOString().slice(0,10)` (`:91, :272, :280, :347, :415, :447`) calcula en UTC.
     En UTC-6, después de las 6pm local —la hora a la que una dueña revisa el dinero— "hoy" se vuelve
     mañana: la ventana se recorre un día y las partidas saltan entre "vencido" y "próximo".
     `branches.timezone` ya existe con default `America/Mexico_City`.
   - **Acceptance criteria**:
-    - [ ] Un helper de fecha local reemplaza todos los `toISOString().slice(0,10)` del servicio
-    - [ ] La zona sale de `branches.timezone` cuando hay sucursal, de la compañía si no
-    - [ ] A las 19:00 hora de Ciudad de México, `startDateStr` sigue siendo hoy
+    - [x] Cero `toISOString().slice(0,10)` en la lógica del servicio (verificado por grep). Los
+          reemplazan `localDateString` (instante → día local) y `addCalendarDays` (aritmética
+          de calendario sobre la cadena, sin husos de por medio)
+    - [x] La zona sale de `branches.timezone`. **Corrección al plan**: `companies` **no tiene
+          columna `timezone`** — `branches` es la única fuente de husos del esquema. Sin
+          sucursal se usa la zona de las sucursales sólo si todas coinciden; un grupo entre
+          Cancún y Tijuana no tiene un "hoy" único y cae al default `America/Mexico_City`
+    - [x] A las 19:00 de Ciudad de México `startDateStr` sigue siendo hoy
   - **Verificación**:
-    - [ ] Script con `TZ=UTC` y hora simulada 19:00 CDMX → la ventana arranca hoy
-    - [ ] Un gasto que vence hoy no aparece en vencidos
-  - **Dependencias**: Ninguna (pero conviene después de Task 6 si ya hay sucursal en el servicio)
-  - **Archivos**: `lib/services/cash-flow-service.ts`, `lib/utils.ts` (o helper nuevo)
+    - [x] `localDateString(2026-08-16T01:00:00Z, America/Mexico_City)` → `2026-08-15`,
+          contra el `2026-08-16` que devolvía `toISOString()`. El test deja los dos lado a lado
+    - [x] Tijuana / CDMX / Cancún leen su propio día a las 23:30 CDMX
+    - [x] Zona inválida o `null` cae al default en vez de reventar
+    - [x] `addCalendarDays` cruza fin de mes, fin de año y 29 de febrero
+    - [x] La nómina ya cae en el **30**; antes caía en el 16 y el 31 (hallazgo de la Task 1:
+          `getDate()` leía local y `dateStr` era el corte UTC del mismo instante)
+    - [x] `npx tsc --noEmit` limpio · `pnpm exec playwright test tests/cash-flow.spec.ts` 20/20
+  - **Decisión de alcance**: se resistió la tentación de agregarle ya el parámetro `branchId`
+    a `getCashFlowProjection`. Un `branchId` que cambia la zona horaria pero **no** filtra los
+    datos es exactamente la trampa que la Task 6 existe para cerrar: cifras del grupo entero
+    con fechas de una sucursal. La resolución por sucursal entra completa en la Task 6.
+  - **Dependencias**: Ninguna
+  - **Archivos**: `lib/services/cash-flow-service.ts`, `lib/workflows/today.ts`,
+    `tests/cash-flow.spec.ts`
+  - **Reutilización**: los helpers viven en `lib/workflows/today.ts`, que ya resolvía este
+    problema para el tablero (`localMoment`, `safeTimeZone`, `startOfLocalDayUtc`) y documenta
+    por qué se usa `Intl` nativo. Crear un `lib/date-*.ts` nuevo habría sumado justo el tipo
+    de módulo duplicado contra el que advierte CLAUDE.md.
   - **Alcance**: S
 
 - [ ] **Task 5**: `procurementCommitments` fuera de la ventana

@@ -11,6 +11,7 @@ import {
   seedOperatingExpense,
   seedSalesCutHistory,
 } from "./support/db";
+import { addCalendarDays, localDateString } from "../lib/workflows/today";
 
 /**
  * Fase 0 — invariantes aritméticos del Panel de Flujo de Efectivo.
@@ -228,6 +229,59 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
       expect(dia.netFlowCents, `Flujo neto del ${dia.date}`).toBeNull();
       expect(dia.cumulativeBalanceCents, `Saldo del ${dia.date}`).toBeNull();
     }
+  });
+});
+
+/**
+ * Task 4 — la frontera del día en la zona de la sucursal.
+ *
+ * `toISOString().slice(0, 10)` calcula en UTC. En UTC-6, después de las 6pm
+ * local —la hora a la que una dueña revisa el dinero— "hoy" se volvía mañana:
+ * la ventana se recorría un día completo y las partidas saltaban entre
+ * "vencido" y "próximo" según la hora a la que se abriera la pantalla.
+ *
+ * Son funciones puras: se prueban directo, sin servidor ni base de datos.
+ */
+test.describe("Task 4 · frontera de fecha", () => {
+  // 2026-08-16T01:00:00Z son las 19:00 del 15 de agosto en Ciudad de México.
+  const CAIDA_DE_LA_TARDE = new Date("2026-08-16T01:00:00Z");
+
+  test("a las 19:00 en Ciudad de México, hoy sigue siendo hoy", () => {
+    expect(localDateString(CAIDA_DE_LA_TARDE, "America/Mexico_City")).toBe("2026-08-15");
+
+    // La lectura que hacía el servicio, para dejar el contraste asentado.
+    expect(CAIDA_DE_LA_TARDE.toISOString().slice(0, 10)).toBe("2026-08-16");
+  });
+
+  test("cada sucursal lee su propio día", () => {
+    // Tijuana (UTC-7) va una hora atrás de Ciudad de México; Cancún (UTC-5),
+    // una adelante. A las 19:00 CDMX las tres siguen en el mismo día, pero a
+    // las 23:30 CDMX Cancún ya cambió de fecha.
+    const casiMedianoche = new Date("2026-08-16T05:30:00Z"); // 23:30 CDMX
+    expect(localDateString(casiMedianoche, "America/Tijuana")).toBe("2026-08-15");
+    expect(localDateString(casiMedianoche, "America/Mexico_City")).toBe("2026-08-15");
+    expect(localDateString(casiMedianoche, "America/Cancun")).toBe("2026-08-16");
+  });
+
+  test("una zona inválida cae al default en vez de reventar", () => {
+    expect(localDateString(CAIDA_DE_LA_TARDE, "No/Existe")).toBe("2026-08-15");
+    expect(localDateString(CAIDA_DE_LA_TARDE, null)).toBe("2026-08-15");
+  });
+
+  test("sumar días es aritmética de calendario, no de milisegundos", () => {
+    expect(addCalendarDays("2026-08-15", 1)).toBe("2026-08-16");
+    expect(addCalendarDays("2026-08-15", -90)).toBe("2026-05-17");
+    // Fin de mes, fin de año y año bisiesto: los tres saltos que rompen la
+    // aritmética ingenua.
+    expect(addCalendarDays("2026-08-31", 1)).toBe("2026-09-01");
+    expect(addCalendarDays("2026-12-31", 1)).toBe("2027-01-01");
+    expect(addCalendarDays("2028-02-28", 1)).toBe("2028-02-29");
+  });
+
+  test("la ventana proyectada empieza hoy en la zona de la operación", async ({ request }) => {
+    const proyeccion = await obtenerProyeccion(request);
+    const hoyLocal = localDateString(new Date(), "America/Mexico_City");
+    expect(proyeccion.days[0].date).toBe(hoyLocal);
   });
 });
 
