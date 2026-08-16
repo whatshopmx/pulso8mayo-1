@@ -89,7 +89,11 @@ export async function getCashFlowProjection(
 ): Promise<CashFlowProjection> {
   const startDate = new Date();
   const startDateStr = startDate.toISOString().slice(0, 10);
-  const endDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
+  // Último día que el timeline emite de verdad: el bucle de abajo produce `days`
+  // filas (índices 0..days-1). Cerrar la ventana en `+days` admitía partidas de
+  // un día que ninguna fila cubre — se cobraban en "Total egresos" y en ninguna
+  // barra de la gráfica.
+  const endDate = new Date(startDate.getTime() + (days - 1) * 24 * 60 * 60 * 1000);
   const endDateStr = endDate.toISOString().slice(0, 10);
 
   // ── 1. Estimate average daily inflow from past cuts ─────────────
@@ -346,23 +350,26 @@ export async function getCashFlowProjection(
     const current = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
     const dateStr = current.toISOString().slice(0, 10);
 
-    const dayOutflows = outflowsByDate[dateStr] || { amount: 0, count: 0, items: [] };
-
-    // Real payroll on 15th and 30th (from employee contracts, not hardcoded)
+    // Nómina real el 15 y el 30 (desde contratos, no hardcodeada).
+    //
+    // Se agrega ANTES de leer el acumulado del día, y el acumulado se lee
+    // DESPUÉS. `addItem` ya suma el monto y el conteo en `outflowsByDate`, así
+    // que el código anterior —que capturaba `dayOutflows` primero, le sumaba a
+    // mano `count += 1` y después calculaba `dayOutflows.amount + payrollExtra`—
+    // cobraba la quincena dos veces en cualquier fecha que ya tuviera otro
+    // egreso. La agregación semanal leía el mapa una sola vez, y por eso la
+    // barra "Salidas", el total de la semana y "Total egresos" se contradecían.
     const dayOfMonth = current.getDate();
-    let payrollExtra = 0;
     const isPayrollDay =
       dayOfMonth === 15 ||
       dayOfMonth === 30 ||
       (dayOfMonth === 28 && current.getMonth() === 1); // Feb
     if (isPayrollDay && biweeklyPayrollCents > 0) {
-      payrollExtra = biweeklyPayrollCents;
-      dayOutflows.count += 1;
       addItem({
         id: `payroll-${dateStr}`,
         date: dateStr,
         description: `Nómina quincenal (${activeCount} empleados)`,
-        amountCents: payrollExtra,
+        amountCents: biweeklyPayrollCents,
         category: "NOMINA",
         status: "PROGRAMADO",
         isPayroll: true,
@@ -370,7 +377,8 @@ export async function getCashFlowProjection(
       });
     }
 
-    const totalOutflow = dayOutflows.amount + payrollExtra;
+    const dayOutflows = outflowsByDate[dateStr] || { amount: 0, count: 0, items: [] };
+    const totalOutflow = dayOutflows.amount;
     const netFlow = avgDailyInflowCents - totalOutflow;
     runningBalance += netFlow;
 
