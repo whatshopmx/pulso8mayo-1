@@ -25,6 +25,9 @@ export const ADMIN_PASSWORD = process.env.E2E_PASSWORD || "123456";
 export const GERENTE_EMAIL = "juan@pulso.mx";
 export const GERENTE_BRANCH = BRANCH_CONDESA;
 
+/** EMPLEADO sembrado: no responde por el dinero, no captura supuestos. */
+export const EMPLEADO_EMAIL = "pedro@pulso.mx";
+
 /** Estado de sesión reutilizado por todos los specs. */
 export const STORAGE_STATE = "tests/.auth/admin.json";
 

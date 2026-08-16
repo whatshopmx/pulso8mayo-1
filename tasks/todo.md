@@ -384,32 +384,66 @@ N días" heredan esa invención. Es el P0 de la Fase 2.
     `tests/support/db.ts`
   - **Alcance**: M
 
-- [ ] **Task 9**: Captura en línea, línea de supuestos y "cómo se calcula"
+- [x] **Task 9**: Captura en línea, línea de supuestos y "cómo se calcula"
   - **Descripción**: Cuatro supuestos que cargan toda la pantalla (saldo inicial, fecha de OC
     estimada a +14 días, quincena asumida el 15 y el 30, entradas históricas planas) se presentan
     como hechos, sin tooltip y sin "cómo se calcula". Con Task 8 el saldo ya es capturable; falta la
     superficie para capturarlo y la honestidad sobre el resto.
   - **Acceptance criteria**:
-    - [ ] La tarjeta de saldo permite editar el monto en línea (RBAC: ADMIN y GERENTE) y persiste
-    - [ ] Sin saldo capturado la tarjeta pide el dato y **la proyección no se dibuja** en vez de
-          proyectar sobre cero
-    - [ ] Se muestra la antigüedad del dato; a más de 7 días se pide actualizarlo
-    - [ ] Línea de supuestos bajo la fila hero que nombra las cuatro estimaciones, con popover
-          "cómo se calcula" por cada una
-    - [ ] Incluye el conteo de facturas sin sucursal de la Task 6
+    - [x] La tarjeta permite editar el monto en línea y persiste. RBAC: SUPER_ADMIN, ADMIN y
+          GERENTE (se añadió SUPER_ADMIN al par del plan — sin él, quien administra el sistema
+          no podría capturar). El control se dibuja según el rol de sesión, pero **quien manda
+          es `withRoleAuth` en la ruta**: la UI sólo decide qué se pinta
+    - [x] Sin saldo capturado la tarjeta pide el dato y no se proyecta: `cumulativeBalanceCents`
+          viaja en `null` y las tres tarjetas hero dicen qué falta. Además distingue **cuál**
+          de los dos insumos falta — "captura tu saldo" y "captura tus ventas" son acciones
+          distintas y mandarlas a la acción equivocada es peor que no decir nada
+    - [x] Antigüedad siempre visible ("Capturado hoy" / "hace N días"); a más de 7 días se pide
+          actualizarlo. También se declara cuando la sucursal está usando el dato del grupo
+          por no tener el suyo
+    - [x] Línea de supuestos con las cuatro estimaciones, cada una con popover "cómo se
+          calcula". Los textos son **dinámicos**: el de entradas dice si la base es estacional,
+          promedio simple o inexistente, con los días de historial reales
+    - [x] El conteo de facturas sin sucursal ya viaja junto a la píldora de alcance (Task 6)
   - **Verificación**:
-    - [ ] Capturar un saldo y recargar → persiste y las cifras derivadas cambian
-    - [ ] Un EMPLEADO no ve el input de edición
-    - [ ] `pnpm exec playwright test tests/cash-flow.spec.ts -g "saldo"`
+    - [x] Capturar $38,500 desde la pantalla → la cifra aparece **sin recargar** (la proyección
+          se revalida sola) y "Sin capturar" desaparece
+    - [x] Capturar dos veces actualiza, no duplica: una segunda fila de grupo haría ambigua la
+          lectura del saldo
+    - [x] Un **EMPLEADO** recibe 403 con el envelope `{ success:false, error }`, no un 500
+    - [x] Un **GERENTE** que pide capturar para otra sucursal captura en la suya
+          (`enforceBranchScope`, la misma regla que la lectura)
+    - [x] Fecha futura rechazada · saldo negativo aceptado (una cuenta sobregirada es un saldo
+          real, y redondearla a cero sería otra invención)
+    - [x] La línea de supuestos nombra las cuatro y el popover de Quincena explica el 15/30
+    - [x] `npx tsc --noEmit` y `npx eslint` limpios · **43/43** en el spec
+  - **Nota de implementación**: el guardado no usa `onConflictDoUpdate`. Los dos índices únicos
+    de la tabla no se pueden apuntar a la vez, y el parcial (el de la fila de grupo) ni siquiera
+    es objetivo válido de `ON CONFLICT` sin repetir su predicado. Se lee primero y se decide
+    insert o update; la lectura es puntual porque hay a lo más una fila por (compañía, sucursal).
   - **Dependencias**: Task 8
-  - **Archivos**: `components/finance/cash-flow-calendar.tsx`, `app/api/finance/cash-flow/assumptions/route.ts`,
-    `lib/services/cash-flow-service.ts`
+  - **Archivos**: `components/finance/opening-balance-card.tsx` (nuevo),
+    `components/finance/cash-flow-calendar.tsx`, `app/api/finance/cash-flow/assumptions/route.ts`,
+    `app/dashboard/finance/cash-flow/page.tsx`, `lib/services/cash-flow-service.ts`,
+    `tests/cash-flow.spec.ts`, `tests/support/constants.ts`
   - **Alcance**: M
 
-### Checkpoint: Saldo inicial
-- [ ] Ningún número depende de una constante
-- [ ] Sin saldo, la pantalla pide el dato en vez de inventar
-- [ ] Los cuatro supuestos están declarados en pantalla
+### Checkpoint: Saldo inicial — ✅ cerrado
+- [x] Ningún número depende de una constante. `INITIAL_BALANCE` sólo sobrevive en el comentario
+      que explica por qué se fue
+- [x] Sin saldo, la pantalla pide el dato en vez de inventar — y dice cuál de los dos insumos
+      (saldo o cortes de venta) es el que falta
+- [x] Los cuatro supuestos declarados, con "cómo se calcula" y texto dinámico según los datos
+- [x] `npx drizzle-kit generate` → "No schema changes, nothing to migrate"
+- [x] **43/43** en el spec · `tsc` y `eslint` limpios
+
+**Estado de la Fase 2**: cerrada. Los dos P0 de la crítica están resueltos. La pantalla ya no
+afirma nada que no pueda sostener: el saldo lo puso una persona con fecha visible, las entradas
+salen del historial o se declaran ausentes, las cifras corresponden a la sucursal rotulada, y
+las cuatro estimaciones que cargan la proyección se nombran y se explican.
+
+**Lo que sigue**: la Fase 3 (accionabilidad) es donde la pantalla deja de ser sólo un informe —
+4 elementos interactivos y 0 que naveguen. Después el color (P1) y el copy (P2).
 
 ---
 

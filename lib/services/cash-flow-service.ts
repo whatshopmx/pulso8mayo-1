@@ -242,6 +242,65 @@ async function resolveProjectionScope(
   };
 }
 
+// ── Captura del saldo inicial ────────────────────────────────────
+
+/**
+ * Guarda el saldo en caja y bancos del que arranca la proyección.
+ *
+ * Hay un supuesto por (compañía, sucursal), y `branchId` nulo es el del grupo,
+ * así que esto es un upsert: capturar dos veces la misma sucursal actualiza,
+ * no duplica. Los dos índices únicos de la tabla lo respaldan — el compuesto
+ * para las sucursales y el parcial para la fila de grupo, que hace falta porque
+ * Postgres trata los NULL como distintos entre sí.
+ *
+ * `companyId` y `updatedBy` vienen de la sesión, nunca del body.
+ */
+export async function saveCashFlowAssumption(opts: {
+  companyId: string;
+  branchId: string | null;
+  openingBalanceCents: number;
+  asOfDate: string;
+  updatedBy: string;
+}): Promise<void> {
+  // `onConflictDoUpdate` no puede apuntar a los dos índices a la vez, y el
+  // parcial ni siquiera es objetivo válido de `ON CONFLICT` sin repetir su
+  // predicado. Se resuelve leyendo primero: la tabla tiene una fila por
+  // (compañía, sucursal), así que la lectura es puntual.
+  const [existente] = await db
+    .select({ id: cashFlowAssumptions.id })
+    .from(cashFlowAssumptions)
+    .where(
+      and(
+        eq(cashFlowAssumptions.companyId, opts.companyId),
+        opts.branchId
+          ? eq(cashFlowAssumptions.branchId, opts.branchId)
+          : isNull(cashFlowAssumptions.branchId)
+      )
+    )
+    .limit(1);
+
+  if (existente) {
+    await db
+      .update(cashFlowAssumptions)
+      .set({
+        openingBalanceCents: opts.openingBalanceCents,
+        asOfDate: opts.asOfDate,
+        updatedBy: opts.updatedBy,
+        updatedAt: new Date(),
+      })
+      .where(eq(cashFlowAssumptions.id, existente.id));
+    return;
+  }
+
+  await db.insert(cashFlowAssumptions).values({
+    companyId: opts.companyId,
+    branchId: opts.branchId,
+    openingBalanceCents: opts.openingBalanceCents,
+    asOfDate: opts.asOfDate,
+    updatedBy: opts.updatedBy,
+  });
+}
+
 // ── Main function ────────────────────────────────────────────────
 
 export async function getCashFlowProjection(

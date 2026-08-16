@@ -10,11 +10,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBranch } from "@/lib/branch-context";
+import { useSession } from "@/hooks/use-session";
 import { Calendar, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 
 /** Horizontes ofrecidos. `days` fuera de esta lista cae al default. */
 const HORIZONTES = [7, 30, 60] as const;
 const HORIZONTE_DEFAULT = 30;
+
+/**
+ * Quién captura el saldo de la empresa. Esto sólo decide si se dibuja el
+ * control: la ruta lo vuelve a exigir con `withRoleAuth`, que es donde manda.
+ */
+const PUEDEN_CAPTURAR = ["SUPER_ADMIN", "ADMIN", "GERENTE"];
 
 export default function CashFlowPage() {
   // `useSearchParams` exige límite de Suspense, como en purchase-orders.
@@ -29,6 +36,7 @@ function CashFlowContent() {
   // Scope único: el selector del encabezado del dashboard. El Select local
   // duplicaba el mismo control con otra respuesta y sin indicar cuál mandaba.
   const { selectedBranchId, setSelectedBranchId } = useBranch();
+  const { session } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -162,7 +170,12 @@ function CashFlowContent() {
           }
         />
       ) : (
-        <CashFlowCalendar projection={projection} horizonDays={days} />
+        <CashFlowCalendar
+          projection={projection}
+          horizonDays={days}
+          canEditAssumptions={PUEDEN_CAPTURAR.includes(session?.user?.role ?? "")}
+          onAssumptionSaved={fetchProjection}
+        />
       )}
     </div>
   );

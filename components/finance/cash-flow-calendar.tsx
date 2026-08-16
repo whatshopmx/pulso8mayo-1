@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { OpeningBalanceCard } from "@/components/finance/opening-balance-card";
 import { statusBadgeClasses } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -19,6 +21,7 @@ import {
   PieChart,
   BarChart3,
   Building2,
+  HelpCircle,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -135,6 +138,10 @@ interface CashFlowCalendarProps {
   projection: CashFlowProjection | CashFlowDay[];
   /** Horizonte pedido, para rotularlo. Por defecto, los días que trae el payload. */
   horizonDays?: number;
+  /** Si se dibuja el control de captura del saldo. La ruta lo vuelve a exigir. */
+  canEditAssumptions?: boolean;
+  /** Revalida la proyección tras capturar el saldo. */
+  onAssumptionSaved?: () => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -232,7 +239,12 @@ function CategoryBar({ label, amountCents, percentage, maxPct }: {
 
 // ── Main component ───────────────────────────────────────────────
 
-export function CashFlowCalendar({ projection, horizonDays }: CashFlowCalendarProps) {
+export function CashFlowCalendar({
+  projection,
+  horizonDays,
+  canEditAssumptions = false,
+  onAssumptionSaved,
+}: CashFlowCalendarProps) {
   // Los colapsos vivían en `useState`, así que se reiniciaban en cada cambio de
   // sucursal y no se podían enlazar. En la URL sobreviven al remonte y viajan en
   // el enlace que se le manda al contador.
@@ -293,6 +305,45 @@ export function CashFlowCalendar({ projection, horizonDays }: CashFlowCalendarPr
   // Falte la que falte, no se proyecta — y se dice cuál falta, porque "captura
   // tu saldo" y "captura tus ventas" son acciones distintas.
   const sinProyeccionDeSaldo = sinSaldoCapturado || sinHistorialDeVentas;
+
+  /**
+   * Las cuatro estimaciones que cargan la pantalla. Se nombran y se explican en
+   * vez de presentarse como hechos: quien decide con estas cifras tiene derecho
+   * a saber cuáles son medidas y cuáles inferidas.
+   */
+  const supuestos = [
+    {
+      titulo: "Saldo inicial",
+      explicacion: sinSaldoCapturado
+        ? "Nadie lo ha capturado todavía. Pulso no se conecta al banco, así que este dato lo pone una persona — y sin él no se puede proyectar el saldo del mes."
+        : `Capturado a mano${
+            data.openingBalance?.asOfDate ? ` con fecha ${data.openingBalance.asOfDate}` : ""
+          }. Pulso no se conecta al banco: es el dinero que alguien reportó tener${
+            data.openingBalance?.source === "COMPANY" && data.scope?.branchId
+              ? ", y es el dato del grupo porque esta sucursal no tiene el suyo"
+              : ""
+          }.`,
+    },
+    {
+      titulo: "Entradas por ventas",
+      explicacion:
+        inflow?.basis === "SEASONAL"
+          ? `Promedio por día de la semana sobre los últimos ${inflow.lookbackDays} días (${inflow.historyDays} días con corte). Un sábado se proyecta con los sábados anteriores, no con el promedio general.`
+          : inflow?.basis === "AVERAGE"
+            ? `Promedio simple de ${inflow.historyDays} días con corte. Con menos de dos semanas de historial no alcanza para separar por día de la semana.`
+            : "No hay cortes de venta capturados, así que no se estiman entradas. La proyección de saldo no se dibuja en vez de suponer cero.",
+    },
+    {
+      titulo: "Fecha de pago de las OC",
+      explicacion:
+        "Se usa la fecha de entrega esperada de cada orden de compra. Si no tiene, o ya pasó, se estima a 14 días. No es la fecha real de pago al proveedor.",
+    },
+    {
+      titulo: "Quincena",
+      explicacion:
+        "La nómina se coloca el 15 y el 30 de cada mes (28 en febrero), calculada desde los contratos activos. Si tu calendario de pago es otro, las fechas no coinciden.",
+    },
+  ];
   const faltante = sinSaldoCapturado
     ? "Necesita el saldo en caja y bancos para proyectar"
     : "Necesita cortes de venta para proyectar el saldo";
@@ -449,43 +500,16 @@ export function CashFlowCalendar({ projection, horizonDays }: CashFlowCalendarPr
           FILA 1: ¿Me alcanza? — hero cards
           ════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Saldo actual */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-1">
-              <Wallet className="w-4 h-4" />
-              Saldo inicial proyectado
-            </div>
-            {/* Se lee del payload, no de `metrics`: el saldo inicial no depende
-                de que haya entradas estimadas. Cuando `metrics` es null por
-                falta de cortes de venta, esta tarjeta mostraba $0.00 — una
-                cifra que nadie calculó.
-
-                Y cuando nadie lo ha capturado, `null`: ya no existe la
-                constante de $20,000 que se mostraba igual a todo inquilino. */}
-            {initialBalanceCents === null ? (
-              <>
-                <div className="text-2xl font-bold text-muted-foreground">
-                  Sin capturar
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Captura tu saldo en caja y bancos para proyectar
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="text-2xl font-bold text-foreground tabular-nums">
-                  {formatMXN(initialBalanceCents)}
-                </div>
-                {saldoDesactualizado && (
-                  <p className="text-xs text-warning-text mt-1">
-                    Capturado hace {data.openingBalance?.ageInDays} días · conviene actualizarlo
-                  </p>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+        {/* El saldo se captura en la misma tarjeta que lo muestra: corregirlo no
+            debería exigir salir de la pantalla que motivó la corrección. */}
+        <OpeningBalanceCard
+          balanceCents={initialBalanceCents}
+          openingBalance={data.openingBalance}
+          branchId={data.scope?.branchId ?? null}
+          branchName={data.scope?.branchName ?? null}
+          canEdit={canEditAssumptions}
+          onSaved={onAssumptionSaved ?? (() => {})}
+        />
 
         {/* Saldo mínimo */}
         <Card
@@ -580,6 +604,36 @@ export function CashFlowCalendar({ projection, horizonDays }: CashFlowCalendarPr
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════
+          Línea de supuestos: qué de esta pantalla es dato y qué es estimación.
+          Las cuatro cargan toda la proyección y antes se presentaban como
+          hechos, sin manera de saber de dónde salían.
+          ════════════════════════════════════════════════════════════ */}
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">Supuestos:</span>
+        {supuestos.map((s, i) => (
+          <span key={s.titulo} className="flex items-center gap-1.5">
+            {i > 0 && <span aria-hidden="true">·</span>}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 underline decoration-dotted underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                >
+                  {s.titulo}
+                  <HelpCircle className="w-3 h-3" aria-hidden="true" />
+                  <span className="sr-only">— cómo se calcula</span>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 text-xs leading-relaxed" align="start">
+                <p className="font-medium text-foreground mb-1">{s.titulo}</p>
+                <p className="text-muted-foreground">{s.explicacion}</p>
+              </PopoverContent>
+            </Popover>
+          </span>
+        ))}
       </div>
 
       {/* Procurement summary — what's feeding the projection */}

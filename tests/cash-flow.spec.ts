@@ -5,6 +5,7 @@ import {
   BRANCH_POLANCO,
   COMPANY_ID,
   E2E_TAG,
+  EMPLEADO_EMAIL,
   GERENTE_BRANCH,
   GERENTE_EMAIL,
   USER_SUPER_ADMIN,
@@ -255,6 +256,160 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
       expect(dia.netFlowCents, `Flujo neto del ${dia.date}`).toBeNull();
       expect(dia.cumulativeBalanceCents, `Saldo del ${dia.date}`).toBeNull();
     }
+  });
+});
+
+/**
+ * Task 9 — capturar el saldo desde la pantalla, con RBAC.
+ *
+ * La Task 8 dejó de inventar el saldo, pero sin superficie para capturarlo la
+ * pantalla sólo sabía decir "sin capturar". Aquí se cierra el círculo.
+ */
+test.describe("Task 9 · captura del saldo inicial", () => {
+  test.setTimeout(180_000);
+  const PANTALLA = "/dashboard/finance/cash-flow";
+
+  test.beforeAll(async () => {
+    await deleteCashFlowAssumptions(COMPANY_ID);
+  });
+
+  test.afterAll(async () => {
+    await deleteCashFlowAssumptions(COMPANY_ID);
+  });
+
+  test("capturar el saldo persiste y cambia las cifras derivadas", async ({ request }) => {
+    await deleteCashFlowAssumptions(COMPANY_ID);
+
+    const antes = await obtenerProyeccion(request, 30);
+    expect(antes.initialBalanceCents).toBeNull();
+
+    const guardado = await request.put("/api/finance/cash-flow/assumptions", {
+      data: { openingBalanceCents: 4_500_000, branchId: null },
+    });
+    expect(guardado.ok(), `La API respondió ${guardado.status()}`).toBe(true);
+
+    const despues = await obtenerProyeccion(request, 30);
+    expect(despues.initialBalanceCents).toBe(4_500_000);
+    expect(despues.openingBalance.source).toBe("COMPANY");
+    expect(despues.openingBalance.ageInDays).toBe(0);
+
+    // Capturar dos veces actualiza, no duplica: si se insertara una segunda
+    // fila de grupo, la lectura sería ambigua.
+    const otraVez = await request.put("/api/finance/cash-flow/assumptions", {
+      data: { openingBalanceCents: 6_000_000, branchId: null },
+    });
+    expect(otraVez.ok()).toBe(true);
+
+    const final = await obtenerProyeccion(request, 30);
+    expect(final.initialBalanceCents).toBe(6_000_000);
+  });
+
+  test("un saldo con fecha futura se rechaza", async ({ request }) => {
+    const manana = addCalendarDays(localDateString(new Date(), "America/Mexico_City"), 1);
+    const res = await request.put("/api/finance/cash-flow/assumptions", {
+      data: { openingBalanceCents: 1_000_000, branchId: null, asOfDate: manana },
+    });
+    expect(res.ok()).toBe(false);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+  });
+
+  test("un saldo negativo se acepta: una cuenta sobregirada es un saldo real", async ({
+    request,
+  }) => {
+    const res = await request.put("/api/finance/cash-flow/assumptions", {
+      data: { openingBalanceCents: -250_000, branchId: null },
+    });
+    expect(res.ok()).toBe(true);
+
+    const proyeccion = await obtenerProyeccion(request, 30);
+    expect(proyeccion.initialBalanceCents).toBe(-250_000);
+  });
+
+  test("un EMPLEADO no puede capturar el saldo de la empresa", async ({ browser }) => {
+    const contexto = await browser.newContext({ storageState: undefined });
+    try {
+      const login = await contexto.request.post("/api/auth/sign-in/email", {
+        data: { email: EMPLEADO_EMAIL, password: ADMIN_PASSWORD },
+      });
+      expect(login.ok(), `Login de EMPLEADO respondió ${login.status()}`).toBe(true);
+
+      const res = await contexto.request.put("/api/finance/cash-flow/assumptions", {
+        data: { openingBalanceCents: 99_999_900, branchId: null },
+      });
+      expect(res.ok()).toBe(false);
+      expect(res.status()).toBe(403);
+
+      // Y el envelope es el del repo, no un 500 genérico.
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toBeTruthy();
+    } finally {
+      await contexto.close();
+    }
+  });
+
+  test("un GERENTE captura para su sucursal, no para otra", async ({ browser }) => {
+    const contexto = await browser.newContext({ storageState: undefined });
+    try {
+      const login = await contexto.request.post("/api/auth/sign-in/email", {
+        data: { email: GERENTE_EMAIL, password: ADMIN_PASSWORD },
+      });
+      expect(login.ok()).toBe(true);
+
+      // Juan es GERENTE de Condesa y pide capturar para Polanco.
+      const res = await contexto.request.put("/api/finance/cash-flow/assumptions", {
+        data: { openingBalanceCents: 3_333_300, branchId: BRANCH_POLANCO },
+      });
+      expect(res.ok()).toBe(true);
+
+      // `enforceBranchScope` lo redirige a la suya: el saldo quedó en Condesa.
+      const json = await res.json();
+      expect(json.data.branchId).toBe(GERENTE_BRANCH);
+      expect(json.data.branchId).not.toBe(BRANCH_POLANCO);
+    } finally {
+      await contexto.close();
+      await deleteCashFlowAssumptions(COMPANY_ID);
+    }
+  });
+
+  test("la pantalla ofrece capturar el saldo y lo guarda", async ({ page }) => {
+    await deleteCashFlowAssumptions(COMPANY_ID);
+    await page.goto(`${PANTALLA}?days=30`);
+
+    // Sin captura, la pantalla lo pide en vez de proyectar sobre cero.
+    await expect(page.getByText("Sin capturar")).toBeVisible();
+
+    await page.getByRole("button", { name: /Capturar/ }).click();
+    await page.getByRole("textbox").first().fill("38500");
+    await page.getByRole("button", { name: "Guardar" }).click();
+
+    // La proyección se revalida sola: la cifra aparece sin recargar.
+    await expect(page.getByText("$38,500.00")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Sin capturar")).toHaveCount(0);
+
+    await deleteCashFlowAssumptions(COMPANY_ID);
+  });
+
+  test("la línea de supuestos nombra las cuatro estimaciones", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30`);
+
+    const supuestos = page.getByText("Supuestos:");
+    await expect(supuestos).toBeVisible();
+
+    // Las cuatro que cargan la pantalla, cada una con su "cómo se calcula".
+    for (const nombre of [
+      "Saldo inicial",
+      "Entradas por ventas",
+      "Fecha de pago de las OC",
+      "Quincena",
+    ]) {
+      await expect(page.getByRole("button", { name: new RegExp(nombre) })).toBeVisible();
+    }
+
+    // El popover explica de dónde sale la cifra, no sólo que es un supuesto.
+    await page.getByRole("button", { name: /Quincena/ }).click();
+    await expect(page.getByText(/15 y el 30 de cada mes/)).toBeVisible();
   });
 });
 
