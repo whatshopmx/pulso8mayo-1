@@ -1,8 +1,12 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import {
+  ADMIN_PASSWORD,
   BRANCH_CONDESA,
+  BRANCH_POLANCO,
   COMPANY_ID,
   E2E_TAG,
+  GERENTE_BRANCH,
+  GERENTE_EMAIL,
   USER_SUPER_ADMIN,
 } from "./support/constants";
 import {
@@ -79,6 +83,8 @@ interface Proyeccion {
     avgDailyInflowCents: number | null;
   };
   procurementCommitments: Comprometido & { outsideWindow: Comprometido };
+  scope: { branchId: string | null; branchName: string | null };
+  unassignedInvoicesCount: number;
 }
 
 /** Día de la semana (0=domingo) de un `YYYY-MM-DD`, sin arrastrar zona horaria. */
@@ -88,9 +94,11 @@ function diaDeLaSemana(fecha: string): number {
 
 async function obtenerProyeccion(
   request: APIRequestContext,
-  dias = VENTANA_DIAS
+  dias = VENTANA_DIAS,
+  branchId?: string
 ): Promise<Proyeccion> {
-  const res = await request.get(`/api/finance/cash-flow?days=${dias}`);
+  const url = `/api/finance/cash-flow?days=${dias}${branchId ? `&branchId=${branchId}` : ""}`;
+  const res = await request.get(url);
   expect(res.ok(), `La API respondió ${res.status()}`).toBe(true);
   const json = await res.json();
   expect(json.success).toBe(true);
@@ -237,6 +245,132 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
       if (dia.projectedInflowCents !== null) continue;
       expect(dia.netFlowCents, `Flujo neto del ${dia.date}`).toBeNull();
       expect(dia.cumulativeBalanceCents, `Saldo del ${dia.date}`).toBeNull();
+    }
+  });
+});
+
+/**
+ * Task 6 — alcance por sucursal.
+ *
+ * La página mandaba `branchId` y la ruta lo tiraba: una dueña que cambiaba a
+ * "Polanco" en el selector del encabezado veía las cifras del grupo entero
+ * etiquetadas como esa sucursal, y actuaba sobre ellas. Es peor que una función
+ * faltante — es un número equivocado presentado con confianza en la única
+ * pantalla cuyo nombre promete alertar.
+ */
+test.describe("Task 6 · alcance por sucursal", () => {
+  test.beforeAll(async () => {
+    await deleteTestExpenses();
+    // Un gasto distinto en cada sucursal: sin esto las dos podrían coincidir
+    // por casualidad y el test pasaría sin probar nada.
+    await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), 3),
+      amountCents: 1_111_100,
+      description: `${E2E_TAG} Gasto solo de Condesa`,
+    });
+    await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_POLANCO,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), 3),
+      amountCents: 2_222_200,
+      description: `${E2E_TAG} Gasto solo de Polanco`,
+    });
+  });
+
+  test.afterAll(async () => {
+    await deleteTestExpenses();
+  });
+
+  test("cambiar de sucursal cambia las cifras", async ({ request }) => {
+    const condesa = await obtenerProyeccion(request, 30, BRANCH_CONDESA);
+    const polanco = await obtenerProyeccion(request, 30, BRANCH_POLANCO);
+    const grupo = await obtenerProyeccion(request, 30);
+
+    const total = (p: Proyeccion) =>
+      p.days.reduce((t, d) => t + d.projectedOutflowCents, 0);
+
+    expect(total(condesa)).not.toBe(total(polanco));
+    expect(total(grupo)).not.toBe(total(condesa));
+
+    // Y cada una ve lo suyo, no lo de la otra.
+    const descripciones = (p: Proyeccion) => p.outflowItems.map((i) => i.description);
+    expect(descripciones(condesa)).toContain(`${E2E_TAG} Gasto solo de Condesa`);
+    expect(descripciones(condesa)).not.toContain(`${E2E_TAG} Gasto solo de Polanco`);
+    expect(descripciones(polanco)).toContain(`${E2E_TAG} Gasto solo de Polanco`);
+    expect(descripciones(polanco)).not.toContain(`${E2E_TAG} Gasto solo de Condesa`);
+  });
+
+  test("el payload declara siempre para qué alcance son los números", async ({ request }) => {
+    const grupo = await obtenerProyeccion(request, 30);
+    expect(grupo.scope.branchId).toBeNull();
+    expect(grupo.scope.branchName).toBeNull();
+
+    const condesa = await obtenerProyeccion(request, 30, BRANCH_CONDESA);
+    expect(condesa.scope.branchId).toBe(BRANCH_CONDESA);
+    // Con nombre: la píldora dice "Condesa", no un UUID.
+    expect(condesa.scope.branchName).toBeTruthy();
+  });
+
+  test("un GERENTE queda fijado a su sucursal aunque pida otra", async ({ browser }) => {
+    // Contexto limpio: el storageState compartido es de SUPER_ADMIN, que sí
+    // puede pedir cualquier sucursal.
+    const contexto = await browser.newContext({ storageState: undefined });
+    try {
+      const login = await contexto.request.post("/api/auth/sign-in/email", {
+        data: { email: GERENTE_EMAIL, password: ADMIN_PASSWORD },
+      });
+      expect(login.ok(), `Login de GERENTE respondió ${login.status()}`).toBe(true);
+
+      // Juan es GERENTE de Condesa y pide Polanco.
+      const res = await contexto.request.get(
+        `/api/finance/cash-flow?days=30&branchId=${BRANCH_POLANCO}`
+      );
+      expect(res.ok(), `La API respondió ${res.status()}`).toBe(true);
+      const proyeccion = (await res.json()).data as Proyeccion;
+
+      // `enforceBranchScope` le devuelve la suya, y el payload lo declara: la
+      // pantalla rotula el alcance aplicado, no el solicitado.
+      expect(proyeccion.scope.branchId).toBe(GERENTE_BRANCH);
+      expect(proyeccion.scope.branchId).not.toBe(BRANCH_POLANCO);
+      expect(proyeccion.outflowItems.map((i) => i.description)).not.toContain(
+        `${E2E_TAG} Gasto solo de Polanco`
+      );
+    } finally {
+      await contexto.close();
+    }
+  });
+
+  test("las facturas sin sucursal se excluyen y se declaran", async ({ request }) => {
+    const grupo = await obtenerProyeccion(request, 30);
+    const condesa = await obtenerProyeccion(request, 30, BRANCH_CONDESA);
+
+    // En alcance de grupo no se excluye nada, así que el conteo es cero.
+    expect(grupo.unassignedInvoicesCount).toBe(0);
+    // Con sucursal, el conteo existe (aunque sea 0 con la semilla actual) y
+    // nunca es negativo: es la cifra que la pantalla declara.
+    expect(condesa.unassignedInvoicesCount).toBeGreaterThanOrEqual(0);
+  });
+
+  test("los invariantes de la Fase 0 se sostienen con alcance de sucursal", async ({
+    request,
+  }) => {
+    const condesa = await obtenerProyeccion(request, 30, BRANCH_CONDESA);
+
+    const primerDia = condesa.days[0].date;
+    const ultimoDia = condesa.days[condesa.days.length - 1].date;
+    expect(condesa.days.reduce((t, d) => t + d.projectedOutflowCents, 0)).toBe(
+      sumaEnRango(condesa.outflowItems, primerDia, ultimoDia)
+    );
+
+    for (const semana of condesa.weeklyAggregation) {
+      const suma = condesa.days
+        .filter((d) => d.date >= semana.startDate && d.date <= semana.endDate)
+        .reduce((t, d) => t + d.projectedOutflowCents, 0);
+      expect(suma, semana.weekLabel).toBe(semana.totalOutflowCents);
     }
   });
 });

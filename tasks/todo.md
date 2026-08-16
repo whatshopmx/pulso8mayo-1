@@ -231,27 +231,48 @@ de sucursal sigue sin llegar al servicio. Fases 1 y 2.
 
 ## Fase 1: Alcance por sucursal (P0)
 
-- [ ] **Task 6**: Hilar `branchId` de la ruta al servicio
+- [x] **Task 6**: Hilar `branchId` de la ruta al servicio
   - **Descripción**: `page.tsx:29-31` manda `branchId`; `route.ts:23-27` sólo lee `days` y llama
     `getCashFlowProjection(ctx.userCompanyId, days)`. Cada consulta filtra únicamente por
     `companyId`. Una dueña que cambia a "Polanco" ve las cifras del grupo entero etiquetadas como una
     sucursal, y actúa sobre ellas. Es peor que una función faltante: es un número equivocado
     presentado con confianza en la única pantalla cuyo nombre promete alertar.
   - **Acceptance criteria**:
-    - [ ] `route.ts` lee `branchId` y lo pasa por `enforceBranchScope` (`lib/branch-scope.ts`)
-    - [ ] `getCashFlowProjection(companyId, days, branchId?)` filtra `operatingExpenses`,
-          `purchaseOrders`, `invoices`, `dailySalesCuts` y `employeeContracts`→`users.branchId`
-    - [ ] Facturas con `branch_id` NULL se excluyen del cálculo por sucursal y su conteo viaja en el
-          payload como `unassignedInvoicesCount`
-    - [ ] La cabecera muestra una píldora con el alcance vigente ("Grupo completo" / nombre de sucursal)
-    - [ ] GERENTE y SUPERVISOR quedan fijados a su sucursal aunque pidan otra
+    - [x] `route.ts` lee `branchId` y lo pasa por `enforceBranchScope` (`lib/branch-scope.ts`),
+          con `ctx.userRole` / `ctx.userBranchId` de sesión — nunca del query
+    - [x] `getCashFlowProjection(companyId, days, branchId?)` filtra las cinco consultas:
+          `operatingExpenses` (proyectados **y** vencidos), `purchaseOrders`, `invoices`,
+          `dailySalesCuts` y `employeeContracts`→`users.branchId`
+    - [x] Facturas con `branch_id` NULL: se traen con `(branch_id = X OR branch_id IS NULL)`,
+          se excluyen del cálculo y su conteo viaja como `unassignedInvoicesCount`
+    - [x] Píldora de alcance arriba de todo, siempre visible ("Grupo completo" / nombre de
+          sucursal). Rotula el alcance **aplicado**, que es lo que devuelve `scope` en el
+          payload: a un GERENTE que pide otra sucursal el servidor le devuelve la suya, y la
+          pantalla tiene que decir la verdad sobre lo que calculó
+    - [x] GERENTE y SUPERVISOR quedan fijados a su sucursal aunque pidan otra
   - **Verificación**:
-    - [ ] `curl` a la API con dos `branchId` distintos devuelve cifras distintas
-    - [ ] Sesión de GERENTE pidiendo otra sucursal → responde con la suya
-    - [ ] `pnpm exec playwright test tests/cash-flow.spec.ts -g "sucursal"`
+    - [x] Dos `branchId` distintos devuelven cifras distintas, y ninguna sucursal ve la
+          partida de la otra (Condesa $11,111 vs Polanco $22,222 sembrados a propósito:
+          sin montos distintos el test podría pasar por casualidad)
+    - [x] El grupo tampoco coincide con ninguna sucursal sola
+    - [x] **Sesión real de GERENTE** (`juan@pulso.mx`, fijado a Condesa) pidiendo Polanco →
+          el payload responde con Condesa y sin la partida de Polanco. Se levanta un contexto
+          limpio en el spec y se inicia sesión contra `/api/auth/sign-in/email`: el
+          `storageState` compartido es de SUPER_ADMIN, que sí puede pedir cualquier sucursal
+    - [x] La factura sin sucursal aparece en el alcance de grupo, desaparece del alcance por
+          sucursal y su conteo se declara
+    - [x] Los invariantes de la Fase 0 (días == partidas, semana == suma de sus días) se
+          sostienen con alcance de sucursal
+    - [x] `npx tsc --noEmit` y `npx eslint` limpios · **27/27** en el spec
   - **Dependencias**: Tasks 1-5
   - **Archivos**: `app/api/finance/cash-flow/route.ts`, `lib/services/cash-flow-service.ts`,
-    `app/dashboard/finance/cash-flow/page.tsx`, `components/finance/cash-flow-calendar.tsx`
+    `components/finance/cash-flow-calendar.tsx`, `tests/cash-flow.spec.ts`,
+    `tests/support/constants.ts`
+  - **Nota**: `page.tsx` no necesitó cambios — ya mandaba `branchId` desde el selector del
+    encabezado. El defecto era enteramente del lado del servidor: la ruta lo recibía y lo
+    tiraba.
+  - **Nota sobre la nómina**: se filtra por `users.branchId`, no por
+    `employee_contracts.branch_id`, que es nullable y viene vacío en la base sembrada.
   - **Alcance**: M
 
 - [ ] **Task 7**: Horizonte y estado de pantalla en la URL

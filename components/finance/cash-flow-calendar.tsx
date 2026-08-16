@@ -17,6 +17,7 @@ import {
   Clock,
   PieChart,
   BarChart3,
+  Building2,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -94,6 +95,13 @@ export interface CashFlowProjection {
   upcomingItems: OutflowItem[];
   initialBalanceCents: number;
   inflow?: InflowEstimate;
+  /** Alcance realmente aplicado — puede diferir del solicitado (`enforceBranchScope`). */
+  scope?: {
+    branchId: string | null;
+    branchName: string | null;
+  };
+  /** Facturas sin sucursal asignada, excluidas del cálculo por sucursal. */
+  unassignedInvoicesCount?: number;
   procurementCommitments?: {
     purchaseOrdersCount: number;
     purchaseOrdersTotalCents: number;
@@ -368,6 +376,29 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
 
   return (
     <div className="space-y-6">
+      {/* Para qué sucursal son estos números. Va arriba de todo y siempre
+          visible: las cifras del grupo entero etiquetadas como una sucursal son
+          peor que no tener el filtro. Rotula el alcance APLICADO — a un GERENTE
+          que pide otra sucursal el servidor le devuelve la suya. */}
+      {data.scope && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Badge variant="outline" className="gap-1.5 font-medium">
+            <Building2 className="w-3 h-3" />
+            {data.scope.branchName ?? (data.scope.branchId ? "Sucursal" : "Grupo completo")}
+          </Badge>
+          {/* `invoices.branch_id` es nullable: estas facturas quedaron fuera del
+              cálculo por sucursal. Se dicen en voz alta en vez de desaparecer. */}
+          {data.unassignedInvoicesCount != null && data.unassignedInvoicesCount > 0 && (
+            <span className="text-muted-foreground">
+              {data.unassignedInvoicesCount}{" "}
+              {data.unassignedInvoicesCount === 1
+                ? "factura sin sucursal asignada, no incluida"
+                : "facturas sin sucursal asignada, no incluidas"}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* ════════════════════════════════════════════════════════════
           FILA 1: ¿Me alcanza? — hero cards
           ════════════════════════════════════════════════════════════ */}

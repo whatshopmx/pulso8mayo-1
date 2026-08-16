@@ -94,6 +94,24 @@ export interface CashFlowProjection {
   /** Sobre qué base se estimaron las entradas, para declararlo en pantalla */
   inflow: InflowEstimate;
   /**
+   * Alcance con el que se calcularon estas cifras.
+   *
+   * Es el alcance **aplicado**, no el solicitado: a un GERENTE que pide otra
+   * sucursal `enforceBranchScope` le devuelve la suya, y la pantalla tiene que
+   * rotular lo que de verdad se calculó. Etiquetar cifras de grupo como si
+   * fueran de una sucursal es peor que no tener el filtro.
+   */
+  scope: {
+    branchId: string | null;
+    branchName: string | null;
+  };
+  /**
+   * Facturas pendientes sin sucursal asignada, excluidas del cálculo cuando el
+   * alcance es una sucursal. `invoices.branch_id` es nullable: sin declararlas,
+   * desaparecerían en silencio.
+   */
+  unassignedInvoicesCount: number;
+  /**
    * PO + facturas comprometidas **incluidas en la proyección**.
    *
    * Antes esto sumaba todas las OC comprometidas y todas las facturas
@@ -157,36 +175,51 @@ function monthOf(dateStr: string): number {
 }
 
 /**
- * Zona horaria con la que se decide qué día es "hoy" para esta proyección.
+ * Alcance de la proyección: qué sucursal y con qué reloj se decide "hoy".
  *
  * `branches.timezone` es la única fuente de husos del esquema — `companies` no
- * tiene columna. La proyección todavía es de grupo completo (la sucursal se hila
- * en la Task 6), así que se usa la zona de las sucursales sólo cuando todas
- * coinciden: un grupo repartido entre Cancún y Tijuana no tiene un "hoy" único,
- * y elegir la de una sucursal al azar sería peor que caer al default de
- * `localDateString` (America/Mexico_City).
+ * tiene columna. Con sucursal se usa la suya. Sin sucursal (grupo completo) se
+ * usa la de las sucursales sólo cuando todas coinciden: un grupo repartido entre
+ * Cancún y Tijuana no tiene un "hoy" único, y elegir la de una al azar sería
+ * peor que caer al default de `localDateString` (America/Mexico_City).
  */
-async function resolveProjectionTimezone(companyId: string): Promise<string | null> {
+async function resolveProjectionScope(
+  companyId: string,
+  branchId?: string
+): Promise<{ timeZone: string | null; branchName: string | null }> {
+  if (branchId) {
+    const [row] = await db
+      .select({ timezone: branches.timezone, name: branches.name })
+      .from(branches)
+      .where(and(eq(branches.id, branchId), eq(branches.companyId, companyId)))
+      .limit(1);
+    return { timeZone: row?.timezone ?? null, branchName: row?.name ?? null };
+  }
+
   const zonas = await db
     .selectDistinct({ timezone: branches.timezone })
     .from(branches)
     .where(and(eq(branches.companyId, companyId), eq(branches.active, true)));
 
   const distintas = zonas.map((z) => z.timezone).filter(Boolean);
-  return distintas.length === 1 ? distintas[0] : null;
+  return {
+    timeZone: distintas.length === 1 ? distintas[0] : null,
+    branchName: null,
+  };
 }
 
 // ── Main function ────────────────────────────────────────────────
 
 export async function getCashFlowProjection(
   companyId: string,
-  days = 30
+  days = 30,
+  branchId?: string
 ): Promise<CashFlowProjection> {
   // Qué día es "hoy" se decide con el reloj de la sucursal, no con el del
   // servidor. `toISOString()` calcula en UTC: en UTC-6, después de las 6pm local
   // —la hora a la que una dueña revisa el dinero— la ventana se recorría un día
   // y las partidas saltaban entre "vencido" y "próximo".
-  const timeZone = await resolveProjectionTimezone(companyId);
+  const { timeZone, branchName } = await resolveProjectionScope(companyId, branchId);
   const startDate = new Date();
   const startDateStr = localDateString(startDate, timeZone);
   // Último día que el timeline emite de verdad: el bucle de abajo produce `days`
@@ -214,6 +247,7 @@ export async function getCashFlowProjection(
     .where(
       and(
         eq(dailySalesCuts.companyId, companyId),
+        ...(branchId ? [eq(dailySalesCuts.branchId, branchId)] : []),
         gte(dailySalesCuts.businessDate, lookbackStartStr),
         lte(dailySalesCuts.businessDate, startDateStr)
       )
@@ -277,6 +311,7 @@ export async function getCashFlowProjection(
     .where(
       and(
         eq(operatingExpenses.companyId, companyId),
+        ...(branchId ? [eq(operatingExpenses.branchId, branchId)] : []),
         gte(operatingExpenses.dueDate, startDateStr),
         lte(operatingExpenses.dueDate, endDateStr)
       )
@@ -297,6 +332,7 @@ export async function getCashFlowProjection(
     .where(
       and(
         eq(operatingExpenses.companyId, companyId),
+        ...(branchId ? [eq(operatingExpenses.branchId, branchId)] : []),
         sql`${operatingExpenses.dueDate} < ${startDateStr}`,
         sql`${operatingExpenses.status} != 'PAID'`
       )
@@ -319,6 +355,7 @@ export async function getCashFlowProjection(
     .where(
       and(
         eq(purchaseOrders.companyId, companyId),
+        ...(branchId ? [eq(purchaseOrders.branchId, branchId)] : []),
         // Copia mutable en vez de `as any`: `inArray` no acepta un `readonly[]`,
         // pero el cast silenciaba también un cambio de valores del enum.
         inArray(purchaseOrders.status, [...PO_COMMITTED_STATUSES]),
@@ -340,13 +377,20 @@ export async function getCashFlowProjection(
   //
   // El vencimiento también sale de ahí: `due_date` (fecha del CFDI + días de
   // crédito del proveedor) es cuándo se paga de verdad, no la fecha de emisión.
-  const invRows = await db
+  //
+  // `invoices.branch_id` es **nullable**, a diferencia de las otras cuatro
+  // tablas. Filtrar con `= branchId` a secas haría desaparecer en silencio a las
+  // facturas sin sucursal asignada: dinero real que la dueña debe, invisible
+  // justo en la pantalla que promete alertarla. Se traen también las NULL, se
+  // excluyen del cálculo y su conteo se declara en pantalla.
+  const invRowsRaw = await db
     .select({
       id: invoices.id,
       folio: invoices.folio,
       total: invoices.total,
       fecha: invoices.fecha,
       dueDate: invoices.dueDate,
+      branchId: invoices.branchId,
       nombreEmisor: invoices.nombreEmisor,
       supplierName: suppliers.name,
     })
@@ -355,9 +399,21 @@ export async function getCashFlowProjection(
     .where(
       and(
         eq(invoices.companyId, companyId),
-        eq(invoices.paymentStatus, "PENDING")
+        eq(invoices.paymentStatus, "PENDING"),
+        ...(branchId
+          ? [
+              sql`(${invoices.branchId} = ${branchId} OR ${invoices.branchId} IS NULL)`,
+            ]
+          : [])
       )
     );
+
+  const invRows = branchId
+    ? invRowsRaw.filter((inv) => inv.branchId === branchId)
+    : invRowsRaw;
+  const unassignedInvoicesCount = branchId
+    ? invRowsRaw.filter((inv) => inv.branchId === null).length
+    : 0;
 
   // ── 6. Real payroll from active employee contracts ────────────
   const activeEmployees = await db
@@ -372,6 +428,10 @@ export async function getCashFlowProjection(
     .where(
       and(
         eq(users.companyId, companyId),
+        // La nómina sigue a la sucursal del empleado (`users.branchId`), no a la
+        // del contrato: `employee_contracts.branch_id` es nullable y en la base
+        // sembrada viene vacío.
+        ...(branchId ? [eq(users.branchId, branchId)] : []),
         eq(employeeContracts.status, "ACTIVE")
       )
     );
@@ -694,6 +754,11 @@ export async function getCashFlowProjection(
       lookbackDays: INFLOW_LOOKBACK_DAYS,
       avgDailyInflowCents,
     },
+    scope: {
+      branchId: branchId ?? null,
+      branchName,
+    },
+    unassignedInvoicesCount,
     procurementCommitments: {
       ...admitido,
       outsideWindow: fueraDeVentana,
