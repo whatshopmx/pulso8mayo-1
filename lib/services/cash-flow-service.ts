@@ -93,12 +93,29 @@ export interface CashFlowProjection {
   initialBalanceCents: number;
   /** Sobre qué base se estimaron las entradas, para declararlo en pantalla */
   inflow: InflowEstimate;
-  /** PO + facturas comprometidas incluidas en la proyección */
+  /**
+   * PO + facturas comprometidas **incluidas en la proyección**.
+   *
+   * Antes esto sumaba todas las OC comprometidas y todas las facturas
+   * pendientes, incluidas las que vencen fuera de la ventana, mientras la
+   * proyección sólo admite las de adentro. Eran dos cifras en la misma pantalla
+   * afirmando describir la misma proyección y sin coincidir nunca.
+   *
+   * Ahora los totales son los admitidos, y lo que queda fuera se declara aparte
+   * en vez de desaparecer: sigue siendo dinero comprometido, sólo que después.
+   */
   procurementCommitments: {
     purchaseOrdersCount: number;
     purchaseOrdersTotalCents: number;
     invoicesCount: number;
     invoicesTotalCents: number;
+    /** Comprometido real que vence después de la ventana proyectada */
+    outsideWindow: {
+      purchaseOrdersCount: number;
+      purchaseOrdersTotalCents: number;
+      invoicesCount: number;
+      invoicesTotalCents: number;
+    };
   };
   /** Nómina real estimada desde contratos activos */
   payroll: {
@@ -404,6 +421,22 @@ export async function getCashFlowProjection(
     }
   }
 
+  // Comprometido admitido en la ventana vs. comprometido que vence después. Se
+  // cuenta aquí, donde se decide la admisión, para que la tira de "Fuentes de
+  // egresos" no pueda desviarse de lo que la proyección realmente incluyó.
+  const admitido = {
+    purchaseOrdersCount: 0,
+    purchaseOrdersTotalCents: 0,
+    invoicesCount: 0,
+    invoicesTotalCents: 0,
+  };
+  const fueraDeVentana = {
+    purchaseOrdersCount: 0,
+    purchaseOrdersTotalCents: 0,
+    invoicesCount: 0,
+    invoicesTotalCents: 0,
+  };
+
   // 6b. Purchase Orders → estimate outflow on expectedDeliveryDate or dateRequired
   for (const po of poRows) {
     // Use expectedDeliveryDate as proxy for payment date (typically 7-30 days after delivery)
@@ -436,6 +469,11 @@ export async function getCashFlowProjection(
         source: "PURCHASE_ORDER",
         supplierName: po.supplierName || undefined,
       });
+      admitido.purchaseOrdersCount += 1;
+      admitido.purchaseOrdersTotalCents += po.totalAmount || 0;
+    } else {
+      fueraDeVentana.purchaseOrdersCount += 1;
+      fueraDeVentana.purchaseOrdersTotalCents += po.totalAmount || 0;
     }
   }
 
@@ -465,6 +503,11 @@ export async function getCashFlowProjection(
         source: "PROCUREMENT_INVOICE",
         supplierName: inv.nombreEmisor || inv.supplierName || undefined,
       });
+      admitido.invoicesCount += 1;
+      admitido.invoicesTotalCents += inv.total;
+    } else {
+      fueraDeVentana.invoicesCount += 1;
+      fueraDeVentana.invoicesTotalCents += inv.total;
     }
   }
 
@@ -652,10 +695,8 @@ export async function getCashFlowProjection(
       avgDailyInflowCents,
     },
     procurementCommitments: {
-      purchaseOrdersCount: poRows.length,
-      purchaseOrdersTotalCents: poRows.reduce((s, po) => s + (po.totalAmount || 0), 0),
-      invoicesCount: invRows.length,
-      invoicesTotalCents: invRows.reduce((s, inv) => s + inv.total, 0),
+      ...admitido,
+      outsideWindow: fueraDeVentana,
     },
     payroll: payrollData,
   };

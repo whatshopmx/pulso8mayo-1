@@ -44,6 +44,14 @@ interface Partida {
   date: string;
   amountCents: number;
   category: string;
+  source: "OPERATING_EXPENSE" | "PURCHASE_ORDER" | "PROCUREMENT_INVOICE";
+}
+
+interface Comprometido {
+  purchaseOrdersCount: number;
+  purchaseOrdersTotalCents: number;
+  invoicesCount: number;
+  invoicesTotalCents: number;
 }
 
 interface Semana {
@@ -70,6 +78,7 @@ interface Proyeccion {
     lookbackDays: number;
     avgDailyInflowCents: number | null;
   };
+  procurementCommitments: Comprometido & { outsideWindow: Comprometido };
 }
 
 /** Día de la semana (0=domingo) de un `YYYY-MM-DD`, sin arrastrar zona horaria. */
@@ -229,6 +238,61 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
       expect(dia.netFlowCents, `Flujo neto del ${dia.date}`).toBeNull();
       expect(dia.cumulativeBalanceCents, `Saldo del ${dia.date}`).toBeNull();
     }
+  });
+});
+
+/**
+ * Task 5 — la tira "Fuentes de egresos" contra la proyección.
+ *
+ * Sumaba TODAS las OC comprometidas y TODAS las facturas pendientes, incluidas
+ * las que vencen fuera de la ventana, mientras la proyección sólo admite las de
+ * adentro: dos cifras en la misma pantalla afirmando describir la misma
+ * proyección y sin coincidir nunca.
+ */
+test.describe("Task 5 · comprometido dentro y fuera de la ventana", () => {
+  test("la tira de fuentes describe exactamente lo que la proyección admitió", async ({
+    request,
+  }) => {
+    const proyeccion = await obtenerProyeccion(request);
+    const comprometido = proyeccion.procurementCommitments;
+
+    const primerDia = proyeccion.days[0].date;
+    const ultimoDia = proyeccion.days[proyeccion.days.length - 1].date;
+    const admitidas = (fuente: Partida["source"]) =>
+      proyeccion.outflowItems.filter(
+        (p) => p.source === fuente && p.date >= primerDia && p.date <= ultimoDia
+      );
+
+    const ocs = admitidas("PURCHASE_ORDER");
+    expect(comprometido.purchaseOrdersCount).toBe(ocs.length);
+    expect(comprometido.purchaseOrdersTotalCents).toBe(
+      ocs.reduce((t, p) => t + p.amountCents, 0)
+    );
+
+    const facturas = admitidas("PROCUREMENT_INVOICE");
+    expect(comprometido.invoicesCount).toBe(facturas.length);
+    expect(comprometido.invoicesTotalCents).toBe(
+      facturas.reduce((t, p) => t + p.amountCents, 0)
+    );
+  });
+
+  test("lo que vence fuera de la ventana se declara, no se mezcla", async ({ request }) => {
+    const proyeccion = await obtenerProyeccion(request);
+    const { outsideWindow } = proyeccion.procurementCommitments;
+
+    // El bloque existe siempre, aunque esté en ceros: la pantalla necesita poder
+    // decir "no hay nada más allá" con la misma confianza que "hay $X".
+    expect(outsideWindow).toBeDefined();
+    expect(outsideWindow.purchaseOrdersCount).toBeGreaterThanOrEqual(0);
+    expect(outsideWindow.invoicesCount).toBeGreaterThanOrEqual(0);
+
+    // Y no se cuela en la proyección: ninguna partida admitida cae fuera.
+    const primerDia = proyeccion.days[0].date;
+    const ultimoDia = proyeccion.days[proyeccion.days.length - 1].date;
+    const fugadas = proyeccion.outflowItems.filter(
+      (p) => p.date < primerDia || p.date > ultimoDia
+    );
+    expect(fugadas.map((p) => `${p.date} · ${p.source}`)).toEqual([]);
   });
 });
 

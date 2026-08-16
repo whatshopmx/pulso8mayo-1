@@ -99,6 +99,13 @@ export interface CashFlowProjection {
     purchaseOrdersTotalCents: number;
     invoicesCount: number;
     invoicesTotalCents: number;
+    /** Comprometido real que vence después de la ventana proyectada */
+    outsideWindow?: {
+      purchaseOrdersCount: number;
+      purchaseOrdersTotalCents: number;
+      invoicesCount: number;
+      invoicesTotalCents: number;
+    };
   };
   payroll?: {
     activeEmployees: number;
@@ -240,6 +247,15 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
   // proyectar sobre cero pintaba de rojo la pantalla de estreno de cualquier
   // inquilino nuevo.
   const sinHistorialDeVentas = inflow?.basis === "NONE";
+
+  // Comprometido que existe pero vence después de la ventana: se declara, no se
+  // suma a las cifras de la proyección.
+  const fueraDeVentanaRaw = data.procurementCommitments?.outsideWindow;
+  const fueraDeVentana =
+    fueraDeVentanaRaw &&
+    (fueraDeVentanaRaw.purchaseOrdersCount > 0 || fueraDeVentanaRaw.invoicesCount > 0)
+      ? fueraDeVentanaRaw
+      : null;
 
   // ── Derived metrics ──────────────────────────────────────────
   const metrics = useMemo(() => {
@@ -495,6 +511,33 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
             <span>+ gastos operativos</span>
           </div>
         )}
+
+      {/* Lo comprometido que vence DESPUÉS de la ventana. Antes se sumaba a las
+          cifras de arriba, así que la tira y "Total egresos" se contradecían
+          describiendo la misma proyección. Ahora se dice aparte: sigue siendo
+          dinero comprometido, sólo que más adelante. */}
+      {fueraDeVentana && (
+        <p className="text-xs text-muted-foreground px-3">
+          Además hay{" "}
+          <span className="font-medium text-foreground tabular-nums">
+            {formatMXN(
+              fueraDeVentana.purchaseOrdersTotalCents + fueraDeVentana.invoicesTotalCents
+            )}
+          </span>{" "}
+          comprometidos que vencen después de esta ventana
+          {fueraDeVentana.purchaseOrdersCount > 0 && (
+            <> · {fueraDeVentana.purchaseOrdersCount} OC</>
+          )}
+          {fueraDeVentana.invoicesCount > 0 && (
+            <>
+              {" "}
+              · {fueraDeVentana.invoicesCount}{" "}
+              {fueraDeVentana.invoicesCount === 1 ? "factura" : "facturas"}
+            </>
+          )}
+          . No se incluyen en las cifras de arriba.
+        </p>
+      )}
 
       {/* ════════════════════════════════════════════════════════════
           FILA 1.5: Facturas vencidas — ACCIÓN INMEDIATA

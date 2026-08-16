@@ -180,25 +180,52 @@ Archivos principales:
     de módulo duplicado contra el que advierte CLAUDE.md.
   - **Alcance**: S
 
-- [ ] **Task 5**: `procurementCommitments` fuera de la ventana
+- [x] **Task 5**: `procurementCommitments` fuera de la ventana
   - **Descripción**: `:462-467` suma **todas** las OC comprometidas y facturas pendientes, incluidas
     las que caen fuera de los 30 días; la proyección sólo admite las de la ventana (`:284`, `:313`).
     Dos cifras en una pantalla afirmando describir la misma proyección.
   - **Acceptance criteria**:
-    - [ ] O se suman sólo las partidas admitidas, o la tira se relabela como respaldo total y declara
-          cuánto de eso queda fuera de la ventana
-    - [ ] La suma de categorías y la tira de fuentes concuerdan, o la diferencia está explicada
+    - [x] Se hacen **las dos cosas**: los totales de `procurementCommitments` pasan a ser sólo
+          los admitidos, y lo que vence después se declara en `outsideWindow`. Los contadores
+          se llevan en el mismo bucle donde se decide la admisión, así la tira no puede
+          desviarse de lo que la proyección incluyó
+    - [x] La tira y "Total egresos" concuerdan; la diferencia queda explicada en pantalla
+          ("Además hay $X comprometidos que vencen después de esta ventana. No se incluyen en
+          las cifras de arriba.")
   - **Verificación**:
-    - [ ] Con una OC fechada a 60 días, la tira y "Total egresos" no se contradicen
+    - [x] Con una OC de $50,000 fechada a 60 días: la tira sigue diciendo `3 OC = $3,541`
+          (== suma real de OC admitidas), "Total egresos" no se mueve, y la OC aparece
+          declarada como `outsideWindow: 1 OC = $50,000`. Antes la tira habría dicho
+          `4 OC = $53,541` sobre una proyección que sólo contiene $3,541
+    - [x] Invariante en el spec: `purchaseOrdersTotalCents` == Σ partidas `PURCHASE_ORDER`
+          admitidas, e igual para facturas — vale con cualquier semilla
+    - [x] `npx tsc --noEmit` limpio · `pnpm exec playwright test tests/cash-flow.spec.ts` 22/22
   - **Dependencias**: Ninguna
-  - **Archivos**: `lib/services/cash-flow-service.ts`, `components/finance/cash-flow-calendar.tsx`
+  - **Archivos**: `lib/services/cash-flow-service.ts`, `components/finance/cash-flow-calendar.tsx`,
+    `tests/cash-flow.spec.ts`
   - **Alcance**: S
 
-### Checkpoint: Aritmética
-- [ ] `pnpm run build` limpio (fallback: `npx tsc --noEmit` si Geist no baja sin red)
-- [ ] Invariante de egresos: días == partidas
-- [ ] Invariante semanal: semana == suma de sus días
-- [ ] Un inquilino sin cortes de venta no ve pantalla roja
+### Checkpoint: Aritmética — ✅ cerrado
+- [x] `pnpm run build` **no corre sin red**: falla con `Failed to fetch 'Geist' from Google
+      Fonts` y nada más (es el riesgo previsto en el plan). Fallback documentado:
+      `npx tsc --noEmit` → limpio
+- [x] `npx eslint` sobre los cinco archivos tocados: los 3 hallazgos
+      (2 `no-explicit-any`, 1 `weeklyChartData` sin usar) **ya existían antes de esta fase**
+      — verificado con `git stash`, mismos tres con otro número de línea. `weeklyChartData`
+      es un punto explícito de la Task 19
+- [x] Invariante de egresos: días == partidas
+- [x] Invariante semanal: semana == suma de sus días
+- [x] Un inquilino sin cortes de venta no ve pantalla roja
+- [x] `pnpm exec playwright test tests/cash-flow.spec.ts` → **22/22 en verde**
+
+**Estado de la Fase 0**: las cinco tareas cerradas. El servicio ya no se contradice consigo
+mismo: los días suman las partidas, las semanas suman sus días, la tira de fuentes suma lo
+que la proyección admitió, el día lo decide el reloj de la operación y las entradas se
+estiman o se declaran, pero no se inventan.
+
+**Lo que sigue siendo falso en la pantalla** (y por qué el orden del plan no era negociable):
+el saldo inicial sigue siendo `INITIAL_BALANCE = 2000000` para todo inquilino, y el selector
+de sucursal sigue sin llegar al servicio. Fases 1 y 2.
 
 ---
 
