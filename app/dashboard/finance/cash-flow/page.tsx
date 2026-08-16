@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   CashFlowCalendar,
   type CashFlowDay,
@@ -11,23 +12,78 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useBranch } from "@/lib/branch-context";
 import { Calendar, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 
+/** Horizontes ofrecidos. `days` fuera de esta lista cae al default. */
+const HORIZONTES = [7, 30, 60] as const;
+const HORIZONTE_DEFAULT = 30;
+
 export default function CashFlowPage() {
+  // `useSearchParams` exige límite de Suspense, como en purchase-orders.
+  return (
+    <Suspense>
+      <CashFlowContent />
+    </Suspense>
+  );
+}
+
+function CashFlowContent() {
   // Scope único: el selector del encabezado del dashboard. El Select local
   // duplicaba el mismo control con otra respuesta y sin indicar cuál mandaba.
-  const { selectedBranchId } = useBranch();
-  const selectedBranch = selectedBranchId ?? "ALL";
+  const { selectedBranchId, setSelectedBranchId } = useBranch();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [projection, setProjection] = useState<CashFlowProjection | CashFlowDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // El horizonte estaba fijo en 30 y editar la URL no hacía nada, porque la
+  // página armaba la suya. Ahora vive en la URL: se puede mandar un enlace con
+  // la vista exacta, y sobrevive al remonte.
+  const diasPedidos = Number(searchParams.get("days"));
+  const days = (HORIZONTES as readonly number[]).includes(diasPedidos)
+    ? diasPedidos
+    : HORIZONTE_DEFAULT;
+
+  // La sucursal se sincroniza en un solo sentido por vez para no ciclarse:
+  // al montar, una URL pegada manda sobre la cookie del encabezado; a partir de
+  // ahí, el selector del encabezado escribe la URL.
+  const [hidratado, setHidratado] = useState(false);
+  const urlInicial = useRef(searchParams.get("branchId"));
+
+  useEffect(() => {
+    const deLaUrl = urlInicial.current;
+    if (deLaUrl) {
+      setSelectedBranchId(deLaUrl === "ALL" ? null : deLaUrl);
+    }
+    setHidratado(true);
+    // Sólo al montar: es la hidratación inicial, no una sincronía continua.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const alcance = selectedBranchId ?? "ALL";
+
+  // Espejo del estado de pantalla en la URL, ya hidratado. `replace` y no
+  // `push`: cambiar de horizonte no debería llenar el historial del navegador.
+  useEffect(() => {
+    if (!hidratado) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("days", String(days));
+    params.set("branchId", alcance);
+    const nueva = `${pathname}?${params.toString()}`;
+    if (nueva !== `${pathname}?${searchParams.toString()}`) {
+      router.replace(nueva, { scroll: false });
+    }
+  }, [hidratado, days, alcance, pathname, router, searchParams]);
 
   const fetchProjection = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const url = new URL("/api/finance/cash-flow", window.location.origin);
-      url.searchParams.set("days", "30");
-      if (selectedBranch !== "ALL") {
-        url.searchParams.set("branchId", selectedBranch);
+      url.searchParams.set("days", String(days));
+      if (alcance !== "ALL") {
+        url.searchParams.set("branchId", alcance);
       }
       const res = await fetch(url.toString());
       const json = await res.json();
@@ -44,11 +100,20 @@ export default function CashFlowPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBranch]);
+  }, [alcance, days]);
 
   useEffect(() => {
+    // Se espera a la hidratación para no pedir dos veces la proyección: una con
+    // la sucursal de la cookie y otra con la de la URL.
+    if (!hidratado) return;
     fetchProjection();
-  }, [fetchProjection]);
+  }, [hidratado, fetchProjection]);
+
+  const cambiarHorizonte = (nuevos: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("days", String(nuevos));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -62,6 +127,23 @@ export default function CashFlowPage() {
           </p>
         </div>
 
+        <div
+          className="flex items-center gap-1 rounded-lg border p-1"
+          role="group"
+          aria-label="Horizonte de proyección"
+        >
+          {HORIZONTES.map((opcion) => (
+            <Button
+              key={opcion}
+              variant={opcion === days ? "secondary" : "ghost"}
+              size="sm"
+              aria-pressed={opcion === days}
+              onClick={() => cambiarHorizonte(opcion)}
+            >
+              {opcion} días
+            </Button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -80,7 +162,7 @@ export default function CashFlowPage() {
           }
         />
       ) : (
-        <CashFlowCalendar projection={projection} />
+        <CashFlowCalendar projection={projection} horizonDays={days} />
       )}
     </div>
   );

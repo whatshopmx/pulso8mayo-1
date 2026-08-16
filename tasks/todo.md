@@ -275,28 +275,62 @@ de sucursal sigue sin llegar al servicio. Fases 1 y 2.
     `employee_contracts.branch_id`, que es nullable y viene vacío en la base sembrada.
   - **Alcance**: M
 
-- [ ] **Task 7**: Horizonte y estado de pantalla en la URL
+- [x] **Task 7**: Horizonte y estado de pantalla en la URL
   - **Descripción**: `days=30` está fijo en `page.tsx:28` y editar la URL no hace nada porque la
     página arma la suya. No hay control de horizonte, y los dos colapsos son `useState` local
     (`:194-195`) que se reinician en cada cambio de sucursal. Tampoco hay deep-link: no se puede
     mandar "mira la semana 3" al contador.
   - **Acceptance criteria**:
-    - [ ] Selector de horizonte 7 / 30 / 60 días que escribe en `searchParams`
-    - [ ] `branchId`, `days` y los colapsos se leen de la URL y sobreviven al remonte
-    - [ ] Pegar la URL en otra sesión reproduce la misma vista
-    - [ ] La gráfica y el CSV declaran el horizonte que están usando (hoy hay tres en la pantalla:
-          14d gráfica y resumen, 30d categorías y semanas, 30d CSV — sólo la gráfica lo dice)
-  - **Verificación**:
-    - [ ] Cambiar a 7 días recarga la proyección y la gráfica no queda en 14
-    - [ ] Cambiar de sucursal conserva el estado de los colapsos
+    - [x] Selector 7 / 30 / 60 días en el encabezado, con `aria-pressed`, que escribe en
+          `searchParams` con `replace` (no `push`: cambiar de horizonte no debe llenar el
+          historial del navegador). Un `days` inválido cae al default en vez de romperse
+    - [x] `branchId`, `days` y los dos colapsos (`categorias`, `vencidos`) viven en la URL
+    - [x] Pegar la URL reproduce la misma vista
+    - [x] **Se eliminó la contradicción de raíz**: en vez de sólo rotular las tres ventanas,
+          ahora hay una sola. El resumen y la gráfica usaban `.slice(0, 14)` mientras
+          categorías, semanas y CSV usaban 30. Todo describe el horizonte seleccionado, y
+          la gráfica, el resumen, el `aria-label`, el `caption` y el nombre del CSV lo dicen
+    - [x] El CSV se llama `flujo-efectivo-{horizonte}d-{sucursal}-{fecha}.csv`; antes era
+          `flujo-efectivo-30d.csv` fijo, así que dos descargas de sucursales distintas se
+          pisaban y ninguna decía de cuál era
+  - **Verificación** (manejan la pantalla real, no la API — es lo único que prueba que el
+    estado sobrevive al remonte):
+    - [x] Al cargar, la URL se espeja sola con `days=30`
+    - [x] Cambiar a 7 días reproyecta y la gráfica **no** se queda en 14
+    - [x] `?days=60` reproduce la vista con el botón correcto en `aria-pressed=true`
+    - [x] `?days=999` cae a 30
+    - [x] Expandir categorías escribe `categorias=todas` y sobrevive a un `reload()`
+    - [x] `npx tsc --noEmit` limpio · eslint sin hallazgos nuevos · **32/32** en el spec
+  - **Sincronía de la sucursal**: el selector del encabezado es un contexto global con
+    cookie, no estado de URL. Se sincroniza en un solo sentido por vez para no ciclarse: al
+    montar, una URL pegada manda sobre la cookie; a partir de ahí el selector escribe la URL.
+    El fetch espera a esa hidratación para no pedir la proyección dos veces.
+  - **Regresión encontrada y corregida**: el snapshot de un test fallido mostró
+    `Saldo inicial proyectado $0.00`. La tarjeta leía `metrics?.firstBalance ?? 0`, y desde
+    la Task 2 `metrics` es `null` cuando no hay cortes de venta. El saldo inicial no depende
+    de las entradas: ahora se lee de `initialBalanceCents` directo. La habría escondido
+    cualquier verificación que no manejara la pantalla real.
+  - **Nota para la Task 19**: con horizonte de 60 días la gráfica dibuja 60 barras. La
+    densidad (`interval`/scroll a 320px) ya está en el alcance de esa tarea.
   - **Dependencias**: Task 6
-  - **Archivos**: `app/dashboard/finance/cash-flow/page.tsx`, `components/finance/cash-flow-calendar.tsx`
+  - **Archivos**: `app/dashboard/finance/cash-flow/page.tsx`,
+    `components/finance/cash-flow-calendar.tsx`, `tests/cash-flow.spec.ts`
   - **Alcance**: M
 
-### Checkpoint: Alcance
-- [ ] Cambiar de sucursal cambia las cifras
-- [ ] `enforceBranchScope` fija a los roles de sucursal
-- [ ] La píldora de alcance está siempre visible
+### Checkpoint: Alcance — ✅ cerrado
+- [x] Cambiar de sucursal cambia las cifras (Condesa $64,861 · Polanco $60,138 · grupo $142,873)
+- [x] `enforceBranchScope` fija a los roles de sucursal — verificado con sesión real de
+      GERENTE, no sólo con la función pura
+- [x] La píldora de alcance está siempre visible y rotula el alcance **aplicado**
+- [x] `npx tsc --noEmit` limpio · eslint sin hallazgos nuevos · **32/32** en el spec
+
+**Estado de la Fase 1**: el P0 de alcance está cerrado. Las cifras corresponden a la sucursal
+que la pantalla dice, un rol de sucursal no puede pedir otra, y el estado de la pantalla
+(horizonte, sucursal, colapsos) vive en la URL y se puede compartir.
+
+**Lo que sigue siendo falso**: `INITIAL_BALANCE = 2000000` — $20,000 idénticos para un café de
+3 sucursales y un grupo hotelero de 15. "Saldo mínimo", las bandas de color y "Te alcanza para
+N días" heredan esa invención. Es el P0 de la Fase 2.
 
 ---
 

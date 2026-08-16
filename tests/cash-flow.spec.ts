@@ -250,6 +250,119 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
 });
 
 /**
+ * Task 7 — horizonte y estado de pantalla en la URL.
+ *
+ * `days=30` estaba fijo en la página y editar la URL no hacía nada, porque la
+ * página armaba la suya. No había control de horizonte ni forma de mandarle a
+ * alguien la vista exacta, y los dos colapsos eran `useState` local que se
+ * reiniciaba en cada cambio de sucursal.
+ *
+ * Estos casos manejan la pantalla de verdad, no la API: es lo único que prueba
+ * que el estado sobrevive al remonte.
+ */
+test.describe("Task 7 · estado de pantalla en la URL", () => {
+  // La página se compila en el primer golpe del dev server.
+  test.setTimeout(180_000);
+
+  const PANTALLA = "/dashboard/finance/cash-flow";
+  // `CardTitle` de shadcn renderiza un `div`, no un heading: se busca por texto.
+  const horizonteVisible = (page: import("@playwright/test").Page) =>
+    page.getByText(/Proyección de Entradas vs Salidas \(Próximos \d+ días\)/);
+
+  test("el horizonte por defecto queda escrito en la URL", async ({ page }) => {
+    await page.goto(PANTALLA);
+    await expect(horizonteVisible(page)).toBeVisible();
+
+    // La página espeja su estado: la URL deja de estar vacía y se puede copiar.
+    await expect(page).toHaveURL(/days=30/);
+    await expect(horizonteVisible(page)).toContainText("30 días");
+  });
+
+  test("cambiar el horizonte reproyecta y lo declara en toda la pantalla", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30`);
+    await expect(horizonteVisible(page)).toContainText("30 días");
+
+    await page
+      .getByRole("group", { name: "Horizonte de proyección" })
+      .getByRole("button", { name: "7 días" })
+      .click();
+
+    await expect(page).toHaveURL(/days=7/);
+    // La gráfica ya no se queda en 14 mientras el resto dice otra cosa: las
+    // tres ventanas de la pantalla describen la misma.
+    await expect(horizonteVisible(page)).toContainText("7 días");
+    await expect(page.getByRole("heading", { name: /^Resumen 7 días$/ })).toBeVisible();
+  });
+
+  test("pegar la URL reproduce la misma vista", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=60`);
+    await expect(horizonteVisible(page)).toContainText("60 días");
+    await expect(
+      page
+        .getByRole("group", { name: "Horizonte de proyección" })
+        .getByRole("button", { name: "60 días" })
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("un horizonte inválido cae al default en vez de romperse", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=999`);
+    await expect(horizonteVisible(page)).toContainText("30 días");
+    await expect(page).toHaveURL(/days=30/);
+  });
+
+  test("los colapsos viven en la URL y sobreviven al remonte", async ({ page }) => {
+    // La tarjeta de categorías sólo colapsa a partir de 4, y la base sembrada
+    // sólo produce dos (Nómina y Compras). Sin estos gastos no habría colapso
+    // que probar.
+    const enTresDias = addCalendarDays(
+      localDateString(new Date(), "America/Mexico_City"),
+      3
+    );
+    const categorias = [
+      "RENTA",
+      "SERVICIOS",
+      "MANTENIMIENTO",
+      "PUBLICIDAD",
+      "SERVICIOS_PROFESIONALES",
+    ];
+    for (const [i, categoria] of categorias.entries()) {
+      await seedOperatingExpense({
+        companyId: COMPANY_ID,
+        branchId: BRANCH_CONDESA,
+        requestedBy: USER_SUPER_ADMIN,
+        dueDate: enTresDias,
+        amountCents: 100_000 * (i + 1),
+        description: `${E2E_TAG} Gasto ${categoria}`,
+        category: categoria,
+      });
+    }
+
+    try {
+      await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+      await expect(horizonteVisible(page)).toBeVisible();
+
+      // Colapsado: el botón invita a ver todas.
+      const verTodas = page.getByRole("button", { name: /Ver todas/ });
+      await expect(verTodas).toBeVisible();
+      await verTodas.click();
+
+      // Al expandir, el estado se escribe en la URL en vez de quedarse en
+      // `useState`, donde se perdía en cada cambio de sucursal.
+      await expect(page).toHaveURL(/categorias=todas/);
+      const verMenos = page.getByRole("button", { name: /Colapsar/ });
+      await expect(verMenos).toBeVisible();
+
+      // Y sobrevive al remonte: es lo que hace que el enlace sea compartible.
+      await page.reload();
+      await expect(page.getByRole("button", { name: /Colapsar/ })).toBeVisible();
+      await expect(page).toHaveURL(/categorias=todas/);
+    } finally {
+      await deleteTestExpenses();
+    }
+  });
+});
+
+/**
  * Task 6 — alcance por sucursal.
  *
  * La página mandaba `branchId` y la ruta lo tiraba: una dueña que cambiaba a

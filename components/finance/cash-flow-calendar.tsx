@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -125,6 +126,8 @@ export interface CashFlowProjection {
 
 interface CashFlowCalendarProps {
   projection: CashFlowProjection | CashFlowDay[];
+  /** Horizonte pedido, para rotularlo. Por defecto, los días que trae el payload. */
+  horizonDays?: number;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -222,9 +225,23 @@ function CategoryBar({ label, amountCents, percentage, maxPct }: {
 
 // ── Main component ───────────────────────────────────────────────
 
-export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
-  const [showAllCategories, setShowAllCategories] = useState(false);
-  const [showAllOverdue, setShowAllOverdue] = useState(false);
+export function CashFlowCalendar({ projection, horizonDays }: CashFlowCalendarProps) {
+  // Los colapsos vivían en `useState`, así que se reiniciaban en cada cambio de
+  // sucursal y no se podían enlazar. En la URL sobreviven al remonte y viajan en
+  // el enlace que se le manda al contador.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const showAllCategories = searchParams.get("categorias") === "todas";
+  const showAllOverdue = searchParams.get("vencidos") === "todos";
+
+  const alternarParam = (clave: string, valor: string, activo: boolean) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (activo) params.delete(clave);
+    else params.set(clave, valor);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   // Handle both old (array) and new (object) API responses
   const data: CashFlowProjection = isProjection(projection)
@@ -255,6 +272,10 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
   // proyectar sobre cero pintaba de rojo la pantalla de estreno de cualquier
   // inquilino nuevo.
   const sinHistorialDeVentas = inflow?.basis === "NONE";
+
+  // Horizonte que la pantalla está describiendo. Se rotula en la gráfica, el
+  // resumen y el CSV para que las tres digan la misma ventana.
+  const horizonte = horizonDays ?? days.length;
 
   // Comprometido que existe pero vence después de la ventana: se declara, no se
   // suma a las cifras de la proyección.
@@ -291,12 +312,11 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
       .filter((d) => d.hasHighConcentration)
       .slice(0, 5);
 
-    const totalInflow = days
-      .slice(0, 14)
-      .reduce((sum, d) => sum + (d.projectedInflowCents ?? 0), 0);
-    const totalOutflow = days
-      .slice(0, 14)
-      .reduce((sum, d) => sum + d.projectedOutflowCents, 0);
+    // Antes esto era `.slice(0, 14)` mientras las categorías, las semanas y el
+    // CSV usaban 30: tres horizontes distintos en la misma pantalla, y sólo la
+    // gráfica decía cuál era el suyo. Ahora todo describe la misma ventana.
+    const totalInflow = days.reduce((sum, d) => sum + (d.projectedInflowCents ?? 0), 0);
+    const totalOutflow = days.reduce((sum, d) => sum + d.projectedOutflowCents, 0);
 
     return {
       firstBalance: initialBalanceCents,
@@ -316,7 +336,7 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
   // ── Chart data ──────────────────────────────────────────────
   // `null` en Entradas deja el hueco a la vista en la gráfica en vez de dibujar
   // una serie en cero que se leería como "hoy no entró nada".
-  const chartData = days.slice(0, 14).map((pt) => ({
+  const chartData = days.map((pt) => ({
     fecha: formatDate(pt.date),
     Entradas:
       pt.projectedInflowCents === null
@@ -356,7 +376,13 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `flujo-efectivo-30d.csv`;
+    // El nombre declara qué contiene: horizonte, alcance y fecha. Antes era
+    // `flujo-efectivo-30d.csv` fijo — dos descargas de sucursales distintas se
+    // pisaban en la carpeta y ninguna decía de cuál era.
+    const alcanceArchivo = data.scope?.branchName
+      ? data.scope.branchName.toLowerCase().replace(/\s+/g, "-")
+      : "grupo";
+    a.download = `flujo-efectivo-${horizonte}d-${alcanceArchivo}-${days[0].date}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -410,8 +436,12 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
               <Wallet className="w-4 h-4" />
               Saldo inicial proyectado
             </div>
+            {/* Se lee del payload, no de `metrics`: el saldo inicial no depende
+                de que haya entradas estimadas. Cuando `metrics` es null por
+                falta de cortes de venta, esta tarjeta mostraba $0.00 — una
+                cifra que nadie calculó. */}
             <div className="text-2xl font-bold text-foreground">
-              {formatMXN(metrics?.firstBalance ?? 0)}
+              {formatMXN(initialBalanceCents)}
             </div>
           </CardContent>
         </Card>
@@ -629,7 +659,7 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
                     variant="ghost"
                     size="sm"
                     className="text-xs"
-                    onClick={() => setShowAllOverdue(!showAllOverdue)}
+                    onClick={() => alternarParam("vencidos", "todos", showAllOverdue)}
                   >
                     {showAllOverdue ? (
                       <>
@@ -679,7 +709,7 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
                   variant="ghost"
                   size="sm"
                   className="text-xs w-full"
-                  onClick={() => setShowAllCategories(!showAllCategories)}
+                  onClick={() => alternarParam("categorias", "todas", showAllCategories)}
                 >
                   {showAllCategories ? (
                     <>
@@ -825,7 +855,7 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
         {/* Summary strip */}
         <Card className="lg:col-span-1">
           <CardContent className="p-4 space-y-3">
-            <h4 className="text-sm font-bold">Resumen 14 días</h4>
+            <h4 className="text-sm font-bold">Resumen {horizonte} días</h4>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground flex items-center gap-1">
@@ -876,7 +906,7 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />
-              Proyección de Entradas vs Salidas (Próximos 14 días)
+              Proyección de Entradas vs Salidas (Próximos {horizonte} días)
             </CardTitle>
             <CardDescription className="text-xs">
               Comparativa diaria de ingresos estimados por ventas vs compromisos de egresos
@@ -887,7 +917,7 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
             <div
               className="h-72 w-full"
               role="img"
-              aria-label="Flujo de efectivo: entradas vs salidas de los próximos 14 días"
+              aria-label={`Flujo de efectivo: entradas vs salidas de los próximos ${horizonte} días`}
             >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -918,7 +948,7 @@ export function CashFlowCalendar({ projection }: CashFlowCalendarProps) {
               </ResponsiveContainer>
             </div>
             <table className="sr-only">
-              <caption>Proyección de entradas y salidas (próximos 14 días)</caption>
+              <caption>Proyección de entradas y salidas (próximos {horizonte} días)</caption>
               <thead>
                 <tr>
                   <th>Fecha</th>
