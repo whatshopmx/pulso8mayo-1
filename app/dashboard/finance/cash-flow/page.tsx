@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   CashFlowCalendar,
-  type CashFlowDay,
   type CashFlowProjection,
 } from "@/components/finance/cash-flow-calendar";
 import { Button } from "@/components/ui/button";
@@ -41,7 +40,10 @@ function CashFlowContent() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [projection, setProjection] = useState<CashFlowProjection | CashFlowDay[]>([]);
+  // `null` mientras no hay payload: el componente exige el objeto completo. El
+  // fallback de "arreglo legacy" que aceptaba antes vaciaba cuatro de las seis
+  // secciones sin decir nada.
+  const [projection, setProjection] = useState<CashFlowProjection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,15 +98,15 @@ function CashFlowContent() {
       const res = await fetch(url.toString());
       const json = await res.json();
       if (res.ok && json.success) {
-        setProjection(json.data || []);
+        setProjection(json.data ?? null);
       } else {
         setError(json?.error || "No se pudo calcular la proyección de flujo de efectivo.");
-        setProjection([]);
+        setProjection(null);
       }
     } catch (err) {
       console.error("Failed to load cash flow projection:", err);
       setError("Error de conexión al calcular la proyección. Revisa tu red e intenta de nuevo.");
-      setProjection([]);
+      setProjection(null);
     } finally {
       setLoading(false);
     }
@@ -163,6 +165,17 @@ function CashFlowContent() {
           icon={AlertCircle}
           title="No se pudo calcular el flujo de efectivo"
           description={error}
+          action={
+            <Button variant="outline" size="sm" onClick={fetchProjection}>
+              <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
+            </Button>
+          }
+        />
+      ) : !projection ? (
+        <EmptyState
+          icon={Calendar}
+          title="Sin proyección"
+          description="La consulta no devolvió datos de flujo de efectivo."
           action={
             <Button variant="outline" size="sm" onClick={fetchProjection}>
               <RefreshCw className="w-4 h-4 mr-2" /> Reintentar

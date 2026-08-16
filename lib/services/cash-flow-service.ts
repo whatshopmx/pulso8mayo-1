@@ -6,7 +6,7 @@
 //   - Invoices from procurement (CFDI XML received but not linked to a paid expense)
 
 import { db } from "@/lib/db";
-import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users, branches, cashFlowAssumptions } from "@/lib/db/schema";
+import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users, branches, cashFlowAssumptions, payees } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, inArray, asc, isNull } from "drizzle-orm";
 import { addCalendarDays, localDateString } from "@/lib/workflows/today";
 
@@ -78,6 +78,9 @@ export interface OutflowItem {
   source: "OPERATING_EXPENSE" | "PURCHASE_ORDER" | "PROCUREMENT_INVOICE";
   /** Nombre del proveedor (solo para PO y procurement invoices) */
   supplierName?: string;
+  /** Sucursal de la partida, para distinguirlas cuando el alcance es el grupo */
+  branchId?: string | null;
+  branchName?: string | null;
 }
 
 export interface CategorySummary {
@@ -220,25 +223,43 @@ function monthOf(dateStr: string): number {
 async function resolveProjectionScope(
   companyId: string,
   branchId?: string
-): Promise<{ timeZone: string | null; branchName: string | null }> {
+): Promise<{
+  timeZone: string | null;
+  branchName: string | null;
+  /** Nombre por sucursal, para rotular cada partida en alcance de grupo */
+  branchNames: Map<string, string>;
+}> {
+  // Una sola lectura de sucursales sirve para las tres cosas: la zona horaria,
+  // el nombre del alcance y el rótulo de cada partida. Evita tres joins en las
+  // consultas de egresos.
+  const rows = await db
+    .select({
+      id: branches.id,
+      name: branches.name,
+      timezone: branches.timezone,
+      active: branches.active,
+    })
+    .from(branches)
+    .where(eq(branches.companyId, companyId));
+
+  const branchNames = new Map(rows.map((b) => [b.id, b.name]));
+
   if (branchId) {
-    const [row] = await db
-      .select({ timezone: branches.timezone, name: branches.name })
-      .from(branches)
-      .where(and(eq(branches.id, branchId), eq(branches.companyId, companyId)))
-      .limit(1);
-    return { timeZone: row?.timezone ?? null, branchName: row?.name ?? null };
+    const propia = rows.find((b) => b.id === branchId);
+    return {
+      timeZone: propia?.timezone ?? null,
+      branchName: propia?.name ?? null,
+      branchNames,
+    };
   }
 
-  const zonas = await db
-    .selectDistinct({ timezone: branches.timezone })
-    .from(branches)
-    .where(and(eq(branches.companyId, companyId), eq(branches.active, true)));
-
-  const distintas = zonas.map((z) => z.timezone).filter(Boolean);
+  const distintas = [
+    ...new Set(rows.filter((b) => b.active).map((b) => b.timezone).filter(Boolean)),
+  ];
   return {
     timeZone: distintas.length === 1 ? distintas[0] : null,
     branchName: null,
+    branchNames,
   };
 }
 
@@ -312,7 +333,13 @@ export async function getCashFlowProjection(
   // servidor. `toISOString()` calcula en UTC: en UTC-6, después de las 6pm local
   // —la hora a la que una dueña revisa el dinero— la ventana se recorría un día
   // y las partidas saltaban entre "vencido" y "próximo".
-  const { timeZone, branchName } = await resolveProjectionScope(companyId, branchId);
+  const { timeZone, branchName, branchNames } = await resolveProjectionScope(
+    companyId,
+    branchId
+  );
+  /** Rótulo de sucursal de una partida; `null` cuando no la tiene asignada. */
+  const nombreSucursal = (id: string | null | undefined) =>
+    id ? (branchNames.get(id) ?? null) : null;
   const startDate = new Date();
   const startDateStr = localDateString(startDate, timeZone);
   // Último día que el timeline emite de verdad: el bucle de abajo produce `days`
@@ -447,8 +474,11 @@ export async function getCashFlowProjection(
       description: operatingExpenses.description,
       category: operatingExpenses.category,
       status: operatingExpenses.status,
+      branchId: operatingExpenses.branchId,
+      payeeName: payees.name,
     })
     .from(operatingExpenses)
+    .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
     .where(
       and(
         eq(operatingExpenses.companyId, companyId),
@@ -468,8 +498,11 @@ export async function getCashFlowProjection(
       description: operatingExpenses.description,
       category: operatingExpenses.category,
       status: operatingExpenses.status,
+      branchId: operatingExpenses.branchId,
+      payeeName: payees.name,
     })
     .from(operatingExpenses)
+    .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
     .where(
       and(
         eq(operatingExpenses.companyId, companyId),
@@ -490,6 +523,7 @@ export async function getCashFlowProjection(
       expectedDeliveryDate: purchaseOrders.expectedDeliveryDate,
       dateRequired: purchaseOrders.dateRequired,
       supplierName: suppliers.name,
+      branchId: purchaseOrders.branchId,
     })
     .from(purchaseOrders)
     .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
@@ -618,6 +652,11 @@ export async function getCashFlowProjection(
         status: exp.status,
         isPayroll: false,
         source: "OPERATING_EXPENSE",
+        // Un gasto operativo tiene contraparte (`payees`), no proveedor. Es lo
+        // que distingue "Renta" de "Renta" entre seis filas truncadas.
+        supplierName: exp.payeeName || undefined,
+        branchId: exp.branchId,
+        branchName: nombreSucursal(exp.branchId),
       });
     }
   }
@@ -669,6 +708,8 @@ export async function getCashFlowProjection(
         isPayroll: false,
         source: "PURCHASE_ORDER",
         supplierName: po.supplierName || undefined,
+        branchId: po.branchId,
+        branchName: nombreSucursal(po.branchId),
       });
       admitido.purchaseOrdersCount += 1;
       admitido.purchaseOrdersTotalCents += po.totalAmount || 0;
@@ -703,6 +744,8 @@ export async function getCashFlowProjection(
         isPayroll: false,
         source: "PROCUREMENT_INVOICE",
         supplierName: inv.nombreEmisor || inv.supplierName || undefined,
+        branchId: inv.branchId,
+        branchName: nombreSucursal(inv.branchId),
       });
       admitido.invoicesCount += 1;
       admitido.invoicesTotalCents += inv.total;
@@ -722,6 +765,9 @@ export async function getCashFlowProjection(
     status: exp.status,
     isPayroll: false,
     source: "OPERATING_EXPENSE" as const,
+    supplierName: exp.payeeName || undefined,
+    branchId: exp.branchId,
+    branchName: nombreSucursal(exp.branchId),
   }));
 
   // ── 8. Build daily projection timeline ─────────────────────────

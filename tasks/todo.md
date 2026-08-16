@@ -449,7 +449,7 @@ las cuatro estimaciones que cargan la proyección se nombran y se explican.
 
 ## Fase 3: Accionabilidad (P1)
 
-- [ ] **Task 10**: Higiene de datos del render
+- [x] **Task 10**: Higiene de datos del render
   - **Descripción**: `supplierName` está en el payload (`:54`) y nunca se renderiza; `isPayroll`
     (`:51`) nunca se usa. Las filas de vencidos son texto truncado sin proveedor y sin sucursal:
     identificar "Renta" exige recordar. Peor: `:302` devuelve "Sin datos de proyección disponibles"
@@ -458,16 +458,44 @@ las cuatro estimaciones que cargan la proyección se nombran y se explican.
     (`:198-208`) vacía cuatro de seis secciones sin decir nada — un estado degradado indistinguible
     de uno sano.
   - **Acceptance criteria**:
-    - [ ] `supplierName` se renderiza en filas de vencidos y de próximos 7 días cuando existe
-    - [ ] La sucursal de la partida es visible cuando el alcance es "grupo completo"
-    - [ ] La tarjeta de vencidos se renderiza *antes* del guard `!days.length`
-    - [ ] El fallback de arreglo legacy se elimina (el API ya devuelve siempre el objeto) o avisa
-    - [ ] La rama vacía usa `EmptyState`, que la página ya importa
+    - [x] `supplierName` se renderiza en vencidos y próximos 7 días. **Hallazgo**: los vencidos
+          se construyen sólo de `operatingExpenses`, que **no tienen proveedor** — tienen
+          *contraparte* (`payees.payeeId`). El campo nunca se habría llenado. Se añade el
+          `leftJoin` a `payees` y su nombre viaja en `supplierName`: es lo que de verdad
+          distingue una "Renta" de otra entre seis filas truncadas
+    - [x] La sucursal viaja en cada partida (`branchId` + `branchName`) y se rotula sólo en
+          alcance de grupo — repetirla cuando la píldora del encabezado ya la dice es ruido en
+          filas que se truncan
+    - [x] La tarjeta de vencidos se extrae a `tarjetaVencidos` y se renderiza en los **dos**
+          caminos, incluido el de "sin proyección"
+    - [x] El fallback de arreglo legacy se **elimina**: vaciaba cuatro de seis secciones sin
+          decir nada, un estado degradado indistinguible de uno sano. El componente ahora
+          exige `CashFlowProjection` y la página guarda `CashFlowProjection | null`
+    - [x] Las dos ramas vacías usan `EmptyState` (la del componente y la nueva de la página)
   - **Verificación**:
-    - [ ] Inquilino con vencidos y sin proyección ve la tarjeta de vencidos
-    - [ ] `pnpm run build`
+    - [x] `branchId`/`branchName` presentes en las partidas y en los vencidos
+    - [x] La línea de detalle se arma con `ItemMeta` y usa el verbo correcto ("Venció" en
+          vencidos, "Vence" en próximos)
+    - [x] En alcance de sucursal la sucursal **no** se repite en cada fila
+    - [x] `npx tsc --noEmit` limpio · **46/46** en el spec
+  - **Hallazgo que cambia el alcance de un criterio**: "la sucursal es visible cuando el alcance
+    es grupo completo" **no es verificable desde la pantalla**, porque el alcance de grupo no es
+    alcanzable: `BranchProvider.setBranches` (`lib/branch-context.tsx:56`) auto-selecciona la
+    primera sucursal cuando no hay ninguna, y el selector del encabezado no ofrece "todas". El
+    servicio y el payload sí lo soportan (y la API sin `branchId` devuelve el grupo), así que
+    el comportamiento está implementado y probado por API. Que el encabezado ofrezca "Grupo
+    completo" es una decisión de producto fuera de esta pantalla — **queda anotado como
+    seguimiento**.
+  - **Copy adelantado de la Task 17**: el título decía "Facturas y gastos vencidos" y
+    `overdueItems` **nunca** contiene una factura. Como reescribí el bloque completo, quedó
+    "Gastos vencidos" en vez de dejar un error de hecho a sabiendas.
+  - **Limpieza de lint**: se eliminó `isProjection` (uno de los dos `no-explicit-any`
+    preexistentes) y los residuos `Wallet`/`saldoDesactualizado` que dejó la Task 9 al mover la
+    tarjeta de saldo a su propio componente.
   - **Dependencias**: Task 6
-  - **Archivos**: `components/finance/cash-flow-calendar.tsx`
+  - **Archivos**: `components/finance/cash-flow-calendar.tsx`,
+    `app/dashboard/finance/cash-flow/page.tsx`, `lib/services/cash-flow-service.ts`,
+    `tests/cash-flow.spec.ts`
   - **Alcance**: S
 
 - [ ] **Task 11**: Cada hallazgo enlaza a su registro origen

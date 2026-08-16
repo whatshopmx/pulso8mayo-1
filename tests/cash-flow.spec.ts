@@ -13,6 +13,7 @@ import {
 import {
   deleteCashFlowAssumptions,
   deleteTestExpenses,
+  deleteTestPayees,
   deleteTestSalesCuts,
   seedCashFlowAssumption,
   seedOperatingExpense,
@@ -51,7 +52,11 @@ interface Partida {
   date: string;
   amountCents: number;
   category: string;
+  description: string;
   source: "OPERATING_EXPENSE" | "PURCHASE_ORDER" | "PROCUREMENT_INVOICE";
+  supplierName?: string;
+  branchId?: string | null;
+  branchName?: string | null;
 }
 
 interface Comprometido {
@@ -255,6 +260,93 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
       if (dia.projectedInflowCents !== null) continue;
       expect(dia.netFlowCents, `Flujo neto del ${dia.date}`).toBeNull();
       expect(dia.cumulativeBalanceCents, `Saldo del ${dia.date}`).toBeNull();
+    }
+  });
+});
+
+/**
+ * Task 10 — higiene de datos del render.
+ *
+ * `supplierName` venía en el payload y no se pintaba en ningún lado, así que
+ * identificar cuál de seis "Renta" truncadas es cuál exigía recordar. Y el
+ * guard de "sin proyección" iba ANTES de la tarjeta de vencidos, de modo que un
+ * inquilino con facturas vencidas y sin días proyectados no veía ninguna.
+ */
+test.describe("Task 10 · higiene de datos del render", () => {
+  test.setTimeout(180_000);
+  const PANTALLA = "/dashboard/finance/cash-flow";
+
+  test.afterAll(async () => {
+    await deleteTestExpenses();
+    await deleteTestPayees();
+  });
+
+  test("la contraparte y la sucursal viajan en cada partida", async ({ request }) => {
+    await deleteTestExpenses();
+    const enTresDias = addCalendarDays(
+      localDateString(new Date(), "America/Mexico_City"),
+      3
+    );
+    await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: enTresDias,
+      amountCents: 500_000,
+      description: `${E2E_TAG} Renta del local`,
+    });
+
+    const proyeccion = await obtenerProyeccion(request, 30);
+    const partida = proyeccion.outflowItems.find(
+      (p) => p.description === `${E2E_TAG} Renta del local`
+    );
+    expect(partida).toBeDefined();
+
+    // La sucursal viaja siempre: es lo que permite distinguir la renta de
+    // Condesa de la de Polanco cuando las cifras son del grupo.
+    expect(partida!.branchId).toBe(BRANCH_CONDESA);
+    expect(partida!.branchName).toBeTruthy();
+
+    await deleteTestExpenses();
+  });
+
+  test("los vencidos llevan sucursal para poder distinguirlos", async ({ request }) => {
+    const proyeccion = await obtenerProyeccion(request, 30);
+    for (const vencido of proyeccion.overdueItems) {
+      // Sin esto, la fila dice "Renta · Venció 3 ago" y nada más.
+      expect(vencido).toHaveProperty("branchName");
+    }
+  });
+
+  test("la pantalla muestra proveedor y sucursal en las filas", async ({ page }) => {
+    await deleteTestExpenses();
+    const enTresDias = addCalendarDays(
+      localDateString(new Date(), "America/Mexico_City"),
+      3
+    );
+    await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: enTresDias,
+      amountCents: 500_000,
+      description: `${E2E_TAG} Renta del local`,
+    });
+
+    try {
+      await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+      await expect(page.getByText(`${E2E_TAG} Renta del local`)).toBeVisible();
+
+      // La línea de detalle se arma con `ItemMeta`: categoría, contraparte,
+      // sucursal (sólo en alcance de grupo) y fecha con su verbo correcto.
+      await expect(page.getByText(/Otros · Vence/i).first()).toBeVisible();
+
+      // En alcance de una sucursal la sucursal NO se repite en cada fila: ya
+      // está en la píldora del encabezado, y repetirla en filas que se truncan
+      // es ruido.
+      await expect(page.getByText(/Otros · Condesa · Vence/i)).toHaveCount(0);
+    } finally {
+      await deleteTestExpenses();
     }
   });
 });

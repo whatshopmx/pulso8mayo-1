@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { EmptyState } from "@/components/ui/empty-state";
 import { OpeningBalanceCard } from "@/components/finance/opening-balance-card";
 import { statusBadgeClasses } from "@/lib/utils";
 import {
@@ -14,7 +15,6 @@ import {
   Download,
   TrendingDown,
   TrendingUp,
-  Wallet,
   ChevronDown,
   ChevronUp,
   Clock,
@@ -67,6 +67,9 @@ interface OutflowItem {
   isPayroll: boolean;
   source?: "OPERATING_EXPENSE" | "PURCHASE_ORDER" | "PROCUREMENT_INVOICE";
   supplierName?: string;
+  /** Sucursal de la partida; se rotula sólo en alcance de grupo. */
+  branchId?: string | null;
+  branchName?: string | null;
 }
 
 interface CategorySummary {
@@ -135,7 +138,7 @@ export interface CashFlowProjection {
 }
 
 interface CashFlowCalendarProps {
-  projection: CashFlowProjection | CashFlowDay[];
+  projection: CashFlowProjection;
   /** Horizonte pedido, para rotularlo. Por defecto, los días que trae el payload. */
   horizonDays?: number;
   /** Si se dibuja el control de captura del saldo. La ruta lo vuelve a exigir. */
@@ -202,11 +205,38 @@ function formatDate(dateStr: string) {
   });
 }
 
-function isProjection(obj: any): obj is CashFlowProjection {
-  return obj && "categorySummary" in obj;
-}
 
 // ── Sub-components ───────────────────────────────────────────────
+
+/**
+ * Segunda línea de una partida: categoría, proveedor, sucursal y fecha.
+ *
+ * `supplierName` venía en el payload y no se renderizaba en ningún lado, así
+ * que identificar "Renta" entre seis filas truncadas exigía recordar cuál era.
+ * La sucursal sólo aparece en alcance de grupo: repetirla en cada fila cuando
+ * ya está en la píldora del encabezado es ruido.
+ */
+function ItemMeta({
+  item,
+  showBranch,
+  prefix,
+}: {
+  item: OutflowItem;
+  showBranch: boolean;
+  prefix: string;
+}) {
+  const partes = [
+    CATEGORY_LABELS[item.category] || item.category,
+    item.supplierName,
+    showBranch ? item.branchName : null,
+  ].filter(Boolean);
+
+  return (
+    <p className="text-muted-foreground">
+      {partes.join(" · ")} · {prefix} {formatDate(item.date)}
+    </p>
+  );
+}
 
 /** Barra horizontal proporcional para una categoría */
 function CategoryBar({ label, amountCents, percentage, maxPct }: {
@@ -262,18 +292,11 @@ export function CashFlowCalendar({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  // Handle both old (array) and new (object) API responses
-  const data: CashFlowProjection = isProjection(projection)
-    ? projection
-    : {
-        days: projection,
-        outflowItems: [],
-        categorySummary: [],
-        weeklyAggregation: [],
-        overdueItems: [],
-        upcomingItems: [],
-        initialBalanceCents: null,
-      };
+  // El fallback de "arreglo legacy" se eliminó: cuando el payload no era el
+  // objeto completo, vaciaba cuatro de las seis secciones sin decir nada —
+  // un estado degradado indistinguible de uno sano. La API devuelve siempre el
+  // objeto, así que el tipo lo exige y punto.
+  const data = projection;
 
   const {
     days,
@@ -299,7 +322,6 @@ export function CashFlowCalendar({
   // Sin saldo capturado no hay punto de partida, así que no hay trayectoria:
   // nada que dependa del saldo acumulado se dibuja.
   const sinSaldoCapturado = initialBalanceCents === null;
-  const saldoDesactualizado = data.openingBalance?.isStale === true;
 
   // El saldo proyectado necesita las dos cosas: de dónde parte y cuánto entra.
   // Falte la que falte, no se proyecta — y se dice cuál falta, porque "captura
@@ -458,18 +480,112 @@ export function CashFlowCalendar({
     URL.revokeObjectURL(url);
   };
 
+  const visibleOverdue = showAllOverdue ? overdueItems : overdueItems.slice(0, 5);
+  // La sucursal se rotula en cada partida sólo cuando las cifras son del grupo:
+  // repetirla en alcance de una sucursal, con la píldora arriba diciéndolo, es
+  // ruido en filas que ya se truncan.
+  const esAlcanceGrupo = !data.scope?.branchId;
+
+  /**
+   * Tarjeta de vencidos. Se define aquí, arriba del guard de "sin proyección",
+   * para poder renderizarla en los dos caminos: son compromisos que ya pasaron
+   * su fecha, y no dependen de que haya días proyectados.
+   */
+  const tarjetaVencidos = overdueItems.length > 0 && (
+    <Card className="border-destructive/30 bg-destructive/5">
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-3">
+            <div>
+              <h4 className="text-sm font-bold text-destructive">
+                Gastos vencidos ({overdueItems.length})
+              </h4>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Estos compromisos ya pasaron su fecha de vencimiento y no están marcados como pagados.
+              </p>
+            </div>
+            <div className="divide-y divide-destructive/10 rounded-md border border-destructive/20 bg-background">
+              {visibleOverdue.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground truncate">
+                      {item.description}
+                      {item.source && item.source !== "OPERATING_EXPENSE" && (
+                        <Badge
+                          variant="outline"
+                          className={`ml-1.5 text-xs px-1 py-0 ${SOURCE_COLORS[item.source] || ""}`}
+                        >
+                          {SOURCE_LABELS[item.source] || item.source}
+                        </Badge>
+                      )}
+                    </p>
+                    <ItemMeta item={item} showBranch={esAlcanceGrupo} prefix="Venció" />
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-bold text-destructive tabular-nums">
+                      {formatMXN(item.amountCents)}
+                    </p>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs px-1 py-0 ${statusBadgeClasses("destructive")}`}
+                    >
+                      {STATUS_LABELS[item.status] || item.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {overdueItems.length > 5 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                onClick={() => alternarParam("vencidos", "todos", showAllOverdue)}
+              >
+                {showAllOverdue ? (
+                  <>
+                    <ChevronUp className="w-3 h-3 mr-1" /> Mostrar solo 5
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-3 h-3 mr-1" /> Ver todos ({overdueItems.length})
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // Sin días proyectados no hay gráfica ni semanas, pero los vencidos siguen
+  // siendo dinero que ya se debe. Antes este guard iba ANTES de la tarjeta de
+  // vencidos, así que un inquilino con seis facturas vencidas y sin proyección
+  // no veía ninguna: la pantalla que promete alertar se quedaba muda justo
+  // cuando había algo que decir.
   if (!days.length) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center text-xs text-muted-foreground">
-          Sin datos de proyección disponibles.
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        {tarjetaVencidos}
+        <EmptyState
+          icon={Calendar}
+          title="Todavía no hay proyección"
+          description={
+            overdueItems.length > 0
+              ? "No hay días proyectados para este alcance. Los vencidos de arriba sí están al día."
+              : "No hay gastos, órdenes de compra ni facturas en la ventana seleccionada."
+          }
+        />
+      </div>
     );
   }
 
   const maxCategoryPct = Math.max(...categorySummary.map((c) => c.percentage), 1);
-  const visibleOverdue = showAllOverdue ? overdueItems : overdueItems.slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -694,80 +810,7 @@ export function CashFlowCalendar({
       {/* ════════════════════════════════════════════════════════════
           FILA 1.5: Facturas vencidas — ACCIÓN INMEDIATA
           ════════════════════════════════════════════════════════════ */}
-      {overdueItems.length > 0 && (
-        <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-              <div className="flex-1 space-y-3">
-                <div>
-                  <h4 className="text-sm font-bold text-destructive">
-                    Facturas y gastos vencidos ({overdueItems.length})
-                  </h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Estos compromisos ya pasaron su fecha de vencimiento y no están marcados como pagados.
-                  </p>
-                </div>
-                <div className="divide-y divide-destructive/10 rounded-md border border-destructive/20 bg-background">
-                  {visibleOverdue.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground truncate">
-                          {item.description}
-                          {item.source && item.source !== "OPERATING_EXPENSE" && (
-                            <Badge
-                              variant="outline"
-                              className={`ml-1.5 text-xs px-1 py-0 ${SOURCE_COLORS[item.source] || ""}`}
-                            >
-                              {SOURCE_LABELS[item.source] || item.source}
-                            </Badge>
-                          )}
-                        </p>
-                        <p className="text-muted-foreground">
-                          {CATEGORY_LABELS[item.category] || item.category} · Venció{" "}
-                          {formatDate(item.date)}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-bold text-destructive">
-                          {formatMXN(item.amountCents)}
-                        </p>
-                        <Badge
-                          variant="outline"
-                          className={`text-xs px-1 py-0 ${statusBadgeClasses("destructive")}`}
-                        >
-                          {STATUS_LABELS[item.status] || item.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {overdueItems.length > 5 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => alternarParam("vencidos", "todos", showAllOverdue)}
-                  >
-                    {showAllOverdue ? (
-                      <>
-                        <ChevronUp className="w-3 h-3 mr-1" /> Mostrar solo 5
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="w-3 h-3 mr-1" /> Ver todos ({overdueItems.length})
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {tarjetaVencidos}
 
       {/* ════════════════════════════════════════════════════════════
           FILA 2: ¿En qué gasto? — categorías
@@ -856,10 +899,7 @@ export function CashFlowCalendar({
                             </Badge>
                           )}
                         </p>
-                        <p className="text-muted-foreground">
-                          {CATEGORY_LABELS[item.category] || item.category} ·{" "}
-                          {formatDate(item.date)}
-                        </p>
+                        <ItemMeta item={item} showBranch={esAlcanceGrupo} prefix="Vence" />
                       </div>
                       <p className="font-bold text-foreground shrink-0">
                         {formatMXN(item.amountCents)}
