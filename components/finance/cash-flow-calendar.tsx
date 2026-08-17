@@ -754,7 +754,9 @@ export function CashFlowCalendar({
                     metrics && metrics.minBalance < 0
                       ? "text-destructive"
                       : metrics && metrics.minBalance < 50000
-                      ? "text-warning"
+                      // `--warning` es 2.52:1 sobre blanco: falla incluso el
+                      // piso de 3:1 de texto grande. `--warning-text` da 6.61:1.
+                      ? "text-warning-text"
                       : "text-foreground"
                   }`}
                 >
@@ -1095,7 +1097,8 @@ export function CashFlowCalendar({
                   <TrendingUp className="w-3.5 h-3.5 text-success" />
                   Entradas
                 </span>
-                <span className="font-bold text-success">
+                {/* `text-xs`: piso 4.5:1. `--success` da 3.68:1. */}
+                <span className="font-bold text-success-text tabular-nums">
                   {formatMXN(metrics?.totalInflow ?? 0)}
                 </span>
               </div>
@@ -1113,7 +1116,7 @@ export function CashFlowCalendar({
                 <span
                   className={`font-bold ${
                     (metrics?.totalInflow ?? 0) - (metrics?.totalOutflow ?? 0) >= 0
-                      ? "text-success"
+                      ? "text-success-text"
                       : "text-destructive"
                   }`}
                 >

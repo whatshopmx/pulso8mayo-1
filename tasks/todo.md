@@ -646,7 +646,7 @@ hecho: voseo rioplatense, "$50,000" que son $500, "promedio" donde el código us
 
 ## Fase 4: Color, contraste y jerarquía (P1)
 
-- [ ] **Task 14**: Contraste (dos fallas AA verificadas)
+- [x] **Task 14**: Contraste (dos fallas AA verificadas)
   - **Descripción**: `text-warning` en `:354` es `oklch(0.72 0.15 80)` = **2.52:1** sobre blanco y
     **2.42:1** sobre el `bg-warning/5` real donde vive — falla incluso el piso de 3:1 para texto
     grande, en `text-2xl font-bold`. `text-success` sobre blanco es 3.68:1: pasa en `:399` (texto
@@ -656,15 +656,35 @@ hecho: voseo rioplatense, "$50,000" que son $500, "promedio" donde el código us
     oscuro `--info` (`:147`) y `--chart-4` (`:153`) son idénticos byte a byte: las badges "OC" y
     "Factura" se pintan del mismo color y sólo las distingue la etiqueta.
   - **Acceptance criteria**:
-    - [ ] `text-warning` → `text-warning-text` en `:354`
-    - [ ] `text-success` en `text-xs` (`:691`, `:710`) pasa a un token que cumple 4.5:1
-    - [ ] `--chart-4` en `.dark` deja de colisionar con `--info`, o la badge de Factura cambia de token
-    - [ ] Cero usos restantes de `text-warning`/`text-success` como color de texto que no cumplan
-  - **Verificación**:
-    - [ ] `grep -n "text-warning\b\|text-success\b" components/finance/cash-flow-calendar.tsx` limpio
-    - [ ] Revisión de contraste en claro y oscuro
+    - [x] `text-warning` → `text-warning-text` (2.52:1 → 6.61:1). Cero `text-warning` sueltos
+    - [x] Los dos `text-success` dentro de `text-xs` pasan a `text-success-text`, **token nuevo**
+          creado a imagen de `--warning-text`: `oklch(0.48 0.14 150)` = 6.08:1 claro,
+          `oklch(0.78 0.13 150)` = 9.12:1 oscuro
+    - [x] `--chart-4` deja de colisionar con `--info`: se mueve a h=200 (45° de separación) en
+          **ambos** modos. En claro eran 240 vs 245 con croma casi igual — indistinguibles
+          también, aunque la crítica sólo midió el oscuro
+    - [x] Los `text-success` que quedan cumplen: uno es `text-2xl` (3.68:1 ≥ 3:1 de texto
+          grande) y otro es un icono (piso 3:1 de contraste no textual)
+  - **Hallazgo propio, no estaba en la crítica**: en modo oscuro `--info` daba **4.09:1** sobre
+    `--card` — la badge "OC" no sólo era indistinguible de "Factura", además fallaba AA. Subido
+    a `oklch(0.62 0.11 245)` = 4.82:1. El mismo cálculo destapó que `--chart-4` oscuro fallaba
+    igual (4.09:1); ahora 4.98:1.
+  - **Verificación** (calculada, no a ojo):
+    - [x] Se escribió un conversor OKLCH→sRGB→luminancia WCAG y se reprodujeron **exactamente**
+          los números de la crítica (2.52 / 6.61 / 3.68), lo que valida el método antes de
+          usarlo para elegir los tokens nuevos
+    - [x] **El cálculo quedó como test permanente** (`tests/support/contrast.ts`), leyendo los
+          valores del `globals.css` real: si alguien aclara `--warning-text` "porque se ve
+          mejor", el spec falla con el número exacto en vez de esperar a que alguien con poca
+          visión no pueda leer un monto
+    - [x] `npx tsc --noEmit` limpio · **68/68** en el spec
+  - **Decisión de alcance**: `text-success` aparece **55 veces en el repo**. Se arreglaron las de
+    esta pantalla. Barrer las otras 50 excede una tarea sobre un archivo; el token queda
+    disponible para que se adopte como se adoptó `--warning-text` (nueve archivos). **Anotado
+    como seguimiento.**
   - **Dependencias**: Ninguna
-  - **Archivos**: `components/finance/cash-flow-calendar.tsx`, `app/globals.css`
+  - **Archivos**: `app/globals.css`, `components/finance/cash-flow-calendar.tsx`,
+    `tests/support/contrast.ts` (nuevo), `tests/cash-flow.spec.ts`
   - **Alcance**: S
 
 - [ ] **Task 15**: Presupuesto de rojo y jerarquía de severidad

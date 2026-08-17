@@ -20,6 +20,8 @@ import {
   seedSalesCutHistory,
 } from "./support/db";
 import { addCalendarDays, localDateString } from "../lib/workflows/today";
+import { readFileSync } from "node:fs";
+import { BLANCO, contrastRatio, leerToken, rgbDe } from "./support/contrast";
 
 /**
  * Fase 0 — invariantes aritméticos del Panel de Flujo de Efectivo.
@@ -261,6 +263,80 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
       expect(dia.netFlowCents, `Flujo neto del ${dia.date}`).toBeNull();
       expect(dia.cumulativeBalanceCents, `Saldo del ${dia.date}`).toBeNull();
     }
+  });
+});
+
+/**
+ * Task 14 — contraste.
+ *
+ * `text-warning` es 2.52:1 sobre blanco: falla incluso el piso de 3:1 de texto
+ * grande, y estaba en un `text-2xl font-bold`. `text-success` es 3.68:1: pasa
+ * en texto grande pero falla el 4.5:1 de `text-xs`, que es donde más se usa.
+ *
+ * Los tokens se leen del `globals.css` real: así el test no puede quedar
+ * describiendo unos valores mientras la app usa otros.
+ */
+test.describe("Task 14 · contraste de tokens", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  const fondoOscuro = () => rgbDe(leerToken(css, "card", ".dark"));
+
+  test("los tokens de texto cumplen AA sobre fondo claro", () => {
+    // Piso 4.5:1 — son tokens para texto chico.
+    const warning = contrastRatio(rgbDe(leerToken(css, "warning-text", ":root")), BLANCO);
+    expect(warning, `--warning-text da ${warning.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+
+    const success = contrastRatio(rgbDe(leerToken(css, "success-text", ":root")), BLANCO);
+    expect(success, `--success-text da ${success.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test("los tokens que motivaron el arreglo siguen sin cumplir", () => {
+    // Se afirma el hecho, no el deseo: `--warning` y `--success` son tokens de
+    // relleno y no deben usarse como texto chico. Si algún día se oscurecen,
+    // este test falla y hay que revisar si el token de texto sigue haciendo
+    // falta.
+    const warning = contrastRatio(rgbDe(leerToken(css, "warning", ":root")), BLANCO);
+    expect(warning).toBeLessThan(4.5);
+
+    const success = contrastRatio(rgbDe(leerToken(css, "success", ":root")), BLANCO);
+    expect(success).toBeLessThan(4.5);
+  });
+
+  test("las badges de origen se distinguen y son legibles en oscuro", () => {
+    const info = leerToken(css, "info", ".dark");
+    const chart4 = leerToken(css, "chart-4", ".dark");
+
+    // Eran idénticos byte a byte: "OC" y "Factura" se pintaban del mismo color
+    // y sólo las distinguía la etiqueta.
+    expect(Math.abs(info.h - chart4.h)).toBeGreaterThanOrEqual(20);
+
+    // Y ambos son texto chico sobre la tarjeta oscura.
+    for (const [nombre, token] of [
+      ["--info", info],
+      ["--chart-4", chart4],
+    ] as const) {
+      const ratio = contrastRatio(rgbDe(token), fondoOscuro());
+      expect(ratio, `${nombre} da ${ratio.toFixed(2)}:1 en oscuro`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  test("los tokens de texto también cumplen en modo oscuro", () => {
+    for (const nombre of ["warning-text", "success-text"]) {
+      const ratio = contrastRatio(rgbDe(leerToken(css, nombre, ".dark")), fondoOscuro());
+      expect(ratio, `--${nombre} da ${ratio.toFixed(2)}:1 en oscuro`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  test("la pantalla no usa los tokens de relleno como texto chico", async () => {
+    const componente = readFileSync("components/finance/cash-flow-calendar.tsx", "utf8");
+
+    // `text-warning` como color de texto quedó erradicado del archivo; sólo
+    // sobrevive `text-warning-text`.
+    const warningSuelto = componente.match(/text-warning(?![-\w])/g) ?? [];
+    expect(warningSuelto).toEqual([]);
+
+    // `text-success` sólo sobrevive donde el piso es 3:1 (texto grande e
+    // iconos); en `text-xs` se usa `text-success-text`.
+    expect(componente).toContain("text-success-text");
   });
 });
 
