@@ -303,9 +303,25 @@ export async function seedCashFlowAssumption(opts: {
   companyId: string;
   branchId?: string | null;
   openingBalanceCents: number;
-  asOfDaysAgo?: number;
+  /**
+   * Fecha del saldo, en `YYYY-MM-DD`. **Se pasa explícita a propósito.**
+   *
+   * Usar `CURRENT_DATE - N` de Postgres hacía el test dependiente de la hora:
+   * `CURRENT_DATE` es la fecha del servidor (UTC) y el servicio calcula la
+   * antigüedad contra la fecha local de la operación (America/Mexico_City). Con
+   * el reloj entre las 18:00 y la medianoche local, las dos fechas difieren y la
+   * edad salía un día menos.
+   */
+  asOfDate?: string;
 }): Promise<void> {
-  const diasAtras = opts.asOfDaysAgo ?? 0;
+  // Hoy en la zona de la operación, que es con la que el servicio mide.
+  const hoyLocal = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
   await sql`
     INSERT INTO cash_flow_assumptions (
       company_id, branch_id, opening_balance_cents, as_of_date
@@ -314,7 +330,7 @@ export async function seedCashFlowAssumption(opts: {
       ${opts.companyId},
       ${opts.branchId ?? null},
       ${opts.openingBalanceCents},
-      (CURRENT_DATE - ${diasAtras}::int)
+      ${opts.asOfDate ?? hoyLocal}::date
     )
   `;
 }

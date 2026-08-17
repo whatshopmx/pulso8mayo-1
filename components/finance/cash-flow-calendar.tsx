@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmptyState } from "@/components/ui/empty-state";
 import { OpeningBalanceCard } from "@/components/finance/opening-balance-card";
+import { ExpenseRowActions } from "@/components/finance/expense-row-actions";
 import { statusBadgeClasses } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -24,6 +25,7 @@ import {
   Building2,
   HelpCircle,
   ArrowRight,
+  ShieldCheck,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -147,6 +149,10 @@ interface CashFlowCalendarProps {
   canEditAssumptions?: boolean;
   /** Revalida la proyección tras capturar el saldo. */
   onAssumptionSaved?: () => void;
+  /** Si se dibujan las acciones de pago/reprogramación. La ruta manda. */
+  canActOnExpenses?: boolean;
+  /** Revalida la proyección tras pagar o reprogramar. */
+  onActionDone?: () => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -235,28 +241,47 @@ function hrefParaPartida(item: OutflowItem): string | null {
   return base ? `${base}?focus=${encodeURIComponent(item.id)}` : null;
 }
 
-/** Fila enlazada al registro origen, o `div` cuando no hay a dónde ir. */
+/**
+ * Fila de una partida: zona enlazada al registro origen + acciones a un lado.
+ *
+ * Las acciones van **fuera** del `Link`, no dentro: un `<button>` anidado en un
+ * `<a>` es HTML inválido y rompe la navegación por teclado — el lector de
+ * pantalla anuncia un solo control donde hay tres.
+ */
 function ItemRow({
   item,
   className,
   children,
+  trailing,
+  actions,
 }: {
   item: OutflowItem;
   className: string;
   children: React.ReactNode;
+  trailing?: React.ReactNode;
+  actions?: React.ReactNode;
 }) {
   const href = hrefParaPartida(item);
-  if (!href) return <div className={className}>{children}</div>;
 
-  return (
+  const contenido = href ? (
     <Link
       href={href}
-      // El foco de teclado y el hover se ven en la fila completa, no sólo en
+      // El foco de teclado y el hover se ven en toda la zona enlazada, no en
       // un fragmento de texto.
-      className={`${className} hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset transition-colors`}
+      className="flex-1 min-w-0 rounded-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
     >
       {children}
     </Link>
+  ) : (
+    <div className="flex-1 min-w-0">{children}</div>
+  );
+
+  return (
+    <div className={className}>
+      {contenido}
+      {trailing}
+      {actions}
+    </div>
   );
 }
 
@@ -326,6 +351,8 @@ export function CashFlowCalendar({
   horizonDays,
   canEditAssumptions = false,
   onAssumptionSaved,
+  canActOnExpenses = false,
+  onActionDone,
 }: CashFlowCalendarProps) {
   // Los colapsos vivían en `useState`, así que se reiniciaban en cada cambio de
   // sucursal y no se podían enlazar. En la URL sobreviven al remonte y viajan en
@@ -533,6 +560,21 @@ export function CashFlowCalendar({
   };
 
   const visibleOverdue = showAllOverdue ? overdueItems : overdueItems.slice(0, 5);
+
+  /**
+   * Acciones de una partida, o nada. Sólo gastos operativos: las OC y las
+   * facturas de procurement no tienen estos endpoints, y un botón que va a
+   * fallar es peor que ningún botón.
+   */
+  const accionesDeGasto = (item: OutflowItem) =>
+    canActOnExpenses && item.source === "OPERATING_EXPENSE" && !item.isPayroll ? (
+      <ExpenseRowActions
+        expenseId={item.id}
+        status={item.status}
+        minDate={days[0]?.date ?? ""}
+        onDone={onActionDone ?? (() => {})}
+      />
+    ) : null;
   // La sucursal se rotula en cada partida sólo cuando las cifras son del grupo:
   // repetirla en alcance de una sucursal, con la píldora arriba diciéndolo, es
   // ruido en filas que ya se truncan.
@@ -563,8 +605,22 @@ export function CashFlowCalendar({
                   key={item.id}
                   item={item}
                   className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
+                  trailing={
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-destructive tabular-nums">
+                        {formatMXN(item.amountCents)}
+                      </p>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs px-1 py-0 ${statusBadgeClasses("destructive")}`}
+                      >
+                        {STATUS_LABELS[item.status] || item.status}
+                      </Badge>
+                    </div>
+                  }
+                  actions={accionesDeGasto(item)}
                 >
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 px-1 py-0.5">
                     <p className="font-medium text-foreground truncate">
                       {item.description}
                       {item.source && item.source !== "OPERATING_EXPENSE" && (
@@ -577,17 +633,6 @@ export function CashFlowCalendar({
                       )}
                     </p>
                     <ItemMeta item={item} showBranch={esAlcanceGrupo} prefix="Venció" />
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-bold text-destructive tabular-nums">
-                      {formatMXN(item.amountCents)}
-                    </p>
-                    <Badge
-                      variant="outline"
-                      className={`text-xs px-1 py-0 ${statusBadgeClasses("destructive")}`}
-                    >
-                      {STATUS_LABELS[item.status] || item.status}
-                    </Badge>
                   </div>
                 </ItemRow>
               ))}
@@ -940,8 +985,14 @@ export function CashFlowCalendar({
                       key={item.id}
                       item={item}
                       className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
+                      trailing={
+                        <p className="font-bold text-foreground shrink-0 tabular-nums">
+                          {formatMXN(item.amountCents)}
+                        </p>
+                      }
+                      actions={accionesDeGasto(item)}
                     >
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0 px-1 py-0.5">
                         <p className="font-medium truncate">
                           {item.description}
                           {item.source && item.source !== "OPERATING_EXPENSE" && (
@@ -955,9 +1006,6 @@ export function CashFlowCalendar({
                         </p>
                         <ItemMeta item={item} showBranch={esAlcanceGrupo} prefix="Vence" />
                       </div>
-                      <p className="font-bold text-foreground shrink-0 tabular-nums">
-                        {formatMXN(item.amountCents)}
-                      </p>
                     </ItemRow>
                   ))}
                 </div>
@@ -1154,6 +1202,23 @@ export function CashFlowCalendar({
           </CardContent>
         </Card>
       </div>
+
+      {/* `payables` avisa que es de sólo consulta. Aquí el aviso cambia de
+          sentido: esta pantalla SÍ escribe, pero no concilia contra el banco.
+          Marcar pagado registra lo que la dueña sabe ("ya lo pagué"), no lo que
+          el banco confirmó. Decirlo evita que un tablero en verde se lea como
+          una conciliación que nadie hizo. */}
+      {canActOnExpenses && (
+        <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs">
+          <ShieldCheck className="w-4 h-4 text-muted-foreground shrink-0 mt-px" />
+          <span>
+            <span className="font-semibold">Marcar pagado registra el gasto, no el movimiento
+            bancario.</span>{" "}
+            Pulso no se conecta a tu banco: queda anotado quién lo marcó y cuándo, pero la
+            conciliación contra el estado de cuenta sigue siendo tuya.
+          </span>
+        </div>
+      )}
 
       {/* Salida al detalle completo. Esta pantalla proyecta; el saldo real de lo
           que se debe, con su antigüedad y conciliación, vive en Cuentas por

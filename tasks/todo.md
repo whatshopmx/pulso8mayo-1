@@ -582,29 +582,65 @@ las cuatro estimaciones que cargan la proyección se nombran y se explican.
     `app/api/expenses/[id]/reschedule/route.ts`, `tests/cash-flow.spec.ts`
   - **Alcance**: M
 
-- [ ] **Task 13**: Acciones en línea con RBAC
+- [x] **Task 13**: Acciones en línea con RBAC
   - **Descripción**: Conectar Task 12 a las filas. Además, decir en voz alta qué hace y qué no esta
     pantalla — `payables/page.tsx:183-191` ya establece ese patrón y esta no lo tiene. Aquí el aviso
     cambia de sentido: sí escribe, pero no concilia contra el banco.
   - **Acceptance criteria**:
-    - [ ] "Marcar pagado" y "Reprogramar" en filas de vencidos y próximos 7 días, sólo donde el rol
-          lo permite
-    - [ ] Tras la acción, la proyección se revalida y las cifras se actualizan sin recargar
-    - [ ] Aviso explícito: registra el estado del gasto, no concilia el movimiento bancario
-    - [ ] Estados de carga y error por fila, no globales
+    - [x] "Pagado" y "Reprogramar" en filas de vencidos y próximos 7 días, sólo para
+          SUPER_ADMIN/ADMIN/GERENTE. "Pagado" aparece **sólo si el gasto está APPROVED**, que es
+          lo que el servicio admite: un botón que va a fallar es peor que ningún botón
+    - [x] Sólo en gastos operativos: las OC y las facturas de procurement no tienen estos
+          endpoints
+    - [x] Tras la acción se revalida la proyección sin recargar (`onActionDone` → `fetchProjection`)
+    - [x] Aviso explícito, que **cambia de sentido** respecto al de `payables`: esa pantalla
+          avisa que es de sólo consulta; esta avisa que sí escribe pero **no concilia contra el
+          banco**. "Marcar pagado registra el gasto, no el movimiento bancario."
+    - [x] Carga y error **por fila**: un error global no diría cuál de las seis filas falló
+  - **Restructuración que exigió el HTML**: las filas eran un `Link` completo (Task 11). Meter
+    botones dentro habría anidado `<button>` en `<a>` — inválido, y el lector de pantalla
+    anuncia un solo control donde hay tres. `ItemRow` ahora enlaza sólo la zona descriptiva y
+    recibe `trailing` (monto) y `actions` como hermanos. Hay un test que lo fija:
+    `a button` debe dar 0.
   - **Verificación**:
-    - [ ] Marcar pagado desde aquí saca la partida de vencidos y recalcula el saldo mínimo
-    - [ ] Un SUPERVISOR sin permiso no ve los botones
-    - [ ] `pnpm exec playwright test tests/cash-flow.spec.ts -g "marcar pagado"`
+    - [x] Marcar pagado desde la fila hace desaparecer el botón sin recargar (el gasto deja de
+          estar APPROVED) — la proyección se revalidó sola
+    - [x] El aviso de "no concilia" está visible para quien puede accionar
+    - [x] **EMPLEADO**: sesión real de navegador, entra a la pantalla (es lectura financiera)
+          pero no ve botones ni el aviso de escritura
+    - [x] Cero `<button>` dentro de `<a>`
+    - [x] `npx tsc --noEmit` limpio · eslint sin hallazgos nuevos · **63/63** en el spec
+  - **Bug latente propio, encontrado por la suite completa**: el test de antigüedad del saldo
+    (Task 8) sembraba con `CURRENT_DATE - N` de Postgres —fecha del servidor, UTC— mientras el
+    servicio mide contra la fecha local de la operación. Entre las 18:00 y la medianoche de
+    CDMX las dos difieren y la edad salía un día menos. Pasó en su momento por la hora a la que
+    se corrió. Ahora la fecha se calcula en la zona de la operación, igual que el servicio.
+    Es la misma clase de defecto que la Task 4 arregló en el código de producción.
   - **Dependencias**: Tasks 11, 12
-  - **Archivos**: `components/finance/cash-flow-calendar.tsx`, `hooks/queries/`
+  - **Archivos**: `components/finance/expense-row-actions.tsx` (nuevo),
+    `components/finance/cash-flow-calendar.tsx`, `app/dashboard/finance/cash-flow/page.tsx`,
+    `tests/cash-flow.spec.ts`, `tests/support/db.ts`
   - **Alcance**: M
 
-### Checkpoint: Accionabilidad
-- [ ] Toda fila navega a su registro origen
-- [ ] `supplierName` visible donde existe
-- [ ] Vencidos visibles aunque no haya proyección
-- [ ] Marcar pagado cambia el estado y queda auditado
+### Checkpoint: Accionabilidad — ✅ cerrado
+- [x] Toda fila de vencidos y próximos 7 días navega a su registro origen (menos la nómina,
+      que no existe como registro)
+- [x] La contraparte (`payees`) es visible donde existe — el `supplierName` del plan nunca se
+      habría llenado en vencidos, que son sólo gastos operativos
+- [x] Vencidos visibles aunque no haya proyección
+- [x] Marcar pagado cambia el estado, es idempotente y queda en la bitácora con el actor
+- [x] `npx tsc --noEmit` limpio · eslint sin hallazgos nuevos · **63/63** en el spec
+
+**Estado de la Fase 3**: cerrada. La pantalla dejó de ser un informe: cada hallazgo lleva a su
+registro y las dos acciones que importan se ejecutan desde la fila, con RBAC en la ruta y el
+aviso de que registra el gasto pero no concilia el banco.
+
+**Pendiente de decisión (ver Task 12)**: un gasto ya pagado sigue contando en "Total egresos"
+del período, porque la consulta de proyectados no filtra por estado. Hay un test que fija el
+comportamiento actual; si debe excluirlos, ese test falla y avisa.
+
+**Lo que queda**: color y contraste (P1, dos fallas AA verificadas) y copy (P2, con errores de
+hecho: voseo rioplatense, "$50,000" que son $500, "promedio" donde el código usa mediana).
 
 ---
 

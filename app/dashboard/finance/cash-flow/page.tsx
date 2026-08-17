@@ -22,6 +22,12 @@ const HORIZONTE_DEFAULT = 30;
  */
 const PUEDEN_CAPTURAR = ["SUPER_ADMIN", "ADMIN", "GERENTE"];
 
+/**
+ * Quién puede pagar o reprogramar desde aquí. Mismo criterio que las rutas
+ * `/api/expenses/[id]/pay` y `/reschedule`, que son las que de verdad mandan.
+ */
+const PUEDEN_ACCIONAR = ["SUPER_ADMIN", "ADMIN", "GERENTE"];
+
 export default function CashFlowPage() {
   // `useSearchParams` exige límite de Suspense, como en purchase-orders.
   return (
@@ -188,6 +194,10 @@ function CashFlowContent() {
           horizonDays={days}
           canEditAssumptions={PUEDEN_CAPTURAR.includes(session?.user?.role ?? "")}
           onAssumptionSaved={fetchProjection}
+          canActOnExpenses={PUEDEN_ACCIONAR.includes(session?.user?.role ?? "")}
+          // Revalida sin recargar: tras pagar, el saldo mínimo y los totales se
+          // recalculan solos.
+          onActionDone={fetchProjection}
         />
       )}
     </div>

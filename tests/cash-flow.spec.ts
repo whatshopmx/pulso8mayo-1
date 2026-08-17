@@ -265,6 +265,121 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
 });
 
 /**
+ * Task 13 — las acciones, en la fila.
+ *
+ * Conecta los endpoints de la Task 12 a las filas, y dice en voz alta qué hace
+ * y qué no: aquí el aviso cambia de sentido respecto a `payables` —esta
+ * pantalla sí escribe, pero no concilia contra el banco.
+ */
+test.describe("Task 13 · acciones en línea", () => {
+  test.setTimeout(180_000);
+  const PANTALLA = "/dashboard/finance/cash-flow";
+
+  test.afterAll(async () => {
+    await deleteTestExpenses();
+  });
+
+  test("marcar pagado desde la fila recalcula la proyección sin recargar", async ({
+    page,
+  }) => {
+    await deleteTestExpenses();
+    await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), 2),
+      amountCents: 1_234_500,
+      description: `${E2E_TAG} Gasto accionable`,
+      status: "APPROVED",
+    });
+
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+    await expect(page.getByText(`${E2E_TAG} Gasto accionable`)).toBeVisible();
+
+    // La acción vive junto a su fila, no en una barra global: se busca desde el
+    // enlace de la partida hacia su contenedor (`ItemRow`).
+    const fila = page
+      .getByRole("link", { name: /Gasto accionable/ })
+      .locator("xpath=..");
+    const botonPagar = fila.getByRole("button", { name: /Pagado/ });
+    await expect(botonPagar).toBeVisible();
+    await botonPagar.click();
+
+    // Sin recargar: el botón desaparece porque el gasto ya no está APPROVED.
+    await expect(botonPagar).toHaveCount(0, { timeout: 30_000 });
+
+    await deleteTestExpenses();
+  });
+
+  test("la pantalla dice que registra el gasto, no el movimiento bancario", async ({
+    page,
+  }) => {
+    await page.goto(`${PANTALLA}?days=30`);
+    await expect(
+      page.getByText(/Marcar pagado registra el gasto, no el movimiento bancario/)
+    ).toBeVisible();
+    await expect(page.getByText(/no se conecta a tu banco/i)).toBeVisible();
+  });
+
+  test("un EMPLEADO no ve los botones de acción", async ({ browser }) => {
+    await deleteTestExpenses();
+    await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), 2),
+      amountCents: 1_234_500,
+      description: `${E2E_TAG} Gasto accionable`,
+      status: "APPROVED",
+    });
+
+    const contexto = await browser.newContext({ storageState: undefined });
+    try {
+      const pagina = await contexto.newPage();
+      await pagina.goto("/sign-in");
+      await pagina.locator("#email").fill(EMPLEADO_EMAIL);
+      await pagina.locator("#password").fill(ADMIN_PASSWORD);
+      await pagina.getByRole("button", { name: /iniciar|sign in|entrar/i }).click();
+      await pagina.waitForURL(/\/dashboard/, { timeout: 120_000 });
+
+      await pagina.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+      // Un EMPLEADO llega a la pantalla (es de lectura financiera) pero no
+      // puede accionar: ni botones ni aviso de escritura.
+      await expect(pagina.getByRole("button", { name: /Reprogramar/ })).toHaveCount(0);
+      await expect(
+        pagina.getByText(/Marcar pagado registra el gasto/)
+      ).toHaveCount(0);
+    } finally {
+      await contexto.close();
+      await deleteTestExpenses();
+    }
+  });
+
+  test("las acciones no quedan anidadas dentro del enlace de la fila", async ({ page }) => {
+    await deleteTestExpenses();
+    await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), 2),
+      amountCents: 1_234_500,
+      description: `${E2E_TAG} Gasto accionable`,
+      status: "APPROVED",
+    });
+
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+    await expect(page.getByText(`${E2E_TAG} Gasto accionable`)).toBeVisible();
+
+    // Un <button> dentro de un <a> es HTML inválido y rompe la navegación por
+    // teclado: el lector anuncia un solo control donde hay tres.
+    const botonesDentroDeEnlaces = await page.locator("a button").count();
+    expect(botonesDentroDeEnlaces).toBe(0);
+
+    await deleteTestExpenses();
+  });
+});
+
+/**
  * Task 12 — endpoints de pago y reprogramación.
  *
  * `expense-service` tenía `create`, `approve`, `reject` y `get`, pero no
@@ -847,7 +962,10 @@ test.describe("Task 8 · saldo inicial capturado", () => {
       companyId: COMPANY_ID,
       branchId: null,
       openingBalanceCents: 5_000_000,
-      asOfDaysAgo: 9,
+      // Fecha calculada en la zona de la operación, la misma con la que el
+      // servicio mide la antigüedad. Con `CURRENT_DATE - 9` de Postgres el
+      // test dependía de la hora del día.
+      asOfDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), -9),
     });
 
     const viejo = await obtenerProyeccion(request, 30);
@@ -861,7 +979,7 @@ test.describe("Task 8 · saldo inicial capturado", () => {
       companyId: COMPANY_ID,
       branchId: null,
       openingBalanceCents: 5_000_000,
-      asOfDaysAgo: 3,
+      asOfDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), -3),
     });
     const fresco = await obtenerProyeccion(request, 30);
     expect(fresco.openingBalance.ageInDays).toBe(3);
