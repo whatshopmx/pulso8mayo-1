@@ -27,6 +27,7 @@ interface WorkflowStep {
     type: 'TEXT' | 'NUMBER' | 'SELECT' | 'CHECKBOX' | 'DATE' | 'INFO' | 'SIGNATURE' | 'PHOTO' | 'TIMER' | 'VIDEO' | 'AUDIO' | 'LOCATION' | 'ENTITY_SELECT';
     config?: Record<string, unknown>;
     required?: boolean;
+    metadata?: Record<string, any> & { entityType?: "purchase_order" | "invoice" };
 }
 
 interface WorkflowInstance {
