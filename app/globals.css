@@ -18,6 +18,8 @@
   --color-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
@@ -109,6 +111,13 @@
      "Factura". A h=200 hay 45° de separación real. */
   --chart-4: oklch(0.52 0.10 200);
   --chart-5: oklch(0.56 0.15 0);
+  /* Tres de los cinco tokens de gráfica viven en la familia del rojo
+     (`--chart-1` h=25, `--chart-5` h=0, y `--destructive` h=22), así que una
+     pantalla que debe reservar el rojo para una sola cosa se quedaba sin
+     paleta. Estos dos abren el rango sin tocar los existentes, que otras
+     pantallas ya usan. */
+  --chart-6: oklch(0.55 0.14 300);
+  --chart-7: oklch(0.55 0.12 145);
 
   --sidebar: oklch(0.985 0.003 85);
   --sidebar-foreground: oklch(0.16 0.01 30);
@@ -167,6 +176,8 @@
      4.09:1 sobre `--card`. Ahora h=200 y 4.98:1. */
   --chart-4: oklch(0.62 0.10 200);
   --chart-5: oklch(0.62 0.15 0);
+  --chart-6: oklch(0.68 0.14 300);
+  --chart-7: oklch(0.66 0.12 145);
 
   --sidebar: oklch(0.20 0.01 20);
   --sidebar-foreground: oklch(0.96 0.005 85);

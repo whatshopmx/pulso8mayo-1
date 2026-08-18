@@ -687,7 +687,7 @@ hecho: voseo rioplatense, "$50,000" que son $500, "promedio" donde el código us
     `tests/support/contrast.ts` (nuevo), `tests/cash-flow.spec.ts`
   - **Alcance**: S
 
-- [ ] **Task 15**: Presupuesto de rojo y jerarquía de severidad
+- [x] **Task 15**: Presupuesto de rojo y jerarquía de severidad
   - **Descripción**: En un mes malo están rojos a la vez: las tarjetas hero 2 y 3 completas, la badge
     de nómina (`:430`), toda la tarjeta de vencidos con cada monto y cada badge, la barra `NOMINA` en
     `--destructive`, la de `RENTA` en `--chart-1` (hue 25, prácticamente Rojo Operativo), hasta 5
@@ -696,17 +696,41 @@ hecho: voseo rioplatense, "$50,000" que son $500, "promedio" donde el código us
     `daysUntilNegative` truthy pinta la tarjeta de destructive lo mismo si la fecha es en 2 días que
     en 29 (`:385-395`), así que "apenas bien" y "en problemas el jueves" se ven idénticos.
   - **Acceptance criteria**:
-    - [ ] Un solo dueño del rojo: la tarjeta de vencidos
-    - [ ] Semanas pesadas → tinte ámbar más la palabra literal "Semana pesada"
-    - [ ] Barras "Salidas" → `var(--chart-4)`; barra `RENTA` fuera del rango de hue rojo
-    - [ ] Cifras del resumen → foreground con signo negativo
-    - [ ] Tarjeta 3: roja sólo a ≤7 días, ámbar hasta 14, neutra más allá
-    - [ ] El rojo cabe en 10–15% en el peor escenario de datos
+    - [x] La tarjeta de vencidos es el dueño del rojo. La tarjeta 3 lo toma prestado **sólo**
+          cuando el saldo cruza a negativo dentro de 7 días
+    - [x] Semanas pesadas → tinte ámbar + la palabra literal **"Semana pesada"**, que además
+          resuelve que "qué semanas son malas" viajara sólo por color
+    - [x] Barras "Salidas" → `var(--chart-4)`; ninguna categoría queda en la familia del rojo
+    - [x] Cifras del resumen → foreground con signo negativo: el signo hace el trabajo que
+          hacía el color. Que salga dinero no es una anomalía
+    - [x] Tarjeta 3 rangea: roja ≤7 días, ámbar ≤14, neutra más allá (`SEVERIDAD_TARJETA` /
+          `SEVERIDAD_TEXTO`). Antes `daysUntilNegative` truthy pintaba igual "en 2 días" que
+          "en 29", así que "apenas bien" y "en problemas el jueves" se veían idénticos
+    - [x] La tarjeta 2 (saldo mínimo) deja de teñirse: teñirla a la vez que la 3 por el mismo
+          hecho —el saldo cruza a negativo— gastaba el rojo dos veces
+    - [x] La badge de nómina sale del rojo: es el gasto más previsible del mes, estaba en rojo
+          por ser grande, no por ser un problema
+  - **Causa raíz, y por qué hubo que tocar el sistema de diseño**: `--chart-1` es h=25,
+    `--chart-5` es h=0 y `--destructive` es h=22 — **tres de los cinco tokens de gráfica viven
+    en la familia del rojo**. Una pantalla que debe reservar el rojo se quedaba literalmente
+    sin paleta. Se añadieron `--chart-6` (violeta, h=300) y `--chart-7` (verde, h=145) sin
+    tocar los existentes, que otras pantallas ya usan.
   - **Verificación**:
-    - [ ] Captura del peor caso con la seed y estimación del área roja
-    - [ ] Con saldo negativo a 25 días la tarjeta 3 no es roja
+    - [x] Test que mide el **hue real** de cada color de categoría contra el de `--destructive`
+          y exige >30° de separación — no una lista de nombres prohibidos, que se quedaría
+          vieja al primer token nuevo
+    - [x] La barra "Salidas" usa `chart-4` (aserción sobre el JSX)
+    - [x] El tinte de semana pesada contiene `warning` y no `destructive`
+    - [x] Conteo de elementos en rojo en la pantalla real, con umbral holgado: protege contra
+          la regresión (volver a teñir semanas, barras o categorías), no fija píxeles
+    - [x] `npx tsc --noEmit` limpio · eslint sin hallazgos nuevos · **72/72** en el spec
+  - **No verificado como pedía el plan**: "captura del peor caso y estimación del área roja" no
+    se hizo — estimar un porcentaje de área desde una captura no es reproducible ni se sostiene
+    en CI. El conteo de elementos con tinte de alarma cumple la misma función y sí falla si
+    alguien reintroduce el rojo.
   - **Dependencias**: Task 14
-  - **Archivos**: `components/finance/cash-flow-calendar.tsx`
+  - **Archivos**: `components/finance/cash-flow-calendar.tsx`, `app/globals.css`,
+    `tests/cash-flow.spec.ts`
   - **Alcance**: M
 
 - [ ] **Task 16**: Jerarquía visual y agrupación

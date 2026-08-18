@@ -171,14 +171,48 @@ const CATEGORY_LABELS: Record<string, string> = {
 // Tokens de gráfica, no hex crudo: la leyenda usaba una paleta fija mientras las
 // barras del mismo archivo usaban `var(--chart-N)`, así que al cambiar de tema la
 // leyenda dejaba de corresponder con lo graficado.
+/**
+ * Escala de severidad del saldo, por cercanía.
+ *
+ * DESIGN.md topa el Rojo Operativo en 10–15% de la pantalla. Un tablero donde
+ * todo es rojo no prioriza nada: la dueña no puede saber qué atender primero.
+ * Aquí el rojo se reserva para lo inminente —saldo negativo dentro de una
+ * semana— y lo que está más lejos baja a ámbar o a neutro.
+ */
+type Severidad = "critica" | "atencion" | "neutra";
+
+const SEVERIDAD_TARJETA: Record<Severidad, string> = {
+  critica: "border-destructive/30 bg-destructive/5",
+  atencion: "border-warning/30 bg-warning/5",
+  neutra: "",
+};
+
+const SEVERIDAD_TEXTO: Record<Severidad, string> = {
+  critica: "text-destructive",
+  atencion: "text-warning-text",
+  neutra: "text-foreground",
+};
+
+/** Días de margen a partir de los cuales el saldo deja de ser una urgencia. */
+const DIAS_CRITICOS = 7;
+const DIAS_ATENCION = 14;
+
+/**
+ * Ninguna categoría se pinta de rojo.
+ *
+ * La nómina era `--destructive` y la renta `--chart-1` (h=25, prácticamente el
+ * mismo tono): las dos barras más grandes de la pantalla gritaban alarma por
+ * ser grandes, no por ser un problema. Pagar la nómina no es una emergencia —
+ * es lo normal. El rojo queda para lo que de verdad va tarde.
+ */
 const CATEGORY_COLORS: Record<string, string> = {
-  RENTA: "var(--chart-1)",
-  SERVICIOS: "var(--chart-2)",
-  MANTENIMIENTO: "var(--chart-3)",
+  NOMINA: "var(--chart-6)",
+  RENTA: "var(--chart-2)",
+  SERVICIOS: "var(--chart-3)",
+  MANTENIMIENTO: "var(--chart-7)",
   PUBLICIDAD: "var(--chart-4)",
-  SERVICIOS_PROFESIONALES: "var(--chart-5)",
-  NOMINA: "var(--destructive)",
   COMPRAS: "var(--info)",
+  SERVICIOS_PROFESIONALES: "var(--muted-foreground)",
   OTROS: "var(--muted-foreground)",
 };
 
@@ -407,6 +441,7 @@ export function CashFlowCalendar({
   // tu saldo" y "captura tus ventas" son acciones distintas.
   const sinProyeccionDeSaldo = sinSaldoCapturado || sinHistorialDeVentas;
 
+
   /**
    * Las cuatro estimaciones que cargan la pantalla. Se nombran y se explican en
    * vez de presentarse como hechos: quien decide con estas cifras tiene derecho
@@ -558,6 +593,16 @@ export function CashFlowCalendar({
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  // Qué tan cerca está el problema, no si existe.
+  const severidadDelSaldo: Severidad =
+    sinProyeccionDeSaldo || !metrics?.daysUntilNegative
+      ? "neutra"
+      : metrics.runway <= DIAS_CRITICOS
+        ? "critica"
+        : metrics.runway <= DIAS_ATENCION
+          ? "atencion"
+          : "neutra";
 
   const visibleOverdue = showAllOverdue ? overdueItems : overdueItems.slice(0, 5);
 
@@ -725,16 +770,10 @@ export function CashFlowCalendar({
           onSaved={onAssumptionSaved ?? (() => {})}
         />
 
-        {/* Saldo mínimo */}
-        <Card
-          className={
-            metrics && metrics.minBalance < 0
-              ? "border-destructive/30 bg-destructive/5"
-              : metrics && metrics.minBalance < 50000
-              ? "border-warning/30 bg-warning/5"
-              : ""
-          }
-        >
+        {/* Saldo mínimo. La tarjeta ya no se tiñe: la severidad la comunica el
+            número, y teñir esta y la de al lado por la misma causa —el saldo
+            cruza a negativo— gastaba el rojo dos veces por un solo hecho. */}
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-1">
               <TrendingDown className="w-4 h-4" />
@@ -750,7 +789,7 @@ export function CashFlowCalendar({
             ) : (
               <>
                 <div
-                  className={`text-2xl font-bold ${
+                  className={`text-2xl font-bold tabular-nums ${
                     metrics && metrics.minBalance < 0
                       ? "text-destructive"
                       : metrics && metrics.minBalance < 50000
@@ -777,13 +816,10 @@ export function CashFlowCalendar({
 
         {/* Días de efectivo — "Runway" es vocabulario de capital de riesgo, no de
             un dueño de taquería. */}
-        <Card
-          className={
-            metrics && metrics.negativeDays > 0
-              ? "border-destructive/30 bg-destructive/5"
-              : ""
-          }
-        >
+        {/* El rojo aprende a rangear: antes `daysUntilNegative` truthy pintaba
+            la tarjeta igual si la fecha era en 2 días que en 29, así que
+            "apenas bien" y "en problemas el jueves" se veían idénticos. */}
+        <Card className={SEVERIDAD_TARJETA[severidadDelSaldo]}>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-1">
               <Calendar className="w-4 h-4" />
@@ -798,12 +834,12 @@ export function CashFlowCalendar({
               </>
             ) : metrics?.daysUntilNegative ? (
               <>
-                <div className="text-2xl font-bold text-destructive">
+                <div className={`text-2xl font-bold tabular-nums ${SEVERIDAD_TEXTO[severidadDelSaldo]}`}>
                   {metrics.runway} días
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Saldo negativo el{" "}
-                  <span className="font-medium text-destructive">
+                  <span className={`font-medium ${SEVERIDAD_TEXTO[severidadDelSaldo]}`}>
                     {formatDate(metrics.daysUntilNegative)}
                   </span>
                 </p>
@@ -870,8 +906,10 @@ export function CashFlowCalendar({
                 {formatMXN(data.procurementCommitments.invoicesTotalCents)})
               </Badge>
             )}
+            {/* La nómina no es una alarma: es el gasto más previsible del mes.
+                Estaba en rojo por ser grande, no por ser un problema. */}
             {data.payroll && data.payroll.activeEmployees > 0 && (
-              <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/20">
+              <Badge variant="outline" className="text-xs bg-chart-6/10 text-chart-6 border-chart-6/20">
                 Nómina: {data.payroll.activeEmployees} emp ·{" "}
                 {formatMXN(data.payroll.biweeklyEstimateCents)}/quincena
               </Badge>
@@ -1045,7 +1083,7 @@ export function CashFlowCalendar({
                   key={week.key ?? week.startDate}
                   className={`rounded-lg border p-3 ${
                     week.isHeavy
-                      ? "border-destructive/30 bg-destructive/5"
+                      ? "border-warning/30 bg-warning/5"
                       : week.isPartial
                       ? "border-dashed border-muted bg-muted/20"
                       : "border-muted bg-card"
@@ -1053,21 +1091,26 @@ export function CashFlowCalendar({
                 >
                   <p
                     className={`text-xs font-bold mb-2 ${
-                      week.isHeavy ? "text-destructive" : "text-foreground"
+                      week.isHeavy ? "text-warning-text" : "text-foreground"
                     }`}
                   >
                     {week.weekLabel}
-                    {week.isHeavy && (
-                      <AlertTriangle className="w-3 h-3 inline ml-1 text-destructive" />
-                    )}
                   </p>
                   <p
-                    className={`text-xl font-bold ${
-                      week.isHeavy ? "text-destructive" : "text-foreground"
+                    className={`text-xl font-bold tabular-nums ${
+                      week.isHeavy ? "text-warning-text" : "text-foreground"
                     }`}
                   >
                     {formatMXN(week.totalOutflowCents)}
                   </p>
+                  {/* Marcador textual, no sólo cromático: "qué semanas son
+                      malas" era información disponible únicamente por color. */}
+                  {week.isHeavy && (
+                    <p className="text-xs font-medium text-warning-text mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+                      Semana pesada
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {week.itemCount} compromisos
                     {/* Un total más chico porque la ventana se cortó no es una semana
@@ -1104,20 +1147,22 @@ export function CashFlowCalendar({
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground flex items-center gap-1">
-                  <TrendingDown className="w-3.5 h-3.5 text-destructive" />
+                  <TrendingDown className="w-3.5 h-3.5" />
                   Salidas
                 </span>
-                <span className="font-bold text-destructive">
-                  {formatMXN(metrics?.totalOutflow ?? 0)}
+                {/* El signo hace el trabajo que hacía el color. Que salga dinero
+                    no es una anomalía. */}
+                <span className="font-bold text-foreground tabular-nums">
+                  −{formatMXN(metrics?.totalOutflow ?? 0)}
                 </span>
               </div>
               <div className="border-t pt-2 flex items-center justify-between text-xs">
                 <span className="text-muted-foreground font-medium">Flujo neto</span>
                 <span
-                  className={`font-bold ${
+                  className={`font-bold tabular-nums ${
                     (metrics?.totalInflow ?? 0) - (metrics?.totalOutflow ?? 0) >= 0
                       ? "text-success-text"
-                      : "text-destructive"
+                      : "text-foreground"
                   }`}
                 >
                   {formatMXN((metrics?.totalInflow ?? 0) - (metrics?.totalOutflow ?? 0))}
@@ -1175,9 +1220,12 @@ export function CashFlowCalendar({
                     fill="var(--chart-3)"
                     radius={[4, 4, 0, 0]}
                   />
+                  {/* Eran 14+ barras en `--chart-5` (h=0, un carmesí): la mitad
+                      de la tinta de la gráfica en rojo por dibujar egresos
+                      normales. Gastar es lo que hace un negocio. */}
                   <Bar
                     dataKey="Salidas"
-                    fill="var(--chart-5)"
+                    fill="var(--chart-4)"
                     radius={[4, 4, 0, 0]}
                   />
                 </BarChart>

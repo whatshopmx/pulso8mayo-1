@@ -267,6 +267,96 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
 });
 
 /**
+ * Task 15 — presupuesto de rojo.
+ *
+ * En un mes malo estaban rojos a la vez: dos tarjetas hero completas, la
+ * tarjeta de vencidos entera, la badge de nómina, la barra NOMINA, la de RENTA
+ * (h=25, prácticamente Rojo Operativo), hasta cinco tarjetas semanales, las
+ * cifras del resumen y las catorce barras de "Salidas". DESIGN.md lo topa en
+ * 10–15%. Un tablero donde todo es rojo no prioriza nada.
+ */
+test.describe("Task 15 · presupuesto de rojo", () => {
+  test.setTimeout(180_000);
+  const PANTALLA = "/dashboard/finance/cash-flow";
+  const css = readFileSync("app/globals.css", "utf8");
+  const componente = readFileSync("components/finance/cash-flow-calendar.tsx", "utf8");
+
+  /** Hue del rojo de alarma; ±30° se considera la misma familia. */
+  const HUE_DESTRUCTIVE = leerToken(css, "destructive", ":root").h;
+
+  test("ninguna categoría de egresos se pinta en la familia del rojo", () => {
+    const mapa = componente.match(/const CATEGORY_COLORS[\s\S]*?\n\};/)?.[0] ?? "";
+    expect(mapa).not.toContain("--destructive");
+
+    const tokens = [...mapa.matchAll(/var\(--([\w-]+)\)/g)].map((m) => m[1]);
+    expect(tokens.length).toBeGreaterThan(0);
+
+    for (const token of tokens) {
+      // `muted-foreground` e `info` no son de gráfica; sólo se miden los que
+      // tienen hue propio en el bloque de tokens.
+      let color;
+      try {
+        color = leerToken(css, token, ":root");
+      } catch {
+        continue;
+      }
+      const distancia = Math.min(
+        Math.abs(color.h - HUE_DESTRUCTIVE),
+        360 - Math.abs(color.h - HUE_DESTRUCTIVE)
+      );
+      expect(
+        distancia,
+        `--${token} (h=${color.h}) está a ${distancia}° del rojo de alarma`
+      ).toBeGreaterThan(30);
+    }
+  });
+
+  test("las barras de Salidas dejaron el carmesí", () => {
+    // Eran `--chart-5` (h=0): la mitad de la tinta de la gráfica en rojo por
+    // dibujar egresos normales.
+    const barra = componente.match(/dataKey="Salidas"[\s\S]{0,120}?fill="var\(--([\w-]+)\)"/);
+    expect(barra?.[1]).toBe("chart-4");
+  });
+
+  test("una semana pesada se marca con palabra, no sólo con color", async ({ request }) => {
+    // El `AlertTriangle` era el único marcador no cromático y no tenía nombre
+    // accesible: "qué semanas son malas" viajaba sólo por color.
+    expect(componente).toContain("Semana pesada");
+
+    // Y el tinte de la semana pesada es ámbar, no rojo.
+    const tarjetaSemanal =
+      componente.match(/week\.isHeavy\s*\n?\s*\?\s*"([^"]+)"/)?.[1] ?? "";
+    expect(tarjetaSemanal).toContain("warning");
+    expect(tarjetaSemanal).not.toContain("destructive");
+
+    // La proyección sigue emitiendo el dato que la tarjeta usa.
+    const proyeccion = await obtenerProyeccion(request, 30);
+    expect(proyeccion.weeklyAggregation.every((s) => typeof s.isHeavy === "boolean")).toBe(
+      true
+    );
+  });
+
+  test("el rojo se concentra en la tarjeta de vencidos", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+    await expect(page.getByText(/Presión semanal de egresos/)).toBeVisible();
+
+    // Se cuentan los elementos con tinte o texto de alarma en la pantalla
+    // completa. La tarjeta de vencidos aporta los suyos; el resto no debería
+    // sumar casi nada cuando no hay una urgencia real.
+    const rojos = await page
+      .locator(
+        '[class*="text-destructive"], [class*="bg-destructive"], [class*="border-destructive"]'
+      )
+      .count();
+
+    // Umbral generoso a propósito: el test protege contra una regresión
+    // (volver a teñir semanas, barras o categorías), no fija un número exacto
+    // de píxeles.
+    expect(rojos, `${rojos} elementos en rojo`).toBeLessThanOrEqual(20);
+  });
+});
+
+/**
  * Task 14 — contraste.
  *
  * `text-warning` es 2.52:1 sobre blanco: falla incluso el piso de 3:1 de texto
