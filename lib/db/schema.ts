@@ -3179,3 +3179,35 @@ export const inventorySnapshots = pgTable("inventory_snapshots", {
         table.snapshotDate.desc()
     ),
 }));
+
+// ---------------------------------------------------------------------------
+// Payroll / Nómina
+// ---------------------------------------------------------------------------
+
+export const payrollRuns = pgTable("payroll_runs", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    status: text("status").notNull().default('DRAFT'), // DRAFT, PROCESSING, COMPLETED, ERROR
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const payrollPayslips = pgTable("payroll_payslips", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    runId: uuid("run_id").notNull().references(() => payrollRuns.id, { onDelete: 'cascade' }),
+    userId: text("user_id").notNull().references(() => users.id),
+    
+    baseSalaryCents: integer("base_salary_cents").notNull().default(0),
+    propinasCents: integer("propinas_cents").notNull().default(0),
+    totalPercepcionesCents: integer("total_percepciones_cents").notNull().default(0),
+    totalDeduccionesCents: integer("total_deducciones_cents").notNull().default(0),
+    
+    cfdiUuid: text("cfdi_uuid"),
+    cfdiStatus: text("cfdi_status"),
+    selloDigital: text("sello_digital"),
+    
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

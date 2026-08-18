@@ -73,7 +73,7 @@ export function EmployeeTable({
 }: EmployeeTableProps) {
   const { session } = useSession();
   const userRole = session?.user?.role;
-  const canEdit = userRole === "ADMIN" || userRole === "GERENTE";
+  const canEdit = userRole === "SUPER_ADMIN" || userRole === "ADMIN" || userRole === "GERENTE";
   
   const allSelected = employees.length > 0 && employees.every(e => selectedEmployees.includes(e.id));
 

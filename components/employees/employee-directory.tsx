@@ -59,7 +59,7 @@ export default function EmployeeDirectory() {
 
   const companyId = session?.user?.companyId;
   const userRole = session?.user?.role;
-  const canManageEmployees = userRole === "ADMIN" || userRole === "GERENTE";
+  const canManageEmployees = userRole === "SUPER_ADMIN" || userRole === "ADMIN" || userRole === "GERENTE";
 
   // Debounce search
   useEffect(() => {

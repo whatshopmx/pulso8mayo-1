@@ -51,7 +51,7 @@ export async function calculatePropinasDistribution(input: CalculatePropinasInpu
     );
 
   const activeStaff = staff.filter(
-    (u) => u.role === "GERENTE" || u.role === "SUPERVISOR" || u.role === "ADMIN" || !u.role
+    (u) => u.role === "GERENTE" || u.role === "SUPERVISOR" || u.role === "ADMIN" || u.role === "SUPER_ADMIN" || !u.role
   );
 
   if (activeStaff.length === 0) {

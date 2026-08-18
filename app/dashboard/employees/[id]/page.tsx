@@ -199,7 +199,7 @@ export default function EmployeeProfilePage() {
 
   const companyId = session?.user?.companyId;
   const userRole = session?.user?.role;
-  const canEdit = userRole === "ADMIN" || userRole === "GERENTE";
+  const canEdit = userRole === "SUPER_ADMIN" || userRole === "ADMIN" || userRole === "GERENTE";
 
   const fetchEmployeeData = useCallback(async () => {
     if (!employeeId || sessionLoading) return;
