@@ -117,7 +117,7 @@ export function MovementsClient() {
         }
       />
 
-      <div className="bg-sidebar border-y border-border px-6 py-4 shadow-none mb-4 flex flex-wrap items-end justify-between gap-4">
+      <div className="bg-sidebar border border-border rounded-lg p-4 shadow-none mb-6 flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-wrap gap-4 items-end">
           <div className="space-y-1">
             <Label className="text-xs">Tipo</Label>
@@ -166,7 +166,7 @@ export function MovementsClient() {
           </Button>
         </div>
 
-        <div className="px-6 pb-6">
+        <div className="pb-6">
           {isLoading ? (
             <DataTableSkeleton columns={6} rows={8} />
           ) : movements.length === 0 ? (

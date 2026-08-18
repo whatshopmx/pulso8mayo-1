@@ -67,6 +67,20 @@
       "obligatorio": true
     },
     {
+      "id": "paso-orden-compra",
+      "titulo": "Orden de Compra (Opcional)",
+      "type": "ENTITY_SELECT",
+      "obligatorio": false,
+      "metadata": { "entityType": "purchase_order" }
+    },
+    {
+      "id": "paso-factura",
+      "titulo": "Factura / CFDI (Opcional)",
+      "type": "ENTITY_SELECT",
+      "obligatorio": false,
+      "metadata": { "entityType": "invoice" }
+    },
+    {
       "id": "paso-2",
       "titulo": "Inspección del Vehículo",
       "type": "PhotoField",

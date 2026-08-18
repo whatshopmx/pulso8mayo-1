@@ -1,7 +1,7 @@
 export type WorkflowStepType =
  | "TEXT" | "NUMBER" | "SELECT" | "PHOTO" | "CHECKBOX"
  | "DATE" | "INFO" | "SIGNATURE"
- | "YESNO" | "TIME" | "TIMER" | "LOCATION" | "AUDIO" | "VIDEO";
+ | "YESNO" | "TIME" | "TIMER" | "LOCATION" | "AUDIO" | "VIDEO" | "ENTITY_SELECT";
 
 export interface AIVerification {
   enabled: boolean;
@@ -82,7 +82,7 @@ export interface WorkflowStep {
   required: boolean;
   config?: any;
   unit?: string;
-  metadata?: Record<string, any> & { dynamicSource?: DynamicSource };
+  metadata?: Record<string, any> & { dynamicSource?: DynamicSource; entityType?: "purchase_order" | "invoice" };
   aiVerification?: AIVerification;
   logicRules?: LogicRule[];
   branches?: Branch[];

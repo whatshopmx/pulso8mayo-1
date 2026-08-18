@@ -24,7 +24,7 @@ interface WorkflowStep {
     id: string;
     title: string;
     description: string;
-    type: 'TEXT' | 'NUMBER' | 'SELECT' | 'CHECKBOX' | 'DATE' | 'INFO' | 'SIGNATURE' | 'PHOTO' | 'TIMER' | 'VIDEO' | 'AUDIO' | 'LOCATION';
+    type: 'TEXT' | 'NUMBER' | 'SELECT' | 'CHECKBOX' | 'DATE' | 'INFO' | 'SIGNATURE' | 'PHOTO' | 'TIMER' | 'VIDEO' | 'AUDIO' | 'LOCATION' | 'ENTITY_SELECT';
     config?: Record<string, unknown>;
     required?: boolean;
 }
@@ -159,6 +159,8 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
     const [aiFeedback, setAiFeedback] = useState<{ passed: boolean; reason?: string } | null>(null);
     const [checkboxValues, setCheckboxValues] = useState<Record<string, boolean>>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [entityOptions, setEntityOptions] = useState<{value: string, label: string}[]>([]);
+    const [loadingEntity, setLoadingEntity] = useState(false);
 
     // Auto-save functionality
     const [autoSaveLoading] = useState(false);
@@ -236,6 +238,50 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
 
         return () => clearInterval(autoSaveInterval);
     }, [hasUnsavedChanges, currentStepDef, mode, performAutoSave]);
+
+    useEffect(() => {
+        if (!currentStepDef || currentStepDef.type !== 'ENTITY_SELECT') return;
+        const entityType = currentStepDef.metadata?.entityType;
+        if (!entityType) return;
+
+        let isMounted = true;
+        setLoadingEntity(true);
+        setEntityOptions([]);
+        
+        if (entityType === 'purchase_order') {
+            fetch("/api/inventory/purchase-orders")
+                .then(res => res.ok ? res.json() : { orders: [] })
+                .then(data => {
+                    if (!isMounted) return;
+                    const poList = data.orders || [];
+                    const filtered = poList.filter((row: any) => {
+                        const po = row.po || row;
+                        return ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED'].includes(po.status);
+                    }).map((row: any) => {
+                        const po = row.po || row;
+                        return { value: po.id, label: `${po.poNumber} (${row.supplierName || 'Proveedor'})` };
+                    });
+                    setEntityOptions(filtered);
+                })
+                .finally(() => { if (isMounted) setLoadingEntity(false); });
+        } else if (entityType === 'invoice') {
+            fetch("/api/inventory/invoices")
+                .then(res => res.ok ? res.json() : { invoices: [] })
+                .then(data => {
+                    if (!isMounted) return;
+                    const list = (data.invoices || [])
+                        .filter((inv: any) => !inv.receivingReportId)
+                        .map((inv: any) => ({
+                            value: inv.id,
+                            label: `${inv.serie ? inv.serie + '-' : ''}${inv.folio || 'S/F'} — $${((inv.total || 0) / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                        }));
+                    setEntityOptions(list);
+                })
+                .finally(() => { if (isMounted) setLoadingEntity(false); });
+        }
+
+        return () => { isMounted = false; };
+    }, [currentStepDef]);
 
     const markAsUnsaved = () => {
         setHasUnsavedChanges(true);
@@ -465,7 +511,9 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
 
         try {
             let submitValue = value;
-            if (currentStepDef.type === 'CHECKBOX') {
+            if (currentStepDef.type === 'ENTITY_SELECT' && value === 'none') {
+                submitValue = "";
+            } else if (currentStepDef.type === 'CHECKBOX') {
                 submitValue = JSON.stringify(checkboxValues);
             } else if (currentStepDef.type === 'INFO') {
                 submitValue = "ACKNOWLEDGED";
@@ -687,6 +735,30 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
                   <SelectItem key={idx} value={optValue}>{optLabel}</SelectItem>
                 );
               })}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ===== ENTITY_SELECT ===== */}
+                    {currentStepDef.type === 'ENTITY_SELECT' && (
+                        <div className="space-y-3">
+                            <Label>Selecciona una opción</Label>
+                            {loadingEntity ? (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Loader2 className="h-4 w-4 animate-spin" /> Cargando opciones...
+                                </div>
+                            ) : (
+                                <Select value={value || "none"} onValueChange={setValue}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecciona..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Ninguna (Omitir)</SelectItem>
+                                        {entityOptions.map((opt, idx) => (
+                                            <SelectItem key={idx} value={opt.value}>{opt.label}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             )}

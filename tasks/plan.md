@@ -22,7 +22,7 @@ Based on the Impeccable Critique for the Inventory Movements page (`app/dashboar
 - [x] Task 4: Add keyboard shortcut support (e.g., `Esc` to clear filters).
 
 ### Phase 4: Polish
-- [ ] Task 5: Final responsive checks and visual alignment. Run `impeccable polish`.
+- [x] Task 5: Final responsive checks and visual alignment. Run `impeccable polish`.
 
 ## Risks and Mitigations
 | Risk | Impact | Mitigation |

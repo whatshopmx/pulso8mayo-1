@@ -119,6 +119,9 @@ export async function extractReceivingFromInstance(instanceId: string): Promise<
     }
     const supplierId = await resolveSupplierId(companyId, supplierName);
 
+    const poId = valueOf("paso-orden-compra");
+    const invoiceId = valueOf("paso-factura");
+
     const decisionVal = valueOf("paso-8");
     const discrepancies = valueOf("paso-10");
     const confirmation = valueOf("paso-12");
@@ -141,6 +144,8 @@ export async function extractReceivingFromInstance(instanceId: string): Promise<
       {
         items: [],
         supplierId,
+        purchaseOrderId: typeof poId === "string" ? poId : undefined,
+        invoiceId: typeof invoiceId === "string" ? invoiceId : undefined,
         notes,
         photoUrls: photos,
       }
