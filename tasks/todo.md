@@ -733,7 +733,7 @@ hecho: voseo rioplatense, "$50,000" que son $500, "promedio" donde el código us
     `tests/cash-flow.spec.ts`
   - **Alcance**: M
 
-- [ ] **Task 16**: Jerarquía visual y agrupación
+- [x] **Task 16**: Jerarquía visual y agrupación
   - **Descripción**: Cinco de ocho ítems de carga cognitiva fallan. Cuatro valores `text-2xl` con el
     mismo peso (`:328, :350, :387, :399`) y ~85% del texto de datos en `text-xs` — `text-sm` aparece
     dos veces en 800 líneas. Seis bloques de primer nivel. Cuatro bloques hero apilados es
@@ -743,22 +743,55 @@ hecho: voseo rioplatense, "$50,000" que son $500, "promedio" donde el código us
     `text-xs` cuatro veces contra su default `text-sm`, y `CardContent` es `p-4` en cinco tarjetas y
     `p-6` en el resto — dos paddings internos contra los 24px de DESIGN.md.
   - **Acceptance criteria**:
-    - [ ] Una sola respuesta primaria dominante ("¿me alcanza?"); las demás bajan un nivel
-    - [ ] `tabular-nums` en toda cifra monetaria
-    - [ ] Piso de `text-sm` para texto de datos; `text-xs` sólo para etiquetas secundarias
-    - [ ] Máximo 4 bloques de primer nivel
-    - [ ] Padding de tarjeta consistente; se deja de pisar `CardDescription`
+    - [x] Una sola respuesta primaria: "Te alcanza para" va **primera** y es la única en
+          `text-4xl`. Las otras dos tarjetas bajan a `text-xl` — son el contexto que sostiene
+          esa cifra (de cuánto parto, hasta dónde baja). Cero `text-2xl` en la pantalla
+    - [x] `tabular-nums` en toda cifra monetaria visible
+    - [x] Cifras de datos a `text-sm`; etiquetas y meta se quedan en `text-xs`
+    - [x] Cuatro bloques de primer nivel, en `<section aria-label>`: "¿Me alcanza?",
+          "Gastos vencidos", "¿En qué gasto?", "¿Cómo se ve el mes?". Eran **once** (habían
+          crecido de los seis que contó la crítica con las tareas anteriores)
+    - [x] `CardContent` uniforme en `p-6` (los 24px de DESIGN.md) y cero `CardDescription`
+          pisado — el primitivo ya trae `text-sm`
+  - **Decisión del usuario (pregunta abierta 4 del plan)**: sube **sólo las cifras** a
+    `text-sm`; las etiquetas se quedan en `text-xs`. Conserva la densidad de la pantalla, que
+    es lo que se quería proteger. Eran 39 `text-xs` contra 2 `text-sm`.
+  - **Beneficio no planeado**: las `<section>` con `aria-label` no sólo agrupan visualmente —
+    le dan al lector de pantalla una tabla de contenido navegable que antes no existía.
   - **Verificación**:
-    - [ ] Los cuatro montos semanales alinean verticalmente
-    - [ ] En iPad y en móvil la pantalla se lee a la distancia del brazo
+    - [x] `text-4xl` aparece exactamente 3 veces (los tres estados de la tarjeta primaria) y
+          `text-2xl` cero. **Midiendo el código sin comentarios**: el archivo explica en prosa
+          por qué se abandonó `text-2xl`, y contar esas menciones daba falso positivo
+    - [x] Las cuatro secciones existen, y no hay una quinta
+    - [x] Recorrido del DOM real: **toda** hoja cuyo texto es un monto usa `tabular-nums`
+    - [x] `npx tsc --noEmit` limpio · eslint sin hallazgos nuevos · **76/76** en el spec
+  - **Aprendizaje de un fallo del test**: el recorrido de montos encontró un `$0.00` sin
+    `tabular-nums` en la **tabla alternativa del gráfico** (`sr-only`). La aserción estaba de
+    más: esa tabla la lee un lector de pantalla, donde la alineación visual no significa nada.
+    Se le puso `data-sr-table` y se excluye explícitamente, en vez de añadirle un estilo que
+    nadie ve.
+  - **No verificado**: "en iPad y en móvil se lee a la distancia del brazo" es una prueba
+    física que no puedo hacer. La decisión de densidad la tomó el usuario con las opciones a
+    la vista.
   - **Dependencias**: Task 15
-  - **Archivos**: `components/finance/cash-flow-calendar.tsx`
+  - **Archivos**: `components/finance/cash-flow-calendar.tsx`,
+    `components/finance/opening-balance-card.tsx`, `tests/cash-flow.spec.ts`
   - **Alcance**: M
 
-### Checkpoint: Visual
-- [ ] Cero `text-warning` como texto y cero `text-success` en `text-xs`
-- [ ] El rojo cabe en 10–15% en el peor caso
-- [ ] OC y Factura se distinguen en oscuro
+### Checkpoint: Visual — ✅ cerrado
+- [x] Cero `text-warning` como texto y cero `text-success` en `text-xs`
+- [x] El rojo se concentra en los vencidos y en el saldo a ≤7 días; ninguna categoría, barra
+      ni semana lo usa
+- [x] OC y Factura se distinguen en oscuro — y además ambas pasan AA, que no era el caso
+- [x] Una sola respuesta primaria; cuatro bloques; `tabular-nums` en toda cifra
+- [x] `npx tsc --noEmit` limpio · eslint sin hallazgos nuevos · **76/76** en el spec
+
+**Estado de la Fase 4**: cerrada. Los contrastes están **calculados y fijados por test**, no
+elegidos a ojo; el rojo volvió a significar algo; y la pantalla contesta una pregunta en vez de
+enumerar once bloques.
+
+**Decisiones del usuario tomadas en esta fase**: densidad → sólo las cifras suben a `text-sm`;
+H1 → **"Flujo de efectivo"** (se aplica en la Task 17).
 
 ---
 

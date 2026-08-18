@@ -267,6 +267,107 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
 });
 
 /**
+ * Task 16 — jerarquía visual.
+ *
+ * Cuatro valores `text-2xl` con el mismo peso competían por ser la respuesta,
+ * así que la pantalla no contestaba "¿me alcanza?": enumeraba datos y dejaba
+ * el trabajo a la lectora. Y había once bloques de primer nivel.
+ */
+test.describe("Task 16 · jerarquía visual", () => {
+  test.setTimeout(180_000);
+  const PANTALLA = "/dashboard/finance/cash-flow";
+  // Se miden las clases, no los comentarios: el archivo explica en prosa por
+  // qué se abandonó `text-2xl`, y contar esas menciones daría falsos positivos.
+  const componente = readFileSync("components/finance/cash-flow-calendar.tsx", "utf8");
+  const soloCodigo = componente
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+
+  test.beforeAll(async () => {
+    // Un gasto vencido: sin él la sección de vencidos no se renderiza y el caso
+    // que prueba la agrupación no existiría.
+    await deleteTestExpenses();
+    await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), -4),
+      amountCents: 640_000,
+      description: `${E2E_TAG} Vencido para jerarquía`,
+    });
+  });
+
+  test.afterAll(async () => {
+    await deleteTestExpenses();
+  });
+
+  test("hay una sola respuesta primaria dominante", () => {
+    // `text-4xl` es el peso reservado a la respuesta: aparece sólo en la
+    // tarjeta "Te alcanza para", en sus tres estados (sin estimar, con fecha
+    // negativa, y sin riesgo).
+    expect((soloCodigo.match(/text-4xl/g) ?? []).length).toBe(3);
+
+    // Y nadie más compite: ya no quedan `text-2xl` en la pantalla.
+    expect(soloCodigo.match(/text-2xl/g) ?? []).toEqual([]);
+  });
+
+  test("la pantalla se agrupa en cuatro bloques de primer nivel", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+    await expect(page.getByText(/Presión semanal de egresos/)).toBeVisible();
+
+    // `<section>` con nombre: agrupa visualmente y le da al lector de pantalla
+    // una tabla de contenido navegable.
+    const secciones = page.locator("main section, section");
+    const nombres = await secciones.evaluateAll((els) =>
+      els.map((e) => e.getAttribute("aria-label")).filter(Boolean)
+    );
+
+    for (const esperado of [
+      "¿Me alcanza?",
+      "Gastos vencidos",
+      "¿En qué gasto?",
+      "¿Cómo se ve el mes?",
+    ]) {
+      expect(nombres, `falta la sección "${esperado}"`).toContain(esperado);
+    }
+    expect(nombres.length).toBeLessThanOrEqual(4);
+  });
+
+  test("toda cifra monetaria alinea por dígito", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+    await expect(page.getByText(/Presión semanal de egresos/)).toBeVisible();
+
+    // Sin `tabular-nums` los montos que la dueña quiere comparar de un renglón
+    // a otro no alinean verticalmente. Se excluye la tabla alternativa del
+    // gráfico (`sr-only`): la lee un lector de pantalla, donde la alineación
+    // visual no significa nada.
+    const sinAlinear = await page.evaluate(() => {
+      const esMonto = (t: string | null) => !!t && /^\$[\d,]+\.\d{2}$/.test(t.trim());
+      const malos: string[] = [];
+
+      for (const el of Array.from(document.querySelectorAll("section *"))) {
+        if (el.children.length > 0) continue; // sólo hojas: el texto vive ahí
+        if (!esMonto(el.textContent)) continue;
+        if (el.closest("[data-sr-table]")) continue;
+        if (!getComputedStyle(el).fontVariantNumeric.includes("tabular-nums")) {
+          malos.push(el.textContent!.trim());
+        }
+      }
+      return malos;
+    });
+
+    expect(sinAlinear).toEqual([]);
+  });
+
+  test("el componente deja de pisar los primitivos de tarjeta", () => {
+    // `CardDescription` trae `text-sm` de fábrica y se pisaba a `text-xs` cuatro
+    // veces; `CardContent` mezclaba `p-4` y `p-6`.
+    expect(componente).not.toContain("CardDescription className");
+    expect(componente).not.toContain('CardContent className="p-4"');
+  });
+});
+
+/**
  * Task 15 — presupuesto de rojo.
  *
  * En un mes malo estaban rojos a la vez: dos tarjetas hero completas, la

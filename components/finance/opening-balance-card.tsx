@@ -90,7 +90,7 @@ export function OpeningBalanceCard({
 
   return (
     <Card>
-      <CardContent className="p-4">
+      <CardContent className="p-6">
         <div className="flex items-center justify-between gap-2 mb-1">
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
             <Wallet className="w-4 h-4" />
@@ -147,7 +147,7 @@ export function OpeningBalanceCard({
           </div>
         ) : sinCapturar ? (
           <>
-            <div className="text-2xl font-bold text-muted-foreground">Sin capturar</div>
+            <div className="text-xl font-bold text-muted-foreground">Sin capturar</div>
             <p className="text-xs text-muted-foreground mt-1">
               {canEdit
                 ? "Captura el saldo para proyectar el mes"
@@ -156,7 +156,7 @@ export function OpeningBalanceCard({
           </>
         ) : (
           <>
-            <div className="text-2xl font-bold text-foreground tabular-nums">
+            <div className="text-xl font-bold text-foreground tabular-nums">
               {formatCents(balanceCents)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">

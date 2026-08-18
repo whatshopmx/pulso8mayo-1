@@ -360,12 +360,16 @@ function CategoryBar({ label, amountCents, percentage, maxPct }: {
   const widthPct = maxPct > 0 ? (percentage / maxPct) * 100 : 0;
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium text-foreground">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-medium text-foreground min-w-0 truncate">
           {CATEGORY_LABELS[label] || label}
         </span>
-        <span className="text-muted-foreground">
-          {formatMXN(amountCents)} ({percentage}%)
+        {/* Las cifras suben a `text-sm` con `tabular-nums`: son el dato que se
+            compara de un renglón a otro, y sin ancho fijo por dígito los montos
+            no alinean verticalmente. */}
+        <span className="text-sm text-foreground tabular-nums shrink-0">
+          {formatMXN(amountCents)}{" "}
+          <span className="text-xs text-muted-foreground">({percentage}%)</span>
         </span>
       </div>
       <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
@@ -604,6 +608,54 @@ export function CashFlowCalendar({
           ? "atencion"
           : "neutra";
 
+  /**
+   * La respuesta primaria: ¿me alcanza?
+   *
+   * Es la única cifra en `text-4xl`. Las demás tarjetas del bloque son el
+   * contexto que la sostiene (de cuánto parto, hasta dónde baja) y viven un
+   * nivel abajo. Antes las cuatro compartían `text-2xl`, así que la pantalla no
+   * contestaba la pregunta: enumeraba datos y dejaba el trabajo a la lectora.
+   */
+  const tarjetaAlcance = (
+    <Card className={`md:col-span-1 ${SEVERIDAD_TARJETA[severidadDelSaldo]}`}>
+      <CardContent className="p-6">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-1">
+          <Calendar className="w-4 h-4" />
+          Te alcanza para
+        </div>
+        {sinProyeccionDeSaldo ? (
+          <>
+            <div className="text-4xl font-bold text-muted-foreground">Sin estimar</div>
+            <p className="text-sm text-muted-foreground mt-1">{faltante}</p>
+          </>
+        ) : metrics?.daysUntilNegative ? (
+          <>
+            <div
+              className={`text-4xl font-bold tabular-nums ${SEVERIDAD_TEXTO[severidadDelSaldo]}`}
+            >
+              {metrics.runway} {metrics.runway === 1 ? "día" : "días"}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Saldo negativo el{" "}
+              <span className={`font-medium ${SEVERIDAD_TEXTO[severidadDelSaldo]}`}>
+                {formatDate(metrics.daysUntilNegative)}
+              </span>
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="text-4xl font-bold text-foreground tabular-nums">
+              {days.length}+ días
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              No se proyecta saldo negativo en esta ventana
+            </p>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   const visibleOverdue = showAllOverdue ? overdueItems : overdueItems.slice(0, 5);
 
   /**
@@ -632,7 +684,7 @@ export function CashFlowCalendar({
    */
   const tarjetaVencidos = overdueItems.length > 0 && (
     <Card className="border-destructive/30 bg-destructive/5">
-      <CardContent className="p-4">
+      <CardContent className="p-6">
         <div className="flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
           <div className="flex-1 space-y-3">
@@ -652,7 +704,7 @@ export function CashFlowCalendar({
                   className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
                   trailing={
                     <div className="text-right shrink-0">
-                      <p className="font-bold text-destructive tabular-nums">
+                      <p className="text-sm font-bold text-destructive tabular-nums">
                         {formatMXN(item.amountCents)}
                       </p>
                       <Badge
@@ -666,7 +718,7 @@ export function CashFlowCalendar({
                   actions={accionesDeGasto(item)}
                 >
                   <div className="min-w-0 px-1 py-0.5">
-                    <p className="font-medium text-foreground truncate">
+                    <p className="text-sm font-medium text-foreground truncate">
                       {item.description}
                       {item.source && item.source !== "OPERATING_EXPENSE" && (
                         <Badge
@@ -732,6 +784,18 @@ export function CashFlowCalendar({
 
   return (
     <div className="space-y-6">
+      {/* ════════════════════════════════════════════════════════════
+          Cuatro bloques de primer nivel, no once. Eran seis según la crítica y
+          habían crecido a once con las tareas anteriores: alcance, hero,
+          supuestos, fuentes, fuera-de-ventana, vencidos, categorías, próximos,
+          semanas, resumen y gráfica, todos al mismo nivel. Sin agrupación, la
+          pantalla obliga a decidir once veces qué mirar.
+
+          Van como `<section>` con nombre: además de agrupar visualmente, le da
+          al lector de pantalla una tabla de contenido navegable.
+          ════════════════════════════════════════════════════════════ */}
+
+      <section aria-label="¿Me alcanza?" className="space-y-4">
       {/* Para qué sucursal son estos números. Va arriba de todo y siempre
           visible: las cifras del grupo entero etiquetadas como una sucursal son
           peor que no tener el filtro. Rotula el alcance APLICADO — a un GERENTE
@@ -756,9 +820,16 @@ export function CashFlowCalendar({
       )}
 
       {/* ════════════════════════════════════════════════════════════
-          FILA 1: ¿Me alcanza? — hero cards
+          BLOQUE 1: ¿Me alcanza? — la respuesta primaria y su contexto
           ════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* La respuesta primaria va primera y es la única en `text-4xl`. Antes
+            había cuatro valores `text-2xl` con el mismo peso compitiendo por ser
+            la respuesta, así que la pantalla no contestaba: enumeraba. Las otras
+            dos tarjetas son el contexto que sostiene esta cifra, y bajan un
+            nivel para decirlo. */}
+        {tarjetaAlcance}
+
         {/* El saldo se captura en la misma tarjeta que lo muestra: corregirlo no
             debería exigir salir de la pantalla que motivó la corrección. */}
         <OpeningBalanceCard
@@ -774,14 +845,14 @@ export function CashFlowCalendar({
             número, y teñir esta y la de al lado por la misma causa —el saldo
             cruza a negativo— gastaba el rojo dos veces por un solo hecho. */}
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-6">
             <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-1">
               <TrendingDown className="w-4 h-4" />
               Saldo mínimo proyectado
             </div>
             {sinProyeccionDeSaldo ? (
               <>
-                <div className="text-2xl font-bold text-muted-foreground">
+                <div className="text-xl font-bold text-muted-foreground">
                   Sin estimar
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">{faltante}</p>
@@ -789,7 +860,7 @@ export function CashFlowCalendar({
             ) : (
               <>
                 <div
-                  className={`text-2xl font-bold tabular-nums ${
+                  className={`text-xl font-bold tabular-nums ${
                     metrics && metrics.minBalance < 0
                       ? "text-destructive"
                       : metrics && metrics.minBalance < 50000
@@ -809,49 +880,6 @@ export function CashFlowCalendar({
                     </span>
                   </p>
                 )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Días de efectivo — "Runway" es vocabulario de capital de riesgo, no de
-            un dueño de taquería. */}
-        {/* El rojo aprende a rangear: antes `daysUntilNegative` truthy pintaba
-            la tarjeta igual si la fecha era en 2 días que en 29, así que
-            "apenas bien" y "en problemas el jueves" se veían idénticos. */}
-        <Card className={SEVERIDAD_TARJETA[severidadDelSaldo]}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-1">
-              <Calendar className="w-4 h-4" />
-              Te alcanza para
-            </div>
-            {sinProyeccionDeSaldo ? (
-              <>
-                <div className="text-2xl font-bold text-muted-foreground">
-                  Sin estimar
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">{faltante}</p>
-              </>
-            ) : metrics?.daysUntilNegative ? (
-              <>
-                <div className={`text-2xl font-bold tabular-nums ${SEVERIDAD_TEXTO[severidadDelSaldo]}`}>
-                  {metrics.runway} días
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Saldo negativo el{" "}
-                  <span className={`font-medium ${SEVERIDAD_TEXTO[severidadDelSaldo]}`}>
-                    {formatDate(metrics.daysUntilNegative)}
-                  </span>
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="text-2xl font-bold text-success">
-                  {days.length}+ días
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Sin riesgo de saldo negativo en la ventana de proyección
-                </p>
               </>
             )}
           </CardContent>
@@ -887,7 +915,19 @@ export function CashFlowCalendar({
           </span>
         ))}
       </div>
+      </section>
 
+      {/* ════════════════════════════════════════════════════════════
+          BLOQUE 2: ¿Qué debo ya? — lo vencido, que es lo único urgente
+          ════════════════════════════════════════════════════════════ */}
+      {tarjetaVencidos && (
+        <section aria-label="Gastos vencidos">{tarjetaVencidos}</section>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════
+          BLOQUE 3: ¿En qué gasto? — composición y presión por semana
+          ════════════════════════════════════════════════════════════ */}
+      <section aria-label="¿En qué gasto?" className="space-y-6">
       {/* Procurement summary — what's feeding the projection */}
       {data.procurementCommitments &&
         (data.procurementCommitments.purchaseOrdersCount > 0 ||
@@ -945,14 +985,7 @@ export function CashFlowCalendar({
         </p>
       )}
 
-      {/* ════════════════════════════════════════════════════════════
-          FILA 1.5: Facturas vencidas — ACCIÓN INMEDIATA
-          ════════════════════════════════════════════════════════════ */}
-      {tarjetaVencidos}
-
-      {/* ════════════════════════════════════════════════════════════
-          FILA 2: ¿En qué gasto? — categorías
-          ════════════════════════════════════════════════════════════ */}
+      {/* Categorías y próximos 7 días */}
       {categorySummary.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Category breakdown bars */}
@@ -962,7 +995,7 @@ export function CashFlowCalendar({
                 <PieChart className="w-5 h-5 text-primary" />
                 ¿En qué gasto?
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription>
                 Distribución de egresos por categoría en el período de proyección.
               </CardDescription>
             </CardHeader>
@@ -995,9 +1028,9 @@ export function CashFlowCalendar({
                 </Button>
               )}
               {/* Total */}
-              <div className="border-t pt-2 flex items-center justify-between text-xs font-bold">
-                <span>Total egresos</span>
-                <span>
+              <div className="border-t pt-2 flex items-center justify-between gap-2 text-xs font-bold">
+                <span className="min-w-0">Total egresos</span>
+                <span className="text-sm tabular-nums shrink-0">
                   {formatMXN(
                     categorySummary.reduce((s, c) => s + c.amountCents, 0)
                   )}
@@ -1013,7 +1046,7 @@ export function CashFlowCalendar({
                 <Clock className="w-5 h-5 text-primary" />
                 Próximos 7 días
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription>
                 Compromisos que vencen esta semana. Prepará la tesorería.
               </CardDescription>
             </CardHeader>
@@ -1026,14 +1059,14 @@ export function CashFlowCalendar({
                       item={item}
                       className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
                       trailing={
-                        <p className="font-bold text-foreground shrink-0 tabular-nums">
+                        <p className="text-sm font-bold text-foreground shrink-0 tabular-nums">
                           {formatMXN(item.amountCents)}
                         </p>
                       }
                       actions={accionesDeGasto(item)}
                     >
                       <div className="min-w-0 px-1 py-0.5">
-                        <p className="font-medium truncate">
+                        <p className="text-sm font-medium truncate">
                           {item.description}
                           {item.source && item.source !== "OPERATING_EXPENSE" && (
                             <Badge
@@ -1059,9 +1092,7 @@ export function CashFlowCalendar({
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════════
-          FILA 3: ¿Qué semanas preocupan? — weekly aggregation
-          ════════════════════════════════════════════════════════════ */}
+      {/* Presión por semana */}
       {weeklyAggregation.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -1069,7 +1100,7 @@ export function CashFlowCalendar({
               <BarChart3 className="w-5 h-5 text-primary" />
               Presión semanal de egresos
             </CardTitle>
-            <CardDescription className="text-xs">
+            <CardDescription>
               Semanas donde la concentración de pagos supera el promedio. Las semanas marcadas en rojo requieren atención.
             </CardDescription>
           </CardHeader>
@@ -1126,10 +1157,15 @@ export function CashFlowCalendar({
         </Card>
       )}
 
+      </section>
+
       {/* ════════════════════════════════════════════════════════════
-          FILA 4: Resumen 14d + Chart + Export
+          BLOQUE 4: ¿Cómo se ve el mes? — resumen, gráfica y exportación
           ════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <section
+        aria-label="¿Cómo se ve el mes?"
+        className="grid grid-cols-1 lg:grid-cols-4 gap-4"
+      >
         {/* Summary strip */}
         <Card className="lg:col-span-1">
           <CardContent className="p-4 space-y-3">
@@ -1141,7 +1177,7 @@ export function CashFlowCalendar({
                   Entradas
                 </span>
                 {/* `text-xs`: piso 4.5:1. `--success` da 3.68:1. */}
-                <span className="font-bold text-success-text tabular-nums">
+                <span className="text-sm font-bold text-success-text tabular-nums">
                   {formatMXN(metrics?.totalInflow ?? 0)}
                 </span>
               </div>
@@ -1152,7 +1188,7 @@ export function CashFlowCalendar({
                 </span>
                 {/* El signo hace el trabajo que hacía el color. Que salga dinero
                     no es una anomalía. */}
-                <span className="font-bold text-foreground tabular-nums">
+                <span className="text-sm font-bold text-foreground tabular-nums">
                   −{formatMXN(metrics?.totalOutflow ?? 0)}
                 </span>
               </div>
@@ -1189,7 +1225,7 @@ export function CashFlowCalendar({
               <Calendar className="w-5 h-5 text-primary" />
               Proyección de Entradas vs Salidas (Próximos {horizonte} días)
             </CardTitle>
-            <CardDescription className="text-xs">
+            <CardDescription>
               Comparativa diaria de ingresos estimados por ventas vs compromisos de egresos
               (gastos + nómina).
             </CardDescription>
@@ -1231,7 +1267,7 @@ export function CashFlowCalendar({
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <table className="sr-only">
+            <table className="sr-only" data-sr-table>
               <caption>Proyección de entradas y salidas (próximos {horizonte} días)</caption>
               <thead>
                 <tr>
@@ -1252,7 +1288,7 @@ export function CashFlowCalendar({
             </table>
           </CardContent>
         </Card>
-      </div>
+      </section>
 
       {/* `payables` avisa que es de sólo consulta. Aquí el aviso cambia de
           sentido: esta pantalla SÍ escribe, pero no concilia contra el banco.
