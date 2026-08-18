@@ -18,8 +18,8 @@ Based on the Impeccable Critique for the Inventory Movements page (`app/dashboar
 - [x] Task 2: Apply Pulso-specific tonal tokens (`--sidebar`, `--border`) to the filter bar. Ensure shadows are completely removed (`shadow-none`) per the "flat by default" rule.
 
 ### Phase 3: Accessibility & UX Harden
-- [ ] Task 3: Add `aria-pressed` states to the type toggle badges (`Entrada`, `Salida`, etc.).
-- [ ] Task 4: Add keyboard shortcut support (e.g., `Esc` to clear filters).
+- [x] Task 3: Add `aria-pressed` states to the type toggle badges (`Entrada`, `Salida`, etc.).
+- [x] Task 4: Add keyboard shortcut support (e.g., `Esc` to clear filters).
 
 ### Phase 4: Polish
 - [ ] Task 5: Final responsive checks and visual alignment. Run `impeccable polish`.

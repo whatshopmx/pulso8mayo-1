@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +62,20 @@ export function MovementsClient() {
   const total = data?.total || 0;
   const totalPages = Math.ceil(total / pageSize);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedTypes([]);
+        setDateFrom("");
+        setDateTo("");
+        setSearchItem("");
+        setPage(0);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const toggleType = (type: string) => {
     setSelectedTypes((prev) =>
       prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
@@ -114,6 +128,7 @@ export function MovementsClient() {
                     <button
                       key={opt.value}
                       onClick={() => toggleType(opt.value)}
+                      aria-pressed={active}
                       className={`text-xs px-2 py-1 rounded-full border transition-colors ${
                         active ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"
                       }`}
