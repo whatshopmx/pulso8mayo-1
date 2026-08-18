@@ -1,11 +1,11 @@
 import { Metadata } from "next";
 import { WorkflowHistoryTable } from "@/components/workflow/workflow-history-table";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, TrendingUp, CheckCircle2, Clock, Building2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { workflowInstances, workflowTemplates, branches } from "@/lib/db/schema";
-import { eq, desc, sql, count, and, inArray } from "drizzle-orm";
+import { eq, sql, count, and, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
@@ -81,59 +81,59 @@ export default async function WorkflowHistoryPage() {
   .then(rows => rows[0] || { total: 0, completed: 0, inProgress: 0, pending: 0 });
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
+    <div className="container mx-auto py-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Historial de Workflows</h1>
-          <p className="text-muted-foreground mt-1">
-            Consulta y analiza todos los workflows ejecutados en tu organización
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Historial de Workflows</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Supervisa y audita las ejecuciones operativas en tu organización
           </p>
         </div>
         {branchName && (
-          <Badge variant="outline" className="gap-1">
-            <Building2 className="h-3 w-3" />
-            {branchName}
+          <Badge variant="outline" className="gap-1.5 self-start sm:self-center py-1 px-3">
+            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="font-medium">{branchName}</span>
           </Badge>
         )}
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card className="border-border/70">
+          <CardHeader className="p-4 sm:p-5">
+            <CardDescription className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <FileText className="h-4 w-4" />
-              Total
+              Total Ejecuciones
             </CardDescription>
-            <CardTitle className="text-3xl">{stats.total || 0}</CardTitle>
+            <CardTitle className="text-2xl sm:text-3xl font-bold mt-1">{stats.total || 0}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-green-600">
+        <Card className="border-border/70">
+          <CardHeader className="p-4 sm:p-5">
+            <CardDescription className="flex items-center gap-2 text-xs font-medium text-success">
               <CheckCircle2 className="h-4 w-4" />
               Completados
             </CardDescription>
-            <CardTitle className="text-3xl text-green-600">{stats.completed || 0}</CardTitle>
+            <CardTitle className="text-2xl sm:text-3xl font-bold text-success mt-1">{stats.completed || 0}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-blue-600">
+        <Card className="border-border/70">
+          <CardHeader className="p-4 sm:p-5">
+            <CardDescription className="flex items-center gap-2 text-xs font-medium text-info">
               <Clock className="h-4 w-4" />
               En Progreso
             </CardDescription>
-            <CardTitle className="text-3xl text-blue-600">{stats.inProgress || 0}</CardTitle>
+            <CardTitle className="text-2xl sm:text-3xl font-bold text-info mt-1">{stats.inProgress || 0}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-orange-600">
+        <Card className="border-border/70">
+          <CardHeader className="p-4 sm:p-5">
+            <CardDescription className="flex items-center gap-2 text-xs font-medium text-warning-text">
               <TrendingUp className="h-4 w-4" />
               Tasa de Completación
             </CardDescription>
-            <CardTitle className="text-3xl text-orange-600">
+            <CardTitle className="text-2xl sm:text-3xl font-bold text-warning-text mt-1">
               {stats.total && stats.total > 0
                 ? Math.round(((stats.completed || 0) / stats.total) * 100)
                 : 0}%
@@ -142,7 +142,7 @@ export default async function WorkflowHistoryPage() {
         </Card>
       </div>
 
-      {/* Main Table - Pass branchId to client component */}
+      {/* Main Table Component */}
       <WorkflowHistoryTable branchId={selectedBranchId} />
     </div>
   );

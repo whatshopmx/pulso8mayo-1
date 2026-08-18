@@ -1,146 +1,102 @@
-# Implementation Plan: Panel de Flujo de Efectivo — remediación de la crítica
+# Implementation Plan: Historial de Workflows — Remediación y Rediseño Operativo
 
-Fuente: `.impeccable/critique/2026-08-16T02-10-32Z__app-dashboard-finance-cash-flow-page-tsx.md` (16/40, 2 P0, 2 P1).
+Fuente: `.impeccable/critique/2026-08-18T15-18-51Z__app-dashboard-workflows-history.md` (23/40, 3 P1, 2 P2).
 
 ## Overview
 
-La pantalla `/dashboard/finance/cash-flow` le dice a una dueña que puede no alcanzarle para la
-nómina, usando números que el servicio inventa. Tres defectos se componen: el saldo inicial es la
-constante `INITIAL_BALANCE = 2000000` idéntica para toda la base de inquilinos, las entradas son un
-promedio histórico plano (con un fallback muerto que deja a un inquilino nuevo en $0/día y pantalla
-roja), y la nómina se cuenta doble en cualquier día 15/30 que comparta fecha con otro gasto. Encima,
-el selector de sucursal del encabezado se envía a la API y la API lo tira: la dueña ve las cifras del
-grupo entero etiquetadas como "Polanco" y actúa sobre ellas.
+La pantalla `/dashboard/workflows/history` es la bitácora central donde dueños y gerentes de cadenas HORECA (3 a 15 sucursales) auditan la ejecución de turnos, listas de verificación NOM-251/NOM-035 y auditorías operativas.
 
-El plan repara la aritmética primero, después el alcance, después la verdad del saldo inicial, y solo
-entonces toca la capa visual. El orden no es negociable: pintar mejor un número falso lo hace más
-creíble.
+La crítica identificó que la pantalla opera actualmente como un CRUD genérico con alta carga cognitiva:
+1. **Sobrecarga de filtros**: 7 campos planos en un grid de 4 columnas que mezcla controles de filtrado con un botón de exportación ficticio.
+2. **Sin paginación real**: API limitada a `limit(100)` a ciegas sin paginación ni conteo total, aislando el historial anterior en grupos multi-sucursal.
+3. **Inconsistencia de diseño y tokens**: Clases Tailwind crudas (`bg-green-500`, `text-green-600`, `bg-blue-100 text-blue-800`) que rompen el modo oscuro y evaden los tokens OKLCH del sistema Pulso.
+4. **Elevación y capas tonales**: Bordes anidados redundantes (`Card > rounded-md border > Table`) que violan el principio *Flat-by-Default*.
+5. **Navegación de flujos**: Al hacer clic en un workflow o en el botón "Ver", debe abrir directamente la vista de ejecución `/dashboard/workflows/[id]/execute` para inspeccionar/ejecutar el detalle del flujo completo en lugar de redirigir a la vista de revisión aislada.
+6. **Rigidez responsiva**: Tabla de 8 columnas apretadas que se desbordan en tablets de cocina y móviles.
 
-**Verificado directamente en el código antes de planear** (no se tomó la crítica al pie de la letra):
-`route.ts:23-27` sólo lee `days`; `cash-flow-service.ts:81` es la constante; `:349-373` la referencia
-compartida que duplica la nómina; `Number(daysCount || 1)` que vuelve inalcanzable el fallback
-`1500000`; `metrics.minBalance < 50000` = $500 MXN; `floor(i/7)+1` que emite 5 semanas en un grid de
-4; `weeklyChartData` calculado y nunca usado; cero `Link` en ambos archivos.
+Este plan estructura la remediación en 5 fases secuenciales.
+
+---
 
 ## Architecture Decisions
 
-1. **El saldo inicial se captura, no se adivina.** No existe tabla bancaria ni libro mayor en el
-   esquema, así que ningún cálculo puede producir el saldo real. Se crea `cash_flow_assumptions`
-   (`companyId` + `branchId` nullable, `openingBalanceCents`, `asOfDate`, `updatedBy`, `updatedAt`)
-   con migración escrita a mano, y se edita en línea desde la tarjeta. Sin registro, la tarjeta no
-   muestra una cifra: muestra el estado vacío que pide el dato. Un panel de alerta temprana sin
-   saldo no alerta, y es mejor que lo diga.
-2. **`branchId` viaja por la ruta, nunca por el body, y pasa por `enforceBranchScope`.** Las cinco
-   consultas del servicio (`operatingExpenses`, `purchaseOrders`, `invoices`, `dailySalesCuts`,
-   `employeeContracts`→`users`) tienen columna de sucursal. `invoices.branch_id` es **nullable**:
-   al filtrar por sucursal esas facturas desaparecerían en silencio, así que se excluyen del cálculo
-   y su conteo se declara en la línea de supuestos ("N facturas sin sucursal asignada, no incluidas").
-3. **Estado de la pantalla en la URL, no en `useState`.** Horizonte (7/30/60), sucursal y colapsos
-   pasan a `searchParams`. Resuelve al mismo tiempo el horizonte fijo, el deep-link para mandarle
-   "mira la semana 3" al contador, y los colapsos que se reinician en cada cambio de sucursal.
-4. **La pantalla escribe, con RBAC.** Decisión tomada: "Reprogramar" y "Marcar pagado" se ejecutan
-   desde aquí. Los endpoints se construyen en el dominio de gastos (`/api/expenses/[id]/pay`,
-   `/api/expenses/[id]/reschedule`), no en el de cash-flow — esta pantalla es un consumidor más.
-   `expense-service.ts` ya tiene `create/approve/reject`; se le suman `markPaid` y `reschedule` con
-   el mismo patrón de auditoría.
-5. **Un solo dueño del rojo: la tarjeta de vencidos.** Todo lo demás baja a ámbar con palabra
-   literal ("Semana pesada") o a foreground con signo negativo. Además el rojo aprende a rangear:
-   la tarjeta 3 es roja solo a ≤7 días, ámbar hasta 14, neutra más allá.
-6. **`--warning-text` en vez de `--warning` para texto.** El repo ya resolvió esto en
-   `globals.css:90-94` y nueve archivos lo adoptaron, incluida la tarjeta hermana
-   `cash-flow-summary-card.tsx:166`. Este archivo se quedó atrás.
-7. **La pantalla no tiene spec e2e.** `tests/` no contiene ninguna para cash-flow, así que los
-   invariantes aritméticos de la Fase 0 no tienen dónde vivir. Task 0 la crea antes de tocar el
-   servicio: arranca en rojo y las Tasks 1-5 la ponen en verde.
-8. **Fuera de alcance en este plan:** compartir por WhatsApp. Queda anotado como seguimiento.
+1. **Paginación en servidor con contrato de metadatos estandarizado:**
+   - La API `/api/workflows/history` devolverá `{ data: WorkflowHistoryItem[], pagination: { page: number, limit: number, total: number, totalPages: number } }`.
+   - Se aplicará paginación mediante `limit` y `offset` calculados a partir de los parámetros `page` y `pageSize`, manteniendo el ordenamiento por `createdAt DESC` o columna solicitada.
+
+2. **Filtros rápidos operacionales (Chips) + Filtros avanzados en Popover:**
+   - En lugar de 7 inputs visibles compitiendo por atención (violación de la regla de ≤4 opciones de memoria de trabajo), la barra principal tendrá:
+     - Input de búsqueda unificado con debounce (300ms).
+     - Chips de acceso rápido: "Todos", "Hoy", "Esta Semana", "Con Incidencias", "Por Revisar".
+     - Botón "Filtros avanzados" que abre en popover los selectores secundarios (Sucursal, Plantilla, Asignado, Rango de fechas).
+     - Botón de exportación reubicado en la barra de herramientas superior con descarga real de CSV.
+
+3. **Navegación directa a `/execute` al hacer clic en un flujo:**
+   - Al hacer clic en la fila o en el botón de acción principal ("Ver" / "Ejecutar"), la navegación conduce siempre a `/dashboard/workflows/${workflow.id}/execute`, permitiendo revisar el paso a paso, evidencias y estado de ejecución real directamente en el ejecutor del workflow.
+
+4. **Adhesión estricta al Sistema de Diseño OKLCH (DESIGN.md):**
+   - Cero clases de color ad-hoc de Tailwind (`green-500`, `blue-100`, `orange-600`).
+   - Uso exclusivo de tokens semánticos: `text-success`, `text-warning-text`, `text-destructive`, `text-info` y variantes de componentes `Badge` (`variant="success"`, `variant="outline"`, `variant="secondary"`, `variant="destructive"`).
+   - Barra de progreso: color neutral o `bg-success` para flujos completados al 100%, evitando que el rojo primario (`bg-primary`) simule un error.
+
+5. **Eliminación de bordes anidados (Flat-by-Default):**
+   - Retirar el contenedor `div.rounded-md.border` dentro de `CardContent`.
+   - La tabla usará divisores horizontales sutiles en `--border`, fondos alternados o hover states limpios (`hover:bg-accent/40`), sin cajas dentro de cajas.
+
+6. **Sincronización de estado en URL:**
+   - Los parámetros de página, búsqueda, filtros y presets vivirán en `searchParams` (`?page=1&status=COMPLETED&preset=today`), permitiendo compartir enlaces y mantener estado al recargar.
+
+---
 
 ## Task List
 
-### Fase 0: La aritmética (sólo servicio, sin riesgo de UI)
-- [ ] Task 0: Crear `tests/cash-flow.spec.ts` con los invariantes
-- [ ] Task 1: Nómina contada dos veces
-- [ ] Task 2: Entradas con estacionalidad y sin historial declarado
-- [ ] Task 3: Semana 5 fantasma y la mediana que contamina
-- [ ] Task 4: Frontera de fecha en zona horaria de la sucursal
-- [ ] Task 5: `procurementCommitments` fuera de la ventana
+### Fase 1: API, Paginación y Contrato de Datos (Backend)
+- [ ] **Task 1: Paginación en servidor, conteo total y ordenamiento en `/api/workflows/history`**
+- [ ] **Task 2: Soporte de presets operacionales y búsqueda optimizada en API**
 
-### Checkpoint: Aritmética
-- [ ] `pnpm run build` limpio
-- [ ] Invariante: `Σ days[].projectedOutflowCents == Σ outflowItems[].amountCents` dentro de la ventana
-- [ ] Invariante: el total semanal de una semana == suma de los días que la componen
-- [ ] Un inquilino sin `dailySalesCuts` no produce una pantalla roja
+### Checkpoint 1: Backend & Contrato
+- [ ] API responde con estructura `{ data, pagination }` y filtra correctamente por página, tamaño, búsqueda y sucursal.
+- [ ] Verificación con tests o scripts de API.
 
-### Fase 1: Alcance por sucursal (P0)
-- [ ] Task 6: Hilar `branchId` de la ruta al servicio
-- [ ] Task 7: Horizonte y estado de pantalla en la URL
+---
 
-### Checkpoint: Alcance
-- [ ] Cambiar de sucursal cambia las cifras
-- [ ] Un GERENTE no puede pedir otra sucursal (`enforceBranchScope`)
-- [ ] La píldora de alcance dice siempre para qué sucursal son los números
+### Fase 2: Estandarización de Tokens y Badges (Visual Base)
+- [ ] **Task 3: Reemplazo de colores Tailwind crudos por tokens OKLCH y Badges semánticos**
+- [ ] **Task 4: Tarjetas de estadísticas superiores y barra de progreso sin falsos positivos de alarma**
 
-### Fase 2: Saldo inicial verdadero (P0)
-- [ ] Task 8: Tabla y migración de supuestos de flujo
-- [ ] Task 9: Captura en línea, línea de supuestos y "cómo se calcula"
+### Checkpoint 2: Sistema de Tokens
+- [ ] Cero clases `bg-green-500`, `text-green-600`, `bg-blue-100`, `text-orange-600` en la ruta de historial.
+- [ ] Modos claro y oscuro completamente armónicos.
 
-### Checkpoint: Saldo inicial
-- [ ] Ningún número de la pantalla depende ya de una constante
-- [ ] Sin saldo capturado la pantalla lo pide, no proyecta
-- [ ] Las cuatro estimaciones (saldo, fecha de OC +14d, quincena 15/30, entradas históricas) están declaradas en pantalla
+---
 
-### Fase 3: Accionabilidad (P1)
-- [ ] Task 10: Higiene de datos del render
-- [ ] Task 11: Cada hallazgo enlaza a su registro origen
-- [ ] Task 12: Endpoints de pago y reprogramación de gastos
-- [ ] Task 13: Acciones en línea con RBAC
+### Fase 3: Rediseño de la Barra de Filtros y Exportación Real
+- [ ] **Task 5: Barra de filtros con chips rápidos operacionales, búsqueda con debounce y popover avanzado**
+- [ ] **Task 6: Exportador CSV real para auditorías e informes de workflows**
 
-### Checkpoint: Accionabilidad
-- [ ] Toda fila de vencidos y de próximos 7 días navega a su registro
-- [ ] `supplierName` visible donde existe
-- [ ] Un inquilino con vencidos y sin días de proyección ve sus vencidos
-- [ ] Marcar pagado desde aquí cambia el estado y queda en auditoría
+### Checkpoint 3: Carga Cognitiva y Acciones
+- [ ] Búsqueda no satura la API en cada tecla (debounce 300ms).
+- [ ] Los chips operacionales ("Hoy", "Con Incidencias", etc.) filtran con 1 clic.
+- [ ] El botón Exportar genera y descarga un archivo `.csv` real con los filtros aplicados.
 
-### Fase 4: Color, contraste y jerarquía (P1)
-- [ ] Task 14: Contraste (dos fallas AA verificadas)
-- [ ] Task 15: Presupuesto de rojo y jerarquía de severidad
-- [ ] Task 16: Jerarquía visual y agrupación
+---
 
-### Checkpoint: Visual
-- [ ] Cero usos de `text-warning` como texto; cero `text-success` en `text-xs`
-- [ ] En un mes malo, el rojo cabe en el 10–15% que fija DESIGN.md
-- [ ] Las badges OC y Factura se distinguen en modo oscuro
+### Fase 4: Tabla Flat-by-Default, Navegación Directa a `/execute`, Paginación y Responsive
+- [ ] **Task 7: Estructura de tabla Flat-by-Default, navegación directa a `/execute` y barra de paginación completa**
+- [ ] **Task 8: Adaptación responsiva para tablets de cocina y móviles (<768px)**
 
-### Fase 5: Copy, accesibilidad y limpieza (P2)
-- [ ] Task 17: Copy factualmente correcto
-- [ ] Task 18: Accesibilidad
-- [ ] Task 19: Limpieza
+### Checkpoint 4: Tabla y Navegabilidad
+- [ ] Clic en cualquier workflow o en su botón "Ver" navega a `/dashboard/workflows/[id]/execute`.
+- [ ] Paginación fluida entre páginas sin recarga completa.
+- [ ] Vista compacta / adaptativa en anchos de pantalla reducidos.
+- [ ] Cero bordes anidados redundantes.
 
-### Checkpoint: Completo
-- [ ] `pnpm run build` y `pnpm run lint` limpios
-- [ ] `pnpm exec playwright test tests/cash-flow.spec.ts` en verde
-- [ ] Repasar la crítica punto por punto; lo no atendido queda anotado con razón
+---
 
-## Risks and Mitigations
+### Fase 5: Estados de Carga, Error y Sincronización en URL
+- [ ] **Task 9: Skeletons de carga (sin layout shifts) y estado de error con reintento**
+- [ ] **Task 10: Sincronización bidireccional de filtros y paginación con la URL (`searchParams`)**
 
-| Riesgo | Impacto | Mitigación |
-|---|---|---|
-| La migración de `cash_flow_assumptions` se commitea pero no se aplica a la DB apuntada | Alto | Correr `scripts/check-migration-drift.ts` antes y después. Es el patrón que ya mordió en este repo. |
-| Filtrar por sucursal deja fuera facturas con `branch_id` NULL sin que nadie lo note | Alto | Excluirlas explícitamente y declarar el conteo en pantalla (decisión 2). Nunca en silencio. |
-| Los e2e corren en serie contra la DB de desarrollo real y se pisan entre sí | Medio | Etiquetar los datos `[E2E]` y limpiarlos vía `tests/support/db.ts`, como el resto de las specs. |
-| `Marcar pagado` sin conciliación bancaria repite el problema que `payables` decidió no tener | Medio | Escribir solo el estado del gasto, dejar la conciliación fuera, y decir en pantalla qué hace y qué no. |
-| Task 16 (jerarquía) se convierte en un rediseño abierto | Medio | Se limita a: una respuesta primaria, `tabular-nums`, piso de `text-sm` en datos, ≤4 bloques de primer nivel. Nada más. |
-| `pnpm run build` falla sin red al bajar Geist de Google Fonts | Bajo | Fallback documentado: `npx tsc --noEmit` (es lo que se hizo en el plan de IMSS). |
-
-## Open Questions
-
-1. **Facturas sin sucursal.** El plan las excluye del cálculo por sucursal y declara el conteo.
-   Si la respuesta correcta es prorratearlas o asignarlas a una sucursal por defecto, cambia Task 6.
-2. **La `asOfDate` del saldo capturado.** Si la dueña capturó el saldo hace 9 días, ¿la proyección
-   arranca de esa fecha, o se rechaza el dato por viejo y se le vuelve a pedir? Task 9 asume:
-   se usa, con la antigüedad visible; a más de 7 días se pide actualizar.
-3. **El H1.** "Panel de Alerta Temprana de Tesorería" aterriza en la anti-referencia que prohíbe
-   PRODUCT.md, cuatro líneas arriba del comentario que rechaza "runway" por ser vocabulario ajeno.
-   Task 17 propone "¿Me alcanza para este mes?" — es una decisión de voz, no de código.
-4. **Doña Marisol y el iPad.** El 85% del texto de datos es `text-xs`. Subir el piso a `text-sm`
-   cambia la densidad de la pantalla completa. Task 16 lo asume; si prefieres conservar densidad,
-   la alternativa es subir solo las cifras y dejar las etiquetas.
+### Checkpoint 5: Flujo Completo y Cierre
+- [ ] Navegación hacia atrás y adelante en navegador preserva el estado exacto de la tabla.
+- [ ] Re-ejecutar `$impeccable critique` para confirmar la subida de score del objetivo.
