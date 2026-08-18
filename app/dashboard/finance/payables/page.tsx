@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBranch } from "@/lib/branch-context";
+import { useFocusedRow } from "@/hooks/use-focused-row";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
 import {
   AGING_BUCKET_LABELS,
@@ -64,8 +65,19 @@ const SOURCE_LABEL: Record<PayableItem["source"], string> = {
 };
 
 export default function PayablesPage() {
+  // `useFocusedRow` usa `useSearchParams`, que exige límite de Suspense.
+  return (
+    <Suspense>
+      <PayablesContent />
+    </Suspense>
+  );
+}
+
+function PayablesContent() {
   const { selectedBranchId } = useBranch();
   const selectedBranch = selectedBranchId ?? "ALL";
+  // `?focus=<id>` llega desde el panel de flujo de efectivo.
+  const { focusProps } = useFocusedRow();
 
   const [data, setData] = useState<AccountsPayableResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -321,7 +333,10 @@ export default function PayablesPage() {
                   </TableHeader>
                   <TableBody>
                     {data.items.map((item) => (
-                      <TableRow key={`${item.source}-${item.id}`} className="hover:bg-muted/40">
+                      <TableRow
+                        key={`${item.source}-${item.id}`}
+                        {...focusProps(item.id, "hover:bg-muted/40")}
+                      >
                         <TableCell className="font-medium">
                           <span className="flex items-center gap-1.5">
                             {item.source === "INVOICE" ? (

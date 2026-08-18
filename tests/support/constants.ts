@@ -17,6 +17,17 @@ export const USER_SUPER_ADMIN = "u0000001-0000-4000-8000-000000000001";
 export const ADMIN_EMAIL = process.env.E2E_EMAIL || "carlos@pulso.mx";
 export const ADMIN_PASSWORD = process.env.E2E_PASSWORD || "123456";
 
+/**
+ * GERENTE sembrado, fijado a Condesa (`seed-01-foundation.ts`). Sirve para
+ * comprobar `enforceBranchScope`: un rol de sucursal que pide otra tiene que
+ * recibir la suya. Todos los usuarios sembrados comparten contraseña.
+ */
+export const GERENTE_EMAIL = "juan@pulso.mx";
+export const GERENTE_BRANCH = BRANCH_CONDESA;
+
+/** EMPLEADO sembrado: no responde por el dinero, no captura supuestos. */
+export const EMPLEADO_EMAIL = "pedro@pulso.mx";
+
 /** Estado de sesión reutilizado por todos los specs. */
 export const STORAGE_STATE = "tests/.auth/admin.json";
 

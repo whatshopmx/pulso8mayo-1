@@ -365,6 +365,13 @@
       "when": 1786474571267,
       "tag": "0051_merma-decimal-quantities",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1786891301639,
+      "tag": "0052_supuestos-flujo-efectivo",
+      "breakpoints": true
     }
   ]
 }

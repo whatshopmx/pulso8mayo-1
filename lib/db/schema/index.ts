@@ -13,3 +13,6 @@ export * from './subscription';
 export * from './playbooks';
 export * from './morning-brief';
 
+// Supuestos capturados de tesorería (saldo inicial de la proyección de flujo).
+export * from './finance';
+

@@ -114,6 +114,20 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
     description: 'Branch performance comparison and ranking'
   },
 
+  // === Finance module (EMPLEADO y READONLY denegados) ===
+  // Sin esta entrada `hasAccess` caía al comodín `/dashboard` (abajo), que
+  // admite los seis roles: cualquier empleado podía leer el libro de gastos de
+  // todas las sucursales —costos de proveedor y montos colindantes con nómina—
+  // escribiendo la URL. El sidebar oculta el enlace, pero eso es cosmético: un
+  // marcador o el `actionUrl` de una notificación aterrizan igual.
+  // READONLY queda fuera a propósito: esta pantalla autoriza pagos, y el rol
+  // existe para consultar operación, no tesorería.
+  {
+    path: '/dashboard/finance',
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR'],
+    description: 'Finance module: expenses, authorizations, cash flow and petty cash'
+  },
+
   // === Labor module - management sub-routes (EMPLEADO denied) ===
   {
     path: '/dashboard/labor/attendance',

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExpenseForm } from "@/components/finance/expense-form";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useFocusedRow } from "@/hooks/use-focused-row";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +28,14 @@ import { roleIsAtLeast } from "@/lib/permissions";
 import { useBranches } from "@/hooks/use-branches";
 import { useBranch } from "@/lib/branch-context";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
+import { localDateString, addCalendarDays } from "@/lib/workflows/today";
+
+/**
+ * Roles que pueden capturar un gasto. Misma lista que `ROLES_FINANZAS` en
+ * `app/api/expenses/route.ts`: el cliente no inventa autoridad, refleja la del
+ * servidor. Un botón que promete lo que la API va a negar es peor que no tenerlo.
+ */
+const PUEDEN_CAPTURAR = ["SUPER_ADMIN", "ADMIN", "GERENTE", "SUPERVISOR"];
 
 /** Estatus que puede filtrarse en la cola de autorizaciones. */
 type StatusFilter = "ALL" | ExpenseItem["status"];
@@ -74,6 +83,15 @@ interface ExpenseItem {
 }
 
 export default function ExpensesPage() {
+  // `useFocusedRow` usa `useSearchParams`, que exige límite de Suspense.
+  return (
+    <Suspense>
+      <ExpensesContent />
+    </Suspense>
+  );
+}
+
+function ExpensesContent() {
   const { toast } = useToast();
   const { session } = useSession();
   const currentUserRole = session?.user?.role || "EMPLEADO";
@@ -83,8 +101,20 @@ export default function ExpensesPage() {
   // "todas" mientras el header seguía anunciando una sucursal concreta.
   const { selectedBranchId } = useBranch();
   const selectedBranch = selectedBranchId ?? "ALL";
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  // `?focus=<id>` llega desde el panel de flujo de efectivo: resalta y desplaza
+  // hacia el gasto que la dueña acaba de ver como vencido.
+  const { focusId, focusProps } = useFocusedRow();
+  // Esto es una cola de autorizaciones, no un libro mayor. Arrancar en "todos"
+  // dejaba una renta pendiente de $80,000 entre un taxi pagado y un recibo
+  // rechazado; lo que la dueña vino a hacer estaba mezclado con el historial.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("PENDING_APPROVAL");
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
+  /** Alcance **aplicado** por el servidor, no el pedido. */
+  const [scope, setScope] = useState<{ branchId: string | null; branchName: string | null } | null>(
+    null
+  );
+  /** Hubo historial que no cupo en la cota del servidor. */
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionInFlightId, setActionInFlightId] = useState<string | null>(null);
@@ -109,11 +139,17 @@ export default function ExpensesPage() {
       const res = await fetch(url.toString());
       const data = await res.json();
       if (res.ok && data.success) {
-        setExpenses(data.data || []);
+        // `{ items, scope, truncated }`: la ruta ahora devuelve el alcance que de
+        // verdad aplicó, no el que se pidió.
+        setExpenses(data.data?.items || []);
+        setScope(data.data?.scope ?? null);
+        setTruncated(Boolean(data.data?.truncated));
         setError(null);
       } else {
         setError(data?.error || "No se pudieron cargar los gastos operativos.");
         setExpenses([]);
+        setScope(null);
+        setTruncated(false);
       }
     } catch (err) {
       console.error("Error fetching expenses:", err);
@@ -363,7 +399,10 @@ export default function ExpensesPage() {
                 </TableHeader>
                 <TableBody>
                   {visibleExpenses.map((item) => (
-                    <TableRow key={item.id} className="hover:bg-muted/40 transition text-xs">
+                    <TableRow
+                      key={item.id}
+                      {...focusProps(item.id, "hover:bg-muted/40 transition text-xs")}
+                    >
                       <TableCell className="font-medium whitespace-nowrap">
                         {new Date(item.createdAt).toLocaleDateString("es-MX", {
                           day: "numeric",

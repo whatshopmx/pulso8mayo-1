@@ -142,7 +142,9 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
       // 2. Gastos esperando autorización. La antigüedad marca la severidad:
       //    la política de control interno considera excepción a partir de 48h.
       if (expensesRes.ok && expensesJson.success) {
-        const expenses: ExpenseRow[] = expensesJson.data ?? [];
+        // `/api/expenses` devuelve `{ items, scope, truncated }` desde que la
+        // ruta rotula el alcance aplicado; antes era un arreglo pelado.
+        const expenses: ExpenseRow[] = expensesJson.data?.items ?? [];
         const pending = expenses.filter((e) => e.status === "PENDING_APPROVAL");
         for (const e of pending) {
           const age = daysSince(e.createdAt);

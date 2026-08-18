@@ -13,50 +13,97 @@ interface BranchMetric {
   performanceIndex: number;
 }
 
-export function BranchComparisonChart({ period }: { period: string }) {
+interface Props {
+  /** Datos ya cargados por la página. Es la forma preferida. */
+  branches?: BranchMetric[];
+  /**
+   * Modo autónomo heredado: el componente pide los datos por su cuenta.
+   * Sólo lo usa `/dashboard/branches`, que está huérfana y duplica esta vista.
+   * Cuando esa página se elimine, este modo y el `useEffect` se van con ella.
+   */
+  period?: string;
+}
+
+const SERIES = [
+  { key: "Completitud de tareas", color: "var(--chart-1)" },
+  { key: "Cumplimiento", color: "var(--chart-3)" },
+  { key: "Asignaciones completadas", color: "var(--chart-4)" },
+];
+
+export function BranchComparisonChart({ branches: branchesProp, period }: Props) {
+  const autonomo = branchesProp === undefined;
   const [branches, setBranches] = useState<BranchMetric[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(autonomo);
 
   useEffect(() => {
+    if (!autonomo) return;
     fetch(`/api/analytics/branch-performance?period=${period}`)
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         setBranches(data.branches || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [period]);
+  }, [autonomo, period]);
+
+  const datos = branchesProp ?? branches;
 
   if (loading) {
-    return <Card><CardContent className="p-6"><div className="h-[400px] flex items-center justify-center text-muted-foreground">Cargando...</div></CardContent></Card>;
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+            Cargando…
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
-  if (branches.length === 0) {
-    return <Card><CardContent className="p-6"><div className="h-[400px] flex items-center justify-center text-muted-foreground">Sin datos de sucursales</div></CardContent></Card>;
+  if (datos.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+            Sin datos para este período
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
-  const chartData = branches.map(b => ({
-    name: b.branchName.length > 12 ? b.branchName.substring(0, 12) + '...' : b.branchName,
-    'Completitud Tareas': b.workflowMetrics.completionRate,
-    'Score Cumplimiento': b.complianceScore,
-    'Completitud Asignaciones': b.assignmentMetrics.completionRate,
+  const chartData = datos.map((b) => ({
+    // El nombre completo va en `nombreCompleto` para que el tooltip no mienta
+    // cuando la etiqueta del eje se recorta.
+    name: b.branchName.length > 12 ? `${b.branchName.substring(0, 12)}…` : b.branchName,
+    nombreCompleto: b.branchName,
+    "Completitud de tareas": b.workflowMetrics.completionRate,
+    Cumplimiento: b.complianceScore,
+    "Asignaciones completadas": b.assignmentMetrics.completionRate,
   }));
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Comparativo entre Sucursales</CardTitle>
+        <CardTitle className="text-base">Comparativo entre sucursales</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={400}>
           <BarChart data={chartData} layout="vertical">
             <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
             <YAxis type="category" dataKey="name" width={100} />
-            <Tooltip formatter={(value: number) => [`${value.toFixed(1)}%`]} />
+            <Tooltip
+              formatter={(value: number) => [`${value.toFixed(1)}%`]}
+              labelFormatter={(_, payload) =>
+                payload?.[0]?.payload?.nombreCompleto ?? ""
+              }
+            />
             <Legend />
-            <Bar dataKey="Completitud Tareas" fill="#2563eb" />
-            <Bar dataKey="Score Cumplimiento" fill="#16a34a" />
-            <Bar dataKey="Completitud Asignaciones" fill="#9333ea" />
+            {/* Tokens de la paleta en vez de hex fijos: los literales no tenían
+                equivalente en modo oscuro y se salían del sistema de color. */}
+            {SERIES.map((serie) => (
+              <Bar key={serie.key} dataKey={serie.key} fill={serie.color} />
+            ))}
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

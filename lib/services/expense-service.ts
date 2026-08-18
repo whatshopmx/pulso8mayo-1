@@ -9,7 +9,7 @@ import {
   branches,
   payees,
 } from "@/lib/db/schema";
-import { eq, and, desc, lte, gte, or, isNull } from "drizzle-orm";
+import { eq, ne, and, desc, lte, gte, or, isNull } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { roleIsAtLeast } from "@/lib/permissions";
 import { getPayeeForCompany } from "./payee-service";
@@ -253,16 +253,157 @@ export async function rejectOperatingExpense(
   return updated;
 }
 
-export async function getOperatingExpenses(companyId: string, branchId?: string) {
-  const conditions = [eq(operatingExpenses.companyId, companyId)];
-  if (branchId) {
-    conditions.push(eq(operatingExpenses.branchId, branchId));
+/**
+ * Marca un gasto como pagado.
+ *
+ * Registra **el estado del gasto, no el movimiento bancario**: Pulso no se
+ * conecta al banco y esta función no concilia nada. Es la diferencia entre "ya
+ * lo pagué" (lo que la dueña sabe) y "el banco lo confirmó" (lo que nadie aquí
+ * puede afirmar). La pantalla que la invoca lo dice en voz alta.
+ *
+ * Sólo se paga lo aprobado: un gasto en PENDING_APPROVAL que se marca pagado
+ * saltaría la cadena de autorización por la puerta de atrás.
+ */
+export async function markPaidOperatingExpense(
+  expenseId: string,
+  companyId: string,
+  actorName: string,
+  paidAt?: Date
+) {
+  const [expense] = await db
+    .select()
+    .from(operatingExpenses)
+    .where(
+      and(
+        eq(operatingExpenses.id, expenseId),
+        eq(operatingExpenses.companyId, companyId)
+      )
+    )
+    .limit(1);
+
+  if (!expense) {
+    throw new Error("El gasto especificado no fue encontrado.");
   }
 
+  // Idempotente: volver a marcar un gasto ya pagado no es un error del usuario
+  // —dos clics, o dos personas a la vez— pero tampoco debe reescribir la fecha
+  // de pago original.
+  if (expense.status === "PAID") {
+    return expense;
+  }
+
+  if (expense.status !== "APPROVED") {
+    throw new Error(
+      `Sólo se puede pagar un gasto aprobado. Este está en estado "${expense.status}".`
+    );
+  }
+
+  const [updated] = await db
+    .update(operatingExpenses)
+    .set({
+      status: "PAID",
+      paidAt: paidAt ?? new Date(),
+      // Misma bitácora que approve/reject: quién y qué, en el mismo campo que
+      // lee Control Interno. No se toca `approvedBy` — sobrescribirlo borraría
+      // quién autorizó el gasto, que es justo lo que la bitácora existe para
+      // conservar. `operating_expenses` no tiene columna `paid_by`.
+      approvalNotes: `${expense.approvalNotes ? `${expense.approvalNotes} · ` : ""}Pagado por ${actorName}`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(operatingExpenses.id, expenseId),
+        eq(operatingExpenses.companyId, companyId),
+        // Cerrojo optimista: si otra sesión lo pagó entre la lectura y esta
+        // escritura, el UPDATE no toca ninguna fila en vez de pisar su fecha.
+        eq(operatingExpenses.status, "APPROVED")
+      )
+    )
+    .returning();
+
+  return updated ?? expense;
+}
+
+/**
+ * Reprograma la fecha de vencimiento de un gasto.
+ *
+ * Mover un vencimiento es una decisión real de tesorería —se negoció con el
+ * proveedor, o simplemente no alcanza— y la proyección la refleja de inmediato.
+ * Lo que no se puede es mover al pasado: eso no reprograma nada, sólo maquilla
+ * un vencido para que deje de aparecer como tal.
+ */
+export async function rescheduleOperatingExpense(
+  expenseId: string,
+  companyId: string,
+  actorName: string,
+  newDueDate: string,
+  today: string
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDueDate)) {
+    throw new Error("La fecha debe venir como YYYY-MM-DD.");
+  }
+
+  if (newDueDate < today) {
+    throw new Error("La nueva fecha no puede ser anterior a hoy.");
+  }
+
+  const [expense] = await db
+    .select()
+    .from(operatingExpenses)
+    .where(
+      and(
+        eq(operatingExpenses.id, expenseId),
+        eq(operatingExpenses.companyId, companyId)
+      )
+    )
+    .limit(1);
+
+  if (!expense) {
+    throw new Error("El gasto especificado no fue encontrado.");
+  }
+
+  if (expense.status === "PAID") {
+    throw new Error("Un gasto ya pagado no se puede reprogramar.");
+  }
+
+  if (expense.status === "REJECTED") {
+    throw new Error("Un gasto rechazado no se puede reprogramar.");
+  }
+
+  const [updated] = await db
+    .update(operatingExpenses)
+    .set({
+      dueDate: newDueDate,
+      approvalNotes: `${expense.approvalNotes ? `${expense.approvalNotes} · ` : ""}Reprogramado de ${expense.dueDate ?? "sin fecha"} a ${newDueDate} por ${actorName}`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(operatingExpenses.id, expenseId),
+        eq(operatingExpenses.companyId, companyId)
+      )
+    )
+    .returning();
+
+  return updated;
+}
+
+/**
+ * Cuántos gastos ya resueltos se devuelven. Ocho sucursales con un año de
+ * rentas y servicios son miles de filas, y antes se traían y renderizaban
+ * todas.
+ */
+const LIMITE_HISTORIAL = 200;
+
+/** Consulta base. Se ejecuta dos veces con condiciones y cota distintas. */
+async function consultarGastos(
+  condiciones: ReturnType<typeof eq>[],
+  limite?: number
+) {
   const requestedUser = db.select({ id: users.id, name: users.name }).from(users).as("reqUser");
   const approvedUser = db.select({ id: users.id, name: users.name }).from(users).as("appUser");
 
-  const expenses = await db
+  const consulta = db
     .select({
       id: operatingExpenses.id,
       companyId: operatingExpenses.companyId,
@@ -288,8 +429,53 @@ export async function getOperatingExpenses(companyId: string, branchId?: string)
     .leftJoin(requestedUser, eq(operatingExpenses.requestedBy, requestedUser.id))
     .leftJoin(approvedUser, eq(operatingExpenses.approvedBy, approvedUser.id))
     .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
-    .where(and(...conditions))
+    .where(and(...condiciones))
     .orderBy(desc(operatingExpenses.createdAt));
+
+  return limite === undefined ? consulta : consulta.limit(limite);
+}
+
+/**
+ * Gastos operativos del inquilino, opcionalmente de una sola sucursal.
+ *
+ * **La cota es asimétrica a propósito.** Los pendientes se devuelven completos:
+ * esto es una cola de autorizaciones y una aprobación que se quedó fuera del
+ * `LIMIT` es un gasto que nadie ve. El historial ya resuelto sí se acota, y
+ * cuando se corta se declara en `truncated` en vez de callarlo — una lista que
+ * esconde filas en silencio es peor que una lista corta que lo admite.
+ *
+ * `branchId` tiene que venir ya pasado por `enforceBranchScope`: este servicio
+ * confía en que el llamador resolvió el alcance, no lo vuelve a decidir.
+ */
+export async function getOperatingExpenses(
+  companyId: string,
+  branchId?: string,
+  opciones?: { limiteHistorial?: number }
+) {
+  const limiteHistorial = opciones?.limiteHistorial ?? LIMITE_HISTORIAL;
+
+  const base = [eq(operatingExpenses.companyId, companyId)];
+  if (branchId) {
+    base.push(eq(operatingExpenses.branchId, branchId));
+  }
+
+  // Se pide uno de más para saber si hubo corte sin un COUNT aparte.
+  const [pendientes, historial] = await Promise.all([
+    consultarGastos([...base, eq(operatingExpenses.status, "PENDING_APPROVAL")]),
+    consultarGastos(
+      [...base, ne(operatingExpenses.status, "PENDING_APPROVAL")],
+      limiteHistorial + 1
+    ),
+  ]);
+
+  const truncated = historial.length > limiteHistorial;
+  const historialAcotado = truncated ? historial.slice(0, limiteHistorial) : historial;
+
+  // Se reordena el conjunto: la pantalla puede mostrar "todos los estatus" y
+  // dos bloques concatenados se leerían como dos tablas pegadas.
+  const expenses = [...pendientes, ...historialAcotado].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
   // Enrich each expense with its required approver role from the rules table
   const rules = await db
@@ -297,7 +483,7 @@ export async function getOperatingExpenses(companyId: string, branchId?: string)
     .from(expenseAuthorizationRules)
     .where(eq(expenseAuthorizationRules.companyId, companyId));
 
-  return expenses.map((expense) => {
+  const items = expenses.map((expense) => {
     const matchingRule = rules.find(
       (r) => expense.amountCents >= r.minAmount && (r.maxAmount === null || expense.amountCents <= r.maxAmount)
     );
@@ -306,4 +492,6 @@ export async function getOperatingExpenses(companyId: string, branchId?: string)
       requiredApproverRole: matchingRule?.approverRole ?? null,
     };
   });
+
+  return { items, truncated };
 }

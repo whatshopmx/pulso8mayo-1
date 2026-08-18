@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PageHeader, PageContainer, EmptyState } from "@/components/shared";
 import { useBranch } from "@/lib/branch-context";
+import { useFocusedRow } from "@/hooks/use-focused-row";
 import { usePurchaseOrders, useCreatePurchaseOrder, useInventory, usePriceCheck } from "@/hooks/queries";
 import { Plus, FileText, Loader2, AlertTriangle, Check, ChevronsUpDown, Search, ArrowUp, ArrowDown, X } from "lucide-react";
 import { toast } from "sonner";
@@ -51,6 +52,8 @@ export default function PurchaseOrdersPage() {
 function PurchaseOrdersContent() {
   const { selectedBranchId, selectedBranch } = useBranch();
   const searchParams = useSearchParams();
+  // `?focus=<id>` llega desde el panel de flujo de efectivo.
+  const { focusProps } = useFocusedRow();
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [dialogOpen, setDialogOpen] = useState(searchParams.get("new") === "1");
   const initialItemId = searchParams.get("item") || undefined;
@@ -283,7 +286,7 @@ function PurchaseOrdersContent() {
                     const po = row.po || row;
                     const statusConfig = STATUS_LABELS[po.status] || { label: po.status, variant: "outline" as const };
                     return (
-                      <TableRow key={po.id as string}>
+                      <TableRow key={po.id as string} {...focusProps(po.id as string)}>
                         <TableCell className="font-mono text-sm font-medium">{po.poNumber}</TableCell>
                         <TableCell>{row.supplierName || "—"}</TableCell>
                         <TableCell>{row.branchName || "—"}</TableCell>

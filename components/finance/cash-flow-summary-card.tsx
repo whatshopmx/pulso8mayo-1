@@ -17,9 +17,11 @@ import { ArrowRight, Calendar, Loader2, RefreshCw, TrendingDown } from "lucide-r
 const HORIZON_DAYS = 30;
 
 interface Summary {
-  initialBalanceCents: number;
+  /** `null` cuando nadie lo ha capturado: no hay constante de respaldo. */
+  initialBalanceCents: number | null;
   totalOutflowCents: number;
-  endingBalanceCents: number;
+  /** `null` cuando no hay entradas estimadas y por lo tanto no hay saldo proyectado. */
+  endingBalanceCents: number | null;
   /** Día con el saldo acumulado más bajo del horizonte. */
   worstDay: CashFlowDay | null;
   overdueCount: number;
@@ -33,15 +35,25 @@ function toSummary(payload: CashFlowProjection | CashFlowDay[]): Summary | null 
 
   const overdue = Array.isArray(payload) ? [] : (payload.overdueItems ?? []);
 
-  const worstDay = days.reduce<CashFlowDay | null>(
-    (worst, d) => (worst === null || d.cumulativeBalanceCents < worst.cumulativeBalanceCents ? d : worst),
+  // Sin cortes de venta el servicio no estima entradas y el saldo acumulado
+  // llega en `null`. Un `null` comparado con `<` se lee como cero y pintaría el
+  // peor día en rojo con una cifra que nadie calculó.
+  const conSaldo = days.filter((d) => d.cumulativeBalanceCents !== null);
+
+  const worstDay = conSaldo.reduce<CashFlowDay | null>(
+    (worst, d) =>
+      worst === null || d.cumulativeBalanceCents! < worst.cumulativeBalanceCents!
+        ? d
+        : worst,
     null,
   );
 
   return {
-    initialBalanceCents: Array.isArray(payload) ? 0 : payload.initialBalanceCents,
+    initialBalanceCents: Array.isArray(payload) ? null : payload.initialBalanceCents,
     totalOutflowCents: days.reduce((sum, d) => sum + d.projectedOutflowCents, 0),
-    endingBalanceCents: days[days.length - 1].cumulativeBalanceCents,
+    endingBalanceCents: conSaldo.length
+      ? conSaldo[conSaldo.length - 1].cumulativeBalanceCents
+      : null,
     worstDay,
     overdueCount: overdue.length,
     overdueCents: overdue.reduce((sum, o) => sum + o.amountCents, 0),
@@ -123,9 +135,15 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">Saldo inicial</p>
-                <p className="text-lg font-bold tabular-nums">
-                  {formatCents(summary.initialBalanceCents)}
-                </p>
+                {summary.initialBalanceCents === null ? (
+                  <p className="text-lg font-bold text-muted-foreground">
+                    Sin capturar
+                  </p>
+                ) : (
+                  <p className="text-lg font-bold tabular-nums">
+                    {formatCents(summary.initialBalanceCents)}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Salidas proyectadas</p>
@@ -135,19 +153,25 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Saldo al día {HORIZON_DAYS}</p>
-                <p
-                  className={`text-lg font-bold tabular-nums ${
-                    summary.endingBalanceCents < 0 ? "text-destructive" : "text-success"
-                  }`}
-                >
-                  {formatCents(summary.endingBalanceCents)}
-                </p>
+                {summary.endingBalanceCents === null ? (
+                  <p className="text-lg font-bold text-muted-foreground">
+                    Sin estimar
+                  </p>
+                ) : (
+                  <p
+                    className={`text-lg font-bold tabular-nums ${
+                      summary.endingBalanceCents < 0 ? "text-destructive" : "text-success"
+                    }`}
+                  >
+                    {formatCents(summary.endingBalanceCents)}
+                  </p>
+                )}
               </div>
             </div>
 
             {/* El día más bajo es la pregunta real: no importa terminar en verde
                 si a mitad del mes el saldo cruza a negativo. */}
-            {summary.worstDay && summary.worstDay.cumulativeBalanceCents < 0 && (
+            {summary.worstDay && summary.worstDay.cumulativeBalanceCents! < 0 && (
               <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs">
                 <TrendingDown className="w-4 h-4 text-destructive shrink-0 mt-px" />
                 <span>

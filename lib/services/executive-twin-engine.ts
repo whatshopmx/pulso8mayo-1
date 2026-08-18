@@ -75,14 +75,29 @@ function toObligation(item: OutflowItem): Obligation {
   };
 }
 
-/** Map a cash-flow projection day to the intelligence `CashFlowDay`. */
+/**
+ * Map a cash-flow projection day to the intelligence `CashFlowDay`.
+ *
+ * Un inquilino sin cortes de venta no tiene entradas estimables, y en esos días
+ * el servicio devuelve `null` en vez de una cifra inventada. La capa de
+ * inteligencia tipa estos campos como `number`, así que esos días se descartan
+ * en `projectableDays` antes de llegar aquí: un saldo desconocido leído como
+ * cero hundiría el `liquidityRisk` con un dato que nadie afirmó.
+ */
 function toCashFlowDay(p: CashFlowProjection["days"][number]): CashFlowDay {
   return {
     date: p.date,
-    projectedCents: p.cumulativeBalanceCents,
-    inflowCents: p.projectedInflowCents,
+    projectedCents: p.cumulativeBalanceCents!,
+    inflowCents: p.projectedInflowCents!,
     outflowCents: p.projectedOutflowCents,
   };
+}
+
+/** Días con saldo proyectado conocido — ver `toCashFlowDay`. */
+function projectableDays(cash: CashFlowProjection): CashFlowProjection["days"] {
+  return cash.days.filter(
+    (d) => d.cumulativeBalanceCents !== null && d.projectedInflowCents !== null
+  );
 }
 
 /** Branch projection used by branchVisibilityFilter. */
@@ -241,7 +256,7 @@ export const ExecutiveTwinEngine = {
     days = 14,
   ): Promise<CashFlowDay[]> {
     const projection = await getCashFlowProjection(companyId, days);
-    return projection.days.map(toCashFlowDay);
+    return projectableDays(projection).map(toCashFlowDay);
   },
 
   /** Upcoming obligations (payroll, invoices, rent, services) within 30 days. */
@@ -369,9 +384,12 @@ export const ExecutiveTwinEngine = {
     const knowledgeIndex = CLAMP(20 + bestPracticesCount * 12);
 
     // ── cash / obligations / liquidity (cash-flow-service) ──
+    // Solo los días con saldo conocido: sin historial de ventas no hay saldo
+    // proyectado, y contarlo como cero inventaría un riesgo de liquidez.
+    const cashDays = projectableDays(cash);
     const projectedCashFlowCents =
-      cash.days.length > 0
-        ? cash.days[cash.days.length - 1].cumulativeBalanceCents
+      cashDays.length > 0
+        ? cashDays[cashDays.length - 1].cumulativeBalanceCents
         : 0;
     const upcomingObligationsCents = cash.upcomingItems.reduce(
       (a, i) => a + i.amountCents,
@@ -379,7 +397,7 @@ export const ExecutiveTwinEngine = {
     );
     // Liquidity risk: how much of the available cash is consumed by upcoming
     // obligations, plus a sharp penalty if any projected day dips negative.
-    const minBalance = cash.days.reduce(
+    const minBalance = cashDays.reduce(
       (m, d) => Math.min(m, d.cumulativeBalanceCents),
       Number.POSITIVE_INFINITY,
     );
@@ -409,7 +427,7 @@ export const ExecutiveTwinEngine = {
     const playbookCount = await PlaybookService.countCompanyPlaybooks(companyId);
 
     const state: ExecutiveState = {
-      cashFlowProjection: cash.days.map(toCashFlowDay),
+      cashFlowProjection: cashDays.map(toCashFlowDay),
       upcomingObligations: cash.upcomingItems.map(toObligation),
       engineSnapshots: {},
       lastRecalculation: {

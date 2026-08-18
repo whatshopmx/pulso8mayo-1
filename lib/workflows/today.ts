@@ -94,6 +94,31 @@ export function startOfLocalDayUtc(at: Date, timeZone: string | null | undefined
     return new Date(Date.UTC(m.year, m.month - 1, m.day) - offsetMs);
 }
 
+/**
+ * `YYYY-MM-DD` del día local de la sucursal.
+ *
+ * Es el reemplazo de `toISOString().slice(0, 10)`, que calcula en UTC: en UTC-6,
+ * después de las 6pm local —la hora a la que una dueña revisa el dinero— "hoy"
+ * se volvía mañana y las partidas saltaban entre "vencido" y "próximo".
+ */
+export function localDateString(at: Date, timeZone: string | null | undefined): string {
+    const m = localMoment(at, timeZone);
+    return `${m.year}-${String(m.month).padStart(2, '0')}-${String(m.day).padStart(2, '0')}`;
+}
+
+/**
+ * Suma días de calendario a un `YYYY-MM-DD` y devuelve otro `YYYY-MM-DD`.
+ *
+ * Aritmética de calendario pura, sin husos de por medio: se ancla al mediodía
+ * UTC para que ningún cambio de horario pueda mover el resultado un día. Sumar
+ * `n * 86400000` milisegundos a un instante y volver a formatear sí puede.
+ */
+export function addCalendarDays(dateStr: string, days: number): string {
+    const d = new Date(`${dateStr}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+}
+
 /** Rango [inicio, fin) del día local de la sucursal, en instantes UTC. */
 export function localDayRangeUtc(at: Date, timeZone: string | null | undefined) {
     const start = startOfLocalDayUtc(at, timeZone);

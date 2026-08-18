@@ -189,6 +189,191 @@ export async function deleteTestExpenses(): Promise<void> {
   await sql`DELETE FROM operating_expenses WHERE description LIKE ${`${E2E_TAG}%`}`;
 }
 
+/**
+ * Inserta un gasto operativo con vencimiento en una fecha exacta.
+ *
+ * Lo usa `cash-flow.spec.ts` para forzar la colisión que destapa la nómina
+ * contada dos veces: el bug solo aparece cuando un día de nómina (15 o 30)
+ * comparte fecha con otro egreso, así que el spec tiene que sembrar ese otro
+ * egreso en vez de esperar a que el seed lo traiga por casualidad.
+ */
+export async function seedOperatingExpense(opts: {
+  companyId: string;
+  branchId: string;
+  requestedBy: string;
+  dueDate: string;
+  amountCents: number;
+  description: string;
+  category?: string;
+  status?: string;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO operating_expenses (
+      company_id, branch_id, category, amount, description, status, requested_by, due_date
+    )
+    VALUES (
+      ${opts.companyId},
+      ${opts.branchId},
+      ${opts.category ?? "OTROS"}::operating_expense_category,
+      ${opts.amountCents},
+      ${opts.description},
+      ${opts.status ?? "APPROVED"}::operating_expense_status,
+      ${opts.requestedBy},
+      ${opts.dueDate}::date
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/**
+ * Siembra `cantidad` gastos de golpe con el mismo estado.
+ *
+ * Existe para probar la cota asimétrica de `getOperatingExpenses`: demostrar
+ * que el historial se acota y la cola de pendientes **no** exige pasar de 200
+ * registros resueltos, y 200 llamadas a `seedOperatingExpense` tardaban más que
+ * el timeout del spec. `generate_series` los inserta en una sola ida a Neon.
+ *
+ * Todas las descripciones llevan `E2E_TAG`, así que `deleteTestExpenses()` las
+ * limpia sin tocar lo sembrado por `pnpm seed`.
+ */
+export async function seedManyOperatingExpenses(opts: {
+  companyId: string;
+  branchId: string;
+  requestedBy: string;
+  dueDate: string;
+  cantidad: number;
+  status: string;
+  etiqueta: string;
+}): Promise<number> {
+  const rows = await sql`
+    INSERT INTO operating_expenses (
+      company_id, branch_id, category, amount, description, status, requested_by, due_date
+    )
+    SELECT
+      ${opts.companyId},
+      ${opts.branchId},
+      'OTROS'::operating_expense_category,
+      1000 + i,
+      ${`${E2E_TAG} ${opts.etiqueta} `} || i,
+      ${opts.status}::operating_expense_status,
+      ${opts.requestedBy},
+      ${opts.dueDate}::date
+    FROM generate_series(1, ${opts.cantidad}) AS i
+    RETURNING id
+  `;
+  return rows.length;
+}
+
+/**
+ * Marca de los cortes de venta sembrados por los tests. `daily_sales_cuts` no
+ * tiene columna de descripción, así que la etiqueta viaja en `validation_notes`
+ * — es el único campo de texto libre de la tabla.
+ */
+export const E2E_SALES_CUT_NOTE = `${E2E_TAG} corte de prueba`;
+
+/** Borra los cortes de venta sembrados por los tests. */
+export async function deleteTestSalesCuts(): Promise<void> {
+  await sql`DELETE FROM daily_sales_cuts WHERE validation_notes = ${E2E_SALES_CUT_NOTE}`;
+}
+
+/**
+ * Siembra `days` cortes de venta hacia atrás desde hoy, con un monto distinto
+ * por día de la semana.
+ *
+ * Lo usa `cash-flow.spec.ts` para ejercitar la estimación de entradas: con la
+ * base sembrada la compañía no tiene ningún corte, así que sin esto la
+ * proyección solo puede probarse en su rama `NONE`. El monto por día de la
+ * semana es lo que hace visible la estacionalidad — un sábado no vende lo mismo
+ * que un martes, y el promedio plano anterior borraba justo esa diferencia.
+ *
+ * Devuelve el monto sembrado por día de la semana (índice 0 = domingo).
+ */
+export async function seedSalesCutHistory(opts: {
+  companyId: string;
+  branchId: string;
+  days: number;
+}): Promise<number[]> {
+  const porDiaDeLaSemana = [
+    1_800_000, // domingo
+    900_000, // lunes
+    950_000,
+    1_000_000,
+    1_200_000,
+    1_900_000,
+    2_400_000, // sábado
+  ];
+
+  const hoy = new Date();
+  for (let i = 1; i <= opts.days; i++) {
+    const fecha = new Date(hoy.getTime() - i * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const diaDeLaSemana = new Date(`${fecha}T00:00:00Z`).getUTCDay();
+    await sql`
+      INSERT INTO daily_sales_cuts (
+        company_id, branch_id, business_date, shift, channel,
+        total_sales, source, status, validation_notes
+      )
+      VALUES (
+        ${opts.companyId}, ${opts.branchId}, ${fecha}::date, 'COMPLETO', 'TOTAL',
+        ${porDiaDeLaSemana[diaDeLaSemana]}, 'MANUAL_FORM', 'VALIDATED',
+        ${E2E_SALES_CUT_NOTE}
+      )
+    `;
+  }
+
+  return porDiaDeLaSemana;
+}
+
+/** Borra los supuestos de flujo de efectivo de una compañía. */
+export async function deleteCashFlowAssumptions(companyId: string): Promise<void> {
+  await sql`DELETE FROM cash_flow_assumptions WHERE company_id = ${companyId}`;
+}
+
+/**
+ * Captura un saldo inicial. `branchId` null = supuesto del grupo completo.
+ *
+ * `asOfDaysAgo` permite envejecer el dato para ejercitar el aviso de "conviene
+ * actualizarlo": un saldo sin fecha no dice nada, y uno de hace nueve días dice
+ * algo distinto que uno de hoy.
+ */
+export async function seedCashFlowAssumption(opts: {
+  companyId: string;
+  branchId?: string | null;
+  openingBalanceCents: number;
+  /**
+   * Fecha del saldo, en `YYYY-MM-DD`. **Se pasa explícita a propósito.**
+   *
+   * Usar `CURRENT_DATE - N` de Postgres hacía el test dependiente de la hora:
+   * `CURRENT_DATE` es la fecha del servidor (UTC) y el servicio calcula la
+   * antigüedad contra la fecha local de la operación (America/Mexico_City). Con
+   * el reloj entre las 18:00 y la medianoche local, las dos fechas difieren y la
+   * edad salía un día menos.
+   */
+  asOfDate?: string;
+}): Promise<void> {
+  // Hoy en la zona de la operación, que es con la que el servicio mide.
+  const hoyLocal = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  await sql`
+    INSERT INTO cash_flow_assumptions (
+      company_id, branch_id, opening_balance_cents, as_of_date
+    )
+    VALUES (
+      ${opts.companyId},
+      ${opts.branchId ?? null},
+      ${opts.openingBalanceCents},
+      ${opts.asOfDate ?? hoyLocal}::date
+    )
+  `;
+}
+
 /** Borra las contrapartes (payees) creadas por los tests. */
 export async function deleteTestPayees(): Promise<void> {
   // Los gastos de test que las referencian se borran primero: la FK

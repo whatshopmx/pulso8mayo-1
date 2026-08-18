@@ -18,17 +18,10 @@ import { Calendar, ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { PageHeader, PageContainer } from "@/components/shared";
+// Catálogo compartido: la copia local de esta pantalla ya se había quedado
+// sin NOM-035 respecto a la del catálogo principal.
+import { REPORTES_PROGRAMABLES } from "../report-catalog";
 
-const REPORT_TYPES = [
-  { id: "workflow-summary", name: "Resumen de Workflows", category: "WORKFLOWS" },
-  { id: "workflow-detailed", name: "Reporte Detallado de Workflows", category: "WORKFLOWS" },
-  { id: "evidence-report", name: "Reporte de Evidencias", category: "EVIDENCE" },
-  { id: "compliance-nom251", name: "Cumplimiento NOM-251", category: "COMPLIANCE" },
-  { id: "inventory-status", name: "Estado de Inventario", category: "INVENTORY" },
-  { id: "labor-attendance", name: "Asistencia y Horas", category: "LABOR" },
-  { id: "performance-kpis", name: "KPIs de Rendimiento", category: "ANALYTICS" },
-  { id: "incidents-report", name: "Reporte de Incidentes", category: "INCIDENTS" },
-];
 
 const FREQUENCIES = [
   { value: "DAILY", label: "Diaria" },
@@ -83,7 +76,7 @@ export default function ScheduleReportPage() {
         const list = Array.isArray(data) ? data : data.branches || [];
         setBranches(list.map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })));
       })
-      .catch(() => {});
+      .catch(() => toast.error("No se pudieron cargar las sucursales"));
   }, []);
 
   const updateField = (field: string, value: string) => {
@@ -169,10 +162,11 @@ export default function ScheduleReportPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">
-                Nombre del reporte <span className="text-red-500">*</span>
+                Nombre del reporte <span className="text-destructive" aria-hidden="true">*</span>
               </Label>
               <Input
                 id="name"
+                className="h-11"
                 placeholder="Ej: Reporte semanal de inventario"
                 value={form.name}
                 onChange={(e) => updateField("name", e.target.value)}
@@ -193,18 +187,18 @@ export default function ScheduleReportPage() {
 
             <div className="space-y-2">
               <Label htmlFor="dataSource">
-                Tipo de reporte <span className="text-red-500">*</span>
+                Tipo de reporte <span className="text-destructive" aria-hidden="true">*</span>
               </Label>
               <Select
                 value={form.dataSource}
                 onValueChange={(v) => updateField("dataSource", v)}
                 required
               >
-                <SelectTrigger>
+                <SelectTrigger id="dataSource" className="h-11">
                   <SelectValue placeholder="Selecciona un tipo de reporte" />
                 </SelectTrigger>
                 <SelectContent>
-                  {REPORT_TYPES.map((rt) => (
+                  {REPORTES_PROGRAMABLES.map((rt) => (
                     <SelectItem key={rt.id} value={rt.id}>
                       {rt.name}
                     </SelectItem>
@@ -219,7 +213,7 @@ export default function ScheduleReportPage() {
                 value={form.branchId}
                 onValueChange={(v) => updateField("branchId", v)}
               >
-                <SelectTrigger>
+                <SelectTrigger id="branchId" className="h-11">
                   <SelectValue placeholder="Todas las sucursales" />
                 </SelectTrigger>
                 <SelectContent>
@@ -241,14 +235,14 @@ export default function ScheduleReportPage() {
             <CardDescription>Define la frecuencia de generación</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="frequency">Frecuencia</Label>
                 <Select
                   value={form.frequency}
                   onValueChange={(v) => updateField("frequency", v)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="frequency" className="h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -265,6 +259,7 @@ export default function ScheduleReportPage() {
                 <Label htmlFor="time">Hora de generación</Label>
                 <Input
                   id="time"
+                className="h-11"
                   type="time"
                   value={form.time}
                   onChange={(e) => updateField("time", e.target.value)}
@@ -279,7 +274,7 @@ export default function ScheduleReportPage() {
                   value={form.dayOfWeek}
                   onValueChange={(v) => updateField("dayOfWeek", v)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="dayOfWeek" className="h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -298,6 +293,7 @@ export default function ScheduleReportPage() {
                 <Label htmlFor="dayOfMonth">Día del mes</Label>
                 <Input
                   id="dayOfMonth"
+                className="h-11"
                   type="number"
                   min={1}
                   max={28}
@@ -317,14 +313,14 @@ export default function ScheduleReportPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="format">Formato</Label>
                 <Select
                   value={form.format}
                   onValueChange={(v) => updateField("format", v)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="format" className="h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -343,7 +339,7 @@ export default function ScheduleReportPage() {
                   value={form.deliveryMethod}
                   onValueChange={(v) => updateField("deliveryMethod", v)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="deliveryMethod" className="h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -365,6 +361,7 @@ export default function ScheduleReportPage() {
                 </Label>
                 <Input
                   id="deliveryEmails"
+                className="h-11"
                   type="text"
                   placeholder="correo@ejemplo.com, otro@ejemplo.com"
                   value={form.deliveryEmails}

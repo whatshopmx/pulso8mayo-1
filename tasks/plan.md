@@ -1,319 +1,146 @@
-# Implementation Plan: IMSS Compliance Section Remediation
+# Implementation Plan: Panel de Flujo de Efectivo — remediación de la crítica
+
+Fuente: `.impeccable/critique/2026-08-16T02-10-32Z__app-dashboard-finance-cash-flow-page-tsx.md` (16/40, 2 P0, 2 P1).
 
 ## Overview
-The IMSS compliance section scored **16/40** on the Impeccable critique. It is functional but bland: ad-hoc summary cards ignore MetricCard, Unicode glyphs impersonate checkboxes, strings mix English/Spanish, the Reports page duplicates generation UIs from sub-pages, and there is no wayfinding between sub-pages. This plan addresses all three P1 issues and both P2 issues plus the minor observations flagged in the critique.
+
+La pantalla `/dashboard/finance/cash-flow` le dice a una dueña que puede no alcanzarle para la
+nómina, usando números que el servicio inventa. Tres defectos se componen: el saldo inicial es la
+constante `INITIAL_BALANCE = 2000000` idéntica para toda la base de inquilinos, las entradas son un
+promedio histórico plano (con un fallback muerto que deja a un inquilino nuevo en $0/día y pantalla
+roja), y la nómina se cuenta doble en cualquier día 15/30 que comparta fecha con otro gasto. Encima,
+el selector de sucursal del encabezado se envía a la API y la API lo tira: la dueña ve las cifras del
+grupo entero etiquetadas como "Polanco" y actúa sobre ellas.
+
+El plan repara la aritmética primero, después el alcance, después la verdad del saldo inicial, y solo
+entonces toca la capa visual. El orden no es negociable: pintar mejor un número falso lo hace más
+creíble.
+
+**Verificado directamente en el código antes de planear** (no se tomó la crítica al pie de la letra):
+`route.ts:23-27` sólo lee `days`; `cash-flow-service.ts:81` es la constante; `:349-373` la referencia
+compartida que duplica la nómina; `Number(daysCount || 1)` que vuelve inalcanzable el fallback
+`1500000`; `metrics.minBalance < 50000` = $500 MXN; `floor(i/7)+1` que emite 5 semanas en un grid de
+4; `weeklyChartData` calculado y nunca usado; cero `Link` en ambos archivos.
 
 ## Architecture Decisions
-1. **MetricGrid + MetricCard everywhere.** Replace all hand-rolled `Card > CardHeader > CardContent > text-2xl font-bold text-orange-600` mini-summary cards on altas, bajas, sua, and reports sub-pages with the canonical `MetricCard` component. Use semantic `tone` props (`warning`, `success`, `destructive`, `info`) instead of raw Tailwind colors.
-2. **Checkbox component for selection.** Replace all `"✓"/"○"` Button ghost hacks with the existing shadcn `Checkbox` component from `components/ui/checkbox.tsx`. Wire `checked`/`onCheckedChange` and add `aria-label`.
-3. **Reports page becomes history-only.** Remove the "Generar Archivos" tab entirely — all generation UIs already exist on their dedicated sub-pages (Altas, Bajas, SUA). Keep Reports as a pure audit-log/history view. Add cross-links from sub-pages to Reports.
-4. **Breadcrumb labels + IMSS sub-nav.** Add missing `altas`, `bajas`, `sua` entries to `BreadcrumbDynamic` PATH_LABELS. Create a shared `ImssSubNav` component that renders a horizontal tab-style nav bar across all IMSS sub-pages.
-5. **Spanish-only copy.** Audit and fix every English fragment: `terminated(s)`, `salary`, `Desregistro`, `Pasaron deadline`, `Ingresa al menos un salary`.
-6. **Minor hardening.** Name the magic salary constant, fix `toggleAll` inconsistency on bajas, add `role="alert"` to Alert banners, replace color-only row highlights with a non-color indicator.
+
+1. **El saldo inicial se captura, no se adivina.** No existe tabla bancaria ni libro mayor en el
+   esquema, así que ningún cálculo puede producir el saldo real. Se crea `cash_flow_assumptions`
+   (`companyId` + `branchId` nullable, `openingBalanceCents`, `asOfDate`, `updatedBy`, `updatedAt`)
+   con migración escrita a mano, y se edita en línea desde la tarjeta. Sin registro, la tarjeta no
+   muestra una cifra: muestra el estado vacío que pide el dato. Un panel de alerta temprana sin
+   saldo no alerta, y es mejor que lo diga.
+2. **`branchId` viaja por la ruta, nunca por el body, y pasa por `enforceBranchScope`.** Las cinco
+   consultas del servicio (`operatingExpenses`, `purchaseOrders`, `invoices`, `dailySalesCuts`,
+   `employeeContracts`→`users`) tienen columna de sucursal. `invoices.branch_id` es **nullable**:
+   al filtrar por sucursal esas facturas desaparecerían en silencio, así que se excluyen del cálculo
+   y su conteo se declara en la línea de supuestos ("N facturas sin sucursal asignada, no incluidas").
+3. **Estado de la pantalla en la URL, no en `useState`.** Horizonte (7/30/60), sucursal y colapsos
+   pasan a `searchParams`. Resuelve al mismo tiempo el horizonte fijo, el deep-link para mandarle
+   "mira la semana 3" al contador, y los colapsos que se reinician en cada cambio de sucursal.
+4. **La pantalla escribe, con RBAC.** Decisión tomada: "Reprogramar" y "Marcar pagado" se ejecutan
+   desde aquí. Los endpoints se construyen en el dominio de gastos (`/api/expenses/[id]/pay`,
+   `/api/expenses/[id]/reschedule`), no en el de cash-flow — esta pantalla es un consumidor más.
+   `expense-service.ts` ya tiene `create/approve/reject`; se le suman `markPaid` y `reschedule` con
+   el mismo patrón de auditoría.
+5. **Un solo dueño del rojo: la tarjeta de vencidos.** Todo lo demás baja a ámbar con palabra
+   literal ("Semana pesada") o a foreground con signo negativo. Además el rojo aprende a rangear:
+   la tarjeta 3 es roja solo a ≤7 días, ámbar hasta 14, neutra más allá.
+6. **`--warning-text` en vez de `--warning` para texto.** El repo ya resolvió esto en
+   `globals.css:90-94` y nueve archivos lo adoptaron, incluida la tarjeta hermana
+   `cash-flow-summary-card.tsx:166`. Este archivo se quedó atrás.
+7. **La pantalla no tiene spec e2e.** `tests/` no contiene ninguna para cash-flow, así que los
+   invariantes aritméticos de la Fase 0 no tienen dónde vivir. Task 0 la crea antes de tocar el
+   servicio: arranca en rojo y las Tasks 1-5 la ponen en verde.
+8. **Fuera de alcance en este plan:** compartir por WhatsApp. Queda anotado como seguimiento.
 
 ## Task List
 
-### Phase 1: Design System Alignment (MetricCard + Checkbox)
-
-- [x] **Task 1**: Replace hand-rolled summary cards with MetricCard on Altas page
-- [x] **Task 2**: Replace hand-rolled summary cards with MetricCard on Bajas page
-- [x] **Task 3**: Replace hand-rolled summary cards with MetricCard on Reports page
-- [x] **Task 4**: Replace Unicode glyph checkboxes with `Checkbox` component on Altas page
-- [x] **Task 5**: Replace Unicode glyph checkboxes with `Checkbox` component on Bajas page
-
-### Checkpoint: Design System
-- [x] All sub-pages use MetricCard with semantic tone props — no raw Tailwind color classes
-- [x] All checkboxes are real `<Checkbox>` with `aria-label`
-- [ ] `pnpm run build` is clean — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
-
----
-
-### Phase 2: i18n + Copy Cleanup
-
-- [x] **Task 6**: Fix all English fragments across IMSS files
-
-### Checkpoint: i18n
-- [x] Every visible string in the IMSS directory is proper es-MX Spanish
-
----
-
-### Phase 3: Navigation + Wayfinding
-
-- [x] **Task 7**: Add breadcrumb labels and IMSS sub-navigation
-
-### Checkpoint: Navigation
-- [x] Breadcrumbs render correctly on all sub-pages
-- [x] Sub-nav highlights the active page
-
----
-
-### Phase 4: Reports Page Simplification + Cross-links
-
-- [x] **Task 8**: Remove "Generar Archivos" tab from Reports; add cross-links from sub-pages
-
-### Checkpoint: Reports
-- [x] Reports page shows only history/audit tab
-- [x] Each sub-page has a "Ver historial" link to Reports
-
----
-
-### Phase 5: Minor Hardening
-
-- [x] **Task 9**: Fix toggleAll inconsistency, magic salary constant, accessibility attributes
-
-### Checkpoint: Complete
-- [ ] `pnpm run build` is clean — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
-- [x] All critique P1 and P2 issues addressed
-
----
-
-## Task Details
-
-### Task 1: Replace hand-rolled summary cards with MetricCard on Altas page
-
-**Description:** Replace the three inline `Card > text-2xl font-bold text-orange-600` summary cards (Pendientes, Listos, Vencidos) with `MetricGrid columns={3}` + `MetricCard` using proper `tone` props.
-
-**Acceptance criteria:**
-- [x] Three MetricCards render with tones: `warning` (Pendientes), `success` (Listos), `destructive` (Vencidos)
-- [x] No raw Tailwind color classes like `text-orange-600`, `text-green-600`, `text-red-600`
-
-**Verification:**
-- [x] Visual check in browser
-- [ ] `pnpm run build` succeeds — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
-
-**Dependencies:** None
-
-**Files likely touched:**
-- `app/dashboard/compliance/imss/altas/page.tsx`
-
-**Estimated scope:** XS (1 file)
-
----
-
-### Task 2: Replace hand-rolled summary cards with MetricCard on Bajas page
-
-**Description:** Same transformation as Task 1 but for the Bajas page. Additionally, unify the "Listos" badge color — currently blue on Bajas vs. green on Altas. Both should use `success` tone.
-
-**Acceptance criteria:**
-- [x] Three MetricCards with tones: `warning`, `success`, `destructive`
-- [x] "Listo" badge uses `success` tone (green) on both Altas and Bajas
-- [x] No raw Tailwind color classes
-
-**Verification:**
-- [x] Visual comparison of Altas and Bajas summary cards — consistent colors
-
-**Dependencies:** None (parallel with Task 1)
-
-**Files likely touched:**
-- `app/dashboard/compliance/imss/bajas/page.tsx`
-
-**Estimated scope:** XS (1 file)
-
----
-
-### Task 3: Replace hand-rolled summary cards with MetricCard on Reports page
-
-**Description:** Replace the four inline summary cards on the Reports page with `MetricGrid columns={4}` + `MetricCard`. Move the disconnected icons from `CardHeader` into the MetricCard `icon` slot.
-
-**Acceptance criteria:**
-- [x] Four MetricCards with proper icons in tonal icon boxes
-- [x] Compliance rate card uses semantic tone (success/warning/destructive)
-- [x] No raw Tailwind color classes like `text-green-500`, `text-yellow-500`, `text-red-500`
-
-**Verification:**
-- [x] Visual check
-
-**Dependencies:** None (parallel with Tasks 1-2)
-
-**Files likely touched:**
-- `app/dashboard/compliance/imss/reports/page.tsx`
-
-**Estimated scope:** XS (1 file)
-
----
-
-### Task 4: Replace Unicode glyph checkboxes with `Checkbox` on Altas page
-
-**Description:** Replace `Button variant="ghost"` with `"✓"/"○"` text in the selection column (header toggle-all and per-row) with the shadcn `Checkbox` component. Wire `checked`/`onCheckedChange` to existing selection state.
-
-**Acceptance criteria:**
-- [x] Header uses `Checkbox` with `aria-label="Seleccionar todos"` and indeterminate state when partially selected
-- [x] Each row uses `Checkbox` with `aria-label="Seleccionar [nombre]"`, disabled when status ≠ READY
-- [x] No Unicode `✓` or `○` characters remain
-- [x] `bg-green-50/50` row highlight replaced with a non-color-only indicator (left border or icon)
-
-**Verification:**
-- [x] Keyboard toggle (Space) works on checkboxes
-- [x] Screen reader announces "checkbox, checked/unchecked"
-
-**Dependencies:** None
-
-**Files likely touched:**
-- `app/dashboard/compliance/imss/altas/page.tsx`
-
-**Estimated scope:** S (1 file)
-
----
-
-### Task 5: Replace Unicode glyph checkboxes with `Checkbox` on Bajas page
-
-**Description:** Same transformation as Task 4 for the Bajas page.
-
-**Acceptance criteria:**
-- [x] Header and row checkboxes use shadcn `Checkbox`
-- [x] Proper `aria-label` on each checkbox
-- [x] No Unicode `✓`/`○` characters
-
-**Verification:**
-- [x] Keyboard and screen reader check
-
-**Dependencies:** None (parallel with Task 4)
-
-**Files likely touched:**
-- `app/dashboard/compliance/imss/bajas/page.tsx`
-
-**Estimated scope:** S (1 file)
-
----
-
-### Task 6: Fix all English fragments across IMSS files
-
-**Description:** Audit every string in the IMSS directory and fix English fragments and non-standard Spanish.
-
-| Current | Fix |
-|---------|-----|
-| `terminated(s)` (bajas:181) | `dado(s) de baja` |
-| `salary nuevo` (sua:220) | `salario nuevo` |
-| `salary` (sua:72) | `salario` |
-| `Ingresa al menos un salary` (sua:72) | `Ingresa al menos un salario` |
-| `Desregistro` (bajas:134, main:167) | `Baja` / `Aviso de baja` |
-| `Pasaron deadline` (altas:176, bajas:171) | `Plazo vencido` |
-| IDSE code `08`/`02`/`07` shown raw | Add contextual labels: `08 (Alta)`, `02 (Baja)`, `07 (Mod. Salarial)` |
-
-**Acceptance criteria:**
-- [x] Zero English fragments in user-facing strings
-- [x] `Desregistro` replaced with `Baja` everywhere
-- [x] IDSE codes always shown with Spanish label
-
-**Verification:**
-- [x] `grep -rn "salary\|terminated\|Desregistro\|deadline" app/dashboard/compliance/imss/`
-
-**Dependencies:** None
-
-**Files likely touched:**
-- `app/dashboard/compliance/imss/altas/page.tsx`
-- `app/dashboard/compliance/imss/bajas/page.tsx`
-- `app/dashboard/compliance/imss/sua/page.tsx`
-- `app/dashboard/compliance/imss/page.tsx`
-
-**Estimated scope:** S (4 files, string changes only)
-
----
-
-### Task 7: Add breadcrumb labels and IMSS sub-navigation
-
-**Description:** Add missing `altas: "Altas"`, `bajas: "Bajas"`, `sua: "SUA"` entries to `BreadcrumbDynamic`'s `PATH_LABELS`. Create a shared `ImssSubNav` component (horizontal link tabs: Altas | Bajas | SUA | Reportes) and add it below `PageHeader` on each IMSS sub-page.
-
-**Acceptance criteria:**
-- [x] Breadcrumbs show `Dashboard > Cumplimiento > IMSS > Altas` (etc.) on every sub-page
-- [x] Sub-nav renders on all four sub-pages, highlighting the active link
-- [x] Clicking a sub-nav link navigates without full page reload (Next.js Link)
-
-**Verification:**
-- [x] Navigate between all IMSS sub-pages using sub-nav
-- [ ] `pnpm run build` succeeds — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
-
-**Dependencies:** None
-
-**Files likely touched:**
-- `components/shared/breadcrumb-dynamic.tsx`
-- `components/compliance/imss-sub-nav.tsx` [NEW]
-- `app/dashboard/compliance/imss/altas/page.tsx`
-- `app/dashboard/compliance/imss/bajas/page.tsx`
-- `app/dashboard/compliance/imss/sua/page.tsx`
-- `app/dashboard/compliance/imss/reports/page.tsx`
-
-**Estimated scope:** M (6 files)
-
----
-
-### Task 8: Remove "Generar Archivos" tab from Reports; add cross-links
-
-**Description:** Strip the "Generar Archivos" tab and its duplicate generation UIs from the Reports page. Default to the history table. Remove the `handleGenerateIdse` and `handleGenerateSUA` functions. Add a "Ver historial de archivos" link at the bottom of each sub-page (Altas, Bajas, SUA).
-
-**Acceptance criteria:**
-- [x] Reports page shows only history table (no generation buttons)
-- [x] `Tabs`/`TabsList` removed — page is a single-view
-- [x] Each sub-page has a "Ver historial →" link to `/dashboard/compliance/imss/reports`
-
-**Verification:**
-- [x] Reports page loads without generation UI
-- [x] Cross-links navigate correctly
-- [ ] `pnpm run build` succeeds — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
-
-**Dependencies:** Task 7 (sub-nav already present)
-
-**Files likely touched:**
-- `app/dashboard/compliance/imss/reports/page.tsx`
-- `app/dashboard/compliance/imss/altas/page.tsx`
-- `app/dashboard/compliance/imss/bajas/page.tsx`
-- `app/dashboard/compliance/imss/sua/page.tsx`
-
-**Estimated scope:** M (4 files)
-
----
-
-### Task 9: Fix toggleAll inconsistency, magic salary constant, accessibility
-
-**Description:** Bundle remaining minor fixes:
-1. Bajas `toggleAll` selects READY + PENDING — change to select only READY (matching Altas behavior) to prevent selecting employees without NSS for IDSE generation.
-2. SUA `getDefaultSalary` fallback `300` → named constant `IMSS_MIN_SALARY_DEFAULT = 300`.
-3. Add `role="alert"` to Alert banners on altas/bajas/sua pages.
-4. Replace `bg-green-50/50` color-only row highlight on Altas with a left border indicator (`border-l-2 border-success`).
-
-**Acceptance criteria:**
-- [x] Bajas `toggleAll` selects only READY employees
-- [x] Magic `300` replaced with named constant
-- [x] Alert banners have `role="alert"`
-- [x] Row highlight uses border, not background color alone
-
-**Verification:**
-- [x] Toggle-all on Bajas matches Altas behavior
-- [ ] `pnpm run build` succeeds — no verificado (Google Fonts sin red); `npx tsc --noEmit` limpio
-
-**Dependencies:** Tasks 4-5 (checkboxes already in place)
-
-**Files likely touched:**
-- `app/dashboard/compliance/imss/bajas/page.tsx`
-- `app/dashboard/compliance/imss/sua/page.tsx`
-- `app/dashboard/compliance/imss/altas/page.tsx`
-
-**Estimated scope:** S (3 files)
-
----
+### Fase 0: La aritmética (sólo servicio, sin riesgo de UI)
+- [ ] Task 0: Crear `tests/cash-flow.spec.ts` con los invariantes
+- [ ] Task 1: Nómina contada dos veces
+- [ ] Task 2: Entradas con estacionalidad y sin historial declarado
+- [ ] Task 3: Semana 5 fantasma y la mediana que contamina
+- [ ] Task 4: Frontera de fecha en zona horaria de la sucursal
+- [ ] Task 5: `procurementCommitments` fuera de la ventana
+
+### Checkpoint: Aritmética
+- [ ] `pnpm run build` limpio
+- [ ] Invariante: `Σ days[].projectedOutflowCents == Σ outflowItems[].amountCents` dentro de la ventana
+- [ ] Invariante: el total semanal de una semana == suma de los días que la componen
+- [ ] Un inquilino sin `dailySalesCuts` no produce una pantalla roja
+
+### Fase 1: Alcance por sucursal (P0)
+- [ ] Task 6: Hilar `branchId` de la ruta al servicio
+- [ ] Task 7: Horizonte y estado de pantalla en la URL
+
+### Checkpoint: Alcance
+- [ ] Cambiar de sucursal cambia las cifras
+- [ ] Un GERENTE no puede pedir otra sucursal (`enforceBranchScope`)
+- [ ] La píldora de alcance dice siempre para qué sucursal son los números
+
+### Fase 2: Saldo inicial verdadero (P0)
+- [ ] Task 8: Tabla y migración de supuestos de flujo
+- [ ] Task 9: Captura en línea, línea de supuestos y "cómo se calcula"
+
+### Checkpoint: Saldo inicial
+- [ ] Ningún número de la pantalla depende ya de una constante
+- [ ] Sin saldo capturado la pantalla lo pide, no proyecta
+- [ ] Las cuatro estimaciones (saldo, fecha de OC +14d, quincena 15/30, entradas históricas) están declaradas en pantalla
+
+### Fase 3: Accionabilidad (P1)
+- [ ] Task 10: Higiene de datos del render
+- [ ] Task 11: Cada hallazgo enlaza a su registro origen
+- [ ] Task 12: Endpoints de pago y reprogramación de gastos
+- [ ] Task 13: Acciones en línea con RBAC
+
+### Checkpoint: Accionabilidad
+- [ ] Toda fila de vencidos y de próximos 7 días navega a su registro
+- [ ] `supplierName` visible donde existe
+- [ ] Un inquilino con vencidos y sin días de proyección ve sus vencidos
+- [ ] Marcar pagado desde aquí cambia el estado y queda en auditoría
+
+### Fase 4: Color, contraste y jerarquía (P1)
+- [ ] Task 14: Contraste (dos fallas AA verificadas)
+- [ ] Task 15: Presupuesto de rojo y jerarquía de severidad
+- [ ] Task 16: Jerarquía visual y agrupación
+
+### Checkpoint: Visual
+- [ ] Cero usos de `text-warning` como texto; cero `text-success` en `text-xs`
+- [ ] En un mes malo, el rojo cabe en el 10–15% que fija DESIGN.md
+- [ ] Las badges OC y Factura se distinguen en modo oscuro
+
+### Fase 5: Copy, accesibilidad y limpieza (P2)
+- [ ] Task 17: Copy factualmente correcto
+- [ ] Task 18: Accesibilidad
+- [ ] Task 19: Limpieza
+
+### Checkpoint: Completo
+- [ ] `pnpm run build` y `pnpm run lint` limpios
+- [ ] `pnpm exec playwright test tests/cash-flow.spec.ts` en verde
+- [ ] Repasar la crítica punto por punto; lo no atendido queda anotado con razón
 
 ## Risks and Mitigations
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| MetricCard import paths or missing `MetricGrid` re-export | Low | Already verified: `MetricGrid` and `MetricCard` are both exported from `components/ui/metric-card.tsx` and used on the main IMSS page |
-| Checkbox indeterminate state not supported by shadcn primitive | Low | Radix Checkbox supports `checked="indeterminate"` natively |
-| Reports page data currently comes from altas/bajas APIs, not a dedicated history API | Medium | Keep the existing fetch logic for history — only strip generation UI. The data flow is unchanged. |
-| Sub-nav adds repeated JSX to each page | Low | Extract into a shared component (`ImssSubNav`) to keep DRY |
+| Riesgo | Impacto | Mitigación |
+|---|---|---|
+| La migración de `cash_flow_assumptions` se commitea pero no se aplica a la DB apuntada | Alto | Correr `scripts/check-migration-drift.ts` antes y después. Es el patrón que ya mordió en este repo. |
+| Filtrar por sucursal deja fuera facturas con `branch_id` NULL sin que nadie lo note | Alto | Excluirlas explícitamente y declarar el conteo en pantalla (decisión 2). Nunca en silencio. |
+| Los e2e corren en serie contra la DB de desarrollo real y se pisan entre sí | Medio | Etiquetar los datos `[E2E]` y limpiarlos vía `tests/support/db.ts`, como el resto de las specs. |
+| `Marcar pagado` sin conciliación bancaria repite el problema que `payables` decidió no tener | Medio | Escribir solo el estado del gasto, dejar la conciliación fuera, y decir en pantalla qué hace y qué no. |
+| Task 16 (jerarquía) se convierte en un rediseño abierto | Medio | Se limita a: una respuesta primaria, `tabular-nums`, piso de `text-sm` en datos, ≤4 bloques de primer nivel. Nada más. |
+| `pnpm run build` falla sin red al bajar Geist de Google Fonts | Bajo | Fallback documentado: `npx tsc --noEmit` (es lo que se hizo en el plan de IMSS). |
 
-## Verification Plan
+## Open Questions
 
-### Automated Tests
-- `pnpm run build` after each phase checkpoint
-
-### Manual Verification
-- Visual comparison of MetricCards across all IMSS sub-pages
-- Keyboard navigation through checkboxes on Altas/Bajas
-- Navigate full IMSS flow via sub-nav without browser back button
-- `grep` for remaining English fragments
-
-## Open Questions — RESUELTO
-
-> [!IMPORTANT]
-> **IDSE Modificación Salarial (code "07") on Reports** — Decisión: **opción A**, se eliminó por completo. La página SUA ya cubre los cambios salariales; mantener un flujo IDSE "07" paralelo generaba confusión.
-> Consecuencia: el endpoint `/api/imss/idse-generate` ya no recibe `movementType: "07"` desde ninguna UI. Si el código 07 sigue siendo necesario, hay que darle una sub-página propia con selección de empleados.
+1. **Facturas sin sucursal.** El plan las excluye del cálculo por sucursal y declara el conteo.
+   Si la respuesta correcta es prorratearlas o asignarlas a una sucursal por defecto, cambia Task 6.
+2. **La `asOfDate` del saldo capturado.** Si la dueña capturó el saldo hace 9 días, ¿la proyección
+   arranca de esa fecha, o se rechaza el dato por viejo y se le vuelve a pedir? Task 9 asume:
+   se usa, con la antigüedad visible; a más de 7 días se pide actualizar.
+3. **El H1.** "Panel de Alerta Temprana de Tesorería" aterriza en la anti-referencia que prohíbe
+   PRODUCT.md, cuatro líneas arriba del comentario que rechaza "runway" por ser vocabulario ajeno.
+   Task 17 propone "¿Me alcanza para este mes?" — es una decisión de voz, no de código.
+4. **Doña Marisol y el iPad.** El 85% del texto de datos es `text-xs`. Subir el piso a `text-sm`
+   cambia la densidad de la pantalla completa. Task 16 lo asume; si prefieres conservar densidad,
+   la alternativa es subir solo las cifras y dejar las etiquetas.

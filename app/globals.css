@@ -18,6 +18,8 @@
   --color-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
@@ -40,6 +42,7 @@
   --color-card: var(--card);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-success-text: var(--success-text);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-text: var(--warning-text);
@@ -83,7 +86,13 @@
   --input: oklch(0.91 0.01 85);
   --ring: oklch(0.52 0.17 25 / 40%);
 
-  --success: oklch(0.60 0.16 150);
+  /* Oscurecido de L=0.60 (3.68:1 sobre blanco, falla AA para texto chico) a
+     L=0.52 → 5.11:1. Se cambia el token en vez de barrer los ~55 usos del repo:
+     casi todos son iconos o fondos al 10%, donde la diferencia es
+     imperceptible, y en `bg-success` sólido con texto blanco el contraste
+     mejora (5.38:1). `--warning` no admite el mismo trato: es un ámbar de
+     relleno y oscurecerlo lo arruinaría — por eso existe `--warning-text`. */
+  --success: oklch(0.52 0.15 150);
   --success-foreground: oklch(0.99 0 0);
   --warning: oklch(0.72 0.15 80);
   --warning-foreground: oklch(0.20 0.02 80);
@@ -92,14 +101,29 @@
      escaneado del módulo (badges "Pendiente", montos de retiro). Este es el
      mismo tono oscurecido hasta pasar contraste sobre fondos claros. */
   --warning-text: oklch(0.48 0.13 80);
+  /* Mismo caso que `--warning-text`, un escalón más tarde: `--success` es
+     3.68:1 sobre blanco. Pasa el piso de 3:1 de texto grande, pero falla el de
+     4.5:1 en `text-xs` — y ahí es donde más se usa (leyendas, deltas, montos
+     secundarios). Medido con `scripts` de contraste: 6.08:1. */
+  --success-text: oklch(0.48 0.14 150);
   --info: oklch(0.52 0.10 245);
   --info-foreground: oklch(0.99 0 0);
 
   --chart-1: oklch(0.58 0.18 25);
   --chart-2: oklch(0.62 0.16 70);
   --chart-3: oklch(0.55 0.10 160);
-  --chart-4: oklch(0.52 0.08 240);
+  /* Separado de `--info` (h=245). Eran 240 y 245 con croma casi igual: dos
+     azules indistinguibles usados justo para diferenciar las badges "OC" y
+     "Factura". A h=200 hay 45° de separación real. */
+  --chart-4: oklch(0.52 0.10 200);
   --chart-5: oklch(0.56 0.15 0);
+  /* Tres de los cinco tokens de gráfica viven en la familia del rojo
+     (`--chart-1` h=25, `--chart-5` h=0, y `--destructive` h=22), así que una
+     pantalla que debe reservar el rojo para una sola cosa se quedaba sin
+     paleta. Estos dos abren el rango sin tocar los existentes, que otras
+     pantallas ya usan. */
+  --chart-6: oklch(0.55 0.14 300);
+  --chart-7: oklch(0.55 0.12 145);
 
   --sidebar: oklch(0.985 0.003 85);
   --sidebar-foreground: oklch(0.16 0.01 30);
@@ -144,14 +168,22 @@
   --warning-foreground: oklch(0.16 0.01 30);
   /* En oscuro el texto va por arriba del relleno, no por debajo. */
   --warning-text: oklch(0.82 0.12 80);
-  --info: oklch(0.58 0.10 245);
+  --success-text: oklch(0.78 0.13 150);
+  /* Subido de 0.58: sobre `--card` daba 4.09:1, por debajo de AA para el texto
+     chico de las badges. Ahora 4.82:1. */
+  --info: oklch(0.62 0.11 245);
   --info-foreground: oklch(0.16 0.01 30);
 
   --chart-1: oklch(0.65 0.18 25);
   --chart-2: oklch(0.68 0.16 70);
   --chart-3: oklch(0.60 0.10 160);
-  --chart-4: oklch(0.58 0.10 245);
+  /* Era idéntico byte a byte a `--info`: las badges "OC" y "Factura" se
+     pintaban del mismo color y sólo las distinguía la etiqueta. Además daba
+     4.09:1 sobre `--card`. Ahora h=200 y 4.98:1. */
+  --chart-4: oklch(0.62 0.10 200);
   --chart-5: oklch(0.62 0.15 0);
+  --chart-6: oklch(0.68 0.14 300);
+  --chart-7: oklch(0.66 0.12 145);
 
   --sidebar: oklch(0.20 0.01 20);
   --sidebar-foreground: oklch(0.96 0.005 85);
