@@ -2,21 +2,86 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
-import { workflowInstances, workflowTemplates, branches, users, workflowInstanceSteps, incidents, inventoryItems, inventoryBatches, shiftSessions } from "@/lib/db/schema";
+import { workflowInstances, workflowTemplates, branches, users, workflowInstanceSteps, incidents, inventoryItems, inventoryBatches, shiftSessions, reportExecutionHistory } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, desc, isNotNull } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
 import { format as formatDate, subDays } from "date-fns";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
+import { createChildLogger } from "@/lib/logger";
+
+const log = createChildLogger("api:reports:generate");
+
+/**
+ * Cada reporte guarda sus filas bajo una llave distinta según el tipo. Se cuenta
+ * la primera que exista para poder registrar cuántos registros salió llevando
+ * el archivo.
+ */
+function contarFilas(reportData: any): number | null {
+  for (const llave of ["workflows", "steps", "items", "incidents", "sessions", "evidences", "records"]) {
+    if (Array.isArray(reportData?.[llave])) return reportData[llave].length;
+  }
+  return null;
+}
+
+/**
+ * Deja rastro de cada descarga en `report_execution_history`.
+ *
+ * Sin esto el historial sólo conocía las exportaciones personalizadas, las
+ * analíticas de empleados y los envíos programados — y omitía justo la acción
+ * más común, bajar un PDF de NOM-251 desde el catálogo. Un historial incompleto
+ * es peor que ninguno: el dueño le cree, y frente a un inspector el reporte que
+ * sí entregó no aparece por ningún lado.
+ *
+ * Nunca tumba la descarga: si el registro falla, se loguea y el archivo sale.
+ */
+async function registrarEjecucion(datos: {
+  companyId: string;
+  reportId: string;
+  executedBy: string;
+  status: "SUCCESS" | "FAILED";
+  rowCount?: number | null;
+  durationMs: number;
+  contexto: Record<string, unknown>;
+  errorMessage?: string;
+}) {
+  try {
+    await db.insert(reportExecutionHistory).values({
+      companyId: datos.companyId,
+      reportType: "STANDARD",
+      dataSource: datos.reportId,
+      executedBy: datos.executedBy,
+      filters: datos.contexto,
+      fields: [],
+      status: datos.status,
+      rowCount: datos.rowCount ?? null,
+      durationMs: datos.durationMs,
+      errorMessage: datos.errorMessage ?? null,
+    });
+  } catch (error) {
+    log.error({ err: error, reportId: datos.reportId }, "no se pudo registrar la generación del reporte");
+  }
+}
 
 export async function POST(request: NextRequest) {
+  const inicio = Date.now();
+  // Declarados afuera del try para que el registro de fallo sepa qué falló.
+  let companyId: string | null = null;
+  let executedBy: string | null = null;
+  let reportIdRegistro: string | null = null;
+  let contextoRegistro: Record<string, unknown> = {};
+
   try {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user?.companyId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    companyId = session.user.companyId;
+    executedBy = session.user.id;
 
     const body = await request.json();
-    const { reportId, format, dateFrom, dateTo, branchId } = body;
+    const { reportId, format, dateFrom, dateTo, branchId: sucursalPedida } = body;
 
     if (!reportId || !format) {
       return NextResponse.json(
@@ -24,6 +89,19 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // El alcance lo decide el servidor, no el cuerpo del request: GERENTE y
+    // SUPERVISOR quedan fijados a su sucursal aunque el cliente mande "todas".
+    const branchId = enforceBranchScope(
+      ((session.user as any).role || "EMPLEADO") as Role,
+      (session.user as any).branchId ?? null,
+      sucursalPedida ?? null
+    );
+
+    reportIdRegistro = reportId;
+    // Se guarda el alcance ya resuelto por el servidor, no el que pidió el
+    // cliente: el historial debe decir qué datos salieron de verdad.
+    contextoRegistro = { format, dateFrom, dateTo, branchId: branchId ?? "ALL" };
 
     let reportData: any = {};
 
@@ -78,9 +156,37 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    return await generateReportFile(reportData, format, reportId);
+    const archivo = await generateReportFile(reportData, format, reportId);
+
+    // Sólo cuenta como descarga lo que salió como archivo. Un 400 por formato
+    // no soportado se registra como fallo, no como reporte entregado.
+    await registrarEjecucion({
+      companyId,
+      reportId,
+      executedBy,
+      status: archivo.ok ? "SUCCESS" : "FAILED",
+      rowCount: contarFilas(reportData),
+      durationMs: Date.now() - inicio,
+      contexto: contextoRegistro,
+      errorMessage: archivo.ok ? undefined : `Formato no soportado: ${format}`,
+    });
+
+    return archivo;
   } catch (error) {
-    console.error("Failed to generate report:", error);
+    log.error({ err: error, reportId: reportIdRegistro }, "falló la generación del reporte");
+
+    if (companyId && executedBy && reportIdRegistro) {
+      await registrarEjecucion({
+        companyId,
+        reportId: reportIdRegistro,
+        executedBy,
+        status: "FAILED",
+        durationMs: Date.now() - inicio,
+        contexto: contextoRegistro,
+        errorMessage: error instanceof Error ? error.message : "Error desconocido",
+      });
+    }
+
     return NextResponse.json(
       { error: "Failed to generate report" },
       { status: 500 }
@@ -88,14 +194,28 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/** Formatos que esta ruta sabe producir de verdad. */
+const FORMATOS_SOPORTADOS = ["PDF", "EXCEL"];
+
 async function generateReportFile(reportData: any, format: string, reportId: string): Promise<NextResponse> {
   const upperFormat = format.toUpperCase();
   if (upperFormat === "EXCEL") {
     return generateExcelReport(reportData, reportId);
-  } else if (upperFormat === "PDF") {
+  }
+  if (upperFormat === "PDF") {
     return generatePDFReport(reportData, reportId);
   }
-  return NextResponse.json({ success: true, data: reportData, message: "Report generated successfully" });
+
+  // Antes caía aquí y devolvía JSON con `success: true`. El cliente veía
+  // `response.ok`, lo guardaba como .pdf y mostraba "Reporte generado": un
+  // archivo corrupto anunciado como éxito. Un formato que no sabemos generar
+  // es un error, no una descarga.
+  return NextResponse.json(
+    {
+      error: `Formato no soportado: ${format}. Disponibles: ${FORMATOS_SOPORTADOS.join(", ")}`,
+    },
+    { status: 400 }
+  );
 }
 
 async function generateExcelReport(reportData: any, reportId: string): Promise<NextResponse> {

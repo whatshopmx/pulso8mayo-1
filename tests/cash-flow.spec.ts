@@ -674,16 +674,28 @@ test.describe("Task 14 · contraste de tokens", () => {
     expect(success, `--success-text da ${success.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
   });
 
-  test("los tokens que motivaron el arreglo siguen sin cumplir", () => {
-    // Se afirma el hecho, no el deseo: `--warning` y `--success` son tokens de
-    // relleno y no deben usarse como texto chico. Si algún día se oscurecen,
-    // este test falla y hay que revisar si el token de texto sigue haciendo
-    // falta.
+  test("`--warning` sigue siendo un token de relleno, no de texto", () => {
+    // Se afirma el hecho, no el deseo. `--warning` es un ámbar pensado para
+    // rellenos: oscurecerlo hasta pasar AA lo arruinaría como fondo, y por eso
+    // existe `--warning-text`. Si algún día se oscurece, este test falla y hay
+    // que revisar si el token de texto sigue haciendo falta.
     const warning = contrastRatio(rgbDe(leerToken(css, "warning", ":root")), BLANCO);
     expect(warning).toBeLessThan(4.5);
+  });
 
+  test("`--success` sí se pudo oscurecer, y ahora cumple por sí solo", () => {
+    // A diferencia del ámbar, el verde admitía bajar de L=0.60 a 0.52 sin
+    // estropear los rellenos. Eso arregla de una vez los ~55 usos del repo, en
+    // vez de barrerlos uno por uno sin poder revisarlos.
     const success = contrastRatio(rgbDe(leerToken(css, "success", ":root")), BLANCO);
-    expect(success).toBeLessThan(4.5);
+    expect(success, `--success da ${success.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+
+    // Y como fondo sólido con su foreground sigue siendo legible.
+    const sobreRelleno = contrastRatio(
+      rgbDe(leerToken(css, "success-foreground", ":root")),
+      rgbDe(leerToken(css, "success", ":root"))
+    );
+    expect(sobreRelleno, `texto sobre bg-success da ${sobreRelleno.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
   });
 
   test("las badges de origen se distinguen y son legibles en oscuro", () => {

@@ -69,7 +69,7 @@ test.describe("Fase 1 · contrapartes (payees)", () => {
     // El GET de gastos devuelve el nombre de la contraparte junto al gasto.
     const getExp = await page.request.get("/api/expenses");
     const expJson = await getExp.json();
-    const apiRow = expJson.data.find((e: any) => e.id === gasto.id);
+    const apiRow = expJson.data.items.find((e: any) => e.id === gasto.id);
     expect(apiRow).toBeTruthy();
     expect(apiRow.payeeId).toBe(payee.id);
     expect(apiRow.payeeName).toBe(nombrePayee);

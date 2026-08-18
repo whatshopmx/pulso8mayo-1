@@ -9,7 +9,7 @@ import {
   branches,
   payees,
 } from "@/lib/db/schema";
-import { eq, and, desc, lte, gte, or, isNull } from "drizzle-orm";
+import { eq, ne, and, desc, lte, gte, or, isNull } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { roleIsAtLeast } from "@/lib/permissions";
 import { getPayeeForCompany } from "./payee-service";
@@ -388,16 +388,22 @@ export async function rescheduleOperatingExpense(
   return updated;
 }
 
-export async function getOperatingExpenses(companyId: string, branchId?: string) {
-  const conditions = [eq(operatingExpenses.companyId, companyId)];
-  if (branchId) {
-    conditions.push(eq(operatingExpenses.branchId, branchId));
-  }
+/**
+ * Cuántos gastos ya resueltos se devuelven. Ocho sucursales con un año de
+ * rentas y servicios son miles de filas, y antes se traían y renderizaban
+ * todas.
+ */
+const LIMITE_HISTORIAL = 200;
 
+/** Consulta base. Se ejecuta dos veces con condiciones y cota distintas. */
+async function consultarGastos(
+  condiciones: ReturnType<typeof eq>[],
+  limite?: number
+) {
   const requestedUser = db.select({ id: users.id, name: users.name }).from(users).as("reqUser");
   const approvedUser = db.select({ id: users.id, name: users.name }).from(users).as("appUser");
 
-  const expenses = await db
+  const consulta = db
     .select({
       id: operatingExpenses.id,
       companyId: operatingExpenses.companyId,
@@ -423,8 +429,53 @@ export async function getOperatingExpenses(companyId: string, branchId?: string)
     .leftJoin(requestedUser, eq(operatingExpenses.requestedBy, requestedUser.id))
     .leftJoin(approvedUser, eq(operatingExpenses.approvedBy, approvedUser.id))
     .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
-    .where(and(...conditions))
+    .where(and(...condiciones))
     .orderBy(desc(operatingExpenses.createdAt));
+
+  return limite === undefined ? consulta : consulta.limit(limite);
+}
+
+/**
+ * Gastos operativos del inquilino, opcionalmente de una sola sucursal.
+ *
+ * **La cota es asimétrica a propósito.** Los pendientes se devuelven completos:
+ * esto es una cola de autorizaciones y una aprobación que se quedó fuera del
+ * `LIMIT` es un gasto que nadie ve. El historial ya resuelto sí se acota, y
+ * cuando se corta se declara en `truncated` en vez de callarlo — una lista que
+ * esconde filas en silencio es peor que una lista corta que lo admite.
+ *
+ * `branchId` tiene que venir ya pasado por `enforceBranchScope`: este servicio
+ * confía en que el llamador resolvió el alcance, no lo vuelve a decidir.
+ */
+export async function getOperatingExpenses(
+  companyId: string,
+  branchId?: string,
+  opciones?: { limiteHistorial?: number }
+) {
+  const limiteHistorial = opciones?.limiteHistorial ?? LIMITE_HISTORIAL;
+
+  const base = [eq(operatingExpenses.companyId, companyId)];
+  if (branchId) {
+    base.push(eq(operatingExpenses.branchId, branchId));
+  }
+
+  // Se pide uno de más para saber si hubo corte sin un COUNT aparte.
+  const [pendientes, historial] = await Promise.all([
+    consultarGastos([...base, eq(operatingExpenses.status, "PENDING_APPROVAL")]),
+    consultarGastos(
+      [...base, ne(operatingExpenses.status, "PENDING_APPROVAL")],
+      limiteHistorial + 1
+    ),
+  ]);
+
+  const truncated = historial.length > limiteHistorial;
+  const historialAcotado = truncated ? historial.slice(0, limiteHistorial) : historial;
+
+  // Se reordena el conjunto: la pantalla puede mostrar "todos los estatus" y
+  // dos bloques concatenados se leerían como dos tablas pegadas.
+  const expenses = [...pendientes, ...historialAcotado].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
   // Enrich each expense with its required approver role from the rules table
   const rules = await db
@@ -432,7 +483,7 @@ export async function getOperatingExpenses(companyId: string, branchId?: string)
     .from(expenseAuthorizationRules)
     .where(eq(expenseAuthorizationRules.companyId, companyId));
 
-  return expenses.map((expense) => {
+  const items = expenses.map((expense) => {
     const matchingRule = rules.find(
       (r) => expense.amountCents >= r.minAmount && (r.maxAmount === null || expense.amountCents <= r.maxAmount)
     );
@@ -441,4 +492,6 @@ export async function getOperatingExpenses(companyId: string, branchId?: string)
       requiredApproverRole: matchingRule?.approverRole ?? null,
     };
   });
+
+  return { items, truncated };
 }

@@ -1,12 +1,25 @@
-import { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAuth, requireTenant } from "@/lib/tenant-context";
+import { eq, and } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { branches } from "@/lib/db/schema";
+import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
+import { enforceBranchScope } from "@/lib/branch-scope";
 import {
   createOperatingExpense,
   getOperatingExpenses,
 } from "@/lib/services/expense-service";
+
+/**
+ * Gastos operativos y su cadena de autorización.
+ *
+ * `EMPLEADO` y `READONLY` quedan fuera de ambos verbos: aquí se leen costos de
+ * proveedor y montos colindantes con nómina de todas las sucursales, y se
+ * compromete el pago. Cerrar sólo la ruta del dashboard no bastaba — un `fetch`
+ * a la API no pasa por el mismo camino que el navegador.
+ */
+const ROLES_FINANZAS = ["SUPER_ADMIN", "ADMIN", "GERENTE", "SUPERVISOR"] as const;
 
 const createExpenseSchema = z.object({
   branchId: z.string().uuid("La sucursal es inválida."),
@@ -26,50 +39,83 @@ const createExpenseSchema = z.object({
   payeeId: z.string().uuid("La contraparte es inválida.").optional().nullable(),
 });
 
-export async function GET(req: NextRequest) {
-  try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-
-    const { searchParams } = new URL(req.url);
-    const branchId = searchParams.get("branchId") || undefined;
-
-    const expenses = await getOperatingExpenses(tenant.id, branchId);
-    return ApiHandler.success(expenses);
-  } catch (error) {
-    return ApiHandler.error(error);
-  }
+/** Nombre de la sucursal en foco, para poder rotular el alcance sin adivinarlo. */
+async function nombreDeSucursal(
+  tenantId: string,
+  branchId: string | null
+): Promise<string | null> {
+  if (!branchId) return null;
+  const [fila] = await db
+    .select({ name: branches.name })
+    .from(branches)
+    .where(and(eq(branches.id, branchId), eq(branches.companyId, tenantId)))
+    .limit(1);
+  return fila?.name ?? null;
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-    const { user } = await requireAuth();
+/**
+ * GET /api/expenses
+ *
+ * Devuelve `{ items, scope, truncated }`. El `scope` es el alcance **aplicado**,
+ * no el pedido: a un GERENTE o SUPERVISOR que pide otra sucursal se le devuelve
+ * la suya, y la pantalla necesita saberlo para rotularlo. Cifras del grupo
+ * etiquetadas como una sucursal son peor que no tener el filtro.
+ */
+export const GET = withRoleAuth([...ROLES_FINANZAS], async (req, { auth }) => {
+  const { searchParams } = new URL(req.url);
 
-    const body = await req.json();
-    const data = createExpenseSchema.parse(body);
+  // El `branchId` del query no llega al servicio sin pasar por aquí.
+  const effectiveBranchId = enforceBranchScope(
+    auth.user.role as never,
+    auth.branchId,
+    searchParams.get("branchId")
+  );
 
-    const expense = await createOperatingExpense({
-      companyId: tenant.id,
-      branchId: data.branchId,
-      category: data.category,
-      amountCents: data.amountCents,
-      description: data.description,
-      invoiceId: data.invoiceId || undefined,
-      dueDate: data.dueDate || undefined,
-      evidenceUrl: data.evidenceUrl || undefined,
-      payeeId: data.payeeId || undefined,
-      requestedBy: user.id,
-      userRole: user.role || "GERENTE",
-    });
+  const [{ items, truncated }, branchName] = await Promise.all([
+    getOperatingExpenses(auth.tenantId, effectiveBranchId ?? undefined),
+    nombreDeSucursal(auth.tenantId, effectiveBranchId),
+  ]);
 
-    return ApiHandler.success(expense);
-  } catch (error) {
-    return ApiHandler.error(error);
+  return ApiHandler.success({
+    items,
+    scope: { branchId: effectiveBranchId, branchName },
+    truncated,
+  });
+});
+
+/**
+ * POST /api/expenses
+ *
+ * La sucursal del gasto también pasa por `enforceBranchScope`: un rol fijado a
+ * una sucursal que registra gastos en otra ensucia el libro de alguien más, y
+ * es la misma fuga del GET en forma de escritura.
+ */
+export const POST = withRoleAuth([...ROLES_FINANZAS], async (req, { auth }) => {
+  const body = await req.json();
+  const data = createExpenseSchema.parse(body);
+
+  const branchId = enforceBranchScope(
+    auth.user.role as never,
+    auth.branchId,
+    data.branchId
+  );
+  if (!branchId) {
+    throw ApiError.badRequest("No hay una sucursal válida para registrar el gasto.");
   }
-}
+
+  const expense = await createOperatingExpense({
+    companyId: auth.tenantId,
+    branchId,
+    category: data.category,
+    amountCents: data.amountCents,
+    description: data.description,
+    invoiceId: data.invoiceId || undefined,
+    dueDate: data.dueDate || undefined,
+    evidenceUrl: data.evidenceUrl || undefined,
+    payeeId: data.payeeId || undefined,
+    requestedBy: auth.user.id,
+    userRole: auth.user.role,
+  });
+
+  return ApiHandler.success(expense);
+});

@@ -25,6 +25,36 @@ function randomInt(min: number, max: number): number {
 const BRANCHES = [BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA];
 const USERS = [USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3, USER_SUPERVISOR, USER_GERENTE];
 
+// La revisión trata cualquier nota del operador como hallazgo que mirar
+// (`stepNeedsAttention` en `lib/workflows/step-definitions.ts`). Con una nota en
+// todos los pasos, la pestaña "Requiere atención" trae el 100% del flujo y deja
+// de señalar nada: el silencio es lo normal y la nota es la excepción.
+const NOTAS_DISCREPANCIA = [
+  "La cámara marcaba 5.2 °C, fuera de rango. Avisé al gerente en turno.",
+  "La foto salió a contraluz; volví a tomarla desde el otro costado.",
+  "Faltaba acomodar una charola cuando levanté la evidencia.",
+  "El sello del contenedor venía roto, lo separé para revisión.",
+];
+
+const NOTAS_OPERADOR = [
+  "Merma de 3 piezas por caducidad, ya quedó registrada.",
+  "El proveedor llegó 40 minutos tarde.",
+  "Se repuso el gel del dispensador de la entrada.",
+  "La cámara 2 tardó en enfriar; quedó estable a los 20 minutos.",
+];
+
+/**
+ * La nota sigue al hallazgo: si la IA reprobó el paso hay algo que explicar, si
+ * no, casi siempre no hay nada que decir.
+ */
+function notaDelPaso(aiAnalysis: { passed?: boolean } | null): string | null {
+  if (aiAnalysis && aiAnalysis.passed === false) {
+    return NOTAS_DISCREPANCIA[randomInt(0, NOTAS_DISCREPANCIA.length - 1)];
+  }
+  if (Math.random() > 0.08) return null;
+  return NOTAS_OPERADOR[randomInt(0, NOTAS_OPERADOR.length - 1)];
+}
+
 export async function main() {
   console.log("=== Phase 5: Workflows ===");
   console.log("Cleaning up...");
@@ -116,11 +146,14 @@ export async function main() {
 
   console.log("Creating ~300 workflow instances over 30 days...");
   const now = new Date();
-  const instanceRows: { id: string; templateId: string; scheduleId?: string }[] = [];
+  const instanceRows: { id: string; templateId: string; scheduleId?: string; assigneeId: string }[] = [];
   let instanceCount = 0;
 
   const instanceValues: any[] = [];
-  const instanceMeta: { templateId: string; scheduleId?: string; completed: boolean }[] = [];
+  // `assigneeId` viaja hasta el bucle de pasos: quien tiene asignada la
+  // ejecución es quien la registra, y sin arrastrarlo aquí los pasos acaban
+  // firmados por gente que nunca tocó ese workflow.
+  const instanceMeta: { templateId: string; scheduleId?: string; completed: boolean; assigneeId: string }[] = [];
 
   for (let day = 0; day < 30; day++) {
     const date = new Date(now);
@@ -144,10 +177,12 @@ export async function main() {
       const completed = Math.random() > 0.15;
       const score = completed ? (Math.random() > 0.2 ? randomInt(70, 100) : randomInt(40, 69)) : undefined;
 
+      const assigneeId = USERS[instanceCount % USERS.length];
+
       instanceValues.push({
         workflowTemplateId: tmpl.id,
         branchId: BRANCHES[sc.branchIdx],
-        assigneeId: USERS[instanceCount % USERS.length],
+        assigneeId,
         scheduleId: scheduleRows[s]?.id,
         status: completed ? "COMPLETED" : "PENDING",
         startedAt: completed ? new Date(dueDate.getTime() + randomInt(0, 30) * 60000) : null,
@@ -157,27 +192,42 @@ export async function main() {
         score,
         data: {},
       });
-      instanceMeta.push({ templateId: tmpl.id, scheduleId: scheduleRows[s]?.id, completed });
+      instanceMeta.push({ templateId: tmpl.id, scheduleId: scheduleRows[s]?.id, completed, assigneeId });
       instanceCount++;
     }
   }
 
   const insertedInstances = await db.insert(workflowInstances).values(instanceValues).returning({ id: workflowInstances.id, templateId: workflowInstances.workflowTemplateId, scheduleId: workflowInstances.scheduleId });
   for (let i = 0; i < insertedInstances.length; i++) {
-    instanceRows.push({ id: insertedInstances[i].id, templateId: instanceMeta[i].templateId, scheduleId: insertedInstances[i].scheduleId || undefined });
+    instanceRows.push({
+      id: insertedInstances[i].id,
+      templateId: instanceMeta[i].templateId,
+      scheduleId: insertedInstances[i].scheduleId || undefined,
+      assigneeId: instanceMeta[i].assigneeId,
+    });
   }
   console.log(`  Created ${instanceRows.length} instances`);
 
   console.log("Creating workflow instance steps...");
   let stepCount = 0;
   const stepValues: any[] = [];
-  for (const inst of instanceRows) {
+  for (let instIdx = 0; instIdx < instanceRows.length; instIdx++) {
+    const inst = instanceRows[instIdx];
     const tmpl = templates.find(t => (t as any).id === inst.templateId);
     if (!tmpl?.steps) continue;
     const steps = tmpl.steps.slice(0, Math.min(tmpl.steps.length, 8));
     const isCompleted = Math.random() > 0.15;
 
-    for (const step of steps) {
+    // El relevo de turno es real en HORECA —quien abre no siempre cierra— pero
+    // es la excepción, no la regla. Una de cada doce ejecuciones se parte en dos
+    // firmas para que la bitácora multi-persona siga siendo probable en la
+    // pantalla de revisión; el resto las firma su asignado de principio a fin.
+    const isHandoff = instIdx % 12 === 0 && steps.length >= 3;
+    const handoffAt = isHandoff ? Math.ceil(steps.length * 0.6) : steps.length;
+    const relief = inst.assigneeId === USER_SUPERVISOR ? USER_GERENTE : USER_SUPERVISOR;
+
+    for (let stepIdx = 0; stepIdx < steps.length; stepIdx++) {
+      const step = steps[stepIdx];
       const stepCompleted = isCompleted && Math.random() > 0.1;
       let value: any = null;
       let evidenceUrl: string | null = null;
@@ -227,9 +277,11 @@ export async function main() {
         value: value as unknown as Record<string, unknown>,
         aiAnalysis: aiAnalysis as unknown as Record<string, unknown>,
         evidenceUrl,
-        comment: stepCompleted ? "Realizado según procedimiento" : null,
+        comment: stepCompleted ? notaDelPaso(aiAnalysis) : null,
         completedAt: stepCompleted ? randomDate(1) : null,
-        completedBy: stepCompleted ? USERS[stepCount % USERS.length] : null,
+        completedBy: stepCompleted
+          ? (stepIdx < handoffAt ? inst.assigneeId : relief)
+          : null,
       });
       stepCount++;
     }
@@ -293,4 +345,17 @@ export async function main() {
   console.log(`  Created ${eventTriggerData.length} event triggers`);
 
   console.log("Phase 5 complete!");
+}
+
+// `seed-full` importa esta etapa y la encadena, por eso el módulo solo exportaba
+// `main`. El efecto era que `pnpm seed:5` importaba el archivo, no llamaba a
+// nada y salía con código 0: una siembra que "funcionaba" sin tocar la base.
+// Bajo `require.main === module` solo corre cuando se invoca directamente.
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
 }

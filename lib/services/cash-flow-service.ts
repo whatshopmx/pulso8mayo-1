@@ -176,6 +176,15 @@ export interface CashFlowProjection {
 
 // ── Constants ────────────────────────────────────────────────────
 
+/**
+ * Estados de un gasto en los que el dinero todavía no ha salido de la cuenta.
+ *
+ * `PAID` ya salió y `REJECTED` no saldrá nunca: ninguno es flujo futuro, y
+ * contarlos infla la proyección. `PENDING_APPROVAL` sí cuenta — falta
+ * autorizarlo, pero el compromiso existe.
+ */
+const OUTFLOW_PENDING_STATUSES = ["PENDING_APPROVAL", "APPROVED"] as const;
+
 const PO_COMMITTED_STATUSES = ["APPROVED", "SENT", "PARTIALLY_RECEIVED"] as const;
 
 /**
@@ -466,6 +475,12 @@ export async function getCashFlowProjection(
   };
 
   // ── 2. Operating expenses (scheduled) ──────────────────────────
+  //
+  // Sólo lo que todavía va a salir de la cuenta. `PAID` ya salió —y si se pagó
+  // antes de la fecha del saldo capturado, contarlo aquí lo cobra dos veces— y
+  // `REJECTED` no va a salir nunca. Incluir `PENDING_APPROVAL` es la lectura
+  // conservadora: falta autorizarlo, pero el compromiso existe, y subestimar
+  // egresos es el error caro en una pantalla que responde "¿me alcanza?".
   const opExList = await db
     .select({
       id: operatingExpenses.id,
@@ -483,6 +498,7 @@ export async function getCashFlowProjection(
       and(
         eq(operatingExpenses.companyId, companyId),
         ...(branchId ? [eq(operatingExpenses.branchId, branchId)] : []),
+        inArray(operatingExpenses.status, [...OUTFLOW_PENDING_STATUSES]),
         gte(operatingExpenses.dueDate, startDateStr),
         lte(operatingExpenses.dueDate, endDateStr)
       )
@@ -508,7 +524,9 @@ export async function getCashFlowProjection(
         eq(operatingExpenses.companyId, companyId),
         ...(branchId ? [eq(operatingExpenses.branchId, branchId)] : []),
         sql`${operatingExpenses.dueDate} < ${startDateStr}`,
-        sql`${operatingExpenses.status} != 'PAID'`
+        // Era `!= 'PAID'`, así que un gasto RECHAZADO vencido se cobraba como
+        // deuda. Mismo criterio que los proyectados: lo que todavía va a salir.
+        inArray(operatingExpenses.status, [...OUTFLOW_PENDING_STATUSES])
       )
     )
     .orderBy(asc(operatingExpenses.dueDate));

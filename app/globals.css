@@ -86,7 +86,13 @@
   --input: oklch(0.91 0.01 85);
   --ring: oklch(0.52 0.17 25 / 40%);
 
-  --success: oklch(0.60 0.16 150);
+  /* Oscurecido de L=0.60 (3.68:1 sobre blanco, falla AA para texto chico) a
+     L=0.52 → 5.11:1. Se cambia el token en vez de barrer los ~55 usos del repo:
+     casi todos son iconos o fondos al 10%, donde la diferencia es
+     imperceptible, y en `bg-success` sólido con texto blanco el contraste
+     mejora (5.38:1). `--warning` no admite el mismo trato: es un ámbar de
+     relleno y oscurecerlo lo arruinaría — por eso existe `--warning-text`. */
+  --success: oklch(0.52 0.15 150);
   --success-foreground: oklch(0.99 0 0);
   --warning: oklch(0.72 0.15 80);
   --warning-foreground: oklch(0.20 0.02 80);

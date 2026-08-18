@@ -227,6 +227,45 @@ export async function seedOperatingExpense(opts: {
 }
 
 /**
+ * Siembra `cantidad` gastos de golpe con el mismo estado.
+ *
+ * Existe para probar la cota asimétrica de `getOperatingExpenses`: demostrar
+ * que el historial se acota y la cola de pendientes **no** exige pasar de 200
+ * registros resueltos, y 200 llamadas a `seedOperatingExpense` tardaban más que
+ * el timeout del spec. `generate_series` los inserta en una sola ida a Neon.
+ *
+ * Todas las descripciones llevan `E2E_TAG`, así que `deleteTestExpenses()` las
+ * limpia sin tocar lo sembrado por `pnpm seed`.
+ */
+export async function seedManyOperatingExpenses(opts: {
+  companyId: string;
+  branchId: string;
+  requestedBy: string;
+  dueDate: string;
+  cantidad: number;
+  status: string;
+  etiqueta: string;
+}): Promise<number> {
+  const rows = await sql`
+    INSERT INTO operating_expenses (
+      company_id, branch_id, category, amount, description, status, requested_by, due_date
+    )
+    SELECT
+      ${opts.companyId},
+      ${opts.branchId},
+      'OTROS'::operating_expense_category,
+      1000 + i,
+      ${`${E2E_TAG} ${opts.etiqueta} `} || i,
+      ${opts.status}::operating_expense_status,
+      ${opts.requestedBy},
+      ${opts.dueDate}::date
+    FROM generate_series(1, ${opts.cantidad}) AS i
+    RETURNING id
+  `;
+  return rows.length;
+}
+
+/**
  * Marca de los cortes de venta sembrados por los tests. `daily_sales_cuts` no
  * tiene columna de descripción, así que la etiqueta viaja en `validation_notes`
  * — es el único campo de texto libre de la tabla.
