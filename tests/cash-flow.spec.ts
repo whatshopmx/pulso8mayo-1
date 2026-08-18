@@ -267,6 +267,127 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
 });
 
 /**
+ * Task 18 — accesibilidad.
+ *
+ * Los colapsos se anunciaban "Ver todos (12), botón", sin estado. El tooltip
+ * de la gráfica pasaba `""` como nombre de serie, así que un valor no decía si
+ * era lo que entra o lo que sale. Y al 200% de zoom la badge que distingue OC
+ * de Factura quedaba cortada por el `overflow:hidden` del párrafo que la
+ * contenía.
+ */
+test.describe("Task 18 · accesibilidad", () => {
+  test.setTimeout(180_000);
+  const PANTALLA = "/dashboard/finance/cash-flow";
+
+  test.beforeAll(async () => {
+    await deleteTestExpenses();
+    // Seis vencidos: el colapso sólo aparece a partir de cinco.
+    for (let i = 0; i < 6; i++) {
+      await seedOperatingExpense({
+        companyId: COMPANY_ID,
+        branchId: BRANCH_CONDESA,
+        requestedBy: USER_SUPER_ADMIN,
+        dueDate: addCalendarDays(localDateString(new Date(), "America/Mexico_City"), -3 - i),
+        amountCents: 120_000 + i * 1_000,
+        description: `${E2E_TAG} Vencido con nombre bastante largo para truncar ${i}`,
+      });
+    }
+  });
+
+  test.afterAll(async () => {
+    await deleteTestExpenses();
+  });
+
+  test("los colapsos anuncian su estado", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+
+    const verTodos = page.getByRole("button", { name: /Ver todos/ });
+    await expect(verTodos).toBeVisible();
+    await expect(verTodos).toHaveAttribute("aria-expanded", "false");
+    // `aria-controls` apunta a la lista que abre, no a nada.
+    await expect(verTodos).toHaveAttribute("aria-controls", "lista-vencidos");
+    await expect(page.locator("#lista-vencidos")).toBeVisible();
+
+    await verTodos.click();
+    await expect(
+      page.getByRole("button", { name: /Mostrar solo 5/ })
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("la gráfica nombra sus series", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+    await expect(page.getByText(/Entradas vs\. salidas/)).toBeVisible();
+
+    // La leyenda y la tabla alternativa nombran ambas series: un lector de
+    // pantalla no puede interpretar el color de la barra.
+    const tabla = page.locator("[data-sr-table]");
+    await expect(tabla).toContainText("Entradas");
+    await expect(tabla).toContainText("Salidas");
+  });
+
+  test("la badge de origen sobrevive al zoom y al truncado", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+    await expect(page.getByText(/Presión semanal de egresos/)).toBeVisible();
+
+    // Zoom 200% simulado reduciendo el viewport a la mitad.
+    await page.setViewportSize({ width: 640, height: 720 });
+
+    // La badge ya no vive dentro del párrafo con `truncate`, así que ningún
+    // ancestro con overflow oculto puede cortarla.
+    const anidadas = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("p.truncate")).filter((p) =>
+        p.querySelector("[data-slot='badge'], .badge, span[class*='rounded']")
+      ).length
+    );
+    expect(anidadas).toBe(0);
+  });
+
+  test("a 320px la pantalla no se desborda", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+    await expect(page.getByText(/Presión semanal de egresos/)).toBeVisible();
+
+    // Recharts se dimensiona de forma asíncrona: medir antes de que asiente da
+    // el ancho inicial del gráfico, no el final.
+    await expect(page.locator(".recharts-surface").first()).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() =>
+            Array.from(document.querySelectorAll("section")).reduce(
+              (peor, s) => Math.max(peor, s.scrollWidth - s.clientWidth),
+              0
+            )
+          ),
+        { timeout: 15_000 }
+      )
+      .toBeLessThanOrEqual(1);
+
+    // La tira "Fuentes de egresos" era `flex` sin `flex-wrap` con badges
+    // `shrink-0`: en un teléfono se salía por la derecha y el contenido
+    // simplemente quedaba fuera de la pantalla.
+    //
+    // Se mide el contenido de ESTA pantalla, no el documento completo: el
+    // layout del dashboard (barra lateral e iconos) desborda por su cuenta a
+    // 320px, y es un defecto de otra pantalla — queda anotado, no silenciado.
+    // Se compara `scrollWidth` contra `clientWidth` de cada sección: es la
+    // medida que de verdad significa "esto obliga a hacer scroll lateral".
+    // Recorrer descendientes y comparar rectángulos daba falsos positivos —
+    // la tabla alternativa del gráfico está clipada por `sr-only`, así que sus
+    // celdas reportan su tamaño natural sin ocupar un solo píxel en pantalla.
+    const desborde = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("section")).reduce(
+        (peor, s) => Math.max(peor, s.scrollWidth - s.clientWidth),
+        0
+      )
+    );
+
+    // Se tolera 1px de redondeo del navegador.
+    expect(desborde, `el contenido desborda su sección ${desborde}px`).toBeLessThanOrEqual(1);
+  });
+});
+
+/**
  * Task 17 — copy factualmente correcto.
  *
  * No es registro: son errores de hecho. La pantalla decía "supera el promedio"

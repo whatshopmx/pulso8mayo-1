@@ -700,7 +700,10 @@ export function CashFlowCalendar({
       <CardContent className="p-6">
         <div className="flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-          <div className="flex-1 space-y-3">
+          {/* `min-w-0`: sin esto el contenedor no encoge por debajo del ancho de
+              su texto más largo, y a 320px el título y la descripción empujaban
+              la tarjeta fuera de la pantalla. */}
+          <div className="flex-1 min-w-0 space-y-3">
             <div>
               <h4 className="text-sm font-bold text-destructive">
                 Gastos vencidos ({overdueItems.length})
@@ -709,12 +712,15 @@ export function CashFlowCalendar({
                 Estos compromisos ya pasaron su fecha de vencimiento y no están marcados como pagados.
               </p>
             </div>
-            <div className="divide-y divide-destructive/10 rounded-md border border-destructive/20 bg-background">
+            <div
+              id="lista-vencidos"
+              className="divide-y divide-destructive/10 rounded-md border border-destructive/20 bg-background"
+            >
               {visibleOverdue.map((item) => (
                 <ItemRow
                   key={item.id}
                   item={item}
-                  className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2 text-xs"
                   trailing={
                     <div className="text-right shrink-0">
                       <p className="text-sm font-bold text-destructive tabular-nums">
@@ -731,27 +737,37 @@ export function CashFlowCalendar({
                   actions={accionesDeGasto(item)}
                 >
                   <div className="min-w-0 px-1 py-0.5">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {item.description}
+                    {/* La badge sale del párrafo con `truncate`: anidada dentro,
+                        el `overflow:hidden` la cortaba a la mitad al 200% de
+                        zoom — justo el marcador que dice si es OC o Factura.
+                        Ahora trunca sólo la descripción y la badge no encoge. */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {item.description}
+                      </p>
                       {item.source && item.source !== "OPERATING_EXPENSE" && (
                         <Badge
                           variant="outline"
-                          className={`ml-1.5 text-xs px-1 py-0 ${SOURCE_COLORS[item.source] || ""}`}
+                          className={`shrink-0 text-xs px-1 py-0 ${SOURCE_COLORS[item.source] || ""}`}
                         >
                           {SOURCE_LABELS[item.source] || item.source}
                         </Badge>
                       )}
-                    </p>
+                    </div>
                     <ItemMeta item={item} showBranch={esAlcanceGrupo} prefix="Venció" />
                   </div>
                 </ItemRow>
               ))}
             </div>
+            {/* Sin `aria-expanded` se anunciaba "Ver todos (12), botón" — sin
+                decir si la lista está abierta o cerrada. */}
             {overdueItems.length > 5 && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="text-xs"
+                aria-expanded={showAllOverdue}
+                aria-controls="lista-vencidos"
                 onClick={() => alternarParam("vencidos", "todos", showAllOverdue)}
               >
                 {showAllOverdue ? (
@@ -941,11 +957,13 @@ export function CashFlowCalendar({
           BLOQUE 3: ¿En qué gasto? — composición y presión por semana
           ════════════════════════════════════════════════════════════ */}
       <section aria-label="¿En qué gasto?" className="space-y-6">
-      {/* Procurement summary — what's feeding the projection */}
+      {/* Fuentes de egresos. `flex-wrap`: era `flex` con badges `shrink-0`, así
+          que en un teléfono de 320px la tira se salía por la derecha sin
+          contenedor con scroll — el contenido quedaba fuera de la pantalla. */}
       {data.procurementCommitments &&
         (data.procurementCommitments.purchaseOrdersCount > 0 ||
           data.procurementCommitments.invoicesCount > 0) && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
             <span className="font-medium text-foreground">Fuentes de egresos:</span>
             {data.procurementCommitments.purchaseOrdersCount > 0 && (
               <Badge variant="outline" className={`text-xs ${SOURCE_COLORS.PURCHASE_ORDER}`}>
@@ -1014,20 +1032,24 @@ export function CashFlowCalendar({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {categorySummary.slice(0, showAllCategories ? undefined : 4).map((cat) => (
-                <CategoryBar
-                  key={cat.category}
-                  label={cat.category}
-                  amountCents={cat.amountCents}
-                  percentage={cat.percentage}
-                  maxPct={maxCategoryPct}
-                />
-              ))}
+              <div id="lista-categorias" className="space-y-3">
+                {categorySummary.slice(0, showAllCategories ? undefined : 4).map((cat) => (
+                  <CategoryBar
+                    key={cat.category}
+                    label={cat.category}
+                    amountCents={cat.amountCents}
+                    percentage={cat.percentage}
+                    maxPct={maxCategoryPct}
+                  />
+                ))}
+              </div>
               {categorySummary.length > 4 && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="text-xs w-full"
+                  aria-expanded={showAllCategories}
+                  aria-controls="lista-categorias"
                   onClick={() => alternarParam("categorias", "todas", showAllCategories)}
                 >
                   {showAllCategories ? (
@@ -1071,7 +1093,7 @@ export function CashFlowCalendar({
                     <ItemRow
                       key={item.id}
                       item={item}
-                      className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
+                      className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2 text-xs"
                       trailing={
                         <p className="text-sm font-bold text-foreground shrink-0 tabular-nums">
                           {formatMXN(item.amountCents)}
@@ -1080,17 +1102,19 @@ export function CashFlowCalendar({
                       actions={accionesDeGasto(item)}
                     >
                       <div className="min-w-0 px-1 py-0.5">
-                        <p className="text-sm font-medium truncate">
-                          {item.description}
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {item.description}
+                          </p>
                           {item.source && item.source !== "OPERATING_EXPENSE" && (
                             <Badge
                               variant="outline"
-                              className={`ml-1.5 text-xs px-1 py-0 ${SOURCE_COLORS[item.source] || ""}`}
+                              className={`shrink-0 text-xs px-1 py-0 ${SOURCE_COLORS[item.source] || ""}`}
                             >
                               {SOURCE_LABELS[item.source] || item.source}
                             </Badge>
                           )}
-                        </p>
+                        </div>
                         <ItemMeta item={item} showBranch={esAlcanceGrupo} prefix="Vence" />
                       </div>
                     </ItemRow>
@@ -1234,8 +1258,11 @@ export function CashFlowCalendar({
           </CardContent>
         </Card>
 
-        {/* Bar chart */}
-        <Card className="lg:col-span-3">
+        {/* Bar chart. `min-w-0`: un grid item no encoge por debajo del ancho
+            intrínseco de su contenido (`min-width: auto` es el default), así que
+            el ancho mínimo del gráfico estiraba la tarjeta y con ella toda la
+            sección — el scroll salía en la página en vez de en la gráfica. */}
+        <Card className="lg:col-span-3 min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />
@@ -1247,12 +1274,18 @@ export function CashFlowCalendar({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div
-              className="h-72 w-full"
-              role="img"
-              aria-label={`Flujo de efectivo: entradas vs salidas de los próximos ${horizonte} días`}
-            >
-              <ResponsiveContainer width="100%" height="100%">
+            {/* El gráfico hace scroll dentro de su propia caja en vez de
+                empujar la página: a 320px, treinta barras no caben, y sesenta
+                menos. Cada barra necesita ~24px para ser legible; si el ancho
+                mínimo cabe en el contenedor, no aparece scroll. */}
+            <div className="overflow-x-auto">
+              <div
+                className="h-72"
+                style={{ minWidth: `${Math.max(chartData.length * 24, 280)}px` }}
+                role="img"
+                aria-label={`Flujo de efectivo: entradas vs salidas de los próximos ${horizonte} días`}
+              >
+                <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chartData}
                   margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
@@ -1260,10 +1293,16 @@ export function CashFlowCalendar({
                   <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                   <XAxis dataKey="fecha" tickLine={false} style={{ fontSize: "12px" }} />
                   <YAxis tickLine={false} style={{ fontSize: "12px" }} />
+                  {/* El segundo elemento es el nombre de la serie y venía como
+                      `""`, así que el tooltip mostraba un monto sin decir si era
+                      lo que entra o lo que sale. */}
                   <Tooltip
-                    formatter={(val: any) => [
-                      `$${Number(val).toLocaleString("es-MX")}`,
-                      "",
+                    formatter={(val, name) => [
+                      `$${Number(val).toLocaleString("es-MX", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`,
+                      name,
                     ]}
                   />
                   <Legend wrapperStyle={{ fontSize: "12px" }} />
@@ -1281,7 +1320,8 @@ export function CashFlowCalendar({
                     radius={[4, 4, 0, 0]}
                   />
                 </BarChart>
-              </ResponsiveContainer>
+                </ResponsiveContainer>
+              </div>
             </div>
             <table className="sr-only" data-sr-table>
               <caption>Proyección de entradas y salidas (próximos {horizonte} días)</caption>

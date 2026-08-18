@@ -60,8 +60,10 @@ export function ExpenseRowActions({ expenseId, status, minDate, onDone }: Props)
   };
 
   return (
-    <div className="flex flex-col items-end gap-1 shrink-0">
-      <div className="flex items-center gap-1">
+    <div className="flex flex-col items-end gap-1">
+      {/* `flex-wrap`: los dos botones juntos no caben en un teléfono de 320px y
+          empujaban la fila fuera de la pantalla. */}
+      <div className="flex flex-wrap items-center justify-end gap-1">
         {status === "APPROVED" && (
           <Button
             variant="ghost"

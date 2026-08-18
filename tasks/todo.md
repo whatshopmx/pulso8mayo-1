@@ -841,7 +841,7 @@ H1 → **"Flujo de efectivo"** (se aplica en la Task 17).
     `app/dashboard/finance/cash-flow/page.tsx`, `tests/cash-flow.spec.ts`
   - **Alcance**: S
 
-- [ ] **Task 18**: Accesibilidad
+- [x] **Task 18**: Accesibilidad
   - **Descripción**: El `AlertTriangle` de `:657` es el único marcador no cromático de una semana
     pesada y no tiene nombre accesible: "qué semanas son malas" es información sólo por color, igual
     que el tinte destructive de las tarjetas. Los dos botones de colapso (`:494-509`, `:544-559`) no
@@ -852,16 +852,44 @@ H1 → **"Flujo de efectivo"** (se aplica en la Task 17).
     Factura. La tira "Fuentes de egresos" (`:415`) es `flex` sin `flex-wrap` con badges `shrink-0`:
     en teléfono se sale por la derecha sin contenedor con scroll.
   - **Acceptance criteria**:
-    - [ ] `aria-expanded` y `aria-controls` en ambos colapsos
-    - [ ] Semana pesada con marcador textual además del color, e icono con nombre accesible
-    - [ ] El tooltip de la gráfica nombra la serie
-    - [ ] La badge sale del párrafo truncado y sobrevive al zoom 200%
-    - [ ] "Fuentes de egresos" envuelve o hace scroll en 320px
+    - [x] `aria-expanded` y `aria-controls` en ambos colapsos, apuntando a `#lista-vencidos` y
+          `#lista-categorias`. Antes se anunciaba "Ver todos (12), botón" — sin estado
+    - [x] Semana pesada con la palabra "Semana pesada" (hecho en la Task 15) y el
+          `AlertTriangle` marcado `aria-hidden`: el texto ya dice lo que el icono decoraba
+    - [x] El tooltip de la gráfica nombra la serie — pasaba `""`, así que un valor no decía si
+          era lo que entra o lo que sale
+    - [x] La badge sale del párrafo con `truncate`, en **ambas** listas (vencidos y próximos):
+          anidada dentro, el `overflow:hidden` la cortaba al 200% de zoom, justo el marcador
+          que distingue OC de Factura
+    - [x] "Fuentes de egresos" envuelve (`flex-wrap`)
   - **Verificación**:
-    - [ ] Recorrido con lector de pantalla de los dos colapsos y la rejilla semanal
-    - [ ] 320px y zoom 200% sin scroll horizontal de página
+    - [x] `aria-expanded` cambia de `false` a `true` al abrir, y `aria-controls` apunta a un
+          contenedor que existe
+    - [x] La tabla alternativa del gráfico nombra ambas series
+    - [x] Cero badges anidadas en párrafos con `truncate`
+    - [x] **A 320px: cero desborde en las cuatro secciones**
+    - [x] `npx tsc --noEmit` limpio · **85/85** en el spec
+  - **Tres defectos reales que sólo aparecieron al medir a 320px** — ninguno estaba en la
+    crítica, y dos los introduje yo en tareas anteriores:
+    1. El **gráfico** desbordaba la página. Ahora hace scroll en su propia caja con un ancho
+       mínimo de ~24px por barra. Esto cubre además el punto de densidad que la Task 19 tenía
+       anotado para 28 barras
+    2. La `Card` del gráfico necesitaba **`min-w-0`**: un grid item no encoge por debajo del
+       ancho intrínseco de su contenido, así que el mínimo del gráfico estiraba toda la sección
+    3. Las **acciones de la Task 13** ("Pagado" + "Reprogramar") no caben juntas en 320px, y
+       el contenedor de la tarjeta de vencidos tenía el mismo problema de `min-w-0`. Las filas
+       ahora envuelven
+  - **Lección de medición**: la primera versión del test recorría descendientes comparando
+    rectángulos y daba 455px de falso desborde — era la tabla `sr-only` del gráfico, que está
+    clipada pero cuyas celdas reportan su tamaño natural. La medida correcta es
+    `scrollWidth - clientWidth` de la sección: es la que de verdad significa "esto obliga a
+    hacer scroll lateral". Además hubo que **esperar a que recharts asiente**, porque se
+    dimensiona de forma asíncrona y medir antes da el ancho inicial.
+  - **Fuera de alcance, anotado**: el **layout del dashboard** (barra lateral e iconos) sí
+    desborda a 320px por su cuenta. Se verificó que no viene de esta pantalla; es otro arreglo.
   - **Dependencias**: Task 16
-  - **Archivos**: `components/finance/cash-flow-calendar.tsx`
+  - **Archivos**: `components/finance/cash-flow-calendar.tsx`,
+    `components/finance/expense-row-actions.tsx`, `tests/cash-flow.spec.ts`
   - **Alcance**: M
 
 - [ ] **Task 19**: Limpieza
