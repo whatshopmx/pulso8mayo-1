@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader, PageContainer, EmptyState } from "@/components/shared";
 import { useBranch } from "@/lib/branch-context";
 import { useMovements } from "@/hooks/queries";
@@ -104,22 +103,12 @@ export function MovementsClient() {
         }
       />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle className="text-base">Filtros</CardTitle>
-            <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={movements.length === 0}>
-              <Download className="h-4 w-4 mr-2" />
-              Exportar CSV
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="space-y-1">
-              <Label className="text-xs">Tipo</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {TYPE_OPTIONS.map((opt) => {
+      <div className="bg-sidebar border-y border-border px-6 py-4 shadow-none mb-4 flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="space-y-1">
+            <Label className="text-xs">Tipo</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {TYPE_OPTIONS.map((opt) => {
                   const active = selectedTypes.includes(opt.value);
                   return (
                     <button
@@ -156,11 +145,13 @@ export function MovementsClient() {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+          <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={movements.length === 0} className="shadow-none bg-background">
+            <Download className="h-4 w-4 mr-2" />
+            Exportar CSV
+          </Button>
+        </div>
 
-      <Card>
-        <CardContent className="p-0">
+        <div className="px-6 pb-6">
           {isLoading ? (
             <DataTableSkeleton columns={6} rows={8} />
           ) : movements.length === 0 ? (
@@ -235,8 +226,7 @@ export function MovementsClient() {
               )}
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
     </PageContainer>
   );
 }
