@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { EmptyState } from "@/components/ui/empty-state";
 import { OpeningBalanceCard } from "@/components/finance/opening-balance-card";
 import { ExpenseRowActions } from "@/components/finance/expense-row-actions";
-import { statusBadgeClasses } from "@/lib/utils";
+import { formatCents, statusBadgeClasses } from "@/lib/utils";
 import {
   AlertTriangle,
   Calendar,
@@ -246,9 +246,6 @@ const STATUS_LABELS: Record<string, string> = {
   PROGRAMADO: "Programado",
 };
 
-function formatMXN(cents: number) {
-  return (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
-}
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("es-MX", {
@@ -378,15 +375,20 @@ function CategoryBar({ label, amountCents, percentage, maxPct }: {
             compara de un renglón a otro, y sin ancho fijo por dígito los montos
             no alinean verticalmente. */}
         <span className="text-sm text-foreground tabular-nums shrink-0">
-          {formatMXN(amountCents)}{" "}
+          {formatCents(amountCents)}{" "}
           <span className="text-xs text-muted-foreground">({percentage}%)</span>
         </span>
       </div>
+      {/* El piso de 2% hacía que una categoría en 0% se viera igual que una en
+          2%. Ahora el cero no dibuja barra —que es la verdad— y el piso sólo
+          aplica a lo que sí tiene monto, para que siga siendo visible. */}
       <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all"
-          style={{ width: `${Math.max(widthPct, 2)}%`, backgroundColor: color }}
-        />
+        {amountCents > 0 && (
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${Math.max(widthPct, 2)}%`, backgroundColor: color }}
+          />
+        )}
       </div>
     </div>
   );
@@ -557,41 +559,116 @@ export function CashFlowCalendar({
   // ── Chart data ──────────────────────────────────────────────
   // `null` en Entradas deja el hueco a la vista en la gráfica en vez de dibujar
   // una serie en cero que se leería como "hoy no entró nada".
+  // Números, no cadenas: `.toFixed(2)` los volvía texto, así que recharts
+  // ordenaba el eje lexicográficamente y el tooltip recibía un string.
   const chartData = days.map((pt) => ({
     fecha: formatDate(pt.date),
+    fechaISO: pt.date,
     Entradas:
-      pt.projectedInflowCents === null
-        ? null
-        : (pt.projectedInflowCents / 100).toFixed(2),
-    Salidas: (pt.projectedOutflowCents / 100).toFixed(2),
+      pt.projectedInflowCents === null ? null : pt.projectedInflowCents / 100,
+    Salidas: pt.projectedOutflowCents / 100,
   }));
 
-  const weeklyChartData = weeklyAggregation.map((w) => ({
-    semana: w.weekLabel,
-    Egresos: (w.totalOutflowCents / 100).toFixed(2),
-    Presión: w.isHeavy ? "Alta" : "Normal",
-  }));
+  // `weeklyChartData` se eliminó: se recalculaba en cada render y no se
+  // referenciaba en ningún lado del repo. Su campo `Presión: "Alta"|"Normal"`
+  // era la alternativa textual que le faltaba a las tarjetas semanales — ya
+  // existe, como la palabra "Semana pesada" (Task 15).
 
   // ── Export CSV ──────────────────────────────────────────────
   const handleExportCSV = () => {
-    const header =
-      "Fecha,Entradas (MXN),Salidas (MXN),Flujo Neto (MXN),Saldo Acumulado (MXN),Egresos (cantidad)";
     // Celda vacía —no "0.00"— cuando la cifra no se pudo estimar: un cero en una
     // hoja de cálculo es una afirmación, y aquí no hay nada que afirmar.
     const pesos = (cents: number | null) =>
       cents === null ? "" : (cents / 100).toFixed(2);
-    const rows = days.map((d) =>
-      [
-        d.date,
-        pesos(d.projectedInflowCents),
-        pesos(d.projectedOutflowCents),
-        pesos(d.netFlowCents),
-        pesos(d.cumulativeBalanceCents),
-        d.outflowItemsCount,
-      ].join(",")
-    );
+    /** Escapa comas y comillas: una descripción con coma partía la fila. */
+    const celda = (v: unknown) => {
+      const s = String(v ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const fila = (campos: unknown[]) => campos.map(celda).join(",");
+
+    // El CSV exportaba sólo la serie diaria, así que quien lo abría no tenía ni
+    // los vencidos ni la composición del gasto — justo lo que se llevaría al
+    // contador. Ahora van las cuatro secciones, separadas por bloques.
+    const lineas: string[] = [
+      fila([`Flujo de efectivo · ${data.scope?.branchName ?? "Grupo completo"}`]),
+      fila(["Horizonte", `${horizonte} días`, "Desde", days[0].date]),
+      "",
+      fila(["PROYECCIÓN DIARIA"]),
+      fila([
+        "Fecha",
+        "Entradas (MXN)",
+        "Salidas (MXN)",
+        "Flujo neto (MXN)",
+        "Saldo acumulado (MXN)",
+        "Egresos (cantidad)",
+      ]),
+      ...days.map((d) =>
+        fila([
+          d.date,
+          pesos(d.projectedInflowCents),
+          pesos(d.projectedOutflowCents),
+          pesos(d.netFlowCents),
+          pesos(d.cumulativeBalanceCents),
+          d.outflowItemsCount,
+        ])
+      ),
+    ];
+
+    if (overdueItems.length > 0) {
+      lineas.push(
+        "",
+        fila(["GASTOS VENCIDOS"]),
+        fila(["Venció", "Descripción", "Contraparte", "Sucursal", "Categoría", "Monto (MXN)"]),
+        ...overdueItems.map((i) =>
+          fila([
+            i.date,
+            i.description,
+            i.supplierName ?? "",
+            i.branchName ?? "",
+            CATEGORY_LABELS[i.category] || i.category,
+            pesos(i.amountCents),
+          ])
+        )
+      );
+    }
+
+    if (categorySummary.length > 0) {
+      lineas.push(
+        "",
+        fila(["EGRESOS POR CATEGORÍA"]),
+        fila(["Categoría", "Monto (MXN)", "Partidas", "% del total"]),
+        ...categorySummary.map((c) =>
+          fila([
+            CATEGORY_LABELS[c.category] || c.category,
+            pesos(c.amountCents),
+            c.count,
+            c.percentage,
+          ])
+        )
+      );
+    }
+
+    if (weeklyAggregation.length > 0) {
+      lineas.push(
+        "",
+        fila(["PRESIÓN SEMANAL"]),
+        fila(["Semana", "Desde", "Hasta", "Días", "Egresos (MXN)", "Compromisos", "Pesada"]),
+        ...weeklyAggregation.map((w) =>
+          fila([
+            w.weekLabel,
+            w.startDate,
+            w.endDate,
+            w.dayCount ?? "",
+            pesos(w.totalOutflowCents),
+            w.itemCount,
+            w.isHeavy ? "Sí" : "No",
+          ])
+        )
+      );
+    }
     const bom = "\uFEFF";
-    const blob = new Blob([bom + [header, ...rows].join("\n")], {
+    const blob = new Blob([bom + lineas.join("\n")], {
       type: "text/csv;charset=utf-8;",
     });
     const url = URL.createObjectURL(blob);
@@ -724,7 +801,7 @@ export function CashFlowCalendar({
                   trailing={
                     <div className="text-right shrink-0">
                       <p className="text-sm font-bold text-destructive tabular-nums">
-                        {formatMXN(item.amountCents)}
+                        {formatCents(item.amountCents)}
                       </p>
                       <Badge
                         variant="outline"
@@ -899,7 +976,7 @@ export function CashFlowCalendar({
                       : "text-foreground"
                   }`}
                 >
-                  {formatMXN(metrics?.minBalance ?? 0)}
+                  {formatCents(metrics?.minBalance ?? 0)}
                 </div>
                 {metrics?.minDay && (
                   <p className="text-xs text-muted-foreground mt-1">
@@ -968,13 +1045,13 @@ export function CashFlowCalendar({
             {data.procurementCommitments.purchaseOrdersCount > 0 && (
               <Badge variant="outline" className={`text-xs ${SOURCE_COLORS.PURCHASE_ORDER}`}>
                 {data.procurementCommitments.purchaseOrdersCount} OC (
-                {formatMXN(data.procurementCommitments.purchaseOrdersTotalCents)})
+                {formatCents(data.procurementCommitments.purchaseOrdersTotalCents)})
               </Badge>
             )}
             {data.procurementCommitments.invoicesCount > 0 && (
               <Badge variant="outline" className={`text-xs ${SOURCE_COLORS.PROCUREMENT_INVOICE}`}>
                 {data.procurementCommitments.invoicesCount} Facturas (
-                {formatMXN(data.procurementCommitments.invoicesTotalCents)})
+                {formatCents(data.procurementCommitments.invoicesTotalCents)})
               </Badge>
             )}
             {/* La nómina no es una alarma: es el gasto más previsible del mes.
@@ -983,7 +1060,7 @@ export function CashFlowCalendar({
               <Badge variant="outline" className="text-xs bg-chart-6/10 text-chart-6 border-chart-6/20">
                 Nómina: {data.payroll.activeEmployees}{" "}
                 {data.payroll.activeEmployees === 1 ? "empleado" : "empleados"} ·{" "}
-                {formatMXN(data.payroll.biweeklyEstimateCents)}/quincena
+                {formatCents(data.payroll.biweeklyEstimateCents)}/quincena
               </Badge>
             )}
             <span>+ gastos operativos</span>
@@ -998,7 +1075,7 @@ export function CashFlowCalendar({
         <p className="text-xs text-muted-foreground px-3">
           Además hay{" "}
           <span className="font-medium text-foreground tabular-nums">
-            {formatMXN(
+            {formatCents(
               fueraDeVentana.purchaseOrdersTotalCents + fueraDeVentana.invoicesTotalCents
             )}
           </span>{" "}
@@ -1067,7 +1144,7 @@ export function CashFlowCalendar({
               <div className="border-t pt-2 flex items-center justify-between gap-2 text-xs font-bold">
                 <span className="min-w-0">Total egresos</span>
                 <span className="text-sm tabular-nums shrink-0">
-                  {formatMXN(
+                  {formatCents(
                     categorySummary.reduce((s, c) => s + c.amountCents, 0)
                   )}
                 </span>
@@ -1096,7 +1173,7 @@ export function CashFlowCalendar({
                       className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2 text-xs"
                       trailing={
                         <p className="text-sm font-bold text-foreground shrink-0 tabular-nums">
-                          {formatMXN(item.amountCents)}
+                          {formatCents(item.amountCents)}
                         </p>
                       }
                       actions={accionesDeGasto(item)}
@@ -1171,7 +1248,7 @@ export function CashFlowCalendar({
                       week.isHeavy ? "text-warning-text" : "text-foreground"
                     }`}
                   >
-                    {formatMXN(week.totalOutflowCents)}
+                    {formatCents(week.totalOutflowCents)}
                   </p>
                   {/* Marcador textual, no sólo cromático: "qué semanas son
                       malas" era información disponible únicamente por color. */}
@@ -1218,7 +1295,7 @@ export function CashFlowCalendar({
                 </span>
                 {/* `text-xs`: piso 4.5:1. `--success` da 3.68:1. */}
                 <span className="text-sm font-bold text-success-text tabular-nums">
-                  {formatMXN(metrics?.totalInflow ?? 0)}
+                  {formatCents(metrics?.totalInflow ?? 0)}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
@@ -1229,7 +1306,7 @@ export function CashFlowCalendar({
                 {/* El signo hace el trabajo que hacía el color. Que salga dinero
                     no es una anomalía. */}
                 <span className="text-sm font-bold text-foreground tabular-nums">
-                  −{formatMXN(metrics?.totalOutflow ?? 0)}
+                  −{formatCents(metrics?.totalOutflow ?? 0)}
                 </span>
               </div>
               <div className="border-t pt-2 flex items-center justify-between text-xs">
@@ -1241,7 +1318,7 @@ export function CashFlowCalendar({
                       : "text-foreground"
                   }`}
                 >
-                  {formatMXN((metrics?.totalInflow ?? 0) - (metrics?.totalOutflow ?? 0))}
+                  {formatCents((metrics?.totalInflow ?? 0) - (metrics?.totalOutflow ?? 0))}
                 </span>
               </div>
             </div>
@@ -1286,13 +1363,26 @@ export function CashFlowCalendar({
                 aria-label={`Flujo de efectivo: entradas vs salidas de los próximos ${horizonte} días`}
               >
                 <ResponsiveContainer width="100%" height="100%">
+                {/* `left: 8` para que las etiquetas del eje no queden cortadas
+                    contra el borde de la tarjeta. */}
                 <BarChart
                   data={chartData}
-                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                  margin={{ top: 10, right: 10, left: 8, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                   <XAxis dataKey="fecha" tickLine={false} style={{ fontSize: "12px" }} />
-                  <YAxis tickLine={false} style={{ fontSize: "12px" }} />
+                  {/* Los ticks decían "1500000". En miles se leen de un vistazo,
+                      que es para lo que sirve un eje. */}
+                  <YAxis
+                    tickLine={false}
+                    width={52}
+                    style={{ fontSize: "12px" }}
+                    tickFormatter={(v: number) =>
+                      Math.abs(v) >= 1000
+                        ? `$${Math.round(v / 1000)}k`
+                        : `$${Math.round(v)}`
+                    }
+                  />
                   {/* El segundo elemento es el nombre de la serie y venía como
                       `""`, así que el tooltip mostraba un monto sin decir si era
                       lo que entra o lo que sale. */}
@@ -1332,12 +1422,14 @@ export function CashFlowCalendar({
                   <th>Salidas (MXN)</th>
                 </tr>
               </thead>
+              {/* Llave: la fecha ISO, no la etiqueta formateada — dos días
+                  distintos pueden compartir presentación si cambia el formato. */}
               <tbody>
                 {chartData.map((d) => (
-                  <tr key={d.fecha}>
+                  <tr key={d.fechaISO}>
                     <td>{d.fecha}</td>
-                    <td>${d.Entradas}</td>
-                    <td>${d.Salidas}</td>
+                    <td>{d.Entradas === null ? "sin estimar" : formatCents(d.Entradas * 100)}</td>
+                    <td>{formatCents(d.Salidas * 100)}</td>
                   </tr>
                 ))}
               </tbody>

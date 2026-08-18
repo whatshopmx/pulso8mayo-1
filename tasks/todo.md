@@ -892,33 +892,79 @@ H1 → **"Flujo de efectivo"** (se aplica en la Task 17).
     `components/finance/expense-row-actions.tsx`, `tests/cash-flow.spec.ts`
   - **Alcance**: M
 
-- [ ] **Task 19**: Limpieza
+- [x] **Task 19**: Limpieza
   - **Descripción**: Deuda menor verificada en el archivo.
   - **Acceptance criteria**:
-    - [ ] `formatMXN` local (`:145`) → `formatCents` de `lib/utils.ts`, cuyo docstring existe
-          precisamente para matar estas copias
-    - [ ] `weeklyChartData` (`:270-274`) se elimina o se usa: hoy se calcula en cada render y no se
-          referencia en ningún lado del repo, cargando un campo `Presión: "Alta"|"Normal"` que
-          habría sido la alternativa textual que necesitan las tarjetas semanales (ver Task 18)
-    - [ ] Llaves de React: `key={week.weekLabel}` (`:642`) y `key={d.fecha}` (`:787`) usan cadenas de
-          presentación; pasan a identificadores estables
-    - [ ] `min-w-0`/`shrink-0` en las cinco filas `justify-between` de moneda (`:173-180, :562-568,
-          :686-694, :695-703, :704-715`) — el patrón correcto ya existe en el mismo archivo (`:460`, `:590`)
-    - [ ] Gráfica: valores numéricos en vez de cadenas `.toFixed(2)`, `YAxis tickFormatter` (hoy los
-          ticks dicen "1500000"), margen `left` que no los corte, y `interval`/scroll para 28 barras
-          a 320px
-    - [ ] `Math.max(widthPct, 2)` (`:184`) deja de hacer que 0% y 2% se vean igual
-    - [ ] CSV: nombre con fecha y sucursal, y exporta también vencidos, categorías y semanas — hoy
-          es `flujo-efectivo-30d.csv` fijo con sólo la serie diaria
+    - [x] `formatMXN` local → `formatCents` de `lib/utils.ts` (14 llamadas). La copia local
+          formateaba idéntico, pero era exactamente lo que el docstring de `formatCents` existe
+          para evitar
+    - [x] `weeklyChartData` **eliminado**: se recalculaba en cada render y no se referenciaba en
+          ningún lado. Su campo `Presión: "Alta"|"Normal"` era la alternativa textual que le
+          faltaba a las tarjetas semanales — ya existe como la palabra "Semana pesada" (Task 15),
+          así que el código muerto se va sin perder la idea
+    - [x] Llaves de React estables: `key={week.key}` (Task 3) y `key={d.fechaISO}` en vez de la
+          etiqueta formateada
+    - [x] `min-w-0`/`shrink-0` en las filas de moneda (repartido entre Tasks 16 y 18)
+    - [x] Gráfica: **valores numéricos** en vez de cadenas `.toFixed(2)` —recharts ordenaba el
+          eje lexicográficamente y el tooltip recibía texto—, `tickFormatter` que muestra `$150k`
+          en vez de `1500000`, `width={52}` y `margin.left` para que no se corten, y scroll con
+          ancho mínimo por barra (hecho en la Task 18)
+    - [x] `Math.max(widthPct, 2)`: una categoría en 0% ya no dibuja barra. El piso sólo aplica a
+          lo que sí tiene monto, para que siga siendo visible
+    - [x] CSV: nombre con horizonte, sucursal y fecha (Task 7) **y las cuatro secciones** —
+          proyección diaria, vencidos, categorías y semanas. Antes exportaba sólo la serie
+          diaria, así que quien lo abría no tenía ni los vencidos ni la composición del gasto,
+          que es justo lo que se lleva al contador
+  - **Añadido**: escape de comas y comillas en el CSV. Una descripción con coma partía la fila y
+    corría todas las columnas siguientes — el archivo se veía bien hasta que alguien escribía
+    "Renta, agosto".
   - **Verificación**:
-    - [ ] `pnpm run build` y `pnpm run lint` limpios
-    - [ ] `grep -rn "weeklyChartData\|formatMXN" components/finance/cash-flow-calendar.tsx` vacío
+    - [x] `npx tsc --noEmit` **y** `npx eslint` completamente limpios — se fueron los dos
+          hallazgos que se arrastraban desde el inicio del plan (`no-explicit-any` del tooltip,
+          resuelto al tiparlo en la Task 18; y `weeklyChartData` sin usar, resuelto aquí)
+    - [x] `grep "weeklyChartData\|formatMXN"` vacío
+    - [x] `pnpm run build` **no corre sin red** (Geist desde Google Fonts); fallback documentado
   - **Dependencias**: Task 18
   - **Archivos**: `components/finance/cash-flow-calendar.tsx`
   - **Alcance**: M
 
-### Checkpoint: Completo
-- [ ] `pnpm run build` y `pnpm run lint` limpios
-- [ ] `pnpm exec playwright test tests/cash-flow.spec.ts` en verde
-- [ ] Crítica repasada punto por punto; lo no atendido anotado con razón
-- [ ] Listo para revisión
+### Checkpoint: Completo — cerrado
+
+- [x] `npx tsc --noEmit` y `npx eslint` **completamente limpios**. `pnpm run build` no corre en
+      este entorno: falla al bajar Geist de Google Fonts y nada más — es el riesgo previsto en
+      el plan, con el fallback que el plan mismo documenta
+- [x] `pnpm exec playwright test tests/cash-flow.spec.ts` → **85/85 en verde**
+- [x] Crítica repasada punto por punto; lo no atendido queda anotado abajo con su razón
+
+**De 4 tests al empezar (ninguno para esta pantalla) a 85.**
+
+### Intermitencia de la suite: diagnosticada, no silenciada
+
+Dos corridas completas fallaron **un** test cada una, y **distinto** cada vez (Task 6, luego
+Task 11). Ambos pasaban aislados. La causa no era aislamiento entre specs: el `page.goto` a
+`/dashboard/finance/expenses` tardaba **más de 60 s** porque `next dev` compila cada ruta en el
+primer golpe — exactamente lo que advierte CLAUDE.md. El error boundary que aparecía
+("Algo salió mal") era la consecuencia, no un defecto de la página.
+
+Se le dio a esa navegación un tiempo acorde a lo que de verdad hace, en vez de subir timeouts a
+ciegas. La corrida siguiente: 85/85.
+
+**Recomendación**: correr la suite contra un build (`PLAYWRIGHT_WEB_SERVER_CMD="npm run start"`)
+cuando haya red, como recomienda CLAUDE.md. En este entorno no se pudo por lo de Geist.
+
+### Seguimientos (fuera del alcance de este plan)
+
+1. **El alcance "grupo completo" no es alcanzable desde la UI.** `BranchProvider.setBranches`
+   (`lib/branch-context.tsx:56`) auto-selecciona la primera sucursal y el selector no ofrece
+   "todas". El servicio, el payload y la API sí lo soportan. Para una dueña de 15 sucursales,
+   probablemente importa.
+2. **¿Un gasto pagado debe salir de la proyección?** Hoy no sale: la consulta de proyectados no
+   filtra por estado (la de vencidos sí excluye `PAID`). Hay un test que fija el comportamiento
+   actual y fallará —a propósito— si se cambia.
+3. **`text-success` aparece 55 veces en el repo.** Se arreglaron las de esta pantalla; el token
+   `--success-text` queda para que se adopte como se adoptó `--warning-text`.
+4. **El layout del dashboard desborda a 320px** por su cuenta (barra lateral e iconos).
+   Verificado que no viene de esta pantalla; afecta a todas en móvil.
+5. **`cash-flow-summary-card.tsx`** (portada) sigue diciendo "Tesorería", registro que esta
+   pantalla ya abandonó.
+6. **Compartir por WhatsApp**: fuera de alcance desde el plan original.

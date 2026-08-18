@@ -1060,6 +1060,13 @@ test.describe("Task 11 · navegación al registro origen", () => {
 
     await expect(page).toHaveURL(new RegExp(`/dashboard/finance/expenses\\?focus=${gastoId}`));
 
+    // La lista tarda en aparecer: `next dev` compila la ruta destino en el
+    // primer golpe y eso excede de sobra los timeouts por defecto (lo advierte
+    // CLAUDE.md). Se espera al contenido antes de mirar el resaltado.
+    await expect(page.getByText(/Gasto navegable/).first()).toBeVisible({
+      timeout: 120_000,
+    });
+
     // La fila destino queda marcada con `aria-current`, no sólo con color: el
     // resaltado cromático no se anuncia en un lector de pantalla.
     const filaDestino = page.locator('tr[aria-current="true"]');
