@@ -136,10 +136,15 @@ function CashFlowContent() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Calendar className="h-7 w-7 text-primary" /> Panel de Alerta Temprana de Tesorería
+            {/* "Panel de Alerta Temprana de Tesorería" aterrizaba en la
+                anti-referencia que prohíbe PRODUCT.md, cuatro líneas arriba del
+                comentario que rechaza "runway" por ser vocabulario ajeno. */}
+            <Calendar className="h-7 w-7 text-primary" /> Flujo de efectivo
           </h1>
           <p className="text-sm text-muted-foreground">
-            ¿Me alcanza? · ¿En qué gasto? · ¿Qué semanas son críticas? · ¿Qué facturas están vencidas?
+            {/* "facturas vencidas" era falso: los vencidos se construyen sólo de
+                gastos operativos y nunca contienen una factura. */}
+            ¿Me alcanza? · ¿En qué gasto? · ¿Qué semanas son críticas? · ¿Qué gastos están vencidos?
           </p>
         </div>
 

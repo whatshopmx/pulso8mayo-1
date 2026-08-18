@@ -267,6 +267,79 @@ test.describe("Fase 0 · aritmética del flujo de efectivo", () => {
 });
 
 /**
+ * Task 17 — copy factualmente correcto.
+ *
+ * No es registro: son errores de hecho. La pantalla decía "supera el promedio"
+ * cuando el código usa mediana × 1.5, llamaba "facturas" a lo que sólo puede
+ * ser un gasto operativo, y prometía "{días}+ días" sobre un horizonte que no
+ * había proyectado.
+ */
+test.describe("Task 17 · copy", () => {
+  test.setTimeout(180_000);
+  const PANTALLA = "/dashboard/finance/cash-flow";
+  const componente = readFileSync("components/finance/cash-flow-calendar.tsx", "utf8");
+  // Sin comentarios: los dos archivos citan las cadenas viejas para explicar por
+  // qué se fueron, y contarlas daría el mismo falso positivo que en la Task 16.
+  const sinComentarios = (s: string) =>
+    s.replace(/\{?\/\*[\s\S]*?\*\/\}?/g, "").replace(/\/\/.*$/gm, "");
+  const pagina = sinComentarios(
+    readFileSync("app/dashboard/finance/cash-flow/page.tsx", "utf8")
+  );
+
+  test("el umbral del colchón está en la unidad correcta", () => {
+    // Estaba en `50000` — que son $500, no $50,000. La banda ámbar era
+    // inalcanzable: un saldo mínimo de $3,000 se pintaba tan tranquilo como uno
+    // de $300,000.
+    const umbral = componente.match(/COLCHON_MINIMO_CENTS = ([\d_]+)/)?.[1];
+    expect(umbral).toBeTruthy();
+    expect(Number(umbral!.replace(/_/g, ""))).toBe(5_000_000);
+
+    // Y ya no se compara contra el literal suelto.
+    expect(componente).not.toContain("minBalance < 50000");
+  });
+
+  test("no quedan errores de hecho ni voseo en la pantalla", async ({ page }) => {
+    await page.goto(`${PANTALLA}?days=30&branchId=${BRANCH_CONDESA}`);
+    await expect(page.getByText(/Presión semanal de egresos/)).toBeVisible();
+    const texto = (await page.locator("main, body").first().innerText()).toLowerCase();
+
+    // Voseo rioplatense en un producto es-MX.
+    expect(texto).not.toContain("prepará");
+    // El código usa mediana × 1.5, no promedio.
+    expect(texto).not.toContain("supera el promedio");
+    // `overdueItems` se construye sólo de `operating_expenses`.
+    expect(texto).not.toContain("facturas y gastos vencidos");
+    // Abreviatura que no usa ningún hispanohablante.
+    expect(texto).not.toMatch(/\d+ emp\b/);
+    // Garantía absoluta sobre una base estimada.
+    expect(texto).not.toContain("sin riesgo de saldo negativo");
+  });
+
+  test("el H1 no usa la anti-referencia que prohíbe PRODUCT.md", () => {
+    expect(pagina).not.toContain("Panel de Alerta Temprana");
+    expect(pagina).toContain("Flujo de efectivo");
+  });
+
+  test("los títulos usan sentence case", () => {
+    // `Proyección de Entradas vs Salidas` era el único en Title Case, contra
+    // "¿En qué gasto?", "Próximos 7 días" y "Presión semanal de egresos".
+    expect(componente).not.toContain("Entradas vs Salidas");
+    expect(componente).toContain("Entradas vs. salidas");
+  });
+
+  test("los conteos manejan el singular", () => {
+    // "1 días" y "1 compromisos" salían de plantillas sin plural.
+    for (const plural of ["días", "compromisos", "empleados", "facturas"]) {
+      const singular = plural.replace(/e?s$/, "");
+      expect(
+        componente,
+        `falta el caso singular de "${plural}"`
+      ).toContain(`"${singular}" : "${plural}"`);
+    }
+  });
+});
+
+/**
  * Task 16 — jerarquía visual.
  *
  * Cuatro valores `text-2xl` con el mismo peso competían por ser la respuesta,
@@ -1272,7 +1345,7 @@ test.describe("Task 7 · estado de pantalla en la URL", () => {
   const PANTALLA = "/dashboard/finance/cash-flow";
   // `CardTitle` de shadcn renderiza un `div`, no un heading: se busca por texto.
   const horizonteVisible = (page: import("@playwright/test").Page) =>
-    page.getByText(/Proyección de Entradas vs Salidas \(Próximos \d+ días\)/);
+    page.getByText(/Entradas vs\. salidas de los próximos \d+ días/);
 
   test("el horizonte por defecto queda escrito en la URL", async ({ page }) => {
     await page.goto(PANTALLA);

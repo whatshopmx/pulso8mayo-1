@@ -797,27 +797,48 @@ H1 → **"Flujo de efectivo"** (se aplica en la Task 17).
 
 ## Fase 5: Copy, accesibilidad y limpieza (P2)
 
-- [ ] **Task 17**: Copy factualmente correcto
+- [x] **Task 17**: Copy factualmente correcto
   - **Descripción**: No es registro, es error de hecho. Cada punto está verificado contra el código.
   - **Acceptance criteria**:
-    - [ ] `"Prepará la tesorería"` (`:581`) — voseo rioplatense en un producto es-MX
-    - [ ] `"Facturas y gastos vencidos"` (`:450`) — `overdueItems` se construye **sólo** de
-          `operatingExpenses` (`cash-flow-service.ts:330-339`): nunca contiene una factura
-    - [ ] `"la concentración de pagos supera el promedio"` (`:636`) — el código usa **mediana × 1.5** (`:443`)
-    - [ ] `"Sin riesgo de saldo negativo"` (`:404`) — garantía absoluta sobre una base estimada
-    - [ ] `"{days.length}+ días"` (`:400`) — inventa conocimiento más allá del horizonte
-    - [ ] `"emp"` (`:431`) — no es abreviatura de ningún hispanohablante
-    - [ ] `"1 días"` (`:388`) — sin manejo de plural
-    - [ ] `metrics.minBalance < 50000` (`:339`, `:353`) — son **$500 MXN**, no $50,000. La banda
-          ámbar es inalcanzable para cualquier grupo real: la constante está 100× fuera
-    - [ ] `Title Case` en `:735` contra sentence case en todos los demás títulos
-    - [ ] "Tesorería", "ventana de proyección" (`:404`) revisados contra el registro del producto
-    - [ ] Propuesta de H1 nuevo (ver pregunta abierta 3 del plan)
+    - [x] `"Prepará la tesorería"` → "Compromisos que vencen en los próximos 7 días"
+    - [x] `"Facturas y gastos vencidos"` → "Gastos vencidos" (adelantado en la Task 10, al
+          reescribir el bloque). También se corrigió el subtítulo del H1, que decía "¿Qué
+          facturas están vencidas?"
+    - [x] `"supera el promedio"` → "superan en 50% a la semana típica del período", que es lo
+          que hace el código (mediana × 1.5)
+    - [x] `"Sin riesgo de saldo negativo"` → "El saldo no cruza a negativo en los N días
+          proyectados": describe lo proyectado en vez de garantizar el futuro
+    - [x] `"{days.length}+ días"` → "Todo el período". El `+` afirmaba algo sobre el día 31 sin
+          haberlo proyectado
+    - [x] `"emp"` → "empleado/empleados"
+    - [x] Plurales: `día/días`, `compromiso/compromisos`, `empleado/empleados`,
+          `factura/facturas`
+    - [x] **`metrics.minBalance < 50000` eran $500, no $50,000** — confirmado leyendo el
+          servicio (`amountCents`). Pasa a `COLCHON_MINIMO_CENTS = 50_000_00`, con la unidad
+          en el nombre para que no vuelva a pasar. La banda ámbar era inalcanzable: un saldo
+          mínimo de $3,000 se pintaba tan tranquilo como uno de $300,000
+    - [x] Title Case → sentence case: "Entradas vs. salidas de los próximos N días"
+    - [x] H1 → **"Flujo de efectivo"** (elección del usuario sobre la pregunta abierta 3).
+          "Panel de Alerta Temprana de Tesorería" aterrizaba en la anti-referencia que prohíbe
+          PRODUCT.md, cuatro líneas arriba del comentario que rechaza "runway"
   - **Verificación**:
-    - [ ] Lectura completa de las cadenas de ambos archivos contra `messages/es.json`
-    - [ ] El umbral ámbar se dispara con datos reales
+    - [x] `messages/es.json` **no contiene copy de esta pantalla** — está inline, así que la
+          revisión se hizo contra el código y el registro de las pantallas hermanas
+    - [x] El umbral ámbar se dispara con una cifra alcanzable (test sobre la constante)
+    - [x] Barrido del texto **renderizado** (no del fuente): cero "prepará", cero "supera el
+          promedio", cero "facturas y gastos vencidos", cero "N emp", cero "sin riesgo de
+          saldo negativo"
+    - [x] `npx tsc --noEmit` limpio · **81/81** en el spec
+  - **Mismo falso positivo que en la Task 16, otra vez**: la aserción del H1 falló porque el
+    **comentario** cita la cadena vieja para explicar por qué se fue. Los tests que miden el
+    fuente tienen que quitar comentarios primero; los que miden el DOM renderizado no tienen
+    ese problema — por eso el barrido de copy se hace sobre la página, no sobre el archivo.
+  - **Fuera de alcance, anotado**: `cash-flow-summary-card.tsx` (la tarjeta hermana de la
+    portada) sigue diciendo "Tesorería" y "Proyectando tesorería...". Es otra pantalla; si el
+    registro cambia, cambia allá también.
   - **Dependencias**: Task 16
-  - **Archivos**: `components/finance/cash-flow-calendar.tsx`, `app/dashboard/finance/cash-flow/page.tsx`
+  - **Archivos**: `components/finance/cash-flow-calendar.tsx`,
+    `app/dashboard/finance/cash-flow/page.tsx`, `tests/cash-flow.spec.ts`
   - **Alcance**: S
 
 - [ ] **Task 18**: Accesibilidad

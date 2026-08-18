@@ -198,6 +198,16 @@ const DIAS_CRITICOS = 7;
 const DIAS_ATENCION = 14;
 
 /**
+ * Colchón mínimo antes de encender el ámbar, **en centavos**.
+ *
+ * Estaba en `50000`, que son $500 MXN, no $50,000: la constante iba 100× fuera
+ * y la banda ámbar era inalcanzable para cualquier grupo real — un saldo mínimo
+ * proyectado de $3,000 se pintaba tan tranquilo como uno de $300,000. El nombre
+ * lleva la unidad justo para que no vuelva a pasar.
+ */
+const COLCHON_MINIMO_CENTS = 50_000_00;
+
+/**
  * Ninguna categoría se pinta de rojo.
  *
  * La nómina era `--destructive` y la renta `--chart-1` (h=25, prácticamente el
@@ -644,11 +654,14 @@ export function CashFlowCalendar({
           </>
         ) : (
           <>
-            <div className="text-4xl font-bold text-foreground tabular-nums">
-              {days.length}+ días
+            {/* Decía "{days.length}+ días", que afirma algo sobre el día 31 sin
+                haberlo proyectado. Lo que la pantalla sabe es que en su ventana
+                el saldo no cruza a negativo; más allá, no sabe. */}
+            <div className="text-4xl font-bold text-foreground">
+              Todo el período
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              No se proyecta saldo negativo en esta ventana
+              El saldo no cruza a negativo en los {days.length} días proyectados
             </p>
           </>
         )}
@@ -863,7 +876,7 @@ export function CashFlowCalendar({
                   className={`text-xl font-bold tabular-nums ${
                     metrics && metrics.minBalance < 0
                       ? "text-destructive"
-                      : metrics && metrics.minBalance < 50000
+                      : metrics && metrics.minBalance < COLCHON_MINIMO_CENTS
                       // `--warning` es 2.52:1 sobre blanco: falla incluso el
                       // piso de 3:1 de texto grande. `--warning-text` da 6.61:1.
                       ? "text-warning-text"
@@ -950,7 +963,8 @@ export function CashFlowCalendar({
                 Estaba en rojo por ser grande, no por ser un problema. */}
             {data.payroll && data.payroll.activeEmployees > 0 && (
               <Badge variant="outline" className="text-xs bg-chart-6/10 text-chart-6 border-chart-6/20">
-                Nómina: {data.payroll.activeEmployees} emp ·{" "}
+                Nómina: {data.payroll.activeEmployees}{" "}
+                {data.payroll.activeEmployees === 1 ? "empleado" : "empleados"} ·{" "}
                 {formatMXN(data.payroll.biweeklyEstimateCents)}/quincena
               </Badge>
             )}
@@ -1047,7 +1061,7 @@ export function CashFlowCalendar({
                 Próximos 7 días
               </CardTitle>
               <CardDescription>
-                Compromisos que vencen esta semana. Prepará la tesorería.
+                Compromisos que vencen en los próximos 7 días.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1101,7 +1115,8 @@ export function CashFlowCalendar({
               Presión semanal de egresos
             </CardTitle>
             <CardDescription>
-              Semanas donde la concentración de pagos supera el promedio. Las semanas marcadas en rojo requieren atención.
+              Se marca como pesada la semana cuyos egresos superan en 50% a la
+              semana típica del período.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1143,7 +1158,8 @@ export function CashFlowCalendar({
                     </p>
                   )}
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {week.itemCount} compromisos
+                    {week.itemCount}{" "}
+                    {week.itemCount === 1 ? "compromiso" : "compromisos"}
                     {/* Un total más chico porque la ventana se cortó no es una semana
                         descargada. Se dice, en vez de dejarlo comparar de más. */}
                     {week.isPartial && week.dayCount != null && (
@@ -1223,7 +1239,7 @@ export function CashFlowCalendar({
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />
-              Proyección de Entradas vs Salidas (Próximos {horizonte} días)
+              Entradas vs. salidas de los próximos {horizonte} días
             </CardTitle>
             <CardDescription>
               Comparativa diaria de ingresos estimados por ventas vs compromisos de egresos
