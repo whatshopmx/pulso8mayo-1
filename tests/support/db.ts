@@ -1141,6 +1141,56 @@ export async function seedProductionTemplate(
   return templateId;
 }
 
+/**
+ * Siembra una instancia de producción YA COMPLETADA con sus pasos
+ * `prod-qty-{recipeId}`, para llamar al extractor directo sin pasar por la API.
+ *
+ * Mismo motivo que `seedCompletedCountInstance`: los specs que miden lo que el
+ * extractor ESCRIBE no necesitan el servidor ni el dev server de Inngest, y
+ * corren en segundos en vez de minutos.
+ */
+export async function seedCompletedProductionInstance(opts: {
+  templateId: string;
+  branchId: string;
+  assigneeId: string;
+  portions: Array<{ recipeId: string; quantity: number }>;
+  completedAt?: Date;
+}): Promise<string> {
+  const completedAt = (opts.completedAt ?? new Date()).toISOString();
+  const rows = await sql`
+    INSERT INTO workflow_instances (
+      workflow_template_id, branch_id, assignee_id, status, started_at, completed_at, data
+    )
+    VALUES (
+      ${opts.templateId},
+      ${opts.branchId},
+      ${opts.assigneeId},
+      'COMPLETED',
+      ${completedAt},
+      ${completedAt},
+      '{}'::jsonb
+    )
+    RETURNING id
+  `;
+  const instanceId = rows[0].id as string;
+
+  for (const { recipeId, quantity } of opts.portions) {
+    await sql`
+      INSERT INTO workflow_instance_steps (instance_id, step_id, status, value, completed_at, completed_by)
+      VALUES (
+        ${instanceId},
+        ${`prod-qty-${recipeId}`},
+        'COMPLETED',
+        ${JSON.stringify(String(quantity))}::jsonb,
+        ${completedAt},
+        ${opts.assigneeId}
+      )
+    `;
+  }
+
+  return instanceId;
+}
+
 export interface ProductionResultRow {
   id: string;
   company_id: string;
@@ -1158,6 +1208,10 @@ export interface ProductionIngredientRow {
   expected_quantity: number;
   actual_quantity: number;
   unit: string;
+  /** Centavos por unidad tomados del lote. */
+  unit_cost: number | null;
+  /** Centavos totales: se calcula con la cantidad EXACTA, no con la registrada. */
+  total_cost: number | null;
 }
 
 /** Resultados de producción generados por una instancia. */
@@ -1178,7 +1232,8 @@ export async function findProductionIngredients(
   resultId: string
 ): Promise<ProductionIngredientRow[]> {
   const rows = await sql`
-    SELECT id, result_id, item_id, batch_id, expected_quantity, actual_quantity, unit
+    SELECT id, result_id, item_id, batch_id, expected_quantity, actual_quantity, unit,
+           unit_cost, total_cost
     FROM production_ingredients
     WHERE result_id = ${resultId}
     ORDER BY item_id, batch_id
@@ -1186,9 +1241,15 @@ export async function findProductionIngredients(
   return rows as ProductionIngredientRow[];
 }
 
-/** Stock actual de un lote. */
+/**
+ * Stock actual de un lote.
+ *
+ * `current_quantity` es `numeric(12,4)` desde la migración `0051`: se lee como
+ * `float8` y no como `int`, o el propio helper redondearía la fracción que
+ * algunos specs miden (A7). Para cantidades enteras devuelve lo mismo de antes.
+ */
 export async function findBatchQuantity(batchId: string): Promise<number> {
-  const rows = await sql`SELECT current_quantity::int AS q FROM inventory_batches WHERE id = ${batchId}`;
+  const rows = await sql`SELECT current_quantity::float8 AS q FROM inventory_batches WHERE id = ${batchId}`;
   return rows[0]?.q ?? 0;
 }
 

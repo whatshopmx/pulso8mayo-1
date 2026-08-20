@@ -14,7 +14,7 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
 | O-2 | Fechas UTC: el conteo de cierre se pierde | Alta | ⬜ sin probar | A3 |
 | O-3 | Cache de sub-recetas escaladas | Alta | ⬜ sin probar | A5 |
 | O-4 | Idempotencia por `notes LIKE` (3 de 4 rutas) | Media | ⬜ sin probar | A8 |
-| O-5 | `production_ingredients` integer: todo insumo <0.5 registra `0` | **Alta** ⬆️ | ✅ confirmada por lectura | Subida de Media. A7 mide daño, A7b migra |
+| O-5 | `production_ingredients` integer: la cantidad fraccionaria de insumo no entra | **Crítica** ⬆️⬆️ | ✅ **confirmada con spec** · daño histórico **cero** | A7 (2026-08-20). **El síntoma que decía el plan estaba mal:** Postgres no redondea, **rechaza** el insert, y con él se cae la producción entera. Sube de Alta. A7b migra |
 | O-6 | Sin tope de expansión en el resolver | Media | ⬜ sin probar | A10 |
 | O-7 | `console.*` en vez de `createChildLogger` | Media | ✅ confirmada por lectura | A11 |
 | O-8 | `branchId` muerto; snapshot sin `companyId` | Baja | ✅ confirmada por lectura | A12 |
@@ -195,14 +195,60 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
         se movieron.
   - Archivo: `lib/services/production-from-workflow.ts`
 
-- [ ] **A7 — Evaluar el daño ya causado en `production_ingredients`** · S · deps: ninguna
-  - [ ] Contar filas con `actual_quantity = 0` y `total_cost > 0` — firma de insumo fraccionario perdido
-  - [ ] `tests/redondeo-ingredientes.spec.ts`: 0.35 kg registra `0` en ambas columnas
-  - [ ] ¿Las filas corruptas se pueden reconstruir con `total_cost / unit_cost`?
+- [x] **A7 — Evaluar el daño ya causado en `production_ingredients`** · S · deps: ninguna
+  - [x] Contar filas con `actual_quantity = 0` y `total_cost > 0` — firma de insumo fraccionario perdido
+        **Cero filas**, y `production_ingredients` entera tiene **9 filas** (una por
+        `production_results`, todas de corridas de specs, 2026-08-10 → 2026-08-21). Igual que
+        en A1: la base de `.env` es la de demo y la feature nunca corrió ahí con datos reales.
+        Script dejado en el repo: `scripts/audit-redondeo-ingredientes.ts` (sólo lectura).
+        Confirmado de paso que las 4 columnas siguen en `integer` en la base, no sólo en el schema.
+  - [x] `tests/redondeo-ingredientes.spec.ts`: 0.35 kg registra `0` en ambas columnas
+        **Rojo confirmado, y el síntoma NO es el que decía el plan.** Postgres no redondea al
+        insertar un parámetro fraccionario en una columna `integer`: lo rechaza con
+        `invalid input syntax for type integer`. El insert vive dentro de la transacción del
+        extractor, así que **se pierde la producción completa** — ni `production_results`, ni
+        descuento de lote, y tras A2 la corrida de Inngest queda FALLIDA. Por eso O-5 sube a
+        Crítica: no es una fila mal escrita, es el registro que no existe.
+        Son **tres** columnas `integer` en la ruta, y el caso 1 las va destapando en orden:
+        `production_results.ingredient_cost` (431.9) → `production_ingredients.total_cost` →
+        `production_ingredients.expected_quantity` (0.35). Las dos primeras son centavos y se
+        arreglan redondeando; sólo la tercera exige `numeric`. El spec fija `total_cost = 432`
+        justamente para que A7b no migre las cantidades y deje el insert cayéndose por el costo.
+        La fila que O-5 describía —"consumió 0 kg, costó $12.34"— sí se llegó a ver, en los
+        `params` del insert rechazado: `expected_quantity=0.35, actual_quantity=0, total_cost=432`.
+        Es el `Math.round` de `production-service.ts:150` haciendo su parte antes de que la base
+        rechazara la fila entera.
+  - [x] **Caso 2 — el redondeo silencioso sí existe, por otra vía.** Receta de 2 kg enteros que
+        FEFO reparte entre dos lotes (0.5 + 1.5): `expected_quantity` viaja entero, los costos
+        caen en centavos exactos y **el insert pasa** con las cantidades redondeadas a 1 y 2.
+        La producción aparenta haber gastado 3 kg de los 2 que salieron del inventario. Éste es
+        el único camino por el que podrían existir filas corruptas en la base, y no es el que
+        el plan tenía en la mira.
+        **Rojo:** `el lote viejo aportó 0.5 · Expected 0.5 · Received 1`.
+  - [x] ¿Las filas corruptas se pueden reconstruir con `total_cost / unit_cost`?
+        **Sí, exactamente, cuando existen** — `total_cost` se calcula con la cantidad exacta, así
+        que la división la devuelve íntegra (0.5 = 50/100 en el caso 2). Pero: (a) hoy no hay
+        ninguna que reconstruir, y (b) la reconstrucción sólo alcanza a las filas del caso 2,
+        porque las del caso 1 nunca se escribieron. **No se programa backfill**; si algún día
+        hace falta, la consulta ya está en el script.
+  - ⚠️ **Para A7b:** `app/api/inventory/production/route.ts` valida los ingredientes con
+        `z.number().int()`. La ruta manual hoy rechaza fracciones en el borde (400, no corrupción),
+        pero después de migrar las columnas ese `.int()` es lo único que seguiría prohibiendo
+        capturar 0.35 kg a mano.
+  - ℹ️ El spec llama al extractor directo, como `conteo-fecha-local`: no necesita servidor ni dev
+        server de Inngest y corre en ~1 min con `--no-deps --project=chromium`.
+  - Helpers nuevos en `tests/support/db.ts`: `seedCompletedProductionInstance`;
+    `findProductionIngredients` ahora devuelve `unit_cost`/`total_cost` y `findBatchQuantity`
+    dejó de castear a `::int` (redondeaba justo lo que este spec mide; para cantidades enteras
+    devuelve lo mismo — verificado contra la base: `4::numeric::float8` llega como `4`).
 
 - [ ] **A7b — Migrar `production_ingredients` a `numeric(12,4)`** · M · deps: A7
   - [ ] `expected_quantity` y `actual_quantity` → `numeric(12,4)`, patrón de la migración `0051`
   - [ ] Retirar el `Math.round` de `production-service.ts:150`
+  - [ ] **Redondear los costos** (A7): `ingredient_cost` de `production_results` y `total_cost`
+        de `production_ingredients` siguen en centavos `integer` y hoy reciben el producto
+        fraccionario sin redondear — revientan antes que la cantidad
+  - [ ] Decidir el `.int()` de `app/api/inventory/production/route.ts` (captura manual)
   - [ ] Revisar los lectores de costo de producción
   - [ ] `pnpm db:generate` y **revisar el SQL**: si trae `DROP`, no aplicar
   - [ ] A7 verde con `0.3500`; los 3 specs de producción siguen verdes
