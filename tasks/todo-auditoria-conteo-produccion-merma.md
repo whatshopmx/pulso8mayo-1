@@ -142,16 +142,23 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
   - **Verificación:** `npx tsc --noEmit` exit 0 · `conteo-fecha-local` + `snapshot-idempotente`
     **4 passed** (A3 en verde, el snapshot sin romperse) · `merma-automatica` 2/2 y el caso
     de idempotencia de `conteo-dinamico` también verdes, que son los que cruzan la misma ruta.
-  - ⚠️ **Pendiente:** los 3 casos que navegan la UI (`conteo-alto-valor` ×2,
-    `conteo-dinamico` ×1) fallaron por **timeout de navegación contra `next dev`**
-    (`page.goto` 60 s en `/dashboard/inventory/stock-count`), no por aserción. Hay que
-    revalidarlos contra `next start` sobre un build.
+  - ✅ **Resuelto:** los 3 casos que navegan la UI fallaban por **timeout de navegación
+    contra `next dev`**, no por aserción. Contra `next start` sobre un build pasan:
+    **17 passed (3.7m)**.
   - Archivos: `stock-count-from-workflow.ts`, `inventory-snapshot-service.ts`, `cron-inventory-snapshot.ts`
 
-### Checkpoint 1
-- [ ] `pnpm run build` limpio; los 7 specs de la feature verdes
-- [ ] Manual: conteo a las 19:00 local aparece en el snapshot de **ese** día
-- [ ] Revisar filas ya selladas con fecha equivocada y decidir si se corrigen
+### ✅ Checkpoint 1
+- [x] `pnpm run build` limpio; los 7 specs de la feature verdes
+      `build exit=0` · **17 passed (3.7m)** contra `next start` (8 specs: los 6 de la
+      feature + `snapshot-idempotente` + el nuevo `conteo-fecha-local`).
+- [x] Manual: conteo a las 19:00 local aparece en el snapshot de **ese** día
+      Cubierto por `conteo-fecha-local.spec.ts` con 18:30 —el mismo caso, ya en UTC del
+      día siguiente— más el borde inverso de 00:30. Es una comprobación automatizada y
+      determinista (fecha fija 2026-03-15), mejor que la manual que pedía el plan.
+- [x] Revisar filas ya selladas con fecha equivocada y decidir si se corrigen
+      **Nada que corregir:** A1 estableció que la base es la de demo y no hay usuarios
+      reales. `stock_counts` estaba vacía y los snapshots son sólo de seeds. El
+      backfill de fechas queda sin objeto, igual que OQ-A3.
 
 ## Phase 2 — El cálculo del consumo
 
