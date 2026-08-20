@@ -2,7 +2,7 @@ import { z } from "zod";
 import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiError } from "@/lib/api/error";
 import { ApiHandler } from "@/lib/api/response";
-import { enforceBranchScope } from "@/lib/branch-scope";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { saveCashFlowAssumption } from "@/lib/services/cash-flow-service";
 import { localDateString } from "@/lib/workflows/today";
 
@@ -45,12 +45,26 @@ export const PUT = withRoleAuth(
     const { openingBalanceCents, asOfDate } = parsed.data;
 
     // Misma regla que la lectura: un GERENTE captura el saldo de su sucursal,
-    // no el de otra ni el del grupo. `enforceBranchScope` lo fija.
-    const branchId = enforceBranchScope(
+    // no el de otra ni el del grupo.
+    //
+    // Aquí `branchId: null` NO es un caso degradado: es el saldo inicial a nivel
+    // EMPRESA, legítimo para ADMIN. Por eso hace falta distinguir `ALL` (escribe
+    // el saldo del grupo, a propósito) de `NONE` (rol de sucursal sin sucursal
+    // asignada), que antes caían en el mismo `null` y dejaban a un GERENTE mal
+    // configurado escribiendo el saldo de apertura de todo el grupo.
+    const scope = resolveBranchScope(
       auth.user.role,
       auth.branchId,
       parsed.data.branchId ?? null
     );
+
+    if (scope.kind === "NONE") {
+      throw ApiError.forbidden(
+        "Tu usuario no tiene una sucursal asignada. Pídele a un administrador que te asigne una para capturar el saldo inicial."
+      );
+    }
+
+    const branchId = scope.kind === "BRANCH" ? scope.branchId : null;
 
     const hoy = localDateString(new Date(), null);
     if (asOfDate && asOfDate > hoy) {
