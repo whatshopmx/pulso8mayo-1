@@ -10,6 +10,8 @@ import { IncidentList, IncidentListSkeleton } from '@/components/incidents/incid
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, AlertTriangle, XCircle, CheckCircle2, Building2, ShieldAlert } from 'lucide-react';
 import { BRANCH_COOKIE_NAME } from '@/lib/tenant-context';
+import { resolveBranchScope } from '@/lib/branch-scope';
+import type { Role } from '@/lib/permissions';
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -159,12 +161,25 @@ export default async function IncidentsPage(props: { searchParams: Promise<{ pag
     redirect('/onboarding');
   }
 
-  const [allIncidents, totalCount, stats, branchName] = await Promise.all([
-    getIncidentsPage(companyId, selectedBranchId, page),
-    getTotalCount(companyId, selectedBranchId),
-    getStats(companyId, selectedBranchId),
-    selectedBranchId ? getBranchName(selectedBranchId) : Promise.resolve(null),
-  ]);
+  // La sucursal salía SOLO de la cookie, sin mirar el rol: un GERENTE que
+  // cambiaba de sucursal veía la lista de otra. El alcance lo decide el rol; la
+  // cookie solo puede elegir para quien no está acotado.
+  const alcance = resolveBranchScope(
+    ((session.user as any).role || 'EMPLEADO') as Role,
+    (session.user as any).branchId ?? null,
+    selectedBranchId ?? null
+  );
+  const sinSucursal = alcance.kind === 'NONE';
+  const effectiveBranchId = alcance.kind === 'BRANCH' ? alcance.branchId : undefined;
+
+  const [allIncidents, totalCount, stats, branchName] = sinSucursal
+    ? [[] as IncidentRow[], 0, { total: 0, active: 0, critical: 0, resolved: 0, requiresAction: 0 }, null]
+    : await Promise.all([
+        getIncidentsPage(companyId, effectiveBranchId, page),
+        getTotalCount(companyId, effectiveBranchId),
+        getStats(companyId, effectiveBranchId),
+        effectiveBranchId ? getBranchName(effectiveBranchId) : Promise.resolve(null),
+      ]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -185,6 +200,15 @@ export default async function IncidentsPage(props: { searchParams: Promise<{ pag
           </Badge>
         )}
       </div>
+
+      {sinSucursal && (
+        <div className="rounded-md border border-amber-200/60 bg-amber-50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
+          <p className="font-medium">Tu usuario no tiene una sucursal asignada.</p>
+          <p className="text-muted-foreground">
+            Por eso esta lista aparece vacía. Pídele a un administrador que te asigne una sucursal.
+          </p>
+        </div>
+      )}
 
       {/* Inline summary strip */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
