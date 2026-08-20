@@ -74,10 +74,13 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
         **no** se dispara en los intentos intermedios — Inngest reintenta el paso
         (4 intentos con `retries: 3`) y sólo entrega el error al código de usuario
         cuando los agota. Es exactamente el comportamiento que el diseño asume.
-  - ⚠️ **Para A11:** `createChildLogger` usa pino con transport `pino-pretty` en
-        development, que escribe desde un worker thread; su salida **no** apareció en
-        el stdout del dev server durante esta prueba. A11 tiene que verificar que el
-        log realmente se vea, no sólo que se llame.
+  - ✅ **Confirmación extra del aislamiento:** el `logger.error` del catch —
+        `ERROR: Extractor agotó sus reintentos`— **sí** quedó en el stdout del dev
+        server (18:37:14). Es evidencia directa de que el catch corrió, más fuerte que
+        inferirlo del mensaje de error final.
+        (Antes anoté aquí que `createChildLogger` no imprimía nada en dev. **Era falso:**
+        el grep con el que lo "comprobé" buscaba `^HH:MM:SS` y pino-pretty prefija con
+        `[HH:MM:SS]`. A11 no tiene ningún problema de visibilidad que resolver.)
 
 ### ✅ Checkpoint 0 — resuelto, ya no bloquea
 - [x] **Decisión humana tomada (2026-08-20):** O-1 confirmada, pero sin usuarios reales el daño
