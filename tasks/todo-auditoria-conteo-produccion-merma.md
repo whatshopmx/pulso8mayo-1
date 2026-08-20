@@ -101,11 +101,26 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
 
 ## Phase 1 — La fecha operativa
 
-- [ ] **A3 — Spec del conteo de cierre perdido** · S · deps: ninguna
-  - [ ] `tests/conteo-fecha-local.spec.ts`: conteo a las 18:30 hora CDMX → `buildSnapshot` del mismo día
-  - [ ] Confirmar que falla por `countedStock` NULL, no por otra razón
-  - [ ] Caso borde inverso: 00:30 local (mismo día en ambas zonas) sigue funcionando
-  - [ ] Helpers en `tests/support/db.ts`
+- [x] **A3 — Spec del conteo de cierre perdido** · S · deps: ninguna
+  - [x] `tests/conteo-fecha-local.spec.ts`: conteo a las 18:30 hora CDMX → `buildSnapshot` del mismo día
+  - [x] Confirmar que falla por `countedStock` NULL, no por otra razón
+        **Rojo confirmado:** `Expected "2026-03-15" · Received "2026-03-16"` en la
+        aserción de `count_date`. Falla en el sello de la fecha, que es exactamente
+        donde vive O-2. (La aserción de `countedStock` NULL viene después en el mismo
+        caso; al fallar antes la fecha, no llega a evaluarse — el orden es a propósito:
+        señala la causa, no el síntoma.)
+  - [x] Caso borde inverso: 00:30 local (mismo día en ambas zonas) sigue funcionando
+        **Verde**, y es lo que descarta que el rojo venga del andamiaje.
+  - [x] Helpers en `tests/support/db.ts` — `seedCompletedCountInstance`
+  - ℹ️ **Por qué el spec llama al extractor directo** (como ya hacía
+        `snapshot-idempotente.spec.ts` con `buildSnapshot`): la hora de cierre *es* la
+        variable bajo prueba y cerrando por la API `completedAt` siempre es `NOW()`.
+        Cerrar y luego reescribir `completed_at` tampoco sirve: tras A2 el reintento
+        de la extracción cae en el dedupe de 24 h del `inngest.send`.
+  - ⚠️ **Efecto de A2 sobre los specs:** la extracción ya no corre en proceso, así que
+        los 6 specs de la feature ahora **exigen el dev server de Inngest levantado**
+        (`npx inngest-cli@latest dev -u http://localhost:3000/api/inngest`). Sin él se
+        quedan esperando filas que nadie escribe. Pendiente anotarlo en CLAUDE.md.
 
 - [ ] **A4 — Fecha operativa por zona horaria de la SUCURSAL** · M · deps: A3 + **OQ-A1 decidida**
   - ⚠️ **Corrección a AD-A3 (A1, 2026-08-20):** la columna es **`branches.timezone`**, no

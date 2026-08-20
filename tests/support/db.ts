@@ -597,6 +597,57 @@ export async function findStockCountsForInstance(instanceId: string): Promise<St
   return rows as StockCountRow[];
 }
 
+/**
+ * Siembra una instancia de conteo **ya COMPLETADA** con un `completed_at`
+ * elegido a mano, más un paso `count-{itemId}` por ítem.
+ *
+ * Existe porque la hora de cierre es justo la variable bajo prueba (A3/O-2) y
+ * no se puede elegir cerrando el workflow por la API: ahí `completedAt` es
+ * `NOW()`. Los pasos se insertan con la misma forma que `completeStep` —
+ * `value` jsonb escalar— para que el extractor los lea igual que en producción.
+ */
+export async function seedCompletedCountInstance(opts: {
+  templateId: string;
+  branchId: string;
+  assigneeId: string;
+  /** Instante exacto del cierre, en UTC. */
+  completedAt: Date;
+  counts: Array<{ itemId: string; quantity: string }>;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO workflow_instances (
+      workflow_template_id, branch_id, assignee_id, status, started_at, completed_at, data
+    )
+    VALUES (
+      ${opts.templateId},
+      ${opts.branchId},
+      ${opts.assigneeId},
+      'COMPLETED',
+      ${opts.completedAt.toISOString()},
+      ${opts.completedAt.toISOString()},
+      '{}'::jsonb
+    )
+    RETURNING id
+  `;
+  const instanceId = rows[0].id as string;
+
+  for (const { itemId, quantity } of opts.counts) {
+    await sql`
+      INSERT INTO workflow_instance_steps (instance_id, step_id, status, value, completed_at, completed_by)
+      VALUES (
+        ${instanceId},
+        ${`count-${itemId}`},
+        'COMPLETED',
+        ${JSON.stringify(quantity)}::jsonb,
+        ${opts.completedAt.toISOString()},
+        ${opts.assigneeId}
+      )
+    `;
+  }
+
+  return instanceId;
+}
+
 /** Borra los conteos, la instancia, sus pasos y el template de prueba. */
 export async function cleanupStockCounts(
   instanceId: string,
