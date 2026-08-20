@@ -7,7 +7,7 @@ import { eq, and, gte, lte, sql, desc, isNotNull } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
 import { format as formatDate, subDays } from "date-fns";
-import { enforceBranchScope } from "@/lib/branch-scope";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import type { Role } from "@/lib/permissions";
 import { createChildLogger } from "@/lib/logger";
 
@@ -92,11 +92,25 @@ export async function POST(request: NextRequest) {
 
     // El alcance lo decide el servidor, no el cuerpo del request: GERENTE y
     // SUPERVISOR quedan fijados a su sucursal aunque el cliente mande "todas".
-    const branchId = enforceBranchScope(
+    //
+    // Un rol de sucursal SIN sucursal asignada no exporta: antes caía en el mismo
+    // `null` que "todas", se llevaba el grupo entero y además lo registraba en el
+    // historial como alcance "ALL" — el registro afirmaría que la exportación de
+    // grupo fue deliberada.
+    const alcance = resolveBranchScope(
       ((session.user as any).role || "EMPLEADO") as Role,
       (session.user as any).branchId ?? null,
       sucursalPedida ?? null
     );
+
+    if (alcance.kind === "NONE") {
+      return NextResponse.json(
+        { error: "Tu usuario no tiene una sucursal asignada. Pídele a un administrador que te asigne una para exportar." },
+        { status: 403 }
+      );
+    }
+
+    const branchId = alcance.kind === "BRANCH" ? alcance.branchId : null;
 
     reportIdRegistro = reportId;
     // Se guarda el alcance ya resuelto por el servidor, no el que pidió el

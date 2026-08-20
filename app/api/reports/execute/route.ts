@@ -11,7 +11,7 @@ import {
 import { eq, and, gte, lte, ilike, sql } from "drizzle-orm";
 import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiError } from "@/lib/api/error";
-import { enforceBranchScope } from "@/lib/branch-scope";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { createChildLogger } from "@/lib/logger";
 // Dos tipos de rol conviven en el repo: `Role` (lib/permissions, derivado del
 // enum de la DB, incluye OWNER) y `UserRole` (lib/rbac/permissions, el que
@@ -350,7 +350,18 @@ export const POST = withRoleAuth(ROLES_CON_REPORTES, async (req, { auth }) => {
 
   // El alcance de sucursal lo decide el servidor: GERENTE queda fijado a la
   // suya aunque el cliente mande otra o "todas".
-  const sucursal = enforceBranchScope(auth.user.role as Role, auth.branchId, branchId ?? null);
+  //
+  // Un rol de sucursal SIN sucursal asignada no exporta nada: antes caía en el
+  // mismo `null` que "todas" y se llevaba el grupo entero, columnas sensibles
+  // incluidas. Un archivo vacío sería peor que un error —parecería un dato—, así
+  // que esto corta con 403.
+  const alcance = resolveBranchScope(auth.user.role as Role, auth.branchId, branchId ?? null);
+  if (alcance.kind === "NONE") {
+    throw ApiError.forbidden(
+      "Tu usuario no tiene una sucursal asignada. Pídele a un administrador que te asigne una para exportar."
+    );
+  }
+  const sucursal = alcance.kind === "BRANCH" ? alcance.branchId : null;
 
   const conditions: any[] = [eq(columnaEmpresa(dataSource), auth.tenantId)];
   if (sucursal) conditions.push(eq(COLUMNA_SUCURSAL[dataSource], sucursal));
