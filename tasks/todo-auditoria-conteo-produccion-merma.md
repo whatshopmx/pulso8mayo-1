@@ -162,10 +162,20 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
 
 ## Phase 2 — El cálculo del consumo
 
-- [ ] **A5 — Spec del cache envenenado de sub-recetas** · S · deps: ninguna
-  - [ ] `tests/subreceta-compartida.spec.ts`: 2 recetas, 1 sub-receta compartida, cantidades distintas
-  - [ ] Confirmar la diferencia numérica exacta que produce el defecto
-  - [ ] El orden de las recetas no debe cambiar el resultado
+- [x] **A5 — Spec del cache envenenado de sub-recetas** · S · deps: ninguna
+  - [x] `tests/subreceta-compartida.spec.ts`: 2 recetas, 1 sub-receta compartida, cantidades distintas
+        Base (sub-receta) = 1 de harina · Guiso = 2 × Base · Sopa = 5 × Base.
+        Producir 1 de cada una en la misma instancia debe consumir 7.
+  - [x] Confirmar la diferencia numérica exacta que produce el defecto
+        **Rojo:** `Sopa = 5 × Base · Expected 5 · Received 2`. La Sopa recibió las
+        hojas ya escaladas del Guiso — el cache envenenado, literal.
+  - [x] El orden de las recetas no debe cambiar el resultado
+        La segunda aserción es sobre el consumo TOTAL del lote (7). Con el defecto da
+        4 o 10 según qué receta se expandió primero, nunca 7: atrapa ambos órdenes sin
+        depender del orden de iteración del `Map`.
+  - ℹ️ Cantidades enteras a propósito, para que el redondeo de O-5
+        (`production_ingredients.actual_quantity` es `integer`) no se mezcle con lo que
+        mide este spec.
 
 - [ ] **A6 — Cachear hojas sin escalar** · S · deps: A5
   - [ ] Cache por unidad de `baseYield`; escalar al leer, no al guardar
