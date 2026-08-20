@@ -12,9 +12,10 @@
 // real: merma no capturada, robos, errores de captura.
 
 import { db } from "@/lib/db";
-import { inventoryItems, inventoryBatches, stockCounts, inventorySnapshots } from "@/lib/db/schema";
+import { inventoryItems, inventoryBatches, stockCounts, inventorySnapshots, branches } from "@/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { roundQty } from "./stock-count-service";
+import { localDateString } from "@/lib/workflows/today";
 
 export interface SnapshotRow {
   companyId: string;
@@ -32,12 +33,19 @@ export class InventorySnapshotService {
    * en vez de duplicar filas (AD-4).
    */
   static async buildSnapshot(companyId: string, branchId: string, date?: string | Date): Promise<number> {
-    const snapshotDate =
-      date === undefined
-        ? new Date().toISOString().slice(0, 10)
-        : date instanceof Date
-          ? date.toISOString().slice(0, 10)
-          : date;
+    // A4/O-2: cuando la fecha no viene ya resuelta hay que traducir el instante
+    // al día local de la SUCURSAL, no a UTC. `stock_counts.countDate` se sella
+    // con ese mismo criterio, y el cruce de abajo es por igualdad de fecha: si
+    // los dos lados no usan el mismo huso, el conteo de cierre no aparece.
+    let snapshotDate: string;
+    if (typeof date === "string") {
+      snapshotDate = date;
+    } else {
+      const branch = await db.query.branches.findFirst({
+        where: eq(branches.id, branchId),
+      });
+      snapshotDate = localDateString(date ?? new Date(), branch?.timezone);
+    }
 
     // 1. SKUs del filtro 80/20 (misma definición que el conteo de inventario).
     const items = await db

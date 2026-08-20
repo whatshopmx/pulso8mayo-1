@@ -128,10 +128,24 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
     `lib/db/schema/core.ts:34`). Es la zona *correcta*: el conteo y el snapshot son por sucursal, y
     una cadena con sucursal en Quintana Roo (UTC-5) y en CDMX (UTC-6) sólo se sella bien así.
     `buildSnapshot(companyId, branchId, date?)` ya recibe el `branchId`: sigue sin haber cambio de firma.
-  - [ ] `countDate` → `localDateString(completedAt, branch.timezone)`
-  - [ ] `snapshotDate` → misma función, no `toISOString().slice(0,10)`
-  - [ ] Cron: `TZ=America/Mexico_City` + hora posterior al cierre
-  - [ ] Verificar: cero `toISOString().slice(0,10)` en el flujo
+  - [x] `countDate` → `localDateString(completedAt, branch.timezone)`
+        La sucursal ahora se consulta **siempre**, no sólo como respaldo del `companyId`.
+  - [x] `snapshotDate` → misma función, no `toISOString().slice(0,10)`
+        Sólo cuando la fecha no viene ya resuelta como string: si el llamador pasó
+        `'2026-03-15'` se respeta tal cual. Los dos lados del cruce tienen que sellar
+        con el mismo huso o el conteo de cierre no aparece.
+  - [x] Cron: `TZ=America/Mexico_City` + hora posterior al cierre
+        `"0 5 * * *"` (= 23:00 locales del día anterior) → `"TZ=America/Mexico_City 0 4 * * *"`,
+        pasando **D−1 calculado por sucursal**, no global: Quintana Roo (UTC-5) y CDMX
+        (UTC-6) no siempre cierran el mismo día.
+  - [x] Verificar: cero `toISOString().slice(0,10)` en el flujo ✓
+  - **Verificación:** `npx tsc --noEmit` exit 0 · `conteo-fecha-local` + `snapshot-idempotente`
+    **4 passed** (A3 en verde, el snapshot sin romperse) · `merma-automatica` 2/2 y el caso
+    de idempotencia de `conteo-dinamico` también verdes, que son los que cruzan la misma ruta.
+  - ⚠️ **Pendiente:** los 3 casos que navegan la UI (`conteo-alto-valor` ×2,
+    `conteo-dinamico` ×1) fallaron por **timeout de navegación contra `next dev`**
+    (`page.goto` 60 s en `/dashboard/inventory/stock-count`), no por aserción. Hay que
+    revalidarlos contra `next start` sobre un build.
   - Archivos: `stock-count-from-workflow.ts`, `inventory-snapshot-service.ts`, `cron-inventory-snapshot.ts`
 
 ### Checkpoint 1

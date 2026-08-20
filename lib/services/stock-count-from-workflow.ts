@@ -31,6 +31,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { roundQty } from "./stock-count-service";
+import { localDateString } from "@/lib/workflows/today";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -166,13 +167,11 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
     const template = await db.query.workflowTemplates.findFirst({
       where: eq(workflowTemplates.id, instance.workflowTemplateId),
     });
-    let companyId = template?.companyId || "";
-    if (!companyId) {
-      const branch = await db.query.branches.findFirst({
-        where: eq(branches.id, instance.branchId),
-      });
-      companyId = branch?.companyId || "";
-    }
+    // La sucursal se consulta siempre: su huso decide la fecha operativa (A4).
+    const branch = await db.query.branches.findFirst({
+      where: eq(branches.id, instance.branchId),
+    });
+    const companyId = template?.companyId || branch?.companyId || "";
     if (!companyId) {
       console.warn(`[StockCountFromWorkflow] Sin companyId para instancia ${instanceId}: se omite`);
       return;
@@ -203,7 +202,11 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
       ? (await db.query.users.findFirst({ where: eq(users.id, instance.assigneeId) }))?.id ?? null
       : null;
 
-    const countDate = (instance.completedAt ?? new Date()).toISOString().slice(0, 10);
+    // A4/O-2: la fecha operativa es la del huso de la SUCURSAL, no UTC. En
+    // UTC-6 un cierre a las 18:30 se sellaba con la fecha de mañana y el
+    // snapshot del día ya no lo encontraba: `countedStock` y `variance` NULL
+    // justo para el conteo de cierre, que es el caso normal.
+    const countDate = localDateString(instance.completedAt ?? new Date(), branch?.timezone);
 
     const rows = candidateIds
       .filter((id) => validIds.has(id))
