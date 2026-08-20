@@ -241,10 +241,9 @@ export async function extractProductionFromInstance(instanceId: string): Promise
 
           const info = itemInfo.get(leaf.itemId);
           for (const alloc of allocations) {
-            // El lote ya es numeric(12,4) (T1): la fracción se conserva en el
-            // descuento del lote (`recordProduction` descuenta por
-            // `actualQuantity`). La columna `production_ingredients.actual_quantity`
-            // sigue siendo integer; el redondeo explícito vive ahí, en el insert.
+            // Lote y registro de insumo son ya `numeric(12,4)` (T1 y A7b): la
+            // fracción se conserva de punta a punta. `recordProduction` descuenta
+            // por `actualQuantity` y guarda ese mismo valor, sin redondear.
             ingredients.push({
               itemId: leaf.itemId,
               batchId: alloc.batchId,

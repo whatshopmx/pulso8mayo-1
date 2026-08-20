@@ -23,8 +23,11 @@ const recordProductionSchema = z.object({
     ingredients: z.array(z.object({
         itemId: z.string().min(1),
         batchId: z.string().optional(),
-        expectedQuantity: z.number().int(),
-        actualQuantity: z.number().int(),
+        // A7b: sin `.int()`. Las columnas son `numeric(12,4)` y una receta real
+        // pide 0.35 kg; el `.int()` era lo único que seguía prohibiendo
+        // capturarlo a mano. `producedQuantity` sí sigue entero: son porciones.
+        expectedQuantity: z.number().nonnegative(),
+        actualQuantity: z.number().nonnegative(),
         unit: z.string(),
         unitCost: z.number().int().optional(),
         yieldPercent: z.number().int().min(0).max(100).optional(),

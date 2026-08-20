@@ -138,7 +138,8 @@ export async function recalculateTwin(branchId: string): Promise<any> {
 
     totalIngredientsChecked = ingredients.length;
     for (const ing of ingredients) {
-      const diff = ing.actualQuantity - ing.expectedQuantity;
+      // A7b: las cantidades son `numeric(12,4)` y llegan como string.
+      const diff = Number(ing.actualQuantity) - Number(ing.expectedQuantity);
       theoreticalVsActualCostCents += diff * (ing.unitCost || 0);
       if (diff === 0) {
         compliantIngredients++;

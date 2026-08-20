@@ -242,21 +242,56 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
     dejó de castear a `::int` (redondeaba justo lo que este spec mide; para cantidades enteras
     devuelve lo mismo — verificado contra la base: `4::numeric::float8` llega como `4`).
 
-- [ ] **A7b — Migrar `production_ingredients` a `numeric(12,4)`** · M · deps: A7
-  - [ ] `expected_quantity` y `actual_quantity` → `numeric(12,4)`, patrón de la migración `0051`
-  - [ ] Retirar el `Math.round` de `production-service.ts:150`
-  - [ ] **Redondear los costos** (A7): `ingredient_cost` de `production_results` y `total_cost`
+- [x] **A7b — Migrar `production_ingredients` a `numeric(12,4)`** · M · deps: A7
+  - [x] `expected_quantity` y `actual_quantity` → `numeric(12,4)`, patrón de la migración `0051`
+        `drizzle/0054_produccion-cantidades-decimales.sql`. Renombrada del
+        `0054_secret_lockjaw` que generó drizzle-kit (convención del repo para migraciones
+        con intención, como `0051`) y con el `USING …::numeric` explícito que `0051` ya traía.
+  - [x] Retirar el `Math.round` de `production-service.ts:150`
+        Las columnas son numeric → string en TS: `String(ing.expectedQuantity)` /
+        `String(ing.actualQuantity)`, el mismo patrón que ya usaba la merma para `quantity`.
+  - [x] **Redondear los costos** (A7): `ingredient_cost` de `production_results` y `total_cost`
         de `production_ingredients` siguen en centavos `integer` y hoy reciben el producto
         fraccionario sin redondear — revientan antes que la cantidad
-  - [ ] Decidir el `.int()` de `app/api/inventory/production/route.ts` (captura manual)
-  - [ ] Revisar los lectores de costo de producción
-  - [ ] `pnpm db:generate` y **revisar el SQL**: si trae `DROP`, no aplicar
-  - [ ] A7 verde con `0.3500`; los 3 specs de producción siguen verdes
+        `Math.round` en los dos. **Se quedan en integer a propósito:** el centavo ya es la
+        unidad mínima, no hay medio centavo que guardar.
+  - [x] Decidir el `.int()` de `app/api/inventory/production/route.ts` (captura manual)
+        **Fuera.** Era lo único que seguiría prohibiendo capturar 0.35 kg a mano después de
+        migrar las columnas. Queda `z.number().nonnegative()`. `producedQuantity` sigue
+        entero: son porciones, y `production_results.produced_quantity` no se migró.
+  - [x] Revisar los lectores de costo de producción
+        Un solo lector real: `operational-twin-engine.ts:141` restaba las dos cantidades, que
+        ahora llegan como string → `Number()` en ambas. Sin eso el build lo habría atrapado
+        (resta de strings), pero el resultado en runtime habría sido correcto por coerción:
+        justo el tipo de arreglo que hay que hacer mirando, no confiando en el compilador.
+        `app/api/inventory/production/route.ts` importa la tabla pero no lee esas columnas.
+  - [x] `pnpm db:generate` y **revisar el SQL**: si trae `DROP`, no aplicar
+        **Sin `DROP`:** dos `ALTER COLUMN … SET DATA TYPE numeric(12,4)`. El cast es ampliante
+        (integer → numeric), ninguna de las 9 filas existentes pierde valor. Revisada con el
+        humano antes de aplicar; la aplicó él con `pnpm db:migrate`.
+        Verificado en `information_schema`: las dos columnas ya son `numeric(12,4)`.
+  - [x] A7 verde con `0.3500`; los 3 specs de producción siguen verdes
+        **8 passed (1.7m)** contra `next start` sobre el build nuevo, con el dev server de
+        Inngest arriba: `redondeo-ingredientes` (2), `produccion-diaria` (2), `consumo-fefo`,
+        `lote-insuficiente` y `subreceta-compartida`.
+  - 🔧 `produccion-diaria` y `consumo-fefo` fallaron en la primera corrida con
+        `Expected 6 · Received "6.0000"`: **no era regresión**, era el driver devolviendo
+        numeric como string. Se arregló en `findProductionIngredients`, que ahora convierte
+        las dos cantidades a número —lo que su tipo `ProductionIngredientRow` ya prometía—
+        en vez de parchear cada aserción.
+  - ⚠️ El `next start` que había levantado servía el build ANTERIOR. Verificar contra él
+        habría dado un verde falso; hay que reconstruir después de tocar código de servicio.
 
 ### 🛑 Checkpoint 2
-- [ ] `pnpm run build` limpio; specs de producción verdes
-- [ ] Migración de A7b revisada, sin `DROP`
-- [ ] Daño histórico cuantificado y decidido si se reconstruyen las filas en `0`
+- [x] `pnpm run build` limpio; specs de producción verdes
+      `build exit=0` · **8 passed (1.7m)** · `npx tsc --noEmit` exit 0
+- [x] Migración de A7b revisada, sin `DROP`
+      `0054_produccion-cantidades-decimales.sql`, dos `ALTER COLUMN`, cast ampliante.
+- [x] Daño histórico cuantificado y decidido si se reconstruyen las filas en `0`
+      **Cero filas corruptas** (`scripts/audit-redondeo-ingredientes.ts`) sobre 9 filas en
+      total, todas de specs. **No hay nada que reconstruir y no se programa backfill.**
+      Si algún día hiciera falta, sólo alcanzaría a las filas del caso 2 —`total_cost /
+      unit_cost` devuelve la cantidad exacta— porque las del caso 1 nunca se escribieron.
 - [ ] **Revisar con humano antes de Phase 3**
 
 ## Phase 3 — Idempotencia real

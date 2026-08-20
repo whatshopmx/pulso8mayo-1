@@ -80,7 +80,9 @@ export class ProductionService {
             unit: string;
         }[] = [];
 
-        // Calculate total ingredient cost
+        // Costo total de los insumos, en centavos. Se acumula con la cantidad
+        // EXACTA y se redondea una sola vez al escribir (A7): el centavo es la
+        // unidad mínima y `production_results.ingredient_cost` sigue en integer.
         let ingredientCost = 0;
 
         // Deduct ingredients from inventory batches
@@ -134,7 +136,7 @@ export class ProductionService {
         // Create the production result
         const [result] = await q.insert(productionResults).values({
             ...resultData,
-            ingredientCost,
+            ingredientCost: Math.round(ingredientCost),
         }).returning();
 
         // Create ingredient records
@@ -143,12 +145,14 @@ export class ProductionService {
                 ingredients.map(ing => ({
                     resultId: result.id,
                     ...ing,
-                    // `production_ingredients.actual_quantity` sigue siendo integer
-                    // (pendiente de migrar a numeric): se redondea EXPLÍCITAMENTE
-                    // aquí, en el borde. El valor exacto ya se aplicó al descuento
-                    // del lote (`deduct`) y al `totalCost` de abajo.
-                    actualQuantity: Math.round(ing.actualQuantity),
-                    totalCost: (ing.unitCost ?? 0) * ing.actualQuantity,
+                    // A7b: las cantidades ya son `numeric(12,4)` — string en TS —
+                    // y se guardan exactas, igual que el descuento del lote. El
+                    // `Math.round` que vivía aquí perdía toda línea de receta por
+                    // debajo de media unidad.
+                    expectedQuantity: String(ing.expectedQuantity),
+                    actualQuantity: String(ing.actualQuantity),
+                    // El costo sí se redondea: es centavos sobre integer.
+                    totalCost: Math.round((ing.unitCost ?? 0) * ing.actualQuantity),
                     yieldPercent: ing.yieldPercent ?? 100,
                 }))
             );

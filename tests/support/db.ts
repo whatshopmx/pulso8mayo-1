@@ -1238,7 +1238,14 @@ export async function findProductionIngredients(
     WHERE result_id = ${resultId}
     ORDER BY item_id, batch_id
   `;
-  return rows as ProductionIngredientRow[];
+  // Las cantidades son `numeric(12,4)` desde A7b y el driver las entrega como
+  // string ("6.0000"): se convierten aquí para que los specs comparen números,
+  // que es lo que su tipo siempre prometió.
+  return rows.map((r) => ({
+    ...r,
+    expected_quantity: Number(r.expected_quantity),
+    actual_quantity: Number(r.actual_quantity),
+  })) as ProductionIngredientRow[];
 }
 
 /**

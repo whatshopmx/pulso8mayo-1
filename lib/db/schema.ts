@@ -346,8 +346,11 @@ export const productionIngredients = pgTable("production_ingredients", {
     resultId: uuid("result_id").notNull(),
     itemId: uuid("item_id").notNull(),
     batchId: uuid("batch_id"),
-    expectedQuantity: integer("expected_quantity").notNull(),
-    actualQuantity: integer("actual_quantity").notNull(),
+    // A7b: `numeric(12,4)` como los lotes (migración `0051`). En `integer` una
+    // línea de receta fraccionaria —0.35 kg de queso— no se redondeaba: Postgres
+    // rechazaba el insert y se caía la producción entera.
+    expectedQuantity: numeric("expected_quantity", { precision: 12, scale: 4 }).notNull(),
+    actualQuantity: numeric("actual_quantity", { precision: 12, scale: 4 }).notNull(),
     unit: text("unit").notNull(),
     unitCost: integer("unit_cost"), // In cents
     totalCost: integer("total_cost"), // In cents

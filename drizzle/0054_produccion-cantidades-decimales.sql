@@ -1,0 +1,22 @@
+-- 0054_produccion-cantidades-decimales.sql
+-- A7b (tasks/plan-auditoria-conteo-produccion-merma.md): `production_ingredients.
+-- {expected,actual}_quantity` pasan de `integer` a `numeric(12,4)` — misma
+-- convención que `inventory_batches` (migración `0051`) y que `stock_counts`.
+--
+-- En `integer` una línea de receta fraccionaria no se redondeaba: Postgres
+-- RECHAZA el parámetro (`invalid input syntax for type integer: "0.35"`) y, como
+-- el insert va dentro de la transacción del extractor, se perdía la producción
+-- completa — sin resultado, sin registro de insumos y sin descuento de lote.
+-- Demostrado por `tests/redondeo-ingredientes.spec.ts` (A7).
+--
+-- `unit_cost` y `total_cost` se quedan en `integer`: son centavos, y el centavo
+-- ya es la unidad mínima. El redondeo de esos dos vive en el código.
+--
+-- El cast es ampliante (integer → numeric): ninguna fila existente pierde valor.
+--
+-- Reversible en papel (no hay forma fiel de volver de fracciones a enteros):
+--   ALTER TABLE "production_ingredients" ALTER COLUMN "expected_quantity" TYPE integer USING round("expected_quantity");
+--   ALTER TABLE "production_ingredients" ALTER COLUMN "actual_quantity"   TYPE integer USING round("actual_quantity");
+--> statement-breakpoint
+ALTER TABLE "production_ingredients" ALTER COLUMN "expected_quantity" SET DATA TYPE numeric(12, 4) USING "expected_quantity"::numeric;--> statement-breakpoint
+ALTER TABLE "production_ingredients" ALTER COLUMN "actual_quantity" SET DATA TYPE numeric(12, 4) USING "actual_quantity"::numeric;
