@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { withTenantAuth } from '@/lib/api/with-auth';
 import { ApiError } from '@/lib/api/error';
 import { ApiHandler } from '@/lib/api/response';
-import { findIncidentForTenant } from '@/lib/api/incident-access';
+import { findIncidentForTenant, incidentBranchScope } from '@/lib/api/incident-access';
 import {
     listRemediationActionsForIncident,
     findActiveProviderForBranch,
@@ -26,7 +26,7 @@ export const GET = withTenantAuth(async (
 ) => {
     const { id } = await (params as unknown as Promise<{ id: string }>);
 
-    const incident = await findIncidentForTenant(id, auth.tenantId);
+    const incident = await findIncidentForTenant(id, auth.tenantId, incidentBranchScope(auth.user.role, auth.branchId));
     if (!incident) {
         throw ApiError.notFound('Incidente no encontrado');
     }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { EscalationService } from '@/lib/services/escalation-service';
 import { withTenantAuth } from '@/lib/api/with-auth';
-import { findIncidentForTenant } from '@/lib/api/incident-access';
+import { findIncidentForTenant, incidentBranchScope } from '@/lib/api/incident-access';
 
 /**
  * POST /api/incidents/[id]/escalate
@@ -23,7 +23,7 @@ export const POST = withTenantAuth(async (
             );
         }
 
-        if (!await findIncidentForTenant(id, auth.tenantId)) {
+        if (!await findIncidentForTenant(id, auth.tenantId, incidentBranchScope(auth.user.role, auth.branchId))) {
             return NextResponse.json(
                 { error: 'Incident not found' },
                 { status: 404 }

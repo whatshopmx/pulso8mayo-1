@@ -4,7 +4,7 @@ import { incidents, branches, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { IncidentEngine } from '@/lib/services/incident-engine';
 import { withTenantAuth, withRoleAuth } from '@/lib/api/with-auth';
-import { findIncidentForTenant } from '@/lib/api/incident-access';
+import { findIncidentForTenant, incidentBranchScope } from '@/lib/api/incident-access';
 
 /**
  * GET /api/incidents/[id]
@@ -16,7 +16,7 @@ export const GET = withTenantAuth(async (
 ) => {
     try {
         const { id } = await (params as unknown as Promise<{ id: string }>);
-        const incident = await findIncidentForTenant(id, auth.tenantId);
+        const incident = await findIncidentForTenant(id, auth.tenantId, incidentBranchScope(auth.user.role, auth.branchId));
 
         if (!incident) {
             return NextResponse.json(
@@ -81,7 +81,7 @@ export const PATCH = withTenantAuth(async (
             );
         }
 
-        const existing = await findIncidentForTenant(id, auth.tenantId);
+        const existing = await findIncidentForTenant(id, auth.tenantId, incidentBranchScope(auth.user.role, auth.branchId));
         if (!existing) {
             return NextResponse.json(
                 { error: 'Incident not found' },
@@ -118,7 +118,7 @@ export const DELETE = withRoleAuth(['SUPER_ADMIN', 'ADMIN'], async (
     try {
         const { id } = await (params as unknown as Promise<{ id: string }>);
 
-        const existing = await findIncidentForTenant(id, auth.tenantId);
+        const existing = await findIncidentForTenant(id, auth.tenantId, incidentBranchScope(auth.user.role, auth.branchId));
         if (!existing) {
             return NextResponse.json(
                 { error: 'Incident not found' },
