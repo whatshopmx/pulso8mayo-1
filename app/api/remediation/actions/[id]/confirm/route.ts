@@ -32,6 +32,8 @@ export const POST = withRoleAuth(
 
     // 1. Fetch action — acotada al tenant de sesión y, para GERENTE, a su
     // sucursal. Una acción ajena da 404, indistinguible de una inexistente.
+    // Un GERENTE sin sucursal asignada resuelve a `NONE` y no alcanza ninguna:
+    // el helper devuelve null y esto cae en el mismo 404.
     const branchScope = remediationBranchScope(auth.user.role, auth.branchId);
     const action = await findRemediationActionForTenant(id, auth.tenantId, branchScope);
 

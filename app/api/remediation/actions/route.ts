@@ -22,16 +22,21 @@ export const GET = withTenantAuth(async (req, { auth }) => {
   }
 
   // El tenant sale SIEMPRE de la sesión. GERENTE y SUPERVISOR además quedan
-  // acotados a su propia sucursal.
+  // acotados a su propia sucursal; si no tienen ninguna asignada no ven nada,
+  // en vez de caer en "sin filtro" y recibir las acciones de todo el grupo.
   const branchScope = remediationBranchScope(auth.user.role, auth.branchId);
+
+  if (branchScope.kind === "NONE") {
+    return ApiHandler.success([]);
+  }
 
   const conditions = [
     eq(remediationActions.companyId, auth.tenantId),
     inArray(remediationActions.status, statusList),
   ];
 
-  if (branchScope) {
-    conditions.push(eq(remediationActions.branchId, branchScope));
+  if (branchScope.kind === "BRANCH") {
+    conditions.push(eq(remediationActions.branchId, branchScope.branchId));
   }
 
   const actions = await db

@@ -1,20 +1,22 @@
 import { db } from '@/lib/db';
 import { remediationActions, branchComplianceServices } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { enforceBranchScope } from '@/lib/branch-scope';
+import { resolveBranchScope, type BranchScope } from '@/lib/branch-scope';
 import type { Role } from '@/lib/permissions';
 
 /**
- * Sucursal efectiva para una consulta de acciones de remediación.
+ * Alcance de sucursal para una consulta de acciones de remediación.
  *
  * GERENTE y SUPERVISOR quedan pinneados a su propia sucursal; el resto de roles
- * ve toda la empresa. Devuelve null cuando no hay que filtrar por sucursal.
+ * ve toda la empresa. Un rol de sucursal SIN sucursal asignada devuelve `NONE`,
+ * y quien consulta lo traduce a cero resultados: antes ese caso caía en el mismo
+ * `null` que "sin filtro" y le abría el grupo entero.
  */
 export function remediationBranchScope(
     role: Role,
     userBranchId: string | null | undefined
-): string | null {
-    return enforceBranchScope(role, userBranchId, null);
+): BranchScope {
+    return resolveBranchScope(role, userBranchId, null);
 }
 
 /**
@@ -29,15 +31,19 @@ export function remediationBranchScope(
 export async function findRemediationActionForTenant(
     actionId: string,
     tenantId: string,
-    branchScope: string | null = null
+    branchScope: BranchScope = { kind: 'ALL' }
 ) {
+    // Fail-closed: un rol de sucursal sin sucursal asignada no alcanza ninguna
+    // acción. Devolver null aquí lo convierte en 404, como una acción ajena.
+    if (branchScope.kind === 'NONE') return null;
+
     const conditions = [
         eq(remediationActions.id, actionId),
         eq(remediationActions.companyId, tenantId),
     ];
 
-    if (branchScope) {
-        conditions.push(eq(remediationActions.branchId, branchScope));
+    if (branchScope.kind === 'BRANCH') {
+        conditions.push(eq(remediationActions.branchId, branchScope.branchId));
     }
 
     const [action] = await db
