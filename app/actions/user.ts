@@ -8,7 +8,8 @@ import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { BRANCH_COOKIE_NAME } from "@/lib/tenant-context";
-import { isBranchScopedRole } from "@/lib/branch-scope";
+import { resolveBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 
 export async function switchBranch(branchId: string) {
   const session = await auth.api.getSession({
@@ -19,13 +20,24 @@ export async function switchBranch(branchId: string) {
     throw new Error("Unauthorized");
   }
 
-  const userRole = (session.user as any).role as string;
+  const userRole = (session.user as any).role as Role;
+  const userBranchId = ((session.user as any).branchId as string | undefined) ?? null;
 
-  if (isBranchScopedRole(userRole as any)) {
-    const userBranchId = (session.user as any).branchId as string | undefined;
-    if (userBranchId && branchId !== userBranchId) {
-      throw new Error("Access denied: you can only access your assigned branch");
-    }
+  // El guard anterior era `if (userBranchId && branchId !== userBranchId)`, así
+  // que con `userBranchId` nulo cortaba en el primer operando y se saltaba
+  // entero: un GERENTE sin sucursal asignada pasaba derecho y, cuatro líneas más
+  // abajo, esta misma acción le ESCRIBE `users.branchId`. O sea, se auto-asignaba
+  // la sucursal que quisiera del grupo. `resolveBranchScope` separa ese caso.
+  const scope = resolveBranchScope(userRole, userBranchId, branchId);
+
+  if (scope.kind === "NONE") {
+    throw new Error(
+      "Tu usuario no tiene una sucursal asignada. Pídele a un administrador que te asigne una."
+    );
+  }
+
+  if (scope.kind === "BRANCH" && scope.branchId !== branchId) {
+    throw new Error("Access denied: you can only access your assigned branch");
   }
 
   const branch = await db.query.branches.findFirst({
