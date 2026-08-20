@@ -7,6 +7,8 @@ import {
   decryptProfileRecord,
   encryptProfileRecord,
 } from "@/lib/security/employee-cipher";
+import { assertBranchAssignment } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 
 export interface EmployeeData {
   id?: string;
@@ -359,7 +361,7 @@ export class EmployeeService {
     // Start a transaction to update both user and profile
     return await db.transaction(async (tx) => {
       const [existingUser] = await tx
-        .select({ id: users.id })
+        .select({ id: users.id, role: users.role, branchId: users.branchId })
         .from(users)
         .where(and(eq(users.id, id), eq(users.companyId, companyId), isNull(users.deletedAt)))
         .limit(1);
@@ -381,6 +383,13 @@ export class EmployeeService {
       if (role !== undefined) userFields.role = role;
       if (data.branchId !== undefined) userFields.branchId = data.branchId;
       if (image !== undefined) userFields.image = image;
+
+      // Se valida el estado RESULTANTE, no el payload: subir a GERENTE sin tocar
+      // `branchId` deja al usuario sin sucursal igual que mandarla en null.
+      assertBranchAssignment(
+        (role ?? existingUser.role) as Role,
+        data.branchId !== undefined ? data.branchId : existingUser.branchId
+      );
 
       if (Object.keys(userFields).length > 0) {
         await tx.update(users)
@@ -454,6 +463,10 @@ export class EmployeeService {
 
 
   static async createEmployee(data: EmployeeUpdateData, performedBy: string) {
+    // Un rol acotado a sucursal sin sucursal asignada no puede ver nada y, antes
+    // del trabajo de fail-closed, veía el grupo entero. No se crea.
+    assertBranchAssignment((data.userRole || 'EMPLEADO') as Role, data.branchId);
+
     return await db.transaction(async (tx) => {
       // 1. Create user
       const userInsertData: Record<string, unknown> = {
