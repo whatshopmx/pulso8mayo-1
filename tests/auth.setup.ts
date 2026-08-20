@@ -9,7 +9,10 @@ import { ADMIN_EMAIL, ADMIN_PASSWORD, STORAGE_STATE } from "./support/constants"
 setup.setTimeout(300_000);
 
 setup("autenticar como admin", async ({ page }) => {
-  await page.goto("/sign-in");
+  // `navigationTimeout` global son 60 s y no alcanzan para el primer compile de
+  // /sign-in en `next dev`: el resto del test ya asume 300 s, esta llamada
+  // también tiene que hacerlo o el setup muere antes de escribir las cookies.
+  await page.goto("/sign-in", { timeout: 240_000 });
 
   await page.locator("#email").fill(ADMIN_EMAIL);
   await page.locator("#password").fill(ADMIN_PASSWORD);

@@ -76,3 +76,16 @@ export const complianceScoreChanged = eventType("compliance/score.changed", {});
 export const auditDue = eventType("audit/due", {});
 // documentExpiring already declared above (Workflow / Document lifecycle).
 
+
+// ── Extractores de workflow (AD-A2, `tasks/plan-auditoria-conteo-produccion-merma.md`) ──
+
+/**
+ * Se emite al marcar una instancia como COMPLETED. Lo consume
+ * `workflow-extractors`, que corre los 4 extractores (recepción, conteo,
+ * merma, producción) con cola, reintentos por extractor y fallo visible.
+ *
+ * Reemplaza a los `void extract*(instanceId)` que corrían después de responder:
+ * el deploy es Netlify sobre Lambda y el contenedor se congela al devolver la
+ * respuesta, así que ese trabajo terminaba de forma no determinística (O-1).
+ */
+export const workflowInstanceCompleted = eventType("workflow/instance.completed", {});

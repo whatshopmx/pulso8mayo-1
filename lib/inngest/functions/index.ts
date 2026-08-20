@@ -42,3 +42,5 @@ export { processWhatsAppMessageFn } from "./whatsapp-router";
 
 export { notificationDispatchFn } from "./notification-dispatch";
 
+
+export { workflowExtractorsFn } from "./workflow-extractors";

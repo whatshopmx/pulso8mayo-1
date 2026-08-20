@@ -5,6 +5,8 @@ import { eq, and, sql, inArray } from "drizzle-orm";
 import { STOCK_COUNT_TEMPLATE_NAME, DEFAULT_CATEGORIES } from "./stock-count-service";
 import { hasDynamicSteps, resolveDynamicSteps } from "@/lib/workflows/dynamic-steps";
 import { templateLibrary } from "@/templates";
+import { inngest } from "@/lib/inngest/client";
+import { workflowInstanceCompleted } from "@/lib/inngest/events";
 
 export type WorkflowReviewErrorCode =
     | "NOT_FOUND"
@@ -623,41 +625,32 @@ export class WorkflowExecutionService {
                 console.error(`[WorkflowExecution] Error marking smart links used for ${instanceId}:`, error);
             }
 
-            // Fase 5: al completar el template de recepción de mercancía,
-            // extrae los datos a receiving_reports (best-effort fuera del request).
-            // Debe ir DESPUÉS del update: el extractor descarta la instancia si
-            // todavía no está en COMPLETED.
+            // Extractores (recepción, conteo, merma, producción): antes se
+            // disparaban aquí como `void extract*(instanceId)`, es decir después
+            // de responder al cliente. El deploy es Netlify sobre Lambda, que
+            // CONGELA el contenedor al devolver la respuesta: esas promesas
+            // quedaban suspendidas y sólo terminaban si el mismo contenedor
+            // recibía otra invocación (O-1 — no determinístico, no "nunca").
+            //
+            // Ahora viajan por Inngest (`workflow-extractors`): cola, reintentos
+            // por extractor y el fallo visible como run fallido en vez de morir
+            // en un `console.error` (R-5). Va DESPUÉS del update porque los
+            // extractores descartan la instancia si no está en COMPLETED.
             if (instance) {
                 try {
-                    const template = await db.query.workflowTemplates.findFirst({
-                        where: eq(workflowTemplates.id, instance.workflowTemplateId),
+                    await inngest.send({
+                        name: workflowInstanceCompleted.name,
+                        // Dedupe de 24h: completar dos veces la misma instancia
+                        // no encola dos veces la extracción.
+                        id: `workflow-extractors:${instanceId}`,
+                        data: { instanceId },
                     });
-                    if (template && template.id === "tpl-recepcion-mercancia-v2") {
-                        const { extractReceivingFromInstance } = await import("./receiving-from-workflow");
-                        // Fire-and-forget: no bloquea la respuesta al cajero.
-                        void extractReceivingFromInstance(instanceId);
-                    }
-
-                    // Conteo: saca los pasos `count-{itemId}` a `stock_counts`.
-                    // Cubre los templates con pasos dinámicos genéricos, que se
-                    // completan por esta vía y no por `completeStockCount`.
-                    // El extractor se auto-descarta si no hay pasos de conteo.
-                    const { extractStockCountFromInstance } = await import("./stock-count-from-workflow");
-                    void extractStockCountFromInstance(instanceId);
-
-                    // Merma manual: los pasos `merma-*-{itemId}` van a
-                    // `inventory_waste`. El extractor se auto-descarta si la
-                    // instancia no trae pasos de merma.
-                    const { extractMermaFromInstance } = await import("./merma-from-workflow");
-                    void extractMermaFromInstance(instanceId);
-
-                    // Producción diaria: los pasos `prod-qty-{recipeId}` se
-                    // convierten en `production_results` + descuento FEFO de
-                    // lotes. Se auto-descarta si no hay pasos de producción.
-                    const { extractProductionFromInstance } = await import("./production-from-workflow");
-                    void extractProductionFromInstance(instanceId);
                 } catch (error) {
-                    console.error("[WorkflowExecution] Error scheduling receiving extraction:", error);
+                    // El instance ya quedó COMPLETED y commiteado: tumbar aquí la
+                    // petición no lo revierte, sólo le rompe el cierre al operador.
+                    // Se registra y `scripts/audit-extractores-perdidos.ts` es la
+                    // red para detectar instancias que se quedaron sin extraer.
+                    console.error(`[WorkflowExecution] No se pudo encolar la extracción de la instancia ${instanceId}:`, error);
                 }
             }
         } else {

@@ -1,8 +1,9 @@
 // lib/services/stock-count-from-workflow.ts
 //
 // Puente entre una instancia de conteo completada y la tabla `stock_counts`.
-// Mismo patrón que `receiving-from-workflow.ts`: se dispara al completar la
-// instancia, es best-effort (no bloquea al operador) e idempotente.
+// Mismo patrón que `receiving-from-workflow.ts`: no bloquea al operador —lo
+// despacha `workflow-extractors` (Inngest) al completar la instancia— y es
+// idempotente. Ya NO es best-effort: los errores se propagan (A2/R-5).
 //
 // Cubre los DOS orígenes de pasos de conteo:
 //   1. `StockCountService.generateStockCountSteps` — pasos `count-{itemId}`
@@ -132,8 +133,9 @@ async function loadCurrentStock(branchId: string, itemIds: string[]): Promise<Ma
  * completada. Idempotente por el único parcial `(workflowInstanceId, itemId)`:
  * volver a llamarla actualiza la fila en vez de duplicarla.
  *
- * Falla en silencio (log) — corre fuera del request, como el extractor de
- * recepción.
+ * Propaga el error (R-5). Ya no corre como `void` tras la respuesta sino
+ * dentro de `workflow-extractors` (Inngest), que lo reintenta y lo deja
+ * visible como run fallido.
  */
 export async function extractStockCountFromInstance(instanceId: string): Promise<void> {
   try {
@@ -263,6 +265,12 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
       `[StockCountFromWorkflow] Error persistiendo conteo de instancia ${instanceId}:`,
       error
     );
+    // R-5: el error se propaga a propósito. Antes moría aquí y la corrida
+    // quedaba indistinguible de un éxito. Ahora el llamador es
+    // `workflow-extractors` (Inngest), que lo convierte en un run FALLIDO y
+    // reintenta sólo este extractor. `completeStockCount` —el otro llamador—
+    // ya trae su propio try/catch, así que su ruta no cambia.
+    throw error;
   }
 }
 

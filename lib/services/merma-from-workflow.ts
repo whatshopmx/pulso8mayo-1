@@ -2,8 +2,9 @@
 //
 // Puente entre una instancia de merma completada y `inventory_waste` (T11,
 // `tasks/plan-conteo-produccion-merma.md` Phase 3). Mismo patrón que
-// `receiving-from-workflow.ts` / `stock-count-from-workflow.ts`: se dispara al
-// completar la instancia, es best-effort (no bloquea al operador) e idempotente.
+// `receiving-from-workflow.ts` / `stock-count-from-workflow.ts`: lo despacha
+// `workflow-extractors` (Inngest) al completar la instancia, no bloquea al
+// operador y es idempotente. Ya NO es best-effort: propaga errores (A2/R-5).
 //
 // El template de merma declara TRES pasos dinámicos sobre `inventory_item`
 // (filtro por tag `merma`), que `resolveDynamicSteps` expande a N sub-pasos
@@ -253,5 +254,11 @@ export async function extractMermaFromInstance(instanceId: string): Promise<void
     console.log(`[MermaFromWorkflow] ${rows.length} mermas persistidas para instancia ${instanceId}`);
   } catch (error) {
     console.error(`[MermaFromWorkflow] Error persistiendo merma de instancia ${instanceId}:`, error);
+    // R-5: el error se propaga a propósito. Antes moría aquí y la corrida
+    // quedaba indistinguible de un éxito. Ahora el llamador es
+    // `workflow-extractors` (Inngest), que lo convierte en un run FALLIDO y
+    // reintenta sólo este extractor. `completeStockCount` —el otro llamador—
+    // ya trae su propio try/catch, así que su ruta no cambia.
+    throw error;
   }
 }

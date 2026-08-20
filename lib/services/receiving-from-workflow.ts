@@ -157,5 +157,11 @@ export async function extractReceivingFromInstance(instanceId: string): Promise<
     );
   } catch (error) {
     console.error(`[ReceivingFromWorkflow] Error procesando recepción para instancia ${instanceId}:`, error);
+    // R-5: el error se propaga a propósito. Antes moría aquí y la corrida
+    // quedaba indistinguible de un éxito. Ahora el llamador es
+    // `workflow-extractors` (Inngest), que lo convierte en un run FALLIDO y
+    // reintenta sólo este extractor. `completeStockCount` —el otro llamador—
+    // ya trae su propio try/catch, así que su ruta no cambia.
+    throw error;
   }
 }

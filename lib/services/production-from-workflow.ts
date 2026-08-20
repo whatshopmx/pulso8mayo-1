@@ -2,8 +2,9 @@
 //
 // Puente entre una instancia de producción diaria completada y el motor de
 // producción (T15, `tasks/plan-conteo-produccion-merma.md` Phase 4). Mismo
-// patrón que `receiving-from-workflow.ts`: best-effort, idempotente, no
-// bloquea al operador.
+// patrón que `receiving-from-workflow.ts`: idempotente y sin bloquear al
+// operador, despachado por `workflow-extractors` (Inngest). Ya NO es
+// best-effort: propaga errores (A2/R-5).
 //
 // El template declara un paso dinámico `prod-qty` sobre `entity: 'recipe'`
 // (filtro por tag `receta_activa`); `resolveDynamicSteps` lo expande a N
@@ -296,5 +297,11 @@ export async function extractProductionFromInstance(instanceId: string): Promise
     console.log(`[ProductionFromWorkflow] Producción persistida para instancia ${instanceId}`);
   } catch (error) {
     console.error(`[ProductionFromWorkflow] Error persistiendo producción de instancia ${instanceId}:`, error);
+    // R-5: el error se propaga a propósito. Antes moría aquí y la corrida
+    // quedaba indistinguible de un éxito. Ahora el llamador es
+    // `workflow-extractors` (Inngest), que lo convierte en un run FALLIDO y
+    // reintenta sólo este extractor. `completeStockCount` —el otro llamador—
+    // ya trae su propio try/catch, así que su ruta no cambia.
+    throw error;
   }
 }

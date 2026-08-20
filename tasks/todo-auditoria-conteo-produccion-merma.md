@@ -43,20 +43,58 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
   - Archivo dejado en el repo: `scripts/audit-extractores-perdidos.ts` (lo necesitará cualquier
     revisión futura de instancias sin extraer)
 
-- [ ] **A2 — Extractores a Inngest** (A1 confirmó O-1: procede) · M · deps: A1
-  - [ ] Evento `workflow/instance.completed` en `lib/inngest/events.ts`
-  - [ ] `lib/inngest/functions/workflow-extractors.ts` — un `step.run` por extractor
-  - [ ] Registrar en `lib/inngest/functions/index.ts`
-  - [ ] `workflow-execution-service.ts`: los 4 `void import()` → un `inngest.send`
-  - [ ] Verificar que un extractor que lanza no impide los otros tres
-  - [ ] Verificar: `INNGEST_DEV=1 pnpm run dev` + `npx inngest-cli@latest dev -u http://localhost:3000/api/inngest`
+- [x] **A2 — Extractores a Inngest** (A1 confirmó O-1: procede) · M · deps: A1
+  - [x] Evento `workflow/instance.completed` en `lib/inngest/events.ts`
+  - [x] `lib/inngest/functions/workflow-extractors.ts` — un `step.run` por extractor
+  - [x] Registrar en `lib/inngest/functions/index.ts`
+  - [x] `workflow-execution-service.ts`: los 4 `void import()` → un `inngest.send`
+        (con `id: workflow-extractors:{instanceId}` → dedupe de 24 h, y try/catch:
+        el instance ya está COMPLETED y commiteado, tumbar la petición no lo revierte)
+  - [x] **R-5 cerrado de paso:** los cuatro `*-from-workflow.ts` ya no se tragan el
+        error en su `catch` terminal — lo relanzan. Sin eso ningún `step.run` fallaría
+        nunca y la corrida siempre se vería verde. El otro llamador
+        (`stock-count-service.ts:353`) ya traía su propio try/catch, así que su ruta
+        no cambia.
+  - [x] Verificar que un extractor que lanza no impide los otros tres
+        **Método: inyección de falla.** `throw new Error("FAULT INJECTION")` temporal
+        dentro del `try` de `extractStockCountFromInstance` (el 2.º de 4), evento
+        enviado al dev server, y revertido después. La señal que discrimina es el
+        mensaje de error final del run:
+        - aislamiento OK → `Extractores fallidos para la instancia …: stock-count`
+          (mi `NonRetriableError` terminal, sólo alcanzable si el loop recorrió los 4)
+        - aislamiento roto → el `FAULT INJECTION` crudo saldría del run
+        **Resultado real:** run `Failed` con el mensaje del `NonRetriableError` y sólo
+        `stock-count` en la lista → receiving, merma y production sí corrieron. R-5
+        confirmado en el mismo experimento: la corrida queda visiblemente FALLIDA.
+  - [x] Verificar: `INNGEST_DEV=1 pnpm run dev` + `npx inngest-cli@latest dev -u http://localhost:3000/api/inngest`
+        App `pulso29` sincronizada, 39 funciones, `workflow-extractors` entre ellas.
+        Baseline con una instancia real que no es de ninguno de los 4 tipos → run
+        `Completed` (los extractores se auto-descartan, como se esperaba).
+  - ℹ️ **Semántica confirmada en vivo:** el `catch` alrededor de `await step.run(...)`
+        **no** se dispara en los intentos intermedios — Inngest reintenta el paso
+        (4 intentos con `retries: 3`) y sólo entrega el error al código de usuario
+        cuando los agota. Es exactamente el comportamiento que el diseño asume.
+  - ⚠️ **Para A11:** `createChildLogger` usa pino con transport `pino-pretty` en
+        development, que escribe desde un worker thread; su salida **no** apareció en
+        el stdout del dev server durante esta prueba. A11 tiene que verificar que el
+        log realmente se vea, no sólo que se llame.
 
 ### ✅ Checkpoint 0 — resuelto, ya no bloquea
 - [x] **Decisión humana tomada (2026-08-20):** O-1 confirmada, pero sin usuarios reales el daño
       histórico es cero. No hay datos faltantes que reprocesar → **OQ-A3 y AD-A7 quedan sin objeto**
       y el checkpoint deja de ser bloqueante.
-- [ ] `pnpm run build` limpio (tras A2)
-- [ ] Los 6 specs de la feature siguen verdes (tras A2)
+- [x] `pnpm run build` limpio (tras A2) — exit 0
+      ⚠️ En esta máquina el build fallaba con `Failed to fetch \`Geist\`` de Google Fonts.
+      **No era mi cambio ni falta de red:** hay interceptación TLS local y Turbopack usa
+      su propio almacén de certificados mientras `curl` usa el del sistema. Con
+      `NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS=1` compila limpio.
+- [x] Los 6 specs de la feature siguen verdes (tras A2) — **13 passed (3.7m)**
+      Contra `next start` (no `next dev`) y con el dev server de Inngest arriba, que es
+      quien ejecuta la extracción. Los specs ya usaban `expect.poll` con 30 s, así que
+      toleraron el salto a asíncrono sin tocarlos.
+      🔧 `tests/auth.setup.ts` sí necesitó un arreglo: su `page.goto("/sign-in")` heredaba
+      el `navigationTimeout: 60_000` del config aunque el resto del archivo ya asumía
+      300 s, y el setup moría antes de escribir las cookies.
 
 ## Phase 1 — La fecha operativa
 
