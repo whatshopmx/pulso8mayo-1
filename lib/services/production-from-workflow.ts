@@ -48,10 +48,37 @@ interface LeafRequirement {
   unit: string | null;
 }
 
-/** Expande una receta en sus insumos hoja, recursando sub-recetas. */
+/**
+ * Expande una receta en sus insumos hoja, recursando sub-recetas.
+ *
+ * A6/O-3 — qué guarda el cache. Antes guardaba las hojas ya multiplicadas por
+ * el `quantityNeeded` de la primera expansión, con `recipeId` como única clave:
+ * dos recetas que compartieran una sub-receta con cantidades distintas hacían
+ * que la segunda recibiera las de la primera y el inventario se descontaba mal.
+ *
+ * Ahora el cache guarda las hojas **por una unidad de `baseYield`** y el escalado
+ * ocurre al leer. Así la entrada no depende de quién la pidió primero y
+ * `expandRecipeLeaves(r, n)` es siempre `n × leavesPerUnit(r)`.
+ *
+ * `yieldPercent` se sigue aplicando UNA sola vez por nivel, dentro de
+ * `leavesPerUnit`: es un factor propio de la línea de receta, no de la cantidad,
+ * así que escalar después no lo altera.
+ */
 async function expandRecipeLeaves(
   recipeId: string,
   quantityNeeded: number,
+  cache: Map<string, LeafRequirement[]>
+): Promise<LeafRequirement[]> {
+  const perUnit = await leavesPerUnit(recipeId, cache);
+  return perUnit.map((leaf) => ({ ...leaf, quantity: leaf.quantity * quantityNeeded }));
+}
+
+/**
+ * Hojas necesarias para producir **una unidad** de la receta (`baseYield`
+ * dividido ya aplicado). Es lo único que se cachea.
+ */
+async function leavesPerUnit(
+  recipeId: string,
   cache: Map<string, LeafRequirement[]>
 ): Promise<LeafRequirement[]> {
   const cached = cache.get(recipeId);
@@ -64,7 +91,6 @@ async function expandRecipeLeaves(
   if (!recipe) return [];
 
   const baseYield = parseFloat(recipe.baseYield) || 1;
-  const scale = quantityNeeded / baseYield;
 
   const items = await db
     .select({
@@ -79,7 +105,8 @@ async function expandRecipeLeaves(
 
   const leaves: LeafRequirement[] = [];
   for (const item of items) {
-    const qty = parseFloat(String(item.quantity)) * scale;
+    // Cantidad de esta línea para UNA unidad de la receta.
+    const qty = parseFloat(String(item.quantity)) / baseYield;
 
     if (item.isSubRecipe) {
       leaves.push(...(await expandRecipeLeaves(item.itemId, qty, cache)));

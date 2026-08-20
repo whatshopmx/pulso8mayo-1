@@ -177,10 +177,22 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
         (`production_ingredients.actual_quantity` es `integer`) no se mezcle con lo que
         mide este spec.
 
-- [ ] **A6 — Cachear hojas sin escalar** · S · deps: A5
-  - [ ] Cache por unidad de `baseYield`; escalar al leer, no al guardar
-  - [ ] A5 verde; `produccion-diaria` / `consumo-fefo` / `lote-insuficiente` siguen verdes
-  - [ ] `yieldPercent` sigue aplicándose una sola vez por nivel
+- [x] **A6 — Cachear hojas sin escalar** · S · deps: A5
+  - [x] Cache por unidad de `baseYield`; escalar al leer, no al guardar
+        `expandRecipeLeaves` queda como envoltura de una nueva `leavesPerUnit`, que es
+        lo único que se cachea. `expandRecipeLeaves(r, n)` es siempre
+        `n × leavesPerUnit(r)`, así que la entrada no depende de quién la pidió primero.
+  - [x] A5 verde; `produccion-diaria` / `consumo-fefo` / `lote-insuficiente` siguen verdes
+        **5 passed (1.3m)** contra `next start` · `npx tsc --noEmit` exit 0 ·
+        `pnpm run build` exit 0
+  - [x] `yieldPercent` sigue aplicándose una sola vez por nivel
+        Vive dentro de `leavesPerUnit`: es un factor de la línea de receta, no de la
+        cantidad, así que multiplicar después no lo altera.
+  - ℹ️ **La aritmética es idéntica**, sólo cambia dónde se aplica la escala:
+        antes `quantity × quantityNeeded / baseYield` de una vez; ahora
+        `quantity / baseYield` al cachear y `× quantityNeeded` al leer. Para las
+        sub-recetas los factores se componen igual. Por eso los tres specs previos no
+        se movieron.
   - Archivo: `lib/services/production-from-workflow.ts`
 
 - [ ] **A7 — Evaluar el daño ya causado en `production_ingredients`** · S · deps: ninguna
