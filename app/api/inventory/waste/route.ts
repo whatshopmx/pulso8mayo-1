@@ -13,7 +13,7 @@ import { AuditService } from "@/lib/services/audit-service";
 import { withTenantAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
-import { enforceBranchScope } from "@/lib/branch-scope";
+import { enforceBranchScope, resolveBranchScope } from "@/lib/branch-scope";
 import { formatQty } from "@/lib/utils";
 
 type WasteReason = (typeof inventoryWasteReasonEnum.enumValues)[number];
@@ -54,11 +54,21 @@ export const GET = withTenantAuth(async (req: NextRequest, { auth }) => {
     throw ApiError.notFound("Sucursal no encontrada");
   }
 
-  const effectiveBranchId = enforceBranchScope(
+  const alcance = resolveBranchScope(
     auth.user.role as never,
     auth.user.branchId,
     requestedBranchId
   );
+
+  // Un rol de sucursal SIN sucursal asignada no ve las mermas del grupo: antes
+  // ese caso caía en el mismo `null` que "todas" y se saltaba el filtro. El POST
+  // de esta misma ruta ya cerraba por su cuenta (línea ~159); esto arregla solo
+  // la lectura.
+  if (alcance.kind === "NONE") {
+    return ApiHandler.success({ waste: [] });
+  }
+
+  const effectiveBranchId = alcance.kind === "BRANCH" ? alcance.branchId : null;
 
   const conditions = [eq(inventoryWaste.companyId, auth.tenantId)];
   if (effectiveBranchId) {
