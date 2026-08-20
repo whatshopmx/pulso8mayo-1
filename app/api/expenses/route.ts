@@ -5,7 +5,7 @@ import { branches } from "@/lib/db/schema";
 import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
-import { enforceBranchScope } from "@/lib/branch-scope";
+import { enforceBranchScope, resolveBranchScope } from "@/lib/branch-scope";
 import {
   createOperatingExpense,
   getOperatingExpenses,
@@ -65,11 +65,24 @@ export const GET = withRoleAuth([...ROLES_FINANZAS], async (req, { auth }) => {
   const { searchParams } = new URL(req.url);
 
   // El `branchId` del query no llega al servicio sin pasar por aquí.
-  const effectiveBranchId = enforceBranchScope(
+  const alcance = resolveBranchScope(
     auth.user.role as never,
     auth.branchId,
     searchParams.get("branchId")
   );
+
+  // Un rol de sucursal SIN sucursal asignada devuelve cero, no el libro del
+  // grupo. `kind` lo declara para que la pantalla distinga "no hay gastos" de
+  // "tu usuario no tiene sucursal": antes ambos casos eran `branchId: null`.
+  if (alcance.kind === "NONE") {
+    return ApiHandler.success({
+      items: [],
+      scope: { branchId: null, branchName: null, kind: "NONE" as const },
+      truncated: false,
+    });
+  }
+
+  const effectiveBranchId = alcance.kind === "BRANCH" ? alcance.branchId : null;
 
   const [{ items, truncated }, branchName] = await Promise.all([
     getOperatingExpenses(auth.tenantId, effectiveBranchId ?? undefined),
@@ -78,7 +91,7 @@ export const GET = withRoleAuth([...ROLES_FINANZAS], async (req, { auth }) => {
 
   return ApiHandler.success({
     items,
-    scope: { branchId: effectiveBranchId, branchName },
+    scope: { branchId: effectiveBranchId, branchName, kind: alcance.kind },
     truncated,
   });
 });

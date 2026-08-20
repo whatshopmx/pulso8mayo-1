@@ -2,8 +2,9 @@ import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
 import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
+import { ApiError } from "@/lib/api/error";
 import { getCashFlowProjection } from "@/lib/services/cash-flow-service";
-import { enforceBranchScope } from "@/lib/branch-scope";
+import { resolveBranchScope } from "@/lib/branch-scope";
 
 /**
  * GET /api/finance/cash-flow
@@ -29,11 +30,24 @@ export async function GET(req: NextRequest) {
     // cambiaba a "Polanco" veía las cifras del grupo entero etiquetadas como esa
     // sucursal, y actuaba sobre ellas. `enforceBranchScope` además fija a
     // GERENTE y SUPERVISOR a la suya aunque pidan otra.
-    const effectiveBranchId = enforceBranchScope(
+    const alcance = resolveBranchScope(
       ctx.userRole,
       ctx.userBranchId,
       searchParams.get("branchId")
     );
+
+    // Aquí NO devolvemos una proyección vacía, a diferencia de la lista de
+    // gastos. Una proyección en ceros no se lee como "no hay datos": se
+    // renderiza como "Saldo mínimo $0" y "Te alcanza para 0 días", que son
+    // afirmaciones sobre el dinero de alguien y serían falsas. Con el usuario
+    // mal configurado, la respuesta honesta es decirlo.
+    if (alcance.kind === "NONE") {
+      throw ApiError.forbidden(
+        "Tu usuario no tiene una sucursal asignada. Pídele a un administrador que te asigne una para ver el flujo de efectivo."
+      );
+    }
+
+    const effectiveBranchId = alcance.kind === "BRANCH" ? alcance.branchId : null;
 
     const projection = await getCashFlowProjection(
       ctx.userCompanyId,
