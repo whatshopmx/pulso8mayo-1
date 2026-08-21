@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     if (!tenant.id) {
       throw ApiError.badRequest("No hay una empresa seleccionada.");
     }
-    await requireAuth();
+    const { user } = await requireAuth();
 
     const body = await req.json();
     const data = runPayrollSchema.parse(body);
@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
     const result = await executePayrollRun(
       tenant.id,
       data.startDate,
-      data.endDate
+      data.endDate,
+      user.id
     );
 
     return ApiHandler.success(result);

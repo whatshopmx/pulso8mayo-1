@@ -12,7 +12,9 @@ const timbrarSchema = z.object({
   periodo: z.string().min(1, "El período de nómina es requerido (ej: 2025-01)."),
   totalPercepciones: z.number().int().positive("Las percepciones deben ser positivas."),
   totalDeducciones: z.number().int().min(0, "Las deducciones no pueden ser negativas."),
-  uuid: z.string().optional(),
+  // `uuid` ya no se acepta del cliente: un folio fiscal lo asigna el SAT a
+  // través del PAC, no quien llama a la API. Aceptarlo permitía sembrar el
+  // comprobante con un folio arbitrario (AD-A5).
 });
 
 /**
@@ -27,7 +29,7 @@ const timbrarSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   try {
-    const { decision } = await requirePermissionApi("reports", "manage", {
+    const { ctx, decision } = await requirePermissionApi("reports", "manage", {
       classification: "FINANCIAL",
       audit: { action: "APPROVE", req },
     });
@@ -35,7 +37,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = timbrarSchema.parse(body);
 
-    const result = await timbrarNomina(data);
+    // `companyId` y `performedBy` salen de la sesión, como todo lo demás: el
+    // comprobante se guarda a nombre de quien de verdad lo pidió.
+    const result = await timbrarNomina({
+      ...data,
+      companyId: ctx.userCompanyId,
+      performedBy: ctx.userId,
+    });
     return ApiHandler.success(maskSensitive(result, decision));
   } catch (error) {
     return ApiHandler.error(error);

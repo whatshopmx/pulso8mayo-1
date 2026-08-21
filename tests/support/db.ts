@@ -173,6 +173,58 @@ export async function setUserBranchId(
   return (previas[0].branch_id as string | null) ?? null;
 }
 
+/** La fila de timbrado de un período, leída de la base y no del servicio. */
+export async function findTimbrado(
+  companyId: string,
+  empleadoRfc: string,
+  periodo: string
+): Promise<{
+  id: string;
+  uuid: string | null;
+  status: string;
+  selloDigital: string | null;
+  fechaTimbrado: Date | null;
+  timbradoPor: string | null;
+} | null> {
+  const rows = await sql`
+    SELECT id, uuid, status, sello_digital, fecha_timbrado, timbrado_por
+    FROM cfdi_nomina_timbrados
+    WHERE company_id = ${companyId}
+      AND empleado_rfc = ${empleadoRfc}
+      AND periodo = ${periodo}
+    LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  return {
+    id: rows[0].id as string,
+    uuid: (rows[0].uuid as string | null) ?? null,
+    status: rows[0].status as string,
+    selloDigital: (rows[0].sello_digital as string | null) ?? null,
+    fechaTimbrado: (rows[0].fecha_timbrado as Date | null) ?? null,
+    timbradoPor: (rows[0].timbrado_por as string | null) ?? null,
+  };
+}
+
+/** Cuántas filas de timbrado hay para un período. Un folio, una fila. */
+export async function countTimbrados(
+  companyId: string,
+  empleadoRfc: string,
+  periodo: string
+): Promise<number> {
+  const rows = await sql`
+    SELECT COUNT(*)::int AS n FROM cfdi_nomina_timbrados
+    WHERE company_id = ${companyId}
+      AND empleado_rfc = ${empleadoRfc}
+      AND periodo = ${periodo}
+  `;
+  return rows[0]?.n ?? 0;
+}
+
+/** Limpia los timbrados creados por los tests (RFCs con el prefijo `E2E`). */
+export async function deleteTestTimbrados(): Promise<void> {
+  await sql`DELETE FROM cfdi_nomina_timbrados WHERE empleado_rfc LIKE 'E2E%'`;
+}
+
 /** El `id` de un usuario sembrado, para actuar en su nombre desde un servicio. */
 export async function findUserIdByEmail(email: string): Promise<string> {
   const rows = await sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`;

@@ -141,7 +141,7 @@ A13..A21 ─── independientes, pulido
 
 ### Fase 2 — El timbrado deja rastro
 - [x] **A6a** Tabla `cfdi_nomina_timbrados` con índice único por `(company, rfc, periodo)`
-- [ ] **A6b** `timbrarNomina` recibe `companyId`, persiste, es idempotente y mapea el status real
+- [x] **A6b** `timbrarNomina` recibe `companyId`, persiste, es idempotente y mapea el status real
 - [ ] **A6c** La pantalla fiscal lee el status real y recupera el último timbrado del período
 
 ### Checkpoint: Fiscal

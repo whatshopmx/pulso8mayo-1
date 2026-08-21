@@ -300,23 +300,49 @@ el spec cubren la baja y la reapertura (**10 passed**).
   juntos porque un `DROP DEFAULT` suelto habría chocado con la numeración de esta migración.
   `petty-cash-lectura-pura` sigue en verde (11/11) después del cambio.
 
-- [ ] **A6b: El servicio persiste, es idempotente y dice el status real**
+- [x] **A6b: El servicio persiste, es idempotente y dice el status real**
   - **Description:** `timbrarNomina` recibe `companyId` y `performedBy`. Antes de llamar al PAC busca
     un timbrado existente para `(company, rfc, periodo)` y lo devuelve si existe. Después de timbrar,
     escribe la fila; el índice único es la red si dos peticiones corren a la vez. El `status` se mapea
     de la respuesta del PAC en vez de afirmarse. `uuid` sale del schema de entrada de la ruta.
   - **Acceptance criteria:**
-    - [ ] Dos llamadas al mismo `(company, rfc, periodo)` devuelven el mismo UUID y consumen un solo folio.
-    - [ ] La respuesta del PAC decide el `status`; un rechazo no se guarda como `TIMBRADO`.
-    - [ ] `payroll-service.ts` compila con la firma nueva y sigue guardando su payslip.
-    - [ ] El body de la ruta ya no acepta `uuid`.
+    - [x] Dos llamadas al mismo `(company, rfc, periodo)` devuelven el mismo UUID y consumen un solo folio.
+    - [x] La respuesta del PAC decide el `status`; un rechazo no se guarda como `TIMBRADO`.
+    - [x] `payroll-service.ts` compila con la firma nueva y sigue guardando su payslip.
+    - [x] El body de la ruta ya no acepta `uuid`.
   - **Verification:**
-    - [ ] Spec nuevo `tests/timbrado-idempotente.spec.ts` con el PAC mockeado, contando llamadas salientes.
-    - [ ] `pnpm exec playwright test --no-deps --project=chromium tests/timbrado-idempotente.spec.ts`
-    - [ ] `pnpm build` limpio (el call site de nómina lo señala el compilador).
+    - [x] Spec nuevo `tests/timbrado-idempotente.spec.ts` con el PAC mockeado, contando llamadas salientes.
+    - [x] `pnpm exec playwright test --no-deps --project=chromium tests/timbrado-idempotente.spec.ts` — **6 passed**
+    - [x] `pnpm build` limpio (el call site de nómina lo señaló el compilador, como preveía el riesgo del plan).
   - **Dependencies:** A6a
   - **Files:** `lib/services/fiscal-service.ts`, `app/api/finance/fiscal/timbrar-nomina/route.ts`, `lib/services/payroll-service.ts`, `tests/timbrado-idempotente.spec.ts`
   - **Scope:** M
+
+  **Cómo quedó.** `timbrarNomina` recibe `companyId` y `performedBy`, busca la fila del
+  período antes de llamar al PAC y **sólo corta si está en `TIMBRADO`**. Un intento que quedó
+  en `RECHAZADO` o `PENDIENTE` sí se reintenta y actualiza su fila
+  (`onConflictDoUpdate` sobre el índice único), que es la razón de que el índice sea por
+  período y no por folio.
+
+  El `setWhere` del upsert es `status <> 'TIMBRADO'`: si dos peticiones corren a la vez y una
+  ya dejó el período timbrado, la otra **no la pisa** con su propio intento — se quedaría el
+  comprobante equivocado en la fila. Cuando ese `setWhere` bloquea el `UPDATE` no hay
+  `RETURNING`, así que el perdedor relee la fila ganadora y devuelve esa.
+
+  **El mapeo de status no adivina.** `mapPacStatus` traduce lo que el PAC reporta; si el PAC
+  no manda `status` —el contrato no lo promete— la regla es pedir evidencia: un folio **con
+  sello** es un timbre, y cualquier otra cosa queda `PENDIENTE`. Nunca `TIMBRADO` por
+  omisión, que es justo lo que hacía la versión anterior. Un HTTP no-ok se guarda como
+  `RECHAZADO` con el cuerpo del error antes de relanzar: sin esa fila, el siguiente intento
+  repite la petición a ciegas y nadie sabe qué contestó el PAC.
+
+  `uuid` salió del schema de entrada y del cuerpo que se manda al PAC: un folio fiscal lo
+  asigna el SAT, no quien llama a la API.
+
+  **Nota de método:** a diferencia de A3/A4/A5, aquí no hubo corrida en rojo previa — el spec
+  y la implementación aterrizaron juntos, porque los seis casos dependen de una tabla que no
+  existía hasta A6a y de una firma que no compilaba. Los casos siguen siendo significativos
+  (cuentan llamadas salientes al PAC), pero no se observó el rojo.
 
 - [ ] **A6c: La pantalla fiscal deja de afirmar el timbrado**
   - **Description:** El badge lee `timbradoResult.status` en vez de pintar "TIMBRADO" fijo, y la

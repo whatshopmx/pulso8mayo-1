@@ -49,7 +49,13 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
   };
 }
 
-export async function executePayrollRun(companyId: string, startDate: string, endDate: string) {
+export async function executePayrollRun(
+  companyId: string,
+  startDate: string,
+  endDate: string,
+  /** Quién corrió la nómina. Viaja al timbrado, que ahora deja constancia. */
+  performedBy?: string
+) {
   // 1. Create a payroll run
   const [run] = await db.insert(payrollRuns).values({
     companyId,
@@ -88,6 +94,8 @@ export async function executePayrollRun(companyId: string, startDate: string, en
       // Timbrar nómina
       // El periodo en fiscal API suele ser "2025-01" o texto. Usaremos startDate
       const timbrado = await timbrarNomina({
+        companyId,
+        performedBy,
         empleadoRfc: emp.rfc,
         empleadoNombre: emp.name || "Sin Nombre",
         empleadoCurp: emp.curp || "",
