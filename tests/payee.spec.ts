@@ -1,5 +1,10 @@
-import { test, expect } from "@playwright/test";
-import { E2E_TAG } from "./support/constants";
+import { test, expect, type Browser, type BrowserContext } from "@playwright/test";
+import {
+  ADMIN_PASSWORD,
+  E2E_TAG,
+  EMPLEADO_EMAIL,
+  GERENTE_EMAIL,
+} from "./support/constants";
 import {
   deleteTestExpenses,
   deleteTestPayees,
@@ -79,6 +84,15 @@ test.describe("Fase 1 · contrapartes (payees)", () => {
     // la sucursal de la sesión, así que se cambia a "Todas" para ver la fila.
     await page.getByRole("button", { name: /Sucursal:/ }).click();
     await page.getByRole("menuitem", { name: "Todas" }).click();
+
+    // Y también el estatus: la pantalla abre en la cola de pendientes, pero sin
+    // reglas de autorización sembradas el aprobador exigido cae a OWNER y un
+    // SUPER_ADMIN lo satisface, así que este gasto nace **auto-aprobado** y no
+    // está en esa cola. El test venía fallando por esto desde que la pantalla
+    // dejó de abrir en "todos los estatus".
+    await page.getByLabel("Filtrar por estatus").click();
+    await page.getByRole("option", { name: "Todos los estatus" }).click();
+
     await expect(page.getByRole("columnheader", { name: "Contraparte" })).toBeVisible();
     await expect(page.getByRole("cell", { name: nombrePayee })).toBeVisible();
 
@@ -169,5 +183,97 @@ test.describe("Fase 1 · contrapartes (payees)", () => {
 
     const trasBaja = await findPayeeByName(nombrePayee);
     expect(trasBaja.active).toBe(false);
+  });
+});
+/**
+ * Auditoría A13 — las contrapartes exigen rol, no sólo sesión.
+ *
+ * `/api/finance/payees` y su `[id]` eran de las últimas rutas del módulo en
+ * `lib/tenant-context.ts` con `requireTenant`/`requireAuth` a secas: autentican,
+ * pero no miran el rol. La pantalla `/dashboard/finance/payees` sí estaba
+ * cerrada, así que la fuga era la misma que A2 encontró en Ventas — un `fetch`
+ * desde la consola no pasa por el camino del navegador.
+ *
+ * Un EMPLEADO podía dar de alta **a quién se le paga** y dar de baja
+ * contrapartes existentes, además de leerse el catálogo completo de proveedores
+ * de la empresa.
+ */
+test.describe("A13 · contrapartes exigen rol de finanzas", () => {
+  const estados = new Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>();
+
+  test.beforeAll(async ({ browser }) => {
+    // Una sesión por rol y reintento sobre 429: better-auth limita
+    // `/sign-in/email` a 3 intentos cada 10 s, y sólo en modo producción — que
+    // es como se verifica esto. Mismo patrón que `ventas-rbac`.
+    for (const email of [EMPLEADO_EMAIL, GERENTE_EMAIL]) {
+      const contexto = await browser.newContext({ storageState: undefined });
+      try {
+        let login = await contexto.request.post("/api/auth/sign-in/email", {
+          data: { email, password: ADMIN_PASSWORD },
+        });
+        for (let intento = 0; intento < 3 && login.status() === 429; intento++) {
+          await new Promise((r) => setTimeout(r, 11_000));
+          login = await contexto.request.post("/api/auth/sign-in/email", {
+            data: { email, password: ADMIN_PASSWORD },
+          });
+        }
+        expect(login.ok(), `no se pudo iniciar sesión como ${email} (HTTP ${login.status()})`).toBe(
+          true
+        );
+        estados.set(email, await contexto.storageState());
+      } finally {
+        await contexto.close();
+      }
+    }
+  });
+
+  async function sesionDe(browser: Browser, email: string) {
+    return await browser.newContext({ storageState: estados.get(email) });
+  }
+
+  test("un EMPLEADO no da de alta una contraparte", async ({ browser }) => {
+    const ctx = await sesionDe(browser, EMPLEADO_EMAIL);
+    try {
+      const res = await ctx.request.post("/api/finance/payees", {
+        data: { name: `${E2E_TAG} contraparte no autorizada` },
+      });
+      expect(res.status(), "un EMPLEADO dio de alta un beneficiario de pago").toBe(403);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("un EMPLEADO tampoco lee el catálogo de contrapartes", async ({ browser }) => {
+    const ctx = await sesionDe(browser, EMPLEADO_EMAIL);
+    try {
+      const res = await ctx.request.get("/api/finance/payees");
+      expect(res.status(), "la API le entregó el catálogo de proveedores a un EMPLEADO").toBe(403);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("un EMPLEADO no da de baja una contraparte", async ({ browser }) => {
+    const ctx = await sesionDe(browser, EMPLEADO_EMAIL);
+    try {
+      // El id no importa: el rol se revisa antes de mirar el cuerpo.
+      const res = await ctx.request.delete(
+        "/api/finance/payees/b9999999-0000-4000-8000-999999999999"
+      );
+      expect(res.status()).toBe(403);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("un GERENTE conserva el acceso a las contrapartes", async ({ browser }) => {
+    // El otro lado del cambio: cerrar de más deja sin trabajar a quien registra
+    // los gastos de su sucursal.
+    const ctx = await sesionDe(browser, GERENTE_EMAIL);
+    try {
+      expect((await ctx.request.get("/api/finance/payees")).status()).toBe(200);
+    } finally {
+      await ctx.close();
+    }
   });
 });

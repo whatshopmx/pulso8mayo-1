@@ -526,45 +526,72 @@ el spec cubren la baja y la reapertura (**10 passed**).
 
 ## Fase 4 — Controles y consistencia
 
-- [ ] **A13: Contrapartes y plantillas POS exigen rol**
+- [x] **A13: Contrapartes y plantillas POS exigen rol**
   - **Description:** `POST`/`DELETE /api/finance/payees` y `PUT`/`DELETE
     /api/sales/mapping-templates/[id]` pasan a `withRoleAuth` con la lista de Finanzas. Son las
     últimas rutas del módulo en `lib/tenant-context.ts` sin guarda de rol.
   - **Acceptance criteria:**
-    - [ ] Un EMPLEADO recibe 403 al crear o dar de baja una contraparte.
-    - [ ] Un EMPLEADO recibe 403 al borrar o editar una plantilla POS.
-    - [ ] Los roles de finanzas conservan el comportamiento actual.
+    - [x] Un EMPLEADO recibe 403 al crear, leer o dar de baja una contraparte.
+    - [x] Un EMPLEADO recibe 403 al borrar o editar una plantilla POS.
+    - [x] Los roles de finanzas conservan el comportamiento actual (casos de GERENTE en ambos specs).
   - **Verification:**
-    - [ ] Casos nuevos en `tests/payee.spec.ts` y `tests/ventas-rbac.spec.ts`.
+    - [x] Casos nuevos en `tests/payee.spec.ts` (4) y `tests/ventas-rbac.spec.ts` (3).
   - **Dependencies:** A2 (comparte el spec de ventas)
   - **Files:** `app/api/finance/payees/route.ts`, `app/api/finance/payees/[id]/route.ts`, `app/api/sales/mapping-templates/[id]/route.ts`, `tests/payee.spec.ts`
   - **Scope:** S
 
-- [ ] **A14: `isDefault` en transacción**
+- [x] **A14: `isDefault` en transacción**
   - **Description:** El `PUT` limpia `isDefault` de todas las plantillas y después actualiza la
     objetivo. Sin transacción, un fallo en el segundo paso deja a la empresa sin plantilla default y
     rompe la autodetección de archivos POS.
   - **Acceptance criteria:**
-    - [ ] Un `PUT` con id inexistente no deja a la empresa sin default.
-    - [ ] Marcar una plantilla como default sigue desmarcando exactamente a las demás.
+    - [x] Un `PUT` con id inexistente no deja a la empresa sin default.
+    - [x] Marcar una plantilla como default sigue desmarcando exactamente a las demás.
   - **Verification:**
-    - [ ] Caso nuevo en `tests/ventas-rbac.spec.ts` o spec propio: `PUT` con id inválido y verificar que el default sobrevive.
+    - [x] Dos casos en `tests/ventas-rbac.spec.ts` (describe `A13/A14`).
   - **Dependencies:** None
   - **Files:** `app/api/sales/mapping-templates/[id]/route.ts`
   - **Scope:** XS
 
-- [ ] **A15: El corte duplicado por carrera devuelve 409**
+- [x] **A15: El corte duplicado por carrera devuelve 409**
   - **Description:** El pre-`SELECT` da un 409 con mensaje en español, pero dos envíos simultáneos lo
     pasan los dos y el segundo choca contra `daily_sales_cut_unique` como 500 crudo. Se usa
     `onConflictDoNothing().returning()` y se traduce el resultado vacío al mismo 409.
   - **Acceptance criteria:**
-    - [ ] Dos `POST` concurrentes del mismo corte: uno crea, el otro recibe 409 con el mensaje legible.
-    - [ ] Ninguno de los dos produce un 500.
+    - [x] Dos `POST` concurrentes: uno crea, el otro recibe 409 con el mensaje legible.
+    - [x] Ninguno de los dos produce un 500.
   - **Verification:**
-    - [ ] Spec nuevo siguiendo el patrón de `tests/extractor-idempotente.spec.ts` (`Promise.all` de dos escrituras).
+    - [x] Spec nuevo `tests/corte-duplicado.spec.ts`, **2 passed**.
   - **Dependencies:** None
   - **Files:** `app/api/sales/cuts/route.ts`, `tests/corte-duplicado.spec.ts`
   - **Scope:** S
+
+  **Cómo quedó (A13/A14/A15).** A13 resultó ser una fuga de **A2 a medias**: A2 cerró
+  `/dashboard/sales/mapping` y la ruta de colección, pero `PUT`/`DELETE` de
+  `mapping-templates/[id]` seguía abierta — un EMPLEADO no podía *crear* una plantilla y sí
+  podía **editar o borrar la que ya existía**, que es la que decide cómo se ingesta la venta.
+  En contrapartes se cerró también el `GET`: sus dos únicos consumidores (la pantalla de
+  Contrapartes y el formulario de gasto) viven bajo `/dashboard/finance`, que admite
+  exactamente esos cuatro roles, así que nadie legítimo se queda fuera y deja de exponerse el
+  catálogo completo de proveedores.
+
+  A14 iba en el mismo `PUT`, así que se hizo junto: los dos pasos entran en `db.transaction`
+  y el `throw` de "no encontrada" ocurre **dentro**, de modo que deshace el `isDefault` que ya
+  se había limpiado. Antes, un id inexistente dejaba a la empresa sin ninguna plantilla
+  default y con eso muere la autodetección de archivos POS.
+
+  A15 usa `onConflictDoNothing` sobre las cinco columnas de `daily_sales_cut_unique` y
+  traduce el resultado vacío al mismo 409 legible que da el pre-`SELECT`. El pre-`SELECT` se
+  queda: no había que sustituirlo, sólo cubrir su ventana.
+
+  **Dos cosas que aparecieron de paso.** (1) `deleteTestBranch` no borraba los cortes de la
+  sucursal, y `deleteTestSalesCuts()` sólo ve los que llevan la etiqueta en
+  `validation_notes` — que un spec que escribe **por la API** no controla. La limpieza
+  chocaba contra la llave foránea. Es la misma clase de bug que ya se había corregido en
+  `cleanupForeignTenant` durante A3. (2) `tests/payee.spec.ts` tenía un **rojo preexistente**,
+  anterior a esta sesión: la pantalla abre en la cola de pendientes desde otro plan, y sin
+  reglas de autorización sembradas un gasto creado por SUPER_ADMIN nace auto-aprobado, así que
+  su fila no estaba en esa cola. Se le añadió el cambio de filtro al test.
 
 - [ ] **A16: La UI refleja la política real de auto-aprobación**
   - **Description:** `createOperatingExpense` auto-aprueba cuando el rol basta para la regla, y

@@ -1,8 +1,9 @@
-import { NextRequest } from "next/server";
-import { requireAuth, requireTenant } from "@/lib/tenant-context";
+import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
-import { ApiError } from "@/lib/api/error";
 import { deactivatePayee } from "@/lib/services/payee-service";
+
+/** Ver la justificación completa en `app/api/finance/payees/route.ts`. */
+const ROLES_FINANZAS = ["SUPER_ADMIN", "ADMIN", "GERENTE", "SUPERVISOR"] as const;
 
 /**
  * DELETE /api/finance/payees/[id] — baja lógica de una contraparte.
@@ -10,21 +11,20 @@ import { deactivatePayee } from "@/lib/services/payee-service";
  * `active = false`: el catálogo deja de ofrecerla, pero los gastos históricos
  * que la referencian conservan el nombre congelado. No se borra nada.
  */
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
+export const DELETE = withRoleAuth(
+  [...ROLES_FINANZAS],
+  async (_req, { params, auth }) => {
+    try {
+      const { id } = await params;
+      const payee = await deactivatePayee(
+        auth.tenantId,
+        id,
+        auth.user.id,
+        auth.branchId ?? null
+      );
+      return ApiHandler.success(payee);
+    } catch (error) {
+      return ApiHandler.error(error);
     }
-    const { user } = await requireAuth();
-
-    const { id } = await params;
-    const payee = await deactivatePayee(tenant.id, id, user.id, tenant.branchId ?? null);
-    return ApiHandler.success(payee);
-  } catch (error) {
-    return ApiHandler.error(error);
   }
-}
+);

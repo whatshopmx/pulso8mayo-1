@@ -165,9 +165,9 @@ A13..A21 ─── independientes, pulido
 - [x] Al crear un gasto pendiente, el aprobador recibe la notificación
 
 ### Fase 4 — Controles y consistencia
-- [ ] **A13** Contrapartes y plantillas POS exigen rol para escribir y borrar
-- [ ] **A14** Marcar una plantilla como default corre en transacción
-- [ ] **A15** El corte duplicado por carrera devuelve el 409 que ya existe, no un 500 de Postgres
+- [x] **A13** Contrapartes y plantillas POS exigen rol para escribir y borrar
+- [x] **A14** Marcar una plantilla como default corre en transacción
+- [x] **A15** El corte duplicado por carrera devuelve el 409 que ya existe, no un 500 de Postgres
 - [ ] **A16** La UI de Gastos refleja la política real de auto-aprobación
 
 ### Fase 5 — Rendimiento y pulido

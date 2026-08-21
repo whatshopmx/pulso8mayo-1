@@ -1,10 +1,16 @@
 import { test, expect, type Browser, type BrowserContext } from "@playwright/test";
 import {
   ADMIN_PASSWORD,
+  COMPANY_ID,
   EMPLEADO_EMAIL,
   GERENTE_EMAIL,
   READONLY_EMAIL,
 } from "./support/constants";
+import {
+  countDefaultMappingTemplates,
+  deleteTestMappingTemplates,
+  seedMappingTemplate,
+} from "./support/db";
 
 /**
  * Auditoría A2 — quién entra al módulo de Ventas.
@@ -194,5 +200,110 @@ test.describe("A2 · RBAC del módulo de Ventas", () => {
     } finally {
       await contexto.close();
     }
+  });
+});
+
+/**
+ * Auditoría A13 + A14 — la plantilla que decide cómo se cuenta la venta.
+ *
+ * A2 cerró `/dashboard/sales/mapping` y la ruta de colección, pero
+ * `PUT`/`DELETE /api/sales/mapping-templates/[id]` **se quedó abierta**: un
+ * EMPLEADO no podía crear una plantilla y sí podía editar o borrar la que ya
+ * existía. Es la superficie más apalancada del módulo — no lees el dinero,
+ * defines cómo se cuenta.
+ *
+ * A14 es el otro defecto del mismo `PUT`: marcar como default hacía dos
+ * escrituras sueltas —limpiar el `isDefault` de todas, luego poner el de la
+ * objetivo— así que un id inexistente dejaba a la empresa **sin ninguna
+ * plantilla default**, y con eso muere la autodetección de archivos POS.
+ */
+test.describe("A13/A14 · plantillas POS: rol y transacción", () => {
+  let plantillaId = "";
+
+  test.beforeEach(async () => {
+    await deleteTestMappingTemplates();
+    plantillaId = await seedMappingTemplate({
+      companyId: COMPANY_ID,
+      nombre: `plantilla default ${Date.now()}`,
+      isDefault: true,
+    });
+  });
+
+  test.afterEach(async () => {
+    await deleteTestMappingTemplates();
+  });
+
+  test("un EMPLEADO no edita una plantilla existente", async ({ browser }) => {
+    const contexto = await sesionDe(browser, EMPLEADO_EMAIL);
+    try {
+      const res = await contexto.request.put(`/api/sales/mapping-templates/${plantillaId}`, {
+        data: { name: "[E2E] secuestrada" },
+      });
+      expect(res.status(), "un EMPLEADO alteró cómo se ingesta la venta").toBe(403);
+    } finally {
+      await contexto.close();
+    }
+  });
+
+  test("un EMPLEADO tampoco borra una plantilla", async ({ browser }) => {
+    const contexto = await sesionDe(browser, EMPLEADO_EMAIL);
+    try {
+      const res = await contexto.request.delete(
+        `/api/sales/mapping-templates/${plantillaId}`
+      );
+      expect(res.status()).toBe(403);
+    } finally {
+      await contexto.close();
+    }
+  });
+
+  test("un GERENTE sí edita la plantilla", async ({ browser }) => {
+    const contexto = await sesionDe(browser, GERENTE_EMAIL);
+    try {
+      const res = await contexto.request.put(`/api/sales/mapping-templates/${plantillaId}`, {
+        data: { posSystem: "Soft Restaurant" },
+      });
+      expect(res.ok(), await res.text()).toBe(true);
+    } finally {
+      await contexto.close();
+    }
+  });
+
+  test("un PUT con id inexistente no deja a la empresa sin plantilla default", async ({
+    request,
+  }) => {
+    expect(await countDefaultMappingTemplates(COMPANY_ID)).toBeGreaterThan(0);
+
+    const res = await request.put(
+      "/api/sales/mapping-templates/b9999999-0000-4000-8000-999999999999",
+      { data: { isDefault: true } }
+    );
+    expect(res.status(), "esperaba 404 por la plantilla inexistente").toBe(404);
+
+    // Lo que A14 protege: el primer UPDATE limpiaba el default de TODAS y el
+    // `throw` salía con ese borrado ya comprometido.
+    expect(
+      await countDefaultMappingTemplates(COMPANY_ID),
+      "la empresa quedó sin plantilla default: la autodetección de POS deja de funcionar"
+    ).toBeGreaterThan(0);
+  });
+
+  test("marcar una plantilla como default sigue desmarcando a las demás", async ({
+    request,
+  }) => {
+    const segunda = await seedMappingTemplate({
+      companyId: COMPANY_ID,
+      nombre: `segunda plantilla ${Date.now()}`,
+    });
+
+    const res = await request.put(`/api/sales/mapping-templates/${segunda}`, {
+      data: { isDefault: true },
+    });
+    expect(res.ok(), await res.text()).toBe(true);
+
+    expect(
+      await countDefaultMappingTemplates(COMPANY_ID),
+      "quedó más de una plantilla default"
+    ).toBe(1);
   });
 });

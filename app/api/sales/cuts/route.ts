@@ -229,6 +229,10 @@ export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
       );
     }
 
+    // `onConflictDoNothing` en vez de confiar en el pre-SELECT (A15): dos envíos
+    // simultáneos —un doble clic basta— lo pasaban los dos, y el segundo chocaba
+    // contra `daily_sales_cut_unique` como un 500 crudo de Postgres. El índice
+    // es la guarda real; el pre-SELECT sólo da un mensaje más temprano.
     const [inserted] = await db
       .insert(dailySalesCuts)
       .values({
@@ -262,7 +266,25 @@ export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
         validationNotes,
         receivedBy: auth.user.id,
       })
+      .onConflictDoNothing({
+        target: [
+          dailySalesCuts.companyId,
+          dailySalesCuts.branchId,
+          dailySalesCuts.businessDate,
+          dailySalesCuts.shift,
+          dailySalesCuts.channel,
+        ],
+      })
       .returning();
+
+    if (!inserted) {
+      // Perdió la carrera: el otro envío ya lo escribió. Se responde el mismo
+      // 409 legible que da el pre-SELECT, no un error de base de datos.
+      throw new ApiError(
+        `Ya existe un corte (${data.channel}) para esta sucursal el ${data.businessDate} en turno ${data.shift}.`,
+        409
+      );
+    }
 
     // El arqueo con diferencia deja de morir en una celda roja: emite evento y
     // avisa a dirección y gerencia. Fire-and-forget — el corte ya está guardado

@@ -258,6 +258,39 @@ export async function deleteTestTimbrados(): Promise<void> {
   await sql`DELETE FROM cfdi_nomina_timbrados WHERE empleado_rfc LIKE 'E2E%'`;
 }
 
+/** Siembra una plantilla de mapeo POS. `[E2E]` en el nombre para poder limpiarla. */
+export async function seedMappingTemplate(opts: {
+  companyId: string;
+  nombre: string;
+  isDefault?: boolean;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO pos_mapping_templates (company_id, name, mapping, is_default)
+    VALUES (
+      ${opts.companyId},
+      ${`${E2E_TAG} ${opts.nombre}`},
+      ${JSON.stringify({ totalSales: "Total" })}::jsonb,
+      ${opts.isDefault ?? false}
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Cuántas plantillas de la empresa están marcadas como default. */
+export async function countDefaultMappingTemplates(companyId: string): Promise<number> {
+  const rows = await sql`
+    SELECT COUNT(*)::int AS n FROM pos_mapping_templates
+    WHERE company_id = ${companyId} AND is_default = true
+  `;
+  return rows[0]?.n ?? 0;
+}
+
+/** Borra las plantillas de mapeo creadas por los tests. */
+export async function deleteTestMappingTemplates(): Promise<void> {
+  await sql`DELETE FROM pos_mapping_templates WHERE name LIKE ${`${E2E_TAG}%`}`;
+}
+
 /** Avisos in-app de un usuario, los más recientes primero. */
 export async function findNotificationsForUser(
   userId: string
@@ -1949,7 +1982,7 @@ export async function seedTestBranch(companyId: string, label: string): Promise<
   return row.id as string;
 }
 
-/** Borra la sucursal de prueba junto con su fondo y sus movimientos. */
+/** Borra la sucursal de prueba junto con su fondo, sus movimientos y sus cortes. */
 export async function deleteTestBranch(branchId: string): Promise<void> {
   const funds = await sql`SELECT id FROM petty_cash_funds WHERE branch_id = ${branchId}`;
   const fundIds = funds.map((r: any) => r.id as string);
@@ -1957,6 +1990,11 @@ export async function deleteTestBranch(branchId: string): Promise<void> {
     await sql`DELETE FROM petty_cash_transactions WHERE fund_id = ANY(${fundIds})`;
     await sql`DELETE FROM petty_cash_funds WHERE id = ANY(${fundIds})`;
   }
+  // Los cortes se borran por `branch_id` y no por la etiqueta `[E2E]`: un spec
+  // que los crea **por la API** no controla `validation_notes`, así que
+  // `deleteTestSalesCuts()` no los ve y el DELETE de la sucursal choca contra
+  // `daily_sales_cuts_branch_id_branches_id_fk`.
+  await sql`DELETE FROM daily_sales_cuts WHERE branch_id = ${branchId}`;
   await sql`DELETE FROM branches WHERE id = ${branchId}`;
 }
 
