@@ -24,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield, ImagePlus, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/hooks/use-session";
-import { roleIsAtLeast } from "@/lib/permissions";
+import { denyExpenseResolution } from "@/lib/expenses/approval-policy";
 import { useBranches } from "@/hooks/use-branches";
 import { useBranch } from "@/lib/branch-context";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
@@ -248,16 +248,35 @@ function ExpensesContent() {
   const renderApproveAction = (item: ExpenseItem) => {
     const requiredRole = item.requiredApproverRole || "OWNER";
     // Afordancia de UX únicamente; la autorización real se aplica en
-    // expense-service.ts. Se usa el mismo helper para que no puedan divergir.
-    // Rechazar exige la misma autoridad que aprobar.
-    const canResolve =
-      roleIsAtLeast(currentUserRole, requiredRole) && item.requestedBy !== currentUserId;
+    // expense-service.ts — que desde A16 evalúa **esta misma función**, no una
+    // copia parecida. Antes la pantalla escondía el botón de aprobar lo propio
+    // mientras el servidor lo permitía (y hasta auto-aprobaba al crear); ahora
+    // las dos derivan de `denyExpenseResolution`. Rechazar exige lo mismo que
+    // aprobar: sacar un gasto de la cola es resolverlo.
+    const denegado = denyExpenseResolution({
+      actorRole: currentUserRole,
+      actorId: currentUserId,
+      requiredApproverRole: requiredRole,
+      requestedBy: item.requestedBy,
+    });
 
-    if (!canResolve) {
+    // Los dos motivos se dicen distinto. Con un solo mensaje, a quien registró
+    // el gasto se le contestaba "Requiere OWNER" —que suena a que le falta
+    // rango— cuando lo que pasa es que nadie firma lo suyo.
+    if (denegado === "ROLE") {
       return (
         <span className="text-muted-foreground/60 text-xs flex flex-col items-center gap-0.5">
           <Shield className="w-3 h-3" />
           <span>Requiere {ROLE_LABELS[requiredRole] || requiredRole}</span>
+        </span>
+      );
+    }
+
+    if (denegado === "SELF") {
+      return (
+        <span className="text-muted-foreground/60 text-xs flex flex-col items-center gap-0.5">
+          <Shield className="w-3 h-3" />
+          <span>Lo registraste tú</span>
         </span>
       );
     }

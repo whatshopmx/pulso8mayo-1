@@ -122,8 +122,9 @@ export async function findUserBranchId(email: string): Promise<string> {
  * que quiera probar la frontera de *sucursal* necesita antes que el rol alcance;
  * si no, el gasto se deniega por el motivo equivocado y el caso no prueba nada.
  *
- * `minAmount: 0` deja además fuera el carve-out de auto-aprobación
- * (`expense-service.ts:162` sólo bloquea la firma propia cuando `minAmount > 0`).
+ * El umbral ya no cambia quién puede firmar: desde A16 la auto-resolución está
+ * prohibida en todos los tramos (`lib/expenses/approval-policy.ts`). El
+ * `minAmount` sólo decide qué regla aplica a qué monto.
  */
 export async function seedExpenseAuthorizationRule(opts: {
   companyId: string;

@@ -15,6 +15,7 @@ import { roleIsAtLeast, type Role } from "@/lib/permissions";
 import { getPayeeForCompany } from "./payee-service";
 import { ApiError } from "@/lib/api/error";
 import { isBranchScopedRole, type BranchScope } from "@/lib/branch-scope";
+import { denyExpenseResolution } from "@/lib/expenses/approval-policy";
 
 /**
  * ¿Puede este alcance resolver un gasto de esta sucursal?
@@ -56,7 +57,6 @@ export interface CreateExpenseInput {
   /** Contraparte (payee) a la que se le paga. Opcional: los gastos casuales no la tienen. */
   payeeId?: string;
   requestedBy: string;
-  userRole?: string;
 }
 
 /**
@@ -96,11 +96,16 @@ async function findAuthorizationRule(companyId: string, amountCents: number) {
  * `approveOperatingExpense`). Los roles acotados a sucursal se filtran por la
  * del gasto — desde A4 no pueden aprobar la de otra, así que avisarles sería
  * ruido que además invita a intentar algo que va a dar 403.
+ *
+ * Por el mismo motivo se excluye a `requestedBy`: desde A16 quien registra un
+ * gasto no lo resuelve, y un aviso de "pendiente de tu aprobación" que lleva a
+ * una fila sin botón sólo enseña a ignorar los avisos.
  */
 async function findApprovers(
   companyId: string,
   branchId: string,
-  requiredRole: string
+  requiredRole: string,
+  requestedBy: string
 ): Promise<Array<{ id: string; role: string }>> {
   const candidatos = await db
     .select({ id: users.id, role: users.role, branchId: users.branchId })
@@ -110,6 +115,7 @@ async function findApprovers(
   return candidatos
     .filter((u) => u.role && roleIsAtLeast(u.role, requiredRole))
     .filter((u) => !isBranchScopedRole(u.role as Role) || u.branchId === branchId)
+    .filter((u) => u.id !== requestedBy)
     .map((u) => ({ id: u.id, role: u.role as string }));
 }
 
@@ -130,16 +136,14 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
   const rule = await findAuthorizationRule(input.companyId, input.amountCents);
   const requiredApproverRole = rule?.approverRole ?? "OWNER"; // default to OWNER if no rule
 
-  let initialStatus: "APPROVED" | "PENDING_APPROVAL" = "PENDING_APPROVAL";
-  let approvedBy: string | null = null;
-  let approvalNotes: string | null = null;
-
-  // Auto-approve if the requesting user's role is sufficient per the authorization rule
-  if (input.userRole && roleIsAtLeast(input.userRole, requiredApproverRole)) {
-    initialStatus = "APPROVED";
-    approvedBy = input.requestedBy;
-    approvalNotes = `Auto-aprobado según regla: rol ${input.userRole} ≥ ${requiredApproverRole} para montos hasta $${((rule?.maxAmount ?? Infinity) / 100).toLocaleString("es-MX")} MXN.`;
-  }
+  // A16 — **Todo gasto nace pendiente.** Antes se auto-aprobaba aquí cuando el
+  // rol de quien registraba alcanzaba el exigido por la regla, y quedaba escrito
+  // en `approvalNotes`. Eso vacíaba la segregación de funciones que la pantalla
+  // afirmaba tener: el dueño que captura su propia renta la aprobaba con el
+  // mismo clic, sin que nadie más la mirara. Decidido con David (2026-08-21):
+  // gana la segregación. Quien registra no resuelve — la regla vive en
+  // `lib/expenses/approval-policy.ts` y la comparte la UI.
+  const initialStatus = "PENDING_APPROVAL" as const;
 
   const [expense] = await db
     .insert(operatingExpenses)
@@ -154,62 +158,61 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
       payeeId: input.payeeId || null,
       status: initialStatus,
       requestedBy: input.requestedBy,
-      approvedBy,
-      approvalNotes,
       dueDate: input.dueDate || null,
     })
     .returning();
 
-  // If pending approval, notify the required approvers
-  if (initialStatus === "PENDING_APPROVAL") {
-    try {
-      const aprobadores = await findApprovers(
-        input.companyId,
-        input.branchId,
-        requiredApproverRole
-      );
+  // Notificar a quienes pueden resolverlo. Ya no hay rama alterna: desde A16
+  // todo gasto entra a la cola, así que este aviso es el único camino por el
+  // que alguien se entera.
+  try {
+    const aprobadores = await findApprovers(
+      input.companyId,
+      input.branchId,
+      requiredApproverRole,
+      input.requestedBy
+    );
 
-      if (aprobadores.length === 0) {
-        // Sin nadie que pueda aprobarlo, el gasto queda en una cola que no
-        // tiene dueño. Se dice en voz alta en vez de fallar en silencio, que
-        // es exactamente como este hueco pasó desapercibido.
-        console.warn(
-          `[Expense Service] Gasto ${expense.id} quedó PENDING_APPROVAL y no hay ningún usuario ` +
-            `con rol >= ${requiredApproverRole} en la empresa ${input.companyId}` +
-            ` (sucursal ${input.branchId}). Nadie recibirá la notificación.`
-        );
-      }
-
-      await NotificationDispatcher.sendBatchNotifications(
-        aprobadores.map((aprobador) => ({
-          userId: aprobador.id,
-          title: "📑 Gasto Pendiente de Aprobación",
-          message: `Nuevo gasto de ${input.category} por $${(input.amountCents / 100).toLocaleString("es-MX")} MXN requiere aprobación de ${requiredApproverRole}.`,
-          type: "info" as const,
-          // Plantilla propia, no la de turnos: `shift_approval_request` habla de
-          // "Solicitud de Aprobación de Turno" y pide `{employeeName}` /
-          // `{approvalType}`, que un gasto no tiene — el aviso llegaba con el
-          // encabezado equivocado y los marcadores sin sustituir.
-          eventType: "expense_approval_request" as const,
-          // El despachador arma título y mensaje desde la plantilla, así que las
-          // variables viajan aquí; `title`/`message` de arriba sólo aplican si
-          // alguien manda por el camino directo.
-          metadata: {
-            categoria: input.category,
-            monto: `$${(input.amountCents / 100).toLocaleString("es-MX")} MXN`,
-            concepto: input.description,
-            rolRequerido: requiredApproverRole,
-          },
-          // `?focus=`, no `?id=`: es el parámetro que la pantalla de Gastos
-          // sabe resaltar. Con `?id=` el enlace llevaba a la lista sin señalar
-          // cuál de las filas era la del aviso.
-          actionUrl: `/dashboard/finance/expenses?focus=${expense.id}`,
-          actionLabel: "Revisar Gasto",
-        }))
+    if (aprobadores.length === 0) {
+      // Sin nadie que pueda aprobarlo, el gasto queda en una cola que no
+      // tiene dueño. Se dice en voz alta en vez de fallar en silencio, que
+      // es exactamente como este hueco pasó desapercibido.
+      console.warn(
+        `[Expense Service] Gasto ${expense.id} quedó PENDING_APPROVAL y no hay ningún usuario ` +
+          `distinto de quien lo registró con rol >= ${requiredApproverRole} en la empresa ` +
+          `${input.companyId} (sucursal ${input.branchId}). Nadie recibirá la notificación.`
       );
-    } catch (err) {
-      console.warn("[Expense Service] Approval notification warning:", err);
     }
+
+    await NotificationDispatcher.sendBatchNotifications(
+      aprobadores.map((aprobador) => ({
+        userId: aprobador.id,
+        title: "📑 Gasto Pendiente de Aprobación",
+        message: `Nuevo gasto de ${input.category} por $${(input.amountCents / 100).toLocaleString("es-MX")} MXN requiere aprobación de ${requiredApproverRole}.`,
+        type: "info" as const,
+        // Plantilla propia, no la de turnos: `shift_approval_request` habla de
+        // "Solicitud de Aprobación de Turno" y pide `{employeeName}` /
+        // `{approvalType}`, que un gasto no tiene — el aviso llegaba con el
+        // encabezado equivocado y los marcadores sin sustituir.
+        eventType: "expense_approval_request" as const,
+        // El despachador arma título y mensaje desde la plantilla, así que las
+        // variables viajan aquí; `title`/`message` de arriba sólo aplican si
+        // alguien manda por el camino directo.
+        metadata: {
+          categoria: input.category,
+          monto: `$${(input.amountCents / 100).toLocaleString("es-MX")} MXN`,
+          concepto: input.description,
+          rolRequerido: requiredApproverRole,
+        },
+        // `?focus=`, no `?id=`: es el parámetro que la pantalla de Gastos
+        // sabe resaltar. Con `?id=` el enlace llevaba a la lista sin señalar
+        // cuál de las filas era la del aviso.
+        actionUrl: `/dashboard/finance/expenses?focus=${expense.id}`,
+        actionLabel: "Revisar Gasto",
+      }))
+    );
+  } catch (err) {
+    console.warn("[Expense Service] Approval notification warning:", err);
   }
 
   return expense;
@@ -249,20 +252,29 @@ export async function approveOperatingExpense(
     );
   }
 
-  // Verify the approver has the required role per authorization rules
+  // A16 — La misma regla que evalúa la pantalla (`lib/expenses/approval-policy.ts`).
+  // El carve-out anterior sólo prohibía la auto-aprobación cuando la regla tenía
+  // umbral (`minAmount > 0`), así que el tramo más bajo —donde vive la mayoría de
+  // los gastos— se firmaba solo. La segregación de funciones no admite tramos.
   const rule = await findAuthorizationRule(companyId, expense.amount);
   const requiredRole = rule?.approverRole ?? "OWNER";
 
-  if (!roleIsAtLeast(approverRole, requiredRole)) {
-    throw new Error(
+  const denegado = denyExpenseResolution({
+    actorRole: approverRole,
+    actorId: approverId,
+    requiredApproverRole: requiredRole,
+    requestedBy: expense.requestedBy,
+  });
+
+  if (denegado === "ROLE") {
+    throw ApiError.forbidden(
       `No tienes el nivel de autorización necesario. Este gasto requiere aprobación de ${requiredRole} (tu rol: ${approverRole}).`
     );
   }
 
-  // Prevent self-approval for amounts above the lowest threshold
-  if (expense.requestedBy === approverId && rule && rule.minAmount > 0) {
-    throw new Error(
-      "Segregación de funciones: la misma persona no puede crear y aprobar un gasto que requiere autorización."
+  if (denegado === "SELF") {
+    throw ApiError.forbidden(
+      "Segregación de funciones: quien registra un gasto no puede aprobarlo. Pídeselo a alguien más."
     );
   }
 
@@ -349,12 +361,29 @@ export async function rejectOperatingExpense(
     );
   }
 
+  // Rechazar pasa por la misma regla que aprobar, incluida la auto-resolución:
+  // la pantalla esconde los dos botones con la misma condición, y hasta A16 el
+  // servidor no comprobaba nada aquí — quien registraba un gasto podía cerrarlo
+  // como rechazado y sacarlo de la cola sin que ningún aprobador lo viera.
   const rule = await findAuthorizationRule(companyId, expense.amount);
   const requiredRole = rule?.approverRole ?? "OWNER";
 
-  if (!roleIsAtLeast(approverRole, requiredRole)) {
-    throw new Error(
+  const denegado = denyExpenseResolution({
+    actorRole: approverRole,
+    actorId: approverId,
+    requiredApproverRole: requiredRole,
+    requestedBy: expense.requestedBy,
+  });
+
+  if (denegado === "ROLE") {
+    throw ApiError.forbidden(
       `No tienes el nivel de autorización necesario. Este gasto requiere resolución de ${requiredRole} (tu rol: ${approverRole}).`
+    );
+  }
+
+  if (denegado === "SELF") {
+    throw ApiError.forbidden(
+      "Segregación de funciones: quien registra un gasto no puede rechazarlo. Pídeselo a alguien más."
     );
   }
 

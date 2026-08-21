@@ -593,19 +593,51 @@ el spec cubren la baja y la reapertura (**10 passed**).
   reglas de autorización sembradas un gasto creado por SUPER_ADMIN nace auto-aprobado, así que
   su fila no estaba en esa cola. Se le añadió el cambio de filtro al test.
 
-- [ ] **A16: La UI refleja la política real de auto-aprobación**
+- [x] **A16: La UI refleja la política real de auto-aprobación**
   - **Description:** `createOperatingExpense` auto-aprueba cuando el rol basta para la regla, y
     `approveOperatingExpense` solo bloquea la auto-resolución cuando hay umbral (`minAmount > 0`). La
     UI, en cambio, esconde el botón para el propio gasto siempre. Se alinea la UI con la política
     real, o se cambia la política — **decisión de producto, ver Open Questions del plan**.
   - **Acceptance criteria:**
-    - [ ] La condición de la UI y la del servicio se derivan de la misma regla.
-    - [ ] El comentario de `renderApproveAction` describe lo que el código hace.
+    - [x] La condición de la UI y la del servicio se derivan de la misma regla.
+    - [x] El comentario de `renderApproveAction` describe lo que el código hace.
   - **Verification:**
-    - [ ] Casos nuevos en `tests/gastos-autorizaciones.spec.ts` para gasto con umbral y sin umbral.
+    - [x] Casos nuevos en `tests/gastos-autorizaciones.spec.ts` para gasto con umbral y sin umbral.
   - **Dependencies:** A4 (mismo servicio). **Bloqueada por decisión de producto.**
   - **Files:** `app/dashboard/finance/expenses/page.tsx`, `lib/services/expense-service.ts`, `tests/gastos-autorizaciones.spec.ts`
   - **Scope:** S
+  - **Cómo quedó:** **Decidido con David (2026-08-21): gana la segregación de funciones.** De las
+    tres opciones (que ganara el servidor, que ganara la UI, o un umbral que auto-aprobara lo chico)
+    se eligió la que el sistema ya afirmaba tener. Consecuencias:
+    (1) La regla vive en **`lib/expenses/approval-policy.ts`**, un módulo puro sin `db` ni schema
+    para que el servicio y el componente cliente la importen **los dos** en vez de mantener copias.
+    Devuelve un motivo (`"ROLE" | "SELF" | null`), no un booleano: la pantalla contestaba
+    "Requiere OWNER" a quien registró el gasto, que se lee como falta de rango cuando lo que pasa es
+    que nadie firma lo suyo. Ahora dice "Lo registraste tú".
+    (2) `createOperatingExpense` **ya no auto-aprueba**: `initialStatus` es constante y `userRole`
+    salió de `CreateExpenseInput` (y del call site en `app/api/expenses/route.ts`) porque ya no
+    decide nada. Con él se fue la rama de `approvalNotes` que escribía "Auto-aprobado según regla".
+    (3) El carve-out `minAmount > 0` de `approveOperatingExpense` desapareció — dejaba pasar
+    justamente el tramo bajo, donde vive la mayoría de los gastos de una sucursal.
+    (4) **`rejectOperatingExpense` no comprobaba nada.** No estaba en el hallazgo: quien registraba
+    un gasto podía cerrarlo como rechazado y sacarlo de la cola sin que ningún aprobador lo viera.
+    Ahora pasa por la misma regla, que es lo que la UI ya suponía al esconder los dos botones juntos.
+    (5) Los dos `throw new Error` de autoridad pasaron a `ApiError.forbidden`: caían a 500 donde el
+    caso es 403, y `assertScopeCoversBranch` ya devolvía 403 al lado.
+    (6) **`findApprovers` excluye a `requestedBy`.** Es consecuencia directa: avisarle "pendiente de
+    tu aprobación" a quien ya no puede aprobarlo lleva a una fila sin botón y enseña a ignorar los
+    avisos. Mismo criterio que A12 usó para los roles de otra sucursal. El `console.warn` de "nadie
+    recibirá la notificación" ahora también cubre el caso de que el único con rol sea quien lo pidió.
+    (7) Código muerto que se llevó por delante: la rama `status === "APPROVED"` del toast de
+    `expense-form.tsx` ("El gasto ha sido auto-aprobado exitosamente"), inalcanzable desde (2).
+  - **Specs:** 6 casos nuevos en `gastos-autorizaciones` (A16 · segregación de funciones) — nace
+    pendiente con y sin umbral, quien registra no aprueba ni rechaza lo suyo en ninguno de los dos
+    tramos, y otra persona sí resuelve. En `gasto-notifica-aprobador`, el caso "un gasto
+    auto-aprobado no genera aviso" describía conducta que dejó de existir: se reemplazó por "quien
+    registra el gasto no se avisa a sí mismo", que es el invariante que sí quedó. **9 passed.**
+  - **Comentarios corregidos porque quedaron mintiendo:** `tests/support/db.ts` (el `minAmount: 0`
+    ya no esquiva ningún carve-out) y `tests/payee.spec.ts` (el gasto ya no nace auto-aprobado; el
+    cambio de filtro sigue siendo necesario por otra razón).
 
 ---
 

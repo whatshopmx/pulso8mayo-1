@@ -127,7 +127,6 @@ export const POST = withRoleAuth([...ROLES_FINANZAS], async (req, { auth }) => {
     evidenceUrl: data.evidenceUrl || undefined,
     payeeId: data.payeeId || undefined,
     requestedBy: auth.user.id,
-    userRole: auth.user.role,
   });
 
   return ApiHandler.success(expense);

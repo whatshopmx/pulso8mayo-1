@@ -161,12 +161,12 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
         throw new Error(data.error?.message || data.error || "Error al registrar gasto.");
       }
 
+      // A16 — la rama "auto-aprobado" era código muerto desde que el servicio
+      // dejó de aprobar al crear: todo gasto entra a la cola y lo resuelve
+      // alguien distinto de quien lo registró.
       toast({
         title: "Gasto Registrado",
-        description:
-          data.data.status === "APPROVED"
-            ? "El gasto ha sido auto-aprobado exitosamente."
-            : "El gasto se ha registrado y requiere aprobación de gerencia.",
+        description: "El gasto se ha registrado y requiere aprobación de gerencia.",
       });
 
       setAmount("");

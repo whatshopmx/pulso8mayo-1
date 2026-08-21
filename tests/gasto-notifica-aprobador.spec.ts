@@ -68,8 +68,6 @@ test.describe("A12 · el gasto pendiente le llega a quien puede aprobarlo", () =
       amountCents: 1_500_00,
       description: `${E2E_TAG} gasto que debe avisar ${Date.now()}`,
       requestedBy: USER_SUPER_ADMIN,
-      // Rol insuficiente para auto-aprobar: así nace PENDING_APPROVAL.
-      userRole: "EMPLEADO",
     });
 
     const despues = await findNotificationsForUser(gerenteId);
@@ -103,15 +101,17 @@ test.describe("A12 · el gasto pendiente le llega a quien puede aprobarlo", () =
       amountCents: 1_500_00,
       description: `${E2E_TAG} gasto de otra sucursal ${Date.now()}`,
       requestedBy: USER_SUPER_ADMIN,
-      userRole: "EMPLEADO",
     });
 
     expect(await findNotificationsForUser(gerenteId)).toHaveLength(antes.length);
   });
 
-  test("un gasto auto-aprobado no genera aviso de pendiente", async () => {
-    // Si el rol del solicitante ya alcanza, el gasto nace APPROVED y no hay
-    // nada que autorizar: avisar sería inventar una cola.
+  test("quien registra el gasto no se avisa a sí mismo", async () => {
+    // Este caso reemplaza al de "gasto auto-aprobado": desde A16 ningún gasto
+    // nace APPROVED. Lo que sí cambió es a quién se le avisa — el GERENTE de
+    // Condesa tiene rol suficiente y es la sucursal correcta, pero si es él
+    // quien lo registra ya no puede resolverlo, y un aviso de "pendiente de tu
+    // aprobación" que lleva a una fila sin botón sólo enseña a ignorar avisos.
     const antes = await findNotificationsForUser(gerenteId);
 
     await createOperatingExpense({
@@ -119,9 +119,8 @@ test.describe("A12 · el gasto pendiente le llega a quien puede aprobarlo", () =
       branchId: BRANCH_CONDESA,
       category: "SERVICIOS",
       amountCents: 1_500_00,
-      description: `${E2E_TAG} gasto auto-aprobado ${Date.now()}`,
-      requestedBy: USER_SUPER_ADMIN,
-      userRole: "SUPER_ADMIN",
+      description: `${E2E_TAG} gasto registrado por el propio gerente ${Date.now()}`,
+      requestedBy: gerenteId,
     });
 
     expect(await findNotificationsForUser(gerenteId)).toHaveLength(antes.length);

@@ -37,6 +37,13 @@ Al leer los servicios a fondo para dimensionar el trabajo, tres cosas cambiaron:
 El conteo final queda en **4 críticos, 7 altos, 10 medios, 6 menores** — el hallazgo nuevo ocupa el
 lugar que dejó el 05 al bajar.
 
+> **Nota posterior (A16, 2026-08-21).** La corrección del hallazgo 05 describía bien lo que el código
+> hacía, pero al implementar A16 apareció lo que ninguna de las dos lecturas había visto:
+> `rejectOperatingExpense` **no comprobaba la autoría en absoluto**, así que quien registraba un
+> gasto podía cerrarlo como rechazado y sacarlo de la cola. Con la decisión de David (gana la
+> segregación de funciones) el 05 vuelve a ser una falla de segregación y no sólo una inconsistencia
+> de UI.
+
 ## Architecture Decisions
 
 - **AD-A1 — El GET de caja chica deja de crear el fondo, y abrir uno pasa a ser un acto explícito.**
@@ -168,7 +175,7 @@ A13..A21 ─── independientes, pulido
 - [x] **A13** Contrapartes y plantillas POS exigen rol para escribir y borrar
 - [x] **A14** Marcar una plantilla como default corre en transacción
 - [x] **A15** El corte duplicado por carrera devuelve el 409 que ya existe, no un 500 de Postgres
-- [ ] **A16** La UI de Gastos refleja la política real de auto-aprobación
+- [x] **A16** La UI de Gastos refleja la política real de auto-aprobación
 
 ### Fase 5 — Rendimiento y pulido
 - [ ] **A17** Un endpoint consolidado reemplaza el abanico de 2×N peticiones de Caja Chica
@@ -204,8 +211,10 @@ A13..A21 ─── independientes, pulido
 - **A6 — ¿La cancelación de CFDI entra a este plan?** Persistir el timbrado hace la cancelación
   *posible*; implementarla es otro alcance. Si el negocio la necesita ya, A6 crece y conviene su
   propio plan.
-- **A16 — ¿Cuál es la política real de auto-aprobación?** Hoy el sistema auto-aprueba al crear si el
-  rol basta, y la UI nunca deja aprobar lo propio. Ambas no pueden ser ciertas para el usuario.
+- ~~**A16 — ¿Cuál es la política real de auto-aprobación?**~~ **Resuelta con David (2026-08-21):
+  gana la segregación de funciones.** Todo gasto nace `PENDING_APPROVAL` y lo resuelve alguien
+  distinto de quien lo registró, sin importar monto ni rol — que es lo que la pantalla ya afirmaba.
+  La regla vive en `lib/expenses/approval-policy.ts` y la importan el servicio y la UI.
 
 ## Deuda diferida (no en este plan)
 

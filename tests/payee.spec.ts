@@ -85,11 +85,10 @@ test.describe("Fase 1 · contrapartes (payees)", () => {
     await page.getByRole("button", { name: /Sucursal:/ }).click();
     await page.getByRole("menuitem", { name: "Todas" }).click();
 
-    // Y también el estatus: la pantalla abre en la cola de pendientes, pero sin
-    // reglas de autorización sembradas el aprobador exigido cae a OWNER y un
-    // SUPER_ADMIN lo satisface, así que este gasto nace **auto-aprobado** y no
-    // está en esa cola. El test venía fallando por esto desde que la pantalla
-    // dejó de abrir en "todos los estatus".
+    // Y también el estatus: la pantalla abre en la cola de pendientes y este
+    // spec no depende de en qué estatus nazca el gasto — con A16 nace pendiente,
+    // antes nacía auto-aprobado. "Todos los estatus" lo encuentra en los dos
+    // casos, que es lo que aquí importa: la columna de Contraparte.
     await page.getByLabel("Filtrar por estatus").click();
     await page.getByRole("option", { name: "Todos los estatus" }).click();
 

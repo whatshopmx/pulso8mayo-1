@@ -22,6 +22,7 @@ import {
 import {
   approveOperatingExpense,
   rejectOperatingExpense,
+  createOperatingExpense,
 } from "../lib/services/expense-service";
 
 /**
@@ -580,5 +581,160 @@ test.describe("A4 · aprobar y rechazar respetan la sucursal", () => {
     } finally {
       await contexto.close();
     }
+  });
+});
+
+
+/**
+ * A16 · quien registra un gasto no lo resuelve, y ningún gasto nace aprobado.
+ *
+ * Antes de esta tarea el sistema decía dos cosas incompatibles. La pantalla
+ * escondía siempre el botón de aprobar lo propio —afirmando segregación de
+ * funciones— mientras el servicio hacía lo contrario en dos lugares:
+ *
+ *  1. `createOperatingExpense` **auto-aprobaba en silencio** cuando el rol de
+ *     quien registraba alcanzaba el exigido por la regla, y lo dejaba escrito
+ *     en `approvalNotes`. El gasto no pasaba por ninguna cola.
+ *  2. `approveOperatingExpense` sólo prohibía la auto-aprobación cuando la
+ *     regla tenía umbral (`minAmount > 0`). El tramo más bajo —donde vive la
+ *     mayoría de los gastos de una sucursal— se firmaba solo.
+ *
+ * Y `rejectOperatingExpense` no comprobaba nada: quien registraba un gasto
+ * podía cerrarlo como rechazado y sacarlo de la cola sin que nadie lo viera.
+ *
+ * Decidido con David (2026-08-21): gana la segregación de funciones. Estos
+ * casos son los que estaban en rojo antes del cambio; los dos de "otra persona
+ * sí puede" son el otro lado, para que cerrar de más no pase inadvertido.
+ */
+test.describe("A16 · segregación de funciones en gastos", () => {
+  const TODAS = { kind: "ALL" } as const;
+
+  /** Rol suficiente para las dos reglas: lo único que puede negar es la autoría. */
+  let quienRegistra = "";
+  let otraPersona = "";
+  const reglas: string[] = [];
+
+  test.beforeAll(async () => {
+    quienRegistra = await findUserIdByEmail(GERENTE_EMAIL);
+    otraPersona = USER_SUPER_ADMIN;
+
+    // Dos tramos con el mismo aprobador exigido, para separar el efecto del
+    // umbral del efecto de la autoría. Sin regla alguna el exigido cae a
+    // `OWNER` y un GERENTE se quedaría fuera por el rol: probaría otra cosa.
+    reglas.push(
+      await seedExpenseAuthorizationRule({
+        companyId: COMPANY_ID,
+        approverRole: "GERENTE",
+        minAmountCents: 0,
+        maxAmountCents: 5_000_00,
+      }),
+      await seedExpenseAuthorizationRule({
+        companyId: COMPANY_ID,
+        approverRole: "GERENTE",
+        minAmountCents: 5_000_01,
+        maxAmountCents: null,
+      })
+    );
+  });
+
+  test.afterAll(async () => {
+    for (const id of reglas) await deleteExpenseAuthorizationRule(id);
+  });
+
+  test.afterEach(async () => {
+    await deleteTestExpenses();
+  });
+
+  async function registrar(amountCents: number, etiqueta: string) {
+    const description = `${E2E_TAG} ${etiqueta} ${Date.now()}`;
+    const gasto = await createOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: GERENTE_BRANCH,
+      category: "SERVICIOS",
+      amountCents,
+      description,
+      dueDate: enDias(7),
+      requestedBy: quienRegistra,
+    });
+    return { id: gasto.id, description, gasto };
+  }
+
+  test("un gasto sin umbral nace pendiente aunque el rol alcance", async () => {
+    // El caso que auto-aprobaba: GERENTE registra $1,200, la regla del tramo
+    // bajo exige GERENTE, el rol alcanza. Antes salía APPROVED de fábrica.
+    const { gasto, description } = await registrar(1_200_00, "sin umbral nace pendiente");
+
+    expect(gasto.status, "el gasto se auto-aprobó al crearse").toBe("PENDING_APPROVAL");
+    expect(gasto.approvedBy).toBeNull();
+    expect(gasto.approvalNotes).toBeNull();
+
+    const fila = await findExpenseByDescription(description);
+    expect(fila.status).toBe("PENDING_APPROVAL");
+  });
+
+  test("un gasto con umbral también nace pendiente", async () => {
+    const { gasto } = await registrar(9_000_00, "con umbral nace pendiente");
+    expect(gasto.status).toBe("PENDING_APPROVAL");
+    expect(gasto.approvedBy).toBeNull();
+  });
+
+  test("quien registra no aprueba lo suyo, sin umbral", async () => {
+    // El carve-out `minAmount > 0` dejaba pasar exactamente este caso.
+    const { id, description } = await registrar(1_200_00, "auto-aprobar sin umbral");
+
+    await expect(
+      approveOperatingExpense(id, COMPANY_ID, TODAS, quienRegistra, "GERENTE")
+    ).rejects.toThrow(/segregación de funciones/i);
+
+    const fila = await findExpenseByDescription(description);
+    expect(fila.status).toBe("PENDING_APPROVAL");
+    expect(fila.approved_by).toBeNull();
+  });
+
+  test("quien registra no aprueba lo suyo, con umbral", async () => {
+    const { id, description } = await registrar(9_000_00, "auto-aprobar con umbral");
+
+    await expect(
+      approveOperatingExpense(id, COMPANY_ID, TODAS, quienRegistra, "GERENTE")
+    ).rejects.toThrow(/segregación de funciones/i);
+
+    expect((await findExpenseByDescription(description)).status).toBe("PENDING_APPROVAL");
+  });
+
+  test("quien registra tampoco rechaza lo suyo", async () => {
+    // Rechazar sacaba el gasto de la cola sin ninguna comprobación de autoría.
+    const { id, description } = await registrar(1_200_00, "auto-rechazar");
+
+    await expect(
+      rejectOperatingExpense(id, COMPANY_ID, TODAS, quienRegistra, "GERENTE", "mejor no")
+    ).rejects.toThrow(/segregación de funciones/i);
+
+    const fila = await findExpenseByDescription(description);
+    expect(fila.status).toBe("PENDING_APPROVAL");
+    expect(fila.approval_notes).toBeNull();
+  });
+
+  test("otra persona con el mismo rol sí lo resuelve", async () => {
+    // El otro lado: la segregación no puede dejar la cola sin quien la trabaje.
+    const aprobar = await registrar(1_200_00, "otro aprueba");
+    const rechazar = await registrar(9_000_00, "otro rechaza");
+
+    expect(
+      (await approveOperatingExpense(aprobar.id, COMPANY_ID, TODAS, otraPersona, "ADMIN"))
+        .status
+    ).toBe("APPROVED");
+
+    expect(
+      (
+        await rejectOperatingExpense(
+          rechazar.id,
+          COMPANY_ID,
+          TODAS,
+          otraPersona,
+          "ADMIN",
+          "duplicado"
+        )
+      ).status
+    ).toBe("REJECTED");
   });
 });
