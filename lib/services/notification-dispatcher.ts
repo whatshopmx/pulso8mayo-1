@@ -24,6 +24,7 @@ export type NotificationEventType =
   | "schedule_change"
   | "document_expiration"
   | "shift_approval_request"
+  | "expense_approval_request"
   | "shift_approval_decision"
   | "shift_change_request"
   | "shift_change_decision"
@@ -195,6 +196,26 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
     inAppTitle: "Nueva Solicitud de Aprobación",
     inAppMessage: "{approvalType} - {employeeName}",
     variables: ["userName", "requesterName", "approvalType", "employeeName", "description"]
+  },
+  /**
+   * Gasto operativo esperando autorización.
+   *
+   * Antes esto reusaba `shift_approval_request`, cuya plantilla habla de turnos
+   * ("Solicitud de Aprobación de *Turno*", "*Empleado:*") y pide variables que un
+   * gasto no tiene: el aviso llegaba con el encabezado equivocado y con los
+   * marcadores sin sustituir. Un aviso que no dice de qué es no sirve de aviso.
+   */
+  "expense_approval_request": {
+    id: "expense_approval_request",
+    name: "Gasto Pendiente de Aprobación",
+    eventType: "expense_approval_request",
+    channels: ["whatsapp", "email", "in-app"],
+    whatsappTemplate: "📑 *Gasto Pendiente de Aprobación*\n\nHola {userName},\n\n*Categoría:* {categoria}\n*Monto:* {monto}\n*Concepto:* {concepto}\n\nRequiere autorización de {rolRequerido}.\n\n{smartLinkUrl}",
+    emailSubject: "📑 Gasto pendiente de aprobación por {monto}",
+    emailBody: `<h2>Gasto Pendiente de Aprobación</h2><p>Hola {userName},</p><p>Un gasto de <strong>{categoria}</strong> por <strong>{monto}</strong> requiere autorización de <strong>{rolRequerido}</strong>.</p><p><em>{concepto}</em></p><p>Entra al dashboard para aprobarlo o rechazarlo.</p>`,
+    inAppTitle: "Gasto Pendiente de Aprobación",
+    inAppMessage: "{categoria} por {monto} requiere tu autorización",
+    variables: ["userName", "categoria", "monto", "concepto", "rolRequerido"]
   },
   "shift_approval_decision": {
     id: "shift_approval_decision",

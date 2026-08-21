@@ -152,17 +152,17 @@ A13..A21 ─── independientes, pulido
 
 ### Fase 3 — Pantallas que afirman de más
 - [x] **A8** `/api/sales/cuts` acota por defecto al mes en curso, pagina y devuelve `total`
-- [ ] **A7** La página de ventas distingue "falló" de "vacío" y no conserva filas del alcance anterior
+- [x] **A7** La página de ventas distingue "falló" de "vacío" y no conserva filas del alcance anterior
 - [x] **A9** La ingesta de cortes deja de convertir un cero capturado en "no se capturó"
-- [ ] **A10** Gastos declara el alcance aplicado, el truncamiento del historial y el caso sin sucursal
-- [ ] **A11** Se elimina el código muerto de Gastos
-- [ ] **A12** La notificación de gasto pendiente llega a un aprobador real
+- [x] **A10** Gastos declara el alcance aplicado, el truncamiento del historial y el caso sin sucursal
+- [x] **A11** Se elimina el código muerto de Gastos
+- [x] **A12** La notificación de gasto pendiente llega a un aprobador real
 
 ### Checkpoint: Honestidad
-- [ ] Un fallo de red en Ventas muestra error con reintento, no las filas de la sucursal anterior
-- [ ] Un corte con cero efectivo contado aparece en el banner de diferencias
-- [ ] `pnpm lint` sin avisos en `app/dashboard/finance/expenses`
-- [ ] Al crear un gasto pendiente, el aprobador recibe la notificación
+- [x] Un fallo de red en Ventas muestra error con reintento, no las filas de la sucursal anterior
+- [x] Un corte con cero efectivo contado aparece en el banner de diferencias
+- [x] `pnpm lint` sin avisos en `app/dashboard/finance/expenses`
+- [x] Al crear un gasto pendiente, el aprobador recibe la notificación
 
 ### Fase 4 — Controles y consistencia
 - [ ] **A13** Contrapartes y plantillas POS exigen rol para escribir y borrar

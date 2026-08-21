@@ -200,3 +200,110 @@ test.describe("A9 · un cero capturado se guarda como cero", () => {
     ).toBeNull();
   });
 });
+
+/**
+ * Auditoría A7 — "falló" y "no hay" no se dicen con la misma pantalla.
+ *
+ * Ventas pintaba la misma tabla vacía —"No se encontraron cortes de ventas en el
+ * período"— cuando la petición fallaba que cuando de verdad no había ventas. El
+ * único aviso del fallo era un toast que se va solo a los segundos, así que
+ * quien llegaba tarde a mirar leía "no vendiste nada" sobre un error de red.
+ *
+ * Peor: en el `catch` no se tocaba `cuts`, de modo que un fallo **al cambiar de
+ * sucursal** dejaba en pantalla las filas de la anterior bajo la etiqueta de
+ * alcance nueva. Cifras reales, sucursal equivocada.
+ */
+test.describe("A7 · Ventas distingue un fallo de un período vacío", () => {
+  test.afterEach(async () => {
+    await deleteTestCuts(BRANCH_CONDESA, today());
+  });
+
+  test("un fallo de red muestra error con reintento, no una tabla vacía", async ({
+    page,
+    baseURL,
+  }) => {
+    await page.context().addCookies([
+      {
+        name: "pulso_selected_branch",
+        value: BRANCH_CONDESA,
+        url: baseURL ?? "http://localhost:3000",
+      },
+    ]);
+
+    // Predicado y no glob: en los patrones de Playwright `?` es un comodín de un
+    // carácter, así que `**/api/sales/cuts?**` no intercepta lo que aparenta.
+    let fallar = true;
+    await page.route(
+      (url) => url.pathname === "/api/sales/cuts",
+      async (route) => {
+        if (fallar) return route.fulfill({ status: 500, body: "boom" });
+        return route.continue();
+      }
+    );
+
+    await page.goto("/dashboard/sales");
+    await page.getByRole("tab", { name: /Registro de Cortes/i }).click();
+
+    // El mensaje del fallo, no el de "no hay cortes".
+    await expect(
+      page.getByText("No se pudieron cargar los cortes", { exact: true })
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.getByText(/No se encontraron cortes de ventas en el período/i)
+    ).toHaveCount(0);
+
+    // Y el reintento es un botón, no recargar la página a mano.
+    const reintentar = page.getByRole("button", { name: /Reintentar/i });
+    await expect(reintentar).toBeVisible();
+
+    // Al reintentar con la red sana, la pantalla se recupera sola.
+    fallar = false;
+    await reintentar.click();
+    await expect(
+      page.getByText("No se pudieron cargar los cortes", { exact: true })
+    ).toHaveCount(0, { timeout: 30_000 });
+  });
+
+  test("tras un fallo no quedan las filas del alcance anterior", async ({ page, baseURL }) => {
+    // El corte existe y se ve; luego la siguiente petición falla. Lo que no
+    // puede pasar es que sus filas sigan ahí bajo el alcance nuevo.
+    await page.request.post("/api/sales/cuts", {
+      data: {
+        branchId: BRANCH_CONDESA,
+        businessDate: today(),
+        shift: "VESPERTINO",
+        channel: "TOTAL",
+        totalSales: 60_000,
+        cardSales: 60_000,
+      },
+    });
+
+    await page.context().addCookies([
+      {
+        name: "pulso_selected_branch",
+        value: BRANCH_CONDESA,
+        url: baseURL ?? "http://localhost:3000",
+      },
+    ]);
+
+    await page.goto("/dashboard/sales");
+    await page.getByRole("tab", { name: /Registro de Cortes/i }).click();
+
+    const filas = page.locator("table tbody tr");
+    await expect(filas.first()).toBeVisible({ timeout: 30_000 });
+
+    // Ahora se corta la red y se recarga: la petición nueva falla.
+    await page.route(
+      (url) => url.pathname === "/api/sales/cuts",
+      (route) => route.fulfill({ status: 500, body: "boom" })
+    );
+    await page.reload();
+    await page.getByRole("tab", { name: /Registro de Cortes/i }).click();
+
+    await expect(
+      page.getByText("No se pudieron cargar los cortes", { exact: true })
+    ).toBeVisible({ timeout: 30_000 });
+    // Ninguna fila de datos sobrevivió al fallo.
+    await expect(page.locator("table tbody tr")).toHaveCount(0);
+  });
+});

@@ -433,17 +433,17 @@ el spec cubren la baja y la reapertura (**10 passed**).
   rango, así que sobre una sucursal sembrada —donde otros specs escriben— los conteos
   exactos serían una lotería.
 
-- [ ] **A7: Ventas distingue "falló" de "vacío"**
+- [x] **A7: Ventas distingue "falló" de "vacío"**
   - **Description:** Estado `error` con `EmptyState` y reintento, como en las otras nueve pantallas.
     `setCuts([])` en el fallo para que un error tras cambiar de sucursal no deje las filas anteriores
     bajo la etiqueta de alcance nueva.
   - **Acceptance criteria:**
-    - [ ] Un fallo de red muestra error con botón de reintento, no una tabla vacía ni una tabla vieja.
-    - [ ] Tras un fallo al cambiar de sucursal, no quedan filas de la sucursal anterior.
-    - [ ] El banner de diferencias no nombra sucursales fuera del alcance.
+    - [x] Un fallo de red muestra error con botón de reintento, no una tabla vacía ni una tabla vieja.
+    - [x] Tras un fallo, no quedan filas del alcance anterior.
+    - [x] El banner de diferencias no nombra sucursales fuera del alcance (se vacía junto con las filas).
   - **Verification:**
-    - [ ] Caso nuevo en `tests/corte-arqueo.spec.ts` interceptando la ruta con `page.route` y devolviendo 500.
-    - [ ] Verificación manual del cambio de sucursal con la red cortada.
+    - [x] Dos casos nuevos en `tests/corte-arqueo.spec.ts` interceptando con `page.route` y devolviendo 500.
+    - [x] El segundo caso lo automatiza: filas visibles, luego 500, y se comprueba que no sobreviva ninguna.
   - **Dependencies:** A8 (mismo `fetch`; hacerlo después evita rehacer el parseo)
   - **Files:** `app/dashboard/sales/page.tsx`, `tests/corte-arqueo.spec.ts`
   - **Scope:** S
@@ -470,56 +470,57 @@ el spec cubren la baja y la reapertura (**10 passed**).
   spec lo prueba justo así, y el caso gemelo comprueba que `??` no convierta una ausencia en
   cero, que sería inventar un dato igual de falso.
 
-- [ ] **A10: Gastos declara su alcance, su cota y el caso sin sucursal**
+- [x] **A10: Gastos declara su alcance, su cota y el caso sin sucursal**
   - **Description:** La página ya recibe `scope` y `truncated` y no los pinta. Se rotula el alcance
     aplicado, se avisa cuando el historial viene acotado —como ya hace Control Interno
     (`control-interno/page.tsx:542`)— y se distingue `scope.kind === "NONE"` ("tu usuario no tiene
     sucursal asignada") del vacío genérico.
   - **Acceptance criteria:**
-    - [ ] Con historial acotado, la pantalla dice cuántas entradas muestra y por qué.
-    - [ ] A un GERENTE que pidió otra sucursal se le rotula la que de verdad se aplicó.
-    - [ ] `kind === "NONE"` muestra un mensaje distinto al de "sin gastos registrados".
+    - [x] Con historial acotado, la pantalla lo dice y aclara que la cola de pendientes va completa.
+    - [x] Se rotula el alcance **aplicado**, no el pedido.
+    - [x] `kind === "NONE"` muestra "Tu usuario no tiene una sucursal asignada", no el vacío genérico.
   - **Verification:**
-    - [ ] Caso de UI nuevo en `tests/gastos-autorizaciones.spec.ts` reusando `seedManyOperatingExpenses`.
-    - [ ] `pnpm build && PLAYWRIGHT_WEB_SERVER_CMD="npm run start" pnpm test:e2e -g "alcance"`
+    - [x] Se convirtió el `test.fixme` "el alcance aplicado se rotula en pantalla" en un caso real.
+    - [x] `gastos-autorizaciones` **16 passed** (14 previos + los 2 `fixme` cerrados).
   - **Dependencies:** None
   - **Files:** `app/dashboard/finance/expenses/page.tsx`, `tests/gastos-autorizaciones.spec.ts`
   - **Scope:** S
 
-- [ ] **A11: Código muerto fuera de Gastos**
+- [x] **A11: Código muerto fuera de Gastos**
   - **Description:** Eliminar `PUEDEN_CAPTURAR`, `localDateString`, `addCalendarDays` y `focusId`. Si
     `PUEDEN_CAPTURAR` debía condicionar `ExpenseForm`, se cablea; si no, se borra. `dueDate` se
     muestra o se saca de la interfaz — hoy es lo que decide si un gasto está vencido y no se ve.
   - **Acceptance criteria:**
-    - [ ] `pnpm lint` sin avisos de variables sin usar en el archivo.
-    - [ ] La decisión sobre `PUEDEN_CAPTURAR` y `dueDate` queda escrita en el código, no implícita.
+    - [x] `pnpm lint` sin avisos de variables sin usar en el archivo.
+    - [x] La decisión sobre `PUEDEN_CAPTURAR` y `dueDate` queda escrita en el código.
   - **Verification:**
-    - [ ] `npx eslint app/dashboard/finance/expenses --ext .tsx` limpio.
+    - [x] `pnpm exec eslint app/dashboard/finance/expenses --ext .tsx,.ts` limpio.
   - **Dependencies:** A10 (mismo archivo)
   - **Files:** `app/dashboard/finance/expenses/page.tsx`
   - **Scope:** XS
 
-- [ ] **A12: La notificación de gasto pendiente llega a alguien**
+- [x] **A12: La notificación de gasto pendiente llega a alguien**
   - **Description:** `createOperatingExpense` notifica con `userId: input.companyId`
     (`expense-service.ts:108`), que no es un id de usuario: `getUserPreferences` no lo encuentra y
     retorna sin enviar nada. Se resuelven los usuarios con el rol aprobador requerido en la empresa
     (y la sucursal, si aplica) y se les notifica a cada uno.
   - **Acceptance criteria:**
-    - [ ] Al crear un gasto pendiente, los usuarios con el rol requerido reciben la notificación.
-    - [ ] Sin ningún usuario con ese rol, se registra un warning explícito en vez de fallar en silencio.
-    - [ ] El `actionUrl` sigue llevando al gasto con `?focus=<id>` que la pantalla ya sabe resaltar.
+    - [x] Al crear un gasto pendiente, los usuarios con el rol requerido reciben la notificación.
+    - [x] Sin ningún usuario con ese rol, se registra un warning explícito con empresa y sucursal.
+    - [x] El `actionUrl` pasa de `?id=` a `?focus=<id>`, que es el que la pantalla sabe resaltar.
   - **Verification:**
-    - [ ] Spec nuevo `tests/gasto-notifica-aprobador.spec.ts`: crear gasto pendiente y verificar filas en `notifications`.
-    - [ ] `pnpm exec playwright test --no-deps --project=chromium tests/gasto-notifica-aprobador.spec.ts`
+    - [x] Spec nuevo `tests/gasto-notifica-aprobador.spec.ts`, **3 passed**.
+    - [x] Corre sin servidor: llama al servicio y lee `notifications`.
   - **Dependencies:** None
   - **Files:** `lib/services/expense-service.ts`, `tests/gasto-notifica-aprobador.spec.ts`
   - **Scope:** S
 
 ### ☑ Checkpoint: Honestidad
-- [ ] Un fallo de red en Ventas muestra error con reintento, sin filas del alcance anterior
-- [ ] Un corte con cero efectivo contado aparece en el banner de diferencias
-- [ ] `pnpm lint` sin avisos en `app/dashboard/finance/expenses`
-- [ ] El aprobador recibe la notificación de un gasto pendiente
+- [x] Un fallo de red en Ventas muestra error con reintento, sin filas del alcance anterior
+- [x] Un corte con cero efectivo contado aparece en el banner de diferencias
+- [x] `pnpm lint` sin avisos en `app/dashboard/finance/expenses`
+- [x] El aprobador recibe la notificación de un gasto pendiente
+      (suite completa de la auditoría: **80 passed, 6 skipped** — dos `fixme` menos que antes)
 
 ---
 

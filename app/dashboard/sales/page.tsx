@@ -100,6 +100,11 @@ function SalesDashboardPageContent() {
   /** Alcance que la ruta aplicó de verdad, y cuántos cortes existen en él (A8). */
   const [cutsScope, setCutsScope] = useState<CutsScope | null>(null);
   const [cutsTotal, setCutsTotal] = useState(0);
+  /**
+   * "Falló" y "no hay" son cosas distintas (A7). Esta pantalla pintaba la misma
+   * tabla vacía para las dos, con un toast que se va solo a los segundos.
+   */
+  const [cutsError, setCutsError] = useState<string | null>(null);
 
   // Scope único para toda la página: sucursal desde el control del encabezado
   // (cookie) y rango de fechas desde la URL que ese mismo control escribe. Antes
@@ -114,6 +119,7 @@ function SalesDashboardPageContent() {
   // Fetch sales cuts
   const fetchCuts = useCallback(async () => {
     setLoadingCuts(true);
+    setCutsError(null);
     try {
       let url = "/api/sales/cuts?";
       if (selectedBranch && selectedBranch !== "ALL") {
@@ -139,10 +145,18 @@ function SalesDashboardPageContent() {
       setCutsTotal(data.data?.total ?? 0);
     } catch (err) {
       console.error(err);
+      const mensaje =
+        err instanceof Error ? err.message : "Error al conectar con el servidor.";
+      setCutsError(mensaje);
+      // Vaciar es parte del arreglo, no limpieza de más: sin esto, un fallo al
+      // cambiar de sucursal dejaba en pantalla las filas de la **anterior**
+      // bajo la etiqueta de alcance nueva. Cifras reales, sucursal equivocada.
+      setCuts([]);
+      setCutsScope(null);
+      setCutsTotal(0);
       toast({
         title: "Error de Carga",
-        description:
-          err instanceof Error ? err.message : "Error al conectar con el servidor.",
+        description: mensaje,
         variant: "destructive",
       });
     } finally {
@@ -314,6 +328,20 @@ function SalesDashboardPageContent() {
                 <div className="py-12 flex justify-center text-muted-foreground">
                   <Loader2 className="w-6 h-6 animate-spin mr-2" /> Cargando cortes de ventas...
                 </div>
+              ) : cutsError ? (
+                /* Un fallo no es un período sin ventas. Decirlo con la misma
+                   pantalla vacía hace que quien mira concluya que no vendió. */
+                <EmptyState
+                  bare
+                  icon={AlertCircle}
+                  title="No se pudieron cargar los cortes"
+                  description={`${cutsError} Los datos que había en pantalla se retiraron para no mezclarlos con el alcance actual.`}
+                  action={
+                    <Button variant="outline" size="sm" onClick={() => fetchCuts()}>
+                      Reintentar
+                    </Button>
+                  }
+                />
               ) : cuts.length === 0 ? (
                 <EmptyState
                   bare

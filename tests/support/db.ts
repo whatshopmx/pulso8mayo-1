@@ -258,6 +258,28 @@ export async function deleteTestTimbrados(): Promise<void> {
   await sql`DELETE FROM cfdi_nomina_timbrados WHERE empleado_rfc LIKE 'E2E%'`;
 }
 
+/** Avisos in-app de un usuario, los más recientes primero. */
+export async function findNotificationsForUser(
+  userId: string
+): Promise<Array<{ title: string; message: string; actionUrl: string | null }>> {
+  const rows = await sql`
+    SELECT title, message, action_url
+    FROM notifications
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC
+  `;
+  return rows.map((r: any) => ({
+    title: r.title as string,
+    message: r.message as string,
+    actionUrl: (r.action_url as string | null) ?? null,
+  }));
+}
+
+/** Limpia los avisos de un usuario, para que cada caso cuente desde cero. */
+export async function deleteNotificationsForUser(userId: string): Promise<void> {
+  await sql`DELETE FROM notifications WHERE user_id = ${userId}`;
+}
+
 /** El `id` de un usuario sembrado, para actuar en su nombre desde un servicio. */
 export async function findUserIdByEmail(email: string): Promise<string> {
   const rows = await sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`;

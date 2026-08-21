@@ -259,13 +259,73 @@ test.describe("Gastos Operativos y Autorizaciones", () => {
     // Task 3: "N gastos por autorizar por $X · M vencen esta semana".
   });
 
-  test.fixme("la columna de fecha es 'Vence' y marca los vencidos", async () => {
-    // Task 4: hoy la columna rotulada "Fecha" muestra `createdAt`, y `dueDate`
-    // —que es lo que decide— está seleccionada, tipada y sin renderizar.
+  // A11 cerró este `fixme`: `dueDate` estaba seleccionado, tipado y sin
+  // renderizar, y es justo lo que decide si un gasto está vencido.
+  test("la fila muestra el vencimiento y marca los vencidos", async ({ page, baseURL }) => {
+    await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: enDias(-9),
+      amountCents: 4_100_00,
+      description: `${E2E_TAG} renta vencida hace nueve días`,
+      status: "PENDING_APPROVAL",
+    });
+    await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: enDias(9),
+      amountCents: 2_200_00,
+      description: `${E2E_TAG} luz que vence en nueve días`,
+      status: "PENDING_APPROVAL",
+    });
+
+    // La pantalla filtra por la sucursal en foco, que vive en esta cookie; sin
+    // fijarla cae en la primera de la lista y los gastos sembrados en Condesa
+    // no aparecen.
+    await page.context().addCookies([
+      {
+        name: "pulso_selected_branch",
+        value: BRANCH_CONDESA,
+        url: baseURL ?? "http://localhost:3000",
+      },
+    ]);
+
+    await page.goto("/dashboard/finance/expenses", { waitUntil: "domcontentloaded" });
+
+    const vencida = page.locator("tr", { hasText: "renta vencida hace nueve días" });
+    await expect(vencida).toBeVisible({ timeout: 30_000 });
+    await expect(vencida, "no se distingue lo vencido de lo por vencer").toContainText(
+      /Venció el/i
+    );
+
+    const porVencer = page.locator("tr", { hasText: "luz que vence en nueve días" });
+    await expect(porVencer).toContainText(/Vence el/i);
+    await expect(porVencer).not.toContainText(/Venció el/i);
+
   });
 
-  test.fixme("el alcance aplicado se rotula en pantalla", async () => {
-    // Task 5.
+  // A10 cerró este `fixme`: la ruta ya devolvía `scope`, y la pantalla no lo
+  // pintaba.
+  test("el alcance aplicado se rotula en pantalla", async ({ page }) => {
+    await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_CONDESA,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: enDias(4),
+      amountCents: 1_100_00,
+      description: `${E2E_TAG} gasto para rotular alcance`,
+      status: "PENDING_APPROVAL",
+    });
+
+    await page.goto("/dashboard/finance/expenses", { waitUntil: "domcontentloaded" });
+
+    // La sesión por omisión es de admin, así que el alcance aplicado es el grupo.
+    await expect(page.getByText(/Alcance aplicado:/i)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/Alcance aplicado:/i)).toContainText(
+      /todas las sucursales|Condesa|Polanco|Roma/i
+    );
   });
 
   // ── Fase 2: ciclo de vida y bitácora ───────────────────────────────────────

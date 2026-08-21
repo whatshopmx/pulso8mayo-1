@@ -28,14 +28,19 @@ import { roleIsAtLeast } from "@/lib/permissions";
 import { useBranches } from "@/hooks/use-branches";
 import { useBranch } from "@/lib/branch-context";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
-import { localDateString, addCalendarDays } from "@/lib/workflows/today";
+import { localDateString } from "@/lib/workflows/today";
 
 /**
  * Roles que pueden capturar un gasto. Misma lista que `ROLES_FINANZAS` en
  * `app/api/expenses/route.ts`: el cliente no inventa autoridad, refleja la del
  * servidor. Un botón que promete lo que la API va a negar es peor que no tenerlo.
  */
-const PUEDEN_CAPTURAR = ["SUPER_ADMIN", "ADMIN", "GERENTE", "SUPERVISOR"];
+// `PUEDEN_CAPTURAR` vivía aquí sin usarse. No se cableó a `ExpenseForm` porque
+// sería redundante: `ROUTE_PERMISSIONS` deja entrar a `/dashboard/finance`
+// exactamente a esos cuatro roles (`lib/rbac/permissions.ts:127`), así que
+// quien puede ver esta pantalla ya puede capturar, y el `POST /api/expenses`
+// lo vuelve a exigir del lado del servidor. Una tercera copia de la lista sólo
+// añadía un lugar más donde quedar desincronizada.
 
 /** Estatus que puede filtrarse en la cola de autorizaciones. */
 type StatusFilter = "ALL" | ExpenseItem["status"];
@@ -82,6 +87,21 @@ interface ExpenseItem {
   createdAt: string;
 }
 
+/**
+ * ¿Este gasto ya venció?
+ *
+ * Sólo tiene sentido para lo que sigue debiéndose: un gasto pagado o rechazado
+ * no "vence". La fecha se ancla al mediodía UTC para que ningún huso mueva el
+ * día, y hoy se calcula con `localDateString` — en UTC-6, `toISOString()`
+ * después de las 6pm adelanta la fecha y un gasto salta a "vencido" una tarde
+ * antes de tiempo.
+ */
+function estaVencido(item: ExpenseItem): boolean {
+  if (!item.dueDate) return false;
+  if (item.status === "PAID" || item.status === "REJECTED") return false;
+  return item.dueDate < localDateString(new Date(), null);
+}
+
 export default function ExpensesPage() {
   // `useFocusedRow` usa `useSearchParams`, que exige límite de Suspense.
   return (
@@ -103,16 +123,19 @@ function ExpensesContent() {
   const selectedBranch = selectedBranchId ?? "ALL";
   // `?focus=<id>` llega desde el panel de flujo de efectivo: resalta y desplaza
   // hacia el gasto que la dueña acaba de ver como vencido.
-  const { focusId, focusProps } = useFocusedRow();
+  const { focusProps } = useFocusedRow();
   // Esto es una cola de autorizaciones, no un libro mayor. Arrancar en "todos"
   // dejaba una renta pendiente de $80,000 entre un taxi pagado y un recibo
   // rechazado; lo que la dueña vino a hacer estaba mezclado con el historial.
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("PENDING_APPROVAL");
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   /** Alcance **aplicado** por el servidor, no el pedido. */
-  const [scope, setScope] = useState<{ branchId: string | null; branchName: string | null } | null>(
-    null
-  );
+  const [scope, setScope] = useState<{
+    branchId: string | null;
+    branchName: string | null;
+    /** `NONE` = rol acotado a sucursal sin ninguna asignada; no es "sin gastos". */
+    kind?: "ALL" | "BRANCH" | "NONE";
+  } | null>(null);
   /** Hubo historial que no cupo en la cota del servidor. */
   const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -340,6 +363,32 @@ function ExpensesContent() {
           <CardDescription className="text-xs">
             Gastos registrados y su estado actual en la cadena de autorización.
           </CardDescription>
+
+          {/* El alcance **aplicado**, no el pedido: un GERENTE que pide otra
+              sucursal recibe la suya, y rotular la que pidió sería etiquetar
+              cifras de una sucursal con el nombre de otra. La ruta ya lo
+              devolvía; esta pantalla no lo pintaba. */}
+          {!loading && !error && scope && (
+            <p className="text-xs text-muted-foreground">
+              Alcance aplicado:{" "}
+              <span className="font-medium text-foreground">
+                {scope.kind === "NONE"
+                  ? "ninguna sucursal"
+                  : scope.branchName ?? "todas las sucursales"}
+              </span>
+              .
+            </p>
+          )}
+
+          {/* El historial viene acotado a propósito (la cola de pendientes no).
+              Decirlo evita leer una lista recortada como si fuera completa,
+              igual que hace Control Interno. */}
+          {!loading && !error && truncated && (
+            <p className="text-xs text-warning-text">
+              El historial de gastos resueltos está acotado: se muestran los más recientes.
+              La cola de pendientes se muestra completa.
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -356,6 +405,15 @@ function ExpensesContent() {
                   <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
                 </Button>
               }
+            />
+          ) : scope?.kind === "NONE" ? (
+            /* Fail-closed con explicación: tu usuario no alcanza ninguna
+               sucursal. Decirlo con "sin gastos registrados" haría que quien
+               mira concluya que la empresa no gasta nada. */
+            <EmptyState
+              icon={AlertCircle}
+              title="Tu usuario no tiene una sucursal asignada"
+              description="Los gastos se consultan por sucursal y tu rol está acotado a una, pero no tienes ninguna. Pídele a un administrador que te asigne la tuya."
             />
           ) : expenses.length === 0 ? (
             <EmptyState
@@ -409,6 +467,22 @@ function ExpensesContent() {
                           month: "short",
                           year: "numeric",
                         })}
+                        {/* `dueDate` estaba en la interfaz y no se pintaba, pero es
+                            lo que decide si un gasto está vencido: la cola no
+                            mostraba lo único que la ordena por urgencia. */}
+                        {item.dueDate && (
+                          <span
+                            className={`block text-[11px] font-normal ${
+                              estaVencido(item) ? "text-destructive" : "text-muted-foreground"
+                            }`}
+                          >
+                            {estaVencido(item) ? "Venció" : "Vence"} el{" "}
+                            {new Date(`${item.dueDate}T12:00:00Z`).toLocaleDateString("es-MX", {
+                              day: "numeric",
+                              month: "short",
+                            })}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="font-medium">{item.branchName}</TableCell>
                       <TableCell>

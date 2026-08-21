@@ -94,6 +94,19 @@ const routingRules: Record<NotificationEventType, RoutingRule> = {
     retryDelayMs: 3000,
     businessHoursOnly: false
   },
+  /**
+   * Gasto esperando autorización. Mismo trato que la aprobación de turno: es
+   * dinero detenido, pero no una urgencia que justifique despertar a nadie —
+   * `businessHoursOnly: false` porque la cola se atiende cuando se abre.
+   */
+  expense_approval_request: {
+    eventType: "expense_approval_request",
+    priority: "normal",
+    channels: ["whatsapp", "email", "in-app"],
+    retryAttempts: 3,
+    retryDelayMs: 3000,
+    businessHoursOnly: false
+  },
   shift_approval_decision: {
     eventType: "shift_approval_decision",
     priority: "normal",
