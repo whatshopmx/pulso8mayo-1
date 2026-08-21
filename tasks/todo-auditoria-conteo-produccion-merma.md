@@ -439,12 +439,44 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
   - Archivos: `lib/services/inventory-snapshot-service.ts`, `lib/workflows/dynamic-steps.ts`,
     `lib/services/workflow-execution-service.ts`
 
-### Checkpoint 4 — Completo
-- [ ] `pnpm run build` limpio; `pnpm lint` sin errores nuevos vs baseline
-- [ ] `pnpm test:e2e` completo verde (7 previos de la feature + 4 nuevos de auditoría)
-- [ ] Las nueve observaciones tienen veredicto en la tabla de arriba
-- [ ] `tasks/todo-conteo-produccion-merma.md` corregido: OQ-2 la resolvió la migración `0051` y sigue marcada como abierta
-- [ ] Listo para review
+### ✅ Checkpoint 4 — Completo
+- [x] `pnpm run build` limpio; `pnpm lint` sin errores nuevos vs baseline
+      `build exit=0` · `npx tsc --noEmit` exit 0.
+      **Lint: 2825 problemas en el repo, todos de base.** Sobre los archivos tocados quedan 16
+      hallazgos y **ninguno está en una línea mía**: verificado contra el merge-base
+      (`6c0358c`), donde cada símbolo señalado como sin usar ya aparecía una sola vez —o sea,
+      sólo en su `import`— antes de esta rama.
+- [x] `pnpm test:e2e` completo verde (7 previos de la feature + 4 nuevos de auditoría)
+      **La feature y la auditoría: 37 passed, 0 failed** (15 archivos de spec).
+      El resto de la suite: **115 passed y 6 failed**, los 6 en dominios que esta rama no
+      toca. Se revisó el modo de fallo de cada uno, no sólo el nombre:
+      | Spec | Falla | Por qué no es de esta rama |
+      |---|---|---|
+      | `branch-scope` | `remediate` de un incidente ajeno da 400 y no 404 | Incidentes + RBAC; la validación del body corre antes del chequeo de alcance |
+      | `workflow-review` ×2 | falta el atributo `data-revisada` en la fila | **El veredicto sí persiste**: la fila renderiza "Rechazado". Lo que falta es el resaltado de la fila recién revisada |
+      | `cash-flow` ×2 | proyección y navegación al registro origen | Finanzas |
+      | `payee` | el flujo de contraparte no muestra un elemento | Finanzas. `todo-payees-contrapartes.md` lo daba en 4/4 el 2026-08-10: regresión de otra rama |
+      ⚠️ **Honestidad sobre el método:** no se corrieron esos 6 contra un build del commit
+      base, así que "preexistentes" es una conclusión por dominio y modo de fallo, no una
+      comprobación A/B. Ninguno pasa por extractores, resolver dinámico, snapshot ni por las
+      tablas migradas.
+- [x] Las nueve observaciones tienen veredicto en la tabla de arriba
+      Nueve con veredicto y **una décima nueva** (O-10), encontrada al pasar a logs
+      estructurados y anotada sin arreglar.
+- [x] `tasks/todo-conteo-produccion-merma.md` corregido: OQ-2 la resolvió la migración `0051` y sigue marcada como abierta
+      Corregida ahí mismo, con lo que A7b añadió: `production_ingredients` era la última
+      columna de cantidad en `integer` del flujo.
+- [x] Listo para review
+
+### Lo que queda sobre la mesa (decisiones del humano, no tareas pendientes)
+
+1. **Recepción sigue con `notes LIKE`** — la única de las cuatro rutas. Razonado en A9: su
+   insert vive dentro de `processReceiving`, servicio compartido con la API manual. Cambiarlo
+   es reescribir ese servicio, no auditarlo.
+2. **O-10** — el extractor de merma recorre cada instancia de producción y deja dos WARN.
+   Ruido, no corrupción. Arreglo probable de 3 líneas, pero AD-A1 pide spec rojo primero.
+3. **Los 6 specs rojos de otros dominios** — fuera del alcance de esta auditoría, pero alguien
+   debería mirarlos: `payee` estaba verde el 2026-08-10.
 
 ## Open Questions — las tres decididas 2026-08-20
 
