@@ -51,6 +51,17 @@ npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
   `next dev` and `next start` share `.next` — kill the dev server before building.
 - Test data is created/cleaned via direct SQL in `tests/support/db.ts` and tagged `[E2E]`.
 - `tests/**` is excluded from `tsconfig.json`, so `pnpm build` will not typecheck specs.
+- **The workflow extractor specs need the Inngest dev server running.** Completing an instance
+  only emits `workflow/instance.completed`; the extraction into stock counts, waste, production
+  and receiving happens in the `workflow-extractors` Inngest function. Without the dev server
+  those specs poll for rows nobody writes and time out:
+  `npx --yes inngest-cli@latest dev -u http://localhost:3000/api/inngest --no-discovery`
+  (and start the app with `INNGEST_DEV=1`, or the SDK targets Inngest Cloud).
+- Specs that only call services and SQL directly (`conteo-fecha-local`, `redondeo-ingredientes`,
+  `extractor-idempotente`, `snapshot-idempotente`) need neither the server nor Inngest, and run
+  in seconds: `pnpm exec playwright test --no-deps --project=chromium <spec>`.
+- `next start` serves the **build**, not your working tree. After touching service code, rebuild
+  before verifying or you will confirm a green that means nothing.
 
 ## Architecture
 

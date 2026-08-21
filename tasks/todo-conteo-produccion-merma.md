@@ -107,7 +107,16 @@
   - Write path: `app/api/inventory/waste/route.ts:163` → `type: reason === 'STAFF' ? 'USAGE' : 'WASTE'` se convierte en `['STAFF','COURTESY'].includes(reason) ? 'USAGE' : 'WASTE'` y la razón del movimiento `'Consumo de Personal'` → branch por reason.
   - ⚠️ **Corrección al mecanismo del plan:** el movimiento `USAGE` por sí solo NO evita inflar el % de merma. Los 6 lectores de `inventory_waste` suman `totalLoss`/`quantity` **sin filtro por reason**: `executive-report-service.calcWasteTotal` (sin filtro), `app/api/inventory/dashboard/route.ts:191` (`wasteLossRatio`), `predictive-scoring-service` (score de riesgo), `knowledge-service` (wasteTrend). `STAFF` ya infla el % hoy (quirk preexistente).
   - **Acción con T11:** excluir `COURTESY` y `STAFF` del % en los 4 métricos (`reason NOT IN ('STAFF','COURTESY')`, o whitelist `IN ('EXPIRED','DAMAGED','QUALITY','SPILLAGE','OTHER')`). `cross-branch-service` agrupa por reason y no necesita filtro (la cortesía sale como categoría propia). Excluir `STAFF` **cambia** el número actual de % de merma en reportes existentes — es la corrección buscada, documentarla en T11/commits.
-- [ ] **OQ-2** (deuda técnica, fuera de alcance) ¿Migrar `inventory_batches.currentQuantity` de `integer` a `numeric`? Resolvería **R-2** de raíz pero toca 5 servicios.
+- [x] **OQ-2** — **RESUELTA, y ya lo estaba cuando se escribió esta línea.** La migración
+  `0051_merma-decimal-quantities.sql` (T1 de `plan-inventory-waste.md`) pasó
+  `inventory_batches.{initial,current}_quantity`, `inventory_movements.quantity_change` e
+  `inventory_waste.quantity` a `numeric(12,4)`. **R-2 cerrado de raíz.** El "toca 5 servicios"
+  se resolvió solo: drizzle expone `numeric` como string y los lectores ya hacían `Number(...)`.
+  Corregido durante la auditoría (A7b/Checkpoint 4, 2026-08-20), que además migró
+  `production_ingredients.{expected,actual}_quantity` con el mismo patrón
+  (`0054_produccion-cantidades-decimales.sql`) — era la última columna de cantidad en `integer`
+  del flujo. `production_results.produced_quantity` sigue en integer **a propósito**: son
+  porciones, y media porción producida no es una cantidad que exista.
 - [x] **OQ-5** (NUEVA, destapada al probar T6) — **RESUELTA**. `lib/db/index.ts` usaba el driver
   **`neon-http`, que no soporta `db.transaction`**: cualquier llamada lanzaba `No transactions support
   in neon-http driver` en tiempo de ejecución (no en compilación). Eso dejaba **14 llamadas rotas**,
