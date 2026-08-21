@@ -1,4 +1,4 @@
-import { test, expect, type Browser } from "@playwright/test";
+import { test, expect, type Browser, type BrowserContext } from "@playwright/test";
 import {
   ADMIN_PASSWORD,
   EMPLEADO_EMAIL,
@@ -25,18 +25,68 @@ import {
  */
 
 /**
- * Abre un contexto con la sesión de otro rol. El `storageState: undefined`
- * descarta las cookies de admin que `auth.setup.ts` dejó para todos los specs —
- * sin eso la petición se haría como SUPER_ADMIN y el test pasaría por la razón
- * equivocada. Mismo patrón que `gastos-autorizaciones.spec.ts:47`.
+ * Cookies de cada rol, capturadas una sola vez.
+ *
+ * Dos límites distintos vuelven inestable a un spec que inicia sesión por caso:
+ *
+ * 1. **better-auth** limita `/sign-in/email` a **3 intentos cada 10 segundos**.
+ *    `lib/auth-config.ts` no define `rateLimit`, así que rigen los valores por
+ *    omisión, y esos solo se activan con `NODE_ENV=production` — es decir, con
+ *    `npm run start`, que es como se corre este spec. Bajo `next dev` no se
+ *    notan, y por eso el rojo aparece solo al verificar contra el build.
+ * 2. `proxy.ts` limita el resto de `/api/*`, aunque exceptúa `/api/auth`.
+ *
+ * Iniciando sesión en cada caso, este spec gastaba once inicios de sesión y los
+ * últimos volvían 429: los tests fallaban por el límite y no por el RBAC, que es
+ * justo el falso rojo que un spec de permisos no puede permitirse. Con la sesión
+ * capturada una vez por rol son tres, y el reintento cubre el caso de que
+ * `auth.setup.ts` acabe de gastar su parte de la ventana.
+ */
+const estadosPorRol = new Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>();
+
+/** Ventana de better-auth para `/sign-in/email`, más un margen. */
+const ESPERA_TRAS_429_MS = 11_000;
+
+test.beforeAll(async ({ browser }) => {
+  for (const email of [EMPLEADO_EMAIL, READONLY_EMAIL, GERENTE_EMAIL]) {
+    const contexto = await browser.newContext({ storageState: undefined });
+    try {
+      let login = await contexto.request.post("/api/auth/sign-in/email", {
+        data: { email, password: ADMIN_PASSWORD },
+      });
+
+      // Un 429 no dice nada sobre los permisos: se espera a que la ventana
+      // corra y se vuelve a intentar, en vez de teñir de rojo el spec entero.
+      for (let intento = 0; intento < 3 && login.status() === 429; intento++) {
+        await new Promise((r) => setTimeout(r, ESPERA_TRAS_429_MS));
+        login = await contexto.request.post("/api/auth/sign-in/email", {
+          data: { email, password: ADMIN_PASSWORD },
+        });
+      }
+
+      expect(
+        login.ok(),
+        `no se pudo iniciar sesión como ${email} (HTTP ${login.status()})`
+      ).toBe(true);
+      estadosPorRol.set(email, await contexto.storageState());
+    } finally {
+      await contexto.close();
+    }
+  }
+});
+
+/**
+ * Abre un contexto con la sesión de otro rol.
+ *
+ * Parte del estado capturado arriba y **nunca** del que `auth.setup.ts` dejó
+ * para todos los specs: sin eso la petición se haría como SUPER_ADMIN y el test
+ * pasaría por la razón equivocada. Mismo patrón que
+ * `gastos-autorizaciones.spec.ts:47`, con la sesión reutilizada.
  */
 async function sesionDe(browser: Browser, email: string) {
-  const contexto = await browser.newContext({ storageState: undefined });
-  const login = await contexto.request.post("/api/auth/sign-in/email", {
-    data: { email, password: ADMIN_PASSWORD },
-  });
-  expect(login.ok(), `no se pudo iniciar sesión como ${email}`).toBe(true);
-  return contexto;
+  const estado = estadosPorRol.get(email);
+  if (!estado) throw new Error(`no hay sesión preparada para ${email}`);
+  return await browser.newContext({ storageState: estado });
 }
 
 /** Las tres rutas que este módulo expone en lectura. */
