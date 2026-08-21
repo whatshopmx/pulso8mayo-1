@@ -149,6 +149,30 @@ export async function deleteExpenseAuthorizationRule(ruleId: string): Promise<vo
   await sql`DELETE FROM expense_authorization_rules WHERE id = ${ruleId}`;
 }
 
+/**
+ * Cambia (o quita) la sucursal de un usuario y devuelve la que tenía.
+ *
+ * Sirve para fabricar el caso `kind: "NONE"` de `resolveBranchScope` —un rol
+ * acotado a sucursal **sin** ninguna asignada—, que no existe en la base
+ * sembrada y que `assertBranchAssignment` impide crear desde la app.
+ * `users.branch_id` sigue siendo nullable (ADMIN y SUPER_ADMIN legítimamente no
+ * tienen sucursal), así que el estado es representable y hay que probarlo.
+ *
+ * Quien lo use tiene que restaurar en un `finally`: dejar a un GERENTE sembrado
+ * sin sucursal rompe a los demás specs, que comparten esta base.
+ */
+export async function setUserBranchId(
+  email: string,
+  branchId: string | null
+): Promise<string | null> {
+  const previas = await sql`SELECT branch_id FROM users WHERE email = ${email} LIMIT 1`;
+  if (previas.length === 0) {
+    throw new Error(`No existe el usuario ${email}`);
+  }
+  await sql`UPDATE users SET branch_id = ${branchId} WHERE email = ${email}`;
+  return (previas[0].branch_id as string | null) ?? null;
+}
+
 /** El `id` de un usuario sembrado, para actuar en su nombre desde un servicio. */
 export async function findUserIdByEmail(email: string): Promise<string> {
   const rows = await sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`;

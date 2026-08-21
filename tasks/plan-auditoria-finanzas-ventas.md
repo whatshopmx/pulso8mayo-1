@@ -131,13 +131,13 @@ A13..A21 ─── independientes, pulido
 ### Fase 1 — Frontera de tenant y de sucursal
 - [x] **A3** `assertBranchOfCompany` y su aplicación a las escrituras de cortes y caja chica
 - [x] **A4** Aprobar y rechazar un gasto respetan la sucursal, y el `UPDATE` se guarda por status
-- [ ] **A5** `targetBranchId` se resuelve desde la sesión cuando el rol está fijado a una sucursal
+- [x] **A5** `targetBranchId` se resuelve desde la sesión cuando el rol está fijado a una sucursal
 
 ### Checkpoint: Frontera
-- [ ] Un `branchId` de otra empresa se rechaza en las tres rutas de escritura
-- [ ] Un GERENTE de Condesa no aprueba un gasto de Polanco ni por API
-- [ ] Un GERENTE sin `branchId` en el query recibe su sucursal, no el grupo
-- [ ] Spec `branch-scope-finanzas` en verde
+- [x] Un `branchId` de otra empresa se rechaza en las tres rutas de escritura
+- [x] Un GERENTE de Condesa no aprueba un gasto de Polanco ni por API
+- [x] Un GERENTE sin `branchId` en el query recibe su sucursal, no el grupo
+- [x] Spec `branch-scope-finanzas` en verde (9/9)
 
 ### Fase 2 — El timbrado deja rastro
 - [ ] **A6a** Tabla `cfdi_nomina_timbrados` con índice único por `(company, rfc, periodo)`

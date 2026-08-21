@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
 import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { getAuditTrail } from "@/lib/services/control-interno-service";
 
 /**
@@ -44,14 +45,22 @@ export async function GET(req: NextRequest) {
       audit: { action: "READ", req },
     });
 
-    const result = await getAuditTrail(ctx.userCompanyId, {
-      branchId,
-      action,
-      startDate,
-      endDate,
-      limit,
-      offset,
-    });
+    // Ver `kpis`: omitir `branchId` dejaba la bitácora sin filtro para un rol
+    // acotado a sucursal. Una bitácora vacía se lee bien como "sin
+    // movimientos", así que `NONE` devuelve vacío en vez de 403.
+    const alcance = resolveBranchScope(ctx.userRole, ctx.userBranchId, branchId);
+
+    const result =
+      alcance.kind === "NONE"
+        ? { entries: [], total: 0 }
+        : await getAuditTrail(ctx.userCompanyId, {
+            branchId: alcance.kind === "BRANCH" ? alcance.branchId : undefined,
+            action,
+            startDate,
+            endDate,
+            limit,
+            offset,
+          });
 
     return ApiHandler.success(maskSensitive(result, decision));
   } catch (error) {

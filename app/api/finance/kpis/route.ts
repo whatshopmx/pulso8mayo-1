@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
 import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
+import { ApiError } from "@/lib/api/error";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { calculateFinancialKPIs } from "@/lib/services/financial-kpi-service";
 
 /**
@@ -35,9 +37,21 @@ export async function GET(req: NextRequest) {
       audit: { action: "READ", req },
     });
 
+    // Omitir `branchId` no puede significar "todo el grupo". ABAC 403 a un rol
+    // acotado que **pide** la sucursal de otro, pero cuando el parámetro se
+    // omite ese paso se salta: un GERENTE que abría la pantalla sin tocar el
+    // selector veía las cifras de la cadena entera.
+    const alcance = resolveBranchScope(ctx.userRole, ctx.userBranchId, branchId);
+
+    // Sin sucursal asignada no se inventan ceros: un Food Cost en cero se lee
+    // como un dato, no como "no hay datos", y sería falso.
+    if (alcance.kind === "NONE") {
+      throw ApiError.forbidden("Tu usuario no tiene una sucursal asignada. Pídele a un administrador que te asigne una para ver esta información.");
+    }
+
     const kpis = await calculateFinancialKPIs({
       companyId: ctx.userCompanyId,
-      branchId,
+      branchId: alcance.kind === "BRANCH" ? alcance.branchId : undefined,
       startDate,
       endDate,
     });

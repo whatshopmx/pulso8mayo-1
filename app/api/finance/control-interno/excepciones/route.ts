@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
 import { maskSensitiveList } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { detectViolations } from "@/lib/services/control-interno-service";
 
 /**
@@ -27,7 +28,20 @@ export async function GET(req: NextRequest) {
       audit: { action: "READ", req },
     });
 
-    const violations = await detectViolations(ctx.userCompanyId, branchId);
+    // Ver `kpis`: omitir `branchId` dejaba la consulta sin filtro para un rol
+    // acotado a sucursal.
+    const alcance = resolveBranchScope(ctx.userRole, ctx.userBranchId, branchId);
+
+    // Aquí sí se devuelve vacío, a diferencia de los agregados de dinero: una
+    // lista de excepciones sin filas se lee correctamente como "ninguna", y es
+    // la verdad para quien no alcanza ninguna sucursal.
+    const violations =
+      alcance.kind === "NONE"
+        ? []
+        : await detectViolations(
+            ctx.userCompanyId,
+            alcance.kind === "BRANCH" ? alcance.branchId : undefined
+          );
     const payload = {
       violations: maskSensitiveList(violations, decision),
       total: violations.length,

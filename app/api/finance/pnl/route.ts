@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
 import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
+import { ApiError } from "@/lib/api/error";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { getPnLByBranch } from "@/lib/services/pnl-service";
 
 /**
@@ -29,8 +31,34 @@ export async function GET(req: NextRequest) {
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
 
-    const pnl = await getPnLByBranch(ctx.userCompanyId, startDate, endDate);
+    // Esta ruta ni siquiera leía `branchId`: devolvía siempre el renglón de cada
+    // sucursal de la empresa, así que un GERENTE veía el P&L de la cadena
+    // completa. `getPnLByBranch` agrega por empresa en cuatro consultas que no
+    // escalan con el número de sucursales, así que el alcance se aplica sobre el
+    // resultado en vez de multiplicar consultas.
+    const alcance = resolveBranchScope(
+      ctx.userRole,
+      ctx.userBranchId,
+      searchParams.get("branchId")
+    );
 
+    // Un P&L en ceros afirma un margen operativo, y sería falso. Sin sucursal
+    // asignada la respuesta honesta es decirlo (mismo criterio que cash-flow).
+    if (alcance.kind === "NONE") {
+      throw ApiError.forbidden(
+        "Tu usuario no tiene una sucursal asignada. Pídele a un administrador que te asigne una para ver el P&L."
+      );
+    }
+
+    const todas = await getPnLByBranch(ctx.userCompanyId, startDate, endDate);
+    const pnl =
+      alcance.kind === "BRANCH"
+        ? todas.filter((b) => b.branchId === alcance.branchId)
+        : todas;
+
+    // `meta` se calcula sobre lo que de verdad se devuelve: describir el grupo
+    // en la respuesta de una sola sucursal es la misma mentira, corrida un
+    // renglón.
     const estimatedBranches = pnl.filter((b) => b.weakestLine !== "MEASURED");
     const meta = {
       branchCount: pnl.length,

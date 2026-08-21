@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
 import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
+import { ApiError } from "@/lib/api/error";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { getAccountsPayable } from "@/lib/services/accounts-payable-service";
 
 /**
@@ -34,9 +36,19 @@ export async function GET(req: NextRequest) {
       audit: { action: "READ", req },
     });
 
+    // Ver `kpis`: omitir `branchId` dejaba el agregado sin filtro para un rol
+    // acotado a sucursal.
+    const alcance = resolveBranchScope(ctx.userRole, ctx.userBranchId, branchId);
+
+    // Un saldo por pagar en cero no se lee como "no hay datos": se lee como
+    // "no debes nada", que es una afirmación sobre el dinero de alguien.
+    if (alcance.kind === "NONE") {
+      throw ApiError.forbidden("Tu usuario no tiene una sucursal asignada. Pídele a un administrador que te asigne una para ver esta información.");
+    }
+
     const payables = await getAccountsPayable({
       companyId: ctx.userCompanyId,
-      branchId,
+      branchId: alcance.kind === "BRANCH" ? alcance.branchId : undefined,
       supplierId,
     });
 

@@ -204,26 +204,60 @@ el spec cubren la baja y la reapertura (**10 passed**).
   build. Se le añadió reintento sobre 429; ver el commit gemelo en `ventas-rbac`.
 
 
-- [ ] **A5: `targetBranchId` se resuelve desde la sesión**
+- [x] **A5: `targetBranchId` se resuelve desde la sesión**
   - **Description:** Las 5 rutas ABAC (`kpis`, `pnl`, `payables`, `control-interno/audit-log`,
     `control-interno/excepciones`) dejan de tratar la ausencia de `branchId` como "todas": para un rol
     fijado a sucursal, el `targetBranchId` sale de la sesión vía `resolveBranchScope`.
   - **Acceptance criteria:**
-    - [ ] Un GERENTE sin `branchId` en el query recibe los datos de su sucursal, no los del grupo.
-    - [ ] Un ADMIN sin `branchId` sigue recibiendo el grupo.
-    - [ ] Un rol de sucursal **sin** sucursal asignada recibe vacío, no el grupo (`kind === "NONE"`).
+    - [x] Un GERENTE sin `branchId` en el query recibe los datos de su sucursal, no los del grupo.
+    - [x] Un ADMIN sin `branchId` sigue recibiendo el grupo.
+    - [x] Un rol de sucursal **sin** sucursal asignada no recibe el grupo (`kind === "NONE"`) — vacío en las listas, 403 en los agregados de dinero; ver "Cómo quedó".
   - **Verification:**
-    - [ ] Spec nuevo `tests/branch-scope-finanzas.spec.ts` cubriendo las cinco rutas con los tres roles.
-    - [ ] `npx tsx scripts/check-branch-scope-drift.ts` sin regresiones.
+    - [x] Spec nuevo `tests/branch-scope-finanzas.spec.ts` cubriendo las cinco rutas con los tres roles — **9 passed**.
+    - [x] `npx tsx scripts/check-branch-scope-drift.ts` sin regresiones (antes y después: sin deriva).
   - **Dependencies:** None. **Coordinar con `plan-branch-scope-fail-closed.md`** — si ese plan ya corrió, esta tarea se reduce a verificar.
   - **Files:** `app/api/finance/kpis/route.ts`, `app/api/finance/pnl/route.ts`, `app/api/finance/payables/route.ts`, `app/api/finance/control-interno/audit-log/route.ts`, `app/api/finance/control-interno/excepciones/route.ts`, `tests/branch-scope-finanzas.spec.ts`
   - **Scope:** M
 
+  **Cómo quedó.** No estaba hecha: ninguna de las cinco rutas usaba
+  `resolveBranchScope`. El plan de `plan-branch-scope-fail-closed.md` sólo había tocado
+  `cash-flow`, `reports/*` e `inventory/waste`, tal como preveía AD-A3.
+
+  El hueco no era pedir de más sino **no pedir nada**: las rutas pasaban el `branchId` del
+  query como `targetBranchId`, así que ABAC ya daba 403 a un rol acotado que pedía la
+  sucursal de otro. Pero al omitir el parámetro, el paso 2 del gate se salta y la consulta
+  agregada corría sin filtro — un GERENTE que abría la pantalla sin tocar el selector veía
+  las cifras de la cadena entera.
+
+  `/api/finance/pnl` era el peor caso: ni siquiera **leía** `branchId`. Como
+  `getPnLByBranch` agrega por empresa en cuatro consultas que no escalan con el número de
+  sucursales, el alcance se aplica sobre el resultado en vez de multiplicar consultas, y el
+  bloque `meta` se recalcula sobre lo que de verdad se devuelve: describir el grupo en la
+  respuesta de una sola sucursal sería la misma mentira corrida un renglón.
+
+  **`NONE` no devuelve lo mismo en todas.** El criterio decía "recibe vacío"; se siguió en
+  cambio la convención que este repo ya fijó en `/api/finance/cash-flow`, que es más
+  fail-closed y está mejor razonada. Las **listas** (`audit-log`, `excepciones`) devuelven
+  vacío: "ninguna fila" se lee correctamente como ninguna. Los **agregados de dinero**
+  (`kpis`, `pnl`, `payables`) devuelven **403 con mensaje**, porque un P&L en ceros afirma un
+  margen operativo y un saldo en cero dice "no debes nada" — ninguna de las dos es "no hay
+  datos" y las dos serían falsas sobre el dinero de alguien.
+
+  El caso `NONE` no existe en la base sembrada y `assertBranchAssignment` impide crearlo
+  desde la app, así que el spec lo fabrica quitándole la sucursal al GERENTE y la restaura en
+  un `finally`; `check-branch-scope-drift.ts` confirma que quedó como estaba.
+
+  **Cota del spec:** la comparación "sin `branchId` == pidiendo mi sucursal" es fuerte en
+  `audit-log` y `pnl`, donde el fixture siembra gastos en dos sucursales y se comprueba que
+  el ADMIN sí ve más de una. En `kpis` y `payables` puede pasar por empate si no hay datos
+  cruzados de esas fuentes; sembrarlos exigiría facturas y ventas por sucursal.
+
 ### ☑ Checkpoint: Frontera
-- [ ] `branchId` de otra empresa rechazado en las tres rutas de escritura
-- [ ] Un GERENTE de Condesa no aprueba un gasto de Polanco ni por API
-- [ ] Un GERENTE sin `branchId` en el query recibe su sucursal, no el grupo
-- [ ] `pnpm build` limpio · `branch-scope-finanzas` y `frontera-tenant-sucursal` en verde
+- [x] `branchId` de otra empresa rechazado en las tres rutas de escritura
+- [x] Un GERENTE de Condesa no aprueba un gasto de Polanco ni por API
+- [x] Un GERENTE sin `branchId` en el query recibe su sucursal, no el grupo
+- [x] `pnpm build` limpio · `branch-scope-finanzas` 9/9 y `frontera-tenant-sucursal` 9/9 en verde
+      (suite completa de Fase 1: **55 passed, 8 skipped** — los `fixme` previos de gastos)
 
 ---
 
