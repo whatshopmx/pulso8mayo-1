@@ -393,6 +393,13 @@
       "when": 1787271353454,
       "tag": "0055_idempotencia-extractores",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1787329216499,
+      "tag": "0056_cfdi-nomina-timbrados",
+      "breakpoints": true
     }
   ]
 }

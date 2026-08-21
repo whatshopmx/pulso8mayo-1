@@ -1,11 +1,13 @@
 import { sql } from "drizzle-orm";
 import {
   pgTable,
+  pgEnum,
   uuid,
   integer,
   date,
   text,
   timestamp,
+  jsonb,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -58,6 +60,81 @@ export const cashFlowAssumptions = pgTable(
       .on(table.companyId)
       .where(sql`${table.branchId} IS NULL`),
     cashFlowAssumptionsCompanyIdx: index("cash_flow_assumptions_company_idx").on(
+      table.companyId
+    ),
+  })
+);
+
+/**
+ * Estado real de un timbrado ante el PAC.
+ *
+ * `fiscal-service` devolvía `status: "TIMBRADO"` fijo, sin mirar la respuesta:
+ * un rechazo del SAT se presentaba en pantalla con el mismo badge verde que un
+ * comprobante válido. El estado es un dato del PAC, no una afirmación nuestra.
+ */
+export const cfdiTimbradoStatusEnum = pgEnum("cfdi_timbrado_status", [
+  "TIMBRADO",
+  "PENDIENTE",
+  "RECHAZADO",
+  "ERROR",
+]);
+
+/**
+ * Timbrados de CFDI de nómina: lo que el PAC respondió, guardado.
+ *
+ * Antes no se persistía nada. El resultado del timbrado vivía en el estado de
+ * React de la pantalla fiscal, así que **recargar borraba el comprobante**: el
+ * folio fiscal existía ante el SAT y en Pulso no quedaba rastro. Y como la única
+ * guarda contra timbrar dos veces era ese mismo estado de cliente, reintentar
+ * consumía otro folio por el mismo empleado y período.
+ *
+ * El índice único sobre `(company_id, empleado_rfc, periodo)` es la
+ * idempotencia real (AD-A4): no un guard de cliente, sino la base de datos.
+ * Mismo patrón que `0055_idempotencia-extractores.sql`.
+ *
+ * `uuid` es nullable a propósito: un intento **rechazado** no tiene folio, y es
+ * justamente el caso que hay que poder guardar para no repetirlo a ciegas. Un
+ * reintento sobre una fila que no quedó en `TIMBRADO` actualiza esa fila; una
+ * que sí, se devuelve tal cual sin volver a llamar al PAC.
+ */
+export const cfdiNominaTimbrados = pgTable(
+  "cfdi_nomina_timbrados",
+  {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id),
+
+    /** RFC del empleado. Con `periodo`, identifica el comprobante. */
+    empleadoRfc: text("empleado_rfc").notNull(),
+    empleadoNombre: text("empleado_nombre").notNull(),
+    /** Período de nómina tal como se mandó al PAC (ej. `2026-01`). */
+    periodo: text("periodo").notNull(),
+
+    /** Folio fiscal del SAT. `null` mientras no haya timbre válido. */
+    uuid: text("uuid"),
+    status: cfdiTimbradoStatusEnum("status").notNull(),
+    cadenaOriginal: text("cadena_original"),
+    selloDigital: text("sello_digital"),
+
+    totalPercepcionesCents: integer("total_percepciones_cents").notNull(),
+    totalDeduccionesCents: integer("total_deducciones_cents").notNull(),
+
+    /** Respuesta cruda del PAC: la evidencia de qué se pidió y qué contestó. */
+    rawResponse: jsonb("raw_response"),
+
+    timbradoPor: text("timbrado_por").references(() => users.id),
+    fechaTimbrado: timestamp("fecha_timbrado"),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // La idempotencia del folio: un comprobante por empleado y período.
+    cfdiNominaTimbradosUnique: uniqueIndex(
+      "cfdi_nomina_timbrados_company_rfc_periodo_unique"
+    ).on(table.companyId, table.empleadoRfc, table.periodo),
+    cfdiNominaTimbradosCompanyIdx: index("cfdi_nomina_timbrados_company_idx").on(
       table.companyId
     ),
   })

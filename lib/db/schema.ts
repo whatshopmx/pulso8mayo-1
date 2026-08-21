@@ -2904,9 +2904,15 @@ export const pettyCashFunds = pgTable("petty_cash_funds", {
     companyId: uuid("company_id").notNull().references(() => companies.id),
     branchId: uuid("branch_id").notNull().references(() => branches.id),
 
-    fundAmount: integer("fund_amount").notNull().default(500000), // in cents ($5,000 default)
-    currentBalance: integer("current_balance").notNull().default(500000), // in cents
-    lowThreshold: integer("low_threshold").notNull().default(100000), // in cents (20% default)
+    // Sin default a propósito (A1): los $5,000 que había aquí no eran una
+    // convención, eran el monto que el sistema inventaba cuando `getOrCreateFund`
+    // creaba el fondo al leerlo, y se presentaban como saldo real de la cadena.
+    // `openFund` siempre pasa valores explícitos —el efectivo que de verdad se
+    // entregó a la sucursal—, así que el default ya no lo usaba nadie; se quita
+    // para que tampoco pueda volver a usarlo un INSERT futuro.
+    fundAmount: integer("fund_amount").notNull(), // in cents
+    currentBalance: integer("current_balance").notNull(), // in cents
+    lowThreshold: integer("low_threshold").notNull(), // in cents
     active: boolean("active").notNull().default(true),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),

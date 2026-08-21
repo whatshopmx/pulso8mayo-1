@@ -140,7 +140,7 @@ A13..A21 ─── independientes, pulido
 - [x] Spec `branch-scope-finanzas` en verde (9/9)
 
 ### Fase 2 — El timbrado deja rastro
-- [ ] **A6a** Tabla `cfdi_nomina_timbrados` con índice único por `(company, rfc, periodo)`
+- [x] **A6a** Tabla `cfdi_nomina_timbrados` con índice único por `(company, rfc, periodo)`
 - [ ] **A6b** `timbrarNomina` recibe `companyId`, persiste, es idempotente y mapea el status real
 - [ ] **A6c** La pantalla fiscal lee el status real y recupera el último timbrado del período
 

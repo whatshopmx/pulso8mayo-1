@@ -263,19 +263,42 @@ el spec cubren la baja y la reapertura (**10 passed**).
 
 ## Fase 2 — El timbrado deja rastro
 
-- [ ] **A6a: Tabla `cfdi_nomina_timbrados`**
+- [x] **A6a: Tabla `cfdi_nomina_timbrados`**
   - **Description:** Tabla nueva en `lib/db/schema/` con `companyId`, `empleadoRfc`, `empleadoNombre`,
     `periodo`, `uuid`, `status`, `cadenaOriginal`, `selloDigital`, `totalPercepcionesCents`,
     `totalDeduccionesCents`, `rawResponse`, `timbradoPor`, `fechaTimbrado`. Índice único sobre
     `(company_id, empleado_rfc, periodo)`.
   - **Acceptance criteria:**
-    - [ ] La tabla existe con el índice único y `companyId` con FK a `companies`.
-    - [ ] La migración es generada, inspeccionada a mano y aplicada — nunca `db:push`.
+    - [x] La tabla existe con el índice único y `companyId` con FK a `companies`.
+    - [x] La migración es generada, inspeccionada a mano y aplicada — nunca `db:push`.
   - **Verification:**
-    - [ ] `pnpm db:generate` produce SQL revisable; `npx tsx scripts/check-migration-drift.ts` limpio antes y después de `pnpm db:migrate`.
+    - [x] `pnpm db:generate` produce SQL revisable; `check-migration-drift` limpio antes y después de `pnpm db:migrate` (57 → 58 aplicadas).
   - **Dependencies:** None
   - **Files:** `lib/db/schema/` (módulo fiscal), `drizzle/00XX_cfdi-nomina-timbrados.sql`, `drizzle/meta/*`
   - **Scope:** S
+
+  **Cómo quedó.** La tabla vive en `lib/db/schema/finance.ts` (el módulo que ya tenía
+  `cash_flow_assumptions`), con el enum `cfdi_timbrado_status` en
+  `TIMBRADO | PENDIENTE | RECHAZADO | ERROR` — AD-A5 pedía distinguir al menos los tres
+  primeros; `ERROR` ya existía en el tipo del servicio.
+
+  **`uuid` quedó nullable**, y no es un descuido: un intento **rechazado** no tiene folio, y
+  es justamente el que hay que poder guardar para no repetirlo a ciegas. Eso define la
+  semántica de A6b: el índice único es por `(company, rfc, periodo)`, así que un reintento
+  sobre una fila que no quedó en `TIMBRADO` **actualiza** esa fila, y una que sí se devuelve
+  tal cual sin volver a llamar al PAC. Si el índice fuera del folio, un rechazo bloquearía el
+  reintento legítimo.
+
+  La migración se renombró a mano a `0056_cfdi-nomina-timbrados.sql` (drizzle la generó como
+  `0056_slim_ezekiel_stane`), con su entrada del `_journal.json` actualizada, siguiendo la
+  convención de nombres descriptivos del repo.
+
+  **Se aprovechó para saldar la deuda de A1**: los `.default(500000)` / `.default(100000)` de
+  `petty_cash_funds` salen del esquema en esta misma migración (tres `ALTER COLUMN … DROP
+  DEFAULT`). Eran inertes —`openFund` siempre pasa valores explícitos— pero eran el monto que
+  el sistema inventaba, y el criterio de A1 pedía que desaparecieran del código. Se llevaron
+  juntos porque un `DROP DEFAULT` suelto habría chocado con la numeración de esta migración.
+  `petty-cash-lectura-pura` sigue en verde (11/11) después del cambio.
 
 - [ ] **A6b: El servicio persiste, es idempotente y dice el status real**
   - **Description:** `timbrarNomina` recibe `companyId` y `performedBy`. Antes de llamar al PAC busca
