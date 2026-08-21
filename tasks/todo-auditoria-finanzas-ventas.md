@@ -116,21 +116,48 @@ el spec cubren la baja y la reapertura (**10 passed**).
 
 ## Fase 1 — Frontera de tenant y de sucursal
 
-- [ ] **A3: `assertBranchOfCompany` en las escrituras**
+- [x] **A3: `assertBranchOfCompany` en las escrituras**
   - **Description:** Helper en `lib/branch-scope.ts` que valida que un `branchId` pertenece al tenant
     y lanza `ApiError.badRequest` si no, siguiendo el patrón de `getPayeeForCompany`
     (`expense-service.ts:61`). Se aplica en `POST /api/sales/cuts`, `POST /api/petty-cash` y el
     `branchId` que llega al `GET` de caja chica.
   - **Acceptance criteria:**
-    - [ ] Un `branchId` de otra empresa se rechaza con 400 sin revelar que existe.
-    - [ ] Un `branchId` inexistente se rechaza igual, sin llegar a la llave foránea.
-    - [ ] Las escrituras válidas no cambian de comportamiento.
+    - [x] Un `branchId` de otra empresa se rechaza con 400 sin revelar que existe.
+    - [x] Un `branchId` inexistente se rechaza igual, sin llegar a la llave foránea.
+    - [x] Las escrituras válidas no cambian de comportamiento.
   - **Verification:**
-    - [ ] Spec nuevo `tests/frontera-tenant-sucursal.spec.ts`: sembrar dos empresas, intentar la escritura cruzada en las tres rutas.
-    - [ ] `pnpm exec playwright test --no-deps --project=chromium tests/frontera-tenant-sucursal.spec.ts`
+    - [x] Spec nuevo `tests/frontera-tenant-sucursal.spec.ts`: sembrar dos empresas, intentar la escritura cruzada en las tres rutas.
+    - [x] `pnpm build && PLAYWRIGHT_WEB_SERVER_CMD="npm run start" pnpm exec playwright test --project=chromium tests/frontera-tenant-sucursal.spec.ts` — **9 passed**
   - **Dependencies:** None (A1 toca el mismo archivo de caja chica — hacerlas en orden evita conflicto)
   - **Files:** `lib/branch-scope.ts`, `app/api/sales/cuts/route.ts`, `app/api/petty-cash/route.ts`, `tests/frontera-tenant-sucursal.spec.ts`
   - **Scope:** M
+
+  **Cómo quedó.** El helper vive en `lib/branch-scope.ts` (AD-A2) y rechaza con un solo
+  mensaje tanto "no es tuya" como "no existe", igual que `getPayeeForCompany`: distinguirlos
+  le confirmaría a quien prueba ids qué sucursales tienen las demás empresas. Comprueba
+  primero la **forma** del UUID, porque un id mal escrito llegaba a Postgres y volvía como
+  un 500 de casteo (22P02) donde correspondía un 400.
+
+  Dónde se aplica, que no es exactamente lo que decía el plan: en **caja chica va en el
+  servicio**, no en la ruta — `openFund` (la única escritura que inserta la sucursal tal
+  cual llega) y `requireFund` (retiros y reposiciones). Es lo que pide AD-A2 y además deja
+  la guarda cubriendo a cualquier llamador futuro, no sólo al `POST`. En **ventas va en la
+  ruta**, porque el corte se arma y se inserta en `app/api/sales/cuts/route.ts` y no hay
+  servicio donde ponerla; va antes del chequeo de duplicados para no responder "ya existe un
+  corte" sobre la sucursal de otra empresa. El `GET` de caja chica también valida en la
+  ruta: `getFund` se queda como lectura pura, que es todo el punto de A1.
+
+  **La fuga era real y estaba en la base de dev.** La primera corrida en rojo dejó una fila
+  en `petty_cash_funds` con el `company_id` de Pulso y el `branch_id` del tenant ajeno del
+  spec: la llave foránea no la detecta porque esa sucursal *existe*, sólo que no es tuya. Se
+  limpió a mano. `cleanupForeignTenant` en `tests/support/db.ts` ahora borra caja chica y
+  cortes por `branch_id` **sin filtrar por empresa** — filtrando por `companyId` no vería
+  justo las filas cruzadas que este spec produce, el `DELETE` de la sucursal chocaría contra
+  la llave foránea y el tenant ajeno quedaría vivo en dev.
+
+  Cuatro casos pegan al servicio y corren en segundos; los otros cinco necesitan servidor
+  (`/api/sales/cuts` y el `GET`), así que la verificación se corre contra el build y no con
+  `--no-deps`, como decía la línea de arriba antes de corregirla.
 
 - [ ] **A4: Aprobar y rechazar respetan la sucursal**
   - **Description:** `approveOperatingExpense` y `rejectOperatingExpense` reciben el alcance de

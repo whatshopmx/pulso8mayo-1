@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
+import { assertBranchOfCompany } from "@/lib/branch-scope";
 import { db } from "@/lib/db";
 import { dailySalesCuts, branches, users } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
@@ -97,6 +98,11 @@ export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
   try {
     const body = await req.json();
     const data = createCutSchema.parse(body);
+
+    // Ventas no tiene servicio: el corte se arma y se inserta aquí, así que la
+    // frontera de tenant se comprueba aquí. Va antes del chequeo de duplicados
+    // para no responder "ya existe un corte" sobre la sucursal de otra empresa.
+    await assertBranchOfCompany(auth.tenantId, data.branchId);
 
     // Duplicate check
     const existing = await db

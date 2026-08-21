@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
+import { assertBranchOfCompany } from "@/lib/branch-scope";
 import {
   getFund,
   openFund,
@@ -52,6 +53,12 @@ export async function GET(req: NextRequest) {
     if (!branchId) {
       throw ApiError.badRequest("El parámetro branchId es requerido.");
     }
+
+    // La guarda de sucursal va en la ruta, no en `getFund`: la lectura se queda
+    // pura, que es todo el punto de A1. `getFund` ya filtra por `company_id`, así
+    // que una sucursal ajena devolvía `null` sin filtrarse nada; se rechaza de
+    // todos modos para no responder "sin fondo" a una pregunta que no es tuya.
+    await assertBranchOfCompany(tenant.id, branchId);
 
     // Lectura pura: `null` cuando la sucursal no tiene fondo abierto. Este GET
     // creaba el fondo, así que abrir la pantalla con alcance "todas" escribía

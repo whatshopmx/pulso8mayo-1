@@ -7,6 +7,7 @@ import { pettyCashFunds, pettyCashTransactions, users, branches } from "@/lib/db
 import { eq, and, desc } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { ApiError } from "@/lib/api/error";
+import { assertBranchOfCompany } from "@/lib/branch-scope";
 
 export interface RegisterOutflowInput {
   companyId: string;
@@ -81,6 +82,11 @@ export async function getFund(companyId: string, branchId: string) {
  * indistinguible un saldo entregado de uno inventado.
  */
 async function requireFund(companyId: string, branchId: string) {
+  // Antes que el fondo, la sucursal: sin esto una sucursal de otra empresa
+  // fallaba con "no tiene un fondo abierto", que es un mensaje que invita a
+  // abrirle fondo a la sucursal de alguien más.
+  await assertBranchOfCompany(companyId, branchId);
+
   const fund = await getFund(companyId, branchId);
   if (!fund) {
     throw ApiError.badRequest(
@@ -104,6 +110,11 @@ async function requireFund(companyId: string, branchId: string) {
  * invisible.
  */
 export async function openFund(input: OpenFundInput) {
+  // La única escritura que inserta la sucursal tal cual llega. La llave foránea
+  // la deja pasar —la sucursal ajena existe— así que la fila quedaba con el
+  // `company_id` de quien abrió y el `branch_id` de otra empresa.
+  await assertBranchOfCompany(input.companyId, input.branchId);
+
   const lowThreshold =
     input.lowThresholdCents ?? Math.round(input.fundAmountCents * 0.2);
 

@@ -1,4 +1,12 @@
 import type { Role } from "./permissions";
+import { and, eq } from "drizzle-orm";
+import { db } from "./db";
+import { branches } from "./db/schema";
+import { ApiError } from "./api/error";
+
+/** Forma de un UUID, para no mandar a Postgres un id que no puede castear. */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const BRANCH_SCOPED_ROLES: Role[] = ["GERENTE", "SUPERVISOR"];
 
@@ -96,5 +104,49 @@ export function assertBranchAssignment(
     throw new Error(
       `El rol ${role} requiere una sucursal asignada. Selecciona una sucursal antes de guardar.`
     );
+  }
+}
+
+/**
+ * Comprueba que una sucursal pertenezca a la empresa antes de escribir contra ella.
+ *
+ * `companyId` siempre sale de la sesión, pero `branchId` llega del cuerpo o del
+ * query de la petición y nadie comprobaba que ese par existiera junto. La llave
+ * foránea no lo detecta: la sucursal de otra empresa **existe**, sólo que no es
+ * tuya, así que el `INSERT` pasaba y dejaba una fila cruzada entre tenants —un
+ * fondo de caja chica o un corte de ventas con el `company_id` de quien escribió
+ * y el `branch_id` de otra empresa.
+ *
+ * Sigue el patrón de `getPayeeForCompany` (`expense-service.ts:61`): un solo
+ * mensaje para "no es tuya" y para "no existe", porque distinguirlos le
+ * confirmaría a quien prueba ids qué sucursales tienen las demás empresas.
+ *
+ * El chequeo de forma evita que un id mal escrito llegue a Postgres y vuelva
+ * como un 500 de casteo (22P02) en vez del 400 que corresponde.
+ *
+ * Vive aquí y no en cada servicio para que la frontera de tenant y la de
+ * sucursal se lean juntas, junto a `resolveBranchScope`.
+ */
+export async function assertBranchOfCompany(
+  companyId: string,
+  branchId: string
+): Promise<void> {
+  const rechazo = () =>
+    ApiError.badRequest(
+      "La sucursal seleccionada no existe para esta empresa. Recarga el catálogo e inténtalo de nuevo."
+    );
+
+  if (!branchId || !UUID_RE.test(branchId)) {
+    throw rechazo();
+  }
+
+  const [row] = await db
+    .select({ id: branches.id })
+    .from(branches)
+    .where(and(eq(branches.id, branchId), eq(branches.companyId, companyId)))
+    .limit(1);
+
+  if (!row) {
+    throw rechazo();
   }
 }

@@ -1127,6 +1127,18 @@ export async function cleanupForeignTenant(opts: {
   await sql`DELETE FROM inventory_movements WHERE item_id = ${opts.itemId}`;
   await sql`DELETE FROM inventory_batches WHERE id = ${opts.batchId}`;
   await sql`DELETE FROM inventory_items WHERE id = ${opts.itemId}`;
+  // Caja chica y cortes se limpian por `branch_id`, sin filtrar por empresa: un
+  // spec de frontera de tenant escribe precisamente filas cuyo `company_id` es
+  // el de *otra* empresa. Si esta limpieza las filtrara por `opts.companyId` no
+  // las vería, el `DELETE` de la sucursal chocaría contra la llave foránea, y el
+  // tenant ajeno quedaría vivo en la base de dev.
+  const fondos = await sql`SELECT id FROM petty_cash_funds WHERE branch_id = ${opts.branchId}`;
+  const fondoIds = fondos.map((r: any) => r.id as string);
+  if (fondoIds.length > 0) {
+    await sql`DELETE FROM petty_cash_transactions WHERE fund_id = ANY(${fondoIds})`;
+    await sql`DELETE FROM petty_cash_funds WHERE id = ANY(${fondoIds})`;
+  }
+  await sql`DELETE FROM daily_sales_cuts WHERE branch_id = ${opts.branchId}`;
   await sql`DELETE FROM branches WHERE id = ${opts.branchId}`;
   await sql`DELETE FROM companies WHERE id = ${opts.companyId}`;
 }
