@@ -4,8 +4,9 @@
 
 import { db } from "@/lib/db";
 import { pettyCashFunds, pettyCashTransactions, users, branches } from "@/lib/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
+import { ApiError } from "@/lib/api/error";
 
 export interface RegisterOutflowInput {
   companyId: string;
@@ -29,37 +30,155 @@ export interface ReplenishFundInput {
   notes?: string;
 }
 
-export async function getOrCreateFund(companyId: string, branchId: string) {
+export interface OpenFundInput {
+  companyId: string;
+  branchId: string;
+  /**
+   * Efectivo que de verdad se entregó a la sucursal. No tiene default a
+   * propósito: el que había ($5,000) llenó la base de fondos que nadie entregó
+   * y los presentó como saldo real de la cadena. Abrir un fondo es un acto
+   * explícito de quien puso el dinero.
+   */
+  fundAmountCents: number;
+  /** Umbral de reposición. Por omisión, 20% del fondo entregado. */
+  lowThresholdCents?: number;
+  openedBy: string;
+  notes?: string;
+}
+
+/**
+ * Lectura pura del fondo **abierto** de una sucursal: `null` si no tiene.
+ *
+ * No crea nada. Antes esto era `getOrCreateFund` y el `GET` de la pantalla lo
+ * llamaba una vez por sucursal, así que abrir Caja Chica con alcance "todas"
+ * inventaba un fondo de $5,000 por sucursal sin que nadie hubiera entregado un
+ * peso. Ver `scripts/check-fondos-fantasma.ts` para los ya escritos.
+ *
+ * `active = false` es un fondo dado de baja: se lee como si no hubiera fondo.
+ * Hasta A1 la columna era decorativa —nadie la consultaba— y es la que usa
+ * `scripts/baja-fondos-fantasma.ts` para sacar del saldo de la cadena el
+ * efectivo que el sistema inventó, sin borrar la evidencia de que lo hizo.
+ */
+export async function getFund(companyId: string, branchId: string) {
   const [existing] = await db
     .select()
     .from(pettyCashFunds)
     .where(
       and(
         eq(pettyCashFunds.companyId, companyId),
-        eq(pettyCashFunds.branchId, branchId)
+        eq(pettyCashFunds.branchId, branchId),
+        eq(pettyCashFunds.active, true)
       )
     )
     .limit(1);
 
-  if (existing) return existing;
+  return existing ?? null;
+}
 
-  const [created] = await db
-    .insert(pettyCashFunds)
-    .values({
-      companyId,
-      branchId,
-      fundAmount: 500000, // $5,000 MXN default
-      currentBalance: 500000,
-      lowThreshold: 100000, // $1,000 MXN default (20%)
-      active: true,
-    })
-    .returning();
+/**
+ * El fondo de una sucursal, o un error legible si no está abierto.
+ * Las escrituras pasan por aquí: crear el fondo bajo la mesa era lo que hacía
+ * indistinguible un saldo entregado de uno inventado.
+ */
+async function requireFund(companyId: string, branchId: string) {
+  const fund = await getFund(companyId, branchId);
+  if (!fund) {
+    throw ApiError.badRequest(
+      "Esta sucursal no tiene un fondo de caja chica abierto. Ábrelo indicando el efectivo que se entregó antes de registrar movimientos."
+    );
+  }
+  return fund;
+}
 
-  return created;
+/**
+ * Abre el fondo de una sucursal con el monto entregado.
+ *
+ * La apertura deja su propio movimiento en la bitácora: un fondo con saldo y
+ * sin un solo movimiento es precisamente la huella de los fondos fantasma, y
+ * no queremos seguir produciéndola.
+ *
+ * Si la sucursal tiene una fila **dada de baja**, esto la reabre con el monto
+ * nuevo en vez de fallar: el índice único es por `(company, branch)` sin mirar
+ * `active`, así que sin esta rama una sucursal saneada quedaría con la pantalla
+ * diciendo "sin fondo" y el botón de abrir chocando contra un conflicto
+ * invisible.
+ */
+export async function openFund(input: OpenFundInput) {
+  const lowThreshold =
+    input.lowThresholdCents ?? Math.round(input.fundAmountCents * 0.2);
+
+  return await db.transaction(async (tx) => {
+    // El índice único `petty_cash_fund_branch_unique` es la guarda real contra
+    // dos aperturas simultáneas; el pre-SELECT solo daría un mensaje más bonito.
+    const [created] = await tx
+      .insert(pettyCashFunds)
+      .values({
+        companyId: input.companyId,
+        branchId: input.branchId,
+        fundAmount: input.fundAmountCents,
+        currentBalance: input.fundAmountCents,
+        lowThreshold,
+        active: true,
+      })
+      .onConflictDoNothing({
+        target: [pettyCashFunds.companyId, pettyCashFunds.branchId],
+      })
+      .returning();
+
+    let fondo = created;
+    let reapertura = false;
+
+    if (!fondo) {
+      // La lectura va por `tx`: fuera de la transacción no vería la fila que
+      // la propia apertura pudo tocar, y decidiría la reapertura a ciegas.
+      const [existente] = await tx
+        .select()
+        .from(pettyCashFunds)
+        .where(
+          and(
+            eq(pettyCashFunds.companyId, input.companyId),
+            eq(pettyCashFunds.branchId, input.branchId)
+          )
+        )
+        .limit(1);
+      if (existente?.active !== false) {
+        throw ApiError.badRequest(
+          "Esta sucursal ya tiene un fondo de caja chica abierto. Usa una reposición para agregarle saldo."
+        );
+      }
+      const [reabierto] = await tx
+        .update(pettyCashFunds)
+        .set({
+          fundAmount: input.fundAmountCents,
+          currentBalance: input.fundAmountCents,
+          lowThreshold,
+          active: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(pettyCashFunds.id, existente.id))
+        .returning();
+      fondo = reabierto;
+      reapertura = true;
+    }
+
+    await tx.insert(pettyCashTransactions).values({
+      fundId: fondo.id,
+      type: "REPLENISHMENT",
+      amount: input.fundAmountCents,
+      concept: reapertura
+        ? "Reapertura del fondo de caja chica"
+        : "Apertura del fondo de caja chica",
+      registeredBy: input.openedBy,
+      approvedBy: input.openedBy,
+      authorizationNotes: input.notes?.trim() || "Efectivo entregado a la sucursal.",
+    });
+
+    return fondo;
+  });
 }
 
 export async function registerOutflow(input: RegisterOutflowInput) {
-  const fund = await getOrCreateFund(input.companyId, input.branchId);
+  const fund = await requireFund(input.companyId, input.branchId);
 
   if (fund.currentBalance < input.amountCents) {
     throw new Error(
@@ -115,7 +234,7 @@ export async function registerOutflow(input: RegisterOutflowInput) {
 }
 
 export async function replenishFund(input: ReplenishFundInput) {
-  const fund = await getOrCreateFund(input.companyId, input.branchId);
+  const fund = await requireFund(input.companyId, input.branchId);
 
   const newBalance = fund.currentBalance + input.amountCents;
 

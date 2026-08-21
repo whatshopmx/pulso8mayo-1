@@ -1708,3 +1708,86 @@ export async function cleanupIncidentRemediation(): Promise<void> {
 
   await sql`DELETE FROM incidents WHERE id = ANY(${incidentIds})`;
 }
+
+// ── Caja chica (A1) ────────────────────────────────────────────────────────
+
+/**
+ * Sucursal desechable dentro de la empresa sembrada. Los specs de caja chica
+ * necesitan una sucursal que con certeza **no** tenga fondo: las sembradas
+ * pueden tenerlo, y precisamente el bug que se prueba los creaba solos.
+ */
+export async function seedTestBranch(companyId: string, label: string): Promise<string> {
+  const [row] = await sql`
+    INSERT INTO branches (company_id, name)
+    VALUES (${companyId}, ${`${E2E_TAG} ${label} ${Date.now()}`})
+    RETURNING id
+  `;
+  return row.id as string;
+}
+
+/** Borra la sucursal de prueba junto con su fondo y sus movimientos. */
+export async function deleteTestBranch(branchId: string): Promise<void> {
+  const funds = await sql`SELECT id FROM petty_cash_funds WHERE branch_id = ${branchId}`;
+  const fundIds = funds.map((r: any) => r.id as string);
+  if (fundIds.length > 0) {
+    await sql`DELETE FROM petty_cash_transactions WHERE fund_id = ANY(${fundIds})`;
+    await sql`DELETE FROM petty_cash_funds WHERE id = ANY(${fundIds})`;
+  }
+  await sql`DELETE FROM branches WHERE id = ${branchId}`;
+}
+
+/** Cuántos fondos de caja chica tiene la empresa ahora mismo. */
+export async function countPettyCashFunds(companyId: string): Promise<number> {
+  const rows = await sql`
+    SELECT COUNT(*)::int AS n FROM petty_cash_funds WHERE company_id = ${companyId}
+  `;
+  return rows[0]?.n ?? 0;
+}
+
+/** Fila del fondo de una sucursal, o `null`. Lee la base, no el servicio. */
+export async function findPettyCashFund(
+  companyId: string,
+  branchId: string
+): Promise<{ id: string; fundAmount: number; currentBalance: number; lowThreshold: number } | null> {
+  const rows = await sql`
+    SELECT id, fund_amount, current_balance, low_threshold
+    FROM petty_cash_funds
+    WHERE company_id = ${companyId} AND branch_id = ${branchId}
+    LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  return {
+    id: rows[0].id as string,
+    fundAmount: Number(rows[0].fund_amount),
+    currentBalance: Number(rows[0].current_balance),
+    lowThreshold: Number(rows[0].low_threshold),
+  };
+}
+
+/** Movimientos registrados contra un fondo. */
+export async function findPettyCashTransactions(
+  fundId: string
+): Promise<Array<{ type: string; amount: number; concept: string }>> {
+  const rows = await sql`
+    SELECT type, amount, concept
+    FROM petty_cash_transactions
+    WHERE fund_id = ${fundId}
+    ORDER BY created_at
+  `;
+  return rows.map((r: any) => ({
+    type: r.type as string,
+    amount: Number(r.amount),
+    concept: r.concept as string,
+  }));
+}
+
+/** Da de baja el fondo de una sucursal, como hace `scripts/baja-fondos-fantasma.ts`. */
+export async function deactivatePettyCashFund(
+  companyId: string,
+  branchId: string
+): Promise<void> {
+  await sql`
+    UPDATE petty_cash_funds SET active = false, updated_at = now()
+    WHERE company_id = ${companyId} AND branch_id = ${branchId}
+  `;
+}

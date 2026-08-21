@@ -18,18 +18,32 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { formatCents } from "@/lib/utils";
-import { Plus, RefreshCw, Loader2, DollarSign, ImagePlus, Check, X, AlertTriangle } from "lucide-react";
+import { Plus, RefreshCw, Loader2, DollarSign, ImagePlus, Check, X, AlertTriangle, Wallet } from "lucide-react";
 
 interface PettyCashRegisterProps {
   branches: Array<{ id: string; name: string }>;
   /** Sucursal en scope; el diálogo abre en ella pero permite cambiarla. */
   defaultBranchId?: string | null;
+  /**
+   * Acciones que se ofrecen. Por omisión las tres. El estado vacío pasa solo
+   * `["OPEN"]`: sin fondo abierto, un retiro o una reposición fallan en el
+   * servidor, y ofrecerlos ahí sería mandar a la gerente contra una pared.
+   */
+  modes?: Mode[];
   onSuccess?: () => void;
 }
 
-type Mode = "OUT" | "REPLENISHMENT";
+type Mode = "OUT" | "REPLENISHMENT" | "OPEN";
 
-export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: PettyCashRegisterProps) {
+/** Qué se sabe del fondo de la sucursal elegida. */
+type FundStatus = "loading" | "found" | "none" | "error";
+
+export function PettyCashRegister({
+  branches,
+  defaultBranchId,
+  modes = ["OUT", "REPLENISHMENT", "OPEN"],
+  onSuccess,
+}: PettyCashRegisterProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -38,6 +52,8 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
   const [amount, setAmount] = useState<string>("");
   const [concept, setConcept] = useState<string>("");
   const [category, setCategory] = useState<string>("OTROS");
+  /** Umbral de alerta al abrir el fondo; vacío = 20% del monto entregado. */
+  const [threshold, setThreshold] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [evidenceUrl, setEvidenceUrl] = useState<string>("");
   const [uploading, setUploading] = useState(false);
@@ -45,24 +61,38 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
 
   /** Saldo actual del fondo de la sucursal elegida; `null` mientras no se conoce. */
   const [fundBalance, setFundBalance] = useState<number | null>(null);
+  /**
+   * "no tiene fondo" y "no se pudo consultar" son cosas distintas, y desde que
+   * el `GET` dejó de crear el fondo la primera es el caso normal.
+   */
+  const [fundStatus, setFundStatus] = useState<FundStatus>("loading");
 
   const parsedAmount = parseFloat(amount);
   const amountCents =
     Number.isFinite(parsedAmount) && parsedAmount > 0 ? Math.round(parsedAmount * 100) : null;
 
+  const parsedThreshold = parseFloat(threshold);
+  const thresholdCents =
+    threshold.trim() !== "" && Number.isFinite(parsedThreshold) && parsedThreshold >= 0
+      ? Math.round(parsedThreshold * 100)
+      : null;
+
   // Saldo resultante: lo que quedará en la caja después del movimiento. Es el dato
   // que decide si el retiro es sensato, así que se muestra antes de confirmarlo.
   const resultingBalance =
-    fundBalance !== null && amountCents !== null
-      ? mode === "OUT"
-        ? fundBalance - amountCents
-        : fundBalance + amountCents
-      : null;
+    mode === "OPEN"
+      ? amountCents
+      : fundBalance !== null && amountCents !== null
+        ? mode === "OUT"
+          ? fundBalance - amountCents
+          : fundBalance + amountCents
+        : null;
 
   const resetForm = useCallback(() => {
     setAmount("");
     setConcept("");
     setCategory("OTROS");
+    setThreshold("");
     setNotes("");
     setEvidenceUrl("");
   }, []);
@@ -79,17 +109,29 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
   useEffect(() => {
     if (!open || !branchId) {
       setFundBalance(null);
+      setFundStatus("loading");
       return;
     }
     let cancelled = false;
+    setFundStatus("loading");
     (async () => {
       try {
         const res = await fetch(`/api/petty-cash?branchId=${branchId}`);
         const json = await res.json();
         if (cancelled) return;
-        setFundBalance(res.ok && json.success ? (json.data?.currentBalance ?? null) : null);
+        if (!res.ok || !json.success) {
+          setFundBalance(null);
+          setFundStatus("error");
+          return;
+        }
+        // `data: null` es la respuesta legítima de una sucursal sin fondo.
+        setFundBalance(json.data?.currentBalance ?? null);
+        setFundStatus(json.data ? "found" : "none");
       } catch {
-        if (!cancelled) setFundBalance(null);
+        if (!cancelled) {
+          setFundBalance(null);
+          setFundStatus("error");
+        }
       }
     })();
     return () => {
@@ -128,6 +170,15 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
   const blockingReason = (): string | null => {
     if (!branchId) return "Selecciona una sucursal.";
     if (amountCents === null) return "Ingresa un monto válido mayor a $0.";
+    if (mode === "OPEN" && fundStatus === "found") {
+      return "Esta sucursal ya tiene un fondo abierto. Usa Reponer Fondo para agregarle saldo.";
+    }
+    if (mode !== "OPEN" && fundStatus === "none") {
+      return "Esta sucursal no tiene fondo de caja chica. Ábrelo con el efectivo que se entregó.";
+    }
+    if (mode === "OPEN" && thresholdCents !== null && thresholdCents > amountCents) {
+      return "El umbral de alerta no puede ser mayor al fondo entregado.";
+    }
     if (mode === "OUT" && concept.trim() === "") return "Describe el concepto del retiro.";
     // La caja chica promete "comprobante fotográfico": sin él, el retiro no puede
     // auditarse y la columna Comprobante de la bitácora queda vacía para siempre.
@@ -150,7 +201,15 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
     setLoading(true);
     try {
       const body =
-        mode === "REPLENISHMENT"
+        mode === "OPEN"
+          ? {
+              type: "OPEN",
+              branchId,
+              fundAmountCents: amountCents,
+              lowThresholdCents: thresholdCents,
+              notes,
+            }
+          : mode === "REPLENISHMENT"
           ? { type: "REPLENISHMENT", branchId, amountCents, notes }
           : {
               type: "OUT",
@@ -174,8 +233,16 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
       }
 
       toast({
-        title: mode === "REPLENISHMENT" ? "Fondo repuesto" : "Retiro registrado",
-        description: `Movimiento por ${formatCents(amountCents)} registrado en la bitácora.`,
+        title:
+          mode === "OPEN"
+            ? "Fondo abierto"
+            : mode === "REPLENISHMENT"
+              ? "Fondo repuesto"
+              : "Retiro registrado",
+        description:
+          mode === "OPEN"
+            ? `Fondo de ${formatCents(amountCents)} abierto en ${branchName}. La apertura queda en la bitácora.`
+            : `Movimiento por ${formatCents(amountCents)} registrado en la bitácora.`,
       });
 
       setConfirmOpen(false);
@@ -200,13 +267,25 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
       {/* Dos disparadores independientes: envolverlos en un `div` con
           `DialogTrigger asChild` movía el rol y el `aria-expanded` al div, así que
           ninguno de los dos botones anunciaba lo que hacía. */}
-      <div className="flex gap-2">
-        <Button onClick={() => openWithMode("OUT")}>
-          <Plus className="w-4 h-4 mr-2" /> Registrar Retiro
-        </Button>
-        <Button variant="outline" onClick={() => openWithMode("REPLENISHMENT")}>
-          <RefreshCw className="w-4 h-4 mr-2" /> Reponer Fondo
-        </Button>
+      <div className="flex flex-wrap gap-2">
+        {modes.includes("OUT") && (
+          <Button onClick={() => openWithMode("OUT")}>
+            <Plus className="w-4 h-4 mr-2" /> Registrar Retiro
+          </Button>
+        )}
+        {modes.includes("REPLENISHMENT") && (
+          <Button variant="outline" onClick={() => openWithMode("REPLENISHMENT")}>
+            <RefreshCw className="w-4 h-4 mr-2" /> Reponer Fondo
+          </Button>
+        )}
+        {modes.includes("OPEN") && (
+          <Button
+            variant={modes.length === 1 ? "default" : "outline"}
+            onClick={() => openWithMode("OPEN")}
+          >
+            <Wallet className="w-4 h-4 mr-2" /> Abrir Fondo
+          </Button>
+        )}
       </div>
 
       <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) resetForm(); }}>
@@ -214,12 +293,18 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg font-bold">
               <DollarSign className="w-5 h-5 text-primary" />
-              {mode === "REPLENISHMENT" ? "Reposición de Fondo de Caja Chica" : "Registrar Retiro de Caja Chica"}
+              {mode === "OPEN"
+                ? "Abrir Fondo de Caja Chica"
+                : mode === "REPLENISHMENT"
+                  ? "Reposición de Fondo de Caja Chica"
+                  : "Registrar Retiro de Caja Chica"}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              {mode === "REPLENISHMENT"
-                ? "Agrega saldo al fondo de caja chica de la sucursal."
-                : "Saca efectivo de la caja chica. Queda en la bitácora con tu nombre y el comprobante fotográfico."}
+              {mode === "OPEN"
+                ? "Registra el efectivo que se entregó a la sucursal. Ese monto es el saldo inicial del fondo — el sistema no lo inventa."
+                : mode === "REPLENISHMENT"
+                  ? "Agrega saldo al fondo de caja chica de la sucursal."
+                  : "Saca efectivo de la caja chica. Queda en la bitácora con tu nombre y el comprobante fotográfico."}
             </DialogDescription>
           </DialogHeader>
 
@@ -238,7 +323,7 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
                   ))}
                 </SelectContent>
               </Select>
-              {fundBalance !== null && (
+              {fundStatus === "found" && fundBalance !== null && (
                 <p className="text-xs text-muted-foreground">
                   Saldo actual en caja:{" "}
                   <span className="font-semibold text-foreground tabular-nums">
@@ -246,10 +331,33 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
                   </span>
                 </p>
               )}
+              {/* Sin fondo abierto no hay saldo que mostrar, y decirlo aquí evita
+                  que el movimiento se capture entero para morir en el servidor. */}
+              {fundStatus === "none" && (
+                <p className="text-xs text-warning-text">
+                  {mode === "OPEN"
+                    ? "Esta sucursal aún no tiene fondo. El monto que captures será su saldo inicial."
+                    : "Esta sucursal no tiene fondo de caja chica abierto. Ábrelo primero con el efectivo que se entregó."}
+                </p>
+              )}
+              {fundStatus === "found" && mode === "OPEN" && (
+                <p className="text-xs text-warning-text">
+                  Esta sucursal ya tiene un fondo abierto. Para agregarle saldo usa
+                  Reponer Fondo.
+                </p>
+              )}
+              {fundStatus === "error" && (
+                <p className="text-xs text-warning-text">
+                  No se pudo consultar el saldo de esta sucursal. Revísalo antes de
+                  capturar el movimiento.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="petty-amount">Monto ($ MXN)</Label>
+              <Label htmlFor="petty-amount">
+                {mode === "OPEN" ? "Efectivo entregado ($ MXN)" : "Monto ($ MXN)"}
+              </Label>
               <Input
                 id="petty-amount"
                 type="number"
@@ -266,12 +374,33 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
                     resultingBalance < 0 ? "text-destructive font-medium" : "text-muted-foreground"
                   }`}
                 >
-                  Saldo después del movimiento:{" "}
+                  {mode === "OPEN"
+                    ? "Saldo inicial del fondo: "
+                    : "Saldo después del movimiento: "}
                   <span className="font-semibold tabular-nums">{formatCents(resultingBalance)}</span>
                   {resultingBalance < 0 && " — el retiro excede el efectivo disponible."}
                 </p>
               )}
             </div>
+
+            {mode === "OPEN" && (
+              <div className="space-y-2">
+                <Label htmlFor="petty-threshold">Umbral de alerta ($ MXN, opcional)</Label>
+                <Input
+                  id="petty-threshold"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="20% del fondo por omisión"
+                  value={threshold}
+                  onChange={(e) => setThreshold(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Saldo a partir del cual la sucursal pide reposición. Si lo dejas
+                  vacío se usa el 20% del fondo.
+                </p>
+              </div>
+            )}
 
             {mode === "OUT" && (
               <>
@@ -378,12 +507,18 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {mode === "REPLENISHMENT" ? "¿Reponer el fondo?" : "¿Registrar este retiro de efectivo?"}
+              {mode === "OPEN"
+                ? "¿Abrir el fondo con este monto?"
+                : mode === "REPLENISHMENT"
+                  ? "¿Reponer el fondo?"
+                  : "¿Registrar este retiro de efectivo?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {mode === "REPLENISHMENT"
-                ? "El saldo del fondo aumentará y el movimiento quedará en la bitácora auditable."
-                : "El movimiento descuenta efectivo real de la caja y queda en la bitácora a tu nombre. Corregirlo exige un ajuste registrado."}
+              {mode === "OPEN"
+                ? "El monto queda como saldo inicial y como primer movimiento de la bitácora. Debe ser el efectivo que de verdad se entregó a la sucursal."
+                : mode === "REPLENISHMENT"
+                  ? "El saldo del fondo aumentará y el movimiento quedará en la bitácora auditable."
+                  : "El movimiento descuenta efectivo real de la caja y queda en la bitácora a tu nombre. Corregirlo exige un ajuste registrado."}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -399,13 +534,29 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
               </div>
             )}
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Monto</dt>
+              <dt className="text-muted-foreground">
+                {mode === "OPEN" ? "Efectivo entregado" : "Monto"}
+              </dt>
               <dd className="font-semibold tabular-nums">
                 {amountCents !== null ? formatCents(amountCents) : "—"}
               </dd>
             </div>
+            {mode === "OPEN" && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Umbral de alerta</dt>
+                <dd className="font-medium tabular-nums">
+                  {thresholdCents !== null
+                    ? formatCents(thresholdCents)
+                    : amountCents !== null
+                      ? formatCents(Math.round(amountCents * 0.2))
+                      : "—"}
+                </dd>
+              </div>
+            )}
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Saldo resultante</dt>
+              <dt className="text-muted-foreground">
+                {mode === "OPEN" ? "Saldo inicial" : "Saldo resultante"}
+              </dt>
               <dd
                 className={`font-semibold tabular-nums ${
                   resultingBalance !== null && resultingBalance < 0 ? "text-destructive" : ""
@@ -435,7 +586,11 @@ export function PettyCashRegister({ branches, defaultBranchId, onSuccess }: Pett
               }}
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              {mode === "REPLENISHMENT" ? "Sí, reponer" : "Sí, registrar el retiro"}
+              {mode === "OPEN"
+                ? "Sí, abrir el fondo"
+                : mode === "REPLENISHMENT"
+                  ? "Sí, reponer"
+                  : "Sí, registrar el retiro"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

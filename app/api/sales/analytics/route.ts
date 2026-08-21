@@ -1,27 +1,26 @@
-import { NextRequest } from "next/server";
-import { requireTenant } from "@/lib/tenant-context";
+import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
-import { ApiError } from "@/lib/api/error";
 import {
   getSalesSummary,
   getChannelBreakdown,
   getDailySalesTrend,
 } from "@/lib/services/sales-analytics-service";
 
-export async function GET(req: NextRequest) {
-  try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
+/**
+ * Mismos roles que el resto de Ventas y Finanzas: `EMPLEADO` y `READONLY`
+ * quedan fuera. La razón está escrita en `app/api/sales/cuts/route.ts`.
+ */
+const ROLES_VENTAS = ["SUPER_ADMIN", "ADMIN", "GERENTE", "SUPERVISOR"] as const;
 
+export const GET = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
+  try {
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get("branchId") || undefined;
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
 
     const filter = {
-      companyId: tenant.id,
+      companyId: auth.tenantId,
       branchId,
       startDate,
       endDate,
@@ -41,4 +40,4 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return ApiHandler.error(error);
   }
-}
+});

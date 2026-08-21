@@ -65,6 +65,12 @@ export default function PettyCashPage() {
   const [fundError, setFundError] = useState<string | null>(null);
   /** Sucursales cuyo fondo no respondió: excluirlas en silencio subestimaría el total. */
   const [unreachableBranches, setUnreachableBranches] = useState<string[]>([]);
+  /**
+   * Sucursales que respondieron bien y no tienen fondo abierto. Es un estado
+   * normal —el `GET` ya no inventa el fondo—, así que no puede reportarse como
+   * "no respondió": una es una falla de red y la otra es trabajo pendiente.
+   */
+  const [branchesWithoutFund, setBranchesWithoutFund] = useState<string[]>([]);
 
   // El fallo al cargar sucursales tiene prioridad: sin ellas no hay fondo que pedir.
   const error = branchesError ?? fundError;
@@ -94,10 +100,13 @@ export default function PettyCashPage() {
             fetch(`/api/petty-cash/transactions?branchId=${b.id}`),
           ]);
           const [fundJson, txJson] = await Promise.all([fundRes.json(), txRes.json()]);
+          const fundOk = fundRes.ok && fundJson.success;
           return {
             branchId: b.id,
             branchName: b.name,
-            fund: fundRes.ok && fundJson.success ? (fundJson.data as PettyFund | null) : null,
+            /** `false` solo si la petición falló; `data: null` es "sin fondo". */
+            reachable: fundOk,
+            fund: fundOk ? (fundJson.data as PettyFund | null) : null,
             tx: txRes.ok && txJson.success ? (txJson.data as PettyCashTransactionItem[]) : [],
           };
         })
@@ -107,8 +116,12 @@ export default function PettyCashPage() {
       const allTx = results.flatMap((r) => r.tx);
 
       // Un fondo que no respondió sale de la suma; callarlo presentaría un saldo
-      // de cadena subestimado como si fuera autoritativo.
-      setUnreachableBranches(results.filter((r) => !r.fund).map((r) => r.branchName));
+      // de cadena subestimado como si fuera autoritativo. Las que respondieron
+      // "sin fondo" no subestiman nada: no hay efectivo que sumar.
+      setUnreachableBranches(results.filter((r) => !r.reachable).map((r) => r.branchName));
+      setBranchesWithoutFund(
+        results.filter((r) => r.reachable && !r.fund).map((r) => r.branchName)
+      );
 
       if (fundsFound.length === 0) {
         setFund(null);
@@ -327,6 +340,20 @@ export default function PettyCashPage() {
                 </ul>
               )}
 
+              {/* Una sucursal sin fondo abierto no es un error ni una omisión del
+                  sistema: es efectivo que nadie ha entregado todavía. Se nombra
+                  para que se vea a quién le falta, sin mezclarlo con las fallas. */}
+              {branchesWithoutFund.length > 0 && (
+                <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <Wallet className="w-4 h-4 shrink-0 mt-px" />
+                  {branchesWithoutFund.length === 1
+                    ? "1 sucursal aún no tiene fondo abierto"
+                    : `${branchesWithoutFund.length} sucursales aún no tienen fondo abierto`}{" "}
+                  ({branchesWithoutFund.join(", ")}). Ábrelo con el efectivo que se les
+                  entregó para que entren al saldo de la cadena.
+                </p>
+              )}
+
               {unreachableBranches.length > 0 && (
                 <p className="flex items-start gap-2 text-xs text-warning-text">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
@@ -376,14 +403,15 @@ export default function PettyCashPage() {
           }
           description={
             selectedBranch === "ALL"
-              ? "Ninguna sucursal tiene un fondo de caja chica registrado. El primer movimiento inicializa el fondo."
-              : "Esta sucursal aún no tiene fondo de caja chica. Registra el primer movimiento para inicializarlo."
+              ? "Ninguna sucursal tiene un fondo de caja chica abierto. Abrir uno exige capturar el efectivo que se entregó: el sistema no inventa el monto."
+              : "Esta sucursal aún no tiene fondo de caja chica. Ábrelo capturando el efectivo que se le entregó."
           }
           action={
             branches.length > 0 ? (
               <PettyCashRegister
                 branches={branches}
                 defaultBranchId={selectedBranchId}
+                modes={["OPEN"]}
                 onSuccess={fetchData}
               />
             ) : undefined

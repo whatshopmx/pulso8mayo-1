@@ -1,11 +1,15 @@
-import { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAuth, requireTenant } from "@/lib/tenant-context";
+import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
-import { ApiError } from "@/lib/api/error";
 import { db } from "@/lib/db";
 import { posMappingTemplates, users } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
+
+/**
+ * Mismos roles que el resto de Ventas y Finanzas: `EMPLEADO` y `READONLY`
+ * quedan fuera. La razón está escrita en `app/api/sales/cuts/route.ts`.
+ */
+const ROLES_VENTAS = ["SUPER_ADMIN", "ADMIN", "GERENTE", "SUPERVISOR"] as const;
 
 const createTemplateSchema = z.object({
   name: z.string().min(1, "El nombre de la plantilla es requerido."),
@@ -15,13 +19,8 @@ const createTemplateSchema = z.object({
   isDefault: z.boolean().default(false),
 });
 
-export async function GET(req: NextRequest) {
+export const GET = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
   try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-
     const templates = await db
       .select({
         id: posMappingTemplates.id,
@@ -37,23 +36,17 @@ export async function GET(req: NextRequest) {
       })
       .from(posMappingTemplates)
       .leftJoin(users, eq(posMappingTemplates.createdBy, users.id))
-      .where(eq(posMappingTemplates.companyId, tenant.id))
+      .where(eq(posMappingTemplates.companyId, auth.tenantId))
       .orderBy(desc(posMappingTemplates.isDefault), desc(posMappingTemplates.createdAt));
 
     return ApiHandler.success(templates);
   } catch (error) {
     return ApiHandler.error(error);
   }
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
   try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-    const { user } = await requireAuth();
-
     const body = await req.json();
     const data = createTemplateSchema.parse(body);
 
@@ -62,19 +55,19 @@ export async function POST(req: NextRequest) {
       await db
         .update(posMappingTemplates)
         .set({ isDefault: false })
-        .where(eq(posMappingTemplates.companyId, tenant.id));
+        .where(eq(posMappingTemplates.companyId, auth.tenantId));
     }
 
     const [created] = await db
       .insert(posMappingTemplates)
       .values({
-        companyId: tenant.id,
+        companyId: auth.tenantId,
         name: data.name,
         posSystem: data.posSystem || null,
         mapping: data.mapping,
         paymentMethodMapping: data.paymentMethodMapping || null,
         isDefault: data.isDefault,
-        createdBy: user.id,
+        createdBy: auth.user.id,
       })
       .returning();
 
@@ -82,4 +75,4 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return ApiHandler.error(error);
   }
-}
+});

@@ -128,6 +128,20 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
     description: 'Finance module: expenses, authorizations, cash flow and petty cash'
   },
 
+  // === Sales module (misma lista que Finanzas) ===
+  // Sin esta entrada `hasAccess` caía al comodín `/dashboard`, que admite los
+  // seis roles: cualquier empleado podía leer el corte del día y el arqueo de
+  // caja de todas las sucursales —y la pantalla de mapeo POS, que decide cómo
+  // se ingesta la venta— escribiendo la URL. El sidebar oculta el enlace, pero
+  // eso es cosmético.
+  // READONLY queda fuera por el mismo criterio que Finanzas: el arqueo de caja
+  // es tesorería, no consulta de operación.
+  {
+    path: '/dashboard/sales',
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR'],
+    description: 'Sales module: daily cuts, cash reconciliation and POS mapping'
+  },
+
   // === Labor module - management sub-routes (EMPLEADO denied) ===
   {
     path: '/dashboard/labor/attendance',

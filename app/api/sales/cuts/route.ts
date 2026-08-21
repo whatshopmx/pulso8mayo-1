@@ -1,12 +1,24 @@
-import { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAuth, requireTenant } from "@/lib/tenant-context";
+import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import { db } from "@/lib/db";
 import { dailySalesCuts, branches, users } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { checkCashVarianceAndAlertSafe } from "@/lib/services/cash-variance-alert-service";
+
+/**
+ * Ventas se lee y se captura con los mismos roles que Finanzas: aquí están el
+ * corte del día, el arqueo de caja y las plantillas con que se ingesta el POS.
+ * `EMPLEADO` y `READONLY` quedan fuera — el primero no responde por el dinero,
+ * el segundo existe para consultar operación, no tesorería.
+ *
+ * Misma lista que `ROLES_FINANZAS` en `app/api/expenses/route.ts` y que la
+ * entrada `/dashboard/sales` de `ROUTE_PERMISSIONS`. Cerrar sólo la ruta del
+ * dashboard no basta: un `fetch` a la API no pasa por el mismo camino que el
+ * navegador.
+ */
+const ROLES_VENTAS = ["SUPER_ADMIN", "ADMIN", "GERENTE", "SUPERVISOR"] as const;
 
 const createCutSchema = z.object({
   branchId: z.string().uuid("La sucursal es inválida."),
@@ -23,19 +35,16 @@ const createCutSchema = z.object({
   aggregatorSales: z.record(z.string(), z.number().int().nonnegative()).nullable().optional(), // Fase 3
 });
 
-export async function GET(req: NextRequest) {
+export const GET = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
+  // El `try/catch` se conserva dentro del wrapper: `withRoleAuth` traduce
+  // `ApiError`, pero un `ZodError` caería a 500 y aquí ya devolvía 400.
   try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get("branchId");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
 
-    const conditions = [eq(dailySalesCuts.companyId, tenant.id)];
+    const conditions = [eq(dailySalesCuts.companyId, auth.tenantId)];
 
     if (branchId) {
       conditions.push(eq(dailySalesCuts.branchId, branchId));
@@ -82,16 +91,10 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return ApiHandler.error(error);
   }
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
   try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-    const { user } = await requireAuth();
-
     const body = await req.json();
     const data = createCutSchema.parse(body);
 
@@ -101,7 +104,7 @@ export async function POST(req: NextRequest) {
       .from(dailySalesCuts)
       .where(
         and(
-          eq(dailySalesCuts.companyId, tenant.id),
+          eq(dailySalesCuts.companyId, auth.tenantId),
           eq(dailySalesCuts.branchId, data.branchId),
           eq(dailySalesCuts.businessDate, data.businessDate),
           eq(dailySalesCuts.shift, data.shift),
@@ -153,7 +156,7 @@ export async function POST(req: NextRequest) {
     const [inserted] = await db
       .insert(dailySalesCuts)
       .values({
-        companyId: tenant.id,
+        companyId: auth.tenantId,
         branchId: data.branchId,
         businessDate: data.businessDate,
         shift: data.shift,
@@ -173,7 +176,7 @@ export async function POST(req: NextRequest) {
         source: "MANUAL_FORM",
         status,
         validationNotes,
-        receivedBy: user.id,
+        receivedBy: auth.user.id,
       })
       .returning();
 
@@ -194,7 +197,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return ApiHandler.error(error);
   }
-}
+});
 
 function formatMXN(cents: number): string {
   return (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });

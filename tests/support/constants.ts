@@ -36,3 +36,9 @@ export const STORAGE_STATE = "tests/.auth/admin.json";
  * poder limpiarlos sin tocar los datos sembrados.
  */
 export const E2E_TAG = "[E2E]";
+
+/**
+ * READONLY sembrado: consulta operación, no tesorería. Finanzas y Ventas lo
+ * dejan fuera a propósito (ver `ROLES_VENTAS` en `app/api/sales/cuts/route.ts`).
+ */
+export const READONLY_EMAIL = "diana@pulso.mx";

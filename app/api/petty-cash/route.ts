@@ -4,7 +4,8 @@ import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import {
-  getOrCreateFund,
+  getFund,
+  openFund,
   registerOutflow,
   replenishFund,
 } from "@/lib/services/petty-cash-service";
@@ -20,6 +21,16 @@ const registerOutflowSchema = z.object({
   workflowInstanceId: z.string().optional().nullable(),
   approvedBy: z.string().optional().nullable(),
   authorizationNotes: z.string().optional().nullable(),
+});
+
+const openFundSchema = z.object({
+  branchId: z.string().uuid("La sucursal es inválida."),
+  fundAmountCents: z
+    .number()
+    .int()
+    .positive("Indica el efectivo que se entregó a la sucursal."),
+  lowThresholdCents: z.number().int().nonnegative().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 const replenishSchema = z.object({
@@ -42,7 +53,10 @@ export async function GET(req: NextRequest) {
       throw ApiError.badRequest("El parámetro branchId es requerido.");
     }
 
-    const fund = await getOrCreateFund(tenant.id, branchId);
+    // Lectura pura: `null` cuando la sucursal no tiene fondo abierto. Este GET
+    // creaba el fondo, así que abrir la pantalla con alcance "todas" escribía
+    // una fila por sucursal con $5,000 que nadie entregó.
+    const fund = await getFund(tenant.id, branchId);
     return ApiHandler.success(fund);
   } catch (error) {
     return ApiHandler.error(error);
@@ -59,7 +73,28 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    if (body.type === "REPLENISHMENT") {
+    if (body.type === "OPEN") {
+      const data = openFundSchema.parse(body);
+      // Un umbral por encima del fondo nace en alerta y pide reposición desde el
+      // primer día; es un error de captura, no un estado válido.
+      if (
+        data.lowThresholdCents != null &&
+        data.lowThresholdCents > data.fundAmountCents
+      ) {
+        throw ApiError.badRequest(
+          "El umbral de alerta no puede ser mayor al fondo entregado."
+        );
+      }
+      const fund = await openFund({
+        companyId: tenant.id,
+        branchId: data.branchId,
+        fundAmountCents: data.fundAmountCents,
+        lowThresholdCents: data.lowThresholdCents ?? undefined,
+        openedBy: user.id,
+        notes: data.notes || undefined,
+      });
+      return ApiHandler.success(fund, 201);
+    } else if (body.type === "REPLENISHMENT") {
       const data = replenishSchema.parse(body);
       const result = await replenishFund({
         companyId: tenant.id,
