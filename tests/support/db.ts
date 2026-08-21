@@ -432,6 +432,41 @@ export async function deleteTestSalesCuts(): Promise<void> {
 }
 
 /**
+ * Siembra `cantidad` cortes en días **consecutivos** a partir de `desdeDia`.
+ *
+ * Un día por corte a propósito: el índice único de `daily_sales_cuts` es
+ * `(company, branch, business_date, shift, channel)`, así que apilar varios el
+ * mismo día con el mismo turno y canal choca. Sirve para probar cotas y rangos,
+ * donde lo que importa es cuántas filas caen dentro y fuera del período.
+ */
+export async function seedCutsEnDiasConsecutivos(opts: {
+  companyId: string;
+  branchId: string;
+  desdeDia: string;
+  cantidad: number;
+}): Promise<string[]> {
+  const fechas: string[] = [];
+  for (let i = 0; i < opts.cantidad; i++) {
+    const d = new Date(`${opts.desdeDia}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + i);
+    const fecha = d.toISOString().slice(0, 10);
+    fechas.push(fecha);
+    await sql`
+      INSERT INTO daily_sales_cuts (
+        company_id, branch_id, business_date, shift, channel,
+        total_sales, source, status, validation_notes
+      )
+      VALUES (
+        ${opts.companyId}, ${opts.branchId}, ${fecha}::date, 'COMPLETO', 'TOTAL',
+        100000, 'MANUAL_FORM', 'VALIDATED', ${E2E_SALES_CUT_NOTE}
+      )
+      ON CONFLICT DO NOTHING
+    `;
+  }
+  return fechas;
+}
+
+/**
  * Siembra `days` cortes de venta hacia atrás desde hoy, con un monto distinto
  * por día de la semana.
  *

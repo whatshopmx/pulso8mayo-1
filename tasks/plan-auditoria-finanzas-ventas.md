@@ -151,9 +151,9 @@ A13..A21 ─── independientes, pulido
 - [ ] **Revisar con David** — la cancelación de CFDI queda fuera de alcance y hay que decidir si bloquea
 
 ### Fase 3 — Pantallas que afirman de más
-- [ ] **A8** `/api/sales/cuts` acota por defecto al mes en curso, pagina y devuelve `total`
+- [x] **A8** `/api/sales/cuts` acota por defecto al mes en curso, pagina y devuelve `total`
 - [ ] **A7** La página de ventas distingue "falló" de "vacío" y no conserva filas del alcance anterior
-- [ ] **A9** La ingesta de cortes deja de convertir un cero capturado en "no se capturó"
+- [x] **A9** La ingesta de cortes deja de convertir un cero capturado en "no se capturó"
 - [ ] **A10** Gastos declara el alcance aplicado, el truncamiento del historial y el caso sin sucursal
 - [ ] **A11** Se elimina el código muerto de Gastos
 - [ ] **A12** La notificación de gasto pendiente llega a un aprobador real

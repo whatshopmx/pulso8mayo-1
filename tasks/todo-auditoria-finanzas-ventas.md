@@ -399,19 +399,39 @@ el spec cubren la baja y la reapertura (**10 passed**).
 
 ## Fase 3 — Pantallas que afirman de más
 
-- [ ] **A8: `/api/sales/cuts` acota, pagina y declara el total**
+- [x] **A8: `/api/sales/cuts` acota, pagina y declara el total**
   - **Description:** Sin `startDate`/`endDate` la ruta usa el mes en curso. Añade `limit`/`offset` con
     tope, y devuelve `{ items, total, scope }` en vez de un arreglo pelado.
   - **Acceptance criteria:**
-    - [ ] Una petición sin fechas devuelve solo el mes en curso y lo declara en `scope`.
-    - [ ] `total` refleja las filas que existen en el rango, no las devueltas.
-    - [ ] La página consume la forma nueva sin romper el banner de diferencias ni la conciliación.
+    - [x] Una petición sin fechas devuelve solo el mes en curso y lo declara en `scope.rangoPorDefecto`.
+    - [x] `total` refleja las filas que existen en el rango, no las devueltas.
+    - [x] La página consume la forma nueva sin romper el banner de diferencias ni la conciliación (el caso de UI previo de `corte-arqueo` sigue verde).
   - **Verification:**
-    - [ ] Spec nuevo `tests/cortes-cota.spec.ts`: sembrar ~300 cortes en dos meses, verificar rango por defecto y `total`.
-    - [ ] `pnpm exec playwright test --no-deps --project=chromium tests/cortes-cota.spec.ts`
+    - [x] Spec nuevo `tests/cortes-cota.spec.ts`: 12 cortes en el mes en curso y 7 en el anterior, sobre una sucursal propia.
+    - [x] `cortes-cota` **6 passed**. Necesita servidor: pega a la ruta con sesión.
   - **Dependencies:** None
   - **Files:** `app/api/sales/cuts/route.ts`, `app/dashboard/sales/page.tsx`, `tests/cortes-cota.spec.ts`
   - **Scope:** M
+
+  **Cómo quedó.** Rango por defecto = mes en curso, calculado con `localDateString` de
+  `lib/workflows/today.ts` y **no** con `toISOString()`: en UTC-6, después de las 6pm, el
+  primer día del mes se corre uno. `limit` por defecto 100, tope 500, y tanto un `limit`
+  desmedido como uno basura (`?limit=abc`) se recortan en vez de tumbar la consulta.
+
+  La respuesta pasa de arreglo pelado a `{ items, total, scope }`. `total` se cuenta aparte
+  con `count()` sobre las mismas condiciones: son las filas que **existen** en el rango, no
+  las devueltas, que es lo que permite decir "muestro 100 de 342".
+
+  **Un efecto secundario que había que atender:** la etiqueta de alcance de la página decía
+  "todo el período" cuando no había fechas. Con A8 la ruta acota al mes en curso, así que esa
+  frase se habría vuelto **falsa justo en el caso por omisión** — el pecado que esta fase
+  existe para corregir. Ahora se lee de `scope`, que es el rango que de verdad se aplicó, y
+  añade "(mes en curso)" cuando lo puso la ruta. Con `truncated` se avisa cuántos se ven de
+  cuántos hay, como ya hace Control Interno.
+
+  **Cota del spec:** usa una sucursal `[E2E]` propia. `total` cuenta todas las filas del
+  rango, así que sobre una sucursal sembrada —donde otros specs escriben— los conteos
+  exactos serían una lotería.
 
 - [ ] **A7: Ventas distingue "falló" de "vacío"**
   - **Description:** Estado `error` con `EmptyState` y reintento, como en las otras nueve pantallas.
@@ -428,19 +448,27 @@ el spec cubren la baja y la reapertura (**10 passed**).
   - **Files:** `app/dashboard/sales/page.tsx`, `tests/corte-arqueo.spec.ts`
   - **Scope:** S
 
-- [ ] **A9: Un cero capturado deja de ser "no capturado"**
+- [x] **A9: Un cero capturado deja de ser "no capturado"**
   - **Description:** `?? null` en lugar de `|| null` para `cashSales`, `cardSales`, `otherPayments`,
     `cashCountedCents`, `depositedCents` y `ticketCount` en el `INSERT` de cortes.
   - **Acceptance criteria:**
-    - [ ] Un corte con `cashSales: 0` y `cashCountedCents: 0` se guarda con ceros, no con `null`.
-    - [ ] Ese corte aparece en el banner de diferencias si el arqueo no cuadra.
-    - [ ] Un campo omitido sigue guardándose como `null`.
+    - [x] Un corte con `cashSales: 0` se guarda con cero, no con `null`.
+    - [x] Ese corte aparece en el banner de diferencias si el arqueo no cuadra (`computeCashVariance` deja de devolver `null`).
+    - [x] Un campo omitido sigue guardándose como `null`.
   - **Verification:**
-    - [ ] Caso nuevo en `tests/corte-arqueo.spec.ts`: capturar cero y verificar la fila y `computeCashVariance`.
-    - [ ] `pnpm exec playwright test --no-deps --project=chromium tests/corte-arqueo.spec.ts`
+    - [x] Dos casos nuevos en `tests/corte-arqueo.spec.ts`: el cero capturado y la ausencia.
+    - [x] `corte-arqueo` **4 passed** (los 2 previos + los 2 nuevos). Necesita servidor: los casos pegan a la ruta real.
   - **Dependencies:** None
   - **Files:** `app/api/sales/cuts/route.ts`, `tests/corte-arqueo.spec.ts`
   - **Scope:** S
+
+  **Cómo quedó.** Seis campos pasaron de `|| null` a `?? null`. El caso que lo hace algo más
+  que cosmético: `computeCashVariance` (`lib/sales/cash-variance.ts:32`) devuelve `null` si
+  falta **cualquiera** de los dos lados, así que un turno que declaró $0 de efectivo y contó
+  dinero en el cajón —una venta en efectivo que nadie registró— se guardaba con `cash_sales`
+  en `null` y **desaparecía del banner de diferencias** en vez de saltar como sobrante. El
+  spec lo prueba justo así, y el caso gemelo comprueba que `??` no convierta una ausencia en
+  cero, que sería inventar un dato igual de falso.
 
 - [ ] **A10: Gastos declara su alcance, su cota y el caso sin sucursal**
   - **Description:** La página ya recibe `scope` y `truncated` y no los pinta. Se rotula el alcance

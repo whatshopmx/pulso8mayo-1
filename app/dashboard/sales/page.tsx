@@ -28,6 +28,18 @@ import { useBranches } from "@/hooks/use-branches";
 import { useBranch } from "@/lib/branch-context";
 import Link from "next/link";
 
+/** Alcance que `/api/sales/cuts` aplicó, tal como lo devuelve (A8). */
+interface CutsScope {
+  branchId: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  /** `true` si el rango lo puso la ruta (mes en curso) y no el usuario. */
+  rangoPorDefecto: boolean;
+  limit: number;
+  offset: number;
+  truncated: boolean;
+}
+
 interface SalesCut {
   id: string;
   branchId: string;
@@ -85,6 +97,9 @@ function SalesDashboardPageContent() {
   const [cuts, setCuts] = useState<SalesCut[]>([]);
   const { branches } = useBranches();
   const [loadingCuts, setLoadingCuts] = useState(true);
+  /** Alcance que la ruta aplicó de verdad, y cuántos cortes existen en él (A8). */
+  const [cutsScope, setCutsScope] = useState<CutsScope | null>(null);
+  const [cutsTotal, setCutsTotal] = useState(0);
 
   // Scope único para toda la página: sucursal desde el control del encabezado
   // (cookie) y rango de fechas desde la URL que ese mismo control escribe. Antes
@@ -116,7 +131,12 @@ function SalesDashboardPageContent() {
         throw new Error("No se pudieron cargar los cortes de ventas.");
       }
       const data = await res.json();
-      setCuts(data.data || []);
+      // La ruta pasó de devolver un arreglo pelado a `{ items, total, scope }`
+      // (A8), para poder declarar el rango aplicado y lo que no cabe en la
+      // página. `?? []` cubre el caso de una respuesta sin `items`.
+      setCuts(data.data?.items ?? []);
+      setCutsScope(data.data?.scope ?? null);
+      setCutsTotal(data.data?.total ?? 0);
     } catch (err) {
       console.error(err);
       toast({
@@ -150,9 +170,17 @@ function SalesDashboardPageContent() {
       selectedBranch === "ALL"
         ? "todas las sucursales"
         : branches.find((b) => b.id === selectedBranch)?.name ?? "la sucursal en foco";
-    const dateLabel = startDate
-      ? `${startDate}${endDate && endDate !== startDate ? ` a ${endDate}` : ""}`
+
+    // El rango se lee del alcance que **la ruta aplicó**, no del que pidió la
+    // URL. Antes decía "todo el período" cuando no había fechas; desde A8 la
+    // ruta acota al mes en curso, así que esa etiqueta habría pasado a ser
+    // falsa justo en el caso por omisión.
+    const desde = cutsScope?.startDate ?? startDate;
+    const hasta = cutsScope?.endDate ?? endDate;
+    const dateLabel = desde
+      ? `${desde}${hasta && hasta !== desde ? ` a ${hasta}` : ""}${cutsScope?.rangoPorDefecto ? " (mes en curso)" : ""}`
       : "todo el período";
+
     return `${branchLabel} · ${dateLabel}`;
   })();
 
@@ -269,6 +297,16 @@ function SalesDashboardPageContent() {
                   Mostrando <span className="font-medium text-foreground">{scopeLabel}</span>. Cambia
                   el alcance desde los controles del encabezado.
                 </p>
+
+                {/* Una lista acotada presentada como completa es una afirmación
+                    falsa sobre cuántos cortes hay. Se dice cuántos se ven y
+                    cuántos existen, como ya hace Control Interno. */}
+                {cutsScope?.truncated && (
+                  <p className="text-xs text-warning-text">
+                    Se muestran {cuts.length} de {cutsTotal} cortes del período. Acota el rango
+                    para ver el resto.
+                  </p>
+                )}
               </div>
             </CardHeader>
             <CardContent>

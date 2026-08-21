@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { BRANCH_CONDESA } from "./support/constants";
 import { deleteTestCuts, findLatestCut, today } from "./support/db";
+import { computeCashVariance } from "../lib/sales/cash-variance";
 
 /**
  * Fase 2 — Arqueo de cierre de turno.
@@ -103,5 +104,99 @@ test.describe("Fase 2 · arqueo de cierre de turno", () => {
     await expect(
       page.getByText(/corte(s)? con diferencia entre efectivo declarado y arqueo/i)
     ).toBeVisible();
+  });
+});
+
+/**
+ * Auditoría A9 — un cero capturado no es un campo vacío.
+ *
+ * El `INSERT` de `/api/sales/cuts` guardaba cada monto con `data.campo || null`.
+ * En JavaScript `0 || null` es `null`, así que **un cero que alguien capturó a
+ * propósito se guardaba como "no se capturó"**. Zod ya distingue `undefined` de
+ * `0`; el `||` era lo único que borraba la diferencia (AD-A7).
+ *
+ * No es cosmético: `computeCashVariance` devuelve `null` si falta cualquiera de
+ * los dos lados, así que un turno que declaró $0 de efectivo y contó dinero en
+ * el cajón —una venta en efectivo que nadie registró— desaparecía del banner de
+ * diferencias en vez de saltar como sobrante.
+ *
+ *   pnpm exec playwright test --no-deps --project=chromium tests/corte-arqueo.spec.ts
+ */
+test.describe("A9 · un cero capturado se guarda como cero", () => {
+  /** Fecha propia, para no chocar con los casos de arriba. */
+  const FECHA = "2019-05-09";
+
+  test.beforeEach(async () => {
+    await deleteTestCuts(BRANCH_CONDESA, FECHA);
+  });
+
+  test.afterEach(async () => {
+    await deleteTestCuts(BRANCH_CONDESA, FECHA);
+  });
+
+  test("cero efectivo declarado con dinero contado se guarda y arroja sobrante", async ({
+    request,
+  }) => {
+    const res = await request.post("/api/sales/cuts", {
+      data: {
+        branchId: BRANCH_CONDESA,
+        businessDate: FECHA,
+        shift: "COMPLETO",
+        channel: "TOTAL",
+        totalSales: 80_000,
+        cashSales: 0,
+        cardSales: 80_000,
+        otherPayments: 0,
+        cashCountedCents: 5_000,
+        depositedCents: 0,
+      },
+    });
+    expect(res.ok(), await res.text()).toBe(true);
+
+    const cut = await findLatestCut(BRANCH_CONDESA, FECHA);
+    expect(cut).not.toBeNull();
+    // El corazón de A9: cero, no `null`.
+    expect(cut.cash_sales, "el cero capturado se guardó como `null`").toBe(0);
+    expect(cut.deposited_cents).toBe(0);
+    expect(cut.cash_counted_cents).toBe(5_000);
+
+    // Y con los dos lados presentes, el arqueo sí tiene diferencia que reportar.
+    const arqueo = computeCashVariance({
+      cashSales: cut.cash_sales,
+      cashCountedCents: cut.cash_counted_cents,
+    });
+    expect(arqueo, "sin los dos lados, el corte desaparece del banner").not.toBeNull();
+    expect(arqueo!.direction).toBe("sobrante");
+    expect(arqueo!.varianceCents).toBe(5_000);
+  });
+
+  test("un campo omitido sigue guardándose como null", async ({ request }) => {
+    // La otra mitad: `??` no debe convertir una ausencia en cero, que sería
+    // inventar un dato tan falso como el anterior.
+    const res = await request.post("/api/sales/cuts", {
+      data: {
+        branchId: BRANCH_CONDESA,
+        businessDate: FECHA,
+        shift: "MATUTINO",
+        channel: "TOTAL",
+        totalSales: 40_000,
+        cardSales: 40_000,
+        // sin cashSales, sin cashCountedCents, sin depositedCents
+      },
+    });
+    expect(res.ok(), await res.text()).toBe(true);
+
+    const cut = await findLatestCut(BRANCH_CONDESA, FECHA);
+    expect(cut.cash_sales).toBeNull();
+    expect(cut.cash_counted_cents).toBeNull();
+    expect(cut.deposited_cents).toBeNull();
+
+    // Sin los dos lados no hay diferencia que reportar, y no debe pintarse $0.00.
+    expect(
+      computeCashVariance({
+        cashSales: cut.cash_sales,
+        cashCountedCents: cut.cash_counted_cents,
+      })
+    ).toBeNull();
   });
 });

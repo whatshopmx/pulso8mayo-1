@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import { dailySalesCuts, branches, users } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { checkCashVarianceAndAlertSafe } from "@/lib/services/cash-variance-alert-service";
+import { localDateString } from "@/lib/workflows/today";
+import { count } from "drizzle-orm";
 
 /**
  * Ventas se lee y se captura con los mismos roles que Finanzas: aquí están el
@@ -20,6 +22,36 @@ import { checkCashVarianceAndAlertSafe } from "@/lib/services/cash-variance-aler
  * navegador.
  */
 const ROLES_VENTAS = ["SUPER_ADMIN", "ADMIN", "GERENTE", "SUPERVISOR"] as const;
+
+/**
+ * Cota de la lista de cortes.
+ *
+ * El `GET` no tenía ninguna: devolvía todos los cortes de la empresa desde el
+ * principio de los tiempos, y la página los pintaba todos. Una cadena con tres
+ * sucursales y un año de operación son ~3,000 filas por petición para mostrar
+ * las de esta semana.
+ */
+const LIMITE_POR_DEFECTO = 100;
+const LIMITE_MAXIMO = 500;
+
+/**
+ * Rango por defecto: el mes en curso (AD-A6).
+ *
+ * Es el filtro que la operación usa de todos modos, y convierte una consulta sin
+ * cota en una acotada sin quitarle nada al usuario, que puede ampliarla desde el
+ * control del encabezado. Se calcula en hora local de México y no en UTC:
+ * `toISOString()` en UTC-6 mueve el primer día del mes después de las 6pm.
+ */
+function mesEnCurso(): { startDate: string; endDate: string } {
+  const hoy = localDateString(new Date(), null);
+  const [anio, mes] = hoy.split("-").map(Number);
+  // El día 0 del mes siguiente es el último del actual, sin tabla de días.
+  const ultimo = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+  return {
+    startDate: `${hoy.slice(0, 7)}-01`,
+    endDate: `${hoy.slice(0, 7)}-${String(ultimo).padStart(2, "0")}`,
+  };
+}
 
 const createCutSchema = z.object({
   branchId: z.string().uuid("La sucursal es inválida."),
@@ -42,8 +74,23 @@ export const GET = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
   try {
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get("branchId");
-    const startDate = searchParams.get("startDate");
-    const endDate = searchParams.get("endDate");
+
+    // Sin fechas explícitas se acota al mes en curso en vez de barrer la
+    // historia entera. El rango aplicado viaja en `scope` para que la página
+    // pueda declararlo: acotar en silencio sería cambiar lo que la pantalla
+    // afirma sin decirlo.
+    const porDefecto = mesEnCurso();
+    const pedidoStart = searchParams.get("startDate");
+    const pedidoEnd = searchParams.get("endDate");
+    const usaDefault = !pedidoStart && !pedidoEnd;
+    const startDate = pedidoStart || (usaDefault ? porDefecto.startDate : null);
+    const endDate = pedidoEnd || (usaDefault ? porDefecto.endDate : null);
+
+    const limit = Math.min(
+      Math.max(parseInt(searchParams.get("limit") || String(LIMITE_POR_DEFECTO), 10) || LIMITE_POR_DEFECTO, 1),
+      LIMITE_MAXIMO
+    );
+    const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10) || 0, 0);
 
     const conditions = [eq(dailySalesCuts.companyId, auth.tenantId)];
 
@@ -86,9 +133,32 @@ export const GET = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
       .leftJoin(branches, eq(dailySalesCuts.branchId, branches.id))
       .leftJoin(users, eq(dailySalesCuts.receivedBy, users.id))
       .where(and(...conditions))
-      .orderBy(desc(dailySalesCuts.businessDate), desc(dailySalesCuts.shift));
+      .orderBy(desc(dailySalesCuts.businessDate), desc(dailySalesCuts.shift))
+      .limit(limit)
+      .offset(offset);
 
-    return ApiHandler.success(results);
+    // `total` cuenta las filas que **existen** en el rango, no las devueltas:
+    // es lo que permite a la pantalla decir "muestro 100 de 342" en vez de
+    // presentar una lista truncada como si fuera completa.
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(dailySalesCuts)
+      .where(and(...conditions));
+
+    return ApiHandler.success({
+      items: results,
+      total,
+      scope: {
+        branchId: branchId || null,
+        startDate,
+        endDate,
+        /** `true` si el rango lo puso la ruta y no el usuario. */
+        rangoPorDefecto: usaDefault,
+        limit,
+        offset,
+        truncated: total > offset + results.length,
+      },
+    });
   } catch (error) {
     return ApiHandler.error(error);
   }
@@ -168,13 +238,21 @@ export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
         shift: data.shift,
         channel: data.channel,
         totalSales: data.totalSales,
-        cashSales: data.cashSales || null,
-        cardSales: data.cardSales || null,
-        otherPayments: data.otherPayments || null,
-        cashCountedCents: data.cashCountedCents || null,
-        depositedCents: data.depositedCents || null,
-        aggregatorSales: data.aggregatorSales || null,
-        ticketCount: data.ticketCount || null,
+        // `??` y no `||` (AD-A7): en JavaScript `0 || null` es `null`, así que
+        // un cero **capturado a propósito** se guardaba como "no se capturó".
+        // Zod ya distingue `undefined` de `0`; el `||` era lo único que borraba
+        // la diferencia. No es cosmético: `computeCashVariance` devuelve `null`
+        // si falta cualquiera de los dos lados, así que un turno que declaró $0
+        // de efectivo y contó dinero en el cajón —una venta que nadie
+        // registró— desaparecía del banner de diferencias en vez de saltar
+        // como sobrante.
+        cashSales: data.cashSales ?? null,
+        cardSales: data.cardSales ?? null,
+        otherPayments: data.otherPayments ?? null,
+        cashCountedCents: data.cashCountedCents ?? null,
+        depositedCents: data.depositedCents ?? null,
+        aggregatorSales: data.aggregatorSales ?? null,
+        ticketCount: data.ticketCount ?? null,
         avgTicket:
           data.ticketCount && data.ticketCount > 0
             ? Math.round(data.totalSales / data.ticketCount)
