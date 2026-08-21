@@ -188,6 +188,33 @@ function comoResultado(fila: typeof cfdiNominaTimbrados.$inferSelect): NominaTim
 }
 
 /**
+ * El timbrado guardado de un período, o `null`.
+ *
+ * Es lo que permite que **recargar la pantalla no borre el comprobante**: antes
+ * el resultado sólo vivía en el estado de React, así que el folio existía ante
+ * el SAT y la pantalla se quedaba en blanco.
+ */
+export async function getTimbrado(
+  companyId: string,
+  empleadoRfc: string,
+  periodo: string
+): Promise<NominaTimbradoResult | null> {
+  const [fila] = await db
+    .select()
+    .from(cfdiNominaTimbrados)
+    .where(
+      and(
+        eq(cfdiNominaTimbrados.companyId, companyId),
+        eq(cfdiNominaTimbrados.empleadoRfc, empleadoRfc),
+        eq(cfdiNominaTimbrados.periodo, periodo)
+      )
+    )
+    .limit(1);
+
+  return fila ? comoResultado(fila) : null;
+}
+
+/**
  * Timbra un CFDI de nómina vía FiscalAPI y **deja constancia**.
  *
  * Antes no se persistía nada: el comprobante vivía en el estado de React de la

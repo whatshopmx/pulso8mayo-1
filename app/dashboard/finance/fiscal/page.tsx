@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,37 @@ const EMPTY_NOMINA_FORM = {
   totalDeducciones: "",
 };
 
+/**
+ * Cómo se pinta cada estado del PAC.
+ *
+ * La pantalla afirmaba "TIMBRADO" fijo con el badge verde, sin mirar la
+ * respuesta: un rechazo del SAT se veía idéntico a un comprobante válido. El
+ * estado lo dice el PAC (`fiscal-service.mapPacStatus`), no la UI.
+ */
+const ESTADO_TIMBRADO: Record<
+  string,
+  { etiqueta: string; tono: "success" | "warning" | "destructive"; titulo: string }
+> = {
+  TIMBRADO: { etiqueta: "TIMBRADO", tono: "success", titulo: "Timbrado exitoso" },
+  PENDIENTE: {
+    etiqueta: "PENDIENTE",
+    tono: "warning",
+    titulo: "El PAC aún no confirma el timbre",
+  },
+  RECHAZADO: { etiqueta: "RECHAZADO", tono: "destructive", titulo: "El SAT rechazó el comprobante" },
+  ERROR: { etiqueta: "ERROR", tono: "destructive", titulo: "El timbrado falló" },
+};
+
+function presentacionDe(status: string) {
+  return (
+    ESTADO_TIMBRADO[status] ?? {
+      etiqueta: status || "DESCONOCIDO",
+      tono: "warning" as const,
+      titulo: "Estado no reconocido del comprobante",
+    }
+  );
+}
+
 /** Pesos escritos por el usuario → centavos enteros. Devuelve 0 si no es un número. */
 function pesosToCents(raw: string): number {
   const parsed = parseFloat(raw);
@@ -52,31 +83,86 @@ export default function FiscalPage() {
   const [timbradoResult, setTimbradoResult] = useState<TimbradoResult | null>(null);
   const [timbradoError, setTimbradoError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  /** Timbrado que ya existía para este RFC y período, recuperado del servidor. */
+  const [timbradoPrevio, setTimbradoPrevio] = useState<TimbradoResult | null>(null);
+  const [buscandoPrevio, setBuscandoPrevio] = useState(false);
 
   const percepcionesCents = pesosToCents(nominaForm.totalPercepciones);
   const deduccionesCents = pesosToCents(nominaForm.totalDeducciones);
 
+  const rfc = nominaForm.empleadoRfc.trim();
+  const periodo = nominaForm.periodo.trim();
+
+  // El comprobante ya no vive sólo en el estado de React: al escribir RFC y
+  // período se pregunta al servidor si ese par ya está timbrado. Es lo que hace
+  // que recargar la página no borre el comprobante y que no se ofrezca gastar
+  // otro folio por algo que ya se timbró.
+  useEffect(() => {
+    if (!rfc || !periodo) {
+      setTimbradoPrevio(null);
+      return;
+    }
+
+    // Debounce + AbortController: se teclea letra por letra, y sin cancelar la
+    // anterior una respuesta lenta puede pisar a una más nueva.
+    const control = new AbortController();
+    const timer = setTimeout(async () => {
+      setBuscandoPrevio(true);
+      try {
+        const res = await fetch(
+          `/api/finance/fiscal/timbrar-nomina?empleadoRfc=${encodeURIComponent(rfc)}&periodo=${encodeURIComponent(periodo)}`,
+          { signal: control.signal }
+        );
+        const json = await res.json();
+        if (res.ok && json.success) setTimbradoPrevio(json.data ?? null);
+      } catch (err) {
+        // Un abort es lo normal al seguir tecleando, no un fallo que reportar.
+        if ((err as Error)?.name !== "AbortError") {
+          console.error("No se pudo consultar el timbrado previo:", err);
+        }
+      } finally {
+        if (!control.signal.aborted) setBuscandoPrevio(false);
+      }
+    }, 400);
+
+    return () => {
+      control.abort();
+      clearTimeout(timer);
+    };
+  }, [rfc, periodo]);
+
+  /** El comprobante a mostrar: el recién timbrado o el que ya existía. */
+  const comprobante = timbradoResult ?? timbradoPrevio;
+  /** Sólo un timbrado válido cierra el período; un rechazo se puede reintentar. */
+  const yaTimbrado = comprobante?.status === "TIMBRADO";
+
   // Un timbrado exitoso consume un folio ante el SAT y solo se revierte con una
   // cancelación formal: el formulario queda bloqueado hasta que se pida
   // explícitamente uno nuevo, para que un segundo clic no lo duplique.
-  const isLocked = timbradoResult !== null;
+  const isLocked = yaTimbrado;
 
   const canTimbrar =
     !timbrando &&
     !isLocked &&
-    nominaForm.empleadoRfc.trim() !== "" &&
+    !buscandoPrevio &&
+    rfc !== "" &&
     nominaForm.empleadoNombre.trim() !== "" &&
-    nominaForm.periodo.trim() !== "" &&
+    periodo !== "" &&
     percepcionesCents > 0;
 
   const handleNominaChange = (field: keyof typeof EMPTY_NOMINA_FORM, value: string) => {
     setNominaForm((prev) => ({ ...prev, [field]: value }));
     setTimbradoError(null);
+    // Un rechazo deja el formulario abierto para reintentar (a diferencia de un
+    // timbre válido, que lo bloquea). Si no se limpia aquí, al cambiar de RFC o
+    // período seguiría en pantalla el resultado del comprobante anterior.
+    setTimbradoResult(null);
   };
 
   const resetNominaForm = () => {
     setNominaForm(EMPTY_NOMINA_FORM);
     setTimbradoResult(null);
+    setTimbradoPrevio(null);
     setTimbradoError(null);
   };
 
@@ -260,26 +346,46 @@ export default function FiscalPage() {
                 </div>
               )}
 
-              {timbradoResult && (
+              {comprobante && (
                 <div className="border rounded-md p-4 space-y-3 bg-muted/20">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium">Timbrado exitoso</span>
-                    <Badge variant="outline" className={`gap-1 ${statusBadgeClasses("success")}`}>
-                      <CheckCircle className="w-3 h-3" /> TIMBRADO
+                    <span className="text-xs font-medium">
+                      {presentacionDe(comprobante.status).titulo}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={`gap-1 ${statusBadgeClasses(presentacionDe(comprobante.status).tono)}`}
+                    >
+                      {comprobante.status === "TIMBRADO" ? (
+                        <CheckCircle className="w-3 h-3" />
+                      ) : (
+                        <AlertCircle className="w-3 h-3" />
+                      )}
+                      {presentacionDe(comprobante.status).etiqueta}
                     </Badge>
                   </div>
+
+                  {/* El período ya tenía comprobante antes de abrir la pantalla: se
+                      avisa en vez de ofrecer gastar otro folio por lo mismo. */}
+                  {!timbradoResult && yaTimbrado && (
+                    <div className="text-xs text-muted-foreground">
+                      Este período ya fue timbrado para este RFC. No hace falta volver a
+                      timbrarlo: hacerlo consumiría otro folio por el mismo comprobante.
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 gap-2 text-xs">
                     <div>
                       <span className="text-muted-foreground">UUID: </span>
-                      <span className="font-mono font-medium">{timbradoResult.uuid}</span>
+                      <span className="font-mono font-medium">{comprobante.uuid || "—"}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Fecha de Timbrado: </span>
-                      <span>{new Date(timbradoResult.fechaTimbrado).toLocaleString("es-MX")}</span>
+                      <span>{new Date(comprobante.fechaTimbrado).toLocaleString("es-MX")}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Cadena Original: </span>
-                      <span className="font-mono text-xs break-all">{timbradoResult.cadenaOriginal || "—"}</span>
+                      <span className="font-mono text-xs break-all">{comprobante.cadenaOriginal || "—"}</span>
                     </div>
                   </div>
                 </div>

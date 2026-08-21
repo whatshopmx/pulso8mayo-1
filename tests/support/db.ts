@@ -173,6 +173,39 @@ export async function setUserBranchId(
   return (previas[0].branch_id as string | null) ?? null;
 }
 
+/** Escribe un timbrado directamente, sin pasar por el PAC ni por el servicio. */
+export async function seedTimbrado(opts: {
+  companyId: string;
+  empleadoRfc: string;
+  empleadoNombre?: string;
+  periodo: string;
+  uuid?: string | null;
+  status: "TIMBRADO" | "PENDIENTE" | "RECHAZADO" | "ERROR";
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO cfdi_nomina_timbrados (
+      company_id, empleado_rfc, empleado_nombre, periodo, uuid, status,
+      cadena_original, sello_digital,
+      total_percepciones_cents, total_deducciones_cents, fecha_timbrado
+    )
+    VALUES (
+      ${opts.companyId},
+      ${opts.empleadoRfc},
+      ${opts.empleadoNombre ?? "[E2E] Empleada"},
+      ${opts.periodo},
+      ${opts.uuid ?? null},
+      ${opts.status}::cfdi_timbrado_status,
+      ${"||1.1|E2E||"},
+      ${"SELLO-SEED"},
+      1000000,
+      100000,
+      now()
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
 /** La fila de timbrado de un período, leída de la base y no del servicio. */
 export async function findTimbrado(
   companyId: string,

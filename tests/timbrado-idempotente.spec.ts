@@ -4,6 +4,7 @@ import {
   countTimbrados,
   deleteTestTimbrados,
   findTimbrado,
+  seedTimbrado,
 } from "./support/db";
 import { timbrarNomina } from "../lib/services/fiscal-service";
 
@@ -213,5 +214,85 @@ test.describe("A6b · el timbrado se persiste y no se repite", () => {
       await countTimbrados(COMPANY_ID, RFC, PERIODO),
       "una carrera dejó dos comprobantes para el mismo período"
     ).toBe(1);
+  });
+});
+
+/**
+ * Auditoría A6c — el comprobante sobrevive a recargar la pantalla.
+ *
+ * La pantalla fiscal guardaba el resultado sólo en el estado de React, así que
+ * recargar lo borraba: el folio existía ante el SAT y Pulso se quedaba en
+ * blanco. `GET /api/finance/fiscal/timbrar-nomina` es lo que la pantalla
+ * consulta para recuperarlo y para avisar de un período ya timbrado en vez de
+ * ofrecer gastar otro folio.
+ *
+ * Estos casos **sí necesitan el servidor** (usan la sesión de admin):
+ *   pnpm build && PLAYWRIGHT_WEB_SERVER_CMD="npm run start" \
+ *     pnpm exec playwright test --project=chromium tests/timbrado-idempotente.spec.ts
+ */
+test.describe("A6c · el comprobante se recupera del servidor", () => {
+  const RFC_C = "E2E020202BBB";
+  const PERIODO_C = "2026-98";
+
+  test.afterEach(async () => {
+    await deleteTestTimbrados();
+  });
+
+  test("un período timbrado se recupera con UUID y fecha", async ({ request }) => {
+    await seedTimbrado({
+      companyId: COMPANY_ID,
+      empleadoRfc: RFC_C,
+      periodo: PERIODO_C,
+      uuid: "11112222-3333-4444-5555-666677778888",
+      status: "TIMBRADO",
+    });
+
+    const res = await request.get(
+      `/api/finance/fiscal/timbrar-nomina?empleadoRfc=${RFC_C}&periodo=${PERIODO_C}`
+    );
+    expect(res.status()).toBe(200);
+    const { data } = await res.json();
+
+    expect(data, "recargar la pantalla perdería el comprobante").not.toBeNull();
+    expect(data.uuid).toBe("11112222-3333-4444-5555-666677778888");
+    expect(data.status).toBe("TIMBRADO");
+    expect(Number.isNaN(Date.parse(data.fechaTimbrado))).toBe(false);
+  });
+
+  test("un período rechazado se recupera como RECHAZADO, no como timbre", async ({
+    request,
+  }) => {
+    // Es lo que impide que el badge verde se pinte sobre un rechazo del SAT.
+    await seedTimbrado({
+      companyId: COMPANY_ID,
+      empleadoRfc: RFC_C,
+      periodo: PERIODO_C,
+      uuid: null,
+      status: "RECHAZADO",
+    });
+
+    const res = await request.get(
+      `/api/finance/fiscal/timbrar-nomina?empleadoRfc=${RFC_C}&periodo=${PERIODO_C}`
+    );
+    const { data } = await res.json();
+
+    expect(data.status).toBe("RECHAZADO");
+    expect(data.uuid).toBe("");
+  });
+
+  test("un período sin timbrar devuelve null, no un error", async ({ request }) => {
+    const res = await request.get(
+      `/api/finance/fiscal/timbrar-nomina?empleadoRfc=${RFC_C}&periodo=SIN-TIMBRAR`
+    );
+
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data).toBeNull();
+  });
+
+  test("sin RFC o sin período la consulta se rechaza con 400", async ({ request }) => {
+    const res = await request.get("/api/finance/fiscal/timbrar-nomina?empleadoRfc=" + RFC_C);
+    expect(res.status()).toBe(400);
   });
 });

@@ -344,26 +344,56 @@ el spec cubren la baja y la reapertura (**10 passed**).
   existía hasta A6a y de una firma que no compilaba. Los casos siguen siendo significativos
   (cuentan llamadas salientes al PAC), pero no se observó el rojo.
 
-- [ ] **A6c: La pantalla fiscal deja de afirmar el timbrado**
+- [x] **A6c: La pantalla fiscal deja de afirmar el timbrado**
   - **Description:** El badge lee `timbradoResult.status` en vez de pintar "TIMBRADO" fijo, y la
     pantalla puede recuperar el timbrado existente de un período ya timbrado en vez de depender del
     estado de React.
   - **Acceptance criteria:**
-    - [ ] Un status distinto de `TIMBRADO` no pinta el badge verde.
-    - [ ] Recargar la página tras timbrar sigue mostrando UUID y fecha del comprobante.
-    - [ ] Reintentar un período ya timbrado avisa que existe, en vez de ofrecer timbrar de nuevo.
+    - [x] Un status distinto de `TIMBRADO` no pinta el badge verde.
+    - [x] Recargar la página tras timbrar sigue mostrando UUID y fecha del comprobante.
+    - [x] Reintentar un período ya timbrado avisa que existe, en vez de ofrecer timbrar de nuevo.
   - **Verification:**
-    - [ ] Verificación manual con FiscalAPI sin configurar (el servicio ya lanza mensaje claro) y con respuesta mockeada.
-    - [ ] `pnpm build` limpio.
+    - [x] En vez de sólo manual: cuatro casos de API sobre el `GET` nuevo en `tests/timbrado-idempotente.spec.ts` (describe `A6c`). El pintado del badge sí queda como revisión de código.
+    - [x] `pnpm build` limpio.
   - **Dependencies:** A6b
   - **Files:** `app/dashboard/finance/fiscal/page.tsx`, `app/api/finance/fiscal/timbrar-nomina/route.ts`
   - **Scope:** S
 
+  **Cómo quedó.** El badge sale de una tabla `ESTADO_TIMBRADO` que mapea el status del PAC a
+  etiqueta, tono e ícono: verde sólo para `TIMBRADO`, ámbar para `PENDIENTE`, rojo para
+  `RECHAZADO` y `ERROR`, y un tono de aviso para un status que no reconozca — nunca verde por
+  omisión, que es lo que hacía antes.
+
+  Para que recargar no borre el comprobante hacía falta poder leerlo: se agregó
+  **`GET /api/finance/fiscal/timbrar-nomina?empleadoRfc=…&periodo=…`** (permiso `read`, no
+  `manage`) sobre `getTimbrado`. La pantalla lo consulta cuando RFC y período están
+  completos, con **debounce de 400 ms y `AbortController`**: se teclea letra por letra, y sin
+  cancelar la anterior una respuesta lenta puede pisar a una más nueva — la misma clase de
+  carrera que A18 arregla en Contrapartes.
+
+  **`isLocked` pasó de `timbradoResult !== null` a `status === "TIMBRADO"`.** Antes, un
+  rechazo bloqueaba el formulario igual que un timbre bueno, así que no se podía reintentar
+  desde la pantalla; ahora sólo cierra el período un timbre válido, que es la misma semántica
+  que A6b le dio al servicio. Como consecuencia, `handleNominaChange` limpia
+  `timbradoResult`: con el formulario abierto tras un rechazo, cambiar de RFC dejaba en
+  pantalla el comprobante del anterior.
+
+  **La verificación no se quedó en manual.** El plan pedía revisión a ojo; en su lugar hay
+  cuatro casos de API sobre el `GET` nuevo (`A6c` en `tests/timbrado-idempotente.spec.ts`),
+  que es el mecanismo del que dependen los tres criterios: recuperar un período timbrado,
+  recuperar uno rechazado **sin** presentarlo como timbre, `null` para uno sin timbrar, y 400
+  si falta RFC o período. Lo que sigue siendo sólo revisión de código es el pintado del badge
+  en sí.
+
 ### ☑ Checkpoint: Fiscal
-- [ ] Timbrar dos veces el mismo período devuelve el mismo UUID y un solo folio consumido
-- [ ] Recargar después de timbrar sigue mostrando el comprobante
-- [ ] Un status distinto de TIMBRADO no pinta verde
-- [ ] **Revisar con David** — decidir si la cancelación de CFDI bloquea o va a su propio plan
+- [x] Timbrar dos veces el mismo período devuelve el mismo UUID y un solo folio consumido
+- [x] Recargar después de timbrar sigue mostrando el comprobante
+- [x] Un status distinto de TIMBRADO no pinta verde
+- [ ] **Revisar con David** — decidir si la cancelación de CFDI bloquea o va a su propio plan.
+      **Sigue abierta.** A6 la dejó *posible* (antes no había fila que cancelar: el timbrado no
+      se persistía). Implementarla es otro alcance —requiere el endpoint de cancelación del PAC,
+      el motivo SAT, y decidir qué pasa con el payslip ya emitido— y nada de la Fase 2 depende
+      de esa decisión. Timbrado 11/11, suite de finanzas y ventas 65 passed / 8 skipped.
 
 ---
 

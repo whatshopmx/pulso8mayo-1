@@ -142,12 +142,12 @@ A13..A21 ─── independientes, pulido
 ### Fase 2 — El timbrado deja rastro
 - [x] **A6a** Tabla `cfdi_nomina_timbrados` con índice único por `(company, rfc, periodo)`
 - [x] **A6b** `timbrarNomina` recibe `companyId`, persiste, es idempotente y mapea el status real
-- [ ] **A6c** La pantalla fiscal lee el status real y recupera el último timbrado del período
+- [x] **A6c** La pantalla fiscal lee el status real y recupera el último timbrado del período
 
 ### Checkpoint: Fiscal
-- [ ] Timbrar dos veces el mismo período devuelve el mismo UUID y consume un solo folio
-- [ ] Recargar la página después de timbrar sigue mostrando el comprobante
-- [ ] Un status distinto de TIMBRADO no pinta el badge verde
+- [x] Timbrar dos veces el mismo período devuelve el mismo UUID y consume un solo folio
+- [x] Recargar la página después de timbrar sigue mostrando el comprobante
+- [x] Un status distinto de TIMBRADO no pinta el badge verde
 - [ ] **Revisar con David** — la cancelación de CFDI queda fuera de alcance y hay que decidir si bloquea
 
 ### Fase 3 — Pantallas que afirman de más

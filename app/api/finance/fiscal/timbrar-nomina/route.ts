@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requirePermissionApi } from "@/lib/rbac/abac";
 import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
-import { timbrarNomina } from "@/lib/services/fiscal-service";
+import { ApiError } from "@/lib/api/error";
+import { getTimbrado, timbrarNomina } from "@/lib/services/fiscal-service";
 
 const timbrarSchema = z.object({
   empleadoRfc: z.string().min(12, "RFC del empleado inválido.").max(13),
@@ -45,6 +46,40 @@ export async function POST(req: NextRequest) {
       performedBy: ctx.userId,
     });
     return ApiHandler.success(maskSensitive(result, decision));
+  } catch (error) {
+    return ApiHandler.error(error);
+  }
+}
+
+/**
+ * GET /api/finance/fiscal/timbrar-nomina?empleadoRfc=…&periodo=…
+ *
+ * Devuelve el timbrado guardado de ese período, o `null`. Existe para que la
+ * pantalla pueda **recuperar el comprobante al recargar** —antes vivía sólo en
+ * el estado de React— y para avisar de un período ya timbrado en vez de
+ * ofrecer gastar otro folio.
+ *
+ * Es lectura: `read`, no `manage`. Timbrar sigue siendo el POST.
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const { ctx, decision } = await requirePermissionApi("reports", "read", {
+      classification: "FINANCIAL",
+      audit: { action: "READ", req },
+    });
+
+    const { searchParams } = new URL(req.url);
+    const empleadoRfc = searchParams.get("empleadoRfc")?.trim();
+    const periodo = searchParams.get("periodo")?.trim();
+
+    if (!empleadoRfc || !periodo) {
+      throw ApiError.badRequest("Se requieren `empleadoRfc` y `periodo`.");
+    }
+
+    const timbrado = await getTimbrado(ctx.userCompanyId, empleadoRfc, periodo);
+
+    // `null` es una respuesta válida: ese período no se ha timbrado.
+    return ApiHandler.success(timbrado ? maskSensitive(timbrado, decision) : null);
   } catch (error) {
     return ApiHandler.error(error);
   }
