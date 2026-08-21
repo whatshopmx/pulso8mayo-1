@@ -638,6 +638,25 @@ export async function findPayeeByName(name: string): Promise<any | null> {
   return rows[0] ?? null;
 }
 
+/**
+ * Aprueba un gasto por SQL directo, saltándose la cadena de autorización.
+ *
+ * Existe por A16: desde que el servicio dejó de auto-aprobar, ningún gasto
+ * nace `APPROVED`, y Cuentas por Pagar sólo lista lo autorizado
+ * (`accounts-payable-service.ts:63`). Un spec que quiera probar **la CxP** —el
+ * agrupado por contraparte, el bucket de vencimiento— necesita el gasto ya
+ * aprobado, y hacerlo por el servicio exigiría un segundo usuario que no viene
+ * al caso. Los specs que prueban la **autorización** no deben usar esto: para
+ * eso está `approveOperatingExpense`.
+ */
+export async function approveTestExpense(expenseId: string): Promise<void> {
+  await sql`
+    UPDATE operating_expenses
+    SET status = 'APPROVED', approval_notes = '[E2E] aprobado por el spec'
+    WHERE id = ${expenseId}
+  `;
+}
+
 /** Lee un gasto por descripción. */
 export async function findExpenseByDescription(description: string): Promise<any | null> {
   // La columna se llama `amount` y ya está en centavos (`schema.ts:2688`); se

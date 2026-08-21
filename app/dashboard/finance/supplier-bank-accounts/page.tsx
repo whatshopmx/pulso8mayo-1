@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { statusBadgeClasses } from "@/lib/utils";
 import { validateClabe, normalizeClabe } from "@/lib/banking/clabe";
+import { mensajeDeError } from "@/lib/api/client-error";
 import {
   AlertCircle,
   ArrowRight,
@@ -118,14 +119,25 @@ export default function SupplierBankAccountsPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
+  const [suppliersError, setSuppliersError] = useState<string | null>(null);
+
   const supplierName = useCallback(
-    (id: string) => suppliers.find((s) => s.id === id)?.name ?? "Proveedor desconocido",
-    [suppliers],
+    (id: string) => {
+      const nombre = suppliers.find((s) => s.id === id)?.name;
+      if (nombre) return nombre;
+      // A21 — Dos ausencias que no son la misma. Si el catálogo no cargó, no
+      // sabemos el nombre; si cargó y este id no está, la cuenta apunta a un
+      // proveedor que ya no existe. Rotular las dos "Proveedor desconocido"
+      // hacía que un fallo de red se leyera como base de datos corrupta.
+      return suppliersError ? "Nombre no disponible" : "Proveedor desconocido";
+    },
+    [suppliers, suppliersError],
   );
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
+    setSuppliersError(null);
     try {
       const [accountsRes, suppliersRes] = await Promise.all([
         fetch("/api/finance/supplier-bank-accounts"),
@@ -149,11 +161,29 @@ export default function SupplierBankAccountsPage() {
 
       if (suppliersRes.ok && suppliersJson.success) {
         setSuppliers(suppliersJson.suppliers ?? []);
+      } else {
+        // A21 — Esta rama no existía. Sin ella el `Select` quedaba vacío y la
+        // pantalla decía, en silencio, "no hay proveedores": nadie podía
+        // registrar una cuenta y no había forma de saber por qué.
+        //
+        // `/api/inventory/suppliers` devuelve `{ success, suppliers }` en vez
+        // del envelope del proyecto, así que `mensajeDeError` no encuentra
+        // `error` y cae al texto de respaldo. Se defiende al consumidor;
+        // corregir la ruta toca a sus otros llamadores (deuda anotada en el plan).
+        setSuppliersError(
+          mensajeDeError(
+            suppliersJson,
+            "No se pudo cargar el catálogo de proveedores. Sin él no se puede registrar una cuenta.",
+          ),
+        );
+        setSuppliers([]);
       }
     } catch (err) {
       console.error("Failed to load supplier bank accounts:", err);
       setError("Error de conexión al cargar las cuentas bancarias.");
       setAccounts([]);
+      setSuppliersError("Error de conexión al cargar el catálogo de proveedores.");
+      setSuppliers([]);
     } finally {
       setLoading(false);
     }
@@ -324,9 +354,19 @@ export default function SupplierBankAccountsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="supplier">Proveedor</Label>
-              <Select value={supplierId} onValueChange={setSupplierId}>
+              <Select
+                value={supplierId}
+                onValueChange={setSupplierId}
+                disabled={!!suppliersError}
+              >
                 <SelectTrigger id="supplier">
-                  <SelectValue placeholder="Selecciona un proveedor" />
+                  <SelectValue
+                    placeholder={
+                      suppliersError
+                        ? "Catálogo de proveedores no disponible"
+                        : "Selecciona un proveedor"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {suppliers.map((s) => (
@@ -336,6 +376,23 @@ export default function SupplierBankAccountsPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {/* A21 — Un desplegable vacío y deshabilitado sin explicación se
+                  lee como "esta empresa no tiene proveedores". */}
+              {suppliersError && (
+                <p className="text-xs text-destructive flex items-start gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    {suppliersError}{" "}
+                    <button
+                      type="button"
+                      onClick={() => load()}
+                      className="underline underline-offset-2 font-medium"
+                    >
+                      Reintentar
+                    </button>
+                  </span>
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">

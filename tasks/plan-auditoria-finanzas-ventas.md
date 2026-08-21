@@ -179,10 +179,10 @@ A13..A21 ─── independientes, pulido
 
 ### Fase 5 — Rendimiento y pulido
 - [ ] **A17** Un endpoint consolidado reemplaza el abanico de 2×N peticiones de Caja Chica
-- [ ] **A18** La búsqueda de contrapartes hace debounce y cancela la petición anterior
+- [x] **A18** La búsqueda de contrapartes hace debounce y cancela la petición anterior
 - [ ] **A19** Cuentas por Pagar y la bitácora de Caja Chica se paginan
-- [ ] **A20** Se corrigen la leyenda accesible de CxP y la confirmación de borrado de plantillas
-- [ ] **A21** Se dejan de silenciar los fallos de carga de proveedores y se tipa el `catch` de Contrapartes
+- [x] **A20** Se corrigen la leyenda accesible de CxP y la confirmación de borrado de plantillas
+- [x] **A21** Se dejan de silenciar los fallos de carga de proveedores y se tipa el `catch` de Contrapartes
 
 ### Checkpoint: Completo
 - [ ] Los 27 hallazgos están cerrados o explícitamente diferidos con su razón

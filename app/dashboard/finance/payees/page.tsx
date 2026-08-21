@@ -37,6 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { mensajeDeError } from "@/lib/api/client-error";
 import {
   ArrowRight,
   Building2,
@@ -74,7 +75,11 @@ export default function PayeesPage() {
   const [payees, setPayees] = useState<Payee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // A18 — `search` es lo que el usuario ve escrito; `busqueda` es lo que se
+  // consulta. Antes eran lo mismo y cada tecla disparaba un `fetch` con `ILIKE`:
+  // "Inmobiliaria" pedía trece veces el catálogo entero.
   const [search, setSearch] = useState("");
+  const [busqueda, setBusqueda] = useState("");
 
   // Crear
   const [createOpen, setCreateOpen] = useState(false);
@@ -89,34 +94,54 @@ export default function PayeesPage() {
   const [pendingDeactivation, setPendingDeactivation] = useState<Payee | null>(null);
   const [deactivating, setDeactivating] = useState(false);
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      // Se traen también las dadas de baja: el historial debe poder verse.
-      const url = new URL("/api/finance/payees", window.location.origin);
-      url.searchParams.set("active", "false");
-      if (search.trim()) url.searchParams.set("search", search.trim());
+  const load = useCallback(
+    async ({ silent = false, signal }: { silent?: boolean; signal?: AbortSignal } = {}) => {
+      if (!silent) setLoading(true);
+      setError(null);
+      try {
+        // Se traen también las dadas de baja: el historial debe poder verse.
+        const url = new URL("/api/finance/payees", window.location.origin);
+        url.searchParams.set("active", "false");
+        if (busqueda) url.searchParams.set("search", busqueda);
 
-      const res = await fetch(url.toString());
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setPayees(data.data || []);
-      } else {
-        setError(data?.error || "No se pudieron cargar las contrapartes.");
+        const res = await fetch(url.toString(), { signal });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setPayees(data.data || []);
+        } else {
+          setError(mensajeDeError(data, "No se pudieron cargar las contrapartes."));
+          setPayees([]);
+        }
+      } catch (err) {
+        // Una búsqueda abandonada no es un fallo. Sin esto, cancelar mostraba
+        // "Error de conexión" y vaciaba la lista justo cuando el usuario seguía
+        // escribiendo.
+        if (signal?.aborted || (err as Error)?.name === "AbortError") return;
+        console.error("Failed to load payees:", err);
+        setError("Error de conexión al cargar las contrapartes.");
         setPayees([]);
+      } finally {
+        // La búsqueda que reemplazó a ésta es la dueña del estado de carga.
+        if (!signal?.aborted) setLoading(false);
       }
-    } catch (err) {
-      console.error("Failed to load payees:", err);
-      setError("Error de conexión al cargar las contrapartes.");
-      setPayees([]);
-    } finally {
-      setLoading(false);
-    }
+    },
+    [busqueda]
+  );
+
+  // A18 — Debounce de 300 ms. El `clearTimeout` del cleanup es lo que hace que
+  // sólo la última tecla llegue a pedir.
+  useEffect(() => {
+    const t = setTimeout(() => setBusqueda(search.trim()), 300);
+    return () => clearTimeout(t);
   }, [search]);
 
+  // A18 — Y el `abort` del cleanup, que la respuesta de una búsqueda vieja no
+  // pise la lista: sin esto ganaba la última en *llegar*, que no es
+  // necesariamente la del texto que está en pantalla.
   useEffect(() => {
-    load();
+    const control = new AbortController();
+    load({ signal: control.signal });
+    return () => control.abort();
   }, [load]);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -140,7 +165,7 @@ export default function PayeesPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error?.message || data.error || "No se pudo crear la contraparte.");
+        throw new Error(mensajeDeError(data, "No se pudo crear la contraparte."));
       }
       toast({ title: "Contraparte creada", description: `"${data.data.name}" ya está en el catálogo.` });
       setCreateOpen(false);
@@ -149,11 +174,11 @@ export default function PayeesPage() {
       setContactName("");
       setEmail("");
       setPhone("");
-      load(true);
-    } catch (err: any) {
+      load({ silent: true });
+    } catch (err) {
       toast({
         title: "No se pudo crear la contraparte",
-        description: err.message || "Revisa e inténtalo de nuevo.",
+        description: (err as Error).message || "Revisa e inténtalo de nuevo.",
         variant: "destructive",
       });
     } finally {
@@ -168,17 +193,17 @@ export default function PayeesPage() {
       const res = await fetch(`/api/finance/payees/${pendingDeactivation.id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error?.message || data.error || "No se pudo dar de baja la contraparte.");
+        throw new Error(mensajeDeError(data, "No se pudo dar de baja la contraparte."));
       }
       toast({
         title: "Contraparte dada de baja",
         description: `"${pendingDeactivation.name}" ya no aparece en los formularios. Los gastos históricos se conservan.`,
       });
-      load(true);
-    } catch (err: any) {
+      load({ silent: true });
+    } catch (err) {
       toast({
         title: "No se pudo dar de baja",
-        description: err.message || "Revisa e inténtalo de nuevo.",
+        description: (err as Error).message || "Revisa e inténtalo de nuevo.",
         variant: "destructive",
       });
     } finally {

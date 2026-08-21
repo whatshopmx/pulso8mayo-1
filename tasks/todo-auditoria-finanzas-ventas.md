@@ -659,17 +659,33 @@ el spec cubren la baja y la reapertura (**10 passed**).
   - **Files:** `app/api/petty-cash/consolidado/route.ts`, `lib/services/petty-cash-service.ts`, `app/dashboard/finance/petty-cash/page.tsx`, `tests/caja-chica-consolidado.spec.ts`
   - **Scope:** M
 
-- [ ] **A18: Debounce y cancelación en Contrapartes**
+- [x] **A18: Debounce y cancelación en Contrapartes**
   - **Description:** La búsqueda dispara un `fetch` con `ILIKE` por tecla y la última respuesta en
     llegar gana, que no es necesariamente la del texto actual. Debounce de ~300 ms y `AbortController`.
   - **Acceptance criteria:**
-    - [ ] Escribir "Inmobiliaria" produce una petición, no trece.
-    - [ ] La respuesta de una búsqueda abandonada no pisa la lista.
+    - [x] Escribir "Inmobiliaria" produce una petición, no trece.
+    - [x] La respuesta de una búsqueda abandonada no pisa la lista.
   - **Verification:**
-    - [ ] Caso nuevo en `tests/payee.spec.ts` contando peticiones con `page.on("request")`.
+    - [x] Caso nuevo en `tests/payee.spec.ts` contando peticiones con `page.on("request")`.
   - **Dependencies:** None
   - **Files:** `app/dashboard/finance/payees/page.tsx`, `tests/payee.spec.ts`
   - **Scope:** S
+  - **Cómo quedó:** Dos estados en vez de uno: `search` es lo que el usuario ve escrito y
+    `busqueda` lo que se consulta. El debounce de 300 ms vive en su propio efecto —el `clearTimeout`
+    del cleanup es lo que hace que sólo la última tecla pida—, y el `load` depende de `busqueda`,
+    no de `search`.
+    La cancelación necesitó más cuidado del que parecía: el `AbortController` se aborta en el
+    cleanup del efecto, pero el `finally` corre igual después del `return` del `catch`, así que sin
+    la guarda `if (!signal?.aborted) setLoading(false)` una búsqueda cancelada apagaba el spinner
+    de la que la reemplazó. Y en el `catch` hay que salir **antes** de tocar el estado: sin eso,
+    cancelar pintaba "Error de conexión" y vaciaba la lista justo mientras el usuario escribía.
+    El segundo caso del spec es el que importa. El conteo lo arregla el debounce solo; la carrera
+    no. Se montan dos peticiones en vuelo (la primera con 2.5 s de retraso desde `page.route`, la
+    segunda inmediata) y se verifica que la vieja no pise a la nueva ni cuando llega tarde — sin
+    el `abort`, el `setPayees` de la vieja gana por ser el último en ejecutarse.
+    **Trampas que costaron un intento cada una:** el botón de borrar de las tarjetas se llama
+    "Eliminar la plantilla X", no "Eliminar plantilla"; y en `page.route` el `?` es comodín de un
+    carácter, así que los patrones de URL van como predicado.
 
 - [ ] **A19: Paginar Cuentas por Pagar y la bitácora de Caja Chica**
   - **Description:** "Detalle de partidas" pinta `data.items` entero y la bitácora recibe el `flatMap`
@@ -684,37 +700,68 @@ el spec cubren la baja y la reapertura (**10 passed**).
   - **Files:** `app/api/finance/payables/route.ts`, `app/dashboard/finance/payables/page.tsx`, `app/dashboard/finance/petty-cash/page.tsx`
   - **Scope:** M
 
-- [ ] **A20: Leyenda accesible de CxP y confirmación de borrado de plantillas**
+- [x] **A20: Leyenda accesible de CxP y confirmación de borrado de plantillas**
   - **Description:** El `TableCaption` de CxP anuncia "monto y acción de pago" y no hay columna de
     acción —contradice, justo para quien no ve la tabla, la nota que dice que la vista es de consulta.
     Y el `AlertDialogAction` de mapeo POS es el único de las cinco confirmaciones del módulo sin
     `e.preventDefault()`: se cierra antes de saber el resultado.
   - **Acceptance criteria:**
-    - [ ] La leyenda describe las seis columnas que existen.
-    - [ ] El diálogo de borrado permanece abierto con spinner hasta que responde el servidor.
-    - [ ] Un `DELETE` fallido deja el diálogo abierto con el error visible.
+    - [x] La leyenda describe las seis columnas que existen.
+    - [x] El diálogo de borrado permanece abierto con spinner hasta que responde el servidor.
+    - [x] Un `DELETE` fallido deja el diálogo abierto con el error visible.
   - **Verification:**
-    - [ ] Caso de UI interceptando el `DELETE` con 500 y verificando que el diálogo sigue abierto.
+    - [x] Caso de UI interceptando el `DELETE` con 500 y verificando que el diálogo sigue abierto.
   - **Dependencies:** None
   - **Files:** `app/dashboard/finance/payables/page.tsx`, `app/dashboard/sales/mapping/page.tsx`
   - **Scope:** S
+  - **Cómo quedó:** La leyenda de CxP nombra las seis columnas que existen (referencia,
+    contraparte, sucursal, origen, vencimiento, monto) y **declara que la vista es de consulta**,
+    en vez de prometer una "acción de pago" ausente. Lo segundo se añadió a propósito: el aviso
+    visible que dice que aquí no se registran pagos era justo lo que le faltaba a quien navega con
+    lector de pantalla, que es a quien la leyenda existe para orientar.
+    El diálogo de plantillas POS necesitó dos cambios, no uno. El `e.preventDefault()` es el que ya
+    usaban las otras cuatro confirmaciones del módulo, pero además el `finally` cerraba el diálogo
+    **también cuando fallaba**: `setPendingDelete(null)` se movió a la rama de éxito. Se añadió un
+    `deleteError` propio —separado del `error` de la carga de la lista— que se pinta dentro del
+    diálogo con `role="alert"`; un toast aparece detrás del overlay, que es donde el usuario no
+    está mirando. El `onOpenChange` limpia el error al cerrar para que el siguiente intento no
+    herede el anterior.
 
-- [ ] **A21: Dejar de silenciar el fallo de proveedores y tipar el `catch`**
+- [x] **A21: Dejar de silenciar el fallo de proveedores y tipar el `catch`**
   - **Description:** En Cuentas Bancarias, el fallo de `/api/inventory/suppliers` no tiene rama
     `else`: el `Select` queda vacío —no se puede registrar una cuenta— y las cuentas existentes se
     rotulan "Proveedor desconocido", que se lee como dato corrupto. Se surfacea el error. Además,
     `catch (err: any)` en Contrapartes son los dos únicos errores de lint del módulo, y
     `data.error?.message || data.error` produce "[object Object]" con errores estructurados.
   - **Acceptance criteria:**
-    - [ ] Un fallo al cargar proveedores se muestra y no se confunde con "sin proveedores".
-    - [ ] `pnpm lint` sin errores en `app/dashboard/finance`.
-    - [ ] Un error estructurado del servidor se muestra como texto, nunca como "[object Object]".
+    - [x] Un fallo al cargar proveedores se muestra y no se confunde con "sin proveedores".
+    - [x] `pnpm lint` sin errores en `app/dashboard/finance`.
+    - [x] Un error estructurado del servidor se muestra como texto, nunca como "[object Object]".
   - **Verification:**
-    - [ ] `npx eslint app/dashboard/finance app/dashboard/sales --ext .tsx,.ts` sin errores.
-    - [ ] Caso de UI interceptando `/api/inventory/suppliers` con 500.
+    - [x] `npx eslint app/dashboard/finance app/dashboard/sales --ext .tsx,.ts` sin errores.
+    - [x] Caso de UI interceptando `/api/inventory/suppliers` con 500.
   - **Dependencies:** None
   - **Files:** `app/dashboard/finance/supplier-bank-accounts/page.tsx`, `app/dashboard/finance/payees/page.tsx`
   - **Scope:** S
+  - **Cómo quedó:** El `else` que faltaba no bastaba solo: había que decidir qué dice la pantalla
+    en cada uno de los tres lugares donde la ausencia del catálogo se notaba.
+    (1) Un `suppliersError` propio, separado del `error` de las cuentas, porque son dos peticiones
+    con dos destinos distintos y mezclarlas escondía cuál falló.
+    (2) `supplierName` distingue por fin **dos ausencias que no son la misma**: si el catálogo no
+    cargó devuelve "Nombre no disponible"; si cargó y el id no está, sigue diciendo "Proveedor
+    desconocido", que ahí sí es correcto —la cuenta apunta a un proveedor que ya no existe.
+    Rotular las dos igual hacía que un fallo de red se leyera como base de datos corrupta.
+    (3) El `Select` se deshabilita y su placeholder dice por qué, con el motivo y un "Reintentar"
+    debajo. Un desplegable vacío sin explicación se lee como "esta empresa no tiene proveedores".
+    Los `catch (err: any)` de Contrapartes pasaron a `catch (err)` con `(err as Error).message`.
+    El "[object Object]" se resolvió con **`lib/api/client-error.ts` → `mensajeDeError(data, fallback)`**,
+    compartido con A20: el patrón `data.error?.message || data.error` cae al segundo operando
+    cuando el error es estructurado (los de Zod, que traen los campos y no un `message`) y el
+    usuario leía un objeto serializado. El helper junta los detalles que sean texto y, si no queda
+    ninguno, usa el respaldo — que dice más que "[object Object]".
+    **Deuda anotada, no corregida:** `/api/inventory/suppliers` devuelve `{ success, suppliers }`
+    en vez del envelope del proyecto, así que `mensajeDeError` no encuentra `error` y cae al
+    respaldo. Se defiende al consumidor; corregir la ruta toca a sus otros llamadores.
 
 ### ☑ Checkpoint: Completo
 - [ ] Los 27 hallazgos cerrados o diferidos con su razón escrita

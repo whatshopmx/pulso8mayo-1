@@ -19,6 +19,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Settings2, Trash2, ArrowLeft, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import Link from "next/link";
+import { mensajeDeError } from "@/lib/api/client-error";
 
 interface PosTemplate {
   id: string;
@@ -37,6 +38,10 @@ export default function MappingTemplatesPage() {
   const [showForm, setShowForm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PosTemplate | null>(null);
+  // A20 — El fallo del borrado se muestra dentro del diálogo, no sólo en un
+  // toast que aparece detrás de él. Es un estado aparte de `error`, que es el
+  // de la carga de la lista.
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchTemplates = async () => {
@@ -66,31 +71,37 @@ export default function MappingTemplatesPage() {
     fetchTemplates();
   }, []);
 
+  /**
+   * A20 — El diálogo se cierra al saber el resultado, no antes.
+   *
+   * Era la única de las cinco confirmaciones del módulo sin `preventDefault`:
+   * `AlertDialogAction` cierra por su cuenta, así que el borrado salía volando
+   * mientras el `DELETE` seguía en vuelo y el spinner del botón nunca se veía.
+   * Y en el `finally` se cerraba igual cuando fallaba: el usuario se quedaba
+   * con un toast y una plantilla que seguía ahí, sin saber si el clic contó.
+   * Ahora un fallo deja el diálogo abierto con el motivo dentro, que es donde
+   * está mirando.
+   */
   const handleDelete = async (id: string) => {
     setDeletingId(id);
+    setDeleteError(null);
     try {
       const res = await fetch(`/api/sales/mapping-templates/${id}`, { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setTemplates((prev) => prev.filter((t) => t.id !== id));
         toast({ title: "Plantilla eliminada", description: "La plantilla de mapeo fue eliminada." });
+        setPendingDelete(null);
       } else {
-        toast({
-          title: "No se pudo eliminar",
-          description: data?.error || "El servidor rechazó la operación. Intenta de nuevo.",
-          variant: "destructive",
-        });
+        setDeleteError(
+          mensajeDeError(data, "El servidor rechazó la operación. Intenta de nuevo."),
+        );
       }
     } catch (err) {
       console.error("Failed to delete template:", err);
-      toast({
-        title: "Error de conexión",
-        description: "No se pudo eliminar la plantilla. Revisa tu red e intenta de nuevo.",
-        variant: "destructive",
-      });
+      setDeleteError("No se pudo eliminar la plantilla. Revisa tu red e intenta de nuevo.");
     } finally {
       setDeletingId(null);
-      setPendingDelete(null);
     }
   };
 
@@ -217,7 +228,15 @@ export default function MappingTemplatesPage() {
       )}
 
       {/* Delete confirmation — replaces native confirm() */}
-      <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDelete(null);
+            setDeleteError(null);
+          }
+        }}
+      >
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar esta plantilla?</AlertDialogTitle>
@@ -226,12 +245,27 @@ export default function MappingTemplatesPage() {
               Los archivos POS que dependían de ella dejarán de mapearse automáticamente hasta que configures una nueva.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {deleteError && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
+              <span>{deleteError}</span>
+            </div>
+          )}
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={!!pendingDelete && deletingId === pendingDelete.id}
-              onClick={() => pendingDelete && handleDelete(pendingDelete.id)}
+              onClick={(e) => {
+                // El diálogo no debe cerrarse antes de conocer el resultado.
+                e.preventDefault();
+                if (pendingDelete) handleDelete(pendingDelete.id);
+              }}
             >
               {pendingDelete && deletingId === pendingDelete.id ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />

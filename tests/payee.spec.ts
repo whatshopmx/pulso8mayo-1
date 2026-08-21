@@ -6,6 +6,7 @@ import {
   GERENTE_EMAIL,
 } from "./support/constants";
 import {
+  approveTestExpense,
   deleteTestExpenses,
   deleteTestPayees,
   findExpenseByDescription,
@@ -95,6 +96,11 @@ test.describe("Fase 1 · contrapartes (payees)", () => {
     await expect(page.getByRole("columnheader", { name: "Contraparte" })).toBeVisible();
     await expect(page.getByRole("cell", { name: nombrePayee })).toBeVisible();
 
+    // CxP sólo lista lo **autorizado**, y desde A16 ningún gasto nace aprobado:
+    // quien lo registra ya no lo firma. Este caso prueba el agrupado por
+    // contraparte, no la cadena de autorización, así que se aprueba por SQL.
+    await approveTestExpense(gasto.id);
+
     // CxP (por API, misma sesión): el gasto entra como partida con la
     // contraparte real y el agregado agrupa bajo el payee, no bajo "RENTA".
     const res = await page.request.get("/api/finance/payables");
@@ -138,6 +144,9 @@ test.describe("Fase 1 · contrapartes (payees)", () => {
     const gasto = await findExpenseByDescription(descripcion);
     expect(gasto).not.toBeNull();
     expect(gasto.payee_id).toBeNull();
+
+    // Igual que arriba: la CxP sólo ve lo autorizado.
+    await approveTestExpense(gasto.id);
 
     // La CxP sigue agrupando el gasto casual por categoría (comportamiento
     // anterior): el item no tiene payee y su contraparte es la categoría.
@@ -274,5 +283,116 @@ test.describe("A13 · contrapartes exigen rol de finanzas", () => {
     } finally {
       await ctx.close();
     }
+  });
+});
+
+
+/**
+ * A18 · la búsqueda de contrapartes no pide una vez por tecla.
+ *
+ * `search` alimentaba directamente el `useCallback` del `load`, así que cada
+ * pulsación disparaba un `fetch` con `ILIKE` contra el catálogo entero: escribir
+ * "Inmobiliaria" pedía trece veces. Y sin cancelación ganaba la última respuesta
+ * en **llegar**, que no es la del texto que está en pantalla — una consulta
+ * lenta de dos letras podía pisar el resultado de doce.
+ *
+ * El segundo caso es el que importa: el conteo se puede arreglar con un
+ * debounce, pero la carrera no. Con dos peticiones en vuelo, sólo el `abort`
+ * del cleanup evita que la vieja gane.
+ */
+test.describe("A18 · debounce y cancelación en Contrapartes", () => {
+  const BUSCADOR = /Buscar por nombre/i;
+
+  test("escribir un nombre completo produce una petición, no una por tecla", async ({ page }) => {
+    const pedidas: string[] = [];
+
+    // Ojo: en los patrones de `page.route`/`waitForRequest` el `?` es comodín de
+    // un carácter, así que "**/api/finance/payees?**" no filtra lo que aparenta.
+    // Con `page.on("request")` se compara la URL a mano y no hay ambigüedad.
+    page.on("request", (req) => {
+      const url = new URL(req.url());
+      if (url.pathname === "/api/finance/payees" && url.searchParams.has("search")) {
+        pedidas.push(url.searchParams.get("search") || "");
+      }
+    });
+
+    await page.goto("/dashboard/finance/payees");
+    await expect(page.getByPlaceholder(BUSCADOR)).toBeVisible();
+
+    // `fill` escribe de golpe; `pressSequentially` es lo que reproduce el
+    // problema: doce eventos de cambio, uno por letra.
+    await page.getByPlaceholder(BUSCADOR).pressSequentially("Inmobiliaria", { delay: 40 });
+
+    // Margen sobre los 300 ms del debounce para que la única petición salga.
+    await page.waitForTimeout(900);
+
+    expect(
+      pedidas.length,
+      `la búsqueda pidió ${pedidas.length} veces: ${pedidas.join(", ")}`
+    ).toBeLessThanOrEqual(2);
+    expect(pedidas[pedidas.length - 1]).toBe("Inmobiliaria");
+  });
+
+  test("la respuesta de una búsqueda abandonada no pisa la lista", async ({ page }) => {
+    const VIEJO = `${E2E_TAG} Resultado viejo`;
+    const NUEVO = `${E2E_TAG} Resultado nuevo`;
+
+    const fila = (id: string, name: string) => ({
+      id,
+      name,
+      taxId: null,
+      contactName: null,
+      email: null,
+      phone: null,
+      active: true,
+      createdAt: new Date().toISOString(),
+    });
+
+    await page.route(
+      (url) => url.pathname === "/api/finance/payees",
+      async (route, request) => {
+        const termino = new URL(request.url()).searchParams.get("search") || "";
+
+        // La primera búsqueda tarda; la segunda contesta de inmediato. Es el
+        // orden que invierte "la última en llegar gana".
+        if (termino === "abc") {
+          await new Promise((r) => setTimeout(r, 2500));
+          await route
+            .fulfill({
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify({ success: true, data: [fila("11111111-1111-4111-8111-111111111111", VIEJO)] }),
+            })
+            .catch(() => {
+              /* la petición ya fue cancelada: es exactamente lo que se busca */
+            });
+          return;
+        }
+
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            success: true,
+            data: termino === "abcdef" ? [fila("22222222-2222-4222-8222-222222222222", NUEVO)] : [],
+          }),
+        });
+      }
+    );
+
+    await page.goto("/dashboard/finance/payees");
+    const buscador = page.getByPlaceholder(BUSCADOR);
+    await expect(buscador).toBeVisible();
+
+    await buscador.fill("abc");
+    await page.waitForTimeout(600); // sale la lenta
+
+    await buscador.fill("abcdef");
+    await expect(page.getByRole("cell", { name: NUEVO })).toBeVisible();
+
+    // Y sigue siendo la buena cuando la vieja habría llegado.
+    await page.waitForTimeout(2600);
+    await expect(page.getByRole("cell", { name: NUEVO })).toBeVisible();
+    await expect(page.getByRole("cell", { name: VIEJO })).toHaveCount(0);
   });
 });

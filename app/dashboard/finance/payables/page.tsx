@@ -317,9 +317,14 @@ function PayablesContent() {
             <CardContent>
               <div className="border rounded-md overflow-x-auto">
                 <Table>
+                  {/* A20 — La leyenda anunciaba una "acción de pago" que no
+                      existe: la tabla tiene seis columnas y ninguna es un botón.
+                      A quien navega con lector de pantalla le contradecía, justo
+                      a él, la nota que dice que esta vista es de consulta —y lo
+                      dejaba buscando un control ausente. */}
                   <TableCaption className="sr-only">
-                    Partidas por pagar: referencia, contraparte, sucursal, origen, vencimiento,
-                    monto y acción de pago.
+                    Partidas por pagar, vista de consulta sin acciones: referencia, contraparte,
+                    sucursal, origen, fecha de vencimiento y monto.
                   </TableCaption>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
