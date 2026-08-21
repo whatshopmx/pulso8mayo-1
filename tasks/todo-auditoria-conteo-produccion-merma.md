@@ -13,7 +13,7 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
 | O-1 | Extractores `void` en serverless — ¿corren en prod? | Crítica | ✅ **confirmada** · daño histórico **cero** | A1 (2026-08-20). El deploy es **Netlify**, no Vercel — el `vercel.json` del repo está vacío (`{}`). Netlify sirve Next sobre Lambda: el contenedor se **congela** al responder, así que el defecto no es "nunca corre" sino **no determinístico**. Sin usuarios reales todavía → nada que reprocesar (cancela OQ-A3). **Radio acotado:** el conteo clásico 80/20 no está expuesto (`stock-count-service.ts:353` sí hace `await`). Expuestos: conteo dinámico, merma, producción, recepción |
 | O-2 | Fechas UTC: el conteo de cierre se pierde | Alta | ⬜ sin probar | A3 |
 | O-3 | Cache de sub-recetas escaladas | Alta | ⬜ sin probar | A5 |
-| O-4 | Idempotencia por `notes LIKE` (3 de 4 rutas) | Media | ⬜ sin probar | A8 |
+| O-4 | Idempotencia por `notes LIKE` (3 de 4 rutas) | **Alta** ⬆️ | ✅ **confirmada con spec** | A8 (2026-08-20). Dos extracciones simultáneas duplican en las tres rutas, y en producción **descuentan el lote dos veces** (94 esperado, 88 real). Sube de Media: no es sólo histórico sucio, es inventario perdido |
 | O-5 | `production_ingredients` integer: la cantidad fraccionaria de insumo no entra | **Crítica** ⬆️⬆️ | ✅ **confirmada con spec** · daño histórico **cero** | A7 (2026-08-20). **El síntoma que decía el plan estaba mal:** Postgres no redondea, **rechaza** el insert, y con él se cae la producción entera. Sube de Alta. A7b migra |
 | O-6 | Sin tope de expansión en el resolver | Media | ⬜ sin probar | A10 |
 | O-7 | `console.*` en vez de `createChildLogger` | Media | ✅ confirmada por lectura | A11 |
@@ -296,10 +296,28 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
 
 ## Phase 3 — Idempotencia real
 
-- [ ] **A8 — Spec de doble procesamiento concurrente** · M · deps: ninguna
-  - [ ] `tests/extractor-idempotente.spec.ts`: dos llamadas sin esperar entre ellas
-  - [ ] Demostrar duplicación en producción y en merma manual
-  - [ ] Cubrir también la merma por varianza
+- [x] **A8 — Spec de doble procesamiento concurrente** · M · deps: ninguna
+  - [x] `tests/extractor-idempotente.spec.ts`: dos llamadas sin esperar entre ellas
+        `Promise.all([extract(id), extract(id)])`. Las dos leen el histórico antes de que
+        ninguna haya escrito: el hueco exacto del check-then-insert.
+  - [x] Demostrar duplicación en producción y en merma manual
+        **Producción — rojo:** `el lote se descontó más de una vez · Expected 94 · Received 88`.
+        La aserción del lote va PRIMERO a propósito: sólo puede fallar si hubo una segunda
+        escritura, así que es señal más fuerte que contar filas, y enseña la consecuencia cara
+        —duplicar aquí mueve inventario, no sólo ensucia el histórico—. Detrás,
+        `production_results` con 2 filas para la misma instancia.
+        **Merma manual — rojo:** `Expected length 3 · Received length 6`, dos filas idénticas
+        por SKU con el mismo marcador `origen=workflow_merma`.
+  - [x] Cubrir también la merma por varianza
+        **Rojo:** `Expected length 2 · Received length 4`. El mismo caso deja ver el contraste
+        que da sentido a A9: `stock_counts` —que sí tiene índice único y hace
+        `onConflictDoUpdate`— aguanta la doble extracción sin despeinarse; la merma que ese
+        mismo conteo dispara, que va por `notes LIKE`, se duplica.
+  - ℹ️ **Por qué "simultáneo" no es hipotético:** tras A2 el que ejecuta es Inngest, que
+        reintenta cada `step.run` hasta 4 veces. Un reintento por timeout —el paso tardó, no
+        falló— corre contra el intento anterior, que sigue vivo. El `id` del `inngest.send`
+        deduplica el EVENTO durante 24 h, no los intentos de un mismo run.
+  - Helper nuevo: `seedCompletedMermaInstance` (gemelo del de producción y conteo).
 
 - [ ] **A9 — `workflow_instance_id` + único parcial (cierra AD-4)** · M · deps: A8
   - [ ] Columna en `production_results` e `inventory_waste`

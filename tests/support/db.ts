@@ -848,6 +848,65 @@ export async function seedMermaTemplate(
   return templateId;
 }
 
+/**
+ * Siembra una instancia de merma YA COMPLETADA con sus pasos
+ * `merma-qty-{itemId}` / `merma-reason-{itemId}` / `merma-evidence-{itemId}`.
+ *
+ * Gemelo de `seedCompletedProductionInstance`: sirve para llamar al extractor
+ * directo, sin servidor ni dev server de Inngest.
+ */
+export async function seedCompletedMermaInstance(opts: {
+  templateId: string;
+  branchId: string;
+  assigneeId: string;
+  items: Array<{ itemId: string; quantity: number; reason: string; evidenceUrl?: string }>;
+  completedAt?: Date;
+}): Promise<string> {
+  const completedAt = (opts.completedAt ?? new Date()).toISOString();
+  const rows = await sql`
+    INSERT INTO workflow_instances (
+      workflow_template_id, branch_id, assignee_id, status, started_at, completed_at, data
+    )
+    VALUES (
+      ${opts.templateId},
+      ${opts.branchId},
+      ${opts.assigneeId},
+      'COMPLETED',
+      ${completedAt},
+      ${completedAt},
+      '{}'::jsonb
+    )
+    RETURNING id
+  `;
+  const instanceId = rows[0].id as string;
+
+  for (const item of opts.items) {
+    const pasos: Array<[string, string]> = [
+      [`merma-qty-${item.itemId}`, String(item.quantity)],
+      [`merma-reason-${item.itemId}`, item.reason],
+      [
+        `merma-evidence-${item.itemId}`,
+        item.evidenceUrl ?? `https://example.test/e2e-merma-${item.itemId}.jpg`,
+      ],
+    ];
+    for (const [stepId, value] of pasos) {
+      await sql`
+        INSERT INTO workflow_instance_steps (instance_id, step_id, status, value, completed_at, completed_by)
+        VALUES (
+          ${instanceId},
+          ${stepId},
+          'COMPLETED',
+          ${JSON.stringify(value)}::jsonb,
+          ${completedAt},
+          ${opts.assigneeId}
+        )
+      `;
+    }
+  }
+
+  return instanceId;
+}
+
 export interface WasteRow {
   id: string;
   company_id: string;
