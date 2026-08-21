@@ -511,10 +511,15 @@ export async function cleanupRecepcion(instanceId: string): Promise<void> {
  * expande a un sub-paso por SKU de alto valor con la etiqueta indicada, más un
  * paso de cierre. Devuelve el id del template.
  */
+/**
+ * Template de conteo con un paso dinámico. `closingStepId: null` deja el
+ * template SIN pasos estáticos, que es como se comprueba qué pasa cuando el
+ * filtro no coincide con nada y la instancia quedaría vacía (A10).
+ */
 export async function seedDynamicCountTemplate(
   companyId: string,
   tag: string,
-  closingStepId = "confirmar"
+  closingStepId: string | null = "confirmar"
 ): Promise<string> {
   const templateId = `e2e-tpl-conteo-dinamico-${Date.now()}`;
   const steps = [
@@ -531,12 +536,16 @@ export async function seedDynamicCountTemplate(
         },
       },
     },
-    {
-      id: closingStepId,
-      type: "TEXT",
-      title: "Observaciones del conteo",
-      required: false,
-    },
+    ...(closingStepId
+      ? [
+          {
+            id: closingStepId,
+            type: "TEXT",
+            title: "Observaciones del conteo",
+            required: false,
+          },
+        ]
+      : []),
   ];
 
   await sql`
@@ -553,6 +562,24 @@ export async function seedDynamicCountTemplate(
   `;
 
   return templateId;
+}
+
+/** Cuántas instancias existen para un template (A10: la que NO debe crearse). */
+export async function countInstancesForTemplate(templateId: string): Promise<number> {
+  const rows = await sql`
+    SELECT COUNT(*)::int AS n FROM workflow_instances WHERE workflow_template_id = ${templateId}
+  `;
+  return rows[0]?.n ?? 0;
+}
+
+/** Borra un template de prueba y todo lo que colgara de él. */
+export async function deleteTemplate(templateId: string): Promise<void> {
+  await sql`
+    DELETE FROM workflow_instance_steps
+    WHERE instance_id IN (SELECT id FROM workflow_instances WHERE workflow_template_id = ${templateId})
+  `;
+  await sql`DELETE FROM workflow_instances WHERE workflow_template_id = ${templateId}`;
+  await sql`DELETE FROM workflow_templates WHERE id = ${templateId}`;
 }
 
 export interface CountStepRow {

@@ -20,6 +20,27 @@ export interface DynamicResolveContext {
   branchId?: string;
 }
 
+/**
+ * A10 — tope de expansión por paso. Es el mismo 30 de la regla 80/20 que ya
+ * respeta el conteo (`inventory-service.ts`, `tests/limite-30-skus.spec.ts`):
+ * el límite no es técnico, es operativo — nadie termina un stepper de 300
+ * pasos, y un conteo que no se termina no sirve de nada. Se puede subir por
+ * paso con `metadata.dynamicSource.limit`.
+ */
+export const MAX_DYNAMIC_STEPS = 30;
+
+/**
+ * La expansión no dejó ni un paso: la instancia se crearía vacía y el operador
+ * la abriría sin nada que capturar. Se lanza en vez de devolver `[]` para que
+ * el fallo sea visible (A10); el llamador la traduce a un 422.
+ */
+export class DynamicStepsEmptyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DynamicStepsEmptyError";
+  }
+}
+
 /** Forma mínima común a las entidades expandibles. */
 interface ResolvedEntity {
   id: string;
@@ -197,7 +218,30 @@ export async function resolveDynamicSteps(
       continue;
     }
 
-    resolved.push(...entities.map((entity) => expandStep(step, entity)));
+    // A10 — tope de expansión. Las entidades vienen ordenadas por nombre, así
+    // que el recorte es estable: la misma plantilla genera los mismos pasos.
+    const limit = source.limit ?? MAX_DYNAMIC_STEPS;
+    const included = entities.length > limit ? entities.slice(0, limit) : entities;
+    if (included.length < entities.length) {
+      console.warn(
+        `[DynamicSteps] Paso '${step.id}' (${source.entity}) coincidió con ${entities.length} entidades ` +
+          `y el tope es ${limit}: se expanden las primeras ${limit} por nombre. ` +
+          `Afina el filtro o sube 'metadata.dynamicSource.limit'`
+      );
+    }
+
+    resolved.push(...included.map((entity) => expandStep(step, entity)));
+  }
+
+  // A10 — antes esto devolvía `[]` y la instancia se creaba igual, sin un solo
+  // paso que capturar. Un filtro que no coincide con nada es un error de
+  // configuración (etiqueta mal escrita, SKUs sin marcar), no un caso normal:
+  // más vale que se vea al crear la instancia que a las 23:00 en la cocina.
+  if (resolved.length === 0) {
+    throw new DynamicStepsEmptyError(
+      "Ningún paso quedó tras expandir los pasos dinámicos: revisa el filtro de la plantilla " +
+        "(etiquetas, categoría o SKUs de alto valor sin marcar)."
+    );
   }
 
   return resolved;

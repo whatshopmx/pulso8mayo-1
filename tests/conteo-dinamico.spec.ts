@@ -2,8 +2,10 @@ import { test, expect } from "@playwright/test";
 import { BRANCH_POLANCO, COMPANY_ID, E2E_TAG } from "./support/constants";
 import {
   cleanupStockCounts,
+  countInstancesForTemplate,
   createTestSkus,
   deleteStockCountsForItems,
+  deleteTemplate,
   deleteTestSkus,
   findCountStepsForInstance,
   findStockCountsForInstance,
@@ -19,10 +21,22 @@ import {
  *   2. Al completar la instancia hay N filas en `stock_counts`, con la cantidad
  *      SIN truncar (contar 2.5 kg guarda 2.5000, no 2).
  *   3. Completar dos veces no duplica filas.
+ *
+ * Los dos últimos casos son de la auditoría (A10 — O-6): el resolver de pasos
+ * dinámicos no tenía tope de expansión ni comportamiento definido cuando el
+ * filtro no coincide con nada.
  */
 
 const TAG = "e2e-conteo-dinamico";
 const CLOSING_STEP = "confirmar";
+/**
+ * A10 — tope de expansión, el mismo 30 que ya respeta el conteo 80/20
+ * (`tests/limite-30-skus.spec.ts`). Un template que coincide con más entidades
+ * expande hasta el tope, no un stepper de 300 pasos.
+ */
+const TOPE = 30;
+/** Cuántos SKUs etiquetados hay en el caso del tope: por encima a propósito. */
+const SOBRE_EL_TOPE = 35;
 /** Una cantidad fraccionaria: es lo que el bug de `parseInt` truncaba. */
 const CANTIDADES = ["2.5", "7", "0.25"];
 
@@ -156,5 +170,58 @@ test.describe("Fase 1 · conteo dinámico", () => {
     // no inserta una segunda fila por ítem.
     await page.waitForTimeout(3000);
     expect(await findStockCountsForInstance(instanceId)).toHaveLength(itemIds.length);
+  });
+
+  test("A10: un filtro que coincide con más entidades que el tope expande sólo hasta el tope", async ({
+    page,
+  }) => {
+    // El `beforeEach` ya dejó 3 SKUs con la etiqueta; se completan hasta pasar
+    // del tope. Sin él, una empresa con 300 insumos etiquetados genera un
+    // stepper de 300 pasos que nadie va a terminar.
+    itemIds = itemIds.concat(
+      await createTestSkus(COMPANY_ID, SOBRE_EL_TOPE - itemIds.length, {
+        isHighValue: true,
+        unit: "KG",
+        tags: [TAG],
+      })
+    );
+    expect(itemIds).toHaveLength(SOBRE_EL_TOPE);
+
+    const creada = await page.request.post("/api/workflows/execute", {
+      data: { templateId, branchId: BRANCH_POLANCO },
+    });
+    expect(creada.ok(), await creada.text()).toBeTruthy();
+    instanceId = (await creada.json()).id;
+
+    const subPasos = await findCountStepsForInstance(instanceId);
+    expect(subPasos, "el paso dinámico se expandió sin tope").toHaveLength(TOPE);
+
+    // Y los que entraron son SKUs reales del filtro, no un recorte arbitrario.
+    for (const paso of subPasos) {
+      expect(itemIds).toContain(itemIdOf(paso.step_id));
+    }
+  });
+
+  test("A10: si el filtro no coincide con nada, la instancia no se crea vacía", async ({
+    page,
+  }) => {
+    // Template SIN pasos estáticos y con una etiqueta que no lleva ningún SKU:
+    // hoy el paso se descarta en silencio y queda una instancia sin nada que
+    // hacer, que el operador abre y cierra sin capturar un solo dato.
+    const vacio = await seedDynamicCountTemplate(COMPANY_ID, "e2e-tag-inexistente", null);
+
+    try {
+      const creada = await page.request.post("/api/workflows/execute", {
+        data: { templateId: vacio, branchId: BRANCH_POLANCO },
+      });
+
+      // 422 y no 500: el template es válido, lo que no hay es contra qué
+      // expandirlo. Se afirma el código exacto para que el caso no pueda
+      // ponerse verde por un 401 de sesión perdida.
+      expect(creada.status(), "la instancia vacía se creó igual").toBe(422);
+      expect(await countInstancesForTemplate(vacio)).toBe(0);
+    } finally {
+      await deleteTemplate(vacio);
+    }
   });
 });

@@ -72,6 +72,13 @@ export interface DynamicSourceFilter {
 export interface DynamicSource {
   entity: DynamicSourceEntity;
   filter?: DynamicSourceFilter;
+  /**
+   * Tope de sub-pasos que genera este paso. Por defecto
+   * `MAX_DYNAMIC_STEPS` (30), el mismo que ya respeta el conteo 80/20 (A10).
+   * Se declara por paso porque una expansión sobre recetas no tiene por qué
+   * compartir el límite de los SKUs de alto valor.
+   */
+  limit?: number;
 }
 
 export interface WorkflowStep {

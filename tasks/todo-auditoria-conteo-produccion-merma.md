@@ -15,7 +15,7 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
 | O-3 | Cache de sub-recetas escaladas | Alta | ⬜ sin probar | A5 |
 | O-4 | Idempotencia por `notes LIKE` (3 de 4 rutas) | **Alta** ⬆️ | ✅ **confirmada con spec** · **corregida** en 3 de 4 | A8/A9 (2026-08-20). Dos extracciones simultáneas duplicaban en las tres rutas, y en producción **descontaban el lote dos veces** (94 esperado, 88 real). Subió de Media: no era sólo histórico sucio, era inventario perdido. Cerrada con columna + único parcial. **Queda recepción**, ver la nota de A9 |
 | O-5 | `production_ingredients` integer: la cantidad fraccionaria de insumo no entra | **Crítica** ⬆️⬆️ | ✅ **confirmada con spec** · daño histórico **cero** | A7 (2026-08-20). **El síntoma que decía el plan estaba mal:** Postgres no redondea, **rechaza** el insert, y con él se cae la producción entera. Sube de Alta. A7b migra |
-| O-6 | Sin tope de expansión en el resolver | Media | ⬜ sin probar | A10 |
+| O-6 | Sin tope de expansión en el resolver | Media | ✅ **confirmada con spec** · **corregida** | A10 (2026-08-20). 35 SKUs etiquetados generaban 35 pasos; y un filtro sin coincidencias creaba la instancia **vacía** con un 200 |
 | O-7 | `console.*` en vez de `createChildLogger` | Media | ✅ confirmada por lectura | A11 |
 | O-8 | `branchId` muerto; snapshot sin `companyId` | Baja | ✅ confirmada por lectura | A12 |
 | O-9 | `inventory_snapshots` sin retención | Baja | ⬜ sin medir | A12 |
@@ -370,10 +370,24 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
 
 ## Phase 4 — Robustez y observabilidad
 
-- [ ] **A10 — Tope de expansión en el resolver** · S · deps: ninguna
-  - [ ] Límite alineado con el que ya respeta el conteo (`tests/limite-30-skus.spec.ts`)
-  - [ ] Filtro sin coincidencias: fallo visible, no instancia vacía en silencio
-  - Archivo: `lib/workflows/dynamic-steps.ts`
+- [x] **A10 — Tope de expansión en el resolver** · S · deps: ninguna
+  - [x] Límite alineado con el que ya respeta el conteo (`tests/limite-30-skus.spec.ts`)
+        `MAX_DYNAMIC_STEPS = 30`, ajustable por paso con `metadata.dynamicSource.limit`.
+        Por paso y no global porque una expansión sobre recetas no tiene por qué heredar
+        el límite de los SKUs de alto valor. El recorte es estable —las entidades ya venían
+        ordenadas por nombre— y el aviso dice cuántas coincidieron y cuántas entraron.
+        **Rojo previo:** `Expected length 30 · Received length 35`.
+  - [x] Filtro sin coincidencias: fallo visible, no instancia vacía en silencio
+        `DynamicStepsEmptyError` cuando la expansión no deja NI UN paso, traducida a **422**
+        con el motivo en `/api/workflows/execute`. 422 y no 500: la plantilla es válida, lo
+        que no hay es contra qué expandirla; el operador puede accionar el mensaje.
+        **Rojo previo:** `Expected 422 · Received 200`, con la instancia vacía creada.
+        El disparo es "cero pasos", no "el paso dinámico no coincidió": un template con pasos
+        estáticos sigue creándose, y el aviso de la expansión vacía queda en el log.
+  - **Verificación:** **9 passed (1.2m)** — `conteo-dinamico` (4, dos nuevos) y
+    `limite-30-skus` (4) · `npx tsc --noEmit` exit 0 · `pnpm run build` exit 0
+  - Archivos: `lib/workflows/dynamic-steps.ts`, `lib/types/workflow.ts`,
+    `app/api/workflows/execute/route.ts`, `tests/conteo-dinamico.spec.ts`
 
 - [ ] **A11 — `createChildLogger` en vez de `console.*`** · S · deps: A2
   - [ ] 17 `console.*` → logger estructurado
