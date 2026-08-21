@@ -11,6 +11,20 @@
 // contaría doble. `variance` (columna generada) captura así toda la deriva
 // real: merma no capturada, robos, errores de captura.
 
+// A12 — retención: **ninguna, por ahora, y es una decisión, no un olvido.**
+// El snapshot escribe una fila por SKU de alto valor, por sucursal y por día.
+// El filtro 80/20 topa los SKUs en 30, así que un grupo de 15 sucursales genera
+// 30 × 15 × 365 ≈ 164 000 filas al año: irrelevante para Postgres y valioso
+// —la varianza histórica es justo lo que deja ver si una sucursal mejora—. Se
+// revisa si aparece un tenant que suba el tope de alto valor o si la tabla pasa
+// de unos pocos millones de filas; el borrado sería por `snapshot_date` y no
+// necesita más que un cron.
+//
+// A12 — por qué se escribe fila también para el SKU sin stock ni conteo: la
+// ausencia de fila sería indistinguible de "el snapshot no corrió ese día", y un
+// cero es un dato — dice que ese día no había existencias. El snapshot es una
+// foto del día, no un listado de novedades.
+
 import { db } from "@/lib/db";
 import { inventoryItems, inventoryBatches, stockCounts, inventorySnapshots, branches } from "@/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
@@ -91,6 +105,10 @@ export class InventorySnapshotService {
       .from(stockCounts)
       .where(
         and(
+          // A12/O-8: el `companyId` va explícito aunque los `itemIds` ya vengan
+          // de la compañía. El cruce que decide la varianza de un tenant no
+          // debe depender de que otro filtro esté bien puesto.
+          eq(stockCounts.companyId, companyId),
           eq(stockCounts.branchId, branchId),
           eq(stockCounts.countDate, snapshotDate),
           inArray(stockCounts.itemId, itemIds)

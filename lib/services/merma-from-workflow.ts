@@ -33,6 +33,9 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import type { inventoryWasteReasonEnum } from "@/lib/db/schema";
+import { createChildLogger } from "@/lib/logger";
+
+const logger = createChildLogger("services:merma-from-workflow");
 
 type WasteReason = (typeof inventoryWasteReasonEnum.enumValues)[number];
 
@@ -165,7 +168,7 @@ export async function extractMermaFromInstance(instanceId: string): Promise<void
       companyId = branch?.companyId || "";
     }
     if (!companyId) {
-      console.warn(`[MermaFromWorkflow] Sin companyId para instancia ${instanceId}: se omite`);
+      logger.warn({ instanceId, branchId: instance.branchId }, "Sin companyId: se omite");
       return;
     }
 
@@ -174,8 +177,9 @@ export async function extractMermaFromInstance(instanceId: string): Promise<void
     for (const m of byItem.values()) {
       const reason = REASON_MAP[normalizeReasonKey(m.reasonKey)];
       if (!reason) {
-        console.warn(
-          `[MermaFromWorkflow] Instancia ${instanceId}: motivo desconocido '${m.reasonKey}' para item ${m.itemId}, se omite`
+        logger.warn(
+          { instanceId, itemId: m.itemId, motivo: m.reasonKey },
+          "Motivo de merma desconocido: se omite el item"
         );
         continue;
       }
@@ -259,11 +263,12 @@ export async function extractMermaFromInstance(instanceId: string): Promise<void
       .values(rows)
       .onConflictDoNothing()
       .returning({ id: inventoryWaste.id });
-    console.log(
-      `[MermaFromWorkflow] ${insertadas.length} de ${rows.length} mermas persistidas para instancia ${instanceId}`
+    logger.info(
+      { instanceId, companyId, branchId: instance.branchId, escritas: insertadas.length, candidatas: rows.length },
+      "Mermas persistidas"
     );
   } catch (error) {
-    console.error(`[MermaFromWorkflow] Error persistiendo merma de instancia ${instanceId}:`, error);
+    logger.error({ instanceId, err: String(error) }, "Error persistiendo la merma");
     // R-5: el error se propaga a propósito. Antes moría aquí y la corrida
     // quedaba indistinguible de un éxito. Ahora el llamador es
     // `workflow-extractors` (Inngest), que lo convierte en un run FALLIDO y

@@ -55,7 +55,10 @@ export class WorkflowExecutionService {
                 || template.companyId
                 || (await db.query.users.findFirst({ where: eq(users.id, assigneeId || "") }))?.companyId
                 || "";
-            steps = await resolveDynamicSteps(steps, { companyId: cid, branchId });
+            // A12: el resolver ya no recibe `branchId`. Ni `inventory_items` ni
+            // `recipes` tienen sucursal —son de la compañía—, así que el campo
+            // nunca se usó: sugería un scoping por sucursal que no existe.
+            steps = await resolveDynamicSteps(steps, { companyId: cid });
         }
 
         const instanceValues = {

@@ -14,10 +14,12 @@ import { db } from "@/lib/db";
 import { inventoryItems, recipes } from "@/lib/db/schema";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { DynamicSource, DynamicSourceFilter, WorkflowStep } from "@/lib/types/workflow";
+import { createChildLogger } from "@/lib/logger";
+
+const logger = createChildLogger("workflows:dynamic-steps");
 
 export interface DynamicResolveContext {
   companyId: string;
-  branchId?: string;
 }
 
 /**
@@ -101,8 +103,9 @@ async function queryRecipes(
     (k) => filter?.[k] !== undefined
   );
   if (unsupported.length > 0) {
-    console.warn(
-      `[DynamicSteps] Filtros no soportados para entity 'recipe' (ignorados): ${unsupported.join(", ")}`
+    logger.warn(
+      { entity: "recipe", unsupported },
+      "Filtros no soportados para la entidad: se ignoran"
     );
   }
 
@@ -131,7 +134,7 @@ async function loadEntities(source: DynamicSource, ctx: DynamicResolveContext): 
     case "recipe":
       return queryRecipes(ctx.companyId, source.filter);
     default:
-      console.warn(`[DynamicSteps] Entity desconocida: ${String((source as DynamicSource).entity)}`);
+      logger.warn({ entity: String((source as DynamicSource).entity) }, "Entidad desconocida");
       return [];
   }
 }
@@ -190,7 +193,7 @@ export async function resolveDynamicSteps(
   if (!hasDynamicSteps(steps)) return steps;
 
   if (!ctx.companyId) {
-    console.warn("[DynamicSteps] Falta companyId: los pasos dinámicos se dejan sin expandir");
+    logger.warn("Falta companyId: los pasos dinámicos se dejan sin expandir");
     return steps;
   }
 
@@ -212,8 +215,9 @@ export async function resolveDynamicSteps(
     }
 
     if (entities.length === 0) {
-      console.warn(
-        `[DynamicSteps] Paso '${step.id}' (${source.entity}) no coincidió con ninguna entidad: se omite`
+      logger.warn(
+        { stepId: step.id, entity: source.entity, companyId: ctx.companyId },
+        "El paso dinámico no coincidió con ninguna entidad: se omite"
       );
       continue;
     }
@@ -223,10 +227,16 @@ export async function resolveDynamicSteps(
     const limit = source.limit ?? MAX_DYNAMIC_STEPS;
     const included = entities.length > limit ? entities.slice(0, limit) : entities;
     if (included.length < entities.length) {
-      console.warn(
-        `[DynamicSteps] Paso '${step.id}' (${source.entity}) coincidió con ${entities.length} entidades ` +
-          `y el tope es ${limit}: se expanden las primeras ${limit} por nombre. ` +
-          `Afina el filtro o sube 'metadata.dynamicSource.limit'`
+      logger.warn(
+        {
+          stepId: step.id,
+          entity: source.entity,
+          companyId: ctx.companyId,
+          coincidieron: entities.length,
+          tope: limit,
+        },
+        "Más entidades que el tope: se expanden las primeras por nombre. " +
+          "Afina el filtro o sube 'metadata.dynamicSource.limit'"
       );
     }
 

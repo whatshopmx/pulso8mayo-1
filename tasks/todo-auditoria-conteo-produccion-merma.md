@@ -16,9 +16,10 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
 | O-4 | Idempotencia por `notes LIKE` (3 de 4 rutas) | **Alta** ⬆️ | ✅ **confirmada con spec** · **corregida** en 3 de 4 | A8/A9 (2026-08-20). Dos extracciones simultáneas duplicaban en las tres rutas, y en producción **descontaban el lote dos veces** (94 esperado, 88 real). Subió de Media: no era sólo histórico sucio, era inventario perdido. Cerrada con columna + único parcial. **Queda recepción**, ver la nota de A9 |
 | O-5 | `production_ingredients` integer: la cantidad fraccionaria de insumo no entra | **Crítica** ⬆️⬆️ | ✅ **confirmada con spec** · daño histórico **cero** | A7 (2026-08-20). **El síntoma que decía el plan estaba mal:** Postgres no redondea, **rechaza** el insert, y con él se cae la producción entera. Sube de Alta. A7b migra |
 | O-6 | Sin tope de expansión en el resolver | Media | ✅ **confirmada con spec** · **corregida** | A10 (2026-08-20). 35 SKUs etiquetados generaban 35 pasos; y un filtro sin coincidencias creaba la instancia **vacía** con un 200 |
-| O-7 | `console.*` en vez de `createChildLogger` | Media | ✅ confirmada por lectura | A11 |
-| O-8 | `branchId` muerto; snapshot sin `companyId` | Baja | ✅ confirmada por lectura | A12 |
-| O-9 | `inventory_snapshots` sin retención | Baja | ⬜ sin medir | A12 |
+| O-7 | `console.*` en vez de `createChildLogger` | Media | ✅ confirmada · **corregida** | A11 (2026-08-20). 21 llamadas en 5 archivos → logger estructurado. `instanceId`/`companyId`/`branchId` como campos, no interpolados |
+| O-8 | `branchId` muerto; snapshot sin `companyId` | Baja | ✅ confirmada · **corregida** | A12 (2026-08-20). `branchId` fuera de `DynamicResolveContext`; el cruce con `stock_counts` filtra por `companyId` |
+| O-9 | `inventory_snapshots` sin retención | Baja | ✅ **medida** · sin cambio, con política escrita | A12 (2026-08-20). ~164 000 filas/año para un grupo de 15 sucursales: no es un problema. La política y su disparador quedan en la cabecera del servicio |
+| **O-10** | *Hallazgo nuevo (A11):* el extractor de merma trata como ítem cualquier paso que termine en UUID, incluidos los `prod-qty-{recipeId}` de producción | Baja | ⬜ **sin arreglar** — anotada para decisión | A11 (2026-08-20). No escribe nada (sin motivo no hay merma), pero recorre la instancia y deja **dos WARN por instancia de producción**. Se vio al pasar a logs estructurados. Arreglo probable: exigir que el prefijo sea `merma-` ANTES de dar de alta el item en el mapa (`parseMermaSteps`, 3 líneas). **No se toca sin spec rojo (AD-A1)** |
 
 ---
 
@@ -389,16 +390,54 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
   - Archivos: `lib/workflows/dynamic-steps.ts`, `lib/types/workflow.ts`,
     `app/api/workflows/execute/route.ts`, `tests/conteo-dinamico.spec.ts`
 
-- [ ] **A11 — `createChildLogger` en vez de `console.*`** · S · deps: A2
-  - [ ] 17 `console.*` → logger estructurado
-  - [ ] `instanceId` / `companyId` / `branchId` como campos, no interpolados
-  - [ ] Verificar: `grep -c "console\." lib/workflows/dynamic-steps.ts lib/services/*-from-workflow.ts` → 0
+- [x] **A11 — `createChildLogger` en vez de `console.*`** · S · deps: A2
+  - [x] 17 `console.*` → logger estructurado
+        Eran **21** al llegar aquí: 17 del inventario original más 4 que añadieron A9 y A10.
+        Cinco archivos: el resolver dinámico y los cuatro extractores. Componentes
+        `workflows:dynamic-steps` y `services:<extractor>`, la convención que ya usan
+        `inngest:workflow-extractors` y `cron:inventory-snapshot`.
+  - [x] `instanceId` / `companyId` / `branchId` como campos, no interpolados
+        Y de paso los conteos dejan de ser prosa: `{ escritas, candidatas }` en vez de
+        "3 mermas persistidas". Es lo que permite preguntarle al log "¿cuántas veces
+        escribimos 0 de 3?", que es exactamente la señal de O-4 en producción.
+  - [x] Verificar: `grep -c "console\." lib/workflows/dynamic-steps.ts lib/services/*-from-workflow.ts` → 0
+        Los 5 archivos en 0.
+  - ℹ️ **A11 no tenía ningún problema de visibilidad que resolver** (ver la corrección
+        anotada en A2): `createChildLogger` sí imprime bajo `next dev`. Esto es higiene de
+        logs —campos consultables en vez de texto—, no un arreglo de logs mudos.
 
-- [ ] **A12 — Scoping por `companyId` y retención** · S · deps: ninguna
-  - [ ] `buildSnapshot` filtra `stock_counts` también por `companyId`
-  - [ ] `DynamicResolveContext.branchId`: usarlo o quitarlo de la firma
-  - [ ] Decidir si el snapshot omite ítems sin stock ni conteo
-  - [ ] Escribir la política de retención (aunque sea "ninguna, por ahora")
+- ℹ️ **Hallazgo O-10, anotado y NO arreglado.** Al leer los logs estructurados de la corrida
+  de verificación aparecieron dos WARN por cada instancia de producción:
+  `services:merma-from-workflow … "Motivo de merma desconocido: se omite el item"` con
+  `motivo: ""` y un `itemId` que en realidad era un `recipeId`. Causa: `parseMermaSteps` da de
+  alta en su mapa **cualquier** paso cuyo `stepId` termine en UUID —y `prod-qty-{recipeId}`
+  termina en UUID— y sólo después mira el prefijo. No escribe nada (sin motivo no hay merma),
+  así que es ruido, no corrupción; pero el extractor de merma recorre entera cada instancia de
+  producción. Queda en la tabla como O-10. **No se arregla aquí:** AD-A1 pide spec rojo primero
+  y el síntoma es ruido de log, no comportamiento — es una decisión del humano.
+
+- [x] **A12 — Scoping por `companyId` y retención** · S · deps: ninguna
+  - [x] `buildSnapshot` filtra `stock_counts` también por `companyId`
+        Los `itemIds` ya venían de la compañía, así que no había fuga real; el filtro entra
+        igual porque el cruce que decide la varianza de un tenant no debe depender de que
+        otro filtro esté bien puesto.
+  - [x] `DynamicResolveContext.branchId`: usarlo o quitarlo de la firma
+        **Fuera.** Ni `inventory_items` ni `recipes` tienen sucursal —son de la compañía—,
+        así que nunca se usó: el campo sugería un scoping por sucursal que no existe.
+        Quitarlo es la única de las dos opciones que no inventa una semántica nueva.
+  - [x] Decidir si el snapshot omite ítems sin stock ni conteo
+        **No los omite, y queda escrito por qué:** la ausencia de fila sería indistinguible
+        de "el snapshot no corrió ese día", y un cero es un dato —dice que ese día no había
+        existencias—. El snapshot es una foto del día, no un listado de novedades.
+  - [x] Escribir la política de retención (aunque sea "ninguna, por ahora")
+        **Ninguna, con el cálculo que lo justifica:** una fila por SKU de alto valor × sucursal
+        × día, con los SKUs topados en 30 por la regla 80/20 → un grupo de 15 sucursales genera
+        ~164 000 filas al año. Irrelevante para Postgres y valioso, porque la varianza histórica
+        es justo lo que deja ver si una sucursal mejora. El disparador para revisarla queda
+        escrito (un tenant que suba el tope, o la tabla pasando de unos pocos millones), y el
+        borrado sería por `snapshot_date` con un cron.
+  - Archivos: `lib/services/inventory-snapshot-service.ts`, `lib/workflows/dynamic-steps.ts`,
+    `lib/services/workflow-execution-service.ts`
 
 ### Checkpoint 4 — Completo
 - [ ] `pnpm run build` limpio; `pnpm lint` sin errores nuevos vs baseline

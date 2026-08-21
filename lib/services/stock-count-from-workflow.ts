@@ -32,6 +32,9 @@ import {
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { roundQty } from "./stock-count-service";
 import { localDateString } from "@/lib/workflows/today";
+import { createChildLogger } from "@/lib/logger";
+
+const logger = createChildLogger("services:stock-count-from-workflow");
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -173,7 +176,7 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
     });
     const companyId = template?.companyId || branch?.companyId || "";
     if (!companyId) {
-      console.warn(`[StockCountFromWorkflow] Sin companyId para instancia ${instanceId}: se omite`);
+      logger.warn({ instanceId, branchId: instance.branchId }, "Sin companyId: se omite");
       return;
     }
 
@@ -242,8 +245,9 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
         },
       });
 
-    console.log(
-      `[StockCountFromWorkflow] ${rows.length} conteos persistidos para instancia ${instanceId}`
+    logger.info(
+      { instanceId, companyId, branchId: instance.branchId, conteos: rows.length, countDate },
+      "Conteos persistidos"
     );
 
     // T12 — merma automática por varianza: si el faltante supera el umbral del
@@ -264,10 +268,7 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
       recordedBy: countedBy,
     });
   } catch (error) {
-    console.error(
-      `[StockCountFromWorkflow] Error persistiendo conteo de instancia ${instanceId}:`,
-      error
-    );
+    logger.error({ instanceId, err: String(error) }, "Error persistiendo el conteo");
     // R-5: el error se propaga a propósito. Antes moría aquí y la corrida
     // quedaba indistinguible de un éxito. Ahora el llamador es
     // `workflow-extractors` (Inngest), que lo convierte en un run FALLIDO y
@@ -341,7 +342,8 @@ async function maybeCreateMermaFromVariance(params: {
     .values(wasteRows)
     .onConflictDoNothing()
     .returning({ id: inventoryWaste.id });
-  console.log(
-    `[StockCountFromWorkflow] ${insertadas.length} de ${wasteRows.length} mermas automáticas por varianza (instancia ${instanceId})`
+  logger.info(
+    { instanceId, companyId, branchId, escritas: insertadas.length, candidatas: wasteRows.length },
+    "Mermas automáticas por varianza"
   );
 }

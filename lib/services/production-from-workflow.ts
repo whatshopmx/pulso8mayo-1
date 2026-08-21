@@ -37,6 +37,9 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import { ProductionService } from "./production-service";
 import { allocateFEFO, type FefoAllocation } from "./fefo-allocator";
+import { createChildLogger } from "@/lib/logger";
+
+const logger = createChildLogger("services:production-from-workflow");
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -192,7 +195,7 @@ export async function extractProductionFromInstance(instanceId: string): Promise
       companyId = branch?.companyId || "";
     }
     if (!companyId) {
-      console.warn(`[ProductionFromWorkflow] Sin companyId para instancia ${instanceId}: se omite`);
+      logger.warn({ instanceId, branchId: instance.branchId }, "Sin companyId: se omite");
       return;
     }
 
@@ -207,9 +210,7 @@ export async function extractProductionFromInstance(instanceId: string): Promise
       for (const [recipeId, portions] of portionsByRecipe) {
         const leaves = await expandRecipeLeaves(recipeId, portions, leafCache);
         if (leaves.length === 0) {
-          console.warn(
-            `[ProductionFromWorkflow] Receta ${recipeId} sin insumos hoja: se omite`
-          );
+          logger.warn({ instanceId, recipeId }, "Receta sin insumos hoja: se omite");
           continue;
         }
 
@@ -289,9 +290,7 @@ export async function extractProductionFromInstance(instanceId: string): Promise
         // null = otra ejecución ya escribió esta receta para esta instancia.
         // Ni lote descontado ni merma que registrar: se pasa a la siguiente.
         if (!result) {
-          console.log(
-            `[ProductionFromWorkflow] Receta ${recipeId} de la instancia ${instanceId} ya estaba procesada: se omite`
-          );
+          logger.info({ instanceId, recipeId }, "La receta de esta instancia ya estaba procesada: se omite");
           continue;
         }
 
@@ -327,17 +326,26 @@ export async function extractProductionFromInstance(instanceId: string): Promise
           await tx.insert(inventoryWaste).values(wasteRows);
         }
 
-        console.log(
-          `[ProductionFromWorkflow] Receta ${recipeId} × ${producedQuantity} ${unit}: ` +
-            `${ingredients.length} descuentos de lote, ${wasteRows.length} mermas (instancia ${instanceId})`,
-          result.shortfalls.length > 0 ? `shortfalls: ${result.shortfalls.length}` : ""
+        logger.info(
+          {
+            instanceId,
+            companyId,
+            branchId: instance.branchId,
+            recipeId,
+            producedQuantity,
+            unit,
+            descuentos: ingredients.length,
+            mermas: wasteRows.length,
+            shortfalls: result.shortfalls.length,
+          },
+          "Receta producida"
         );
       }
     });
 
-    console.log(`[ProductionFromWorkflow] Producción persistida para instancia ${instanceId}`);
+    logger.info({ instanceId, companyId, recetas: portionsByRecipe.size }, "Producción persistida");
   } catch (error) {
-    console.error(`[ProductionFromWorkflow] Error persistiendo producción de instancia ${instanceId}:`, error);
+    logger.error({ instanceId, err: String(error) }, "Error persistiendo la producción");
     // R-5: el error se propaga a propósito. Antes moría aquí y la corrida
     // quedaba indistinguible de un éxito. Ahora el llamador es
     // `workflow-extractors` (Inngest), que lo convierte en un run FALLIDO y

@@ -8,6 +8,9 @@ import { db } from "@/lib/db";
 import { workflowInstances, workflowInstanceSteps, workflowTemplates, users, suppliers, branches, receivingReports } from "@/lib/db/schema";
 import { eq, and, ilike } from "drizzle-orm";
 import { processReceiving } from "./receiving-service";
+import { createChildLogger } from "@/lib/logger";
+
+const logger = createChildLogger("services:receiving-from-workflow");
 
 export const RECEPCION_TEMPLATE_ID = "tpl-recepcion-mercancia-v2";
 
@@ -151,12 +154,19 @@ export async function extractReceivingFromInstance(instanceId: string): Promise<
       }
     );
 
-    console.log(
-      `[ReceivingFromWorkflow] Reporte ${receiving.id} para instancia ${instanceId} ` +
-        `(${photos.length} fotos, proveedor=${supplierId ?? "n/a"})`
+    logger.info(
+      {
+        instanceId,
+        companyId,
+        branchId: instance.branchId,
+        reportId: receiving.id,
+        fotos: photos.length,
+        supplierId: supplierId ?? null,
+      },
+      "Reporte de recepción creado"
     );
   } catch (error) {
-    console.error(`[ReceivingFromWorkflow] Error procesando recepción para instancia ${instanceId}:`, error);
+    logger.error({ instanceId, err: String(error) }, "Error procesando la recepción");
     // R-5: el error se propaga a propósito. Antes moría aquí y la corrida
     // quedaba indistinguible de un éxito. Ahora el llamador es
     // `workflow-extractors` (Inngest), que lo convierte en un run FALLIDO y
