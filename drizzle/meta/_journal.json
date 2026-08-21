@@ -386,6 +386,13 @@
       "when": 1787269031562,
       "tag": "0054_produccion-cantidades-decimales",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1787271353454,
+      "tag": "0055_idempotencia-extractores",
+      "breakpoints": true
     }
   ]
 }

@@ -331,6 +331,10 @@ export const productionResults = pgTable("production_results", {
     branchId: uuid("branch_id").notNull(),
     orderId: uuid("order_id"), // Optional FK to productionOrders
     recipeId: uuid("recipe_id").notNull(),
+
+    /** Instancia de workflow que originó la producción. Null = captura manual (A9). */
+    workflowInstanceId: uuid("workflow_instance_id"),
+
     producedQuantity: integer("produced_quantity").notNull(),
     unit: text("unit").notNull().default("PORTION"),
     ingredientCost: integer("ingredient_cost").default(0), // Sum of consumed ingredients in cents
@@ -339,7 +343,15 @@ export const productionResults = pgTable("production_results", {
     productionDate: timestamp("production_date").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+    // Idempotencia (A9, cierra AD-4): sustituye al `notes LIKE '%instance:X%'`,
+    // que era un check-then-insert no atómico. La clave lleva la receta porque
+    // una misma instancia produce una fila por cada receta capturada.
+    // Parcial: la captura manual (sin instancia) sí puede repetirse.
+    productionResultInstanceRecipeUnique: uniqueIndex("production_results_instance_recipe_unique")
+        .on(table.workflowInstanceId, table.recipeId)
+        .where(sql`${table.workflowInstanceId} IS NOT NULL`),
+}));
 
 export const productionIngredients = pgTable("production_ingredients", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -1271,12 +1283,31 @@ export const inventoryWaste = pgTable("inventory_waste", {
     costPerUnit: integer("cost_per_unit"), // In cents
     totalLoss: integer("total_loss"), // In cents
 
+    /** Instancia de workflow que originó la merma. Null = captura manual (A9). */
+    workflowInstanceId: uuid("workflow_instance_id"),
+    /**
+     * Qué la generó: `workflow_merma` (captura del operador), `diferencia_conteo`
+     * (varianza de un conteo) o `lote_insuficiente` (faltante de producción).
+     * Null para la merma capturada por API. Discrimina las dos primeras cuando
+     * conviven en la misma instancia (A9).
+     */
+    origin: text("origin"),
+
     // Audit
     recordedBy: text("recorded_by").notNull(), // User ID
     recordedAt: timestamp("recorded_at").notNull().defaultNow(),
     notes: text("notes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => ({
+    // Idempotencia (A9, cierra AD-4). `lote_insuficiente` queda FUERA a
+    // propósito: una instancia escribe legítimamente una fila por receta para
+    // el mismo insumo, así que el único la borraría en silencio. Ésa no la
+    // necesita — su idempotencia viene del único de `production_results`, que
+    // corta antes de llegar aquí.
+    inventoryWasteInstanceItemOriginUnique: uniqueIndex("inventory_waste_instance_item_origin_unique")
+        .on(table.workflowInstanceId, table.itemId, table.origin)
+        .where(sql`${table.workflowInstanceId} IS NOT NULL AND ${table.origin} <> 'lote_insuficiente'`),
+}));
 
 // WhatsApp Sessions table
 export const whatsappSessionStatusEnum = pgEnum("whatsapp_session_status", ['DISCONNECTED', 'CONNECTING', 'CONNECTED', 'FAILED']);

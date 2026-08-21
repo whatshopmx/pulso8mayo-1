@@ -76,6 +76,15 @@ export async function POST(req: NextRequest) {
                 recordedBy: session.user.id,
             });
 
+            // A9: `recordProduction` devuelve null cuando el único parcial dice
+            // que esa producción ya estaba registrada. Por esta ruta no debería
+            // pasar —la captura manual no lleva instancia de workflow y el
+            // índice es parcial sobre ella— pero se responde explícito en vez
+            // de devolver `result: null` como si hubiera funcionado.
+            if (!result) {
+                return NextResponse.json({ error: "La producción ya estaba registrada" }, { status: 409 });
+            }
+
             return NextResponse.json({ success: true, result });
         }
 

@@ -53,6 +53,8 @@ export class ProductionService {
         branchId: string;
         orderId?: string;
         recipeId: string;
+        /** Instancia de workflow que la originó. Con ella la escritura es idempotente (A9). */
+        workflowInstanceId?: string;
         producedQuantity: number;
         unit: string;
         notes?: string;
@@ -79,6 +81,21 @@ export class ProductionService {
             missing: number;
             unit: string;
         }[] = [];
+
+        // A9 — el resultado se inserta ANTES de tocar ningún lote. El único
+        // parcial `(workflow_instance_id, recipe_id)` convierte este insert en
+        // la guarda de idempotencia: si la instancia ya se procesó, el
+        // `onConflictDoNothing` no devuelve fila y se sale sin descontar nada.
+        // Con la guarda al final —o con el `notes LIKE` de antes— la segunda
+        // ejecución alcanzaba a descontar el lote por segunda vez.
+        // `ingredientCost` todavía no se conoce: se calcula abajo y se escribe
+        // con un UPDATE al cerrar.
+        const [result] = await q.insert(productionResults)
+            .values({ ...resultData, ingredientCost: 0 })
+            .onConflictDoNothing()
+            .returning();
+
+        if (!result) return null;
 
         // Costo total de los insumos, en centavos. Se acumula con la cantidad
         // EXACTA y se redondea una sola vez al escribir (A7): el centavo es la
@@ -133,12 +150,6 @@ export class ProductionService {
             }
         }
 
-        // Create the production result
-        const [result] = await q.insert(productionResults).values({
-            ...resultData,
-            ingredientCost: Math.round(ingredientCost),
-        }).returning();
-
         // Create ingredient records
         if (ingredients.length > 0) {
             await q.insert(productionIngredients).values(
@@ -158,6 +169,14 @@ export class ProductionService {
             );
         }
 
+        // El costo ya es conocido: se cierra el resultado que se abrió arriba.
+        const totalCost = Math.round(ingredientCost);
+        if (totalCost !== 0) {
+            await q.update(productionResults)
+                .set({ ingredientCost: totalCost, updatedAt: new Date() })
+                .where(eq(productionResults.id, result.id));
+        }
+
         // Record inventory movement (finished goods produced as positive movement)
         // TODO: insert into inventoryBatches for finished goods
 
@@ -172,7 +191,7 @@ export class ProductionService {
                 .where(eq(productionOrders.id, data.orderId));
         }
 
-        return { ...result, shortfalls };
+        return { ...result, ingredientCost: totalCost, shortfalls };
     }
 
     static async getSuggestions(companyId: string, branchId: string): Promise<ProductionSuggestion[]> {

@@ -148,14 +148,11 @@ export async function extractMermaFromInstance(instanceId: string): Promise<void
     const byItem = parseMermaSteps(rawSteps);
     if (byItem.size === 0) return;
 
-    // Idempotencia (AD-4): si algún registro de esta instancia ya existe,
-    // no se vuelve a extraer. El marcador es el mismo para todas las filas.
-    const existing = await db
-      .select({ id: inventoryWaste.id })
-      .from(inventoryWaste)
-      .where(sql`${inventoryWaste.notes} LIKE ${`%instance:${instanceId}%`}`)
-      .limit(1);
-    if (existing.length > 0) return;
+    // A9 — la idempotencia ya NO se chequea aquí. El `SELECT ... notes LIKE`
+    // que vivía en este punto era un check-then-insert no atómico: dos
+    // ejecuciones simultáneas leían las dos "no existe" y duplicaban la merma.
+    // Ahora la guarda es el único parcial
+    // `(workflow_instance_id, item_id, origin)` con `onConflictDoNothing`.
 
     const template = await db.query.workflowTemplates.findFirst({
       where: eq(workflowTemplates.id, instance.workflowTemplateId),
@@ -243,6 +240,9 @@ export async function extractMermaFromInstance(instanceId: string): Promise<void
           costPerUnit: unitCost,
           totalLoss: unitCost !== null ? Math.round(unitCost * m.quantity) : null,
           recordedBy,
+          // A9: instancia y origen en columnas, no sólo en el texto de `notes`.
+          workflowInstanceId: instanceId,
+          origin: "workflow_merma",
           notes: `Merma registrada desde workflow; instance:${instanceId}; origen=workflow_merma`,
         };
       })
@@ -250,8 +250,18 @@ export async function extractMermaFromInstance(instanceId: string): Promise<void
 
     if (rows.length === 0) return;
 
-    await db.insert(inventoryWaste).values(rows);
-    console.log(`[MermaFromWorkflow] ${rows.length} mermas persistidas para instancia ${instanceId}`);
+    // El conflicto contra el único parcial significa "otra ejecución ya la
+    // escribió": no es un error, es la idempotencia haciendo su trabajo. Se
+    // registra lo que REALMENTE se insertó, no lo que se intentó: un log que
+    // canta 3 cuando escribió 0 es justo lo que vuelve invisible este defecto.
+    const insertadas = await db
+      .insert(inventoryWaste)
+      .values(rows)
+      .onConflictDoNothing()
+      .returning({ id: inventoryWaste.id });
+    console.log(
+      `[MermaFromWorkflow] ${insertadas.length} de ${rows.length} mermas persistidas para instancia ${instanceId}`
+    );
   } catch (error) {
     console.error(`[MermaFromWorkflow] Error persistiendo merma de instancia ${instanceId}:`, error);
     // R-5: el error se propaga a propósito. Antes moría aquí y la corrida

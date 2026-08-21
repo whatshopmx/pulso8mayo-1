@@ -279,8 +279,8 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
 
 /**
  * T12 — convierte una varianza negativa (faltante) que supera el umbral en
- * una fila de `inventory_waste`. Idempotente por el marcador
- * `instance:{id}; origen=diferencia_conteo` en `notes` (AD-4).
+ * una fila de `inventory_waste`. Idempotente por el único parcial
+ * `(workflow_instance_id, item_id, origin)` con `onConflictDoNothing` (A9).
  */
 async function maybeCreateMermaFromVariance(params: {
   instanceId: string;
@@ -323,24 +323,25 @@ async function maybeCreateMermaFromVariance(params: {
       costPerUnit: averageCost,
       totalLoss: averageCost !== null ? Math.round(averageCost * missing) : null,
       recordedBy: recordedBy || "system",
+      // A9: instancia y origen en columnas. El origen es lo que distingue esta
+      // merma de la que el operador captura a mano en la misma instancia.
+      workflowInstanceId: instanceId,
+      origin: "diferencia_conteo",
       notes: `Varianza de conteo; instance:${instanceId}; origen=diferencia_conteo`,
     });
   }
 
   if (wasteRows.length === 0) return;
 
-  // Idempotencia: el marcador del instance ya está en el histórico.
-  const existing = await db
-    .select({ id: inventoryWaste.id })
-    .from(inventoryWaste)
-    .where(
-      sql`${inventoryWaste.notes} LIKE ${`%instance:${instanceId}%origen=diferencia_conteo%`}`
-    )
-    .limit(1);
-  if (existing.length > 0) return;
-
-  await db.insert(inventoryWaste).values(wasteRows);
+  // A9 — antes había aquí un `SELECT ... notes LIKE` seguido del insert: dos
+  // extracciones simultáneas del mismo conteo leían las dos "no existe" y
+  // registraban el faltante por duplicado. La guarda ahora es el único parcial.
+  const insertadas = await db
+    .insert(inventoryWaste)
+    .values(wasteRows)
+    .onConflictDoNothing()
+    .returning({ id: inventoryWaste.id });
   console.log(
-    `[StockCountFromWorkflow] ${wasteRows.length} mermas automáticas por varianza (instancia ${instanceId})`
+    `[StockCountFromWorkflow] ${insertadas.length} de ${wasteRows.length} mermas automáticas por varianza (instancia ${instanceId})`
   );
 }

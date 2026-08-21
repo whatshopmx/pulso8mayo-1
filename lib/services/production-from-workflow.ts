@@ -32,10 +32,9 @@ import {
   inventoryItems,
   recipes,
   recipeItems,
-  productionResults,
   inventoryWaste,
 } from "@/lib/db/schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { ProductionService } from "./production-service";
 import { allocateFEFO, type FefoAllocation } from "./fefo-allocator";
 
@@ -174,14 +173,13 @@ export async function extractProductionFromInstance(instanceId: string): Promise
     }
     if (portionsByRecipe.size === 0) return;
 
-    // Idempotencia (AD-4): la instancia ya se procesó si dejó un resultado con
-    // el marcador en `notes`. `recordProduction` también escribe `notes`.
-    const existing = await db
-      .select({ id: productionResults.id })
-      .from(productionResults)
-      .where(sql`${productionResults.notes} LIKE ${`%instance:${instanceId}%`}`)
-      .limit(1);
-    if (existing.length > 0) return;
+    // A9 — la idempotencia ya NO se chequea aquí. El `SELECT ... notes LIKE`
+    // que vivía en este punto era un check-then-insert no atómico: dos
+    // ejecuciones simultáneas leían las dos "no existe" y escribían las dos, y
+    // en producción eso descontaba el lote por duplicado. Ahora la guarda es el
+    // único parcial `(workflow_instance_id, recipe_id)` que `recordProduction`
+    // resuelve con `onConflictDoNothing` ANTES de tocar ningún lote: si
+    // devuelve null, esta receta de esta instancia ya estaba procesada.
 
     const template = await db.query.workflowTemplates.findFirst({
       where: eq(workflowTemplates.id, instance.workflowTemplateId),
@@ -278,6 +276,7 @@ export async function extractProductionFromInstance(instanceId: string): Promise
             companyId,
             branchId: instance.branchId,
             recipeId,
+            workflowInstanceId: instanceId,
             producedQuantity,
             unit,
             notes,
@@ -286,6 +285,15 @@ export async function extractProductionFromInstance(instanceId: string): Promise
           },
           tx
         );
+
+        // null = otra ejecución ya escribió esta receta para esta instancia.
+        // Ni lote descontado ni merma que registrar: se pasa a la siguiente.
+        if (!result) {
+          console.log(
+            `[ProductionFromWorkflow] Receta ${recipeId} de la instancia ${instanceId} ya estaba procesada: se omite`
+          );
+          continue;
+        }
 
         // Lote insuficiente → merma (T16): el faltante no desaparece en silencio.
         const wasteRows: (typeof inventoryWaste.$inferInsert)[] = [];
@@ -304,6 +312,13 @@ export async function extractProductionFromInstance(instanceId: string): Promise
             costPerUnit: averageCost,
             totalLoss: averageCost !== null ? Math.round(averageCost * missing) : null,
             recordedBy,
+            // A9: el origen deja de vivir sólo en el texto de `notes`. Estas
+            // filas quedan FUERA del único parcial a propósito — una instancia
+            // con dos recetas cortas del mismo insumo escribe dos filas
+            // legítimas — y su idempotencia la da el único de
+            // `production_results`, que ya cortó arriba si la receta se repetía.
+            workflowInstanceId: instanceId,
+            origin: "lote_insuficiente",
             notes: `Lote insuficiente en producción; instance:${instanceId}; motivo=lote_insuficiente`,
           });
         }

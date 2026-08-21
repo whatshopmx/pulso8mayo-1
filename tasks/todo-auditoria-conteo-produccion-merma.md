@@ -13,7 +13,7 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
 | O-1 | Extractores `void` en serverless — ¿corren en prod? | Crítica | ✅ **confirmada** · daño histórico **cero** | A1 (2026-08-20). El deploy es **Netlify**, no Vercel — el `vercel.json` del repo está vacío (`{}`). Netlify sirve Next sobre Lambda: el contenedor se **congela** al responder, así que el defecto no es "nunca corre" sino **no determinístico**. Sin usuarios reales todavía → nada que reprocesar (cancela OQ-A3). **Radio acotado:** el conteo clásico 80/20 no está expuesto (`stock-count-service.ts:353` sí hace `await`). Expuestos: conteo dinámico, merma, producción, recepción |
 | O-2 | Fechas UTC: el conteo de cierre se pierde | Alta | ⬜ sin probar | A3 |
 | O-3 | Cache de sub-recetas escaladas | Alta | ⬜ sin probar | A5 |
-| O-4 | Idempotencia por `notes LIKE` (3 de 4 rutas) | **Alta** ⬆️ | ✅ **confirmada con spec** | A8 (2026-08-20). Dos extracciones simultáneas duplican en las tres rutas, y en producción **descuentan el lote dos veces** (94 esperado, 88 real). Sube de Media: no es sólo histórico sucio, es inventario perdido |
+| O-4 | Idempotencia por `notes LIKE` (3 de 4 rutas) | **Alta** ⬆️ | ✅ **confirmada con spec** · **corregida** en 3 de 4 | A8/A9 (2026-08-20). Dos extracciones simultáneas duplicaban en las tres rutas, y en producción **descontaban el lote dos veces** (94 esperado, 88 real). Subió de Media: no era sólo histórico sucio, era inventario perdido. Cerrada con columna + único parcial. **Queda recepción**, ver la nota de A9 |
 | O-5 | `production_ingredients` integer: la cantidad fraccionaria de insumo no entra | **Crítica** ⬆️⬆️ | ✅ **confirmada con spec** · daño histórico **cero** | A7 (2026-08-20). **El síntoma que decía el plan estaba mal:** Postgres no redondea, **rechaza** el insert, y con él se cae la producción entera. Sube de Alta. A7b migra |
 | O-6 | Sin tope de expansión en el resolver | Media | ⬜ sin probar | A10 |
 | O-7 | `console.*` en vez de `createChildLogger` | Media | ✅ confirmada por lectura | A11 |
@@ -319,17 +319,54 @@ Audita: `tasks/plan-conteo-produccion-merma.md` (implementado, commits hasta `00
         deduplica el EVENTO durante 24 h, no los intentos de un mismo run.
   - Helper nuevo: `seedCompletedMermaInstance` (gemelo del de producción y conteo).
 
-- [ ] **A9 — `workflow_instance_id` + único parcial (cierra AD-4)** · M · deps: A8
-  - [ ] Columna en `production_results` e `inventory_waste`
-  - [ ] Índice único parcial; la merma por varianza necesita distinguirse de la manual en la misma instancia
-  - [ ] Los 3 extractores → `onConflictDoNothing`, fuera el `notes LIKE`
-  - [ ] `pnpm db:generate` y **revisar el SQL**: si trae `DROP`, no aplicar
-  - Archivos: `lib/db/schema.ts`, `drizzle/00XX_*.sql`, los 3 `*-from-workflow.ts`
+- [x] **A9 — `workflow_instance_id` + único parcial (cierra AD-4)** · M · deps: A8
+  - [x] Columna en `production_results` e `inventory_waste`
+  - [x] Índice único parcial; la merma por varianza necesita distinguirse de la manual en la misma instancia
+        `production_results (workflow_instance_id, recipe_id)` — con la receta, porque una
+        instancia produce una fila por cada receta capturada (lo demuestra `subreceta-compartida`).
+        `inventory_waste (workflow_instance_id, item_id, origin)`, donde `origin` es la columna
+        nueva: `workflow_merma` / `diferencia_conteo` / `lote_insuficiente`. El origen es lo que
+        separa la merma del operador de la varianza cuando conviven en la misma instancia.
+  - [x] **`lote_insuficiente` queda FUERA del único, a propósito.** Una instancia con dos recetas
+        cortas del mismo insumo escribe dos filas legítimas; el único las borraría en silencio.
+        Y no lo necesita: su idempotencia la da el único de `production_results`, que corta antes
+        de llegar ahí. El índice lleva `AND origin <> 'lote_insuficiente'` en el `WHERE`.
+  - [x] Los 3 extractores → `onConflictDoNothing`, fuera el `notes LIKE`
+        **`recordProduction` hubo que reordenarlo**, no bastaba con cambiar la guarda: descontaba
+        los lotes ANTES de insertar el resultado, así que un `onConflictDoNothing` al final habría
+        dejado pasar el segundo descuento igual que el `notes LIKE`. Ahora el resultado se inserta
+        primero (con `ingredientCost: 0`), y si no devuelve fila se sale sin tocar inventario; el
+        costo se escribe con un UPDATE al cerrar, cuando ya se conoce.
+  - [x] `pnpm db:generate` y **revisar el SQL**: si trae `DROP`, no aplicar
+        **Sin `DROP`:** 3 `ADD COLUMN` nullables y 2 `CREATE UNIQUE INDEX` parciales. Las filas
+        existentes (todas con `workflow_instance_id` NULL) quedan fuera de los índices y siguen
+        válidas: nada que rellenar. Revisada con el humano; renombrada a
+        `0055_idempotencia-extractores.sql`.
+  - [x] Los logs de inserción dicen lo que REALMENTE se escribió (`N de M`), leyendo el
+        `returning()` del `onConflictDoNothing`. Un log que canta 3 cuando escribió 0 es
+        justamente lo que vuelve invisible este defecto en producción (ver O-7).
+  - ⚠️ **Recepción sigue con `notes LIKE`** (`receiving-from-workflow.ts:85`), y es la única que
+        queda. **No entró en A9 a propósito:** su insert vive dentro de `processReceiving`, un
+        servicio compartido con la API manual que además valida con Zod y encadena ítems,
+        incidencias y factura. Darle la misma guarda no es añadir una columna, es cambiar la
+        firma y la semántica de salida de ese servicio — reescribir, no auditar (AD-A5). Su daño
+        potencial también es menor: duplica reportes, no mueve inventario. **Queda anotado como
+        trabajo aparte**; con esto O-4 pasa de 3 rutas rotas a 1.
+  - Archivos: `lib/db/schema.ts`, `drizzle/0055_idempotencia-extractores.sql`,
+    `production-service.ts`, los 3 `*-from-workflow.ts`, `app/api/inventory/production/route.ts`
 
-### Checkpoint 3
-- [ ] `pnpm run build` limpio; migración sin `DROP`
-- [ ] Todos los specs de la feature verdes
-- [ ] Un único mecanismo de idempotencia en los 4 extractores
+### ✅ Checkpoint 3
+- [x] `pnpm run build` limpio; migración sin `DROP`
+      `build exit=0` · `npx tsc --noEmit` exit 0 · `0055` son 3 `ADD COLUMN` y 2 índices.
+- [x] Todos los specs de la feature verdes
+      **29 passed (5.4m)** contra `next start` sobre el build nuevo, con el dev server de
+      Inngest arriba: los 6 originales de la feature más `snapshot-idempotente`,
+      `conteo-fecha-local`, `subreceta-compartida`, `redondeo-ingredientes`,
+      `extractor-idempotente`, `limite-30-skus`, `conteo-alto-valor` y `recepcion-workflow`.
+- [x] Un único mecanismo de idempotencia en los 4 extractores
+      **En 3 de 4.** Conteo, producción y las dos mermas van por columna + único parcial.
+      Recepción sigue con `notes LIKE` por la razón anotada arriba en A9, y es la única
+      ocurrencia que queda en `lib/services/`. Decisión consciente y anotada, no un olvido.
 
 ## Phase 4 — Robustez y observabilidad
 
