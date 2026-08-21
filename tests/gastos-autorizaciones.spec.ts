@@ -14,7 +14,15 @@ import {
   seedOperatingExpense,
   seedManyOperatingExpenses,
   deleteTestExpenses,
+  findExpenseByDescription,
+  findUserIdByEmail,
+  seedExpenseAuthorizationRule,
+  deleteExpenseAuthorizationRule,
 } from "./support/db";
+import {
+  approveOperatingExpense,
+  rejectOperatingExpense,
+} from "../lib/services/expense-service";
 
 /**
  * Invariantes de la pantalla de Gastos Operativos y Autorizaciones.
@@ -47,10 +55,27 @@ function enDias(dias: number): string {
  */
 async function sesionDe(browser: Browser, email: string) {
   const contexto = await browser.newContext({ storageState: undefined });
-  const login = await contexto.request.post("/api/auth/sign-in/email", {
+
+  let login = await contexto.request.post("/api/auth/sign-in/email", {
     data: { email, password: ADMIN_PASSWORD },
   });
-  expect(login.ok(), `no se pudo iniciar sesión como ${email}`).toBe(true);
+
+  // better-auth limita `/sign-in/email` a 3 intentos cada 10 segundos, y esos
+  // valores por omisión sólo se activan con `NODE_ENV=production` — es decir,
+  // al verificar contra `npm run start`, que es como se corre este spec. Con un
+  // inicio de sesión por caso, los últimos volvían 429 y el spec se teñía de
+  // rojo por el límite y no por los permisos, que es lo que dice estar probando.
+  for (let intento = 0; intento < 3 && login.status() === 429; intento++) {
+    await new Promise((r) => setTimeout(r, 11_000));
+    login = await contexto.request.post("/api/auth/sign-in/email", {
+      data: { email, password: ADMIN_PASSWORD },
+    });
+  }
+
+  expect(
+    login.ok(),
+    `no se pudo iniciar sesión como ${email} (HTTP ${login.status()})`
+  ).toBe(true);
   return contexto;
 }
 
@@ -259,5 +284,241 @@ test.describe("Gastos Operativos y Autorizaciones", () => {
 
   test.fixme("un lote del mismo tramo se aprueba en una confirmación", async () => {
     // Task 9. Mezclar tramos de `requiredApproverRole` tiene que ser imposible.
+  });
+});
+
+/**
+ * Auditoría A4 — resolver un gasto respeta la sucursal, y el `UPDATE` es la guarda.
+ *
+ * `approveOperatingExpense` y `rejectOperatingExpense` sólo acotaban por
+ * `companyId`. Un GERENTE fijado a Condesa no *veía* los gastos de Polanco en la
+ * lista —eso lo cerró el P0 de arriba— pero con el `expenseId` en la mano los
+ * aprobaba igual por API: el filtro estaba en la lectura y no en la escritura,
+ * que es donde se decide el dinero.
+ *
+ * Aparte, el chequeo de estado vivía sólo en el `SELECT` previo. Dos
+ * aprobaciones simultáneas lo pasaban las dos y la segunda pisaba `approved_by`
+ * y `approval_notes` de la primera: la bitácora terminaba nombrando a quien
+ * llegó tarde. La condición `status = 'PENDING_APPROVAL'` en el `WHERE` del
+ * `UPDATE` es la única guarda que no tiene ventana entre leer y escribir.
+ *
+ * Casi todo pega al servicio y corre sin servidor; el último caso usa una sesión
+ * real de GERENTE porque el criterio es "ni por API".
+ */
+test.describe("A4 · aprobar y rechazar respetan la sucursal", () => {
+  /** Alcance de un rol fijado a Condesa, tal como lo devuelve `resolveBranchScope`. */
+  const SOLO_CONDESA = { kind: "BRANCH", branchId: BRANCH_CONDESA } as const;
+  const TODAS = { kind: "ALL" } as const;
+  /** Un rol acotado a sucursal que no tiene ninguna asignada. */
+  const NINGUNA = { kind: "NONE" } as const;
+
+  /** Aprobador distinto de quien pidió el gasto, para no chocar con la segregación. */
+  let aprobadorId = "";
+  let reglaId = "";
+
+  test.beforeAll(async () => {
+    aprobadorId = await findUserIdByEmail(GERENTE_EMAIL);
+    // La base de dev no tiene reglas de autorización sembradas, y sin ninguna el
+    // aprobador exigido cae a `OWNER`: un GERENTE se quedaría fuera por el rol y
+    // el caso probaría eso en vez de la sucursal. Con la regla, el rol alcanza y
+    // lo único que puede negar la aprobación es el alcance.
+    reglaId = await seedExpenseAuthorizationRule({
+      companyId: COMPANY_ID,
+      approverRole: "GERENTE",
+      minAmountCents: 0,
+      maxAmountCents: 5_000_00,
+    });
+  });
+
+  test.afterAll(async () => {
+    if (reglaId) await deleteExpenseAuthorizationRule(reglaId);
+  });
+
+  test.afterEach(async () => {
+    await deleteTestExpenses();
+  });
+
+  async function gastoPendienteEn(branchId: string, etiqueta: string) {
+    const description = `${E2E_TAG} ${etiqueta} ${Date.now()}`;
+    const id = await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: enDias(5),
+      amountCents: 1_200_00,
+      description,
+      status: "PENDING_APPROVAL",
+    });
+    return { id, description };
+  }
+
+  test("un GERENTE de Condesa no aprueba un gasto de Polanco", async () => {
+    const gasto = await gastoPendienteEn(BRANCH_POLANCO, "renta Polanco");
+
+    await expect(
+      approveOperatingExpense(gasto.id, COMPANY_ID, SOLO_CONDESA, aprobadorId, "GERENTE")
+    ).rejects.toThrow(/otra sucursal/i);
+
+    // Y el gasto sigue esperando a quien sí le toca.
+    const fila = await findExpenseByDescription(gasto.description);
+    expect(fila.status).toBe("PENDING_APPROVAL");
+    expect(fila.approved_by).toBeNull();
+  });
+
+  test("un GERENTE de Condesa tampoco rechaza un gasto de Polanco", async () => {
+    // Rechazar es tan definitivo como aprobar: deja el gasto sin pagar y con un
+    // motivo firmado por alguien que no responde por esa sucursal.
+    const gasto = await gastoPendienteEn(BRANCH_POLANCO, "luz Polanco");
+
+    await expect(
+      rejectOperatingExpense(
+        gasto.id,
+        COMPANY_ID,
+        SOLO_CONDESA,
+        aprobadorId,
+        "GERENTE",
+        "no me consta"
+      )
+    ).rejects.toThrow(/otra sucursal/i);
+
+    const fila = await findExpenseByDescription(gasto.description);
+    expect(fila.status).toBe("PENDING_APPROVAL");
+    expect(fila.approval_notes).toBeNull();
+  });
+
+  test("un GERENTE sí resuelve lo de su propia sucursal", async () => {
+    // El otro lado del cambio: cerrar de más deja sin trabajar a quien autoriza
+    // el gasto de su sucursal todos los días.
+    const gasto = await gastoPendienteEn(BRANCH_CONDESA, "mantenimiento Condesa");
+
+    const resuelto = await approveOperatingExpense(
+      gasto.id,
+      COMPANY_ID,
+      SOLO_CONDESA,
+      aprobadorId,
+      "GERENTE"
+    );
+
+    expect(resuelto.status).toBe("APPROVED");
+    expect(resuelto.approvedBy).toBe(aprobadorId);
+  });
+
+  test("un ADMIN sin sucursal fijada conserva las dos sucursales", async () => {
+    const polanco = await gastoPendienteEn(BRANCH_POLANCO, "ADMIN sobre Polanco");
+    const condesa = await gastoPendienteEn(BRANCH_CONDESA, "ADMIN sobre Condesa");
+
+    expect(
+      (await approveOperatingExpense(polanco.id, COMPANY_ID, TODAS, aprobadorId, "ADMIN")).status
+    ).toBe("APPROVED");
+    expect(
+      (
+        await rejectOperatingExpense(
+          condesa.id,
+          COMPANY_ID,
+          TODAS,
+          aprobadorId,
+          "ADMIN",
+          "duplicado"
+        )
+      ).status
+    ).toBe("REJECTED");
+  });
+
+  test("un rol de sucursal sin sucursal asignada no resuelve nada", async () => {
+    // `kind: "NONE"` es el caso que `resolveBranchScope` existe para no
+    // confundir con "todas": fallar abierto aquí es firmar cualquier gasto.
+    const gasto = await gastoPendienteEn(BRANCH_CONDESA, "sin alcance");
+
+    await expect(
+      approveOperatingExpense(gasto.id, COMPANY_ID, NINGUNA, aprobadorId, "GERENTE")
+    ).rejects.toThrow(/sucursal/i);
+
+    expect((await findExpenseByDescription(gasto.description)).status).toBe(
+      "PENDING_APPROVAL"
+    );
+  });
+
+  test("aprobar dos veces: la segunda falla por el estado y no pisa la bitácora", async () => {
+    const gasto = await gastoPendienteEn(BRANCH_CONDESA, "doble aprobación");
+
+    await approveOperatingExpense(
+      gasto.id,
+      COMPANY_ID,
+      TODAS,
+      aprobadorId,
+      "ADMIN",
+      "autorizado por dirección"
+    );
+
+    await expect(
+      approveOperatingExpense(
+        gasto.id,
+        COMPANY_ID,
+        TODAS,
+        USER_SUPER_ADMIN,
+        "SUPER_ADMIN",
+        "segunda firma"
+      )
+    ).rejects.toThrow(/APPROVED/);
+
+    const fila = await findExpenseByDescription(gasto.description);
+    expect(fila.approved_by, "la segunda aprobación se quedó con la bitácora").toBe(
+      aprobadorId
+    );
+    expect(fila.approval_notes).toBe("autorizado por dirección");
+  });
+
+  test("dos aprobaciones simultáneas: una gana y la bitácora nombra a una sola", async () => {
+    // El `SELECT` previo no es guarda: las dos lo pasan. La condición de estado
+    // dentro del `UPDATE` es la que no tiene ventana entre leer y escribir.
+    const gasto = await gastoPendienteEn(BRANCH_CONDESA, "carrera de aprobación");
+
+    const resultados = await Promise.allSettled([
+      approveOperatingExpense(gasto.id, COMPANY_ID, TODAS, aprobadorId, "ADMIN", "primera"),
+      approveOperatingExpense(
+        gasto.id,
+        COMPANY_ID,
+        TODAS,
+        USER_SUPER_ADMIN,
+        "SUPER_ADMIN",
+        "segunda"
+      ),
+    ]);
+
+    expect(resultados.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(resultados.filter((r) => r.status === "rejected")).toHaveLength(1);
+
+    const fila = await findExpenseByDescription(gasto.description);
+    expect(["primera", "segunda"]).toContain(fila.approval_notes);
+  });
+
+  test("un GERENTE de Condesa recibe 403 sobre Polanco por API, no sólo en la UI", async ({
+    browser,
+  }) => {
+    const aprobar = await gastoPendienteEn(BRANCH_POLANCO, "API aprobar Polanco");
+    const rechazar = await gastoPendienteEn(BRANCH_POLANCO, "API rechazar Polanco");
+
+    const contexto = await sesionDe(browser, GERENTE_EMAIL);
+    try {
+      const resAprobar = await contexto.request.post("/api/expenses/approvals", {
+        data: { expenseId: aprobar.id },
+      });
+      expect(resAprobar.status(), "un GERENTE aprobó un gasto de otra sucursal").toBe(403);
+
+      const resRechazar = await contexto.request.post("/api/expenses/reject", {
+        data: { expenseId: rechazar.id, reason: "no me consta" },
+      });
+      expect(resRechazar.status(), "un GERENTE rechazó un gasto de otra sucursal").toBe(403);
+
+      // Los dos siguen pendientes para quien sí responde por Polanco.
+      expect((await findExpenseByDescription(aprobar.description)).status).toBe(
+        "PENDING_APPROVAL"
+      );
+      expect((await findExpenseByDescription(rechazar.description)).status).toBe(
+        "PENDING_APPROVAL"
+      );
+    } finally {
+      await contexto.close();
+    }
   });
 });

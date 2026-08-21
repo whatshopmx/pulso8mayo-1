@@ -130,7 +130,7 @@ A13..A21 ─── independientes, pulido
 
 ### Fase 1 — Frontera de tenant y de sucursal
 - [x] **A3** `assertBranchOfCompany` y su aplicación a las escrituras de cortes y caja chica
-- [ ] **A4** Aprobar y rechazar un gasto respetan la sucursal, y el `UPDATE` se guarda por status
+- [x] **A4** Aprobar y rechazar un gasto respetan la sucursal, y el `UPDATE` se guarda por status
 - [ ] **A5** `targetBranchId` se resuelve desde la sesión cuando el rol está fijado a una sucursal
 
 ### Checkpoint: Frontera

@@ -14,6 +14,34 @@ import { NotificationDispatcher } from "./notification-dispatcher";
 import { roleIsAtLeast } from "@/lib/permissions";
 import { getPayeeForCompany } from "./payee-service";
 import { ApiError } from "@/lib/api/error";
+import type { BranchScope } from "@/lib/branch-scope";
+
+/**
+ * ¿Puede este alcance resolver un gasto de esta sucursal?
+ *
+ * Aprobar y rechazar sólo se acotaban por `companyId`. Un GERENTE fijado a
+ * Condesa no *veía* los gastos de Polanco en la lista, pero con el `expenseId`
+ * en la mano los resolvía igual por API: el filtro de sucursal estaba en la
+ * lectura y no en la escritura, que es donde se decide el dinero.
+ *
+ * `NONE` niega en vez de dejar pasar. Es el caso para el que existe
+ * `resolveBranchScope`: un rol acotado a sucursal que no tiene ninguna asignada
+ * no debe caer en el mismo `null` que significa "ve toda la empresa", porque
+ * fallar abierto aquí es poder firmar cualquier gasto.
+ */
+function assertScopeCoversBranch(scope: BranchScope, expenseBranchId: string | null) {
+  if (scope.kind === "ALL") return;
+
+  if (scope.kind === "NONE") {
+    throw ApiError.forbidden(
+      "Tu usuario no tiene una sucursal asignada, así que no puede resolver gastos. Pide que te asignen una."
+    );
+  }
+
+  if (expenseBranchId !== scope.branchId) {
+    throw ApiError.forbidden("No puedes resolver un gasto de otra sucursal.");
+  }
+}
 
 export interface CreateExpenseInput {
   companyId: string;
@@ -124,6 +152,7 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
 export async function approveOperatingExpense(
   expenseId: string,
   companyId: string,
+  scope: BranchScope,
   approverId: string,
   approverRole: string,
   notes?: string
@@ -141,11 +170,17 @@ export async function approveOperatingExpense(
     .limit(1);
 
   if (!expense) {
-    throw new Error("El gasto especificado no fue encontrado.");
+    throw ApiError.notFound("El gasto especificado no fue encontrado.");
   }
 
+  // Antes que el estado y antes que el rol: de un gasto fuera de tu alcance no
+  // se responde ni siquiera en qué estado está.
+  assertScopeCoversBranch(scope, expense.branchId);
+
   if (expense.status !== "PENDING_APPROVAL") {
-    throw new Error(`No se puede aprobar un gasto en estado "${expense.status}".`);
+    throw ApiError.badRequest(
+      `No se puede aprobar un gasto en estado "${expense.status}".`
+    );
   }
 
   // Verify the approver has the required role per authorization rules
@@ -165,6 +200,11 @@ export async function approveOperatingExpense(
     );
   }
 
+  // El `WHERE` repite el alcance y exige el estado: el `SELECT` de arriba da
+  // buenos mensajes, pero entre leer y escribir hay una ventana y dos
+  // aprobaciones simultáneas la pasaban las dos — la segunda pisaba
+  // `approved_by` y `approval_notes`, y la bitácora terminaba nombrando a quien
+  // llegó tarde. Esta condición es la única guarda sin ventana.
   const [updated] = await db
     .update(operatingExpenses)
     .set({
@@ -176,10 +216,21 @@ export async function approveOperatingExpense(
     .where(
       and(
         eq(operatingExpenses.id, expenseId),
-        eq(operatingExpenses.companyId, companyId)
+        eq(operatingExpenses.companyId, companyId),
+        eq(operatingExpenses.status, "PENDING_APPROVAL"),
+        ...(scope.kind === "BRANCH"
+          ? [eq(operatingExpenses.branchId, scope.branchId)]
+          : [])
       )
     )
     .returning();
+
+  if (!updated) {
+    // Perdió la carrera: alguien más lo resolvió entre el SELECT y el UPDATE.
+    throw ApiError.badRequest(
+      "Este gasto ya fue resuelto por alguien más. Recarga la lista para ver cómo quedó."
+    );
+  }
 
   return updated;
 }
@@ -197,6 +248,7 @@ export async function approveOperatingExpense(
 export async function rejectOperatingExpense(
   expenseId: string,
   companyId: string,
+  scope: BranchScope,
   approverId: string,
   approverRole: string,
   reason: string
@@ -218,11 +270,17 @@ export async function rejectOperatingExpense(
     .limit(1);
 
   if (!expense) {
-    throw new Error("El gasto especificado no fue encontrado.");
+    throw ApiError.notFound("El gasto especificado no fue encontrado.");
   }
 
+  // Rechazar es tan definitivo como aprobar: deja el gasto sin pagar y con un
+  // motivo firmado por alguien que no responde por esa sucursal.
+  assertScopeCoversBranch(scope, expense.branchId);
+
   if (expense.status !== "PENDING_APPROVAL") {
-    throw new Error(`No se puede rechazar un gasto en estado "${expense.status}".`);
+    throw ApiError.badRequest(
+      `No se puede rechazar un gasto en estado "${expense.status}".`
+    );
   }
 
   const rule = await findAuthorizationRule(companyId, expense.amount);
@@ -245,10 +303,20 @@ export async function rejectOperatingExpense(
     .where(
       and(
         eq(operatingExpenses.id, expenseId),
-        eq(operatingExpenses.companyId, companyId)
+        eq(operatingExpenses.companyId, companyId),
+        eq(operatingExpenses.status, "PENDING_APPROVAL"),
+        ...(scope.kind === "BRANCH"
+          ? [eq(operatingExpenses.branchId, scope.branchId)]
+          : [])
       )
     )
     .returning();
+
+  if (!updated) {
+    throw ApiError.badRequest(
+      "Este gasto ya fue resuelto por alguien más. Recarga la lista para ver cómo quedó."
+    );
+  }
 
   return updated;
 }

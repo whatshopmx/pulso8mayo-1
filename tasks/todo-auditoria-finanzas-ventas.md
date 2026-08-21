@@ -159,20 +159,50 @@ el spec cubren la baja y la reapertura (**10 passed**).
   (`/api/sales/cuts` y el `GET`), así que la verificación se corre contra el build y no con
   `--no-deps`, como decía la línea de arriba antes de corregirla.
 
-- [ ] **A4: Aprobar y rechazar respetan la sucursal**
+- [x] **A4: Aprobar y rechazar respetan la sucursal**
   - **Description:** `approveOperatingExpense` y `rejectOperatingExpense` reciben el alcance de
     sucursal y lo añaden al `WHERE`, junto con `status = 'PENDING_APPROVAL'` para que el propio
     `UPDATE` sea la guarda contra dos resoluciones concurrentes.
   - **Acceptance criteria:**
-    - [ ] Un GERENTE de Condesa recibe 403 al aprobar o rechazar un gasto de Polanco por API.
-    - [ ] Un ADMIN sin sucursal fijada conserva el acceso a ambas.
-    - [ ] Aprobar dos veces el mismo gasto: la segunda falla con el mensaje de estado, no pisa la bitácora.
+    - [x] Un GERENTE de Condesa recibe 403 al aprobar o rechazar un gasto de Polanco por API.
+    - [x] Un ADMIN sin sucursal fijada conserva el acceso a ambas.
+    - [x] Aprobar dos veces el mismo gasto: la segunda falla con el mensaje de estado, no pisa la bitácora.
   - **Verification:**
-    - [ ] Casos nuevos en `tests/gastos-autorizaciones.spec.ts`, reusando su seed y el patrón de `:130`.
-    - [ ] `pnpm exec playwright test --no-deps --project=chromium tests/gastos-autorizaciones.spec.ts`
+    - [x] Casos nuevos en `tests/gastos-autorizaciones.spec.ts`, reusando su seed y el patrón de `:130`.
+    - [x] `pnpm build && PLAYWRIGHT_WEB_SERVER_CMD="npm run start" pnpm exec playwright test --project=chromium tests/gastos-autorizaciones.spec.ts` — **14 passed, 8 skipped** (los `fixme` previos)
   - **Dependencies:** None
   - **Files:** `lib/services/expense-service.ts`, `app/api/expenses/approvals/route.ts`, `app/api/expenses/reject/route.ts`, `tests/gastos-autorizaciones.spec.ts`
   - **Scope:** M
+
+  **Cómo quedó.** El alcance entra como tercer parámetro (`scope: BranchScope`), justo
+  después de `companyId`, en las dos funciones. El tipo distinto del que estaba en esa
+  posición hace que el compilador señale cada call site, que es lo que se quería.
+
+  El orden de las guardas importa: el alcance se comprueba **antes** que el estado y antes
+  que el rol, para no responder en qué estado está un gasto que no es tuyo. `kind: "NONE"`
+  niega — es el caso para el que existe `resolveBranchScope`, y fallar abierto ahí es poder
+  firmar cualquier gasto.
+
+  El `UPDATE` repite el alcance y además exige `status = 'PENDING_APPROVAL'`. El `SELECT`
+  previo da buenos mensajes pero tiene una ventana: dos aprobaciones simultáneas lo pasaban
+  las dos y la segunda pisaba `approved_by` y `approval_notes`, así que la bitácora
+  terminaba nombrando a quien llegó tarde. Si el `UPDATE` no devuelve fila, se lanza el
+  error de "ya fue resuelto" en vez de devolver `undefined`.
+
+  De paso, los errores de estas dos funciones pasan de `Error` pelado a `ApiError`: tal como
+  estaban, "no encontrado" y "estado inválido" salían como **500**, así que la UI mostraba
+  un error genérico en lugar del mensaje. El criterio pide un 403 para la sucursal ajena, y
+  eso no se puede dar con un `Error` pelado.
+
+  **Dos cosas que el plan no anticipaba.** (1) La base de dev **no tiene reglas de
+  autorización sembradas**, así que `findAuthorizationRule` no encuentra ninguna, el
+  aprobador exigido cae a `OWNER` y ningún GERENTE puede aprobar nada. Un caso de frontera de
+  sucursal se habría negado por el rol y no habría probado nada; el spec siembra su regla
+  (`seedExpenseAuthorizationRule`) y la borra en `afterAll`. (2) `sesionDe` iniciaba sesión
+  en cada caso y better-auth limita `/sign-in/email` a 3 intentos cada 10 segundos —valores
+  por omisión que sólo se activan con `NODE_ENV=production`, o sea al verificar contra el
+  build. Se le añadió reintento sobre 429; ver el commit gemelo en `ventas-rbac`.
+
 
 - [ ] **A5: `targetBranchId` se resuelve desde la sesión**
   - **Description:** Las 5 rutas ABAC (`kpis`, `pnl`, `payables`, `control-interno/audit-log`,

@@ -115,6 +115,51 @@ export async function findUserBranchId(email: string): Promise<string> {
 }
 
 /**
+ * Siembra una regla de autorización de gastos.
+ *
+ * Sin reglas, `findAuthorizationRule` no encuentra ninguna y el aprobador
+ * exigido cae a `OWNER`, así que **ningún** GERENTE puede aprobar nada. Un spec
+ * que quiera probar la frontera de *sucursal* necesita antes que el rol alcance;
+ * si no, el gasto se deniega por el motivo equivocado y el caso no prueba nada.
+ *
+ * `minAmount: 0` deja además fuera el carve-out de auto-aprobación
+ * (`expense-service.ts:162` sólo bloquea la firma propia cuando `minAmount > 0`).
+ */
+export async function seedExpenseAuthorizationRule(opts: {
+  companyId: string;
+  approverRole: string;
+  minAmountCents?: number;
+  maxAmountCents?: number | null;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO expense_authorization_rules (company_id, min_amount, max_amount, approver_role)
+    VALUES (
+      ${opts.companyId},
+      ${opts.minAmountCents ?? 0},
+      ${opts.maxAmountCents ?? null},
+      ${opts.approverRole}
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Borra una regla sembrada por `seedExpenseAuthorizationRule`. */
+export async function deleteExpenseAuthorizationRule(ruleId: string): Promise<void> {
+  await sql`DELETE FROM expense_authorization_rules WHERE id = ${ruleId}`;
+}
+
+/** El `id` de un usuario sembrado, para actuar en su nombre desde un servicio. */
+export async function findUserIdByEmail(email: string): Promise<string> {
+  const rows = await sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
+  const id = rows[0]?.id as string | undefined;
+  if (!id) {
+    throw new Error(`No existe el usuario ${email} (¿falta correr \`pnpm seed\`?)`);
+  }
+  return id;
+}
+
+/**
  * Etiqueta de un artículo tal como la pinta el `<Select>` de productos
  * (`{name} ({sku})`), para poder elegirlo por rol en un spec de UI.
  */
@@ -398,7 +443,8 @@ export async function findExpenseByDescription(description: string): Promise<any
   // La columna se llama `amount` y ya está en centavos (`schema.ts:2688`); se
   // expone como `amount_cents` para que el spec lea el nombre con la unidad.
   const rows = await sql`
-    SELECT id, description, amount AS amount_cents, evidence_url, status, payee_id
+    SELECT id, description, amount AS amount_cents, evidence_url, status, payee_id,
+           branch_id, approved_by, approval_notes
     FROM operating_expenses
     WHERE description = ${description}
     LIMIT 1
