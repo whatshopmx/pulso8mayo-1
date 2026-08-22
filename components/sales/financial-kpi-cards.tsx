@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
 import { AlertCircle, Loader2, Wallet, Utensils, Users, TrendingUp, Minus } from "lucide-react";
 import type {
@@ -207,9 +208,17 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
             <span className="text-xs font-bold tabular-nums">
               {metric.percent}%
               {marker && (
-                <sup className="ml-0.5 text-amber-700 dark:text-amber-400" title={marker.hint}>
-                  {marker.mark}
-                </sup>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <sup
+                      className="ml-0.5 text-amber-700 dark:text-amber-400 cursor-help"
+                      tabIndex={0}
+                    >
+                      {marker.mark}
+                    </sup>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-72">{marker.hint}</TooltipContent>
+                </Tooltip>
               )}
             </span>
             <span className={`text-xs px-1.5 py-0.5 rounded-full border ${colors.badge}`}>
@@ -251,16 +260,22 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
       <CardHeader className="pb-3">
         <CardDescription className="text-xs font-medium flex items-center gap-1.5">
           Resumen Financiero
-          {/* `button`, no `span`: un `title` sobre texto plano no recibe foco ni lo
-              anuncia el lector de pantalla. Mismo patrón que app/dashboard/sales. */}
-          <button
-            type="button"
-            className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-muted-foreground/30 text-xs leading-none text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            title="Ventas totales, tickets promedio, proporción efectivo/tarjeta y costos operativos (food cost, labor cost) calculados con las mismas fuentes que el P&L por sucursal. Los objetivos son los configurados para tu grupo."
-            aria-label="Qué incluye el resumen financiero: ventas totales, tickets promedio, proporción efectivo/tarjeta y costos operativos calculados con las mismas fuentes que el P&L por sucursal."
-          >
-            ?
-          </button>
+          {/* Tooltip Radix, no `title`: visible con foco de teclado y en táctil.
+              Mismo patrón que app/dashboard/sales. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-muted-foreground/30 text-xs leading-none text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Qué incluye el resumen financiero: ventas totales, tickets promedio, proporción efectivo/tarjeta y costos operativos calculados con las mismas fuentes que el P&L por sucursal."
+              >
+                ?
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-72">
+              Ventas totales, tickets promedio, proporción efectivo/tarjeta y costos operativos (food cost, labor cost) calculados con las mismas fuentes que el P&L por sucursal. Los objetivos son los configurados para tu grupo.
+            </TooltipContent>
+          </Tooltip>
         </CardDescription>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 pt-1">
           <span className="text-3xl font-bold text-foreground">
@@ -313,14 +328,20 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <TrendingUp className="w-3.5 h-3.5" />
             Margen tras food y labor
-            <button
-              type="button"
-              className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-muted-foreground/30 text-xs leading-none text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              title="100% menos food cost menos labor cost. NO es utilidad operativa: todavía no descuenta renta, servicios ni gastos operativos. Para el margen real, consulta el P&L por sucursal."
-              aria-label="Qué es este margen: 100% menos food cost menos labor cost. No es utilidad operativa, no descuenta renta ni gastos operativos."
-            >
-              ?
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-muted-foreground/30 text-xs leading-none text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Qué es este margen: 100% menos food cost menos labor cost. No es utilidad operativa, no descuenta renta ni gastos operativos."
+                >
+                  ?
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-72">
+                100% menos food cost menos labor cost. NO es utilidad operativa: todavía no descuenta renta, servicios ni gastos operativos. Para el margen real, consulta el P&L por sucursal.
+              </TooltipContent>
+            </Tooltip>
           </div>
           {kpis.healthyMarginPercent === null ? (
             <span className="text-sm text-muted-foreground">—</span>

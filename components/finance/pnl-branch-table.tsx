@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TrendingUp, Info, Loader2, AlertTriangle, AlertCircle } from "lucide-react";
 import type { BranchPnL, LineSource, PnLLine } from "@/lib/services/pnl-types";
 
@@ -37,6 +38,21 @@ const SOURCE_CLASS: Record<LineSource, string> = {
 const formatMXN = (cents: number) =>
   (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 
+/** Nota de celda accesible: Tooltip Radix (foco de teclado + táctil) en vez de `title`. */
+function NoteTip({ note, children }: { note?: string | null; children: ReactNode }) {
+  if (!note) return <>{children}</>;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className="cursor-help">
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-72">{note}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 /** Celda de dinero o porcentaje que respeta la procedencia del renglón. */
 function LineCell({
   value,
@@ -53,23 +69,26 @@ function LineCell({
   // Sin datos (o sin ventas contra las que calcular un %) → guion, no cero.
   if (isNoData || percentUnavailable) {
     return (
-      <TableCell className={`text-right text-muted-foreground ${className}`} title={value.note}>
-        <span aria-label="Sin datos">—</span>
+      <TableCell className={`text-right text-muted-foreground ${className}`}>
+        <NoteTip note={value.note}>
+          <span aria-label="Sin datos">—</span>
+        </NoteTip>
       </TableCell>
     );
   }
 
   return (
-    <TableCell
-      className={`text-right ${SOURCE_CLASS[value.source]} ${className}`}
-      title={value.note}
-    >
-      {mode === "money" ? formatMXN(value.cents) : `${value.percentOfSales}%`}
-      {MARKER[value.source] && (
-        <sup className="ml-0.5 font-semibold" aria-hidden="true">
-          {MARKER[value.source]}
-        </sup>
-      )}
+    <TableCell className={`text-right ${SOURCE_CLASS[value.source]} ${className}`}>
+      <NoteTip note={value.note}>
+        <span>
+          {mode === "money" ? formatMXN(value.cents) : `${value.percentOfSales}%`}
+          {MARKER[value.source] && (
+            <sup className="ml-0.5 font-semibold" aria-hidden="true">
+              {MARKER[value.source]}
+            </sup>
+          )}
+        </span>
+      </NoteTip>
     </TableCell>
   );
 }
@@ -362,16 +381,19 @@ export function PnlBranchTable() {
                                 ? "text-emerald-600 dark:text-emerald-400"
                                 : "text-destructive"
                           }`}
-                          title={item.operatingProfit.note}
                         >
-                          {item.operatingProfit.source === "NO_DATA"
-                            ? "—"
-                            : formatMXN(item.operatingProfit.cents)}
-                          {approximate && item.operatingProfit.source !== "NO_DATA" && (
-                            <sup className="ml-0.5" aria-hidden="true">
-                              ≈
-                            </sup>
-                          )}
+                          <NoteTip note={item.operatingProfit.note}>
+                            <span>
+                              {item.operatingProfit.source === "NO_DATA"
+                                ? "—"
+                                : formatMXN(item.operatingProfit.cents)}
+                              {approximate && item.operatingProfit.source !== "NO_DATA" && (
+                                <sup className="ml-0.5" aria-hidden="true">
+                                  ≈
+                                </sup>
+                              )}
+                            </span>
+                          </NoteTip>
                         </TableCell>
                         <LineCell
                           value={item.operatingProfit}
