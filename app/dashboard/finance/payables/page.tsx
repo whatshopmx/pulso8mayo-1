@@ -162,7 +162,11 @@ function PayablesContent() {
               <CardContent className="p-4">
                 <p className="text-xs text-muted-foreground">Total por pagar</p>
                 <p className="text-2xl font-bold tabular-nums">{formatCents(data.totalCents)}</p>
-                <p className="text-xs text-muted-foreground">{data.items.length} partidas</p>
+                {/* A19 — `itemsTotal`, no `items.length`: desde que el detalle
+                    se acota, `items` describe la página y no la deuda. Los tres
+                    números de aquí arriba se calculan sobre todas las partidas,
+                    antes del corte. */}
+                <p className="text-xs text-muted-foreground">{data.itemsTotal} partidas</p>
               </CardContent>
             </Card>
             <Card className={data.overdueCents > 0 ? "border-destructive/40" : undefined}>
@@ -312,6 +316,9 @@ function PayablesContent() {
               <CardTitle className="text-base font-bold">Detalle de partidas</CardTitle>
               <CardDescription className="text-xs">
                 Lo vencido primero.
+                {data.itemsTotal > data.items.length
+                  ? ` Se muestran las ${data.items.length} más urgentes de ${data.itemsTotal}; acota por sucursal o proveedor desde el encabezado para ver el resto.`
+                  : ""}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -392,6 +399,13 @@ function PayablesContent() {
                   </TableBody>
                 </Table>
               </div>
+              {/* Mismo patrón que la tabla de arriba: la cota se dice debajo,
+                  donde termina de leerse la lista. */}
+              {data.itemsTotal > data.items.length && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Mostrando las {data.items.length} partidas más urgentes de {data.itemsTotal}.
+                </p>
+              )}
             </CardContent>
           </Card>
         </>

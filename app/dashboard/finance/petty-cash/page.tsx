@@ -10,6 +10,7 @@ import { PettyCashRegister } from "@/components/finance/petty-cash-register";
 import { useBranches } from "@/hooks/use-branches";
 import { useBranch } from "@/lib/branch-context";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
+import { mensajeDeError } from "@/lib/api/client-error";
 import {
   Wallet,
   AlertTriangle,
@@ -21,12 +22,13 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-/** Estado de una sucursal dentro de la vista consolidada. */
+/** Estado de una sucursal dentro de la vista consolidada. Lo arma el servidor (A17). */
 interface BranchFundRow {
   branchId: string;
   branchName: string;
-  currentBalance: number;
-  lowThreshold: number;
+  currentBalanceCents: number;
+  fundAmountCents: number;
+  lowThresholdCents: number;
   belowThreshold: boolean;
 }
 
@@ -63,112 +65,112 @@ export default function PettyCashPage() {
   const [transactions, setTransactions] = useState<PettyCashTransactionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [fundError, setFundError] = useState<string | null>(null);
-  /** Sucursales cuyo fondo no respondió: excluirlas en silencio subestimaría el total. */
-  const [unreachableBranches, setUnreachableBranches] = useState<string[]>([]);
   /**
-   * Sucursales que respondieron bien y no tienen fondo abierto. Es un estado
-   * normal —el `GET` ya no inventa el fondo—, así que no puede reportarse como
-   * "no respondió": una es una falla de red y la otra es trabajo pendiente.
+   * Sucursales sin fondo abierto. Es un estado normal —el `GET` ya no inventa el
+   * fondo—, y desde A17 lo dice el servidor: antes se deducía de qué respuestas
+   * habían llegado, junto a las sucursales que no contestaron. Ese segundo caso
+   * ya no existe: la petición es una y falla entera o no falla, así que un fallo
+   * es el estado de error de la pantalla y no una nota al pie del saldo.
    */
   const [branchesWithoutFund, setBranchesWithoutFund] = useState<string[]>([]);
+  /** A19 — Cuántos movimientos existen, para declarar los que no se muestran. */
+  const [movimientosTotal, setMovimientosTotal] = useState(0);
 
-  // El fallo al cargar sucursales tiene prioridad: sin ellas no hay fondo que pedir.
-  const error = branchesError ?? fundError;
+  // El orden se invirtió con A17. Antes las sucursales iban primero porque sin
+  // ellas no había a quién pedirle el fondo: la pantalla armaba el abanico de
+  // peticiones a partir de esa lista. Ahora el consolidado lo resuelve el
+  // servidor y `branches` sólo alimenta el diálogo de registro, así que el fallo
+  // que le importa a quien mira el saldo es el del saldo.
+  const error = fundError ?? branchesError;
 
-  // Fetch fund & transaction audit history (single branch, or aggregated "ALL")
+  /**
+   * A17 — Una sola petición, con alcance "todas" o con una sucursal.
+   *
+   * Antes esto era un abanico de dos peticiones **por sucursal** —30 con 15
+   * sucursales, cada una pasando por el limitador de tasa y por una
+   * verificación de sesión que es a su vez un `fetch` interno— y el saldo de la
+   * cadena era la suma de las que alcanzaron a contestar.
+   *
+   * Ya no depende de `branches`: el servidor sabe qué sucursales hay, y el
+   * alcance lo resuelve él desde la sesión. `branchId` viaja como petición, no
+   * como orden.
+   */
   const fetchData = useCallback(async () => {
-    // Aún no se sabe qué sucursales existen; el efecto vuelve a correr al resolverse.
-    if (branchesLoading) return;
-    // Sin sucursales no hay nada que pedir, pero el spinner debe apagarse:
-    // dejarlo encendido hacía inalcanzable el estado de error que lo provocó.
-    if (branches.length === 0) {
-      setFund(null);
-      setTransactions([]);
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     setFundError(null);
     try {
-      const targetBranches =
-        selectedBranch === "ALL" ? branches : branches.filter((b) => b.id === selectedBranch);
+      const url = new URL("/api/petty-cash/consolidado", window.location.origin);
+      if (selectedBranch !== "ALL") url.searchParams.set("branchId", selectedBranch);
 
-      const results = await Promise.all(
-        targetBranches.map(async (b) => {
-          const [fundRes, txRes] = await Promise.all([
-            fetch(`/api/petty-cash?branchId=${b.id}`),
-            fetch(`/api/petty-cash/transactions?branchId=${b.id}`),
-          ]);
-          const [fundJson, txJson] = await Promise.all([fundRes.json(), txRes.json()]);
-          const fundOk = fundRes.ok && fundJson.success;
-          return {
-            branchId: b.id,
-            branchName: b.name,
-            /** `false` solo si la petición falló; `data: null` es "sin fondo". */
-            reachable: fundOk,
-            fund: fundOk ? (fundJson.data as PettyFund | null) : null,
-            tx: txRes.ok && txJson.success ? (txJson.data as PettyCashTransactionItem[]) : [],
-          };
-        })
-      );
+      const res = await fetch(url.toString());
+      const json = await res.json();
 
-      const fundsFound = results.filter((r) => r.fund);
-      const allTx = results.flatMap((r) => r.tx);
-
-      // Un fondo que no respondió sale de la suma; callarlo presentaría un saldo
-      // de cadena subestimado como si fuera autoritativo. Las que respondieron
-      // "sin fondo" no subestiman nada: no hay efectivo que sumar.
-      setUnreachableBranches(results.filter((r) => !r.reachable).map((r) => r.branchName));
-      setBranchesWithoutFund(
-        results.filter((r) => r.reachable && !r.fund).map((r) => r.branchName)
-      );
-
-      if (fundsFound.length === 0) {
+      if (!res.ok || !json.success) {
+        // Un saldo que no cargó no es un saldo en cero: presentarlos igual diría
+        // que la cadena no tiene efectivo. Es el mismo criterio de A10.
+        setFundError(
+          mensajeDeError(json, "El servidor no devolvió el estado de caja chica.")
+        );
         setFund(null);
         setTransactions([]);
+        setBranchesWithoutFund([]);
+        setMovimientosTotal(0);
         return;
       }
 
-      if (selectedBranch === "ALL" && fundsFound.length > 1) {
-        // Aggregated consolidated view for the chain owner
-        const rows: BranchFundRow[] = fundsFound
-          .map((r) => ({
-            branchId: r.branchId,
-            branchName: r.branchName,
-            currentBalance: r.fund!.currentBalance,
-            lowThreshold: r.fund!.lowThreshold,
-            belowThreshold: r.fund!.currentBalance <= r.fund!.lowThreshold,
-          }))
-          // Las que necesitan efectivo primero: la pregunta de la página es
-          // "¿a dónde mando dinero?", no "¿cómo se llaman mis sucursales?".
-          .sort((a, b) => {
-            if (a.belowThreshold !== b.belowThreshold) return a.belowThreshold ? -1 : 1;
-            return a.currentBalance - b.currentBalance;
-          });
+      const data = json.data as {
+        totals: {
+          currentBalanceCents: number;
+          fundAmountCents: number;
+          branchesWithFund: number;
+          branchesBelowThreshold: number;
+        };
+        rows: BranchFundRow[];
+        branchesWithoutFund: Array<{ branchId: string; branchName: string }>;
+        movimientos: { items: PettyCashTransactionItem[]; total: number; limit: number };
+      };
 
+      setBranchesWithoutFund(data.branchesWithoutFund.map((b) => b.branchName));
+      setTransactions(data.movimientos.items);
+      setMovimientosTotal(data.movimientos.total);
+
+      if (data.rows.length === 0) {
+        setFund(null);
+        return;
+      }
+
+      if (data.rows.length > 1) {
+        // El orden por urgencia y el conteo bajo umbral ya vienen resueltos: son
+        // la respuesta a "¿a dónde mando dinero?" y no pueden depender de qué
+        // respuestas llegaron primero.
         setFund({
           branchName: "Vista consolidada",
-          currentBalance: fundsFound.reduce((s, r) => s + (r.fund?.currentBalance || 0), 0),
-          fundAmount: fundsFound.reduce((s, r) => s + (r.fund?.fundAmount || 0), 0),
+          currentBalance: data.totals.currentBalanceCents,
+          fundAmount: data.totals.fundAmountCents,
           lowThreshold: 0, // no aplica en consolidado; ver `consolidated`
           consolidated: {
-            branchesBelowThreshold: rows.filter((r) => r.belowThreshold).length,
-            branchesWithFund: rows.length,
-            rows,
+            branchesBelowThreshold: data.totals.branchesBelowThreshold,
+            branchesWithFund: data.totals.branchesWithFund,
+            rows: data.rows,
           },
         });
       } else {
-        const f = fundsFound[0].fund!;
-        setFund({ ...f, branchName: fundsFound[0].branchName });
+        const fila = data.rows[0];
+        setFund({
+          branchId: fila.branchId,
+          branchName: fila.branchName,
+          currentBalance: fila.currentBalanceCents,
+          fundAmount: fila.fundAmountCents,
+          lowThreshold: fila.lowThresholdCents,
+        });
       }
-      setTransactions(allTx);
     } catch (err) {
       console.error("Error loading petty cash data:", err);
       setFundError("No se pudo cargar el estado de caja chica. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setLoading(false);
     }
-  }, [selectedBranch, branches, branchesLoading]);
+  }, [selectedBranch]);
 
   useEffect(() => {
     fetchData();
@@ -317,7 +319,7 @@ export default function PettyCashPage() {
                       <span className="font-medium truncate">{row.branchName}</span>
                       <span className="flex items-center gap-2 shrink-0">
                         <span className="tabular-nums font-semibold">
-                          {formatCents(row.currentBalance)}
+                          {formatCents(row.currentBalanceCents)}
                         </span>
                         {row.belowThreshold ? (
                           <Badge
@@ -354,26 +356,20 @@ export default function PettyCashPage() {
                 </p>
               )}
 
-              {unreachableBranches.length > 0 && (
-                <p className="flex items-start gap-2 text-xs text-warning-text">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
-                  El saldo mostrado excluye {unreachableBranches.length}{" "}
-                  {unreachableBranches.length === 1 ? "sucursal que no respondió" : "sucursales que no respondieron"}
-                  {" "}({unreachableBranches.join(", ")}). El total de la cadena es mayor al que ves.
-                </p>
-              )}
-
               {/* Movements as a demoted secondary line, not its own card.
                   Se cuenta cuántos traen comprobante en vez de afirmar que todos
                   lo traen: los movimientos previos al gate pueden no tenerlo. */}
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1 border-t">
                 <ShieldCheck className="w-4 h-4 text-success" />
-                <span className="font-medium text-foreground">{transactions.length}</span>
+                {/* A19 — El conteo es el de la cadena entera, no el de lo que se
+                    alcanzó a traer: decir "100 movimientos" cuando hay 4,000 es
+                    afirmar de menos sobre el propio libro. */}
+                <span className="font-medium text-foreground">{movimientosTotal}</span>
                 movimientos en la bitácora,{" "}
                 <span className="font-medium text-foreground">
                   {transactions.filter((t) => t.evidenceUrl).length}
                 </span>{" "}
-                con comprobante fotográfico.
+                de los {transactions.length} más recientes con comprobante fotográfico.
               </div>
             </CardContent>
           </Card>
@@ -385,7 +381,13 @@ export default function PettyCashPage() {
                 <Coins className="w-5 h-5 text-primary" /> Bitácora Auditable de Transacciones
               </CardTitle>
               <CardDescription className="text-xs">
-                Historial completo de retiros e ingresos mostrando quién solicitó, quién autorizó, motivo registrado y comprobante adjunto.
+                {/* A19 — Decía "historial completo" y nunca lo fue: antes traía
+                    todo lo que las N peticiones alcanzaran a devolver, y ahora
+                    trae los más recientes. Se declara la cota en vez de
+                    prometer una integridad que la tabla no tiene. */}
+                {movimientosTotal > transactions.length
+                  ? `Los ${transactions.length} movimientos más recientes de ${movimientosTotal}: quién solicitó, quién autorizó, motivo registrado y comprobante adjunto. Acota por sucursal desde el encabezado para ver los de una sola.`
+                  : "Retiros e ingresos mostrando quién solicitó, quién autorizó, motivo registrado y comprobante adjunto."}
               </CardDescription>
             </CardHeader>
             <CardContent>

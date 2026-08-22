@@ -155,7 +155,7 @@ A13..A21 ─── independientes, pulido
 - [x] Timbrar dos veces el mismo período devuelve el mismo UUID y consume un solo folio
 - [x] Recargar la página después de timbrar sigue mostrando el comprobante
 - [x] Un status distinto de TIMBRADO no pinta el badge verde
-- [ ] **Revisar con David** — la cancelación de CFDI queda fuera de alcance y hay que decidir si bloquea
+- [x] **Revisado con David (2026-08-21)** — la cancelación de CFDI **va a su propio plan** y no bloquea. Necesita el endpoint de cancelación del PAC, los motivos SAT (01–04), la mecánica de acepta/rechaza del receptor y qué pasa con el payslip ya emitido. A6 la volvió *posible* —antes no había fila que cancelar— y ese era el punto correcto donde parar.
 
 ### Fase 3 — Pantallas que afirman de más
 - [x] **A8** `/api/sales/cuts` acota por defecto al mes en curso, pagina y devuelve `total`
@@ -178,9 +178,9 @@ A13..A21 ─── independientes, pulido
 - [x] **A16** La UI de Gastos refleja la política real de auto-aprobación
 
 ### Fase 5 — Rendimiento y pulido
-- [ ] **A17** Un endpoint consolidado reemplaza el abanico de 2×N peticiones de Caja Chica
+- [x] **A17** Un endpoint consolidado reemplaza el abanico de 2×N peticiones de Caja Chica
 - [x] **A18** La búsqueda de contrapartes hace debounce y cancela la petición anterior
-- [ ] **A19** Cuentas por Pagar y la bitácora de Caja Chica se paginan
+- [x] **A19** Cuentas por Pagar y la bitácora de Caja Chica se paginan
 - [x] **A20** Se corrigen la leyenda accesible de CxP y la confirmación de borrado de plantillas
 - [x] **A21** Se dejan de silenciar los fallos de carga de proveedores y se tipa el `catch` de Contrapartes
 
@@ -208,9 +208,10 @@ A13..A21 ─── independientes, pulido
   cuántas sucursales y es la única decisión de este plan que toca datos existentes.
 - **A2 — ¿Un SUPERVISOR captura cortes hoy?** La lista de Finanzas lo incluye; confirmar que sea lo
   correcto también para Ventas antes de cerrar la puerta.
-- **A6 — ¿La cancelación de CFDI entra a este plan?** Persistir el timbrado hace la cancelación
-  *posible*; implementarla es otro alcance. Si el negocio la necesita ya, A6 crece y conviene su
-  propio plan.
+- ~~**A6 — ¿La cancelación de CFDI entra a este plan?**~~ **Resuelta con David (2026-08-21): a su
+  propio plan.** Persistir el timbrado la hizo *posible*; implementarla es otro alcance (endpoint de
+  cancelación del PAC, motivos SAT 01–04, acepta/rechaza del receptor, y qué pasa con el payslip ya
+  emitido).
 - ~~**A16 — ¿Cuál es la política real de auto-aprobación?**~~ **Resuelta con David (2026-08-21):
   gana la segregación de funciones.** Todo gasto nace `PENDING_APPROVAL` y lo resuelve alguien
   distinto de quien lo registró, sin importar monto ni rol — que es lo que la pantalla ya afirmaba.

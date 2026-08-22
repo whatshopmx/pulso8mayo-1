@@ -46,10 +46,20 @@ export async function GET(req: NextRequest) {
       throw ApiError.forbidden("Tu usuario no tiene una sucursal asignada. Pídele a un administrador que te asigne una para ver esta información.");
     }
 
+    // A19 — El detalle se acota; los agregados siguen calculándose sobre todas
+    // las partidas dentro del servicio, así que ni los totales ni los tramos de
+    // antigüedad cambian. `limit` permite ampliarlo desde la URL, con tope.
+    const limitPedido = Number(searchParams.get("limit"));
+    const itemsLimit =
+      Number.isInteger(limitPedido) && limitPedido > 0 && limitPedido <= 1000
+        ? limitPedido
+        : undefined;
+
     const payables = await getAccountsPayable({
       companyId: ctx.userCompanyId,
       branchId: alcance.kind === "BRANCH" ? alcance.branchId : undefined,
       supplierId,
+      itemsLimit,
     });
 
     return ApiHandler.success(maskSensitive(payables, decision));

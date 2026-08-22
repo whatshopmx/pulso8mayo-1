@@ -148,6 +148,7 @@ test.describe("A20 · la leyenda de Cuentas por Pagar describe la tabla que exis
                   hasDiscrepancy: false,
                 },
               ],
+              itemsTotal: 1,
               totalCents: 4_500_000,
               overdueCents: 0,
               overdueCount: 0,

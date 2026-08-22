@@ -16,6 +16,7 @@ import { invoices, operatingExpenses, suppliers, branches, payees } from "@/lib/
 import { and, eq, sql } from "drizzle-orm";
 import {
   AGING_BUCKET_ORDER,
+  PAYABLES_ITEMS_LIMIT,
   bucketFor,
   type AccountsPayableResult,
   type BucketTotal,
@@ -33,6 +34,12 @@ export interface AccountsPayableFilter {
   companyId: string;
   branchId?: string;
   supplierId?: string;
+  /**
+   * A19 — Cota del detalle. Los agregados se calculan sobre **todas** las
+   * partidas y el corte se aplica al final, así que acotar no cambia ni un
+   * total ni un tramo de antigüedad: sólo cuántas filas viajan.
+   */
+  itemsLimit?: number;
 }
 
 /** Días entre hoy y una fecha `YYYY-MM-DD`. Negativo = ya pasó. */
@@ -227,8 +234,12 @@ export async function getAccountsPayable(
     }
   }
 
+  const itemsLimit = filter.itemsLimit ?? PAYABLES_ITEMS_LIMIT;
+
   return {
-    items,
+    // El corte va aquí, después de recorrer todo `items` para los agregados.
+    items: items.slice(0, itemsLimit),
+    itemsTotal: items.length,
     totalCents,
     overdueCents,
     overdueCount,

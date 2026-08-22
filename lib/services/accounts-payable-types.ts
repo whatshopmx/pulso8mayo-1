@@ -74,8 +74,21 @@ export interface CounterpartyTotal {
   count: number;
 }
 
+/** Cota por omisión del detalle de partidas. Ver A19. */
+export const PAYABLES_ITEMS_LIMIT = 200;
+
 export interface AccountsPayableResult {
+  /** Acotado a `itemsLimit`. Los agregados se calculan **antes** del corte. */
   items: PayableItem[];
+  /**
+   * A19 — Cuántas partidas existen en el alcance, no cuántas vinieron.
+   *
+   * La pantalla pintaba `data.items` entero y titulaba con `items.length`. Al
+   * acotar, ese número pasaría a describir la página en vez de la deuda, y
+   * "37 partidas" bajo un total de la cadena es una afirmación falsa sobre el
+   * dinero. Los tres números del encabezado siguen saliendo del total.
+   */
+  itemsTotal: number;
   totalCents: number;
   overdueCents: number;
   overdueCount: number;

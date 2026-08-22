@@ -389,11 +389,12 @@ el spec cubren la baja y la reapertura (**10 passed**).
 - [x] Timbrar dos veces el mismo período devuelve el mismo UUID y un solo folio consumido
 - [x] Recargar después de timbrar sigue mostrando el comprobante
 - [x] Un status distinto de TIMBRADO no pinta verde
-- [ ] **Revisar con David** — decidir si la cancelación de CFDI bloquea o va a su propio plan.
-      **Sigue abierta.** A6 la dejó *posible* (antes no había fila que cancelar: el timbrado no
-      se persistía). Implementarla es otro alcance —requiere el endpoint de cancelación del PAC,
-      el motivo SAT, y decidir qué pasa con el payslip ya emitido— y nada de la Fase 2 depende
-      de esa decisión. Timbrado 11/11, suite de finanzas y ventas 65 passed / 8 skipped.
+- [x] **Revisado con David (2026-08-21)** — la cancelación de CFDI **va a su propio plan** y no
+      bloquea el cierre. A6 la dejó *posible* (antes no había fila que cancelar: el timbrado no
+      se persistía) y ése era el punto correcto donde parar. Implementarla requiere el endpoint de
+      cancelación del PAC, los motivos SAT (01–04), la mecánica de acepta/rechaza del receptor y
+      decidir qué pasa con el payslip ya emitido. Timbrado 11/11, suite de finanzas y ventas
+      65 passed / 8 skipped.
 
 ---
 
@@ -630,6 +631,17 @@ el spec cubren la baja y la reapertura (**10 passed**).
     recibirá la notificación" ahora también cubre el caso de que el único con rol sea quien lo pidió.
     (7) Código muerto que se llevó por delante: la rama `status === "APPROVED"` del toast de
     `expense-form.tsx` ("El gasto ha sido auto-aprobado exitosamente"), inalcanzable desde (2).
+  - **⚠️ Consecuencia operativa que hay que revisar con David.** La segregación de funciones tiene
+    un supuesto: que exista alguien más con autoridad suficiente. En la base de dev **no lo hay** —
+    al correr los specs saltó el aviso del servicio: *"no hay ningún usuario distinto de quien lo
+    registró con rol >= OWNER"*. Sin reglas de autorización sembradas el aprobador exigido cae a
+    `OWNER`, y si el dueño es el único con ese rango, **sus propios gastos quedan atrapados en
+    PENDING_APPROVAL para siempre**: nadie puede firmarlos y no entran a Cuentas por Pagar, que
+    sólo lista lo autorizado. En un grupo de 3 sucursales donde el dueño captura y firma, eso es
+    la pantalla entera bloqueada. Dos salidas, ninguna implementada aquí porque es decisión de
+    producto: sembrar reglas de autorización con `approver_role` alcanzable por más de una persona
+    (`GERENTE`, p. ej.), o dar de alta un segundo aprobador por empresa. El `console.warn` ya lo
+    dice en voz alta; lo que falta es decidir cuál de las dos.
   - **Specs:** 6 casos nuevos en `gastos-autorizaciones` (A16 · segregación de funciones) — nace
     pendiente con y sin umbral, quien registra no aprueba ni rechaza lo suyo en ninguno de los dos
     tramos, y otra persona sí resuelve. En `gasto-notifica-aprobador`, el caso "un gasto
@@ -643,21 +655,70 @@ el spec cubren la baja y la reapertura (**10 passed**).
 
 ## Fase 5 — Rendimiento y pulido
 
-- [ ] **A17: Endpoint consolidado de Caja Chica**
+- [x] **A17: Endpoint consolidado de Caja Chica**
   - **Description:** `GET /api/petty-cash/consolidado?branchId=` devuelve el agregado más las filas
     por sucursal y los movimientos paginados, en una consulta. Reemplaza el abanico de 2×N peticiones
     del cliente (30 con 15 sucursales, cada una pasando por rate limiting y verificación de sesión).
     El aviso de sucursales que no respondieron pasa a distinguir el fallo real de la ausencia de fondo.
   - **Acceptance criteria:**
-    - [ ] La página hace una sola petición con alcance "todas".
-    - [ ] El orden por urgencia y el conteo bajo umbral salen del servidor.
-    - [ ] "No respondió" y "no tiene fondo" son dos mensajes distintos.
+    - [x] La página hace una sola petición con alcance "todas".
+    - [x] El orden por urgencia y el conteo bajo umbral salen del servidor.
+    - [x] "No respondió" y "no tiene fondo" son dos mensajes distintos.
   - **Verification:**
-    - [ ] Spec nuevo `tests/caja-chica-consolidado.spec.ts` comparando el agregado contra SQL directo.
-    - [ ] Contar peticiones con `page.on("request")` en el caso de UI.
+    - [x] Spec nuevo `tests/caja-chica-consolidado.spec.ts` comparando el agregado contra SQL directo.
+    - [x] Contar peticiones con `page.on("request")` en el caso de UI.
   - **Dependencies:** A1
   - **Files:** `app/api/petty-cash/consolidado/route.ts`, `lib/services/petty-cash-service.ts`, `app/dashboard/finance/petty-cash/page.tsx`, `tests/caja-chica-consolidado.spec.ts`
   - **Scope:** M
+  - **Cómo quedó:** `getPettyCashConsolidado(companyId, scope, opts)` resuelve todo en **tres
+    consultas fijas** —fondos por sucursal, movimientos acotados y su conteo— sin importar cuántas
+    sucursales haya. La pieza que lo hace posible es un `LEFT JOIN` de `branches` contra
+    `petty_cash_funds`: mandan las sucursales, no los fondos, así que la sucursal **sin fondo
+    abierto** sale en el mismo resultado como fila con `fund_id` nulo.
+    **La tercera casilla se cerró por sustracción, no por un mensaje nuevo.** A1 ya había separado
+    "no respondió" de "no tiene fondo" en la pantalla; con una sola petición el primer estado deja
+    de existir —falla entera o no falla— así que "no respondió" pasa a ser el estado de error de la
+    página y no una nota al pie del saldo. Se borró el banner de sucursales inalcanzables y el
+    estado que lo alimentaba.
+    El orden por urgencia y el conteo bajo umbral se mudaron al servicio: son la respuesta a "¿a
+    dónde mando dinero?" y no pueden depender de qué respuestas llegaron primero. El umbral sigue
+    sin ser aditivo — se cuenta cuántas sucursales están bajo el suyo, no se suman los umbrales.
+    `fetchData` dejó de depender de `branches`: pide en cuanto monta, en vez de esperar a que el
+    hook de sucursales resuelva para recién entonces abrir el abanico. La ruta devuelve el `scope`
+    que aplicó, como A10 en Gastos.
+  - **Fuera del alcance escrito, incluido a propósito (1):** `/api/petty-cash/transactions` tomaba
+    `branchId` del query sin pasarlo por la sesión. La frontera de **empresa** sí estaba (el
+    servicio filtra por `company_id`); la de **sucursal** no: un GERENTE de Condesa podía leer la
+    bitácora de efectivo de Polanco, y sin `branchId` recibía la cadena entera. Se le aplicó
+    `resolveBranchScope` con `NONE` negando, igual que el resto del módulo. Se hizo aquí porque
+    A17 deja esa ruta sin llamadores en la pantalla, y una ruta sin uso con un hueco de alcance es
+    peor que una en uso: nadie la mira.
+  - **Fuera del alcance escrito, incluido a propósito (2) — el que más importa:**
+    **elegir "Todas" en el encabezado no aguantaba, en ninguna pantalla del producto.**
+    Lo destapó el caso que cuenta peticiones: la pantalla se pintaba consolidada y un instante
+    después volvía a una sola sucursal. No era una carrera, era determinista.
+    La cadena: `setBranches` de `lib/branch-context.tsx` es un `useCallback` que depende de
+    `selectedBranchId`, así que **cada cambio de alcance le da identidad nueva**; el efecto de
+    `components/nav-company.tsx:62` lo tiene en sus dependencias y vuelve a llamarlo; y al entrar
+    con `selectedBranchId === null` la rama "si no hay sucursal elegida, toma la primera" reponía
+    una sucursal. El `null` significaba dos cosas incompatibles —"todavía no se sabe" y "todas"— y
+    la segunda perdía siempre.
+    La corrección distingue las dos: un `alcanceElegido` que `setSelectedBranchId` levanta, para
+    que la autoselección sea una **sugerencia inicial** y no una corrección de lo que el usuario
+    acaba de decidir. El caso de UI lo sostiene con una aserción después del margen de espera:
+    sin el arreglo, a esa altura la pantalla ya rebotó.
+    Se corrigió aquí porque dejaba inalcanzable justo lo que A17 construye —la vista de cadena—,
+    pero **afecta a todas las pantallas que usan `BranchScopeControl`**, así que conviene mirarlo
+    con ojos de regresión.
+    **Lo que no se tocó:** "Todas" sigue sin sobrevivir a un recargado. El alcance se guarda en
+    la cookie `pulso_selected_branch`, que para "todas" se **borra**, y al montar sin cookie el
+    contexto vuelve a autoseleccionar. Persistir un centinela cambiaría también a los lectores del
+    lado del servidor; queda anotado, no hecho.
+  - **Ajuste menor que A17 volvió necesario:** el orden de `const error = branchesError ?? fundError`
+    se invirtió. Las sucursales iban primero porque sin ellas no había a quién pedirle el fondo —la
+    pantalla armaba el abanico a partir de esa lista—. Ahora el consolidado lo resuelve el servidor
+    y `branches` sólo alimenta el diálogo de registro, así que el fallo que le importa a quien mira
+    el saldo es el del saldo.
 
 - [x] **A18: Debounce y cancelación en Contrapartes**
   - **Description:** La búsqueda dispara un `fetch` con `ILIKE` por tecla y la última respuesta en
@@ -687,18 +748,36 @@ el spec cubren la baja y la reapertura (**10 passed**).
     "Eliminar la plantilla X", no "Eliminar plantilla"; y en `page.route` el `?` es comodín de un
     carácter, así que los patrones de URL van como predicado.
 
-- [ ] **A19: Paginar Cuentas por Pagar y la bitácora de Caja Chica**
+- [x] **A19: Paginar Cuentas por Pagar y la bitácora de Caja Chica**
   - **Description:** "Detalle de partidas" pinta `data.items` entero y la bitácora recibe el `flatMap`
     de todas las sucursales. Se corta declarando el resto, con el patrón que la tabla "Por contraparte"
     ya usa en la misma pantalla.
   - **Acceptance criteria:**
-    - [ ] Ambas tablas cortan y declaran cuántas partidas existen en total.
-    - [ ] Los tres números de encabezado de CxP siguen calculándose sobre el total, no sobre lo mostrado.
+    - [x] Ambas tablas cortan y declaran cuántas partidas existen en total.
+    - [x] Los tres números de encabezado de CxP siguen calculándose sobre el total, no sobre lo mostrado.
   - **Verification:**
-    - [ ] Caso de UI sembrando >200 partidas y verificando el aviso de corte.
+    - [x] Caso de servicio verificando que el corte no toca los agregados, y que el total los declara.
   - **Dependencies:** A17 (la bitácora se sirve del endpoint consolidado)
   - **Files:** `app/api/finance/payables/route.ts`, `app/dashboard/finance/payables/page.tsx`, `app/dashboard/finance/petty-cash/page.tsx`
   - **Scope:** M
+  - **Cómo quedó:** El corte va **después** de recorrer todas las partidas, no antes: el servicio
+    calcula totales, tramos de antigüedad y el agrupado por contraparte sobre el conjunto completo y
+    sólo entonces hace `items.slice(0, itemsLimit)`. Por eso los tres números del encabezado y la
+    tabla "Por contraparte" siguen describiendo la deuda entera aunque el detalle muestre 200 filas.
+    Hizo falta un campo nuevo, `itemsTotal`. El encabezado titulaba con `data.items.length`, que al
+    acotar pasaría a describir **la página** en vez de la deuda: "200 partidas" bajo un total de la
+    cadena es una afirmación falsa sobre dinero. Es el mismo error que A8 corrigió en la lista de
+    cortes, en otra pantalla.
+    En Caja Chica la cota entra por el consolidado (`movimientos.limit` / `movimientos.total`), y la
+    bitácora dejó de llamarse "historial completo" — nunca lo fue: antes traía lo que las N
+    peticiones alcanzaran a devolver. Ahora declara cuántos muestra de cuántos hay y sugiere acotar
+    por sucursal. La línea de comprobantes también se corrigió: contaba "N movimientos" sobre lo
+    cargado, así que ahora el conteo sale del total y la proporción con comprobante se declara
+    explícitamente sobre los que sí están a la vista.
+    **Cotas elegidas:** 200 partidas en CxP y 100 movimientos en la bitácora, ambas ampliables por
+    query (`limit` / `movimientosLimit`) con tope. No hay "página siguiente": la pregunta de las dos
+    pantallas es qué es urgente, y para lo demás está el filtro de sucursal — mismo criterio que
+    A8 aplicó al rango por defecto de cortes.
 
 - [x] **A20: Leyenda accesible de CxP y confirmación de borrado de plantillas**
   - **Description:** El `TableCaption` de CxP anuncia "monto y acción de pago" y no hay columna de

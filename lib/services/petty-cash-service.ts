@@ -4,10 +4,10 @@
 
 import { db } from "@/lib/db";
 import { pettyCashFunds, pettyCashTransactions, users, branches } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count, inArray } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { ApiError } from "@/lib/api/error";
-import { assertBranchOfCompany } from "@/lib/branch-scope";
+import { assertBranchOfCompany, type BranchScope } from "@/lib/branch-scope";
 
 export interface RegisterOutflowInput {
   companyId: string;
@@ -273,10 +273,26 @@ export async function replenishFund(input: ReplenishFundInput) {
   return { transaction: tx, newBalanceCents: newBalance };
 }
 
-export async function getPettyCashAuditHistory(companyId: string, branchId?: string) {
+export async function getPettyCashAuditHistory(
+  companyId: string,
+  opts: {
+    branchId?: string;
+    /** Acota a fondos concretos. Lo usa el consolidado, que ya los resolvió. */
+    fundIds?: string[];
+    /**
+     * A19 — La bitácora no se devuelve entera. Sin cota, una cadena con años de
+     * movimientos manda miles de filas a una tabla que muestra las últimas.
+     */
+    limit?: number;
+  } = {}
+) {
   const conditions = [eq(pettyCashFunds.companyId, companyId)];
-  if (branchId) {
-    conditions.push(eq(pettyCashFunds.branchId, branchId));
+  if (opts.branchId) {
+    conditions.push(eq(pettyCashFunds.branchId, opts.branchId));
+  }
+  if (opts.fundIds) {
+    if (opts.fundIds.length === 0) return [];
+    conditions.push(inArray(pettyCashTransactions.fundId, opts.fundIds));
   }
 
   const registeredUser = db.select({ id: users.id, name: users.name }).from(users).as("regUser");
@@ -305,7 +321,175 @@ export async function getPettyCashAuditHistory(companyId: string, branchId?: str
     .leftJoin(registeredUser, eq(pettyCashTransactions.registeredBy, registeredUser.id))
     .leftJoin(approvedUser, eq(pettyCashTransactions.approvedBy, approvedUser.id))
     .where(and(...conditions))
-    .orderBy(desc(pettyCashTransactions.createdAt));
+    .orderBy(desc(pettyCashTransactions.createdAt))
+    .limit(opts.limit ?? PETTY_CASH_MOVIMIENTOS_LIMIT);
 
   return rows;
+}
+
+/** Estado del fondo de una sucursal dentro de la vista consolidada. */
+export interface BranchFundRow {
+  branchId: string;
+  branchName: string;
+  currentBalanceCents: number;
+  fundAmountCents: number;
+  lowThresholdCents: number;
+  belowThreshold: boolean;
+}
+
+export interface PettyCashConsolidado {
+  totals: {
+    currentBalanceCents: number;
+    fundAmountCents: number;
+    branchesWithFund: number;
+    /**
+     * El umbral NO es aditivo: sumarlo dejaría que la cadena luzca sana
+     * mientras una sucursal está en cero. Se cuenta cuántas están bajo el suyo.
+     */
+    branchesBelowThreshold: number;
+  };
+  /** Ya ordenadas por urgencia: primero a quién hay que mandarle dinero. */
+  rows: BranchFundRow[];
+  /**
+   * Sucursales del alcance sin fondo abierto. No es un error ni una omisión:
+   * es efectivo que nadie ha entregado todavía, y hasta A1 el sistema lo
+   * inventaba en vez de decirlo.
+   */
+  branchesWithoutFund: Array<{ branchId: string; branchName: string }>;
+  movimientos: {
+    items: Awaited<ReturnType<typeof getPettyCashAuditHistory>>;
+    /** Cuántos hay en total, para que la bitácora declare lo que no muestra. */
+    total: number;
+    limit: number;
+  };
+}
+
+/** Cota por omisión de la bitácora. Ver A19. */
+export const PETTY_CASH_MOVIMIENTOS_LIMIT = 100;
+
+/**
+ * A17 — El estado de caja chica de todo el alcance, en una sola lectura.
+ *
+ * La pantalla pedía dos endpoints **por sucursal**: con 15 sucursales eran 30
+ * peticiones, cada una pasando por el limitador de tasa y por una verificación
+ * de sesión que es a su vez un `fetch` a `/api/auth/get-session`. Y como cada
+ * una podía fallar por su cuenta, el saldo de la cadena era la suma de lo que
+ * alcanzó a llegar: la página tenía que avisar de qué sucursales no sabía nada.
+ *
+ * Aquí son tres consultas fijas —fondos por sucursal, movimientos acotados y el
+ * conteo de los que existen— sin importar cuántas sucursales haya. El
+ * `LEFT JOIN` es lo que permite distinguir en el propio resultado la sucursal
+ * **sin fondo abierto** (fila con `fund_id` nulo) de la que no respondió: ya no
+ * hay "no respondió", porque la petición es una y falla entera o no falla.
+ *
+ * El orden por urgencia y el conteo bajo umbral salen de aquí y no del cliente:
+ * son la respuesta a "¿a dónde mando dinero?", que es la pregunta de la
+ * pantalla, y no deben depender de qué respuestas llegaron primero.
+ *
+ * `NONE` devuelve vacío en vez de la cadena entera: es un rol acotado a
+ * sucursal sin sucursal asignada, y fallar abierto aquí es enseñar el efectivo
+ * de todo el grupo.
+ */
+export async function getPettyCashConsolidado(
+  companyId: string,
+  scope: BranchScope,
+  opts: { movimientosLimit?: number } = {}
+): Promise<PettyCashConsolidado> {
+  const limit = opts.movimientosLimit ?? PETTY_CASH_MOVIMIENTOS_LIMIT;
+
+  const vacio: PettyCashConsolidado = {
+    totals: {
+      currentBalanceCents: 0,
+      fundAmountCents: 0,
+      branchesWithFund: 0,
+      branchesBelowThreshold: 0,
+    },
+    rows: [],
+    branchesWithoutFund: [],
+    movimientos: { items: [], total: 0, limit },
+  };
+
+  if (scope.kind === "NONE") return vacio;
+
+  const branchCond = [eq(branches.companyId, companyId)];
+  if (scope.kind === "BRANCH") {
+    // La sucursal pedida tiene que ser de esta empresa antes de contestar nada
+    // sobre ella; si no, "sin fondo abierto" sería una respuesta sobre el
+    // efectivo de alguien más.
+    await assertBranchOfCompany(companyId, scope.branchId);
+    branchCond.push(eq(branches.id, scope.branchId));
+  }
+
+  // Las sucursales mandan, no los fondos: el `LEFT JOIN` deja fila para la
+  // sucursal que todavía no abrió el suyo. Se toman todas las de la empresa
+  // (sin filtrar por `active`) para que esta lista coincida con la del selector
+  // del encabezado, que usa `BranchService.listBranches` y tampoco filtra.
+  const filas = await db
+    .select({
+      branchId: branches.id,
+      branchName: branches.name,
+      fundId: pettyCashFunds.id,
+      currentBalance: pettyCashFunds.currentBalance,
+      fundAmount: pettyCashFunds.fundAmount,
+      lowThreshold: pettyCashFunds.lowThreshold,
+    })
+    .from(branches)
+    .leftJoin(
+      pettyCashFunds,
+      and(
+        eq(pettyCashFunds.branchId, branches.id),
+        eq(pettyCashFunds.companyId, companyId),
+        // Un fondo dado de baja se lee como si no hubiera fondo: es la columna
+        // con la que se sacó del saldo el efectivo que el sistema inventó.
+        eq(pettyCashFunds.active, true)
+      )
+    )
+    .where(and(...branchCond));
+
+  const conFondo = filas.filter((f) => f.fundId !== null);
+
+  const rows: BranchFundRow[] = conFondo
+    .map((f) => ({
+      branchId: f.branchId,
+      branchName: f.branchName,
+      currentBalanceCents: f.currentBalance ?? 0,
+      fundAmountCents: f.fundAmount ?? 0,
+      lowThresholdCents: f.lowThreshold ?? 0,
+      belowThreshold: (f.currentBalance ?? 0) <= (f.lowThreshold ?? 0),
+    }))
+    .sort((a, b) => {
+      if (a.belowThreshold !== b.belowThreshold) return a.belowThreshold ? -1 : 1;
+      return a.currentBalanceCents - b.currentBalanceCents;
+    });
+
+  const fundIds = conFondo.map((f) => f.fundId as string);
+
+  // Sin fondos no hay movimientos que pedir, y un `inArray` vacío es SQL
+  // inválido en Drizzle.
+  const [items, [totalRow]] = fundIds.length
+    ? await Promise.all([
+        getPettyCashAuditHistory(companyId, {
+          fundIds,
+          limit,
+        }),
+        db
+          .select({ n: count() })
+          .from(pettyCashTransactions)
+          .where(inArray(pettyCashTransactions.fundId, fundIds)),
+      ])
+    : [[], [{ n: 0 }]];
+
+  return {
+    totals: {
+      currentBalanceCents: rows.reduce((s, r) => s + r.currentBalanceCents, 0),
+      fundAmountCents: rows.reduce((s, r) => s + r.fundAmountCents, 0),
+      branchesWithFund: rows.length,
+      branchesBelowThreshold: rows.filter((r) => r.belowThreshold).length,
+    },
+    rows,
+    branchesWithoutFund: filas
+      .filter((f) => f.fundId === null)
+      .map((f) => ({ branchId: f.branchId, branchName: f.branchName })),
+    movimientos: { items, total: Number(totalRow?.n ?? 0), limit },
+  };
 }
