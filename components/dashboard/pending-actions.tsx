@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Calendar, Clock, CheckCircle2, ShieldAlert, ArrowRight, RefreshCw } from "lucide-react";
+import { Calendar, CheckCircle2, ShieldAlert, ArrowRight, RefreshCw } from "lucide-react";
 import { ConfirmRemediationDialog } from "@/components/incidents/confirm-remediation-dialog";
+import { ErrorState } from "@/components/shared";
 
 interface RemediationAction {
   id: string;
@@ -33,6 +34,7 @@ const PREVIEW_COUNT = 3;
 export function PendingRemediationActionsCard() {
   const [actions, setActions] = useState<RemediationAction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [selectedAction, setSelectedAction] = useState<RemediationAction | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -40,13 +42,14 @@ export function PendingRemediationActionsCard() {
   const fetchActions = useCallback(async () => {
     try {
       setLoading(true);
+      setError(false);
       const res = await fetch("/api/remediation/actions?status=PENDING,CONFIRMED");
-      if (res.ok) {
-        const json = await res.json();
-        setActions(json.data ?? []);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setActions(json.data ?? []);
     } catch (err) {
       console.error("Error loading remediation actions:", err);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -69,16 +72,16 @@ export function PendingRemediationActionsCard() {
 
   return (
     <>
-      <Card className="border-amber-200/60 dark:border-amber-900/50 shadow-sm">
+      <Card className="border-warning/40">
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5 text-amber-600" />
+                <ShieldAlert className="w-5 h-5 text-warning-text" />
                 Acciones de Remediación Externa
               </CardTitle>
               {pendingCount > 0 && (
-                <Badge variant="secondary" className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded-full text-xs">
+                <Badge variant="secondary" className="bg-warning text-warning-foreground font-bold px-2 py-0.5 rounded-full text-xs">
                   {pendingCount} Pendiente{pendingCount > 1 ? "s" : ""}
                 </Badge>
               )}
@@ -95,9 +98,14 @@ export function PendingRemediationActionsCard() {
         <CardContent className="space-y-3 pt-0">
           {loading ? (
             <div className="py-6 text-center text-sm text-muted-foreground">Cargando acciones pendientes...</div>
+          ) : error ? (
+            <ErrorState
+              message="No se pudieron cargar las acciones de remediación."
+              onRetry={fetchActions}
+            />
           ) : actions.length === 0 ? (
             <div className="py-6 text-center rounded-lg border border-dashed p-4 space-y-1">
-              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+              <CheckCircle2 className="w-8 h-8 text-success mx-auto" />
               <p className="text-sm font-medium">Todo al día</p>
               <p className="text-xs text-muted-foreground">No hay incidentes pendientes de servicio externo.</p>
             </div>
@@ -116,8 +124,8 @@ export function PendingRemediationActionsCard() {
                         variant="outline"
                         className={
                           isPending
-                            ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-300"
-                            : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-300"
+                            ? "bg-warning/15 text-warning-text border-warning/30"
+                            : "bg-info/10 text-info border-info/20"
                         }
                       >
                         {isPending ? "REQUIERE ACCIÓN" : "PROGRAMADO"}
@@ -132,7 +140,7 @@ export function PendingRemediationActionsCard() {
                     </p>
 
                     {action.scheduledDate && (
-                      <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                      <div className="flex items-center gap-1.5 text-xs text-info font-medium">
                         <Calendar className="w-3.5 h-3.5" />
                         Visita: {new Date(action.scheduledDate).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })}
                       </div>
@@ -143,7 +151,7 @@ export function PendingRemediationActionsCard() {
                     {isPending ? (
                       <Button
                         size="sm"
-                        className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5 text-xs font-semibold"
+                        className="bg-warning text-warning-foreground hover:bg-warning/90 gap-1.5 text-xs font-semibold"
                         onClick={() => {
                           setSelectedAction(action);
                           setDialogOpen(true);

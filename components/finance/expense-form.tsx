@@ -206,7 +206,9 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
       }
     }}>
       <DialogTrigger asChild>
-        <Button>
+        {/* Ancho completo en móvil: al envolverse a su propia línea, un botón
+            que ocupa media pantalla se lee como un control a medio maquetar. */}
+        <Button className="w-full sm:w-auto">
           <Plus className="w-4 h-4 mr-2" /> Nuevo Gasto Operativo
         </Button>
       </DialogTrigger>

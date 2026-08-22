@@ -169,10 +169,8 @@ test.describe("A17 · consolidado de caja chica", () => {
   });
 
   test("la pantalla hace una sola petición con alcance «todas»", async ({ page }) => {
-    // Se registra la ruta **y** si llevaba `branchId`: el alcance por omisión no
-    // es "Todas" —el contexto arranca en la sucursal de la sesión— así que la
-    // pantalla carga una vez acotada antes de que el caso pueda pedir la cadena
-    // entera. Separar por alcance mide lo que importa sin depender de ese baile.
+    // Se registra la ruta **y** si llevaba `branchId`, para separar la carga
+    // acotada de la carga de la cadena entera: lo que se mide es la segunda.
     const pedidas: Array<{ path: string; branchId: string | null }> = [];
     page.on("request", (req) => {
       const url = new URL(req.url());
@@ -184,11 +182,21 @@ test.describe("A17 · consolidado de caja chica", () => {
     await page.goto("/dashboard/finance/petty-cash");
     await expect(page.getByRole("heading", { name: /Caja Chica/i })).toBeVisible();
 
-    // Hay que dejar que el alcance **se asiente** antes de tocarlo. Si se pulsa
-    // "Todas" mientras el contexto todavía no eligió, el clic es un no-op —ya es
-    // `null`, no hay cambio de estado, no hay recarga— y el anclaje llega justo
-    // después, dejando la pantalla acotada con el botón diciendo "Todas".
+    // Se **elige una sucursal concreta** antes de medir, en vez de esperar a que
+    // el contexto se asiente en una.
+    //
+    // Hasta B4 el alcance por omisión era la sucursal de la sesión, y bastaba
+    // esperar a que dejara de decir "Todas". Con AD-B7 un ADMIN abre **en**
+    // "Todas" —`lib/branch-scope.ts:82` ya devolvía `kind: "ALL"` para un rol no
+    // fijado, y el cliente dejó de inventar `branches[0]`—, así que esa espera
+    // no se cumple nunca y el clic siguiente sería un no-op sobre el estado que
+    // ya está. Fijar una sucursal primero deja el caso midiendo lo mismo que
+    // siempre midió: lo que cuesta **pasar** a la cadena entera.
     const control = page.getByRole("button", { name: /Sucursal:/ });
+    await expect(control).toBeVisible({ timeout: 15_000 });
+    await control.click();
+    const primera = page.getByRole("menuitem").nth(1); // 0 es "Todas"
+    await primera.click();
     await expect(control).not.toContainText(/Todas/, { timeout: 15_000 });
 
     // El conteo arranca aquí: lo que se mide es lo que cuesta **pintar la cadena

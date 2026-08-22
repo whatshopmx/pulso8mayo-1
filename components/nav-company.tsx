@@ -86,6 +86,16 @@ export function NavCompany({
 
   const activeBranch = displayBranches.find(b => b.id === activeBranchId) || displayBranches[0];
 
+  /**
+   * Los dos selectores tienen que decir lo mismo.
+   *
+   * Con el alcance en "Todas" este de la barra lateral caía a
+   * `displayBranches[0]` y anunciaba una sucursal concreta mientras el del
+   * encabezado decía "Todas". Dos controles del mismo alcance contradiciéndose
+   * es peor que uno solo equivocado: el usuario no sabe cuál le está contestando.
+   */
+  const esAlcanceTodas = !isBranchScoped && selectedBranchId === null;
+
     return (
         <SidebarMenu>
             <SidebarMenuItem>
@@ -99,7 +109,7 @@ export function NavCompany({
                                 <Building2 className="size-4" />
                             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">{activeBranch?.name || t("selectBranch")}</span>
+              <span className="truncate font-semibold">{esAlcanceTodas ? "Todas las sucursales" : (activeBranch?.name || t("selectBranch"))}</span>
               <span className="truncate text-xs">{company.name}{company.plan ? ` (${company.plan})` : ""}</span>
             </div>
                             <ChevronsUpDown className="ml-auto" />

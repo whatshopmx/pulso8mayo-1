@@ -24,7 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { statusBadgeClasses, formatCents } from "@/lib/utils";
 import { computeCashVariance, cashVarianceToneClass } from "@/lib/sales/cash-variance";
-import { useBranches } from "@/hooks/use-branches";
+import { useBranches } from "@/hooks/queries/use-branches";
 import { useBranch } from "@/lib/branch-context";
 import Link from "next/link";
 
@@ -95,7 +95,8 @@ export default function SalesDashboardPage() {
 function SalesDashboardPageContent() {
   const { toast } = useToast();
   const [cuts, setCuts] = useState<SalesCut[]>([]);
-  const { branches } = useBranches();
+  const { data: branchesData } = useBranches();
+  const branches = branchesData ?? [];
   const [loadingCuts, setLoadingCuts] = useState(true);
   /** Alcance que la ruta aplicó de verdad, y cuántos cortes existen en él (A8). */
   const [cutsScope, setCutsScope] = useState<CutsScope | null>(null);

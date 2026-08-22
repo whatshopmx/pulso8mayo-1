@@ -98,8 +98,14 @@ interface ParsedMerma {
   evidenceUrl: string | null;
 }
 
-/** Extrae (itemId, quantity/reason/evidence) de los pasos `merma-*-{itemId}`. */
-function parseMermaSteps(steps: { stepId: string; value: unknown }[]): Map<string, ParsedMerma> {
+/**
+ * Extrae (itemId, quantity/reason/evidence) de los pasos `merma-*-{itemId}`.
+ *
+ * Exportada para `tests/merma-pasos-ajenos.spec.ts` (O-10): qué pasos entran y
+ * cuáles no es la regla que ese spec fija, y probarla a través del extractor
+ * exigiría base de datos para comprobar algo que es pura función de los ids.
+ */
+export function parseMermaSteps(steps: { stepId: string; value: unknown }[]): Map<string, ParsedMerma> {
   const byItem = new Map<string, ParsedMerma>();
 
   for (const step of steps) {
@@ -108,6 +114,24 @@ function parseMermaSteps(steps: { stepId: string; value: unknown }[]): Map<strin
     if (!UUID_RE.test(suffix)) continue;
 
     const prefix = step.stepId.slice(0, -37); // quita `-{uuid}`
+
+    // O-10: qué campo describe este paso, o `null` si no es de merma. Se decide
+    // ANTES de dar de alta la entidad en el mapa. Antes se daba de alta primero
+    // y se miraba el prefijo después, así que todo paso dinámico —terminan
+    // todos en UUID: `prod-qty-{recipeId}`, `count-{itemId}`— entraba como si
+    // fuera merma. No llegaba a escribir nada (sin motivo no hay fila), pero
+    // dejaba el mapa lleno, la guarda `byItem.size === 0` no cortaba y el
+    // extractor recorría entera cada instancia de producción o de conteo:
+    // consultas de más y un WARN por entidad ajena.
+    const campo = prefix.startsWith("merma-qty")
+      ? "qty"
+      : prefix.startsWith("merma-reason")
+        ? "reason"
+        : prefix.startsWith("merma-evidence")
+          ? "evidence"
+          : null;
+    if (!campo) continue;
+
     const parsed = parseStepValue(step.value);
     const p = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
 
@@ -117,13 +141,13 @@ function parseMermaSteps(steps: { stepId: string; value: unknown }[]): Map<strin
       byItem.set(suffix, current);
     }
 
-    if (prefix.startsWith("merma-qty")) {
+    if (campo === "qty") {
       const qty = toQty(p.inputValue ?? p.value ?? parsed);
       if (qty !== null) current.quantity = qty;
-    } else if (prefix.startsWith("merma-reason")) {
+    } else if (campo === "reason") {
       const reason = String(p.inputValue ?? p.value ?? parsed ?? "").trim();
       if (reason) current.reasonKey = reason;
-    } else if (prefix.startsWith("merma-evidence")) {
+    } else {
       const url = toUrl(p.evidenceUrl ?? p.photoUrl ?? p.value ?? parsed);
       if (url) current.evidenceUrl = url;
     }

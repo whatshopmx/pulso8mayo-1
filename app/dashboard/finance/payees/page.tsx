@@ -224,11 +224,14 @@ export default function PayeesPage() {
             la identidad que la CxP agrupa al preguntar &quot;a quién le debo&quot;.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        {/* Mismo caso que Gastos: en un teléfono el buscador de 224 px fijo más
+            el botón no caben en una fila, y la pantalla se iba a scroll
+            horizontal. */}
+        <div className="flex w-full shrink-0 flex-wrap items-center gap-3 md:w-auto">
+          <div className="relative w-full sm:w-56">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              className="pl-8 w-56"
+              className="pl-8 w-full"
               placeholder="Buscar por nombre, RFC, contacto…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -236,7 +239,7 @@ export default function PayeesPage() {
           </div>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" /> Nueva Contraparte
               </Button>
             </DialogTrigger>

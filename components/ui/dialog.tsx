@@ -60,8 +60,21 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        // `max-h` + scroll, o el diálogo alto no se puede usar. Con
+        // `top-[50%] translate-y-[-50%]` y sin tope de altura, un contenido más
+        // alto que la ventana se sale **por arriba y por abajo a la vez**: en un
+        // teléfono, el formulario de gasto perdía el título y los botones de
+        // Cancelar/Guardar, y no había forma de llegar a ellos porque Radix
+        // bloquea el scroll del documento mientras el diálogo está abierto.
+        //
+        // `dvh` y no `vh`: en móvil la barra de direcciones se muestra y se
+        // esconde, y `vh` se queda con la altura grande — justo el caso en el
+        // que el recorte aparece.
+        //
+        // `overscroll-contain` evita que al llegar al final el gesto siga
+        // arrastrando la página de atrás.
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 outline-none sm:max-w-lg",
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto overscroll-contain rounded-lg border p-6 shadow-lg duration-200 outline-none sm:max-w-lg",
           className
         )}
         {...props}

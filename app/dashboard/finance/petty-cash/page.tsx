@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PettyCashHistoryTable, PettyCashTransactionItem } from "@/components/finance/petty-cash-history-table";
 import { PettyCashRegister } from "@/components/finance/petty-cash-register";
-import { useBranches } from "@/hooks/use-branches";
+import { useBranches } from "@/hooks/queries/use-branches";
 import { useBranch } from "@/lib/branch-context";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
 import { mensajeDeError } from "@/lib/api/client-error";
@@ -51,12 +51,20 @@ interface PettyFund {
 }
 
 export default function PettyCashPage() {
+  // `useQuery` distingue "falló" de "no hay sucursales" con `isError` frente a
+  // una lista vacía; se traduce a las mismas cuatro variables que la pantalla ya
+  // usaba, y el mensaje sigue siendo el del servidor.
   const {
-    branches,
-    loading: branchesLoading,
-    error: branchesError,
+    data: branchesData,
+    isLoading: branchesLoading,
+    isError: branchesFailed,
+    error: branchesFetchError,
     refetch: refetchBranches,
   } = useBranches();
+  const branches = branchesData ?? [];
+  const branchesError = branchesFailed
+    ? branchesFetchError?.message || "No se pudieron cargar las sucursales."
+    : null;
   // Scope único: el selector del header (`BranchScopeControl`) es la fuente de
   // verdad. `null` = todas las sucursales.
   const { selectedBranchId } = useBranch();

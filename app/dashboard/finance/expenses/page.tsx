@@ -26,7 +26,7 @@ import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield, Ima
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/hooks/use-session";
 import { denyExpenseResolution } from "@/lib/expenses/approval-policy";
-import { useBranches } from "@/hooks/use-branches";
+import { useBranches } from "@/hooks/queries/use-branches";
 import { useBranch } from "@/lib/branch-context";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
 import { localDateString } from "@/lib/workflows/today";
@@ -119,7 +119,8 @@ function ExpensesContent() {
   const { session } = useSession();
   const currentUserRole = session?.user?.role || "EMPLEADO";
   const currentUserId = session?.user?.id;
-  const { branches } = useBranches();
+  const { data: branchesData } = useBranches();
+  const branches = branchesData ?? [];
   // Scope único: el control del encabezado. El Select local contestaba sobre
   // "todas" mientras el header seguía anunciando una sucursal concreta.
   const { selectedBranchId } = useBranch();
@@ -393,13 +394,17 @@ function ExpensesContent() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* `flex-wrap` y anchos flexibles: en un teléfono el select de 208 px
+            fijo más el botón no caben en la fila, y la pantalla se iba a scroll
+            horizontal. El encabezado es de dos controles, no de una barra que
+            haya que arrastrar de lado. */}
+        <div className="flex w-full shrink-0 flex-wrap items-center gap-3 md:w-auto">
           {/* La sucursal la fija el encabezado; lo que faltaba aquí era poder
               aislar la cola de pendientes sin cazar insignias ámbar entre todo
               el historial. */}
-          <div className="w-52">
+          <div className="w-full sm:w-52">
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-              <SelectTrigger aria-label="Filtrar por estatus">
+              <SelectTrigger aria-label="Filtrar por estatus" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

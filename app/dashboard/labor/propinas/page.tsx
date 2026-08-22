@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { PropinasCalculator } from "@/components/labor/propinas-calculator";
-import { useBranches } from "@/hooks/use-branches";
+import { useBranches } from "@/hooks/queries/use-branches";
 import { Coins, CheckCircle, Clock, Loader2 } from "lucide-react";
 
 
@@ -24,7 +24,8 @@ interface PropinaHistoryItem {
 }
 
 export default function PropinasPage() {
-  const { branches, loading: branchesLoading } = useBranches();
+  const { data: branchesData, isLoading: branchesLoading } = useBranches();
+  const branches = branchesData ?? [];
   const [selectedBranch, setSelectedBranch] = useState<string>("ALL");
   const [propinas, setPropinas] = useState<PropinaHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);

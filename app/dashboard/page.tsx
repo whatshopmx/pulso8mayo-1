@@ -1,12 +1,9 @@
 import { DashboardTabbedMetrics } from "@/components/dashboard/dashboard-tabbed-metrics"
-import { CollapsibleAnnouncements } from "@/components/dashboard/collapsible-announcements"
+import { PinnedAnnouncements } from "@/components/dashboard/pinned-announcements"
 import { DashboardCharts } from "@/components/dashboard/dashboard-charts"
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { db } from "@/lib/db";
-import { workflowInstances, workflowTemplates, users, employeeCommunications } from "@/lib/db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
-import { RecentWorkflowsTable } from "@/components/dashboard/recent-workflows-table";
+import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { ComplianceReportGenerator } from "@/components/compliance/report-generator";
 import { AlertDistributionChart } from "@/components/dashboard/alert-distribution-chart";
 import { getTranslations } from "next-intl/server";
@@ -37,47 +34,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
   const session = await auth.api.getSession({
     headers: await headers()
   });
-
-  const workflowConditions = [eq(workflowTemplates.companyId, session?.user?.companyId ?? '')];
-  if (selectedBranch && selectedBranch !== 'all') {
-    workflowConditions.push(eq(workflowInstances.branchId, selectedBranch));
-  }
-
-  const recentWorkflows = session?.user?.companyId ? await db.select({
-    id: workflowInstances.id,
-    templateName: workflowTemplates.name,
-    status: workflowInstances.status,
-    score: workflowInstances.score,
-    assigneeName: users.name,
-    updatedAt: workflowInstances.updatedAt
-  })
-    .from(workflowInstances)
-    .leftJoin(workflowTemplates, eq(workflowInstances.workflowTemplateId, sql`cast(${workflowTemplates.id} as text)`))
-    .leftJoin(users, eq(workflowInstances.assigneeId, users.id))
-    .where(and(...workflowConditions))
-    .orderBy(desc(workflowInstances.updatedAt))
-    .limit(10) : [];
-
-  const formattedWorkflows = recentWorkflows.map(workflow => ({
-    ...workflow,
-    templateName: workflow.templateName || t("noName"),
-    assigneeName: workflow.assigneeName || t("unassigned")
-  }));
-
-  const pinnedAnnouncements = session?.user?.companyId ? await db.select({
-    id: employeeCommunications.id,
-    title: employeeCommunications.title,
-    content: employeeCommunications.content,
-    communicationType: employeeCommunications.communicationType,
-    createdAt: employeeCommunications.createdAt,
-  })
-    .from(employeeCommunications)
-    .where(and(
-      eq(employeeCommunications.companyId, session.user.companyId),
-      eq(employeeCommunications.isPinned, true)
-    ))
-    .orderBy(desc(employeeCommunications.createdAt))
-    .limit(3) : [];
+  const companyId = session?.user?.companyId ?? '';
 
   return (
     <PageContainer>
@@ -92,7 +49,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
 
       {/* #2 — Unified Tabbed KPI Control */}
       <Suspense fallback={<MetricCardSkeleton count={4} />}>
-        <DashboardTabbedMetrics branchId={selectedBranch} startDate={startDate} endDate={endDate} />
+        <SectionErrorBoundary>
+          <DashboardTabbedMetrics branchId={selectedBranch} startDate={startDate} endDate={endDate} />
+        </SectionErrorBoundary>
       </Suspense>
 
       {/* #3 — Operational alerts & executive overview */}
@@ -104,34 +63,33 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
 
       {/* #5 — Charts */}
       <Suspense fallback={<ChartSkeleton />}>
-        <DashboardCharts branch={selectedBranch} startDate={startDate} endDate={endDate} />
+        <SectionErrorBoundary>
+          <DashboardCharts branch={selectedBranch} startDate={startDate} endDate={endDate} />
+        </SectionErrorBoundary>
       </Suspense>
 
       {/* #6 — Alert distribution */}
       <Suspense fallback={<ChartSkeleton />}>
-        <AlertDistributionChart branch={selectedBranch} startDate={startDate} endDate={endDate} />
+        <SectionErrorBoundary>
+          <AlertDistributionChart branch={selectedBranch} startDate={startDate} endDate={endDate} />
+        </SectionErrorBoundary>
       </Suspense>
 
-      {/* #7 — Recent activity */}
+      {/* #7 — Recent activity: streams independently via its own server query. */}
       <Suspense fallback={<DataTableSkeleton columns={5} rows={5} />}>
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-6 py-4 border-b bg-muted/30">
-            <h3 className="text-lg font-bold">{t("recentActivity")}</h3>
-          </div>
-          <div className="p-0">
-            <RecentWorkflowsTable workflows={formattedWorkflows} />
-          </div>
-        </div>
+        {companyId ? (
+          <RecentActivity companyId={companyId} branchId={selectedBranch} />
+        ) : (
+          <DataTableSkeleton columns={5} rows={5} />
+        )}
       </Suspense>
 
-      {/* #8 — Pinned announcements: low-priority section (Q2). */}
-      <CollapsibleAnnouncements
-        announcements={pinnedAnnouncements}
-        titleLabel={t("announcement")}
-        announcementLabel={t("announcement")}
-        notificationLabel={t("notification")}
-        messageLabel={t("message")}
-      />
+      {/* #8 — Pinned announcements: low-priority section (Q2); streams last. */}
+      {companyId && (
+        <Suspense fallback={null}>
+          <PinnedAnnouncements companyId={companyId} />
+        </Suspense>
+      )}
     </PageContainer>
   )
 }

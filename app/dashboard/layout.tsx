@@ -12,7 +12,7 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { CompanyService } from "@/lib/services/company-service"
 import { BranchService } from "@/lib/services/branch-service"
-import { BRANCH_COOKIE_NAME } from "@/lib/tenant-context"
+import { BRANCH_COOKIE_NAME, BRANCH_SCOPE_ALL, BRANCH_SCOPE_COOKIE_NAME } from "@/lib/branch-cookies"
 
 export default async function DashboardLayout({
   children,
@@ -36,13 +36,51 @@ export default async function DashboardLayout({
 
   // Get selected branch from cookie (user's active selection)
   const cookieStore = await cookies();
-  const selectedBranchId = cookieStore.get(BRANCH_COOKIE_NAME)?.value || session.user.branchId;
+  /**
+   * "Todas" es una elección, y hasta ahora no se podía decir.
+   *
+   * Elegir la cadena entera borra `pulso_selected_branch`, así que este `||`
+   * caía a `session.user.branchId` y devolvía al usuario a una sucursal sola en
+   * cada recarga. `pulso_branch_scope=all` es lo que distingue "elegí todas" de
+   * "todavía no elijo"; cuando está, no hay sucursal inicial que pasar y el
+   * proveedor arranca con la elección ya hecha.
+   */
+  const alcanceEsTodas = cookieStore.get(BRANCH_SCOPE_COOKIE_NAME)?.value === BRANCH_SCOPE_ALL;
+  const cookieDeSucursal = cookieStore.get(BRANCH_COOKIE_NAME)?.value;
+
+  /**
+   * `role` y `branchId` no están en el tipo de `session.user` de better-auth.
+   * Una aserción a la forma concreta, una sola vez, en lugar de cuatro `as any`
+   * repartidos: el `any` apaga la comprobación entera del objeto, y aquí lo
+   * único que falta es saber que estos dos campos existen.
+   */
+  const { role: userRole, branchId: userBranchId } = session.user as {
+    role?: 'SUPER_ADMIN' | 'ADMIN' | 'GERENTE' | 'SUPERVISOR' | 'EMPLEADO' | 'READONLY';
+    branchId?: string;
+  };
+
+  /**
+   * La sucursal de la sesión sólo fija el alcance de quien el servidor fija.
+   *
+   * `lib/branch-scope.ts:82` **ni siquiera consulta** `userBranchId` para un rol
+   * no fijado: sin sucursal pedida devuelve `kind: "ALL"`. Este `||` hacía lo
+   * contrario y ataba al ADMIN a la sucursal que tuviera colgada en la sesión,
+   * así que el encabezado decía una sucursal mientras el servidor respondía por
+   * la cadena entera. Para GERENTE y SUPERVISOR la sesión sí manda (AD-B7).
+   */
+  const esFijadoASucursal = userRole === "GERENTE" || userRole === "SUPERVISOR";
+  const selectedBranchId = alcanceEsTodas
+    ? null
+    : cookieDeSucursal || (esFijadoASucursal ? userBranchId : null) || null;
 
   return (
     <DashboardSessionProvider initialSession={session}>
       <BranchProvider 
         initialBranchId={selectedBranchId}
         initialBranches={branches}
+        initialScopeChosen={alcanceEsTodas}
+        userRole={userRole}
+        userBranchId={userBranchId ?? null}
       >
         <SidebarProvider>
         <AppSidebarClient
@@ -50,8 +88,8 @@ export default async function DashboardLayout({
             name: session.user.name,
             email: session.user.email,
             avatar: session.user.image || "",
-            role: (session.user as any).role as 'SUPER_ADMIN' | 'ADMIN' | 'GERENTE' | 'SUPERVISOR' | 'EMPLEADO' | 'READONLY',
-            branchId: (session.user as any).branchId as string | undefined,
+            role: userRole as 'SUPER_ADMIN' | 'ADMIN' | 'GERENTE' | 'SUPERVISOR' | 'EMPLEADO' | 'READONLY',
+            branchId: userBranchId,
           }}
             company={{
               name: company?.name || "Mi Empresa",

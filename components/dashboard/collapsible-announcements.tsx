@@ -60,31 +60,38 @@ export function CollapsibleAnnouncements({
       </div>
 
       <div
-        className={`transition-all duration-300 ease-in-out overflow-hidden ${
-          isExpanded ? "max-h-[1000px] opacity-100 p-6" : "max-h-0 opacity-0 p-0 border-t-0"
+        aria-hidden={!isExpanded}
+        className={`grid transition-all duration-300 ease-in-out ${
+          isExpanded
+            ? "grid-rows-[1fr] opacity-100 visible"
+            : "grid-rows-[0fr] opacity-0 invisible"
         }`}
       >
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {announcements.map((announcement) => (
-            <div
-              key={announcement.id}
-              className="bg-muted/30 border border-border/80 rounded-xl p-4 relative overflow-hidden group hover:bg-muted/50 transition-all duration-200 hover:border-primary/20"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
-                  {announcement.communicationType === 'ANNOUNCEMENT' 
-                    ? announcementLabel 
-                    : announcement.communicationType === 'NOTIFICATION' 
-                      ? notificationLabel 
-                      : messageLabel}
-                </span>
-              </div>
-              <h4 className="font-bold text-base mb-1 group-hover:text-primary transition-colors">{announcement.title}</h4>
-              <p className="text-sm text-muted-foreground line-clamp-3 group-hover:text-foreground/90 transition-colors leading-relaxed">
-                {announcement.content}
-              </p>
+        <div className="overflow-hidden">
+          <div className={`p-6 ${isExpanded ? "" : "border-t-0"}`}>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {announcements.map((announcement) => (
+                <div
+                  key={announcement.id}
+                  className="bg-muted/30 border border-border/80 rounded-xl p-4 relative overflow-hidden group hover:bg-muted/50 transition-colors hover:border-primary/20"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                      {announcement.communicationType === 'ANNOUNCEMENT'
+                        ? announcementLabel
+                        : announcement.communicationType === 'NOTIFICATION'
+                          ? notificationLabel
+                          : messageLabel}
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-base mb-1 group-hover:text-primary transition-colors">{announcement.title}</h4>
+                  <p className="text-sm text-muted-foreground line-clamp-3 group-hover:text-foreground/90 leading-relaxed">
+                    {announcement.content}
+                  </p>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </section>

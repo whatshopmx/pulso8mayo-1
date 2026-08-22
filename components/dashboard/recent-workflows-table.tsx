@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,8 +30,17 @@ interface RecentWorkflowsTableProps {
     workflows: WorkflowInstance[];
 }
 
+const emptySubscribe = () => () => {};
+const useMounted = () =>
+    useSyncExternalStore(
+        emptySubscribe,
+        () => true,
+        () => false
+    );
+
 export function RecentWorkflowsTable({ workflows }: RecentWorkflowsTableProps) {
     const [searchQuery, setSearchQuery] = useState("");
+    const mounted = useMounted();
 
     const filteredWorkflows = workflows.filter((w) => {
         const query = searchQuery.toLowerCase();
@@ -45,13 +54,13 @@ export function RecentWorkflowsTable({ workflows }: RecentWorkflowsTableProps) {
         switch (status) {
             case "COMPLETED":
                 return (
-                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 gap-1 font-medium">
+                    <Badge variant="outline" className="bg-success/10 text-success-text border-success/20 gap-1 font-medium">
                         <CheckCircle2 className="w-3 h-3" /> Completado
                     </Badge>
                 );
             case "IN_PROGRESS":
                 return (
-                    <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 gap-1 font-medium">
+                    <Badge variant="outline" className="bg-info/10 text-info border-info/20 gap-1 font-medium">
                         <Clock className="w-3 h-3" /> En Progreso
                     </Badge>
                 );
@@ -67,15 +76,31 @@ export function RecentWorkflowsTable({ workflows }: RecentWorkflowsTableProps) {
                         <XCircle className="w-3 h-3" /> Bloqueado
                     </Badge>
                 );
+            case "FAILED":
+                return (
+                    <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 gap-1 font-medium">
+                        <XCircle className="w-3 h-3" /> Fallido
+                    </Badge>
+                );
+            case "CANCELLED":
+                return (
+                    <Badge variant="outline" className="bg-muted text-muted-foreground gap-1 font-medium">
+                        <XCircle className="w-3 h-3" /> Cancelado
+                    </Badge>
+                );
             default:
-                return <Badge variant="secondary">{status}</Badge>;
+                return (
+                    <Badge variant="secondary">
+                        {status ? status.charAt(0) + status.slice(1).toLowerCase() : "Sin estado"}
+                    </Badge>
+                );
         }
     };
 
     const getScoreColor = (score: number | null) => {
         if (score === null) return "text-muted-foreground";
-        if (score >= 90) return "text-emerald-600 dark:text-emerald-400 font-bold";
-        if (score >= 70) return "text-amber-600 dark:text-amber-400 font-bold";
+        if (score >= 90) return "text-success-text font-bold";
+        if (score >= 70) return "text-warning-text font-bold";
         return "text-destructive font-bold";
     };
 
@@ -133,6 +158,7 @@ export function RecentWorkflowsTable({ workflows }: RecentWorkflowsTableProps) {
                     <Input
                         type="search"
                         placeholder="Buscar flujo o responsable..."
+                        aria-label="Buscar flujo de trabajo por nombre o responsable"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="pl-8 h-9 text-xs"
@@ -171,7 +197,9 @@ export function RecentWorkflowsTable({ workflows }: RecentWorkflowsTableProps) {
                                     <TableCell className="text-sm">{workflow.assigneeName || "Sin asignar"}</TableCell>
                                     <TableCell className="text-muted-foreground text-xs font-mono">
                                         {workflow.updatedAt
-                                            ? formatDistanceToNow(new Date(workflow.updatedAt), { addSuffix: true, locale: es })
+                                            ? mounted
+                                                ? formatDistanceToNow(new Date(workflow.updatedAt), { addSuffix: true, locale: es })
+                                                : new Date(workflow.updatedAt).toLocaleDateString("es-MX")
                                             : "-"}
                                     </TableCell>
                                     <TableCell className="text-right">

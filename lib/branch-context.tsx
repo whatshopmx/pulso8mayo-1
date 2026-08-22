@@ -2,6 +2,13 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 
+import {
+  BRANCH_COOKIE_MAX_AGE,
+  BRANCH_COOKIE_NAME,
+  BRANCH_SCOPE_ALL,
+  BRANCH_SCOPE_COOKIE_NAME,
+} from "./branch-cookies";
+
 interface Branch {
   id: string;
   name: string;
@@ -14,25 +21,58 @@ interface BranchContextType {
   setSelectedBranchId: (branchId: string | null) => void;
   setBranches: (branches: Branch[]) => void;
   isLoading: boolean;
+  /**
+   * `GERENTE` y `SUPERVISOR`: el servidor les fija la sucursal y **ignora** la
+   * que pidan (`lib/branch-scope.ts:85`). Lo expone el contexto para que el
+   * control del encabezado deje de ofrecerles un menú que no hace nada (AD-B8).
+   */
+  isBranchScoped: boolean;
+  /** La sucursal que la sesión les asignó. `null` en un alcance `NONE`. */
+  userBranchId: string | null;
 }
 
 const BranchContext = createContext<BranchContextType | undefined>(undefined);
 
-const BRANCH_COOKIE_NAME = "pulso_selected_branch";
+function escribirCookie(nombre: string, valor: string) {
+  document.cookie = `${nombre}=${valor}; path=/; max-age=${BRANCH_COOKIE_MAX_AGE}`;
+}
 
-export function BranchProvider({ 
-  children, 
+function borrarCookie(nombre: string) {
+  document.cookie = `${nombre}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+}
+
+function leerCookie(nombre: string): string | null {
+  const encontrada = document.cookie
+    .split(";")
+    .find((c) => c.trim().startsWith(`${nombre}=`));
+  return encontrada ? encontrada.split("=")[1] || null : null;
+}
+
+export function BranchProvider({
+  children,
   initialBranchId,
-  initialBranches = []
-}: { 
+  initialBranches = [],
+  initialScopeChosen = false,
+  userRole,
+  userBranchId = null,
+}: {
   children: React.ReactNode;
   initialBranchId?: string | null;
   initialBranches?: Branch[];
+  /** El servidor ya vio `pulso_branch_scope=all`: el alcance es una elección. */
+  initialScopeChosen?: boolean;
+  userRole?: string;
+  userBranchId?: string | null;
 }) {
+  // El mismo criterio que `components/nav-company.tsx:55`. No se importa
+  // `isBranchScopedRole` de `lib/branch-scope.ts` porque ese módulo importa
+  // `db`, y esto es un componente cliente.
+  const isBranchScoped = userRole === "GERENTE" || userRole === "SUPERVISOR";
+
   /**
    * Un alcance inicial sólo cuenta si la sucursal **existe**.
    *
-   * `app/dashboard/layout.tsx:39` resuelve `cookie ?? session.user.branchId`, y
+   * `app/dashboard/layout.tsx` resuelve `cookie ?? session.user.branchId`, y
    * ninguno de los dos garantiza que la sucursal siga viva: una sucursal que se
    * dio de baja, un usuario reasignado, una cookie de hace un mes. Cuando el id
    * cuelga, **toda pantalla con alcance pide datos de una sucursal fantasma** y
@@ -50,29 +90,44 @@ export function BranchProvider({
 
   const [selectedBranchId, setSelectedBranchIdState] = useState<string | null>(initialIdValido);
   const [branches, setBranchesState] = useState<Branch[]>(initialBranches);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
   /**
    * ¿El usuario ya eligió alcance con sus propias manos?
    *
    * Sin esto, `null` significaba dos cosas incompatibles: "todavía no se sabe" y
    * "todas las sucursales". Ver `setBranches`.
+   *
+   * Nace en `true` cuando el servidor encontró `pulso_branch_scope=all`: ahí la
+   * elección es de una visita anterior y hay que respetarla, no volver a
+   * sugerir.
    */
-  const [alcanceElegido, setAlcanceElegido] = useState(false);
+  const [alcanceElegido, setAlcanceElegido] = useState(initialScopeChosen);
 
   // Get selected branch object
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || null;
 
-  // Set branch ID and save to cookie
+  /**
+   * Guardar el alcance necesita **dos** cookies, no una.
+   *
+   * "Todas" borraba `pulso_selected_branch` y ya. Al recargar, esa ausencia era
+   * indistinguible de "el usuario nunca eligió", y `setBranches` reponía la
+   * primera sucursal: el usuario elegía la cadena entera, recargaba y la
+   * pantalla volvía a una sucursal sola sin decir nada.
+   *
+   * `pulso_branch_scope=all` es lo que hace decible ese "sí elegí, y elegí
+   * todas". Va aparte a propósito: ver `lib/branch-cookies.ts`.
+   */
   const setSelectedBranchId = useCallback((branchId: string | null) => {
     // A partir de aquí, `null` quiere decir "todas" y no "aún no se sabe".
     setAlcanceElegido(true);
     setSelectedBranchIdState(branchId);
-    
-    // Save to cookie for server-side access
+
     if (branchId) {
-      document.cookie = `${BRANCH_COOKIE_NAME}=${branchId}; path=/; max-age=${60 * 60 * 24 * 30}`; // 30 days
+      escribirCookie(BRANCH_COOKIE_NAME, branchId);
+      borrarCookie(BRANCH_SCOPE_COOKIE_NAME);
     } else {
-      document.cookie = `${BRANCH_COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      borrarCookie(BRANCH_COOKIE_NAME);
+      escribirCookie(BRANCH_SCOPE_COOKIE_NAME, BRANCH_SCOPE_ALL);
     }
   }, []);
 
@@ -88,27 +143,37 @@ export function BranchProvider({
     // `selectedBranchId`, así que cada cambio de alcance le da identidad nueva;
     // el efecto de `components/nav-company.tsx:62` lo tiene en sus dependencias
     // y vuelve a llamarlo; y al llegar con `selectedBranchId === null` esta
-    // rama reponía la primera sucursal. El usuario elegía la cadena entera y la
-    // pantalla rebotaba a una sucursal sola, sin decir nada. Se notó al medir
-    // las peticiones del consolidado de Caja Chica (A17), pero afecta a todas
-    // las pantallas que usan `BranchScopeControl`.
-    if (!alcanceElegido && !selectedBranchId && newBranches.length > 0) {
+    // rama reponía la primera sucursal.
+    //
+    // `isBranchScoped` es la condición nueva (AD-B7). Para un ADMIN o
+    // SUPER_ADMIN la ausencia de elección significa **"Todas"**, que es lo que
+    // el servidor ya aplica: `lib/branch-scope.ts:82` devuelve `kind: "ALL"`
+    // cuando un rol no fijado no pide sucursal. Elegir `branches[0]` era el
+    // cliente inventando una sucursal —la que la consulta devolvió primero— y
+    // presentándola como si fuera la de la casa. Para GERENTE y SUPERVISOR la
+    // sugerencia se queda: su sucursal es su universo entero.
+    if (isBranchScoped && !alcanceElegido && !selectedBranchId && newBranches.length > 0) {
       setSelectedBranchIdState(newBranches[0].id);
     }
-  }, [selectedBranchId, alcanceElegido]);
+  }, [selectedBranchId, alcanceElegido, isBranchScoped]);
 
   // Load branch from cookie on mount
   useEffect(() => {
-    const cookies = document.cookie.split(';');
-    const branchCookie = cookies.find(c => c.trim().startsWith(`${BRANCH_COOKIE_NAME}=`));
-    if (branchCookie) {
-      const branchId = branchCookie.split('=')[1];
-      // Misma guarda que el `initialBranchId`: una cookie vieja puede nombrar
-      // una sucursal que ya no existe, y restaurarla es reponer el callejón sin
-      // salida en cada carga.
-      if (branchId && !selectedBranchId && branches.some(b => b.id === branchId)) {
-        setSelectedBranchIdState(branchId);
-      }
+    // El servidor ya resolvió el alcance y lo pasó por props. Esto es la red
+    // para cuando el proveedor se monta sin ellos.
+    if (alcanceElegido || selectedBranchId) return;
+
+    if (leerCookie(BRANCH_SCOPE_COOKIE_NAME) === BRANCH_SCOPE_ALL) {
+      setAlcanceElegido(true);
+      return;
+    }
+
+    const branchId = leerCookie(BRANCH_COOKIE_NAME);
+    // Misma guarda que el `initialBranchId`: una cookie vieja puede nombrar
+    // una sucursal que ya no existe, y restaurarla es reponer el callejón sin
+    // salida en cada carga.
+    if (branchId && branches.some(b => b.id === branchId)) {
+      setSelectedBranchIdState(branchId);
     }
   }, []);
 
@@ -119,7 +184,9 @@ export function BranchProvider({
       branches,
       setSelectedBranchId,
       setBranches,
-      isLoading
+      isLoading,
+      isBranchScoped,
+      userBranchId
     }}>
       {children}
     </BranchContext.Provider>
