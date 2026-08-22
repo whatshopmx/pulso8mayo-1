@@ -843,7 +843,39 @@ el spec cubren la baja y la reapertura (**10 passed**).
     respaldo. Se defiende al consumidor; corregir la ruta toca a sus otros llamadores.
 
 ### ☑ Checkpoint: Completo
-- [ ] Los 27 hallazgos cerrados o diferidos con su razón escrita
-- [ ] `pnpm build` limpio · `pnpm lint` sin errores
-- [ ] Suite de finanzas y ventas en verde
-- [ ] Sin casillas abiertas en este archivo
+- [x] Los 27 hallazgos cerrados o diferidos con su razón escrita. **Diferidos, con su razón:**
+      la **cancelación de CFDI** (decidido con David: plan propio — necesita el endpoint del PAC,
+      los motivos SAT 01–04, la mecánica de acepta/rechaza del receptor y qué pasa con el payslip
+      ya emitido); la **migración a `hooks/queries/`** (deuda declarada en el plan, con su
+      prerrequisito bloqueante ya anotado); el **envelope de `/api/inventory/suppliers`**, que
+      devuelve `{ success, suppliers }` en vez de `{ success, data }` — A21 defendió al consumidor
+      y corregir la ruta toca a sus otros llamadores; y la **persistencia del alcance "Todas"**,
+      que sigue sin sobrevivir a un recargado (ver A17).
+- [x] `pnpm build` limpio · `pnpm lint` sin errores en lo tocado
+      (`app/dashboard/finance`, `app/dashboard/sales`, `app/api/{petty-cash,finance,expenses}`,
+      `lib/expenses`, `lib/api/client-error.ts` y los tres servicios). `lib/branch-context.tsx`
+      arrastra 1 error y 2 avisos **preexistentes** de `react-hooks`, idénticos antes y después
+      del cambio de A17 — se verificó aislando el archivo.
+- [x] Suite de finanzas y ventas en verde: **111 passed, 0 failed** sobre los 13 specs del plan
+      (`frontera-tenant-sucursal`, `branch-scope-finanzas`, `gastos-autorizaciones`,
+      `gasto-notifica-aprobador`, `timbrado-idempotente`, `cortes-cota`, `corte-duplicado`,
+      `corte-arqueo`, `petty-cash-lectura-pura`, `ventas-rbac`, `payee`, y los dos nuevos
+      `caja-chica-consolidado` y `fallos-visibles`).
+- [x] Sin casillas abiertas en este archivo
+
+---
+
+## Lo que queda en manos de David
+
+Tres cosas que este plan **no** puede decidir y que conviene no perder de vista:
+
+1. **La segregación de funciones necesita un segundo aprobador que hoy no existe.** Ver la nota
+   de A16. En la base de dev el dueño es el único con rol >= `OWNER`, así que sus propios gastos
+   quedan atrapados en `PENDING_APPROVAL` y no entran a Cuentas por Pagar. El servicio ya lo grita
+   por `console.warn`; falta decidir si se siembran reglas con un `approver_role` alcanzable por
+   más de una persona, o si se da de alta un segundo aprobador por empresa.
+2. **El arreglo del alcance "Todas" toca todas las pantallas con `BranchScopeControl`.** Es un
+   cambio en `lib/branch-context.tsx` y conviene mirarlo con ojos de regresión más allá de
+   Finanzas y Ventas.
+3. **La cancelación de CFDI** y la **migración a TanStack Query** son planes propios, cada uno con
+   su alcance ya descrito arriba.

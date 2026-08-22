@@ -185,10 +185,10 @@ A13..A21 ─── independientes, pulido
 - [x] **A21** Se dejan de silenciar los fallos de carga de proveedores y se tipa el `catch` de Contrapartes
 
 ### Checkpoint: Completo
-- [ ] Los 27 hallazgos están cerrados o explícitamente diferidos con su razón
-- [ ] `pnpm build` limpio · `pnpm lint` sin errores
-- [ ] Suite de specs de finanzas y ventas en verde
-- [ ] `tasks/todo-auditoria-finanzas-ventas.md` sin casillas abiertas
+- [x] Los 27 hallazgos están cerrados o explícitamente diferidos con su razón
+- [x] `pnpm build` limpio · `pnpm lint` sin errores en lo tocado
+- [x] Suite de specs de finanzas y ventas en verde (111 passed, 0 failed)
+- [x] `tasks/todo-auditoria-finanzas-ventas.md` sin casillas abiertas
 
 ## Risks and Mitigations
 
@@ -230,3 +230,9 @@ A13..A21 ─── independientes, pulido
   ambas listas salen de una sola fuente.
 - **`/api/inventory/suppliers` devuelve `{ success, suppliers }`** en vez del envelope del proyecto.
   A21 solo defiende al consumidor; corregir la ruta toca a sus otros llamadores.
+
+- **El alcance "Todas" no sobrevive a un recargado.** A17 corrigió el rebote *dentro* de la sesión
+  (`lib/branch-context.tsx` reponía la primera sucursal cada vez que el usuario elegía la cadena
+  entera), pero la persistencia sigue sin distinguir los dos casos: la cookie `pulso_selected_branch`
+  se **borra** para "todas", y al montar sin cookie el contexto vuelve a autoseleccionar. Guardar un
+  centinela cambiaría también a los lectores del lado del servidor.
