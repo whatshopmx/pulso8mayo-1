@@ -572,7 +572,7 @@ function ExpensesContent() {
                             mostraba lo único que la ordena por urgencia. */}
                         {item.dueDate && (
                           <span
-                            className={`block text-[11px] font-normal ${
+                            className={`block text-xs font-normal ${
                               estaVencido(item) ? "text-destructive" : "text-muted-foreground"
                             }`}
                           >
