@@ -48,21 +48,33 @@ export const POST = withTenantAuth(async (
     { params, auth }
 ) => {
     try {
+        const { id } = await (params as unknown as Promise<{ id: string }>);
+
+        // El alcance va **antes** que la forma del cuerpo. Es la convención del
+        // repo —"antes que el estado y antes que el rol: de un registro fuera de
+        // tu alcance no se responde ni siquiera en qué estado está"— y aquí
+        // estaba al revés: con el cuerpo mal formado, un incidente ajeno
+        // contestaba 400 antes de llegar al 404, así que esta ruta respondía
+        // distinto que las otras tres que comparten `findIncidentForTenant`.
+        //
+        // No era una fuga (un id inexistente daba el mismo 400), pero sí trabajo
+        // hecho para quien no tiene nada que hacer aquí, y una superficie que se
+        // comporta distinta de sus tres hermanas es la que se olvida de cerrar
+        // la próxima vez.
+        if (!await findIncidentForTenant(id, auth.tenantId, incidentBranchScope(auth.user.role, auth.branchId))) {
+            return NextResponse.json(
+                { error: 'Incident not found' },
+                { status: 404 }
+            );
+        }
+
         const body = await request.json();
         const { stepIndex, evidence } = body;
-        const { id } = await (params as unknown as Promise<{ id: string }>);
 
         if (stepIndex === undefined || !evidence) {
             return NextResponse.json(
                 { error: 'Missing stepIndex or evidence' },
                 { status: 400 }
-            );
-        }
-
-        if (!await findIncidentForTenant(id, auth.tenantId, incidentBranchScope(auth.user.role, auth.branchId))) {
-            return NextResponse.json(
-                { error: 'Incident not found' },
-                { status: 404 }
             );
         }
 

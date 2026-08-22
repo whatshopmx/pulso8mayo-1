@@ -2002,7 +2002,16 @@ export async function seedTestBranch(companyId: string, label: string): Promise<
   return row.id as string;
 }
 
-/** Borra la sucursal de prueba junto con su fondo, sus movimientos y sus cortes. */
+/**
+ * Borra la sucursal de prueba junto con todo lo que la referencia.
+ *
+ * Cada tabla de esta lista está aquí porque su ausencia dejó una sucursal
+ * huérfana, y una sucursal `[E2E]` huérfana **no es un residuo inocente**:
+ * `BranchService.listBranches` ordena por `created_at DESC` y el contexto de
+ * sucursal autoselecciona la primera, así que la de prueba secuestra el alcance
+ * por omisión y tiñe de rojo specs que no tienen nada que ver — por ejemplo el
+ * que comprueba que "Alcance aplicado" rotula Condesa, Polanco o Roma.
+ */
 export async function deleteTestBranch(branchId: string): Promise<void> {
   const funds = await sql`SELECT id FROM petty_cash_funds WHERE branch_id = ${branchId}`;
   const fundIds = funds.map((r: any) => r.id as string);
@@ -2015,6 +2024,12 @@ export async function deleteTestBranch(branchId: string): Promise<void> {
   // `deleteTestSalesCuts()` no los ve y el DELETE de la sucursal choca contra
   // `daily_sales_cuts_branch_id_branches_id_fk`.
   await sql`DELETE FROM daily_sales_cuts WHERE branch_id = ${branchId}`;
+  // La bitácora ABAC (`requirePermissionApi(..., { audit })`) escribe con la
+  // sucursal que se consultó, y lo hace **después** de responder. Por eso el
+  // leak era intermitente: el `afterEach` borraba antes de que la fila llegara
+  // en unas corridas y chocaba contra `data_access_logs_branch_id_branches_id_fk`
+  // en otras, dejando la sucursal viva y el spec en verde.
+  await sql`DELETE FROM data_access_logs WHERE branch_id = ${branchId}`;
   await sql`DELETE FROM branches WHERE id = ${branchId}`;
 }
 

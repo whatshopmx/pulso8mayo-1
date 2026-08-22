@@ -123,11 +123,20 @@ function ExpensesContent() {
   const selectedBranch = selectedBranchId ?? "ALL";
   // `?focus=<id>` llega desde el panel de flujo de efectivo: resalta y desplaza
   // hacia el gasto que la dueña acaba de ver como vencido.
-  const { focusProps } = useFocusedRow();
+  const { focusId, focusProps } = useFocusedRow();
   // Esto es una cola de autorizaciones, no un libro mayor. Arrancar en "todos"
   // dejaba una renta pendiente de $80,000 entre un taxi pagado y un recibo
   // rechazado; lo que la dueña vino a hacer estaba mezclado con el historial.
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("PENDING_APPROVAL");
+  //
+  // Pero un enlace con `?focus=` **nombra un registro**, y el flujo de efectivo
+  // enlaza gastos ya aprobados y sin pagar. Con la cola de pendientes por
+  // omisión, hacer clic en "6 gastos vencidos" aterrizaba en una pantalla que
+  // escondía justo la fila prometida, y el estado vacío contestaba "Sin gastos
+  // pendientes de aprobación" — que se lee como "lo que clicaste no existe".
+  // Quien llega por un enlace ve el libro; quien entra a trabajar, la cola.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    focusId ? "ALL" : "PENDING_APPROVAL"
+  );
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   /** Alcance **aplicado** por el servidor, no el pedido. */
   const [scope, setScope] = useState<{
@@ -312,6 +321,17 @@ function ExpensesContent() {
   const visibleExpenses =
     statusFilter === "ALL" ? expenses : expenses.filter((e) => e.status === statusFilter);
 
+  /**
+   * Se llegó por un enlace a un gasto que no está en lo que se cargó.
+   *
+   * Puede pasar aunque el filtro no lo esconda: la lista está acotada —la cola
+   * de pendientes viene completa, el historial resuelto no (A10)— así que un
+   * gasto viejo puede quedar fuera. Sin este aviso la pantalla se ve normal y
+   * la persona busca en vano una fila resaltada que nunca estuvo.
+   */
+  const enlaceSinDestino =
+    !loading && !error && focusId !== null && !expenses.some((e) => e.id === focusId);
+
   const getStatusBadge = (status: ExpenseItem["status"]) => {
     switch (status) {
       case "APPROVED":
@@ -406,6 +426,20 @@ function ExpensesContent() {
             <p className="text-xs text-warning-text">
               El historial de gastos resueltos está acotado: se muestran los más recientes.
               La cola de pendientes se muestra completa.
+            </p>
+          )}
+
+          {/* Se llegó por un enlace y el gasto no está en lo que se cargó. Sin
+              esto la pantalla se ve normal y la persona busca en vano la fila
+              resaltada que le prometió el enlace de donde venía. */}
+          {enlaceSinDestino && (
+            <p className="text-xs text-warning-text flex items-start gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+              <span>
+                El gasto al que te trajo el enlace no está en este listado. Puede pertenecer a
+                otra sucursal o haber quedado fuera del historial acotado — prueba con el alcance
+                &quot;Todas&quot; en el encabezado.
+              </span>
             </p>
           )}
         </CardHeader>

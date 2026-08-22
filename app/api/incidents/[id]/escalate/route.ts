@@ -12,21 +12,26 @@ export const POST = withTenantAuth(async (
     { params, auth }
 ) => {
     try {
+        const { id } = await (params as unknown as Promise<{ id: string }>);
+
+        // Mismo orden que `remediate`: el alcance antes que la forma del cuerpo.
+        // Las cuatro superficies que comparten `findIncidentForTenant` tienen
+        // que contestar lo mismo ante el mismo incidente ajeno; dos de ellas
+        // miraban primero el cuerpo y respondían 400.
+        if (!await findIncidentForTenant(id, auth.tenantId, incidentBranchScope(auth.user.role, auth.branchId))) {
+            return NextResponse.json(
+                { error: 'Incident not found' },
+                { status: 404 }
+            );
+        }
+
         const body = await request.json();
         const { targetLevel } = body;
-        const { id } = await (params as unknown as Promise<{ id: string }>);
 
         if (!targetLevel) {
             return NextResponse.json(
                 { error: 'Missing targetLevel' },
                 { status: 400 }
-            );
-        }
-
-        if (!await findIncidentForTenant(id, auth.tenantId, incidentBranchScope(auth.user.role, auth.branchId))) {
-            return NextResponse.json(
-                { error: 'Incident not found' },
-                { status: 404 }
             );
         }
 

@@ -996,28 +996,38 @@ test.describe("Task 12 · pagar y reprogramar gastos", () => {
     }
   });
 
-  test("pagar no altera el total proyectado: la proyección no filtra por estado", async ({
+  test("pagar saca el gasto de la proyección: lo que ya salió no es flujo futuro", async ({
     request,
   }) => {
+    // Este caso **caracterizaba el bug**: la consulta de proyectados no filtraba
+    // por estado, así que un gasto pagado seguía contando en "Total egresos" y
+    // la dueña veía comprometido dinero que ya se había ido. El test afirmaba
+    // eso a propósito, con la nota de que si el servicio se corregía debía
+    // ponerse en rojo — y eso fue exactamente lo que pasó:
+    // `OUTFLOW_PENDING_STATUSES` (cash-flow-service.ts:186) dejó la proyección
+    // en PENDING_APPROVAL y APPROVED. Ahora afirma la conducta correcta.
+    //
+    // `REJECTED` está fuera por la misma razón y por una distinta: ya salió vs.
+    // no saldrá nunca. Ambas cosas dejan de ser flujo futuro.
     const id = await gastoAprobado(3);
 
     const antes = await obtenerProyeccion(request, 30, BRANCH_CONDESA);
     const totalAntes = antes.days.reduce((t, d) => t + d.projectedOutflowCents, 0);
     expect(antes.outflowItems.some((p) => p.id === id)).toBe(true);
 
-    await request.post(`/api/expenses/${id}/pay`, { data: {} });
+    const pago = await request.post(`/api/expenses/${id}/pay`, { data: {} });
+    expect(pago.ok(), `La API respondió ${pago.status()}`).toBe(true);
 
-    // Hallazgo, y el test lo fija: la consulta de gastos proyectados NO filtra
-    // por estado (a diferencia de la de vencidos, que excluye PAID). Un gasto
-    // pagado sigue contando en "Total egresos" del período.
-    //
-    // Se afirma lo que de verdad pasa, no lo que sería bonito que pasara. Si el
-    // comportamiento correcto es excluirlos, cambia el servicio y este test
-    // falla — que es exactamente lo que debe hacer.
     const despues = await obtenerProyeccion(request, 30, BRANCH_CONDESA);
     const totalDespues = despues.days.reduce((t, d) => t + d.projectedOutflowCents, 0);
-    expect(totalDespues).toBe(totalAntes);
-    expect(despues.outflowItems.some((p) => p.id === id)).toBe(true);
+
+    // Baja exactamente el monto del gasto: ni de más (no se llevó nada por
+    // delante) ni de menos (no quedó contado a medias en otro día).
+    expect(totalAntes - totalDespues).toBe(456_700);
+    expect(
+      despues.outflowItems.some((p) => p.id === id),
+      "un gasto pagado sigue listado como egreso por venir"
+    ).toBe(false);
 
     await deleteTestExpenses();
   });
