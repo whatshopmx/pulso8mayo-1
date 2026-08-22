@@ -389,7 +389,7 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
         )}
 
         {footnotes.length > 0 && (
-          <div className="space-y-1 pt-3 border-t text-xs leading-relaxed text-muted-foreground">
+          <div className="space-y-1 pt-3 border-t text-xs leading-relaxed text-muted-foreground max-w-[70ch]">
             {footnotes.map((note) => (
               <p key={note}>{note}</p>
             ))}

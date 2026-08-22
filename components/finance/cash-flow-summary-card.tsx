@@ -102,7 +102,7 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" /> Tesorería · próximos {HORIZON_DAYS} días
             </CardTitle>
-            <CardDescription className="text-xs mt-0.5">
+            <CardDescription className="text-xs mt-0.5 max-w-[70ch]">
               Lo que sale contra lo que hay. El detalle día por día vive en el calendario.
             </CardDescription>
           </div>

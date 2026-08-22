@@ -105,7 +105,7 @@ export default function FinanceOverviewPage() {
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Coins className="h-7 w-7 text-primary" /> Finanzas
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground max-w-[70ch]">
           Cómo vamos de dinero: costos contra objetivo, lo que espera tu firma, la tesorería del mes
           y la utilidad por sucursal.
         </p>

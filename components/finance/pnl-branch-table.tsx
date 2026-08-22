@@ -186,7 +186,7 @@ export function PnlBranchTable() {
       );
     }
     if (all.some((l) => l.source === "NO_DATA")) {
-      lines.push("— Sin datos capturados en el período. No es un cero: es un renglón que falta.");
+      lines.push('"—" = sin datos capturados en el período. No es un cero: es un renglón que falta.');
     }
     lines.push(
       "La nómina es sueldo bruto: no incluye IMSS, INFONAVIT ni provisiones (aguinaldo, vacaciones, prima). " +
@@ -214,7 +214,7 @@ export function PnlBranchTable() {
           <CardTitle className="text-base font-bold flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-primary" /> P&L Operativo por Sucursal (Neto sin IVA)
           </CardTitle>
-          <CardDescription className="text-xs mt-0.5">
+          <CardDescription className="text-xs mt-0.5 max-w-[70ch]">
             Utilidad Operativa = Ventas − Alimentos − Merma − Nómina − Gastos Operativos.
           </CardDescription>
         </div>
@@ -441,7 +441,7 @@ export function PnlBranchTable() {
             </div>
 
             {/* Notas al pie: la parte que hace que este P&L sea seguro de mostrar. */}
-            <div className="space-y-1 pt-1 text-xs leading-relaxed text-muted-foreground">
+            <div className="space-y-1 pt-1 text-xs leading-relaxed text-muted-foreground max-w-[70ch]">
               {footnotes.map((note) => (
                 <p key={note}>{note}</p>
               ))}
