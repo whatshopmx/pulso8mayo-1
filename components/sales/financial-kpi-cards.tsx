@@ -226,14 +226,16 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
             </span>
           </div>
         </div>
-        <div className="w-full h-2 rounded-full overflow-hidden bg-muted flex">
+        {/* Barra sobre capa absoluta: el relleno anima con transform scaleX
+            (compositor), nunca con width (layout thrash). */}
+        <div className="relative h-2 rounded-full overflow-hidden bg-muted">
           <div
-            className={`h-full ${colors.bar} transition-all duration-500`}
-            style={{ width: `${displayPct}%` }}
+            className={`absolute inset-y-0 left-0 w-full origin-left ${colors.bar} transition-transform duration-500 motion-reduce:transition-none`}
+            style={{ transform: `scaleX(${displayPct / 100})` }}
           />
           <div
-            className="h-full w-0.5 bg-foreground/30"
-            style={{ marginLeft: `${Math.max(0, targetPercent - displayPct)}%` }}
+            className="absolute inset-y-0 w-0.5 bg-foreground/30"
+            style={{ left: `${Math.max(0, targetPercent)}%` }}
           />
         </div>
         <p className="text-xs text-muted-foreground">
