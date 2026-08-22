@@ -2030,6 +2030,13 @@ export async function deleteTestBranch(branchId: string): Promise<void> {
   // en unas corridas y chocaba contra `data_access_logs_branch_id_branches_id_fk`
   // en otras, dejando la sucursal viva y el spec en verde.
   await sql`DELETE FROM data_access_logs WHERE branch_id = ${branchId}`;
+  // `users.branch_id` **no** tiene llave foránea, así que borrar la sucursal no
+  // falla: deja al usuario apuntando a un fantasma, en silencio. Cuando le tocó
+  // a `carlos@pulso.mx` —la cuenta con la que corren todos los specs de UI— cada
+  // pantalla con alcance empezó a pedir datos de una sucursal inexistente, y los
+  // rojos aparecieron en specs que no tenían nada que ver (inventario sin lotes,
+  // flujo de efectivo sin cifra, caja chica en error).
+  await sql`UPDATE users SET branch_id = NULL WHERE branch_id = ${branchId}`;
   await sql`DELETE FROM branches WHERE id = ${branchId}`;
 }
 

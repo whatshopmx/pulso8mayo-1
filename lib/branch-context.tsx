@@ -29,7 +29,26 @@ export function BranchProvider({
   initialBranchId?: string | null;
   initialBranches?: Branch[];
 }) {
-  const [selectedBranchId, setSelectedBranchIdState] = useState<string | null>(initialBranchId || null);
+  /**
+   * Un alcance inicial sólo cuenta si la sucursal **existe**.
+   *
+   * `app/dashboard/layout.tsx:39` resuelve `cookie ?? session.user.branchId`, y
+   * ninguno de los dos garantiza que la sucursal siga viva: una sucursal que se
+   * dio de baja, un usuario reasignado, una cookie de hace un mes. Cuando el id
+   * cuelga, **toda pantalla con alcance pide datos de una sucursal fantasma** y
+   * contesta "La sucursal seleccionada no existe para esta empresa" — un callejón
+   * sin salida del que el usuario no puede salir, porque el control del
+   * encabezado ni siquiera sabe qué mostrar como seleccionado.
+   *
+   * Un id que no está en la lista no es un alcance: se descarta y se cae a la
+   * autoselección de siempre, que es exactamente el caso "todavía no se sabe".
+   */
+  const initialIdValido =
+    initialBranchId && initialBranches.some((b) => b.id === initialBranchId)
+      ? initialBranchId
+      : null;
+
+  const [selectedBranchId, setSelectedBranchIdState] = useState<string | null>(initialIdValido);
   const [branches, setBranchesState] = useState<Branch[]>(initialBranches);
   const [isLoading, setIsLoading] = useState(false);
   /**
@@ -84,7 +103,10 @@ export function BranchProvider({
     const branchCookie = cookies.find(c => c.trim().startsWith(`${BRANCH_COOKIE_NAME}=`));
     if (branchCookie) {
       const branchId = branchCookie.split('=')[1];
-      if (branchId && !selectedBranchId) {
+      // Misma guarda que el `initialBranchId`: una cookie vieja puede nombrar
+      // una sucursal que ya no existe, y restaurarla es reponer el callejón sin
+      // salida en cada carga.
+      if (branchId && !selectedBranchId && branches.some(b => b.id === branchId)) {
         setSelectedBranchIdState(branchId);
       }
     }

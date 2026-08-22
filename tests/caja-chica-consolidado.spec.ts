@@ -185,6 +185,22 @@ test.describe("A17 · consolidado de caja chica", () => {
     await page.goto("/dashboard/finance/petty-cash");
     await expect(page.getByRole("heading", { name: /Caja Chica/i })).toBeVisible();
 
+    // Hay que dejar que el alcance **se asiente** antes de tocarlo. La pantalla
+    // carga primero sin sucursal (el encabezado dice "Todas") y un instante
+    // después el contexto autoselecciona la primera de la lista. Pulsar "Todas"
+    // en esa ventana es un no-op —ya es `null`, no hay cambio de estado, no hay
+    // recarga— y el anclaje llega justo después, dejando la pantalla acotada
+    // con el botón diciendo "Todas". El caso fallaba por eso, no por la app.
+    await expect(page.getByRole("button", { name: /Sucursal:/ })).not.toContainText(
+      /Todas/,
+      { timeout: 15_000 }
+    );
+
+    // El conteo arranca aquí: lo que se mide es lo que cuesta **pintar la cadena
+    // entera**, no la suma de todo lo que pasó por la pantalla mientras se
+    // llegaba al alcance correcto.
+    pedidas.length = 0;
+
     await page.getByRole("button", { name: /Sucursal:/ }).click();
     await page.getByRole("menuitem", { name: "Todas" }).click();
     await expect(page.getByText(/Vista consolidada/i)).toBeVisible();
