@@ -165,7 +165,9 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
       // 3. Cortes cuyo arqueo no cuadra. Misma fuente de verdad que la tabla de
       //    /dashboard/sales, para que los dos conteos no puedan discrepar.
       if (cutsRes.ok && cutsJson.success) {
-        const cuts: CutRow[] = cutsJson.data ?? [];
+        // La ruta pagina: data es { items, total, scope }, no un arreglo.
+        const rawCuts = cutsJson.data?.items;
+        const cuts: CutRow[] = Array.isArray(rawCuts) ? rawCuts : [];
         for (const c of cuts) {
           const arqueo = computeCashVariance(c);
           if (!arqueo || arqueo.direction === "cuadrado") continue;
