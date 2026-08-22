@@ -23,7 +23,9 @@ import {
   approveOperatingExpense,
   rejectOperatingExpense,
   createOperatingExpense,
+  getOperatingExpenses,
 } from "../lib/services/expense-service";
+import { rolExigidoPorMonto } from "../lib/expenses/approval-policy";
 
 /**
  * Invariantes de la pantalla de Gastos Operativos y Autorizaciones.
@@ -736,5 +738,164 @@ test.describe("A16 · segregación de funciones en gastos", () => {
         )
       ).status
     ).toBe("REJECTED");
+  });
+});
+
+
+/**
+ * A16b · la segregación de funciones necesita una organización segregable.
+ *
+ * A16 dejó una consecuencia que su propio hallazgo no anticipaba. Sin reglas en
+ * `expense_authorization_rules` —que es como nace toda empresa— el rol exigido
+ * caía a la constante `"OWNER"` para **cualquier monto**. Con la segregación
+ * encima, un grupo con un solo dueño quedaba trabado del todo: los gerentes no
+ * alcanzaban el rol y el dueño no podía firmar lo suyo, así que los gastos se
+ * quedaban en PENDING_APPROVAL para siempre y **no llegaban nunca a Cuentas por
+ * Pagar**, que sólo lista lo autorizado.
+ *
+ * La salida no fue relajar la segregación, sino conectar los umbrales que la
+ * empresa ya configura en Organización y que nadie leía (el propio
+ * `tenant-config-service` los tenía anotados como "M16 expense authorization
+ * (future)"). Y para el caso que aun así quede sin salida, la lista lo declara
+ * en vez de dejar la fila con cara de trabajo pendiente.
+ */
+test.describe("A16b · la escalera de autorización sale de la config", () => {
+  const TODAS = { kind: "ALL" } as const;
+
+  test("la escalera por monto es pura y respeta el «sin tope»", async () => {
+    // Los defaults de `tenant_operating_config`: $1,000 y $10,000.
+    const umbrales = {
+      managerAuthLimitCents: 100_000,
+      doubleApprovalThresholdCents: 1_000_000,
+    };
+
+    expect(rolExigidoPorMonto(50_000, umbrales)).toBe("GERENTE");
+    // El límite del gerente es exclusivo: justo en el tope ya no le toca.
+    expect(rolExigidoPorMonto(100_000, umbrales)).toBe("ADMIN");
+    expect(rolExigidoPorMonto(999_999, umbrales)).toBe("ADMIN");
+    // El umbral del dueño es inclusivo: en el tope ya decide él.
+    expect(rolExigidoPorMonto(1_000_000, umbrales)).toBe("OWNER");
+
+    // `null` es "sin tope", que es lo que el schema documenta para el campo
+    // vacío. Vaciarlo es una decisión de un administrador, no un dato faltante.
+    expect(
+      rolExigidoPorMonto(5_000_000, {
+        managerAuthLimitCents: null,
+        doubleApprovalThresholdCents: null,
+      })
+    ).toBe("GERENTE");
+    expect(
+      rolExigidoPorMonto(5_000_000, {
+        managerAuthLimitCents: null,
+        doubleApprovalThresholdCents: 1_000_000,
+      })
+    ).toBe("OWNER");
+  });
+
+  test("sin reglas sembradas, un GERENTE puede aprobar un gasto chico", async () => {
+    // **Éste es el caso que estaba trabado.** Antes el rol exigido era OWNER
+    // para cualquier monto, así que este mismo gasto no lo podía firmar nadie
+    // más que el dueño — y si lo registraba el dueño, nadie en absoluto.
+    const gerenteId = await findUserIdByEmail(GERENTE_EMAIL);
+    const description = `${E2E_TAG} gasto chico sin reglas ${Date.now()}`;
+
+    const gasto = await createOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: GERENTE_BRANCH,
+      category: "SERVICIOS",
+      amountCents: 50_000, // $500, por debajo del límite de gerente
+      description,
+      dueDate: enDias(7),
+      requestedBy: USER_SUPER_ADMIN,
+    });
+
+    expect(gasto.status).toBe("PENDING_APPROVAL");
+
+    const resuelto = await approveOperatingExpense(
+      gasto.id,
+      COMPANY_ID,
+      TODAS,
+      gerenteId,
+      "GERENTE"
+    );
+    expect(resuelto.status).toBe("APPROVED");
+
+    await deleteTestExpenses();
+  });
+
+  test("un gasto grande sigue exigiendo al dueño", async () => {
+    // El otro lado: conectar la config no puede convertirse en barra libre.
+    const gerenteId = await findUserIdByEmail(GERENTE_EMAIL);
+    const description = `${E2E_TAG} gasto grande sin reglas ${Date.now()}`;
+
+    const gasto = await createOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: GERENTE_BRANCH,
+      category: "RENTA",
+      amountCents: 2_500_000, // $25,000, por encima del umbral del dueño
+      description,
+      dueDate: enDias(7),
+      requestedBy: USER_SUPER_ADMIN,
+    });
+
+    await expect(
+      approveOperatingExpense(gasto.id, COMPANY_ID, TODAS, gerenteId, "GERENTE")
+    ).rejects.toThrow(/nivel de autorización/i);
+
+    expect((await findExpenseByDescription(description)).status).toBe("PENDING_APPROVAL");
+
+    await deleteTestExpenses();
+  });
+
+  test("un gasto que nadie puede resolver se declara en la lista", async () => {
+    // El caso residual: lo registra el único usuario cuyo rol alcanza. La fila
+    // no está esperando a nadie, está atascada — y hasta ahora se veía igual
+    // que cualquier otro pendiente.
+    const description = `${E2E_TAG} gasto sin aprobador posible ${Date.now()}`;
+
+    await createOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: GERENTE_BRANCH,
+      category: "RENTA",
+      amountCents: 2_500_000, // exige OWNER, y sólo el SUPER_ADMIN llega
+      description,
+      dueDate: enDias(7),
+      requestedBy: USER_SUPER_ADMIN,
+    });
+
+    const { items } = await getOperatingExpenses(COMPANY_ID);
+    const fila = items.find((i) => i.description === description);
+
+    expect(fila, "el gasto no apareció en la lista").toBeTruthy();
+    expect(fila!.requiredApproverRole, "el rol exigido no salió de la escalera").toBe("OWNER");
+    expect(
+      fila!.sinAprobadorPosible,
+      "la lista no declaró que nadie puede resolverlo"
+    ).toBe(true);
+
+    await deleteTestExpenses();
+  });
+
+  test("un gasto que sí tiene quien lo apruebe no se marca como atascado", async () => {
+    // Control positivo: marcar de más enseñaría a ignorar el aviso.
+    const description = `${E2E_TAG} gasto con aprobador ${Date.now()}`;
+
+    await createOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: GERENTE_BRANCH,
+      category: "SERVICIOS",
+      amountCents: 50_000, // exige GERENTE, y hay uno en esa sucursal
+      description,
+      dueDate: enDias(7),
+      requestedBy: USER_SUPER_ADMIN,
+    });
+
+    const { items } = await getOperatingExpenses(COMPANY_ID);
+    const fila = items.find((i) => i.description === description);
+
+    expect(fila!.requiredApproverRole).toBe("GERENTE");
+    expect(fila!.sinAprobadorPosible).toBe(false);
+
+    await deleteTestExpenses();
   });
 });

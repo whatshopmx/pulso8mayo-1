@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -79,6 +80,8 @@ interface ExpenseItem {
   payeeName?: string | null;
   status: "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | "PAID";
   requestedBy?: string | null;
+  /** Pendiente que nadie puede resolver. Lo calcula el servidor al leer. */
+  sinAprobadorPosible?: boolean;
   requestedByName: string | null;
   approvedByName: string | null;
   approvalNotes: string | null;
@@ -255,7 +258,10 @@ function ExpensesContent() {
   };
 
   const renderApproveAction = (item: ExpenseItem) => {
-    const requiredRole = item.requiredApproverRole || "OWNER";
+    // El rol exigido lo decide el servidor con la escalera de la empresa. Aquí
+    // había un `|| "OWNER"` que era una segunda opinión sobre la autoridad del
+    // mismo gasto, y no coincidía con la del servicio.
+    const requiredRole = item.requiredApproverRole || "GERENTE";
     // Afordancia de UX únicamente; la autorización real se aplica en
     // expense-service.ts — que desde A16 evalúa **esta misma función**, no una
     // copia parecida. Antes la pantalla escondía el botón de aprobar lo propio
@@ -277,6 +283,17 @@ function ExpensesContent() {
         <span className="text-muted-foreground/60 text-xs flex flex-col items-center gap-0.5">
           <Shield className="w-3 h-3" />
           <span>Requiere {ROLE_LABELS[requiredRole] || requiredRole}</span>
+        </span>
+      );
+    }
+
+    // Que sea tuyo no es lo peor que puede pasarle a la fila: si además nadie
+    // más alcanza el rol, el gasto no está esperando a alguien — está atascado.
+    if (denegado === "SELF" && item.sinAprobadorPosible) {
+      return (
+        <span className="text-warning-text text-xs flex flex-col items-center gap-0.5">
+          <AlertCircle className="w-3 h-3" />
+          <span>Sin aprobador</span>
         </span>
       );
     }
@@ -329,6 +346,9 @@ function ExpensesContent() {
    * gasto viejo puede quedar fuera. Sin este aviso la pantalla se ve normal y
    * la persona busca en vano una fila resaltada que nunca estuvo.
    */
+  /** Pendientes que nadie puede resolver. El servidor los marca al leer. */
+  const atascados = expenses.filter((e) => e.sinAprobadorPosible).length;
+
   const enlaceSinDestino =
     !loading && !error && focusId !== null && !expenses.some((e) => e.id === focusId);
 
@@ -426,6 +446,28 @@ function ExpensesContent() {
             <p className="text-xs text-warning-text">
               El historial de gastos resueltos está acotado: se muestran los más recientes.
               La cola de pendientes se muestra completa.
+            </p>
+          )}
+
+          {/* El aviso que hacía falta: gastos que no esperan a nadie porque
+              nadie alcanza el rol. Antes esto sólo existía como `console.warn`
+              en el servidor, así que la cola parecía trabajo pendiente cuando
+              en realidad era un problema de configuración. */}
+          {!loading && !error && atascados > 0 && (
+            <p className="text-xs text-warning-text flex items-start gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+              <span>
+                {atascados === 1
+                  ? "1 gasto no tiene a nadie que pueda aprobarlo"
+                  : `${atascados} gastos no tienen a nadie que pueda aprobarlos`}
+                : quien los registró es el único con el rol requerido, y desde la
+                segregación de funciones nadie firma lo suyo. Da de alta a otro
+                aprobador o ajusta los umbrales en{" "}
+                <Link href="/dashboard/company" className="underline underline-offset-2 font-medium">
+                  Organización
+                </Link>
+                .
+              </span>
             </p>
           )}
 

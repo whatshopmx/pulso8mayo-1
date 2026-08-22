@@ -125,13 +125,45 @@ async function fetchConfig(companyId: string): Promise<TenantOperatingConfigData
 /**
  * Get the operating config for a company, cached 5 min per company.
  * Always returns a complete config (defaults when the row doesn't exist).
+ *
+ * **Fuera de una petición de Next, `unstable_cache` lanza**
+ * ("Invariant: incrementalCache missing"). Eso deja sin acceso a la config a
+ * todo lo que no sea una ruta o un componente de servidor: las funciones de
+ * Inngest, los scripts y los specs que llaman al servicio directo. Y no es
+ * teórico — `stock-count-from-workflow.ts:296` ya duplicaba la consulta a mano
+ * para esquivarlo, y la autorización de gastos se topó con lo mismo.
+ *
+ * Se degrada a la lectura directa en vez de reventar. La caché sigue existiendo
+ * donde puede existir; donde no, se paga una consulta y se sigue.
  */
 export function getTenantOperatingConfig(companyId: string): Promise<TenantOperatingConfigData> {
-    return unstable_cache(
-        fetchConfig,
-        [TENANT_CONFIG_CACHE_TAG, companyId],
-        { revalidate: CACHE_TTL, tags: [TENANT_CONFIG_CACHE_TAG, `${TENANT_CONFIG_CACHE_TAG}-${companyId}`] }
-    )(companyId);
+    try {
+        return unstable_cache(
+            fetchConfig,
+            [TENANT_CONFIG_CACHE_TAG, companyId],
+            { revalidate: CACHE_TTL, tags: [TENANT_CONFIG_CACHE_TAG, `${TENANT_CONFIG_CACHE_TAG}-${companyId}`] }
+        )(companyId).catch((err) => {
+            if (esFaltaDeContextoDePeticion(err)) return fetchConfig(companyId);
+            throw err;
+        });
+    } catch (err) {
+        if (esFaltaDeContextoDePeticion(err)) return fetchConfig(companyId);
+        throw err;
+    }
+}
+
+/**
+ * El fallo por correr fuera de una petición, y sólo ése.
+ *
+ * Se compara contra el texto del invariante a propósito: cualquier otro error
+ * —la base caída, una consulta mal formada— tiene que seguir propagándose. Un
+ * `catch` que se traga todo convertiría una caída de Postgres en "config por
+ * omisión", que aquí significa repartir autoridad sobre dinero con valores
+ * inventados.
+ */
+function esFaltaDeContextoDePeticion(err: unknown): boolean {
+    const mensaje = err instanceof Error ? err.message : String(err);
+    return mensaje.includes("incrementalCache") || mensaje.includes("static generation store");
 }
 
 export type UpsertTenantOperatingConfigInput = Partial<Omit<TenantOperatingConfigData, "companyId">>;

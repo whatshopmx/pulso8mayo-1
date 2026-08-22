@@ -631,17 +631,11 @@ el spec cubren la baja y la reapertura (**10 passed**).
     recibirá la notificación" ahora también cubre el caso de que el único con rol sea quien lo pidió.
     (7) Código muerto que se llevó por delante: la rama `status === "APPROVED"` del toast de
     `expense-form.tsx` ("El gasto ha sido auto-aprobado exitosamente"), inalcanzable desde (2).
-  - **⚠️ Consecuencia operativa que hay que revisar con David.** La segregación de funciones tiene
-    un supuesto: que exista alguien más con autoridad suficiente. En la base de dev **no lo hay** —
-    al correr los specs saltó el aviso del servicio: *"no hay ningún usuario distinto de quien lo
-    registró con rol >= OWNER"*. Sin reglas de autorización sembradas el aprobador exigido cae a
-    `OWNER`, y si el dueño es el único con ese rango, **sus propios gastos quedan atrapados en
-    PENDING_APPROVAL para siempre**: nadie puede firmarlos y no entran a Cuentas por Pagar, que
-    sólo lista lo autorizado. En un grupo de 3 sucursales donde el dueño captura y firma, eso es
-    la pantalla entera bloqueada. Dos salidas, ninguna implementada aquí porque es decisión de
-    producto: sembrar reglas de autorización con `approver_role` alcanzable por más de una persona
-    (`GERENTE`, p. ej.), o dar de alta un segundo aprobador por empresa. El `console.warn` ya lo
-    dice en voz alta; lo que falta es decidir cuál de las dos.
+  - **✅ Consecuencia operativa, resuelta en A16b (2026-08-22).** La segregación de funciones tenía
+    un supuesto que no se cumplía: que existiera alguien más con autoridad suficiente. Sin reglas
+    de autorización sembradas —que es como nace toda empresa— el rol exigido caía a la constante
+    `OWNER` para *cualquier monto*, así que en un grupo con un solo dueño **nadie podía aprobar
+    nada** y los gastos no llegaban jamás a Cuentas por Pagar. Ver la tarea A16b, abajo.
   - **Specs:** 6 casos nuevos en `gastos-autorizaciones` (A16 · segregación de funciones) — nace
     pendiente con y sin umbral, quien registra no aprueba ni rechaza lo suyo en ninguno de los dos
     tramos, y otra persona sí resuelve. En `gasto-notifica-aprobador`, el caso "un gasto
@@ -842,6 +836,50 @@ el spec cubren la baja y la reapertura (**10 passed**).
     en vez del envelope del proyecto, así que `mensajeDeError` no encuentra `error` y cae al
     respaldo. Se defiende al consumidor; corregir la ruta toca a sus otros llamadores.
 
+- [x] **A16b: La escalera de autorización sale de la configuración de la empresa**
+  - **Description:** Consecuencia de A16 que su hallazgo no anticipaba. Sin reglas explícitas el
+    rol exigido era `OWNER` fijo; con la segregación encima, toda empresa recién configurada nace
+    atascada. No es un problema de datos de prueba: es el estado de fábrica del producto.
+  - **Acceptance criteria:**
+    - [x] Un gasto chico lo puede aprobar un GERENTE sin sembrar reglas a mano.
+    - [x] Un gasto grande sigue exigiendo al dueño.
+    - [x] Un pendiente que nadie puede resolver se declara en la lista, no se ve como trabajo pendiente.
+    - [x] La escalera y la segregación siguen viviendo en un solo lugar.
+  - **Verification:**
+    - [x] 5 casos nuevos en `tests/gastos-autorizaciones.spec.ts` (`A16b`). Suite de gastos: 124 passed.
+  - **Files:** `lib/expenses/approval-policy.ts`, `lib/services/expense-service.ts`,
+    `lib/services/tenant-config-service.ts`, `app/dashboard/finance/expenses/page.tsx`,
+    `components/company/operating-config-form.tsx`, `tests/gastos-autorizaciones.spec.ts`
+  - **Scope:** M
+  - **Cómo quedó:** **No se relajó la segregación** —la decisión de David sigue intacta— sino que
+    se conectó lo que el producto ya prometía y nadie leía.
+    (1) `tenant_operating_config` ya tenía `managerAuthLimitCents` ($1,000) y
+    `doubleApprovalThresholdCents` ($10,000), editables en Organización, y **ningún consumidor**:
+    el propio `tenant-config-service.ts` los tenía anotados como *"M16 expense authorization
+    (future)"*. `rolExigidoPorMonto` los convierte en una escalera GERENTE → ADMIN → OWNER. El
+    límite del gerente es exclusivo y el umbral del dueño inclusivo; `null` es "sin tope", como
+    documenta el schema.
+    (2) `resolverRolExigido` deja el orden explícito: **la regla escrita a mano gana**, y la
+    escalera es el respaldo. Antes el respaldo era la constante `"OWNER"`, repetida además en la
+    pantalla como `|| "OWNER"` — dos sitios opinando sobre la autoridad del mismo gasto.
+    (3) **El caso residual se declara.** Si el único usuario cuyo rol alcanza es quien registró el
+    gasto, la lista marca `sinAprobadorPosible` y la pantalla lo dice, con un enlace a Organización.
+    Se calcula al leer y no se guarda: al dar de alta a otro aprobador, el aviso desaparece solo.
+    Guardarlo lo dejaría mintiendo. La fila deja de decir "Lo registraste tú" —que sugiere que
+    alguien más vendrá— y dice "Sin aprobador".
+    (4) Tres consultas fijas para toda la lista (reglas, config y usuarios), no una por gasto.
+  - **Arreglo de fondo que hizo falta:** `getTenantOperatingConfig` usa `unstable_cache`, que
+    **lanza fuera de una petición de Next** ("Invariant: incrementalCache missing"). Eso dejaba la
+    config inaccesible para las funciones de Inngest, los scripts y los specs que llaman al
+    servicio directo — tanto que `stock-count-from-workflow.ts:296` ya duplicaba la consulta a mano
+    para esquivarlo. Ahora degrada a la lectura directa, comparando el texto del invariante y sólo
+    ése: un `catch` que se tragara todo convertiría una caída de Postgres en "config por omisión",
+    que aquí significa repartir autoridad sobre dinero con valores inventados.
+  - **Copy corregido:** la pantalla de Organización prometía que los gastos bajo el límite "se
+    auto-aprueban por el gerente" — conducta que A16 eliminó. Ahora dice quién autoriza, y que
+    nadie firma lo que registró. El umbral de doble aprobación admite que la doble firma todavía
+    no existe: hoy eleva el rol exigido, y decirlo es más honesto que dejar el nombre prometiendo.
+
 ### ☑ Checkpoint: Completo
 - [x] Los 27 hallazgos cerrados o diferidos con su razón escrita. **Diferidos, con su razón:**
       la **cancelación de CFDI** (decidido con David: plan propio — necesita el endpoint del PAC,
@@ -869,11 +907,13 @@ el spec cubren la baja y la reapertura (**10 passed**).
 
 Tres cosas que este plan **no** puede decidir y que conviene no perder de vista:
 
-1. **La segregación de funciones necesita un segundo aprobador que hoy no existe.** Ver la nota
-   de A16. En la base de dev el dueño es el único con rol >= `OWNER`, así que sus propios gastos
-   quedan atrapados en `PENDING_APPROVAL` y no entran a Cuentas por Pagar. El servicio ya lo grita
-   por `console.warn`; falta decidir si se siembran reglas con un `approver_role` alcanzable por
-   más de una persona, o si se da de alta un segundo aprobador por empresa.
+1. ~~**La segregación de funciones necesita un segundo aprobador que hoy no existe.**~~
+   **Resuelto en A16b (2026-08-22)** sin tocar la política: la escalera de autorización sale de los
+   umbrales que la empresa ya configura, así que un GERENTE autoriza los gastos chicos y la cola
+   deja de nacer atascada. Lo que queda es tuyo pero es *configuración, no código*: revisar en
+   Organización que los dos umbrales ($1,000 y $10,000 por omisión) sean los de tu operación. Si
+   aun así un gasto no tiene aprobador posible, ahora la pantalla lo dice en vez de dejarlo con
+   cara de trabajo pendiente.
 2. **El arreglo del alcance "Todas" toca todas las pantallas con `BranchScopeControl`.** Es un
    cambio en `lib/branch-context.tsx` y conviene mirarlo con ojos de regresión más allá de
    Finanzas y Ventas.

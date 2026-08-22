@@ -15,7 +15,8 @@ import { roleIsAtLeast, type Role } from "@/lib/permissions";
 import { getPayeeForCompany } from "./payee-service";
 import { ApiError } from "@/lib/api/error";
 import { isBranchScopedRole, type BranchScope } from "@/lib/branch-scope";
-import { denyExpenseResolution } from "@/lib/expenses/approval-policy";
+import { denyExpenseResolution, rolExigidoPorMonto } from "@/lib/expenses/approval-policy";
+import { getTenantOperatingConfig } from "./tenant-config-service";
 
 /**
  * ¿Puede este alcance resolver un gasto de esta sucursal?
@@ -101,22 +102,71 @@ async function findAuthorizationRule(companyId: string, amountCents: number) {
  * gasto no lo resuelve, y un aviso de "pendiente de tu aprobación" que lleva a
  * una fila sin botón sólo enseña a ignorar los avisos.
  */
+type CandidatoAprobador = { id: string; role: string | null; branchId: string | null };
+
+/** Todos los usuarios vivos de la empresa. Se consulta una vez y se filtra en memoria. */
+async function candidatosAprobadores(companyId: string): Promise<CandidatoAprobador[]> {
+  return db
+    .select({ id: users.id, role: users.role, branchId: users.branchId })
+    .from(users)
+    .where(and(eq(users.companyId, companyId), isNull(users.deletedAt)));
+}
+
+/** El filtro, sin base de datos, para poder aplicarlo a muchos gastos de una sola consulta. */
+function elegiblesPara(
+  candidatos: CandidatoAprobador[],
+  branchId: string | null,
+  requiredRole: string,
+  requestedBy: string | null
+): Array<{ id: string; role: string }> {
+  return candidatos
+    .filter((u) => u.role && roleIsAtLeast(u.role, requiredRole))
+    .filter((u) => !isBranchScopedRole(u.role as Role) || u.branchId === branchId)
+    .filter((u) => u.id !== requestedBy)
+    .map((u) => ({ id: u.id, role: u.role as string }));
+}
+
 async function findApprovers(
   companyId: string,
   branchId: string,
   requiredRole: string,
   requestedBy: string
 ): Promise<Array<{ id: string; role: string }>> {
-  const candidatos = await db
-    .select({ id: users.id, role: users.role, branchId: users.branchId })
-    .from(users)
-    .where(and(eq(users.companyId, companyId), isNull(users.deletedAt)));
+  return elegiblesPara(
+    await candidatosAprobadores(companyId),
+    branchId,
+    requiredRole,
+    requestedBy
+  );
+}
 
-  return candidatos
-    .filter((u) => u.role && roleIsAtLeast(u.role, requiredRole))
-    .filter((u) => !isBranchScopedRole(u.role as Role) || u.branchId === branchId)
-    .filter((u) => u.id !== requestedBy)
-    .map((u) => ({ id: u.id, role: u.role as string }));
+/**
+ * El rol que hace falta para resolver un gasto de este monto.
+ *
+ * Dos fuentes, en orden: la regla explícita de `expense_authorization_rules`
+ * —que un administrador escribió a mano y por tanto manda— y, si ninguna la
+ * cubre, la escalera derivada de los umbrales de la empresa.
+ *
+ * Antes el respaldo era la constante `"OWNER"`, y con la segregación de A16
+ * encima eso dejaba atascada a toda empresa sin reglas sembradas: los gerentes
+ * no alcanzaban el rol y el dueño no podía firmar lo suyo. Ver
+ * `rolExigidoPorMonto`.
+ */
+async function resolverRolExigido(
+  companyId: string,
+  amountCents: number
+): Promise<{ rol: string; regla: Awaited<ReturnType<typeof findAuthorizationRule>> }> {
+  const regla = await findAuthorizationRule(companyId, amountCents);
+  if (regla) return { rol: regla.approverRole, regla };
+
+  const config = await getTenantOperatingConfig(companyId);
+  return {
+    rol: rolExigidoPorMonto(amountCents, {
+      managerAuthLimitCents: config.managerAuthLimitCents,
+      doubleApprovalThresholdCents: config.doubleApprovalThresholdCents,
+    }),
+    regla: null,
+  };
 }
 
 export async function createOperatingExpense(input: CreateExpenseInput) {
@@ -132,9 +182,10 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
     }
   }
 
-  // Query expenseAuthorizationRules to determine the required approver role
-  const rule = await findAuthorizationRule(input.companyId, input.amountCents);
-  const requiredApproverRole = rule?.approverRole ?? "OWNER"; // default to OWNER if no rule
+  const { rol: requiredApproverRole } = await resolverRolExigido(
+    input.companyId,
+    input.amountCents
+  );
 
   // A16 — **Todo gasto nace pendiente.** Antes se auto-aprobaba aquí cuando el
   // rol de quien registraba alcanzaba el exigido por la regla, y quedaba escrito
@@ -256,8 +307,7 @@ export async function approveOperatingExpense(
   // El carve-out anterior sólo prohibía la auto-aprobación cuando la regla tenía
   // umbral (`minAmount > 0`), así que el tramo más bajo —donde vive la mayoría de
   // los gastos— se firmaba solo. La segregación de funciones no admite tramos.
-  const rule = await findAuthorizationRule(companyId, expense.amount);
-  const requiredRole = rule?.approverRole ?? "OWNER";
+  const { rol: requiredRole } = await resolverRolExigido(companyId, expense.amount);
 
   const denegado = denyExpenseResolution({
     actorRole: approverRole,
@@ -365,8 +415,7 @@ export async function rejectOperatingExpense(
   // la pantalla esconde los dos botones con la misma condición, y hasta A16 el
   // servidor no comprobaba nada aquí — quien registraba un gasto podía cerrarlo
   // como rechazado y sacarlo de la cola sin que ningún aprobador lo viera.
-  const rule = await findAuthorizationRule(companyId, expense.amount);
-  const requiredRole = rule?.approverRole ?? "OWNER";
+  const { rol: requiredRole } = await resolverRolExigido(companyId, expense.amount);
 
   const denegado = denyExpenseResolution({
     actorRole: approverRole,
@@ -640,20 +689,53 @@ export async function getOperatingExpenses(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
-  // Enrich each expense with its required approver role from the rules table
-  const rules = await db
-    .select()
-    .from(expenseAuthorizationRules)
-    .where(eq(expenseAuthorizationRules.companyId, companyId));
+  // El rol exigido y quién puede satisfacerlo. Tres consultas fijas para toda la
+  // lista —reglas, config y usuarios— en vez de una por gasto.
+  const [rules, config, candidatos] = await Promise.all([
+    db
+      .select()
+      .from(expenseAuthorizationRules)
+      .where(eq(expenseAuthorizationRules.companyId, companyId)),
+    getTenantOperatingConfig(companyId),
+    candidatosAprobadores(companyId),
+  ]);
 
   const items = expenses.map((expense) => {
     const matchingRule = rules.find(
       (r) => expense.amountCents >= r.minAmount && (r.maxAmount === null || expense.amountCents <= r.maxAmount)
     );
-    return {
-      ...expense,
-      requiredApproverRole: matchingRule?.approverRole ?? null,
-    };
+
+    // La misma escalera que usa el servicio al crear y al resolver. Antes esto
+    // devolvía `null` y la pantalla lo traducía a "OWNER" por su cuenta: dos
+    // sitios decidiendo la autoridad sobre el mismo gasto.
+    const requiredApproverRole =
+      matchingRule?.approverRole ??
+      rolExigidoPorMonto(expense.amountCents, {
+        managerAuthLimitCents: config.managerAuthLimitCents,
+        doubleApprovalThresholdCents: config.doubleApprovalThresholdCents,
+      });
+
+    /**
+     * Un pendiente que **nadie** puede resolver.
+     *
+     * No es una hipótesis: con la segregación de A16, si el único usuario cuyo
+     * rol alcanza es quien registró el gasto, la fila se queda en la cola para
+     * siempre y no entra a Cuentas por Pagar, que sólo lista lo aprobado. El
+     * servicio ya lo gritaba por `console.warn` al crear; nadie mira esos logs.
+     *
+     * Se calcula al leer, no se guarda: si mañana das de alta a un segundo
+     * aprobador, el aviso desaparece solo. Guardarlo lo dejaría mintiendo.
+     */
+    const sinAprobadorPosible =
+      expense.status === "PENDING_APPROVAL" &&
+      elegiblesPara(
+        candidatos,
+        expense.branchId ?? null,
+        requiredApproverRole,
+        expense.requestedBy ?? null
+      ).length === 0;
+
+    return { ...expense, requiredApproverRole, sinAprobadorPosible };
   });
 
   return { items, truncated };

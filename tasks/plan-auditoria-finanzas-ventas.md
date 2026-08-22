@@ -176,6 +176,7 @@ A13..A21 ─── independientes, pulido
 - [x] **A14** Marcar una plantilla como default corre en transacción
 - [x] **A15** El corte duplicado por carrera devuelve el 409 que ya existe, no un 500 de Postgres
 - [x] **A16** La UI de Gastos refleja la política real de auto-aprobación
+- [x] **A16b** La escalera de autorización sale de la configuración de la empresa, y un gasto sin aprobador posible se declara
 
 ### Fase 5 — Rendimiento y pulido
 - [x] **A17** Un endpoint consolidado reemplaza el abanico de 2×N peticiones de Caja Chica

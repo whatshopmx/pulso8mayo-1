@@ -282,7 +282,8 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
             <DollarSign className="w-5 h-5 text-emerald-600" /> Umbrales Financieros y Políticas de Aprobación
           </CardTitle>
           <CardDescription className="text-xs">
-            Ajusta los límites monetarios que disparan auto-aprobación o escalamiento a doble autorización.
+            Definen qué rol hace falta para autorizar un gasto según su monto. Se aplican cuando no
+            hay una regla de autorización específica que lo cubra.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -297,7 +298,8 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
               required
             />
             <span className="text-xs text-muted-foreground block">
-              Gastos/OC menores a este monto se auto-aprueban por el gerente.
+              Gastos por debajo de este monto los autoriza un gerente. Nadie aprueba lo que
+              registró: siempre firma otra persona.
             </span>
           </div>
 
@@ -312,7 +314,8 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
               required
             />
             <span className="text-xs text-muted-foreground block">
-              Montos superiores requieren aprobación de Dirección u Owner.
+              Desde este monto la autorización sube al dueño. (La doble firma —dos aprobadores
+              sobre el mismo gasto— todavía no existe; hoy esto eleva el rol exigido.)
             </span>
           </div>
 
