@@ -201,6 +201,19 @@ export function WorkflowHistoryTable({ branchId: initialBranchId }: WorkflowHist
   const updateUrlParams = () => {
     startTransition(() => {
       const params = new URLSearchParams();
+      // `revisada` no es un filtro: lo escribe la vista de revisión al volver
+      // aquí y es lo único que señala la fila que el revisor acaba de resolver.
+      // Este método reconstruye la query **desde cero**, así que sin esta línea
+      // el `router.replace` la borraba un instante después de llegar: el
+      // revisor aterrizaba en veinte filas iguales a buscar la suya, que es
+      // exactamente lo que el parámetro existe para evitar.
+      //
+      // Se lee de la URL **y** del estado, en ese orden. `reviewedId` se asigna
+      // en un efecto y este sync puede correr antes de que llegue: fiarse sólo
+      // del estado deja el parámetro fuera en el primer render, que es justo
+      // cuando el revisor acaba de aterrizar.
+      const revisada = searchParams.get("revisada") ?? reviewedId;
+      if (revisada) params.set("revisada", revisada);
       if (filters.page && filters.page > 1) params.set("page", filters.page.toString());
       if (filters.limit && filters.limit !== 20) params.set("limit", filters.limit.toString());
       if (filters.preset && filters.preset !== "all") params.set("preset", filters.preset);

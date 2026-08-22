@@ -108,7 +108,10 @@ test.describe("Revisión de workflows — bucle de decisión y superficie (T8)",
     await page.waitForURL(/\/dashboard\/workflows\/history/, { timeout: 30_000 });
     const fila = page.locator("tr[data-revisada]");
     await expect(fila).toContainText("Rechazado");
-    await expect(fila.getByRole("link")).toHaveAttribute(
+    // Por nombre, no por rol a secas: la fila trae **dos** enlaces a la misma
+    // vista —el nombre del workflow y el botón "Ver"— y el localizador ambiguo
+    // rompe en modo estricto. El comentario de arriba ya decía cuál importa.
+    await expect(fila.getByRole("link", { name: "Ver" })).toHaveAttribute(
       "href",
       `/dashboard/workflows/review/${seeded.instanceId}`
     );
