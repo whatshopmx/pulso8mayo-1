@@ -170,10 +170,9 @@ test.describe("A17 · consolidado de caja chica", () => {
 
   test("la pantalla hace una sola petición con alcance «todas»", async ({ page }) => {
     // Se registra la ruta **y** si llevaba `branchId`: el alcance por omisión no
-    // es "Todas" —`lib/branch-context.tsx:55` autoselecciona la primera sucursal
-    // cuando no hay cookie— así que la pantalla carga una vez acotada antes de
-    // que el caso pueda pedir la cadena entera. Separar por alcance mide lo que
-    // importa sin depender de ese baile.
+    // es "Todas" —el contexto arranca en la sucursal de la sesión— así que la
+    // pantalla carga una vez acotada antes de que el caso pueda pedir la cadena
+    // entera. Separar por alcance mide lo que importa sin depender de ese baile.
     const pedidas: Array<{ path: string; branchId: string | null }> = [];
     page.on("request", (req) => {
       const url = new URL(req.url());
@@ -185,25 +184,40 @@ test.describe("A17 · consolidado de caja chica", () => {
     await page.goto("/dashboard/finance/petty-cash");
     await expect(page.getByRole("heading", { name: /Caja Chica/i })).toBeVisible();
 
-    // Hay que dejar que el alcance **se asiente** antes de tocarlo. La pantalla
-    // carga primero sin sucursal (el encabezado dice "Todas") y un instante
-    // después el contexto autoselecciona la primera de la lista. Pulsar "Todas"
-    // en esa ventana es un no-op —ya es `null`, no hay cambio de estado, no hay
-    // recarga— y el anclaje llega justo después, dejando la pantalla acotada
-    // con el botón diciendo "Todas". El caso fallaba por eso, no por la app.
-    await expect(page.getByRole("button", { name: /Sucursal:/ })).not.toContainText(
-      /Todas/,
-      { timeout: 15_000 }
-    );
+    // Hay que dejar que el alcance **se asiente** antes de tocarlo. Si se pulsa
+    // "Todas" mientras el contexto todavía no eligió, el clic es un no-op —ya es
+    // `null`, no hay cambio de estado, no hay recarga— y el anclaje llega justo
+    // después, dejando la pantalla acotada con el botón diciendo "Todas".
+    const control = page.getByRole("button", { name: /Sucursal:/ });
+    await expect(control).not.toContainText(/Todas/, { timeout: 15_000 });
 
     // El conteo arranca aquí: lo que se mide es lo que cuesta **pintar la cadena
     // entera**, no la suma de todo lo que pasó por la pantalla mientras se
     // llegaba al alcance correcto.
     pedidas.length = 0;
 
-    await page.getByRole("button", { name: /Sucursal:/ }).click();
-    await page.getByRole("menuitem", { name: "Todas" }).click();
-    await expect(page.getByText(/Vista consolidada/i)).toBeVisible();
+    // Se sincroniza con la respuesta, no con un texto de la pantalla. "Vista
+    // consolidada" sólo aparece con **más de una** sucursal con fondo abierto, y
+    // eso es estado compartido de la base de dev que este caso no controla: usarlo
+    // como punto de espera hacía fallar la medición por una razón ajena a lo que
+    // A17 promete.
+    await Promise.all([
+      page.waitForResponse(
+        (res) => {
+          const url = new URL(res.url());
+          return (
+            url.pathname === "/api/petty-cash/consolidado" &&
+            !url.searchParams.has("branchId")
+          );
+        },
+        { timeout: 30_000 }
+      ),
+      (async () => {
+        await control.click();
+        await page.getByRole("menuitem", { name: "Todas" }).click();
+      })(),
+    ]);
+
     // Margen por si alguna carga tardía dispara algo más.
     await page.waitForTimeout(1500);
 
@@ -211,12 +225,10 @@ test.describe("A17 · consolidado de caja chica", () => {
     // reponía la primera sucursal cuando la selección era `null`, y como
     // `components/nav-company.tsx:62` lo vuelve a llamar en cada cambio de
     // alcance, elegir "Todas" rebotaba a una sucursal sola sin decir nada.
-    // Esta aserción es la que lo sostiene: sin la corrección, a esta altura la
-    // pantalla ya volvió a estar acotada.
     await expect(
-      page.getByText(/Vista consolidada/i),
+      control,
       "el alcance rebotó a una sucursal después de elegir «Todas»"
-    ).toBeVisible();
+    ).toContainText(/Todas/);
 
     // Ni `/api/petty-cash` ni `/api/petty-cash/transactions`: el abanico murió.
     expect(
