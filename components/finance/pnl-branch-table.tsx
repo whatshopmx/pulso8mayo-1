@@ -111,6 +111,12 @@ export function PnlBranchTable() {
       salesHasData: false,
       incompleteLines: 0,
     };
+    const lineHasData = {
+      foodCost: false,
+      waste: false,
+      labor: false,
+      operatingExpenses: false,
+    };
     for (const b of pnlData) {
       if (b.sales.source !== "NO_DATA") {
         acc.sales += b.sales.cents;
@@ -118,11 +124,14 @@ export function PnlBranchTable() {
       }
       for (const key of ["foodCost", "waste", "labor", "operatingExpenses"] as const) {
         if (b[key].source === "NO_DATA") acc.incompleteLines += 1;
-        else acc[key] += b[key].cents;
+        else {
+          acc[key] += b[key].cents;
+          lineHasData[key] = true;
+        }
       }
       if (b.operatingProfit.source !== "NO_DATA") acc.operatingProfit += b.operatingProfit.cents;
     }
-    return acc;
+    return { ...acc, lineHasData };
   }, [pnlData]);
 
   const groupCount = pnlData.length;
@@ -262,11 +271,19 @@ export function PnlBranchTable() {
                     <TableCell className="text-right font-bold">
                       {totals.salesHasData ? formatMXN(totals.sales) : "—"}
                     </TableCell>
-                    <TableCell className="text-right">{pct(totals.foodCost)}</TableCell>
-                    <TableCell className="text-right">{formatMXN(totals.waste)}</TableCell>
-                    <TableCell className="text-right">{pct(totals.labor)}</TableCell>
+                    <TableCell className="text-right">
+                      {totals.lineHasData.foodCost ? pct(totals.foodCost) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {totals.lineHasData.waste ? formatMXN(totals.waste) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {totals.lineHasData.labor ? pct(totals.labor) : "—"}
+                    </TableCell>
                     <TableCell className="text-right font-bold">
-                      {formatMXN(totals.operatingExpenses)}
+                      {totals.lineHasData.operatingExpenses
+                        ? formatMXN(totals.operatingExpenses)
+                        : "—"}
                     </TableCell>
                     <TableCell
                       className={`text-right font-bold bg-emerald-500/10 ${
