@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { formatCents } from "@/lib/utils";
 import type { CashFlowDay, CashFlowProjection } from "@/components/finance/cash-flow-calendar";
-import { ArrowRight, Calendar, Loader2, RefreshCw, TrendingDown } from "lucide-react";
+import { ArrowRight, Calendar, Clock, Loader2, RefreshCw, TrendingDown } from "lucide-react";
 
 /**
  * Resumen compacto de tesorería para la portada. No reemplaza a
@@ -147,7 +147,7 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Salidas proyectadas</p>
-                <p className="text-lg font-bold tabular-nums text-destructive">
+                <p className="text-lg font-bold tabular-nums text-foreground">
                   −{formatCents(summary.totalOutflowCents)}
                 </p>
               </div>
@@ -187,7 +187,7 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
 
             {summary.overdueCount > 0 && (
               <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
-                <TrendingDown className="w-4 h-4 text-warning-text shrink-0 mt-px" />
+                <Clock className="w-4 h-4 text-warning-text shrink-0 mt-px" />
                 <span>
                   <span className="font-semibold">{summary.overdueCount}</span> partida
                   {summary.overdueCount === 1 ? "" : "s"} ya vencida

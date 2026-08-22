@@ -304,7 +304,7 @@ export function PnlBranchTable() {
                   <TableRow className="bg-primary/5 hover:bg-primary/10 font-bold text-xs border-b-2 border-primary/20">
                     <TableCell className="font-bold text-foreground flex items-center gap-1.5">
                       <span>TOTAL GRUPO</span>
-                      <Badge variant="outline" className="text-xs py-0 font-normal">
+                      <Badge variant="outline" className="text-xs py-0 font-medium text-foreground bg-background">
                         {groupCount} sucursales
                       </Badge>
                     </TableCell>
