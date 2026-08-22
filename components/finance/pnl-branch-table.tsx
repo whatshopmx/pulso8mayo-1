@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TrendingUp, Info, Loader2, AlertTriangle, AlertCircle } from "lucide-react";
@@ -30,8 +31,8 @@ const MARKER: Record<LineSource, string> = {
 
 const SOURCE_CLASS: Record<LineSource, string> = {
   MEASURED: "",
-  DERIVED: "text-amber-700 dark:text-amber-400",
-  SECTOR_DEFAULT: "text-amber-700 dark:text-amber-400 italic",
+  DERIVED: "text-warning-text",
+  SECTOR_DEFAULT: "text-warning-text italic",
   NO_DATA: "text-muted-foreground",
 };
 
@@ -211,7 +212,7 @@ export function PnlBranchTable() {
       <CardHeader className="pb-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 space-y-0">
         <div>
           <CardTitle className="text-base font-bold flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /> P&L Operativo por Sucursal (Neto sin IVA)
+            <TrendingUp className="w-5 h-5 text-primary" /> P&L Operativo por Sucursal (Neto sin IVA)
           </CardTitle>
           <CardDescription className="text-xs mt-0.5">
             Utilidad Operativa = Ventas − Alimentos − Merma − Nómina − Gastos Operativos.
@@ -220,7 +221,7 @@ export function PnlBranchTable() {
 
         {groupCount > 3 && (
           <div className="flex items-center gap-2 self-start md:self-auto">
-            <input
+            <Input
               type="text"
               placeholder="Buscar sucursal..."
               value={searchTerm}
@@ -228,21 +229,22 @@ export function PnlBranchTable() {
                 setSearchTerm(e.target.value);
                 setPage(1);
               }}
-              className="h-8 w-36 md:w-44 rounded-md border border-input bg-background px-2.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="h-8 w-36 md:w-44 text-xs"
             />
-            <button
+            <Button
+              variant="outline"
+              size="sm"
+              aria-pressed={onlyRed}
               onClick={() => {
                 setOnlyRed(!onlyRed);
                 setPage(1);
               }}
-              className={`h-8 px-2.5 text-xs font-medium rounded-md border transition-colors ${
-                onlyRed
-                  ? "bg-red-50 dark:bg-red-950 text-destructive border-destructive/40"
-                  : "bg-muted/40 hover:bg-muted text-muted-foreground border-border"
+              className={`h-8 px-2.5 text-xs font-medium ${
+                onlyRed ? "bg-destructive/10 text-destructive border-destructive/40" : "text-muted-foreground"
               }`}
             >
               {onlyRed ? "Ver Todas" : "En Rojo"}
-            </button>
+            </Button>
           </div>
         )}
       </CardHeader>
@@ -271,7 +273,7 @@ export function PnlBranchTable() {
             {/* Aviso de confiabilidad: si el margen se apoya en algo que no se
                 midió, se dice antes de que el dueño lea el número. */}
             {approximateCount > 0 && (
-              <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+              <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-warning-text">
                 <AlertTriangle className="w-4 h-4 mt-px shrink-0" />
                 <span>
                   {approximateCount === groupCount
@@ -292,8 +294,8 @@ export function PnlBranchTable() {
                     <TableHead className="text-right">Merma</TableHead>
                     <TableHead className="text-right">Nómina %</TableHead>
                     <TableHead className="text-right">Gastos Operativos</TableHead>
-                    <TableHead className="text-right bg-emerald-500/5">Utilidad ($)</TableHead>
-                    <TableHead className="text-right bg-emerald-500/5">Margen %</TableHead>
+                    <TableHead className="text-right bg-success/5">Utilidad ($)</TableHead>
+                    <TableHead className="text-right bg-success/5">Margen %</TableHead>
                     <TableHead className="text-center">Confianza</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -324,15 +326,13 @@ export function PnlBranchTable() {
                         : "—"}
                     </TableCell>
                     <TableCell
-                      className={`text-right font-bold bg-emerald-500/10 ${
-                        totals.operatingProfit >= 0
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-destructive"
+                      className={`text-right font-bold bg-success/10 ${
+                        totals.operatingProfit >= 0 ? "text-success" : "text-destructive"
                       }`}
                     >
                       {totals.salesHasData ? formatMXN(totals.operatingProfit) : "—"}
                     </TableCell>
-                    <TableCell className="text-right font-bold bg-emerald-500/10">
+                    <TableCell className="text-right font-bold bg-success/10">
                       {pct(totals.operatingProfit)}
                     </TableCell>
                     <TableCell className="text-center">
@@ -374,11 +374,11 @@ export function PnlBranchTable() {
                           className="font-medium"
                         />
                         <TableCell
-                          className={`text-right font-bold bg-emerald-500/5 ${
+                          className={`text-right font-bold bg-success/5 ${
                             item.operatingProfit.source === "NO_DATA"
                               ? "text-muted-foreground"
                               : item.operatingProfit.cents >= 0
-                                ? "text-emerald-600 dark:text-emerald-400"
+                                ? "text-success"
                                 : "text-destructive"
                           }`}
                         >
@@ -398,14 +398,14 @@ export function PnlBranchTable() {
                         <LineCell
                           value={item.operatingProfit}
                           mode="percent"
-                          className="font-bold bg-emerald-500/5"
+                          className="font-bold bg-success/5"
                         />
                         <TableCell className="text-center">
                           <Badge
                             variant="outline"
                             className={`text-xs gap-1 ${
                               approximate
-                                ? "border-amber-500/40 text-amber-700 dark:text-amber-400"
+                                ? "border-warning/40 text-warning-text"
                                 : "bg-muted/30"
                             }`}
                             title={
