@@ -336,18 +336,27 @@ export function PnlBranchTable() {
                       {pct(totals.operatingProfit)}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge
-                        variant={totals.incompleteLines > 0 ? "outline" : "secondary"}
-                        className="text-xs gap-1 font-semibold"
-                        title={
-                          totals.incompleteLines > 0
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge
+                            variant={totals.incompleteLines > 0 ? "outline" : "secondary"}
+                            tabIndex={0}
+                            className="text-xs gap-1 font-semibold"
+                          >
+                            <Info className="w-3 h-3" />
+                            <span className="hidden lg:inline">
+                              {totals.incompleteLines > 0
+                                ? `${totals.incompleteLines} sin datos`
+                                : "Completo"}
+                            </span>
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-72">
+                          {totals.incompleteLines > 0
                             ? `${totals.incompleteLines} renglón(es) sin datos entre todas las sucursales`
-                            : "Todos los renglones tienen datos capturados"
-                        }
-                      >
-                        <Info className="w-3 h-3" />
-                        {totals.incompleteLines > 0 ? `${totals.incompleteLines} sin datos` : "Completo"}
-                      </Badge>
+                            : "Todos los renglones tienen datos capturados"}
+                        </TooltipContent>
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
 
@@ -401,29 +410,33 @@ export function PnlBranchTable() {
                           className="font-bold bg-success/5"
                         />
                         <TableCell className="text-center">
-                          <Badge
-                            variant="outline"
-                            className={`text-xs gap-1 ${
-                              approximate
-                                ? "border-warning/40 text-warning-text"
-                                : "bg-muted/30"
-                            }`}
-                            title={
-                              approximate
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge
+                                variant="outline"
+                                tabIndex={0}
+                                className={`text-xs gap-1 ${
+                                  approximate
+                                    ? "border-warning/40 text-warning-text"
+                                    : "bg-muted/30"
+                                }`}
+                              >
+                                {approximate ? (
+                                  <AlertTriangle className="w-3 h-3" />
+                                ) : (
+                                  <Info className="w-3 h-3 text-muted-foreground" />
+                                )}
+                                <span className="hidden lg:inline">
+                                  {approximate ? "Aproximado" : "Medido"}
+                                </span>
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-72">
+                              {approximate
                                 ? `Renglón más débil: ${item.weakestLine}. ${item.operatingProfit.note}`
-                                : "Los cuatro renglones se calcularon con tus datos"
-                            }
-                          >
-                            {approximate ? (
-                              <>
-                                <AlertTriangle className="w-3 h-3" /> Aproximado
-                              </>
-                            ) : (
-                              <>
-                                <Info className="w-3 h-3 text-muted-foreground" /> Medido
-                              </>
-                            )}
-                          </Badge>
+                                : "Los cuatro renglones se calcularon con tus datos"}
+                            </TooltipContent>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     );
