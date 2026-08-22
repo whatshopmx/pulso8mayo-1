@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Info, Loader2, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TrendingUp, Info, Loader2, AlertTriangle, AlertCircle } from "lucide-react";
 import type { BranchPnL, LineSource, PnLLine } from "@/lib/services/pnl-types";
 
 export type BranchPnLItem = BranchPnL;
@@ -75,28 +77,34 @@ function LineCell({
 export function PnlBranchTable() {
   const [pnlData, setPnlData] = useState<BranchPnLItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [onlyRed, setOnlyRed] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 5;
 
-  useEffect(() => {
-    async function fetchPnL() {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/finance/pnl");
-        const json = await res.json();
-        if (res.ok && json.success) {
-          setPnlData(json.data?.branches ?? []);
-        }
-      } catch (err) {
-        console.error("Failed to load P&L data:", err);
-      } finally {
-        setLoading(false);
+  const loadPnL = useCallback(async () => {
+    setLoading(true);
+    setFailed(false);
+    try {
+      const res = await fetch("/api/finance/pnl");
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setFailed(true);
+        return;
       }
+      setPnlData(json.data?.branches ?? []);
+    } catch (err) {
+      console.error("Failed to load P&L data:", err);
+      setFailed(true);
+    } finally {
+      setLoading(false);
     }
-    fetchPnL();
   }, []);
+
+  useEffect(() => {
+    loadPnL();
+  }, [loadPnL]);
 
   // Totales del grupo. Solo se suman los renglones que tienen datos: un NO_DATA
   // no aporta cero, deja el total marcado como incompleto.
@@ -224,6 +232,17 @@ export function PnlBranchTable() {
           <div className="py-8 flex justify-center text-muted-foreground">
             <Loader2 className="w-5 h-5 animate-spin mr-2" /> Calculando P&L por sucursal...
           </div>
+        ) : failed ? (
+          <EmptyState
+            icon={AlertCircle}
+            title="No se pudo cargar el P&L por sucursal"
+            description="Error al conectar con el servicio de finanzas. Revisa tu conexión e intenta de nuevo."
+            action={
+              <Button variant="outline" size="sm" onClick={loadPnL}>
+                Reintentar
+              </Button>
+            }
+          />
         ) : pnlData.length === 0 ? (
           <div className="py-6 text-center text-xs text-muted-foreground">
             Sin suficientes datos para consolidar el P&L de las sucursales.
