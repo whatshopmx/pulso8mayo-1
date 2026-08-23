@@ -127,19 +127,41 @@ export default function FinanceOverviewPage() {
         </p>
       </div>
 
+      {/* La narrativa de cuatro preguntas sale de los comentarios y se vuelve
+          visible: cada bloque lleva su rótulo discreto encima. */}
       {/* 1. ¿Cómo vamos? — costos contra el objetivo del grupo, con tendencia. */}
-      <FinancialKpiCards branchId={selectedBranch} />
+      <section>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+          ¿Cómo vamos?
+        </p>
+        <FinancialKpiCards branchId={selectedBranch} />
+      </section>
 
       {/* 2. ¿Qué necesita mi firma hoy? */}
-      <MoneyAttentionPanel branchId={selectedBranch} />
+      <section>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+          ¿Qué necesita tu firma hoy?
+        </p>
+        <MoneyAttentionPanel branchId={selectedBranch} />
+      </section>
 
       {/* 3. ¿Me alcanza? */}
-      <CashFlowSummaryCard branchId={selectedBranch} />
+      <section>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+          ¿Me alcanza?
+        </p>
+        <CashFlowSummaryCard branchId={selectedBranch} />
+      </section>
 
       {/* 4. ¿Dónde gano y dónde pierdo? El P&L es por sucursal a propósito: es
           la comparación que el dueño usa para decidir. No se filtra por el
           scope del encabezado porque su valor está justamente en verlas juntas. */}
-      <PnlBranchTable />
+      <section>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+          ¿Dónde gano y dónde pierdo?
+        </p>
+        <PnlBranchTable />
+      </section>
 
       {/* Accesos al detalle y la captura, agrupados para que buscar un módulo
           sea recorrer tres rótulos y no nueve tarjetas sueltas. */}

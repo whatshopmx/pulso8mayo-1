@@ -208,14 +208,24 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
   const VISIBLE_LIMIT = 8;
   const visible = items?.slice(0, VISIBLE_LIMIT) ?? [];
   const highCount = items?.filter((i) => i.severity === "HIGH").length ?? 0;
+  // Banda tonal en el encabezado cuando hay algo crítico: el estado del panel
+  // se lee antes de leer cualquier renglón.
+  const escalated = highCount > 0;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className={escalated ? "border-destructive/40" : undefined}>
+      <CardHeader
+        className={`pb-3 rounded-t-lg ${escalated ? "bg-destructive/5" : ""}`}
+      >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-primary" /> Requiere tu atención
+            <CardTitle
+              className={`text-base font-bold flex items-center gap-2 ${
+                escalated ? "text-destructive" : ""
+              }`}
+            >
+              <AlertCircle className={`w-5 h-5 ${escalated ? "text-destructive" : "text-primary"}`} />{" "}
+              Requiere tu atención
             </CardTitle>
             <CardDescription className="text-xs mt-0.5">
               Excepciones de control interno, gastos sin autorizar y arqueos que no cuadran.
@@ -224,11 +234,11 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
           {items !== null && items.length > 0 && (
             <span
               className={`self-start text-xs px-2 py-1 rounded-full border ${statusBadgeClasses(
-                highCount > 0 ? "destructive" : "warning",
+                escalated ? "destructive" : "warning",
               )}`}
             >
               {items.length} pendiente{items.length === 1 ? "" : "s"}
-              {highCount > 0 ? ` · ${highCount} crítico${highCount === 1 ? "" : "s"}` : ""}
+              {escalated ? ` · ${highCount} crítico${highCount === 1 ? "" : "s"}` : ""}
             </span>
           )}
         </div>
