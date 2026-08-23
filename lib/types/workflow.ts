@@ -50,7 +50,7 @@ export interface StepValidation {
  * Entidades que el resolver de pasos dinámicos sabe expandir.
  * Ver `lib/workflows/dynamic-steps.ts`.
  */
-export type DynamicSourceEntity = "inventory_item" | "recipe";
+export type DynamicSourceEntity = "inventory_item" | "recipe" | "purchase_order_item";
 
 export interface DynamicSourceFilter {
   /** Sólo SKUs marcados 80/20. Únicamente para `inventory_item`. */
@@ -61,6 +61,13 @@ export interface DynamicSourceFilter {
   tags?: string[];
   /** Por defecto `true`. Únicamente para `inventory_item`. */
   active?: boolean;
+  /**
+   * OC cuyas líneas alimentan la expansión. Requerido para
+   * `purchase_order_item`; normalmente viaja en el contexto de creación de la
+   * instancia (la OC se elige al lanzar, no dentro del workflow) y este campo
+   * queda como override explícito del template.
+   */
+  purchaseId?: string;
 }
 
 /**

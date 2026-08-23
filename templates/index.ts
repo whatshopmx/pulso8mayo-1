@@ -45,6 +45,7 @@ import seguridadLocal from './seguridad/seguridad-local-v1.json';
 // Inventario
 import conteoInventarioV1 from './inventory/conteo-inventario-v1.json';
 import registroMermaV1 from './inventory/registro-merma-v1.json';
+import recepcionMercanciaV3 from './inventory/recepcion-mercancia-v3.json';
 import produccionDiariaV1 from './operaciones_diarias/produccion-diaria-v1.json';
 
 // Finanzas
@@ -158,9 +159,10 @@ export const templateLibrary: Record<string, Template> = {
   'control-accesos-v1': normalizeTemplate(controlAccesos),
   'seguridad-local-v1': normalizeTemplate(seguridadLocal),
 
-  // Inventario (2)
+  // Inventario (3)
   'conteo-inventario-v1': normalizeTemplate(conteoInventarioV1),
   'registro-merma-v1': normalizeTemplate(registroMermaV1),
+  'recepcion-mercancia-v3': normalizeTemplate(recepcionMercanciaV3),
   'produccion-diaria-v1': normalizeTemplate(produccionDiariaV1),
 
   // Finanzas (3)

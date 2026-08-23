@@ -1,0 +1,209 @@
+{
+  "id": "tpl-recepcion-mercancia-v3",
+  "nombre": "📦 Recepción de Mercancía desde OC",
+  "descripcion": "Recepción completa de una orden de compra: inspección NOM-251 con AI, captura línea por línea de lo recibido (cantidad, lote, caducidad, costo unitario) y total de factura. Al completar, el extractor registra la recepción vía receiving-service: actualiza stock, lotes, costeo y las cantidades recibidas de la OC.",
+  "categoria": "CONTROL_CALIDAD",
+  "tipo": "INVENTARIO",
+  "version": 3,
+  "requiereIA": true,
+  "duracionEstimada": "15-25 min",
+  "activo": true,
+  "complianceConfig": {
+    "complianceType": "NOM-251",
+    "regulationSection": "5.1.2",
+    "requiredFrequency": "per-delivery",
+    "auditable": true,
+    "evidenceRequired": true,
+    "criticalForCompliance": true
+  },
+  "cumplimientoNormativo": [
+    {
+      "norma": "NOM-251",
+      "seccion": "5.1.2",
+      "descripcion": "Control de recepción de materias primas"
+    }
+  ],
+  "tags": ["recepcion", "mercancia", "orden-compra", "inventario", "NOM-251", "control-calidad"],
+  "aiConfig": {
+    "provider": "moondream",
+    "fallbackProvider": "openai",
+    "maxRetries": 2
+  },
+  "escalationChain": [
+    { "rol": "Gerente", "tiempoMinutos": 0 },
+    { "rol": "Purchasing", "tiempoMinutos": 30 },
+    { "rol": "Owner", "tiempoMinutos": 120 }
+  ],
+  "completionActions": [
+    {
+      "type": "SEND_NOTIFICATION",
+      "target": "Gerente",
+      "channel": "whatsapp",
+      "message": "Recepción de mercancía completada - inventario y orden de compra actualizados"
+    },
+    {
+      "type": "UPDATE_INVENTORY",
+      "message": "Actualizar inventario con mercancía recibida"
+    }
+  ],
+  "pasos": [
+    {
+      "id": "paso-vehiculo",
+      "titulo": "Inspección del Vehículo",
+      "type": "PhotoField",
+      "obligatorio": true,
+      "aiVerification": {
+        "enabled": true,
+        "prompt": "Verificar limpieza del vehículo de transporte, presencia de unidad de control de temperatura funcionando, y ausencia de riesgos de contaminación visibles",
+        "threshold": 0.75,
+        "expectedConditions": [
+          "Vehículo limpio y sin contaminantes visibles",
+          "Unidad de refrigeración funcionando",
+          "Sin signos de contaminación cruzada"
+        ]
+      }
+    },
+    {
+      "id": "paso-temperatura",
+      "titulo": "Temperatura del Producto (°C)",
+      "type": "NumberField",
+      "obligatorio": true,
+      "validation": { "min": -25, "max": 30 },
+      "logicRules": [
+        {
+          "id": "lr-temp-alta",
+          "condition": "value > 4",
+          "severity": "CRITICAL",
+          "message": "Temperatura del producto fuera de rango seguro. Se requiere rechazo automático.",
+          "actions": ["BLOCK", "AUTO_REJECT", "CREATE_MAINTENANCE_TICKET"],
+          "escalationChain": [
+            { "rol": "Gerente", "tiempoMinutos": 0 },
+            { "rol": "Owner", "tiempoMinutos": 30 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rec-cantidad",
+      "titulo": "Cantidad recibida de {{name}} ({{unit}})",
+      "descripcion": "Lo físicamente recibido de {{sku}}. Pedido en la OC: {{orderedQty}} {{unit}}.",
+      "type": "NumberField",
+      "obligatorio": true,
+      "metadata": {
+        "dynamicSource": {
+          "entity": "purchase_order_item"
+        }
+      }
+    },
+    {
+      "id": "rec-lote",
+      "titulo": "Lote de {{name}}",
+      "descripcion": "Número de lote impreso en el empaque (deja vacío para generarlo automáticamente)",
+      "type": "TextField",
+      "obligatorio": false,
+      "metadata": {
+        "dynamicSource": {
+          "entity": "purchase_order_item"
+        }
+      }
+    },
+    {
+      "id": "rec-caducidad",
+      "titulo": "Caducidad de {{name}} (YYYY-MM-DD)",
+      "descripcion": "Fecha de caducidad según etiqueta; vacío si el producto no la lleva",
+      "type": "TextField",
+      "obligatorio": false,
+      "metadata": {
+        "dynamicSource": {
+          "entity": "purchase_order_item"
+        }
+      }
+    },
+    {
+      "id": "rec-costo",
+      "titulo": "Costo unitario de {{name}} (MXN, sin IVA)",
+      "descripcion": "Costo por {{unit}} según factura del proveedor. Vacío = usar el costo de la OC.",
+      "type": "NumberField",
+      "obligatorio": false,
+      "metadata": {
+        "dynamicSource": {
+          "entity": "purchase_order_item"
+        }
+      }
+    },
+    {
+      "id": "paso-factura-total",
+      "titulo": "Total de la Factura (MXN)",
+      "descripcion": "Total tal como aparece en la factura o remisión del proveedor (con IVA incluido)",
+      "type": "NumberField",
+      "obligatorio": false
+    },
+    {
+      "id": "paso-caducidades-foto",
+      "titulo": "Verificación de Fechas de Caducidad (OCR)",
+      "type": "PhotoField",
+      "obligatorio": true,
+      "aiVerification": {
+        "enabled": true,
+        "prompt": "Realizar OCR de fechas de caducidad en etiquetas y empaques de productos. Verificar que ningún producto esté caducado.",
+        "threshold": 0.7,
+        "expectedConditions": [
+          "Fechas de caducidad legibles vía OCR",
+          "Ningún producto con fecha vencida"
+        ]
+      },
+      "logicRules": [
+        {
+          "id": "lr-producto-caducado",
+          "condition": "ai_verification_failed",
+          "severity": "HIGH",
+          "message": "Se detectaron productos con fecha de caducidad vencida. Escalación inmediata.",
+          "actions": ["ESCALATE"],
+          "escalationChain": [
+            { "rol": "Gerente", "tiempoMinutos": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paso-decision",
+      "titulo": "Decisión",
+      "type": "Select",
+      "obligatorio": true,
+      "options": ["Aceptar", "Rechazar", "Aceptar con Descuento"],
+      "branches": [
+        {
+          "condition": "value == 'Rechazar'",
+          "targetStepId": "paso-confirmacion-rechazo"
+        }
+      ]
+    },
+    {
+      "id": "paso-discrepancias",
+      "titulo": "Discrepancias Registradas",
+      "descripcion": "Faltantes, sobrantes, daños o diferencias de precio vs la OC (opcional si se aceptó todo)",
+      "type": "TextField",
+      "obligatorio": false
+    },
+    {
+      "id": "paso-instruccion",
+      "titulo": "Confirmación de Recepción",
+      "type": "instruction",
+      "obligatorio": false,
+      "descripcion": "Revise toda la información capturada y confirme que la recepción está completa y correcta antes de finalizar. Al terminar se actualizarán el inventario y la orden de compra."
+    },
+    {
+      "id": "paso-completada",
+      "titulo": "¿Recepción completada?",
+      "type": "YesNo",
+      "obligatorio": true
+    },
+    {
+      "id": "paso-confirmacion-rechazo",
+      "titulo": "Motivo del Rechazo",
+      "descripcion": "Describe el motivo del rechazo total; el proveedor será notificado y se abrirá reclamo",
+      "type": "TextField",
+      "obligatorio": true
+    }
+  ]
+}

@@ -1,187 +1,95 @@
-# Todo: Corrección integral — Módulo Finanzas (crítica 2026-08-22, 29/40)
+# Todo: Finanzas Overview — Top 3 P1 Fixes
 
-## Task 1: Eliminar totales $0.00 falsos en TOTAL GRUPO
+## Task 1: Cluster SUBSECTIONS into three labeled groups
 
-**Descripción:** La fila TOTAL GRUPO de `PnlBranchTable` imprime `$0.00` en renglones donde ninguna sucursal aportó datos (captura viva: Gastos Operativos $0.00 con tres sucursales en "—"), violando la regla documentada NO_DATA→"—".
+**Description:** Replace the flat nine-card grid at the bottom of
+`app/dashboard/finance/page.tsx` with three labeled groups so the decision
+point drops from 9 simultaneous choices to 3. Grouping:
+- **Captura diaria** — Cortes de Ventas, Gastos Operativos, Caja Chica
+- **Dinero y pagos** — Cuentas por Pagar, Contrapartes, Flujo de Efectivo
+- **Control y configuración** — Control Interno, Fiscal y Facturación, Objetivos de Costo
 
-**Criterios de aceptación:**
-- [ ] Cada total de renglón (foodCost, waste, labor, operatingExpenses) muestra "—" cuando cero sucursales tienen dato para ese renglón
-- [ ] Cuando algunas sucursales tienen dato y otras no, el total suma solo las que tienen y conserva la marca de incompletitud existente
-- [ ] `salesHasData` sigue controlando Venta Neta y Utilidad como hoy
+**Acceptance criteria:**
+- [ ] Grid renders 3 group headings (`text-sm font-semibold text-muted-foreground`) each above its own `grid` of cards
+- [ ] All 9 existing hrefs/titles/descriptions/icons preserved verbatim (no copy changes)
+- [ ] Each group ≤3 cards; card markup unchanged (icon tile + title + description)
+- [ ] Focus-visible ring behavior on links preserved
 
-**Verificación:**
-- [ ] `pnpm run build`
-- [ ] Manual: en /dashboard/finance, Gastos Operativos del TOTAL GRUPO muestra "—" con los datos demo actuales
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Lint passes: `pnpm run lint`
+- [ ] Manual check: all nine links navigate correctly; groups read as three chunks, not a wall
 
-**Dependencias:** None
-**Archivos:** `components/finance/pnl-branch-table.tsx`
-**Tamaño:** XS
+**Dependencies:** None
 
----
+**Files likely touched:**
+- `app/dashboard/finance/page.tsx`
 
-## Task 2: Estado de error visible en PnlBranchTable
+**Estimated scope:** Small: 1 file
 
-**Descripción:** El `catch` del fetch de `/api/finance/pnl` solo loguea; un fallo de red se muestra como "Sin suficientes datos para consolidar el P&L", mintiendo sobre la causa.
+## Task 2: Make the 4-question narrative visible
 
-**Criterios de aceptación:**
-- [ ] Estado `failed` + EmptyState con icono AlertCircle, mensaje en español y botón Reintentar que relanza el fetch (mismo patrón que `financial-kpi-cards.tsx`)
-- [ ] El empty state legítimo ("Sin suficientes datos") solo aparece cuando la respuesta fue exitosa y no hay branches
-- [ ] El reintento resetea loading/failed correctamente
+**Description:** The page composes four components in a deliberate narrative
+order that exists only in code comments. Add small muted section labels before
+each chapter (¿Cómo vamos / Qué necesita tu firma / ¿Me alcanza? / Dónde gano
+y dónde pierdo), and escalate the MoneyAttentionPanel header to a
+destructive-toned band when `highCount > 0` so priority is legible at scan
+distance.
 
-**Verificación:**
-- [ ] `pnpm run build`
-- [ ] Manual: bloquear `/api/finance/pnl` en DevTools → se ve error + Reintentar; desbloquear y reintentar → tabla carga
+**Acceptance criteria:**
+- [ ] Four muted section labels present between page header and cards; NOT uppercase-tracked eyebrows; no new color usage beyond `text-muted-foreground`
+- [ ] MoneyAttentionPanel computes `highCount` from items; when >0, CardHeader shows destructive tonal treatment (`bg-destructive/5`, border tint, ShieldAlert or count chip) — no shadows, no border-left stripes
+- [ ] When highCount = 0, panel styling unchanged from today
+- [ ] Existing loading/error/empty states untouched
 
-**Dependencias:** None
-**Archivos:** `components/finance/pnl-branch-table.tsx`
-**Tamaño:** S
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check: page top-down reads as four answered questions; attention panel visibly outranks cash-flow card when HIGH items exist
+- [ ] Manual check: empty-state day renders exactly as before (no red)
 
----
+**Dependencies:** Task 1 (same file, sequential edits avoid conflicts)
 
-## Task 3: Tooltips accesibles (Radix) en lugar de `title`
+**Files likely touched:**
+- `app/dashboard/finance/page.tsx`
+- `components/finance/money-attention-panel.tsx`
 
-**Descripción:** Los botones "?", los marcadores †/* y las notas de celda dependen del atributo nativo `title`, invisible en tablet (dispositivo primario) y teclado. Usar `components/ui/tooltip.tsx`.
+**Estimated scope:** Medium: 2 files
 
-**Criterios de aceptación:**
-- [ ] Ambos botones "?" de `financial-kpi-cards.tsx` usan Tooltip (trigger asChild, mismo copy)
-- [ ] Marcadores †/* de KPIs y notas de celda del P&L (`title={value.note}` en LineCell y utilidad) usan Tooltip o title+aria-describedby equivalente accesible
-- [ ] Tooltips operables por foco de teclado y táctil; contenido anunciado por lectores de pantalla
-- [ ] Sin cambio visual en reposo (los triggers mantienen su estilo actual)
+## Checkpoint: Composition
+- [ ] `pnpm run build` && `pnpm run lint` clean
+- [ ] Dev server visual pass: narrative legible, groups scannable, no regression in states
 
-**Verificación:**
-- [ ] `pnpm run build`
-- [ ] Manual: Tab hasta "?" → tooltip visible; viewport móvil → tap muestra tooltip
+## Task 3: Distill P&L table to ≤7 columns with promoted margin
 
-**Dependencias:** None
-**Archivos:** `components/sales/financial-kpi-cards.tsx`, `components/finance/pnl-branch-table.tsx`
-**Tamaño:** M
+**Description:** Reduce the P&L branch table from 9 columns to ≤7 by removing
+the Merma column (value moves into the food-cost cell's NoteTip) and the
+Confianza badge column (replaced by a colored dot + sr-only text next to the
+branch name, tooltip preserved). Promote Margen % as the emphasized column;
+stack Utilidad $ as secondary line beneath it.
 
----
+**Acceptance criteria:**
+- [ ] Column count reduced from 9 to ≤7 (TOTAL GRUPO and branch rows consistent)
+- [ ] Merma value accessible via NoteTip on the Food Cost % cell for every row incl. totals; NO_DATA merma still renders "—" semantics in tooltip ("Sin datos capturados")
+- [ ] Confidence dot: success-colored when measured, warning when approximate, with sr-only "Medido"/"Aproximado" and existing tooltip content preserved
+- [ ] Margen % column visually promoted (font-bold); Utilidad $ stacked as secondary `text-xs` line under margin in same cell, keeping ≈ marker, NO_DATA "—", and success/destructive tinting
+- [ ] Provenance markers (†/*/≈), footnotes, warning banner, search/filter/pagination all unchanged
+- [ ] No horizontal scroll needed at 1280px viewport with long branch names
 
-### Checkpoint 1-3: build limpio + verificación manual de P1
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Lint passes: `pnpm run lint`
+- [ ] Manual check: tooltips carry merma + confidence info; screen-reader text announces confidence; footnotes still explain †/*/—
+- [ ] Manual check: TOTAL GRUPO math unchanged (merma still summed where lineHasData)
 
-## Task 4: Tokens semánticos y componentes del sistema en PnL
+**Dependencies:** None (independent file; scheduled after composition phase for clean checkpoints)
 
-**Descripción:** Sustituir colores crudos Tailwind (`text-amber-700`, `bg-red-50`, `text-emerald-600`, `bg-emerald-500/5`, `border-amber-500/40`) y el `<input>`/`<button>` custom del header por tokens semánticos (`success`/`warning`/`destructive`) y componentes UI existentes; eliminar clases `dark:` que los tokens ya resuelven.
+**Files likely touched:**
+- `components/finance/pnl-branch-table.tsx`
 
-**Criterios de aceptación:**
-- [ ] Búsqueda usa el componente Input del sistema; toggle "En Rojo" usa Button (variant outline/toggle) con `aria-pressed`
-- [ ] Colores de semáforo provienen de tokens; sin hex/Tailwind crudo de paleta
-- [ ] Icono del título del P&L consistente con las demás tarjetas (o excepción documentada)
-- [ ] Dark mode correcto en ambas tablas/alertas sin clases `dark:` manuales
+**Estimated scope:** Small-Medium: 1 file
 
-**Verificación:**
-- [ ] `pnpm run build` + `pnpm run lint`
-- [ ] Manual: light y dark mode en /dashboard/finance
-
-**Dependencias:** Tasks 1-2 (mismo archivo, evitar conflictos)
-**Archivos:** `components/finance/pnl-branch-table.tsx`
-**Tamaño:** M
-
----
-
-## Task 5: Ancho de línea ≤70ch y guion largo reservado a datos
-
-**Descripción:** Descripciones y pies de KPIs/P&L/Tesorería corren ~150–170 chars sin límite (detectado). Además "—" funciona como glifo de dato ausente y como puntuación de prosa.
-
-**Criterios de aceptación:**
-- [ ] Descripciones, pies de página y notas al pie llevan `max-w-[70ch]` (o contenedor equivalente)
-- [ ] Prosa revisada: sin guiones largos como puntuación; el "—" queda únicamente en notación de datos ausentes
-- [ ] Sin cambios de copy factual
-
-**Verificación:**
-- [ ] `pnpm run lint`
-- [ ] Manual: ningún párrafo excede ~70ch en desktop ancho
-
-**Dependencias:** None
-**Archivos:** `components/sales/financial-kpi-cards.tsx`, `components/finance/pnl-branch-table.tsx`, `components/finance/cash-flow-summary-card.tsx`, `app/dashboard/finance/page.tsx`
-**Tamaño:** S
-
----
-
-### Checkpoint 4-5: build + lint + dark mode OK
-
-## Task 6: scaleX en barras de costo
-
-**Descripción:** `transition-all duration-500` anima width (layout thrash; detectado por detector).
-
-**Criterios de aceptación:**
-- [ ] Barra anima con transform scaleX + origin-left; sin transición de width
-- [ ] Respeta `prefers-reduced-motion` (transition-none)
-
-**Verificación:**
-- [ ] `pnpm run build`; manual: barra anima igual al cargar KPIs
-
-**Dependencias:** None
-**Archivos:** `components/sales/financial-kpi-cards.tsx`
-**Tamaño:** XS
-
----
-
-## Task 7: Legibilidad badge, icono Clock, salidas neutras
-
-**Descripción:** Tres ajustes menores de Tesorería/P&L: badge "N sucursales" ilegible sobre tinte rosa; alertas de Tesorería comparten TrendingDown; salidas proyectadas pintadas destructive siendo neutras.
-
-**Criterios de aceptación:**
-- [ ] Badge del TOTAL GRUPO legible (peso/color ajustados al fondo)
-- [ ] Alerta de partidas vencidas usa Clock; cruce a negativo conserva TrendingDown
-- [ ] Salidas proyectadas en foreground (no destructive); destructivo reservado al saldo negativo/cruce
-
-**Verificación:** `pnpm run build`; manual en Tesorería con datos demo.
-**Dependencias:** None (Task 4 recomendado primero si toca mismas líneas del summary card — no, es archivo distinto)
-**Archivos:** `components/finance/pnl-branch-table.tsx`, `components/finance/cash-flow-summary-card.tsx`
-**Tamaño:** S
-
----
-
-## Task 8: Fuente 11px fuera de rampa
-
-**Descripción:** Detector CLI: `expenses/page.tsx:575` usa `text-[11px]`, debajo del piso Label de 12px (Label-Floor Rule).
-
-**Criterios de aceptación:**
-- [ ] `text-xs` (12px) en lugar de `text-[11px]`
-
-**Verificación:** `pnpm run build`; manual en /dashboard/finance/expenses.
-**Dependencias:** None
-**Archivos:** `app/dashboard/finance/expenses/page.tsx`
-**Tamaño:** XS
-
----
-
-## Task 9: Columna Confianza compacta
-
-**Descripción:** La columna Confianza (badge con texto) ocupa tanto ancho como una columna numérica y empuja scroll horizontal en pantallas medianas.
-
-**Criterios de aceptación:**
-- [ ] En pantallas < lg la columna muestra solo el icono con tooltip accesible (reutiliza Task 3); texto completo en ≥lg
-- [ ] Sin scroll horizontal a 1280px con 15 sucursales simuladas (o reducido significativamente)
-
-**Verificación:** `pnpm run build`; manual a 1280px y 1440px.
-**Dependencias:** Task 3 (tooltip), Task 4 (tokens del badge)
-**Archivos:** `components/finance/pnl-branch-table.tsx`
-**Tamaño:** S
-
----
-
-## Task 10: Arqueos no aparecen en "Requiere tu atención" (TypeError cuts is not iterable)
-
-**Descripción:** El panel `MoneyAttentionPanel` lanza `TypeError: cuts is not iterable` y cae a "Error de conexión" aunque la red esté bien: espera que `/api/sales/cuts` devuelva un arreglo, pero la ruta pagina con `{ items, total, scope }` (`app/api/sales/cuts/route.ts:148`). En `components/finance/money-attention-panel.tsx:168` se hace `const cuts: CutRow[] = cutsJson.data ?? []` y se itera directo. Los arqueos descuadrados nunca llegan al dueño.
-
-**Criterios de aceptación:**
-- [ ] Leer `cutsJson.data?.items ?? []` (con guarda `Array.isArray` defensiva)
-- [ ] El conteo de arqueos descuadrados del panel coincide con lo que muestra /dashboard/sales
-- [ ] Sin "Error de conexión" espurio cuando las tres APIs responden OK
-
-**Verificación:**
-- [ ] `pnpm run build`; manual en /dashboard/finance: sin error en consola, panel lista arqueos con faltante/sobrante
-
-**Dependencias:** None
-**Archivos:** `components/finance/money-attention-panel.tsx`
-**Tamaño:** XS
-
----
-
-### Checkpoint final
-- [ ] Todas las criterias cumplidas
-- [ ] `pnpm run build` final limpio
-- [ ] `$impeccable critique app/dashboard/finance/page.tsx` → score mejoró respecto a 29/40
+## Checkpoint: Complete
+- [ ] All acceptance criteria met across Tasks 1–3
+- [ ] `pnpm run build`, `pnpm run lint` clean
+- [ ] Re-run `$impeccable critique app/dashboard/finance` — target ≥35/40 (baseline 33)
+- [ ] Final `$impeccable polish` pass before close-out

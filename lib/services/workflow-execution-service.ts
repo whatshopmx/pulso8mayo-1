@@ -25,7 +25,7 @@ export class WorkflowReviewError extends Error {
 
 export class WorkflowExecutionService {
 
-    static async createExecution(templateId: string, branchId: string, assigneeId: string | null = null, sessionId: string | null = null, categoryValue?: string, companyId?: string) {
+    static async createExecution(templateId: string, branchId: string, assigneeId: string | null = null, sessionId: string | null = null, categoryValue?: string, companyId?: string, dynamicCtx?: { purchaseId?: string }) {
         // 1. Get Template
         const template = await db.query.workflowTemplates.findFirst({
             where: eq(workflowTemplates.id, templateId)
@@ -58,7 +58,7 @@ export class WorkflowExecutionService {
             // A12: el resolver ya no recibe `branchId`. Ni `inventory_items` ni
             // `recipes` tienen sucursal —son de la compañía—, así que el campo
             // nunca se usó: sugería un scoping por sucursal que no existe.
-            steps = await resolveDynamicSteps(steps, { companyId: cid });
+            steps = await resolveDynamicSteps(steps, { companyId: cid, purchaseId: dynamicCtx?.purchaseId });
         }
 
         const instanceValues = {
@@ -69,7 +69,10 @@ export class WorkflowExecutionService {
             status: 'PENDING',
             currentStepId: steps.length > 0 ? steps[0].id : null,
             score: 0,
-            data: template.name === STOCK_COUNT_TEMPLATE_NAME ? {
+            // Contexto de lanzamiento que los extractores necesitan al completar:
+            // p.ej. la recepción v3 necesita saber contra qué OC registró.
+            ...(dynamicCtx?.purchaseId ? { data: { purchaseId: dynamicCtx.purchaseId } } : {}),
+            ...(template.name === STOCK_COUNT_TEMPLATE_NAME ? {
                 category: categoryValue || DEFAULT_CATEGORIES[0].value,
                 productCount: steps.filter(s => s.id.startsWith("count-")).length,
                 ...(() => {
@@ -80,7 +83,7 @@ export class WorkflowExecutionService {
                         ...(st?.completionActions ? { completionActions: st.completionActions } : {}),
                     };
                 })(),
-            } : undefined
+            } : {}),
         };
 
         return await db.transaction(async (tx) => {

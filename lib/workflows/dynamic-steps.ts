@@ -11,7 +11,7 @@
 // 7 archivos y todos los renderers ya saben pintar los tipos generados.
 
 import { db } from "@/lib/db";
-import { inventoryItems, recipes } from "@/lib/db/schema";
+import { inventoryItems, purchaseOrderItems, purchaseOrders, recipes } from "@/lib/db/schema";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { DynamicSource, DynamicSourceFilter, WorkflowStep } from "@/lib/types/workflow";
 import { createChildLogger } from "@/lib/logger";
@@ -20,6 +20,12 @@ const logger = createChildLogger("workflows:dynamic-steps");
 
 export interface DynamicResolveContext {
   companyId: string;
+  /**
+   * OC cuyo detalle alimenta la expansión de pasos con entidad
+   * `purchase_order_item`. Viaja desde `createExecution` (la OC se elige al
+   * lanzar la recepción); el `filter.purchaseId` del template tiene prioridad.
+   */
+  purchaseId?: string;
 }
 
 /**
@@ -50,6 +56,12 @@ interface ResolvedEntity {
   sku?: string | null;
   unit?: string | null;
   category?: string | null;
+  /**
+   * Cantidad pedida, sólo para `purchase_order_item`: se interpola en títulos
+   * (`{{orderedQty}}`) y viaja en metadata del sub-paso para que el operador
+   * vea qué debía llegar y el extractor pueda calcular discrepancias.
+   */
+  orderedQty?: number;
 }
 
 /**
@@ -127,24 +139,67 @@ async function queryRecipes(
     .orderBy(recipes.name);
 }
 
+/**
+ * Líneas de una OC con los datos del ítem. El id de la entidad es el id de la
+ * LÍNEA (`purchase_order_items.id`), no del ítem: dos líneas pueden pedir el
+ * mismo SKU y cada línea se recibe por separado. `entityId` en metadata apunta
+ * a la línea; el extractor resuelve `itemId` desde ahí.
+ */
+async function queryPurchaseOrderItems(
+  companyId: string,
+  purchaseId: string
+): Promise<ResolvedEntity[]> {
+  return db
+    .select({
+      // Alias explícito: el id expandido debe ser el de la línea, no el item.
+      id: purchaseOrderItems.id,
+      name: inventoryItems.name,
+      sku: inventoryItems.sku,
+      unit: inventoryItems.unit,
+      orderedQty: purchaseOrderItems.orderedQuantity,
+    })
+    .from(purchaseOrderItems)
+    .innerJoin(inventoryItems, eq(inventoryItems.id, purchaseOrderItems.itemId))
+    .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderItems.poId))
+    .where(
+      and(
+        eq(purchaseOrderItems.poId, purchaseId),
+        eq(purchaseOrders.companyId, companyId)
+      )
+    )
+    .orderBy(inventoryItems.name);
+}
+
 async function loadEntities(source: DynamicSource, ctx: DynamicResolveContext): Promise<ResolvedEntity[]> {
   switch (source.entity) {
     case "inventory_item":
       return queryInventoryItems(ctx.companyId, source.filter);
     case "recipe":
       return queryRecipes(ctx.companyId, source.filter);
+    case "purchase_order_item": {
+      const poId = source.filter?.purchaseId || ctx.purchaseId;
+      if (!poId) {
+        logger.warn(
+          { stepEntity: source.entity },
+          "purchase_order_item sin purchaseId (ni en filter ni en contexto): se omite"
+        );
+        return [];
+      }
+      return queryPurchaseOrderItems(ctx.companyId, poId);
+    }
     default:
       logger.warn({ entity: String((source as DynamicSource).entity) }, "Entidad desconocida");
       return [];
   }
 }
 
-/** Sustituye `{{name}}` / `{{sku}}` / `{{unit}}` en un texto de plantilla. */
+/** Sustituye `{{name}}` / `{{sku}}` / `{{unit}}` / `{{orderedQty}}` en un texto de plantilla. */
 function interpolate(text: string, entity: ResolvedEntity): string {
   return text
     .replace(/\{\{\s*name\s*\}\}/g, entity.name)
     .replace(/\{\{\s*sku\s*\}\}/g, entity.sku || "")
-    .replace(/\{\{\s*unit\s*\}\}/g, entity.unit || "");
+    .replace(/\{\{\s*unit\s*\}\}/g, entity.unit || "")
+    .replace(/\{\{\s*orderedQty\s*\}\}/g, entity.orderedQty !== undefined ? String(entity.orderedQty) : "");
 }
 
 function expandStep(parent: WorkflowStep, entity: ResolvedEntity): WorkflowStep {
@@ -174,6 +229,7 @@ function expandStep(parent: WorkflowStep, entity: ResolvedEntity): WorkflowStep 
       entityId: entity.id,
       entityName: entity.name,
       ...(entity.sku ? { entitySku: entity.sku } : {}),
+      ...(entity.orderedQty !== undefined ? { orderedQty: entity.orderedQty } : {}),
     },
   };
 }

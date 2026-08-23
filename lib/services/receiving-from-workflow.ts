@@ -5,14 +5,58 @@
 // el mismo service que la API (receiving-service), sin duplicar lógica.
 
 import { db } from "@/lib/db";
-import { workflowInstances, workflowInstanceSteps, workflowTemplates, users, suppliers, branches, receivingReports } from "@/lib/db/schema";
-import { eq, and, ilike } from "drizzle-orm";
+import { workflowInstances, workflowInstanceSteps, workflowTemplates, users, suppliers, branches, receivingReports, purchaseOrderItems, purchaseOrders } from "@/lib/db/schema";
+import { eq, and, ilike, inArray } from "drizzle-orm";
 import { processReceiving } from "./receiving-service";
+import { templateLibrary } from "@/templates";
 import { createChildLogger } from "@/lib/logger";
 
 const logger = createChildLogger("services:receiving-from-workflow");
 
 export const RECEPCION_TEMPLATE_ID = "tpl-recepcion-mercancia-v2";
+/** v3: recepción completa desde una OC (captura línea por línea). */
+export const RECEPCION_V3_TEMPLATE_ID = "tpl-recepcion-mercancia-v3";
+
+/**
+ * Garantiza que la compañía tenga el template v3 en `workflow_templates`
+ * (mismo patrón que `StockCountService.getOrCreateTemplate`): los seeds lo
+ * insertan, pero un despliegue sobre una BD ya poblada no lo tiene hasta
+ * re-correrse. Idempotente.
+ */
+export async function ensureReceivingV3Template(companyId: string): Promise<void> {
+  if (!companyId) return;
+  const existing = await db.select({ id: workflowTemplates.id })
+    .from(workflowTemplates)
+    .where(and(
+      eq(workflowTemplates.id, RECEPCION_V3_TEMPLATE_ID),
+      eq(workflowTemplates.companyId, companyId)
+    ))
+    .limit(1);
+  if (existing.length > 0) return;
+
+  const staticTemplate = templateLibrary["recepcion-mercancia-v3"];
+  if (!staticTemplate) {
+    logger.warn({ companyId }, "Template de recepción v3 no está en la librería estática");
+    return;
+  }
+
+  await db.insert(workflowTemplates).values({
+    id: RECEPCION_V3_TEMPLATE_ID,
+    companyId,
+    name: staticTemplate.title,
+    description: staticTemplate.description,
+    category: staticTemplate.category,
+    steps: JSON.stringify(staticTemplate.steps),
+    active: true,
+    title: staticTemplate.title,
+    duracionEstimada: staticTemplate.duracionEstimada,
+    tags: staticTemplate.tags as unknown as string[],
+    aiConfig: staticTemplate.aiConfig as unknown as Record<string, unknown>,
+    complianceConfig: staticTemplate.complianceConfig as unknown as Record<string, unknown>,
+    completionActions: staticTemplate.completionActions as unknown as Record<string, unknown>,
+    version: 1,
+  }).onConflictDoNothing();
+}
 
 function parseStepValue(raw: string | null): unknown {
   if (!raw) return null;
@@ -75,11 +119,12 @@ export async function extractReceivingFromInstance(instanceId: string): Promise<
     });
     if (!instance) return;
 
-    // Solo para el template de recepción y cuando ya quedó completado.
+    // Solo para los templates de recepción y cuando ya quedó completado.
     const template = await db.query.workflowTemplates.findFirst({
       where: eq(workflowTemplates.id, instance.workflowTemplateId),
     });
-    if (!template || template.id !== RECEPCION_TEMPLATE_ID) return;
+    const isV3 = template?.id === RECEPCION_V3_TEMPLATE_ID;
+    if (!template || (template.id !== RECEPCION_TEMPLATE_ID && !isV3)) return;
     if (instance.status !== "COMPLETED") return;
 
     // Idempotencia: un reporte ya marcado con este instanceId.
@@ -111,7 +156,6 @@ export async function extractReceivingFromInstance(instanceId: string): Promise<
       ? await db.query.users.findFirst({ where: eq(users.id, instance.assigneeId) })
       : null;
 
-    const supplierName = valueOf("paso-1");
     let companyId = actorUser?.companyId || template.companyId || "";
     if (!companyId) {
       // Fallback: la empresa de la sucursal de la instancia.
@@ -120,39 +164,59 @@ export async function extractReceivingFromInstance(instanceId: string): Promise<
       });
       companyId = branch?.companyId || "";
     }
-    const supplierId = await resolveSupplierId(companyId, supplierName);
 
-    const poId = valueOf("paso-orden-compra");
-    const invoiceId = valueOf("paso-factura");
-
-    const decisionVal = valueOf("paso-8");
-    const discrepancies = valueOf("paso-10");
-    const confirmation = valueOf("paso-12");
+    const decisionVal = valueOf("paso-decision");
+    const discrepancies = valueOf("paso-discrepancias");
+    const confirmation = valueOf("paso-completada") ?? valueOf("paso-12");
     const photos = collectEvidence(steps);
 
-    const notes = [
-      `instance:${instanceId}`,
-      discrepancies ? `Discrepancias: ${discrepancies}` : null,
-      decisionVal ? `Decisión: ${decisionVal}` : null,
-      confirmation ? `Confirmación: ${confirmation}` : null,
-    ].filter(Boolean).join(" | ");
+    let receiving;
 
-    // El template no captura ítems línea por línea; registramos el reporte de
-    // recepción con proveedor, evidencia y notas para la analítica (Fase 5).
-    const receiving = await processReceiving(
-      {
-        user: { id: actorUser?.id || "system", companyId: companyId || null },
-        branchId: instance.branchId,
-      },
-      {
-        items: [],
-        supplierId,
-        purchaseOrderId: typeof poId === "string" ? poId : undefined,
-        invoiceId: typeof invoiceId === "string" ? invoiceId : undefined,
-        notes,
-        photoUrls: photos,
-      }
-    );
+    if (isV3) {
+      receiving = await extractV3Items({
+        instance,
+        companyId,
+        steps,
+        valueOf,
+        photos,
+        contextNotes: [
+          discrepancies ? `Discrepancias: ${discrepancies}` : null,
+          decisionVal ? `Decisión: ${decisionVal}` : null,
+          confirmation ? `Confirmación: ${confirmation}` : null,
+          valueOf("paso-factura-total") ? `Total factura: ${valueOf("paso-factura-total")}` : null,
+        ],
+        actorUser,
+      });
+    } else {
+      // v2 (solo inspección): el template no captura ítems línea por línea;
+      // registramos el reporte con proveedor, evidencia y notas (Fase 5).
+      const supplierName = valueOf("paso-1");
+      const supplierId = await resolveSupplierId(companyId, supplierName);
+      const poId = valueOf("paso-orden-compra");
+      const invoiceId = valueOf("paso-factura");
+
+      const notes = [
+        `instance:${instanceId}`,
+        discrepancies ? `Discrepancias: ${discrepancies}` : null,
+        valueOf("paso-8") ? `Decisión: ${valueOf("paso-8")}` : null,
+        confirmation ? `Confirmación: ${confirmation}` : null,
+      ].filter(Boolean).join(" | ");
+
+      receiving = await processReceiving(
+        {
+          user: { id: actorUser?.id || "system", companyId: companyId || null },
+          branchId: instance.branchId,
+        },
+        {
+          items: [],
+          supplierId,
+          purchaseOrderId: typeof poId === "string" ? poId : undefined,
+          invoiceId: typeof invoiceId === "string" ? invoiceId : undefined,
+          notes,
+          photoUrls: photos,
+        }
+      );
+    }
 
     logger.info(
       {
@@ -160,8 +224,8 @@ export async function extractReceivingFromInstance(instanceId: string): Promise<
         companyId,
         branchId: instance.branchId,
         reportId: receiving.id,
+        templateId: template.id,
         fotos: photos.length,
-        supplierId: supplierId ?? null,
       },
       "Reporte de recepción creado"
     );
@@ -174,4 +238,103 @@ export async function extractReceivingFromInstance(instanceId: string): Promise<
     // ya trae su propio try/catch, así que su ruta no cambia.
     throw error;
   }
+}
+
+/**
+ * v3 — traduce los sub-pasos dinámicos (`rec-cantidad-{poLineId}`, `rec-lote-*`,
+ * `rec-caducidad-*`, `rec-costo-*`) a `items[]` y registra la recepción contra
+ * la OC. Rechazo total ⇒ no mueve stock: sólo deja el reporte con evidencia.
+ */
+async function extractV3Items(args: {
+  instance: typeof workflowInstances.$inferSelect;
+  companyId: string;
+  steps: Array<{ stepId: string; value: string }>;
+  valueOf: (id: string) => unknown;
+  photos: string[];
+  contextNotes: Array<string | null>;
+  actorUser: typeof users.$inferSelect | null;
+}): Promise<{ id: string }> {
+  const { instance, companyId, valueOf, photos, contextNotes, actorUser } = args;
+
+  const purchaseId = (instance.data as Record<string, any> | null)?.purchaseId;
+  if (!purchaseId || typeof purchaseId !== "string") {
+    throw new Error(`Instancia ${instance.id} de recepción v3 sin purchaseId en data`);
+  }
+
+  const [po] = await db.select({
+    id: purchaseOrders.id,
+    supplierId: purchaseOrders.supplierId,
+    status: purchaseOrders.status,
+  })
+    .from(purchaseOrders)
+    .where(and(eq(purchaseOrders.id, purchaseId), eq(purchaseOrders.companyId, companyId)))
+    .limit(1);
+  if (!po) {
+    throw new Error(`OC ${purchaseId} no encontrada para la compañía`);
+  }
+
+  // Líneas de la OC expandidas en pasos: entityId ⇒ itemId.
+  const lineIds = args.steps
+    .map((s) => s.stepId)
+    .filter((id) => id.startsWith("rec-cantidad-"))
+    .map((id) => id.slice("rec-cantidad-".length));
+  const lines = lineIds.length > 0
+    ? await db.select({ id: purchaseOrderItems.id, itemId: purchaseOrderItems.itemId })
+        .from(purchaseOrderItems)
+        .where(inArray(purchaseOrderItems.id, lineIds))
+    : [];
+  const lineToItem = new Map(lines.map((l) => [l.id, l.itemId]));
+
+  // Rechazo total: no se registra mercancía, sólo el reporte con evidencia.
+  const rejected = valueOf("paso-decision") === "Rechazar";
+
+  const items: Array<{
+    itemId: string;
+    quantity: number;
+    batchNumber?: string;
+    expirationDate?: string;
+    unitCost?: number;
+  }> = [];
+
+  for (const [lineId, itemId] of lineToItem) {
+    const qtyRaw = valueOf(`rec-cantidad-${lineId}`);
+    const quantity = typeof qtyRaw === "number" ? qtyRaw : Number(qtyRaw);
+    if (!Number.isFinite(quantity) || quantity <= 0 || rejected) continue;
+
+    const batchNumber = typeof valueOf(`rec-lote-${lineId}`) === "string"
+      ? (valueOf(`rec-lote-${lineId}`) as string).trim() || undefined
+      : undefined;
+    const expirationDate = typeof valueOf(`rec-caducidad-${lineId}`) === "string"
+      ? (valueOf(`rec-caducidad-${lineId}`) as string).trim() || undefined
+      : undefined;
+    const costRaw = valueOf(`rec-costo-${lineId}`);
+    const unitCostNum = typeof costRaw === "number" ? costRaw : Number(costRaw);
+
+    items.push({
+      itemId,
+      quantity,
+      batchNumber,
+      expirationDate,
+      ...(Number.isFinite(unitCostNum) && unitCostNum > 0 ? { unitCost: unitCostNum } : {}),
+    });
+  }
+
+  const notes = [
+    `instance:${instance.id}`,
+    ...contextNotes.filter(Boolean),
+  ].join(" | ");
+
+  return processReceiving(
+    {
+      user: { id: actorUser?.id || "system", companyId },
+      branchId: instance.branchId,
+    },
+    {
+      items: rejected ? [] : items,
+      supplierId: po.supplierId,
+      purchaseOrderId: po.id,
+      notes,
+      photoUrls: photos,
+    }
+  );
 }

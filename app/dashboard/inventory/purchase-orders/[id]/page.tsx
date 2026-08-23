@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader, PageContainer } from "@/components/shared";
 import { usePurchaseOrder, useUpdatePurchaseOrder } from "@/hooks/queries";
-import { ChevronLeft, FileText, Loader2 } from "lucide-react";
+import { ChevronLeft, FileText, Loader2, PackageCheck } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "warning" }> = {
@@ -60,9 +60,11 @@ const ACTIONS_BY_STATUS: Record<string, Array<{ action: string; label: string; v
 
 export default function PODetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const id = params.id;
   const [confirmDialog, setConfirmDialog] = useState<{ action: string; label: string; reason?: string } | null>(null);
   const [reasonInput, setReasonInput] = useState("");
+  const [isStartingReceiving, setIsStartingReceiving] = useState(false);
 
   const { data: po, isLoading } = usePurchaseOrder(id);
   const updatePO = useUpdatePurchaseOrder();
@@ -114,6 +116,30 @@ export default function PODetailPage() {
     const text = `Hola, te comparto la Orden de Compra *${po.poNumber}* de *${po.branchName || 'Pulso Horeca'}*.\n\n*Detalles:*\n• Proveedor: ${po.supplierName || '—'}\n• Total: ${formatCurrency(po.totalAmount)}\n• Fecha Requerida: ${formatDate(po.dateRequired)}\n\nLink de visualización: ${poLink}`;
     const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(whatsappUrl, "_blank");
+  };
+
+  const handleStartReceivingWorkflow = async () => {
+    setIsStartingReceiving(true);
+    try {
+      const response = await fetch("/api/workflows/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId: "tpl-recepcion-mercancia-v3",
+          branchId: po.branchId,
+          purchaseId: po.id,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "No se pudo iniciar la recepción");
+      }
+      toast.success("Recepción iniciada");
+      router.push(`/dashboard/workflows/${result.id}/execute`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Error al iniciar la recepción");
+      setIsStartingReceiving(false);
+    }
   };
 
   const items = po.items || [];
@@ -304,11 +330,23 @@ export default function PODetailPage() {
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
                 {['SENT', 'PARTIALLY_RECEIVED'].includes(po.status as string) && (
-                  <Link href={`/dashboard/inventory/receiving?poId=${po.id}`} className="w-full mb-1">
-                    <Button variant="default" size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium">
-                      Registrar Recepción
+                  <>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                      onClick={handleStartReceivingWorkflow}
+                      disabled={isStartingReceiving}
+                    >
+                      {isStartingReceiving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PackageCheck className="h-4 w-4 mr-2" />}
+                      Recibir con Workflow
                     </Button>
-                  </Link>
+                    <Link href={`/dashboard/inventory/receiving?poId=${po.id}`} className="w-full mb-1">
+                      <Button variant="outline" size="sm" className="w-full">
+                        Registrar Recepción manual
+                      </Button>
+                    </Link>
+                  </>
                 )}
                 {availableActions.map((action) => (
                   <Button
