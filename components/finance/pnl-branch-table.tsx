@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { TrendingUp, Loader2, AlertTriangle, AlertCircle } from "lucide-react";
+import { TrendingUp, Loader2, AlertTriangle, AlertCircle, Download } from "lucide-react";
 import type { BranchPnL, LineSource, PnLLine } from "@/lib/services/pnl-types";
 
 export type BranchPnLItem = BranchPnL;
@@ -214,6 +214,90 @@ export function PnlBranchTable() {
     setPage(1);
   };
 
+  /** Export para el contador: todas las sucursales (no solo la página visible),
+   *  merma como columna propia y la procedencia declarada por renglón. */
+  const exportCsv = () => {
+    // Números planos con punto decimal: Excel es-MX los parsea como número;
+    // "$1,234.56" llegaría como texto.
+    const pesos = (cents: number | null) =>
+      cents === null ? "" : (cents / 100).toFixed(2);
+    const pctOf = (line: PnLLine) =>
+      line.source === "NO_DATA" || line.percentOfSales === null ? "" : line.percentOfSales;
+    const money = (line: PnLLine) => (line.source === "NO_DATA" ? "" : pesos(line.cents));
+    const celda = (v: unknown) => {
+      const s = String(v ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const fila = (campos: unknown[]) => campos.map(celda).join(",");
+
+    const SOURCE_CSV_LABEL: Record<LineSource, string> = {
+      MEASURED: "Medido",
+      DERIVED: "Derivado",
+      SECTOR_DEFAULT: "Estimación sectorial",
+      NO_DATA: "Sin datos",
+    };
+
+    const lineas: string[] = [
+      fila(["P&L operativo por sucursal · Neto sin IVA"]),
+      fila(["Exportado", new Date().toISOString().slice(0, 10)]),
+      "",
+      fila([
+        "Sucursal",
+        "Venta Neta (MXN)",
+        "Food Cost %",
+        "Merma (MXN)",
+        "Nómina %",
+        "Gastos Operativos (MXN)",
+        "Utilidad Operativa (MXN)",
+        "Margen %",
+        "Procedencia del margen",
+      ]),
+      ...sorted.map((b) =>
+        fila([
+          b.branchName,
+          money(b.sales),
+          pctOf(b.foodCost),
+          money(b.waste),
+          pctOf(b.labor),
+          money(b.operatingExpenses),
+          money(b.operatingProfit),
+          pctOf(b.operatingProfit),
+          SOURCE_CSV_LABEL[b.weakestLine],
+        ])
+      ),
+      "",
+      fila([
+        "TOTAL GRUPO",
+        totals.salesHasData ? pesos(totals.sales) : "",
+        totals.lineHasData.foodCost
+          ? totals.sales > 0
+            ? Number(((totals.foodCost / totals.sales) * 100).toFixed(1))
+            : ""
+          : "",
+        totals.lineHasData.waste ? pesos(totals.waste) : "",
+        totals.lineHasData.labor
+          ? totals.sales > 0
+            ? Number(((totals.labor / totals.sales) * 100).toFixed(1))
+            : ""
+          : "",
+        totals.lineHasData.operatingExpenses ? pesos(totals.operatingExpenses) : "",
+        totals.salesHasData ? pesos(totals.operatingProfit) : "",
+        totals.sales > 0 ? Number(((totals.operatingProfit / totals.sales) * 100).toFixed(1)) : "",
+        approximateCount > 0 ? "Aproximado en alguna sucursal" : "Completo",
+      ]),
+    ];
+
+    const blob = new Blob([`\uFEFF${lineas.join("\n")}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pnl-sucursales-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const loadPnL = useCallback(async () => {
     setLoading(true);
     setFailed(false);
@@ -346,6 +430,17 @@ export function PnlBranchTable() {
             del período está en el tooltip de Food Cost.
           </CardDescription>
         </div>
+
+        {!loading && !failed && pnlData.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportCsv}
+            className="h-8 px-2.5 text-xs self-start md:self-auto"
+          >
+            <Download className="w-3.5 h-3.5 mr-1.5" /> Exportar CSV
+          </Button>
+        )}
 
         {groupCount > 3 && (
           <div className="flex items-center gap-2 self-start md:self-auto">
@@ -540,6 +635,16 @@ export function PnlBranchTable() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+
+            {/* Leyenda de procedencia: compacta y siempre en el DOM para que
+                sobreviva a Ctrl+P — es la parte que el contador necesita. */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Procedencia:</span>
+              <span>Sin marca = medido con tus datos</span>
+              <span>† = vía indirecta</span>
+              <span>* = estimación sectorial</span>
+              <span>— = sin datos (no es cero)</span>
             </div>
 
             {/* Notas al pie: la parte que hace que este P&L sea seguro de mostrar. */}
