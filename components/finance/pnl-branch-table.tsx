@@ -159,14 +159,60 @@ function ConfidenceDot({
   );
 }
 
+/** Encabezado ordenable para las columnas que el dueño realmente reordena. */
+function SortableHead({
+  label,
+  active,
+  dir,
+  onSort,
+}: {
+  label: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  onSort: () => void;
+}) {
+  return (
+    <TableHead
+      className="text-right"
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={onSort}
+        className="inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {label}
+        <span aria-hidden="true" className={active ? "" : "opacity-0"}>
+          {dir === "asc" ? "↑" : "↓"}
+        </span>
+      </button>
+    </TableHead>
+  );
+}
+
 export function PnlBranchTable() {
   const [pnlData, setPnlData] = useState<BranchPnLItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [onlyRed, setOnlyRed] = useState(false);
+  const [sort, setSort] = useState<{
+    key: "sales" | "profit";
+    dir: "asc" | "desc";
+  } | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 5;
+
+  const toggleSort = (key: "sales" | "profit") => {
+    setSort((prev) =>
+      prev?.key === key
+        ? prev.dir === "desc"
+          ? { key, dir: "asc" }
+          : null
+        : { key, dir: "desc" },
+    );
+    setPage(1);
+  };
 
   const loadPnL = useCallback(async () => {
     setLoading(true);
@@ -268,9 +314,25 @@ export function PnlBranchTable() {
     return matchesSearch && matchesRed;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  // Orden por demanda: sin sort activo manda el orden de la fuente. Las filas
+  // sin datos siempre se hunden al final, en cualquier dirección.
+  const sorted = useMemo(() => {
+    if (!sort) return filtered;
+    const centsOf = (b: BranchPnLItem) =>
+      sort.key === "sales" ? b.sales : b.operatingProfit;
+    return [...filtered].sort((a, b) => {
+      const av = centsOf(a);
+      const bv = centsOf(b);
+      if (av.source === "NO_DATA" || bv.source === "NO_DATA") {
+        return (av.source === "NO_DATA" ? 1 : 0) - (bv.source === "NO_DATA" ? 1 : 0);
+      }
+      return sort.dir === "desc" ? bv.cents - av.cents : av.cents - bv.cents;
+    });
+  }, [filtered, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginated = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <Card className="w-full">
@@ -355,11 +417,21 @@ export function PnlBranchTable() {
                 <TableHeader>
                   <TableRow className="bg-muted/50 text-xs">
                     <TableHead>Sucursal</TableHead>
-                    <TableHead className="text-right">Venta Neta</TableHead>
+                    <SortableHead
+                      label="Venta Neta"
+                      active={sort?.key === "sales"}
+                      dir={sort?.dir ?? "desc"}
+                      onSort={() => toggleSort("sales")}
+                    />
                     <TableHead className="text-right">Food Cost %</TableHead>
                     <TableHead className="text-right">Nómina %</TableHead>
                     <TableHead className="text-right">Gastos Operativos</TableHead>
-                    <TableHead className="text-right bg-success/5">Utilidad ($ y %)</TableHead>
+                    <SortableHead
+                      label="Utilidad ($ y %)"
+                      active={sort?.key === "profit"}
+                      dir={sort?.dir ?? "desc"}
+                      onSort={() => toggleSort("profit")}
+                    />
                     <TableHead className="text-center">Confianza</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -429,7 +501,8 @@ export function PnlBranchTable() {
                         <TableCell className="font-medium">
                           <Link
                             href={`/dashboard/branches?branchId=${item.branchId}`}
-                            className="hover:underline text-foreground"
+                            title={item.branchName}
+                            className="hover:underline text-foreground inline-block max-w-[16ch] truncate align-bottom"
                           >
                             {item.branchName}
                           </Link>
