@@ -287,6 +287,14 @@ export function PnlBranchTable() {
       ]),
     ];
 
+    if (salesPartial) {
+      lineas.push(
+        fila([
+          `Nota: el total de ventas es una suma parcial (${salesWithDataMember} de ${groupCount} sucursales con ventas capturadas).`,
+        ])
+      );
+    }
+
     const blob = new Blob([`\uFEFF${lineas.join("\n")}`], {
       type: "text/csv;charset=utf-8;",
     });
@@ -363,6 +371,11 @@ export function PnlBranchTable() {
 
   /** Sucursales cuyo margen no es confiable porque algún insumo no es MEASURED. */
   const approximateCount = pnlData.filter((b) => b.weakestLine !== "MEASURED").length;
+
+  // El número más grande de la pantalla también declara de dónde salió: si se
+  // suma solo sobre las sucursales con ventas capturadas, no puede verse firme.
+  const salesWithDataMember = pnlData.filter((b) => b.sales.source !== "NO_DATA").length;
+  const salesPartial = groupCount > 0 && salesWithDataMember < groupCount;
 
   /** Notas al pie: solo los métodos que realmente aparecen en la tabla. */
   const footnotes = useMemo(() => {
@@ -540,7 +553,26 @@ export function PnlBranchTable() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-bold">
-                      {totals.salesHasData ? formatMXN(totals.sales) : "—"}
+                      {totals.salesHasData ? (
+                        <NoteTip
+                          note={
+                            salesPartial
+                              ? `Suma parcial: ${salesWithDataMember} de ${groupCount} sucursales tienen ventas capturadas en el período.`
+                              : null
+                          }
+                        >
+                          <span>
+                            {formatMXN(totals.sales)}
+                            {salesPartial && (
+                              <sup className="ml-0.5" aria-hidden="true">
+                                ≈
+                              </sup>
+                            )}
+                          </span>
+                        </NoteTip>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       {totals.lineHasData.foodCost ? pct(totals.foodCost) : "—"}
