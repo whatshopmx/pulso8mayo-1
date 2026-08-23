@@ -290,7 +290,9 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">{item.detail}</p>
+                  {/* line-clamp y no truncate: la sucursal vive aquí adentro,
+                      y cortarla a un renglón dejaba el caso sin identificar. */}
+                  <p className="text-xs text-muted-foreground line-clamp-2">{item.detail}</p>
                 </div>
                 <span className="sr-only">Severidad: {SEVERITY_LABEL[item.severity]}</span>
                 <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" aria-hidden />
