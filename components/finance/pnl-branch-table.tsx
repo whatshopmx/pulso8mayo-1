@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TrendingUp, Loader2, AlertTriangle, AlertCircle, Download } from "lucide-react";
+import { formatCents } from "@/lib/utils";
 import type { BranchPnL, LineSource, PnLLine } from "@/lib/services/pnl-types";
 
 export type BranchPnLItem = BranchPnL;
@@ -35,9 +36,6 @@ const SOURCE_CLASS: Record<LineSource, string> = {
   SECTOR_DEFAULT: "text-warning-text italic",
   NO_DATA: "text-muted-foreground",
 };
-
-const formatMXN = (cents: number) =>
-  (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 
 /** Nota de celda accesible: Tooltip Radix (foco de teclado + táctil) en vez de `title`. */
 function NoteTip({ note, children }: { note?: string | null; children: ReactNode }) {
@@ -86,7 +84,7 @@ function LineCell({
     <TableCell className={`text-right ${SOURCE_CLASS[value.source]} ${className}`}>
       <NoteTip note={note}>
         <span>
-          {mode === "money" ? formatMXN(value.cents) : `${value.percentOfSales}%`}
+          {mode === "money" ? formatCents(value.cents) : `${value.percentOfSales}%`}
           {MARKER[value.source] && (
             <sup className="ml-0.5 font-semibold" aria-hidden="true">
               {MARKER[value.source]}
@@ -119,7 +117,7 @@ function ProfitCell({
             <span aria-label="Sin datos">—</span>
           ) : (
             <>
-              {formatMXN(value.cents)} · {value.percentOfSales !== null ? `${value.percentOfSales}%` : "—"}
+              {formatCents(value.cents)} · {value.percentOfSales !== null ? `${value.percentOfSales}%` : "—"}
               {approximate && (
                 <sup className="ml-0.5" aria-hidden="true">
                   ≈
@@ -562,7 +560,7 @@ export function PnlBranchTable() {
                           }
                         >
                           <span>
-                            {formatMXN(totals.sales)}
+                            {formatCents(totals.sales)}
                             {salesPartial && (
                               <sup className="ml-0.5" aria-hidden="true">
                                 ≈
@@ -582,7 +580,7 @@ export function PnlBranchTable() {
                     </TableCell>
                     <TableCell className="text-right font-bold">
                       {totals.lineHasData.operatingExpenses
-                        ? formatMXN(totals.operatingExpenses)
+                        ? formatCents(totals.operatingExpenses)
                         : "—"}
                     </TableCell>
                     <TableCell
@@ -591,7 +589,7 @@ export function PnlBranchTable() {
                       }`}
                     >
                       {totals.salesHasData
-                        ? `${formatMXN(totals.operatingProfit)} · ${pct(totals.operatingProfit)}`
+                        ? `${formatCents(totals.operatingProfit)} · ${pct(totals.operatingProfit)}`
                         : "—"}
                     </TableCell>
                     <TableCell className="text-center">
@@ -620,7 +618,7 @@ export function PnlBranchTable() {
                     const mermaNote =
                       item.waste.source === "NO_DATA"
                         ? "Merma del período: sin datos capturados."
-                        : `Merma del período: ${formatMXN(item.waste.cents)}${
+                        : `Merma del período: ${formatCents(item.waste.cents)}${
                             MARKER[item.waste.source] || ""
                           }.`;
                     return (
