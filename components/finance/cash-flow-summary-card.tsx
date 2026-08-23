@@ -132,7 +132,9 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
           </p>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Tres columnas desde sm: con grid-cols-2 el tercer stat caía
+                solo en su propia fila en tablet. */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">Saldo inicial</p>
                 {summary.initialBalanceCents === null ? (
