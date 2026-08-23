@@ -34,63 +34,79 @@ import {
  * alcanza (tesorería) → dónde gano y dónde pierdo (P&L).
  */
 
-/** Accesos a las pantallas de captura y detalle del módulo. */
-const SUBSECTIONS = [
+/** Accesos a las pantallas de captura y detalle del módulo, agrupados por
+ *  la pregunta que responden: qué capturo hoy, a quién le pago, cómo cumplo. */
+const SECTION_GROUPS = [
   {
-    title: "Cortes de Ventas",
-    description: "Ingesta diaria del POS y arqueo de caja",
-    href: "/dashboard/sales",
-    icon: Coins,
+    label: "Operación del día",
+    items: [
+      {
+        title: "Cortes de Ventas",
+        description: "Ingesta diaria del POS y arqueo de caja",
+        href: "/dashboard/sales",
+        icon: Coins,
+      },
+      {
+        title: "Gastos Operativos",
+        description: "Captura y autorización por nivel",
+        href: "/dashboard/finance/expenses",
+        icon: Receipt,
+      },
+      {
+        title: "Caja Chica",
+        description: "Fondo por sucursal y reposiciones",
+        href: "/dashboard/finance/petty-cash",
+        icon: Wallet,
+      },
+    ],
   },
   {
-    title: "Gastos Operativos",
-    description: "Captura y autorización por nivel",
-    href: "/dashboard/finance/expenses",
-    icon: Receipt,
+    label: "A quién le pago",
+    items: [
+      {
+        title: "Cuentas por Pagar",
+        description: "Lo que se debe, con antigüedad y vencimientos",
+        href: "/dashboard/finance/payables",
+        icon: FileText,
+      },
+      {
+        title: "Contrapartes",
+        description: "A quién se le paga: renta, luz, gas, servicios",
+        href: "/dashboard/finance/payees",
+        icon: Handshake,
+      },
+      {
+        title: "Flujo de Efectivo",
+        description: "Calendario de salidas a 30 días",
+        href: "/dashboard/finance/cash-flow",
+        icon: Calendar,
+      },
+    ],
   },
   {
-    title: "Cuentas por Pagar",
-    description: "Lo que se debe, con antigüedad y vencimientos",
-    href: "/dashboard/finance/payables",
-    icon: FileText,
-  },
-  {
-    title: "Contrapartes",
-    description: "A quién se le paga: renta, luz, gas, servicios",
-    href: "/dashboard/finance/payees",
-    icon: Handshake,
-  },
-  {
-    title: "Caja Chica",
-    description: "Fondo por sucursal y reposiciones",
-    href: "/dashboard/finance/petty-cash",
-    icon: Wallet,
-  },
-  {
-    title: "Flujo de Efectivo",
-    description: "Calendario de salidas a 30 días",
-    href: "/dashboard/finance/cash-flow",
-    icon: Calendar,
-  },
-  {
-    title: "Control Interno",
-    description: "Bitácora de autorizaciones y excepciones",
-    href: "/dashboard/finance/control-interno",
-    icon: Shield,
-  },
-  {
-    title: "Fiscal y Facturación",
-    description: "Validación CFDI y timbrado de nómina",
-    href: "/dashboard/finance/fiscal",
-    icon: Receipt,
-  },
-  {
-    // Los objetivos se leen arriba en cada semáforo; el camino para cambiarlos
-    // debe salir de aquí y no de buscarlos en Organización.
-    title: "Objetivos de Costo",
-    description: "Umbrales de food cost, labor cost y margen",
-    href: "/dashboard/company/operating-config",
-    icon: Target,
+    label: "Control y cumplimiento",
+    items: [
+      {
+        title: "Control Interno",
+        description: "Bitácora de autorizaciones y excepciones",
+        href: "/dashboard/finance/control-interno",
+        icon: Shield,
+      },
+      {
+        title: "Fiscal y Facturación",
+        description: "Validación CFDI y timbrado de nómina",
+        href: "/dashboard/finance/fiscal",
+        icon: Receipt,
+      },
+      {
+        // Los objetivos se leen arriba en cada semáforo; el camino para cambiarlos
+        // debe salir de aquí y no de buscarlos en Organización.
+        title: "Objetivos de Costo",
+        description: "Umbrales de food cost, labor cost y margen",
+        href: "/dashboard/company/operating-config",
+        icon: Target,
+      },
+    ],
   },
 ] as const;
 
@@ -125,31 +141,39 @@ export default function FinanceOverviewPage() {
           scope del encabezado porque su valor está justamente en verlas juntas. */}
       <PnlBranchTable />
 
-      {/* Accesos al detalle y a la captura. */}
-      <div>
-        <h2 className="text-sm font-semibold text-muted-foreground mb-3">Detalle y captura</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {SUBSECTIONS.map((section) => (
-            <Link
-              key={section.href}
-              href={section.href}
-              className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Card className="h-full transition-colors hover:bg-muted/50">
-                <CardContent className="flex items-start gap-3 p-4">
-                  <span className="mt-0.5 shrink-0 rounded-md border border-border p-2 text-primary">
-                    <section.icon className="w-4 h-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{section.title}</p>
-                    <p className="text-xs text-muted-foreground">{section.description}</p>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1" aria-hidden />
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+      {/* Accesos al detalle y la captura, agrupados para que buscar un módulo
+          sea recorrer tres rótulos y no nueve tarjetas sueltas. */}
+      <div className="space-y-5">
+        {SECTION_GROUPS.map((group) => (
+          <section key={group.label}>
+            <h2 className="text-sm font-semibold text-muted-foreground mb-3">{group.label}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {group.items.map((section) => (
+                <Link
+                  key={section.href}
+                  href={section.href}
+                  className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Card className="h-full transition-colors hover:bg-muted/50">
+                    <CardContent className="flex items-start gap-3 p-4">
+                      <span className="mt-0.5 shrink-0 rounded-md border border-border p-2 text-primary">
+                        <section.icon className="w-4 h-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{section.title}</p>
+                        <p className="text-xs text-muted-foreground">{section.description}</p>
+                      </div>
+                      <ArrowRight
+                        className="w-4 h-4 text-muted-foreground shrink-0 mt-1"
+                        aria-hidden
+                      />
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
     </div>
   );
