@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { TrendingUp, Info, Loader2, AlertTriangle, AlertCircle } from "lucide-react";
+import { TrendingUp, Loader2, AlertTriangle, AlertCircle } from "lucide-react";
 import type { BranchPnL, LineSource, PnLLine } from "@/lib/services/pnl-types";
 
 export type BranchPnLItem = BranchPnL;
@@ -58,20 +58,24 @@ function NoteTip({ note, children }: { note?: string | null; children: ReactNode
 function LineCell({
   value,
   mode,
+  extraNote,
   className = "",
 }: {
   value: PnLLine;
   mode: "money" | "percent";
+  /** Nota adicional (p. ej. la merma del período) que vive en el tooltip. */
+  extraNote?: string;
   className?: string;
 }) {
   const isNoData = value.source === "NO_DATA";
   const percentUnavailable = mode === "percent" && value.percentOfSales === null;
+  const note = [value.note, extraNote].filter(Boolean).join(" ") || null;
 
   // Sin datos (o sin ventas contra las que calcular un %) → guion, no cero.
   if (isNoData || percentUnavailable) {
     return (
       <TableCell className={`text-right text-muted-foreground ${className}`}>
-        <NoteTip note={value.note}>
+        <NoteTip note={note}>
           <span aria-label="Sin datos">—</span>
         </NoteTip>
       </TableCell>
@@ -80,7 +84,7 @@ function LineCell({
 
   return (
     <TableCell className={`text-right ${SOURCE_CLASS[value.source]} ${className}`}>
-      <NoteTip note={value.note}>
+      <NoteTip note={note}>
         <span>
           {mode === "money" ? formatMXN(value.cents) : `${value.percentOfSales}%`}
           {MARKER[value.source] && (
@@ -91,6 +95,67 @@ function LineCell({
         </span>
       </NoteTip>
     </TableCell>
+  );
+}
+
+/** Celda de utilidad: pesos y margen juntos, con la procedencia del renglón. */
+function ProfitCell({
+  value,
+  approximate,
+}: {
+  value: PnLLine;
+  approximate: boolean;
+}) {
+  const isNoData = value.source === "NO_DATA";
+  return (
+    <TableCell
+      className={`text-right font-bold bg-success/5 ${
+        isNoData ? "text-muted-foreground" : value.cents >= 0 ? "text-success" : "text-destructive"
+      }`}
+    >
+      <NoteTip note={value.note}>
+        <span>
+          {isNoData ? (
+            <span aria-label="Sin datos">—</span>
+          ) : (
+            <>
+              {formatMXN(value.cents)} · {value.percentOfSales !== null ? `${value.percentOfSales}%` : "—"}
+              {approximate && (
+                <sup className="ml-0.5" aria-hidden="true">
+                  ≈
+                </sup>
+              )}
+            </>
+          )}
+        </span>
+      </NoteTip>
+    </TableCell>
+  );
+}
+
+/** Confianza como punto de color + texto para lectores de pantalla, no badge icon-only. */
+function ConfidenceDot({
+  approximate,
+  label,
+  detail,
+}: {
+  approximate: boolean;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className="inline-flex justify-center cursor-help">
+          <span
+            aria-hidden="true"
+            className={`w-2 h-2 rounded-full ${approximate ? "bg-warning" : "bg-success"}`}
+          />
+          <span className="sr-only">{label}</span>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-72">{detail}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -215,7 +280,8 @@ export function PnlBranchTable() {
             <TrendingUp className="w-5 h-5 text-primary" /> P&L Operativo por Sucursal (Neto sin IVA)
           </CardTitle>
           <CardDescription className="text-xs mt-0.5 max-w-[70ch]">
-            Utilidad Operativa = Ventas − Alimentos − Merma − Nómina − Gastos Operativos.
+            Utilidad Operativa = Ventas − Alimentos − Merma − Nómina − Gastos Operativos. La merma
+            del período está en el tooltip de Food Cost.
           </CardDescription>
         </div>
 
@@ -291,11 +357,9 @@ export function PnlBranchTable() {
                     <TableHead>Sucursal</TableHead>
                     <TableHead className="text-right">Venta Neta</TableHead>
                     <TableHead className="text-right">Food Cost %</TableHead>
-                    <TableHead className="text-right">Merma</TableHead>
                     <TableHead className="text-right">Nómina %</TableHead>
                     <TableHead className="text-right">Gastos Operativos</TableHead>
-                    <TableHead className="text-right bg-success/5">Utilidad ($)</TableHead>
-                    <TableHead className="text-right bg-success/5">Margen %</TableHead>
+                    <TableHead className="text-right bg-success/5">Utilidad ($ y %)</TableHead>
                     <TableHead className="text-center">Confianza</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -315,9 +379,6 @@ export function PnlBranchTable() {
                       {totals.lineHasData.foodCost ? pct(totals.foodCost) : "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      {totals.lineHasData.waste ? formatMXN(totals.waste) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
                       {totals.lineHasData.labor ? pct(totals.labor) : "—"}
                     </TableCell>
                     <TableCell className="text-right font-bold">
@@ -330,39 +391,39 @@ export function PnlBranchTable() {
                         totals.operatingProfit >= 0 ? "text-success" : "text-destructive"
                       }`}
                     >
-                      {totals.salesHasData ? formatMXN(totals.operatingProfit) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-bold bg-success/10">
-                      {pct(totals.operatingProfit)}
+                      {totals.salesHasData
+                        ? `${formatMXN(totals.operatingProfit)} · ${pct(totals.operatingProfit)}`
+                        : "—"}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Badge
-                            variant={totals.incompleteLines > 0 ? "outline" : "secondary"}
-                            tabIndex={0}
-                            className="text-xs gap-1 font-semibold"
-                          >
-                            <Info className="w-3 h-3" />
-                            <span className="hidden lg:inline">
-                              {totals.incompleteLines > 0
-                                ? `${totals.incompleteLines} sin datos`
-                                : "Completo"}
-                            </span>
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-72">
-                          {totals.incompleteLines > 0
+                      <ConfidenceDot
+                        approximate={totals.incompleteLines > 0}
+                        label={
+                          totals.incompleteLines > 0
+                            ? `${totals.incompleteLines} sin datos`
+                            : "Completo"
+                        }
+                        detail={
+                          totals.incompleteLines > 0
                             ? `${totals.incompleteLines} renglón(es) sin datos entre todas las sucursales`
-                            : "Todos los renglones tienen datos capturados"}
-                        </TooltipContent>
-                      </Tooltip>
+                            : "Todos los renglones tienen datos capturados"
+                        }
+                      />
                     </TableCell>
                   </TableRow>
 
                   {/* Sucursales */}
                   {paginated.map((item) => {
                     const approximate = item.weakestLine !== "MEASURED";
+                    // La merma vive en el tooltip del food cost: es el par
+                    // natural (merma inflama food cost) y saca una columna de
+                    // la tabla sin esconder el dato.
+                    const mermaNote =
+                      item.waste.source === "NO_DATA"
+                        ? "Merma del período: sin datos capturados."
+                        : `Merma del período: ${formatMXN(item.waste.cents)}${
+                            MARKER[item.waste.source] || ""
+                          }.`;
                     return (
                       <TableRow key={item.branchId} className="hover:bg-muted/40 transition text-xs">
                         <TableCell className="font-medium">
@@ -374,69 +435,24 @@ export function PnlBranchTable() {
                           </Link>
                         </TableCell>
                         <LineCell value={item.sales} mode="money" className="font-medium" />
-                        <LineCell value={item.foodCost} mode="percent" />
-                        <LineCell value={item.waste} mode="money" />
+                        <LineCell value={item.foodCost} mode="percent" extraNote={mermaNote} />
                         <LineCell value={item.labor} mode="percent" />
                         <LineCell
                           value={item.operatingExpenses}
                           mode="money"
                           className="font-medium"
                         />
-                        <TableCell
-                          className={`text-right font-bold bg-success/5 ${
-                            item.operatingProfit.source === "NO_DATA"
-                              ? "text-muted-foreground"
-                              : item.operatingProfit.cents >= 0
-                                ? "text-success"
-                                : "text-destructive"
-                          }`}
-                        >
-                          <NoteTip note={item.operatingProfit.note}>
-                            <span>
-                              {item.operatingProfit.source === "NO_DATA"
-                                ? "—"
-                                : formatMXN(item.operatingProfit.cents)}
-                              {approximate && item.operatingProfit.source !== "NO_DATA" && (
-                                <sup className="ml-0.5" aria-hidden="true">
-                                  ≈
-                                </sup>
-                              )}
-                            </span>
-                          </NoteTip>
-                        </TableCell>
-                        <LineCell
-                          value={item.operatingProfit}
-                          mode="percent"
-                          className="font-bold bg-success/5"
-                        />
+                        <ProfitCell value={item.operatingProfit} approximate={approximate} />
                         <TableCell className="text-center">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Badge
-                                variant="outline"
-                                tabIndex={0}
-                                className={`text-xs gap-1 ${
-                                  approximate
-                                    ? "border-warning/40 text-warning-text"
-                                    : "bg-muted/30"
-                                }`}
-                              >
-                                {approximate ? (
-                                  <AlertTriangle className="w-3 h-3" />
-                                ) : (
-                                  <Info className="w-3 h-3 text-muted-foreground" />
-                                )}
-                                <span className="hidden lg:inline">
-                                  {approximate ? "Aproximado" : "Medido"}
-                                </span>
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-72">
-                              {approximate
+                          <ConfidenceDot
+                            approximate={approximate}
+                            label={approximate ? "Aproximado" : "Medido"}
+                            detail={
+                              approximate
                                 ? `Renglón más débil: ${item.weakestLine}. ${item.operatingProfit.note}`
-                                : "Los cuatro renglones se calcularon con tus datos"}
-                            </TooltipContent>
-                          </Tooltip>
+                                : "Los cuatro renglones se calcularon con tus datos"
+                            }
+                          />
                         </TableCell>
                       </TableRow>
                     );
@@ -444,7 +460,7 @@ export function PnlBranchTable() {
 
                   {paginated.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-6 text-xs text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-6 text-xs text-muted-foreground">
                         No se encontraron sucursales con el filtro actual.
                       </TableCell>
                     </TableRow>
