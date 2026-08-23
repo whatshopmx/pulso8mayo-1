@@ -130,7 +130,7 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
           collected.push({
             id: `violation-${v.id}`,
             severity: v.severity,
-            icon: <ShieldAlert className="w-4 h-4" />,
+            icon: <ShieldAlert className="w-4 h-4 text-muted-foreground" />,
             title: v.description,
             detail: `${v.branchName} · ${v.detail}`,
             amountCents: v.amountCents,
@@ -151,7 +151,7 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
           collected.push({
             id: `expense-${e.id}`,
             severity: age >= 2 ? "HIGH" : "MEDIUM",
-            icon: <Clock className="w-4 h-4" />,
+            icon: <Clock className="w-4 h-4 text-muted-foreground" />,
             title: "Gasto pendiente de autorización",
             detail:
               `${e.branchName} · ${e.category}` +
@@ -176,7 +176,7 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
             // Un faltante es dinero que no está; un sobrante es un error de
             // captura o de cobro. No pesan igual.
             severity: arqueo.direction === "faltante" ? "HIGH" : "MEDIUM",
-            icon: <Wallet className="w-4 h-4" />,
+            icon: <Wallet className="w-4 h-4 text-muted-foreground" />,
             title: `Arqueo con ${arqueo.direction}`,
             detail: `${c.branchName} · corte del ${c.businessDate}`,
             amountCents: arqueo.varianceCents,
@@ -272,6 +272,8 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
                 href={item.href}
                 className="flex items-start gap-3 rounded-md border border-border p-3 hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
+                {/* El tono de severidad vive en el anillo; el glifo queda mudo
+                    para que el rojo no se multiplique renglón tras renglón. */}
                 <span
                   className={`mt-0.5 shrink-0 rounded-full border p-1.5 ${statusBadgeClasses(
                     SEVERITY_TONE[item.severity],
