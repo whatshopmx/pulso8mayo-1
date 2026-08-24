@@ -25,13 +25,16 @@ interface HighValueItem {
  * catálogo priorizado para el conteo semanal y la antigüedad del último
  * conteo por SKU.
  */
-export function HighValueSkusSection() {
+export function HighValueSkusSection({ branchId }: { branchId?: string }) {
   const [items, setItems] = useState<HighValueItem[] | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/inventory/high-value")
+    const url = branchId
+      ? `/api/inventory/high-value?branchId=${encodeURIComponent(branchId)}`
+      : "/api/inventory/high-value";
+    fetch(url)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => {
         if (!cancelled) setItems(data.items ?? []);
@@ -42,7 +45,7 @@ export function HighValueSkusSection() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [branchId]);
 
   if (error) return null;
 

@@ -117,7 +117,7 @@ export default function InventoryPage() {
         />
 
         {/* Fase 4: SKUs de alto valor (conteo semanal 80/20) */}
-        <HighValueSkusSection />
+        <HighValueSkusSection key={activeBranchId ?? "all"} branchId={activeBranchId} />
 
         {/* 3. Dónde empiezo — strip delgado */}
         <section aria-label="Acciones del día">

@@ -7,9 +7,11 @@ import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { STOCK_COUNT_TEMPLATE_NAME } from "@/lib/services/stock-count-service";
 
 /**
- * GET /api/inventory/high-value
+ * GET /api/inventory/high-value?branchId=
  * Fase 4: SKUs de alto valor (80/20) con la fecha del último conteo físico y su
  * inventario teórico. Alimenta la sección "SKUs de alto valor" del dashboard.
+ * Sin branchId => cadena completa (último conteo en cualquier sucursal);
+ * con branchId => solo historial de conteos de esa sucursal.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -21,6 +23,21 @@ export async function GET(req: NextRequest) {
     if (!hasPermission(user.role, "inventory", "read")) {
       return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
     }
+
+    const requestedBranchId = req.nextUrl.searchParams.get("branchId") || undefined;
+
+    // Sucursales de la empresa: validan el branchId pedido y acotan las
+    // instancias de conteo al tenant.
+    const branchRows = await db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(eq(branches.companyId, tenant.id));
+    const branchIds = branchRows.map((b) => b.id);
+
+    if (requestedBranchId && !branchIds.includes(requestedBranchId)) {
+      return NextResponse.json({ error: "Sucursal no encontrada" }, { status: 404 });
+    }
+    const scopeBranchIds = requestedBranchId ? [requestedBranchId] : branchIds;
 
     const items = await db
       .select({
@@ -42,21 +59,13 @@ export async function GET(req: NextRequest) {
     const lastCountPerItem = new Map<string, { instanceId: string; completedAt: Date }>();
 
     try {
-      // Las instancias de conteo se agrupan por sucursal; acotamos al tenant
-      // mediante las sucursales de la empresa.
-      const branchRows = await db
-        .select({ id: branches.id })
-        .from(branches)
-        .where(eq(branches.companyId, tenant.id));
-      const branchIds = branchRows.map((b) => b.id);
-
       const counts = await db
         .select({ instanceId: workflowInstances.id, completedAt: workflowInstances.completedAt })
         .from(workflowInstances)
         .innerJoin(workflowTemplates, eq(workflowInstances.workflowTemplateId, workflowTemplates.id))
         .where(
           and(
-            branchIds.length > 0 ? inArray(workflowInstances.branchId, branchIds) : sql`1=0`,
+            scopeBranchIds.length > 0 ? inArray(workflowInstances.branchId, scopeBranchIds) : sql`1=0`,
             eq(workflowInstances.status, "COMPLETED"),
             eq(workflowTemplates.name, STOCK_COUNT_TEMPLATE_NAME)
           )
