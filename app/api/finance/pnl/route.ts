@@ -4,7 +4,7 @@ import { maskSensitive } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import { resolveBranchScope } from "@/lib/branch-scope";
-import { getPnLByBranch } from "@/lib/services/pnl-service";
+import { getPnLByBranch, resolvePnlPeriod } from "@/lib/services/pnl-service";
 
 /**
  * GET /api/finance/pnl
@@ -65,6 +65,9 @@ export async function GET(req: NextRequest) {
       fullyMeasuredBranchCount: pnl.length - estimatedBranches.length,
       /** `true` si algún renglón de alguna sucursal NO se calculó con datos del cliente. */
       containsEstimates: estimatedBranches.length > 0,
+      // El período efectivo viaja con la respuesta: la UI lo rotula en el
+      // encabezado y el export CSV declara qué cubre.
+      period: resolvePnlPeriod(startDate, endDate),
       warning:
         estimatedBranches.length > 0
           ? "Al menos un renglón del P&L no se calcula con datos del cliente. " +

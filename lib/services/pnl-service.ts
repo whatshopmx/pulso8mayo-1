@@ -50,17 +50,31 @@ function daysBetween(startDay: string, endDay: string): number {
   return Math.max(1, Math.round(ms / 86_400_000) + 1);
 }
 
+/**
+ * Resuelve el período efectivo del P&L. Exportado para que la ruta lo publique
+ * en `meta`: un entregable financiero sin período no se puede archivar ni
+ * comparar, y el consumidor no debe tener que adivinar los defaults.
+ */
+export function resolvePnlPeriod(startDate?: string, endDate?: string) {
+  // Sin período explícito se usan los últimos 30 días, que es la ventana
+  // operativa HORECA y la que ya asumía la cobertura anterior.
+  const endDate_ = endDate ? toDayString(endDate) : new Date().toISOString().slice(0, 10);
+  const startDate_ = startDate
+    ? toDayString(startDate)
+    : new Date(Date.now() - DEFAULT_PERIOD_DAYS * 86_400_000).toISOString().slice(0, 10);
+  return {
+    startDate: startDate_,
+    endDate: endDate_,
+    days: daysBetween(startDate_, endDate_),
+  };
+}
+
 export async function getPnLByBranch(
   companyId: string,
   startDate?: string,
   endDate?: string,
 ): Promise<BranchPnL[]> {
-  // Sin período explícito se usan los últimos 30 días, que es la ventana
-  // operativa HORECA y la que ya asumía la cobertura anterior.
-  const endDay = endDate ? toDayString(endDate) : new Date().toISOString().slice(0, 10);
-  const startDay = startDate
-    ? toDayString(startDate)
-    : new Date(Date.now() - DEFAULT_PERIOD_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const { startDate: startDay, endDate: endDay } = resolvePnlPeriod(startDate, endDate);
   const periodDays = daysBetween(startDay, endDay);
 
   const branchList = await db

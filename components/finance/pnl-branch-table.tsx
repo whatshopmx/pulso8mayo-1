@@ -195,6 +195,9 @@ function SortableHead({
 
 export function PnlBranchTable() {
   const [pnlData, setPnlData] = useState<BranchPnLItem[]>([]);
+  const [period, setPeriod] = useState<{ startDate: string; endDate: string; days: number } | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -245,6 +248,12 @@ export function PnlBranchTable() {
     const lineas: string[] = [
       fila(["P&L operativo por sucursal · Neto sin IVA"]),
       fila(["Exportado", new Date().toISOString().slice(0, 10)]),
+      fila([
+        "Período",
+        period?.startDate ?? "",
+        period?.endDate ?? "",
+        period ? `${period.days} días` : "",
+      ]),
       "",
       fila([
         "Sucursal",
@@ -322,6 +331,7 @@ export function PnlBranchTable() {
         return;
       }
       setPnlData(json.data?.branches ?? []);
+      setPeriod(json.data?.meta?.period ?? null);
     } catch (err) {
       console.error("Failed to load P&L data:", err);
       setFailed(true);
@@ -446,6 +456,14 @@ export function PnlBranchTable() {
           <CardDescription className="text-xs mt-0.5 max-w-[70ch]">
             Utilidad Operativa = Ventas − Alimentos − Merma − Nómina − Gastos Operativos. La merma
             del período está en el tooltip de Food Cost.
+            {period && (
+              <>
+                {" "}
+                <span className="font-medium text-foreground">
+                  Período: {period.startDate} a {period.endDate} ({period.days} días).
+                </span>
+              </>
+            )}
           </CardDescription>
         </div>
 
