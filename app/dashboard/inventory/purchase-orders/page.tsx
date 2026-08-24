@@ -486,6 +486,28 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
     { itemId: initialItemId || "", quantity: "", unitCost: "" },
   ]);
   const [priceAlerts, setPriceAlerts] = useState<Record<number, { avgCost: number; increasePercentage: number; exceedsThreshold: boolean } | null>>({});
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+
+  // Un borrador con datos no se descarta en silencio: cualquier intento de
+  // cerrar (Esc, overlay, botón Cancelar) pide confirmación primero.
+  const hasDraft =
+    supplierId !== "" ||
+    notes !== "" ||
+    items.some((i) => i.itemId !== "" || i.quantity !== "" || i.unitCost !== "");
+
+  const requestClose = () => {
+    if (hasDraft) setConfirmCancelOpen(true);
+    else {
+      resetForm();
+      onOpenChange(false);
+    }
+  };
+
+  const discardAndClose = () => {
+    setConfirmCancelOpen(false);
+    resetForm();
+    onOpenChange(false);
+  };
 
   const calculateTotals = () => {
     let subtotal = 0;
@@ -660,7 +682,7 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
   const supplierList = Array.isArray(suppliers) ? suppliers : [];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => { if (!next) requestClose(); else onOpenChange(true); }}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nueva Orden de Compra</DialogTitle>
@@ -800,13 +822,32 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => { onOpenChange(false); resetForm(); }}>Cancelar</Button>
+          <Button variant="outline" onClick={requestClose}>Cancelar</Button>
           <Button onClick={handleSubmit} disabled={createPO.isPending}>
             {createPO.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Crear Orden
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <Dialog open={confirmCancelOpen} onOpenChange={setConfirmCancelOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>¿Descartar la orden?</DialogTitle>
+            <DialogDescription>
+              Los productos y datos que capturaste se perderán.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmCancelOpen(false)}>
+              Seguir editando
+            </Button>
+            <Button variant="destructive" onClick={discardAndClose}>
+              Descartar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
