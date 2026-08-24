@@ -1293,6 +1293,13 @@ export const inventoryWaste = pgTable("inventory_waste", {
      */
     origin: text("origin"),
 
+    /**
+     * Foto de la merma exigida por el template de workflow (`merma-evidence-{itemId}`).
+     * Null en captura manual y en registros anteriores a Task 4
+     * (plan-mermas-historial): el extractor descartaba la URL hasta el fix.
+     */
+    evidenceUrl: text("evidence_url"),
+
     // Audit
     recordedBy: text("recorded_by").notNull(), // User ID
     recordedAt: timestamp("recorded_at").notNull().defaultNow(),

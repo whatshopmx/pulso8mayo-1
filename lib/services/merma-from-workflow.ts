@@ -271,6 +271,10 @@ export async function extractMermaFromInstance(instanceId: string): Promise<void
           // A9: instancia y origen en columnas, no sólo en el texto de `notes`.
           workflowInstanceId: instanceId,
           origin: "workflow_merma",
+          // Task 4 (plan-mermas-historial): la foto exigida por el paso
+          // `merma-evidence-{itemId}` ya venía parseada y se descartaba
+          // (NOM-251). Null cuando el paso no trajo URL válida.
+          evidenceUrl: m.evidenceUrl ?? null,
           notes: `Merma registrada desde workflow; instance:${instanceId}; origen=workflow_merma`,
         };
       })

@@ -1,21 +1,22 @@
-import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { getSession } from '@/lib/auth';
-import { enforceBranchScope } from '@/lib/branch-scope';
-import { BRANCH_COOKIE_NAME } from '@/lib/branch-cookies';
-import type { Role } from '@/lib/permissions';
-import { Card, CardContent } from '@/components/ui/card';
-import { AlertTriangle } from 'lucide-react';
-import { WasteClient } from './waste-client';
-import { PageHeader, PageContainer } from '@/components/shared';
-
-export const metadata = {
-  title: 'Registro de Mermas | Pulso',
-};
+import { AlertTriangle } from "lucide-react";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { getSession } from "@/lib/auth";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import { BRANCH_COOKIE_NAME } from "@/lib/branch-cookies";
+import type { Role } from "@/lib/permissions";
+import { PageContainer, PageHeader } from "@/components/shared";
+import { Card, CardContent } from "@/components/ui/card";
+import { WasteHistoryClient } from "./waste-history-client";
+import { RegistrarMermaDialog } from "./registrar-merma-dialog";
 
 interface Props {
-  searchParams: Promise<{ item?: string }>;
+  searchParams: Promise<{ item?: string; registrar?: string }>;
 }
+
+export const metadata = {
+  title: "Mermas | Pulso",
+};
 
 export default async function WastePage({ searchParams }: Props) {
   const session = await getSession();
@@ -31,15 +32,15 @@ export default async function WastePage({ searchParams }: Props) {
   // (cookie). Sin alcance elegido ("Todas") la merma exige elegir una.
   const cookieStore = await cookies();
   const requestedBranchId = cookieStore.get(BRANCH_COOKIE_NAME)?.value ?? null;
-  const role = (session.user as { role?: Role }).role ?? "ADMIN";
+  const role = (session.user as { role?: Role }).role ?? ("ADMIN" as Role);
   const branchId = enforceBranchScope(role, session.user.branchId, requestedBranchId);
 
   if (!branchId) {
     return (
       <PageContainer>
         <PageHeader
-          title="Registro de Mermas"
-          description="Registra productos vencidos, dañados o con problemas de calidad"
+          title="Mermas"
+          description="Historial y registro de mermas de la sucursal"
           icon={AlertTriangle}
         />
         <Card>
@@ -47,7 +48,7 @@ export default async function WastePage({ searchParams }: Props) {
             <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Selecciona una Sucursal</h2>
             <p className="text-muted-foreground">
-              Necesitas estar en el contexto de una sucursal para registrar mermas.
+              Necesitas estar en el contexto de una sucursal para ver y registrar mermas.
             </p>
           </CardContent>
         </Card>
@@ -55,14 +56,22 @@ export default async function WastePage({ searchParams }: Props) {
     );
   }
 
+  // Historial como contenido default (plan-mermas-historial Task 3); el alta
+  // vive en el dialog del header. El formulario no cambió — mismo WasteForm.
   return (
     <PageContainer>
       <PageHeader
-        title="Registro de Mermas"
-        description="Registra productos vencidos, dañados o con problemas de calidad"
+        title="Mermas"
+        description="Historial de mermas con detalle por producto, motivo y origen"
         icon={AlertTriangle}
+        actions={
+          <RegistrarMermaDialog
+            branchId={branchId}
+            preselectedItemId={preselectedItemId}
+          />
+        }
       />
-      <WasteClient branchId={branchId} preselectedItemId={preselectedItemId} />
+      <WasteHistoryClient branchId={branchId} />
     </PageContainer>
   );
 }

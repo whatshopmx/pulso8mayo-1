@@ -1,6 +1,17 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import {
+  eq,
+  and,
+  desc,
+  gte,
+  lte,
+  ilike,
+  or,
+  inArray,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import {
   inventoryWaste,
   inventoryWasteReasonEnum,
@@ -8,6 +19,7 @@ import {
   inventoryItems,
   inventoryMovements,
   branches,
+  users,
 } from "@/lib/db/schema";
 import { AuditService } from "@/lib/services/audit-service";
 import { withTenantAuth } from "@/lib/api/with-auth";
@@ -65,7 +77,12 @@ export const GET = withTenantAuth(async (req: NextRequest, { auth }) => {
   // de esta misma ruta ya cerraba por su cuenta (línea ~159); esto arregla solo
   // la lectura.
   if (alcance.kind === "NONE") {
-    return ApiHandler.success({ waste: [] });
+    // Misma forma que la respuesta con datos, para que el cliente no tenga dos contratos.
+    return ApiHandler.success({
+      waste: [],
+      total: 0,
+      summary: { count: 0, trueWasteLossCents: 0, totalLossCents: 0, byReason: [] },
+    });
   }
 
   const effectiveBranchId = alcance.kind === "BRANCH" ? alcance.branchId : null;
@@ -75,6 +92,77 @@ export const GET = withTenantAuth(async (req: NextRequest, { auth }) => {
     conditions.push(eq(inventoryWaste.branchId, effectiveBranchId));
   }
 
+  // --- Filtros del historial (plan-mermas-historial Task 1) -------------------
+  // `from`/`to` como días de calendario locales (`to` inclusivo hasta el último
+  // ms del día); `limit` topado en 200.
+  const fromDate = parseDateParam(searchParams.get("from"), "from");
+  if (fromDate) conditions.push(gte(inventoryWaste.recordedAt, fromDate));
+
+  const toDate = parseDateParam(searchParams.get("to"), "to", true);
+  if (toDate) conditions.push(lte(inventoryWaste.recordedAt, toDate));
+
+  const reasonParam = searchParams.get("reason");
+  if (reasonParam) {
+    if (!(inventoryWasteReasonEnum.enumValues as readonly string[]).includes(reasonParam)) {
+      throw ApiError.badRequest(`Motivo de merma inválido: ${reasonParam}`);
+    }
+    conditions.push(eq(inventoryWaste.reason, reasonParam as WasteReason));
+  }
+
+  const originParam = searchParams.get("origin");
+  if (originParam) {
+    // `manual` = captura por formulario/API, donde origin es NULL (los tres
+    // valores nombrados los escriben los extractores de workflow).
+    if (originParam === "manual") {
+      conditions.push(isNull(inventoryWaste.origin));
+    } else {
+      conditions.push(eq(inventoryWaste.origin, originParam));
+    }
+  }
+
+  // Categoría y búsqueda viven en `inventory_items`: los aggregates de abajo
+  // necesitan el mismo join para respetar exactamente los mismos filtros.
+  const categoryParam = searchParams.get("category");
+  if (categoryParam) {
+    conditions.push(eq(inventoryItems.category, categoryParam));
+  }
+
+  const q = searchParams.get("q")?.trim();
+  if (q) {
+    conditions.push(
+      or(ilike(inventoryItems.name, `%${q}%`), ilike(inventoryItems.sku, `%${q}%`))!
+    );
+  }
+
+  const limit = Math.min(Number(searchParams.get("limit")) || 50, 200);
+  const offset = Number(searchParams.get("offset")) || 0;
+
+  // Resumen y conteo con los MISMOS filtros que la lista (join a ítems incluido):
+  // los totales no deben cambiar al paginar. STAFF/COURTESY son consumo interno,
+  // no merma real (OQ-1, mismo criterio que inventory-reports-service).
+  const itemJoin = eq(inventoryWaste.itemId, inventoryItems.id);
+
+  const [agg] = await db
+    .select({
+      count: sql<number>`count(*)`,
+      totalLossCents: sql<string>`coalesce(sum(${inventoryWaste.totalLoss}), 0)`,
+      trueWasteLossCents: sql<string>`coalesce(sum(case when ${inventoryWaste.reason} not in ('STAFF', 'COURTESY') then ${inventoryWaste.totalLoss} else 0 end), 0)`,
+    })
+    .from(inventoryWaste)
+    .leftJoin(inventoryItems, itemJoin)
+    .where(and(...conditions));
+
+  const byReasonRows = await db
+    .select({
+      reason: inventoryWaste.reason,
+      entries: sql<number>`count(*)`,
+      lossCents: sql<string>`coalesce(sum(${inventoryWaste.totalLoss}), 0)`,
+    })
+    .from(inventoryWaste)
+    .leftJoin(inventoryItems, itemJoin)
+    .where(and(...conditions))
+    .groupBy(inventoryWaste.reason);
+
   const rows = await db
     .select({
       waste: inventoryWaste,
@@ -83,27 +171,75 @@ export const GET = withTenantAuth(async (req: NextRequest, { auth }) => {
         name: inventoryItems.name,
         sku: inventoryItems.sku,
         unit: inventoryItems.unit,
+        category: inventoryItems.category,
       },
       batch: {
         id: inventoryBatches.id,
         lotNumber: inventoryBatches.lotNumber,
         expirationDate: inventoryBatches.expirationDate,
       },
+      recordedByUser: {
+        id: users.id,
+        name: users.name,
+      },
     })
     .from(inventoryWaste)
-    .leftJoin(inventoryItems, eq(inventoryWaste.itemId, inventoryItems.id))
+    .leftJoin(inventoryItems, itemJoin)
     .leftJoin(inventoryBatches, eq(inventoryWaste.batchId, inventoryBatches.id))
+    .leftJoin(users, eq(inventoryWaste.recordedBy, users.id))
     .where(and(...conditions))
-    .orderBy(desc(inventoryWaste.recordedAt));
+    .orderBy(desc(inventoryWaste.recordedAt))
+    .limit(limit)
+    .offset(offset);
 
   // `quantity` es numeric → string en TS; la UI la recibe como número (patrón T4).
+  // Igual con count(*)/sum(): bigint/numeric llegan como string desde pg.
   const waste = rows.map((row) => ({
     ...row,
     waste: { ...row.waste, quantity: Number(row.waste.quantity) },
   }));
 
-  return ApiHandler.success({ waste });
+  const total = Number(agg?.count ?? 0);
+  return ApiHandler.success({
+    waste,
+    total,
+    limit,
+    offset,
+    summary: {
+      count: total,
+      trueWasteLossCents: Number(agg?.trueWasteLossCents ?? 0),
+      totalLossCents: Number(agg?.totalLossCents ?? 0),
+      byReason: byReasonRows
+        .map((r) => ({
+          reason: r.reason,
+          entries: Number(r.entries),
+          lossCents: Number(r.lossCents),
+        }))
+        .sort((a, b) => b.lossCents - a.lossCents),
+    },
+  });
 });
+
+/**
+ * Parsea un parámetro de fecha. Una fecha suelta `YYYY-MM-DD` es un día de
+ * calendario LOCAL, no medianoche UTC: `new Date("2026-08-24")` parsea como
+ * UTC y en husos negativos (todo LATAM) cae en el día anterior local, así
+ * que encimar `setHours(23:59:59)` sobre eso recorta la ventana y `to=hoy`
+ * termina EXCLUYENDO la tarde completa. Con fecha+hora ISO se respeta tal
+ * cual. Fecha inválida → 400 explícito, no filtro silenciosamente roto.
+ */
+function parseDateParam(raw: string | null, name: string, endOfDay = false): Date | null {
+  if (!raw) return null;
+  const bare = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  const d = bare
+    ? new Date(Number(bare[1]), Number(bare[2]) - 1, Number(bare[3]))
+    : new Date(raw);
+  if (Number.isNaN(d.getTime())) {
+    throw ApiError.badRequest(`Fecha inválida en '${name}': ${raw}`);
+  }
+  if (endOfDay) d.setHours(23, 59, 59, 999);
+  return d;
+}
 
 /**
  * POST /api/inventory/waste — registrar una merma.

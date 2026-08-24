@@ -359,3 +359,44 @@ export function useMovements(params?: {
     staleTime: 15 * 1000,
   })
 }
+
+/**
+ * Historial de mermas con filtros y resumen server-side
+ * (plan-mermas-historial Task 2). Misma forma que la respuesta del GET:
+ * `{ waste, total, limit, offset, summary }`. El summary ya separa merma real
+ * de consumo interno (STAFF/COURTESY) — no recalcular en el cliente.
+ */
+export function useWasteHistory(params?: {
+  branchId?: string
+  from?: string
+  to?: string
+  reason?: string
+  category?: string
+  origin?: string
+  q?: string
+  limit?: number
+  offset?: number
+}) {
+  return useQuery({
+    queryKey: ["inventory", "waste-history", params],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams()
+      if (params?.branchId) searchParams.set("branchId", params.branchId)
+      if (params?.from) searchParams.set("from", params.from)
+      if (params?.to) searchParams.set("to", params.to)
+      if (params?.reason) searchParams.set("reason", params.reason)
+      if (params?.category) searchParams.set("category", params.category)
+      if (params?.origin) searchParams.set("origin", params.origin)
+      if (params?.q) searchParams.set("q", params.q)
+      if (params?.limit) searchParams.set("limit", String(params.limit))
+      if (params?.offset) searchParams.set("offset", String(params.offset))
+      const res = await fetch(`/api/inventory/waste?${searchParams.toString()}`)
+      if (!res.ok) throw new Error("Failed to fetch waste history")
+      // ApiHandler.success envuelve en { success, data }: el cliente consume
+      // `data?.waste` / `data?.summary`, así que se desenvuelve aquí.
+      const json = await res.json()
+      return json.data
+    },
+    staleTime: 15 * 1000,
+  })
+}

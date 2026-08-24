@@ -1,0 +1,1 @@
+ALTER TABLE "inventory_waste" ADD COLUMN "evidence_url" text;

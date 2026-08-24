@@ -379,9 +379,31 @@ export async function getInstanceData(instanceId: string): Promise<any | null> {
   return rows[0] ?? null;
 }
 
-/** Borra todos los artículos de inventario creados por los tests. */
+/**
+ * Borra todos los artículos de inventario creados por los tests.
+ *
+ * Autónomo a propósito: primero borra las filas que apuntan a ítems tagged,
+ * aunque sean de corridas anteriores que murieron a media limpieza (timeout,
+ * kill del proceso). Si sólo limpiara por los ids de la corrida actual, un
+ * huérfano así bloquearía el DELETE con la FK `inventory_waste_item_id_...`
+ * y TODOS los afterEach posteriores fallarían en cadena.
+ *
+ * Quedan fuera `invoice_lines` y `supplier_items` (también tienen FK hacia
+ * ítems): son documentos de negocio; borrarlos en silencio podría corromper
+ * facturas reales. Si algún día un spec enlaza un SKU de prueba a una factura,
+ * esa limpieza es responsabilidad del spec.
+ */
 export async function deleteTestSkus(): Promise<void> {
-  await sql`DELETE FROM inventory_items WHERE name LIKE ${`${E2E_TAG}%`}`;
+  const tag = `${E2E_TAG}%`;
+  // El driver `neon()` no compone fragmentos: el subSELECT se repite en cada
+  // statement con el tag como parámetro.
+  await sql`DELETE FROM inventory_waste WHERE item_id IN (SELECT id FROM inventory_items WHERE name LIKE ${tag})`;
+  await sql`DELETE FROM inventory_movements WHERE item_id IN (SELECT id FROM inventory_items WHERE name LIKE ${tag})`;
+  await sql`DELETE FROM inventory_batches WHERE item_id IN (SELECT id FROM inventory_items WHERE name LIKE ${tag})`;
+  await sql`DELETE FROM inventory_alerts WHERE item_id IN (SELECT id FROM inventory_items WHERE name LIKE ${tag})`;
+  await sql`DELETE FROM stock_counts WHERE item_id IN (SELECT id FROM inventory_items WHERE name LIKE ${tag})`;
+  await sql`DELETE FROM inventory_snapshots WHERE item_id IN (SELECT id FROM inventory_items WHERE name LIKE ${tag})`;
+  await sql`DELETE FROM inventory_items WHERE name LIKE ${tag}`;
 }
 
 /** Borra los cortes de caja creados por los tests (por descripción/fuente). */
@@ -1209,17 +1231,27 @@ export interface WasteRow {
   reason: string;
   recorded_by: string | null;
   notes: string | null;
+  evidence_url?: string | null;
 }
 
 /** Filas de `inventory_waste` cuyo `notes` marca una instancia. */
 export async function findWasteForInstance(instanceId: string): Promise<WasteRow[]> {
   const rows = await sql`
-    SELECT id, company_id, branch_id, item_id, quantity, unit, reason, recorded_by, notes
+    SELECT id, company_id, branch_id, item_id, quantity, unit, reason, recorded_by, notes, evidence_url
     FROM inventory_waste
     WHERE notes LIKE ${`%instance:${instanceId}%`}
     ORDER BY item_id
   `;
   return (rows as WasteRow[]).map((row) => ({ ...row, quantity: Number(row.quantity) }));
+}
+
+/**
+ * Fija (o limpia con `null`) la evidencia de una fila de merma. Sirve para
+ * simular filas "pre-fix" en el spec del backfill: el extractor actual ya
+ * guarda `evidence_url`, así que se escribe y luego se limpiar selectivamente.
+ */
+export async function setWasteEvidenceUrl(wasteId: string, url: string | null): Promise<void> {
+  await sql`UPDATE inventory_waste SET evidence_url = ${url} WHERE id = ${wasteId}`;
 }
 
 /** Borra merma por instancia, más pasos/instancia/template. */

@@ -1,0 +1,61 @@
+// lib/inventory/waste-labels.ts
+//
+// Vocabulario compartido de mermas (plan-mermas-historial Task 2). Un solo
+// módulo sirve al historial, el detalle y futuros links desde movimientos/
+// reportes — evita el drift "motivo del form" vs "motivo del historial".
+//
+// Criterio OQ-1: STAFF y COURTESY son CONSUMO INTERNO (regalo a cliente,
+// comida de personal), no desperdicio. No suman a la pérdida real en ningún
+// lado — ni aquí, ni en inventory-reports-service, ni en el KPI del dashboard.
+
+import type { VariantProps } from "class-variance-authority";
+import { badgeVariants } from "@/components/ui/badge";
+import type { inventoryWasteReasonEnum } from "@/lib/db/schema";
+
+/** Variante de badge disponible (derivada de cva, sin duplicar la unión). */
+type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>;
+
+export type WasteReason = (typeof inventoryWasteReasonEnum.enumValues)[number];
+
+/** Etiqueta ES + variante de badge por motivo. */
+export const REASON_LABELS: Record<WasteReason, { label: string; variant: BadgeVariant }> = {
+  EXPIRED: { label: "Caducidad", variant: "destructive" },
+  DAMAGED: { label: "Dañado", variant: "warning" },
+  QUALITY: { label: "Calidad", variant: "warning" },
+  SPILLAGE: { label: "Derrame", variant: "warning" },
+  OTHER: { label: "Otro", variant: "outline" },
+  STAFF: { label: "Consumo de personal", variant: "secondary" },
+  COURTESY: { label: "Cortesía a cliente", variant: "secondary" },
+};
+
+/**
+ * Origen conocido de la merma (`inventory_waste.origin` es text libre; null =
+ * captura manual vía formulario/API). Los tres valores con nombre los escriben
+ * los extractores de workflow.
+ */
+export const ORIGIN_LABELS: Record<string, { label: string; variant: BadgeVariant }> = {
+  workflow_merma: { label: "Workflow WhatsApp", variant: "default" },
+  diferencia_conteo: { label: "Varianza de conteo", variant: "warning" },
+  lote_insuficiente: { label: "Producción", variant: "outline" },
+};
+
+/** Origen null → captura manual. Función para no duplicar el default. */
+export function originLabel(origin: string | null | undefined): { label: string; variant: BadgeVariant } {
+  if (!origin) return { label: "Captura manual", variant: "secondary" };
+  return ORIGIN_LABELS[origin] ?? { label: origin, variant: "outline" };
+}
+
+/** STAFF/COURTESY son consumo interno: no inflan el % de merma real (OQ-1). */
+export function isInternalConsumption(reason: string): boolean {
+  return reason === "STAFF" || reason === "COURTESY";
+}
+
+/** Opciones para un Select de filtro de motivo, en orden operativo. */
+export const REASON_FILTER_OPTIONS = (
+  Object.keys(REASON_LABELS) as WasteReason[]
+).map((value) => ({ value, label: REASON_LABELS[value].label }));
+
+/** Opciones para un Select de filtro de origen. */
+export const ORIGIN_FILTER_OPTIONS = Object.entries(ORIGIN_LABELS).map(
+  ([value, { label }]) => ({ value, label })
+);
