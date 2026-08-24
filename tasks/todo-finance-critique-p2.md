@@ -22,10 +22,10 @@ si no, documentarlo como gap de backend.
 - [x] Botón "Exportar CSV" visible cuando hay datos; descarga archivo que abre limpio en Excel es-MX (acentos y MXN intactos)
 - [x] El CSV incluye las filas de sucursales paginadas completas (no solo la página visible) y el total de grupo
 - [x] Leyenda de procedencia visible junto a las notas al pie y legible en impresión (`print:` styles o equivalente)
-- [ ] El período analizado aparece en el header del card, no solo en letra fina
-  → **GAP DE BACKEND:** `/api/finance/pnl` no devuelve el período en la respuesta ni en `meta`.
-  Requiere exponer `startDate`/`endDate` efectivos desde `getPnLByBranch` antes de poder cerrar
-  este criterio.
+- [x] El período analizado aparece en el header del card, no solo en letra fina
+  → Cerrado: `resolvePnlPeriod` exportado desde `pnl-service.ts`, `meta.period` en la
+  respuesta de `/api/finance/pnl`, renderizado en el CardDescription y como fila
+  "Período" en el CSV.
 
 **Verification:**
 - [ ] Build: `pnpm run build`
