@@ -49,6 +49,41 @@ interface PickerProduct {
   averageCost?: number | null;
 }
 
+/** Encabezado ordenable operable por teclado: botón real + aria-sort en el th. */
+function SortableHead({
+  label,
+  field,
+  sortField,
+  sortOrder,
+  onSort,
+}: {
+  label: string;
+  field: string;
+  sortField: string;
+  sortOrder: "asc" | "desc";
+  onSort: (field: string) => void;
+}) {
+  const active = sortField === field;
+  return (
+    <TableHead aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+      <button
+        type="button"
+        onClick={() => onSort(field)}
+        className="flex items-center cursor-pointer select-none hover:text-foreground transition-colors"
+      >
+        {label}
+        {!active && <ChevronsUpDown className="ml-1 h-3.5 w-3.5 text-muted-foreground/70" />}
+        {active &&
+          (sortOrder === "asc" ? (
+            <ArrowUp className="ml-1 h-3.5 w-3.5 text-primary" />
+          ) : (
+            <ArrowDown className="ml-1 h-3.5 w-3.5 text-primary" />
+          ))}
+      </button>
+    </TableHead>
+  );
+}
+
 /**
  * Selector de producto accesible (patrón combobox de ARIA APG): el input de
  * búsqueda es el combobox, la lista es un listbox con opciones reales,
@@ -221,13 +256,6 @@ function PurchaseOrdersContent() {
     setPage(0);
   };
 
-  const renderSortIcon = (field: string) => {
-    if (sortField !== field) return <ChevronsUpDown className="ml-1 h-3.5 w-3.5 text-muted-foreground/70" />;
-    return sortOrder === "asc" ? 
-      <ArrowUp className="ml-1 h-3.5 w-3.5 text-primary" /> : 
-      <ArrowDown className="ml-1 h-3.5 w-3.5 text-primary" />;
-  };
-
   return (
     <PageContainer>
       <PageHeader
@@ -360,43 +388,13 @@ function PurchaseOrdersContent() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("poNumber")}>
-                      <div className="flex items-center">
-                        PO #
-                        {renderSortIcon("poNumber")}
-                      </div>
-                    </TableHead>
-                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("supplierName")}>
-                      <div className="flex items-center">
-                        Proveedor
-                        {renderSortIcon("supplierName")}
-                      </div>
-                    </TableHead>
-                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("branchName")}>
-                      <div className="flex items-center">
-                        Sucursal
-                        {renderSortIcon("branchName")}
-                      </div>
-                    </TableHead>
-                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("status")}>
-                      <div className="flex items-center">
-                        Estado
-                        {renderSortIcon("status")}
-                      </div>
-                    </TableHead>
-                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("totalAmount")}>
-                      <div className="flex items-center">
-                        Total
-                        {renderSortIcon("totalAmount")}
-                      </div>
-                    </TableHead>
+                    <SortableHead label="PO #" field="poNumber" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} />
+                    <SortableHead label="Proveedor" field="supplierName" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} />
+                    <SortableHead label="Sucursal" field="branchName" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} />
+                    <SortableHead label="Estado" field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} />
+                    <SortableHead label="Total" field="totalAmount" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} />
                     <TableHead>Items</TableHead>
-                    <TableHead className="cursor-pointer select-none hover:bg-muted/50 transition-colors" onClick={() => handleSort("createdAt")}>
-                      <div className="flex items-center">
-                        Fecha
-                        {renderSortIcon("createdAt")}
-                      </div>
-                    </TableHead>
+                    <SortableHead label="Fecha" field="createdAt" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} />
                     <TableHead className="text-right">Acción</TableHead>
                   </TableRow>
                 </TableHeader>
