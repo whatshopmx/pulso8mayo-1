@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { workflowInstanceSteps, workflowInstances, workflowTemplates, users, branches } from "@/lib/db/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { withTenantAuth } from "@/lib/api/with-auth";
+import { resolveEvidenceUrl } from "@/lib/storage/scoped-evidence";
 
 /**
  * GET /api/dashboard/ai-verifications
@@ -73,8 +74,9 @@ export const GET = withTenantAuth(async (req: NextRequest, { auth }) => {
             .orderBy(desc(workflowInstanceSteps.completedAt))
             .limit(limit);
 
-        // Transform data for frontend
-        const transformedVerifications = verifications.map(v => {
+        // Transform data for frontend. Evidencias nuevas = key R2 → presigned
+        // (legacy http pasa tal cual). Este endpoint ya está scopeado a tenant.
+        const transformedVerifications = await Promise.all(verifications.map(async (v) => {
             const aiAnalysis = v.aiAnalysis as Record<string, unknown>;
             
             let processedStatus: 'pending' | 'analyzing' | 'success' | 'failed' | 'escalated' = 'pending';
@@ -99,11 +101,11 @@ export const GET = withTenantAuth(async (req: NextRequest, { auth }) => {
                 timestamp: (aiAnalysis?.timestamp as string) || v.completedAt,
                 requiresManualReview: aiAnalysis?.requiresManualReview as boolean | undefined,
                 escalated: aiAnalysis?.escalated as boolean | undefined,
-                photoUrl: v.evidenceUrl,
+                photoUrl: await resolveEvidenceUrl(v.evidenceUrl),
                 assignee: v.assigneeName,
                 branch: v.branchName
             };
-        });
+        }));
 
         return NextResponse.json({
             success: true,

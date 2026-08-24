@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
-import { isR2Configured, uploadToR2, generateFileKey } from "@/lib/storage/r2-client";
+import { isR2Configured, uploadToR2, generateFileKey, generatePresignedUrl } from "@/lib/storage/r2-client";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"];
@@ -38,7 +38,10 @@ export async function POST(req: NextRequest) {
 
     if (isR2Configured()) {
       const fileKey = generateFileKey(tenant.id, user.id, "expense-evidence", file.name);
-      const url = await uploadToR2(buffer, fileKey, file.type || "application/octet-stream");
+      await uploadToR2(buffer, fileKey, file.type || "application/octet-stream");
+      // Se persiste la KEY (durable); la URL que consume el cliente para
+      // preview es presignada y expira — el bucket ya no es público.
+      const url = await generatePresignedUrl(fileKey);
       return ApiHandler.success({ url, storageKey: fileKey });
     }
 

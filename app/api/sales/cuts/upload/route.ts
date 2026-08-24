@@ -36,7 +36,10 @@ export async function POST(req: NextRequest) {
     if (isR2Configured()) {
       try {
         const fileKey = generateFileKey(tenant.id, user.id, "sales-cuts", file.name);
-        rawFileUrl = await uploadToR2(buffer, fileKey, file.type || "application/octet-stream");
+        await uploadToR2(buffer, fileKey, file.type || "application/octet-stream");
+        // Provenance: se persiste la KEY (identificador durable del objeto), no
+        // una URL pública. La re-lectura pasa por presigned con guardia.
+        rawFileUrl = fileKey;
       } catch (r2Err) {
         console.warn("[Sales Upload API] R2 upload failed (non-fatal):", r2Err);
       }

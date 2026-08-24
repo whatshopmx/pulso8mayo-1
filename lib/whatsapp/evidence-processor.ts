@@ -6,9 +6,14 @@
 
 import { db } from '@/lib/db';
 import { eq, and } from 'drizzle-orm';
-import { workflowInstanceSteps } from '@/lib/db/schema';
+import { workflowInstanceSteps, workflowInstances, branches } from '@/lib/db/schema';
 import { ConversationState } from './workflow-state-manager';
 import { whatsappClient } from './client-factory';
+import {
+  buildWorkflowEvidenceKey,
+  isR2ObjectKey,
+} from '@/lib/storage/scoped-evidence';
+import { generatePresignedUrl } from '@/lib/storage/r2-client';
 
 function isWhatsAppConfigured(): boolean {
   return !!process.env.WHAPI_API_TOKEN;
@@ -42,12 +47,35 @@ export class EvidenceProcessor {
       // Download media from WhatsApp
       const downloadedMedia = await this.downloadMedia(mediaUrl);
 
-      // Upload to storage (R2)
-      const uploadedUrl = await this.uploadToStorage(downloadedMedia, state.userId);
+      // Contexto de tenancy para el scope del storage: SIEMPRE desde BD
+      // (instancia → sucursal → empresa), jamás del mensaje del usuario.
+      const instanceCtx = await this.resolveInstanceContext(
+        state.workflowInstanceId
+      );
+      if (!instanceCtx) {
+        return {
+          success: false,
+          verificationMessage:
+            '❌ Error: no se pudo determinar la sucursal/empresa del flujo.',
+        };
+      }
+
+      // Upload to storage (R2 privado con jerarquía companies/{companyId}/...)
+      const evidenceKey = await this.uploadToStorage(downloadedMedia, {
+        companyId: instanceCtx.companyId,
+        branchId: instanceCtx.branchId,
+        instanceId: state.workflowInstanceId,
+        stepId: state.currentStepId,
+      });
+
+      // La verificación AI necesita una URL fetchable; la key cruda no lo es.
+      const aiFetchableUrl = isR2ObjectKey(evidenceKey)
+        ? await generatePresignedUrl(evidenceKey)
+        : evidenceKey;
 
       // Run AI verification on the evidence
       const aiResult = await this.runAIVerification(
-        uploadedUrl,
+        aiFetchableUrl,
         state.currentStepId,
         state.workflowInstanceId
       );
@@ -56,7 +84,7 @@ export class EvidenceProcessor {
       await db
         .update(workflowInstanceSteps)
         .set({
-          evidenceUrl: uploadedUrl,
+          evidenceUrl: evidenceKey,
           status: aiResult?.passed ? 'COMPLETED' : 'PENDING',
           aiAnalysis: aiResult
             ? {
@@ -95,6 +123,33 @@ export class EvidenceProcessor {
   }
 
   /**
+   * Resuelve (companyId, branchId) de la instancia: la empresa vive en la
+   * sucursal (`workflow_instances` no tiene company_id propio).
+   */
+  private async resolveInstanceContext(
+    instanceId: string
+  ): Promise<{ companyId: string; branchId: string } | null> {
+    try {
+      const rows = await db
+        .select({
+          branchId: workflowInstances.branchId,
+          companyId: branches.companyId,
+        })
+        .from(workflowInstances)
+        .leftJoin(branches, eq(workflowInstances.branchId, branches.id))
+        .where(eq(workflowInstances.id, instanceId))
+        .limit(1);
+
+      const row = rows[0];
+      if (!row?.companyId || !row.branchId) return null;
+      return { companyId: row.companyId, branchId: row.branchId };
+    } catch (error) {
+      console.error('[EvidenceProcessor] Error resolviendo contexto:', error);
+      return null;
+    }
+  }
+
+  /**
    * Download media from WhatsApp/WasenderAPI
    */
   private async downloadMedia(mediaUrl: string): Promise<Buffer> {
@@ -113,16 +168,31 @@ export class EvidenceProcessor {
   }
 
   /**
-   * Upload media to storage (R2 or local)
+   * Upload media to R2 privado bajo la jerarquía multi-tenant.
+   * Devuelve la KEY del objeto (no una URL pública): la exposición se hace vía
+   * URLs presignadas de corta vida en los endpoints de lectura.
    */
-  private async uploadToStorage(mediaBuffer: Buffer, userId?: string): Promise<string> {
+  private async uploadToStorage(
+    mediaBuffer: Buffer,
+    scope: {
+      companyId: string;
+      branchId: string;
+      instanceId: string;
+      stepId: string;
+    }
+  ): Promise<string> {
     try {
-      // Try R2 upload first if configured
+      // R2 privado con jerarquía companies/{companyId}/branches/{branchId}/...
       if (r2Client.isConfigured()) {
-        const filename = `whatsapp-evidence/${userId || 'anonymous'}/${Date.now()}.jpg`;
-        const url = await r2Client.uploadFile(mediaBuffer, filename, 'image/jpeg');
-        console.log(`[EvidenceProcessor] Uploaded to R2: ${url}`);
-        return url;
+        const key = buildWorkflowEvidenceKey(
+          scope.companyId,
+          scope.branchId,
+          scope.instanceId,
+          scope.stepId
+        );
+        const storedKey = await r2Client.uploadFile(mediaBuffer, key, 'image/jpeg');
+        console.log(`[EvidenceProcessor] Uploaded to R2 (scoped): ${storedKey}`);
+        return storedKey;
       }
 
       // Fallback: Return a placeholder URL for local development

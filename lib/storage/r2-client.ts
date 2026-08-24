@@ -23,7 +23,6 @@ if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
 }
 
 const BUCKET_NAME = process.env.R2_BUCKET_NAME || 'pulso-documents';
-const PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
 
 function getR2Client(): S3Client | null {
   if (!R2_CONFIGURED) {
@@ -48,6 +47,10 @@ export function isR2Configured(): boolean {
 
 /**
  * Upload file to R2 storage
+ *
+ * Devuelve la KEY del objeto (identificador durable), NO una URL pública.
+ * La exposición al usuario se hace vía `generatePresignedUrl` en los endpoints
+ * de lectura con guardia de sesión/tenancy — ver lib/storage/scoped-evidence.ts.
  */
 export async function uploadToR2(
     file: Buffer,
@@ -71,8 +74,7 @@ export async function uploadToR2(
 
         await client.send(command);
 
-        // Return public URL
-        return PUBLIC_URL ? `${PUBLIC_URL}/${key}` : key;
+        return key;
     } catch (error) {
         console.error('[R2] Upload error:', error);
         throw new Error('Failed to upload file to storage');

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { workflowInstanceSteps, workflowInstances, workflowTemplates, branches, users } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { resolveEvidenceUrl } from "@/lib/storage/scoped-evidence";
 
 export async function GET(request: NextRequest) {
     try {
@@ -70,15 +71,19 @@ if (dateTo) {
         // Filter out steps without evidence
         const evidences = steps.filter(s => s.evidenceUrl !== null && s.evidenceUrl !== "");
 
-        // Format evidences with AI verification status
-        const evidencesWithVerification = evidences.map((evidence) => {
+        // Format evidences with AI verification status.
+        // Las evidencias nuevas se guardan como KEY de R2 (modelo privado):
+        // aquí se derivan a URL presignada de corta vida; las legacy (http)
+        // pasan tal cual sin costo.
+        const evidencesWithVerification = await Promise.all(evidences.map(async (evidence) => {
             const aiAnalysis = evidence.aiAnalysis as any;
             const aiVerified = aiAnalysis?.passed === true;
+            const url = await resolveEvidenceUrl(evidence.evidenceUrl) || "";
 
             return {
                 id: evidence.id,
                 type: "PHOTO" as "PHOTO" | "VIDEO" | "AUDIO" | "TEXT",
-                url: evidence.evidenceUrl || "",
+                url,
                 workflowName: evidence.workflowName,
                 stepName: evidence.stepId,
                 assigneeName: evidence.assigneeName || "Sin asignar",
@@ -90,7 +95,7 @@ if (dateTo) {
                 workflowInstanceId: evidence.workflowInstanceId,
                 stepId: evidence.stepId,
             };
-        });
+        }));
 
         return NextResponse.json({
             success: true,
