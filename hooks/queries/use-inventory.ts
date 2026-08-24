@@ -102,6 +102,11 @@ export type InventoryDashboardData = {
   wasteLossRatio: number | null
   stockByCategory: Array<{ category: string | null; count: number }>
   recentMovements: Array<{ date: string; type: string; count: number }>
+  attribution?: {
+    stockValueByBranch: Array<{ branchId: string; branchName: string; value: number }>
+    alertsByBranch: Array<{ branchId: string; branchName: string; value: number }>
+    wasteLossByBranch: Array<{ branchId: string; branchName: string; value: number }>
+  }
   topLowStock: Array<{
     itemId: string
     itemName: string

@@ -249,6 +249,72 @@ export async function GET(req: NextRequest) {
         .orderBy(inventoryBatches.expirationDate)
         .limit(10);
 
+    // AD-2: el rollup "Todas" distribuye, no mezcla. En modo all-branches se
+    // adjunta la atribución por sucursal de los KPIs principales (top 3
+    // contribuyentes) para responder "¿cuál me sangra?". Con sucursal fija no
+    // aplica y no viaja.
+    let attribution: {
+      stockValueByBranch: { branchId: string; branchName: string; value: number }[];
+      alertsByBranch: { branchId: string; branchName: string; value: number }[];
+      wasteLossByBranch: { branchId: string; branchName: string; value: number }[];
+    } | undefined;
+
+    if (!branchId) {
+      const topN = (q: Promise<{ branchId: string; branchName: string; value: number }[]>) =>
+        q.then((rows) => rows.slice(0, 3));
+
+      const [stockValueByBranch, alertsByBranch, wasteLossByBranch] = await Promise.all([
+        topN(
+          db.select({
+            branchId: inventoryBatches.branchId,
+            branchName: branches.name,
+            value: sql<number>`coalesce(sum(${inventoryBatches.currentQuantity} * ${inventoryBatches.unitCost}), 0)`,
+          })
+            .from(inventoryBatches)
+            .innerJoin(branches, eq(inventoryBatches.branchId, branches.id))
+            .where(and(
+              eq(branches.companyId, tenant.id),
+              eq(inventoryBatches.status, 'AVAILABLE')
+            ))
+            .groupBy(inventoryBatches.branchId, branches.name)
+            .orderBy(sql`coalesce(sum(${inventoryBatches.currentQuantity} * ${inventoryBatches.unitCost}), 0) desc`)
+        ),
+        topN(
+          db.select({
+            branchId: inventoryAlerts.branchId,
+            branchName: branches.name,
+            value: sql<number>`count(*)`,
+          })
+            .from(inventoryAlerts)
+            .innerJoin(branches, eq(inventoryAlerts.branchId, branches.id))
+            .where(and(
+              eq(inventoryAlerts.companyId, tenant.id),
+              eq(inventoryAlerts.status, 'ACTIVE')
+            ))
+            .groupBy(inventoryAlerts.branchId, branches.name)
+            .orderBy(sql`count(*) desc`)
+        ),
+        topN(
+          db.select({
+            branchId: inventoryWaste.branchId,
+            branchName: branches.name,
+            value: sql<number>`coalesce(sum(${inventoryWaste.totalLoss}), 0)`,
+          })
+            .from(inventoryWaste)
+            .innerJoin(branches, eq(inventoryWaste.branchId, branches.id))
+            .where(and(
+              eq(inventoryWaste.companyId, tenant.id),
+              gte(inventoryWaste.recordedAt, currentMonthStart),
+              sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`
+            ))
+            .groupBy(inventoryWaste.branchId, branches.name)
+            .orderBy(sql`coalesce(sum(${inventoryWaste.totalLoss}), 0) desc`)
+        ),
+      ]);
+
+      attribution = { stockValueByBranch, alertsByBranch, wasteLossByBranch };
+    }
+
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
       totalProducts,
@@ -261,6 +327,7 @@ export async function GET(req: NextRequest) {
       recentMovements,
       topLowStock,
       topExpiring,
+      attribution,
     });
   } catch (error) {
     console.error("Failed to fetch dashboard data", error);

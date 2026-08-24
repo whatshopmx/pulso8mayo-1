@@ -5,6 +5,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { AlertTriangle, DollarSign, ShieldCheck, TrendingDown, Info, ChevronRight } from "lucide-react";
 import { ErrorState } from "@/components/shared/error-state";
 
+interface BranchContribution {
+  branchId: string;
+  branchName: string;
+  value: number;
+}
+
 interface DashboardKpisProps {
   data?: {
     totalProducts: number;
@@ -13,12 +19,40 @@ interface DashboardKpisProps {
     branchesWithStock: number;
     threeWayMatchRate?: number | null;
     wasteLossRatio?: number | null;
+    /** AD-2: solo viaja en modo "Todas". Top 3 sucursales por KPI principal. */
+    attribution?: {
+      stockValueByBranch: BranchContribution[];
+      alertsByBranch: BranchContribution[];
+      wasteLossByBranch: BranchContribution[];
+    } | null;
   } | null;
   loading: boolean;
   isError?: boolean;
   onRetry?: () => void;
   /** Scope suffix for subtitles, e.g. "todas las sucursales" or a branch name. */
   scopeLabel?: string;
+}
+
+const formatMXN = (cents: number) =>
+  `$${(cents / 100).toLocaleString("es-MX", { maximumFractionDigits: 0 })}`;
+
+/** AD-2: en modo "Todas", atribuye el KPI a sus top sucursales contribuyentes.
+ *  Informativo (la tarjeta puede ser un Link): el cambio de scope vive en el header
+ *  y en QuickAlerts, donde el chip sí es clicable. */
+function Contributors({ rows, format }: { rows: BranchContribution[]; format?: (v: number) => string }) {
+  if (!rows || rows.length === 0) return null;
+  return (
+    <p className="mt-1 text-xs text-muted-foreground">
+      {rows.map((r, i) => (
+        <span key={r.branchId}>
+          {i > 0 && " · "}
+          <span className="font-medium text-foreground/80">{r.branchName}</span>
+          {" "}
+          {format ? format(r.value) : r.value}
+        </span>
+      ))}
+    </p>
+  );
 }
 
 export function DashboardKpis({ data, loading, isError, onRetry, scopeLabel }: DashboardKpisProps) {
@@ -50,6 +84,7 @@ export function DashboardKpis({ data, loading, isError, onRetry, scopeLabel }: D
   const activeAlerts = data.activeAlertsCount;
   const matchRate = data.threeWayMatchRate;
   const wasteLoss = data.wasteLossRatio;
+  const attribution = data.attribution;
 
   return (
     <MetricGrid columns={4}>
@@ -59,7 +94,11 @@ export function DashboardKpis({ data, loading, isError, onRetry, scopeLabel }: D
         value={`$${(stockValue / 100).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         icon={<DollarSign className="h-4 w-4" />}
         subtitle={scopeLabel ? `Valor · ${scopeLabel}` : undefined}
-      />
+      >
+        {attribution && (
+          <Contributors rows={attribution.stockValueByBranch} format={formatMXN} />
+        )}
+      </MetricCard>
 
       {/* 2. Alertas activas — clickeable hacia la bandeja de alertas */}
       <MetricCard
@@ -91,6 +130,9 @@ export function DashboardKpis({ data, loading, isError, onRetry, scopeLabel }: D
           Ver detalle
           <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
         </div>
+        {attribution && (
+          <Contributors rows={attribution.alertsByBranch} />
+        )}
       </MetricCard>
 
       {/* 3. Tasa de Match 3-Way */}
@@ -143,7 +185,11 @@ export function DashboardKpis({ data, loading, isError, onRetry, scopeLabel }: D
             </TooltipProvider>
           </span>
         }
-      />
+      >
+        {attribution && (
+          <Contributors rows={attribution.wasteLossByBranch} format={formatMXN} />
+        )}
+      </MetricCard>
     </MetricGrid>
   );
 }
