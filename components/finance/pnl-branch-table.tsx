@@ -204,7 +204,9 @@ export function PnlBranchTable() {
     dir: "asc" | "desc";
   } | null>(null);
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  // El propósito del bloque es ver las sucursales juntas; partir 6-15 filas en
+  // páginas de cinco rompe justo la comparación que lo justifica.
+  const pageSize = 15;
 
   const toggleSort = (key: "sales" | "profit") => {
     setSort((prev) =>
