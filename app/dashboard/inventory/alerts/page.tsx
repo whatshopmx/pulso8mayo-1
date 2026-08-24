@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +35,9 @@ import { PageHeader, PageContainer } from "@/components/shared";
 import { DataTableSkeleton, PageHeaderSkeleton } from "@/components/shared/skeletons";
 import { MetricCard, MetricGrid, MetricCardSkeleton } from "@/components/ui/metric-card";
 
+/** Orden operativo: lo crítico primero; empates por detección más reciente. */
+const SEVERITY_ORDER: Record<string, number> = { CRITICA: 0, ALTA: 1, MEDIA: 2, BAJA: 3 };
+
 interface AlertRecord {
     id: string;
     type: string;
@@ -63,17 +65,18 @@ interface AlertSummary {
 }
 
 export default function InventoryAlertsPage() {
-    const router = useRouter();
     const [alerts, setAlerts] = React.useState<AlertRecord[]>([]);
     const [summary, setSummary] = React.useState<AlertSummary | null>(null);
     const [loading, setLoading] = React.useState(true);
     const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
     const [typeFilter, setTypeFilter] = React.useState<string>("ALL");
+    const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
     const [selectedAlert, setSelectedAlert] = React.useState<AlertRecord | null>(null);
     const [updateDialogOpen, setUpdateDialogOpen] = React.useState(false);
     const [updateStatus, setUpdateStatus] = React.useState<string>("");
     const [updateNotes, setUpdateNotes] = React.useState("");
     const [updating, setUpdating] = React.useState(false);
+    const [bulkResolving, setBulkResolving] = React.useState(false);
 
     const fetchAlerts = React.useCallback(async () => {
         setLoading(true);
@@ -102,6 +105,58 @@ export default function InventoryAlertsPage() {
         fetchAlerts();
     }, [fetchAlerts]);
 
+    const sortedAlerts = React.useMemo(
+        () =>
+            [...alerts].sort(
+                (a, b) =>
+                    (SEVERITY_ORDER[a.severity] ?? 4) - (SEVERITY_ORDER[b.severity] ?? 4) ||
+                    new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime()
+            ),
+        [alerts]
+    );
+
+    const toggleSelected = (id: string) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const allVisibleSelected = sortedAlerts.length > 0 && sortedAlerts.every((a) => selectedIds.has(a.id));
+
+    const toggleAllVisible = () => {
+        setSelectedIds(allVisibleSelected ? new Set() : new Set(sortedAlerts.map((a) => a.id)));
+    };
+
+    const handleBulkResolve = async () => {
+        setBulkResolving(true);
+        try {
+            const results = await Promise.allSettled(
+                [...selectedIds].map((id) =>
+                    fetch(`/api/inventory/alerts/history/${id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ status: "RESOLVED" }),
+                    })
+                )
+            );
+            const failed = results.filter(
+                (r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok)
+            ).length;
+            if (failed === 0) {
+                toast.success(`${selectedIds.size} ${selectedIds.size === 1 ? "alerta resuelta" : "alertas resueltas"}`);
+            } else {
+                toast.error(`${failed} de ${selectedIds.size} alertas no se pudieron resolver`);
+            }
+            setSelectedIds(new Set());
+            await fetchAlerts();
+        } finally {
+            setBulkResolving(false);
+        }
+    };
+
     const handleUpdateStatus = async (alertId: string, status: string, notes?: string) => {
         setUpdating(true);
         try {
@@ -128,7 +183,11 @@ export default function InventoryAlertsPage() {
 
     const openUpdateDialog = (alert: AlertRecord) => {
         setSelectedAlert(alert);
-        setUpdateStatus(alert.status);
+        // Una alerta Activa/Vista no ofrece volver atrás: el primer estado
+        // accionable es "En Proceso".
+        setUpdateStatus(
+            ["IN_PROGRESS", "RESOLVED", "DISMISSED"].includes(alert.status) ? alert.status : "IN_PROGRESS"
+        );
         setUpdateNotes(alert.notes || "");
         setUpdateDialogOpen(true);
     };
@@ -188,11 +247,11 @@ const getSeverityBadge = (severity: string) => {
 
     if (loading) {
         return (
-            <div className="p-6 space-y-6">
+            <PageContainer>
                 <PageHeaderSkeleton />
-                <MetricCardSkeleton count={5} />
+                <MetricCardSkeleton count={3} />
                 <DataTableSkeleton columns={6} rows={8} />
-            </div>
+            </PageContainer>
         );
     }
 
@@ -203,33 +262,19 @@ const getSeverityBadge = (severity: string) => {
                 description="Historial y gestión de alertas de stock"
                 icon={Bell}
             />
-            {/* Summary Cards */}
+            {/* Summary Cards: solo lo que dispara una decisión */}
             {summary && (
-                <MetricGrid columns={5}>
-                    <MetricCard label="Total" value={summary.total} icon={<AlertCircle className="h-4 w-4" />} />
+                <MetricGrid columns={3}>
                     <MetricCard label="Activas" value={summary.active} icon={<AlertCircle className="h-4 w-4" />} tone="destructive" />
                     <MetricCard label="En Proceso" value={summary.inProgress} icon={<Clock className="h-4 w-4" />} tone="info" />
                     <MetricCard label="Resueltas" value={summary.resolved} icon={<CheckCircle2 className="h-4 w-4" />} tone="success" />
-                    <MetricCard label="Descartadas" value={summary.dismissed} icon={<XCircle className="h-4 w-4" />} tone="neutral" />
                 </MetricGrid>
             )}
 
-            {/* Filters */}
+            {/* Filters + acciones sobre la selección */}
             <Card>
-                <CardHeader>
-                    <div className="flex items-center justify-end">
-                        <Button
-                            variant="outline"
-                            onClick={() => fetchAlerts()}
-                            className="gap-2"
-                        >
-                            <RefreshCw className="h-4 w-4" />
-                            Actualizar
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex gap-4 mb-4">
+                <CardContent className="pt-6">
+                    <div className="flex gap-4 mb-2 items-end">
                         <div className="flex-1">
                             <Label>Estado</Label>
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -262,12 +307,41 @@ const getSeverityBadge = (severity: string) => {
                                 </SelectContent>
                             </Select>
                         </div>
+                        <Button
+                            variant="outline"
+                            onClick={() => fetchAlerts()}
+                            className="gap-2 shrink-0"
+                        >
+                            <RefreshCw className="h-4 w-4" />
+                            Actualizar
+                        </Button>
                     </div>
+
+                    {selectedIds.size > 0 && (
+                        <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2 my-2">
+                            <span className="text-sm text-muted-foreground">
+                                {selectedIds.size} seleccionada{selectedIds.size === 1 ? "" : "s"}
+                            </span>
+                            <Button size="sm" onClick={handleBulkResolve} disabled={bulkResolving}>
+                                <CheckCircle2 className="h-4 w-4" />
+                                {bulkResolving ? "Resolviendo…" : "Resolver seleccionadas"}
+                            </Button>
+                        </div>
+                    )}
 
                     {/* Alerts Table */}
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-10">
+                                    <input
+                                        type="checkbox"
+                                        aria-label="Seleccionar todas las alertas visibles"
+                                        checked={allVisibleSelected}
+                                        onChange={toggleAllVisible}
+                                        className="h-4 w-4"
+                                    />
+                                </TableHead>
                                 <TableHead>Tipo</TableHead>
                                 <TableHead>Severidad</TableHead>
                                 <TableHead>Producto</TableHead>
@@ -281,13 +355,25 @@ const getSeverityBadge = (severity: string) => {
                         <TableBody>
                             {alerts.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                                        No hay alertas registradas
+                                    <TableCell colSpan={9} className="text-center py-8">
+                                        <p className="text-muted-foreground">No hay alertas con estos filtros.</p>
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                            Las alertas se generan automáticamente cuando el stock baja de su mínimo o un producto está por vencer.
+                                        </p>
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                alerts.map((alert) => (
+                                sortedAlerts.map((alert) => (
                                     <TableRow key={alert.id}>
+                                        <TableCell>
+                                            <input
+                                                type="checkbox"
+                                                aria-label={`Seleccionar alerta de ${alert.itemName || "producto"}`}
+                                                checked={selectedIds.has(alert.id)}
+                                                onChange={() => toggleSelected(alert.id)}
+                                                className="h-4 w-4"
+                                            />
+                                        </TableCell>
                                         <TableCell>
                                             {getTypeBadge(alert.type)}
                                         </TableCell>
@@ -358,8 +444,6 @@ const getSeverityBadge = (severity: string) => {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="ACTIVE">Activa</SelectItem>
-                                    <SelectItem value="VIEWED">Vista</SelectItem>
                                     <SelectItem value="IN_PROGRESS">En Proceso</SelectItem>
                                     <SelectItem value="RESOLVED">Resuelta</SelectItem>
                                     <SelectItem value="DISMISSED">Descartada</SelectItem>
