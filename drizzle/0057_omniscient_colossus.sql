@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "sales_entries_unique_sale" ON "sales_entries" USING btree ("company_id","branch_id","sale_date","recipe_id");

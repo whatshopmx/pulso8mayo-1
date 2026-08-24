@@ -1,22 +1,32 @@
 import { NextRequest } from "next/server";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { dailySalesCuts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
+import {
+  SalesIngestService,
+  guessMapping,
+  detectDelimiter,
+  type SalesColumnMapping,
+} from "@/lib/services/sales-ingest-service";
 
 /**
  * POST /api/workflows/smart-links/upload-pos
  * Receives a POS report file upload during branch closure workflow.
- * Stores the file URL in the dailySalesCuts record for the matching date/branch.
+ * Stores the file URL in the dailySalesCuts record for the matching date/branch
+ * and ingests the sales rows via SalesIngestService (T10: el cierre del gerente
+ * alimenta las ventas reales sin paso manual).
+ *
+ * El fallo de parseo NO bloquea la evidencia: si el archivo no se puede leer
+ * como CSV de ventas, se guarda igual y se registra una advertencia.
  *
  * Body (multipart/form-data or JSON):
  *   - branchId: string (required)
  *   - workflowInstanceId: string (optional)
  *   - stepId: string (optional)
- *   - fileUrl: string (URL del archivo CSV/Excel del POS)
+ *   - fileUrl: string (URL del archivo CSV/Excel del POS; ruta JSON)
  *   - businessDate: string (opcional, defaults to today)
  */
 export async function POST(req: NextRequest) {
@@ -25,7 +35,7 @@ export async function POST(req: NextRequest) {
     if (!tenant.id) {
       throw ApiError.badRequest("No hay una empresa seleccionada.");
     }
-    await requireAuth();
+    const auth = await requireAuth();
 
     const contentType = req.headers.get("content-type") || "";
 
@@ -48,6 +58,49 @@ export async function POST(req: NextRequest) {
       // In production, upload to R2/cloud storage. For now, store the filename as evidence.
       const fileUrl = `pos-uploads/${tenant.id}/${branchId}/${businessDate}-${file.name}`;
 
+      // T10: intentar ingestar ventas del archivo. Cualquier fallo aquí deja
+      // solo una advertencia — la evidencia del workflow se guarda siempre.
+      let salesSummary: Awaited<ReturnType<typeof SalesIngestService.ingest>> | null = null;
+      let parseWarning: string | undefined;
+
+      try {
+        const csvText = await file.text();
+        const delimiter = detectDelimiter(csvText);
+        const headers = csvText.split(/\r?\n/, 1)[0]?.split(delimiter).map((h) => h.trim()) ?? [];
+        const mapping =
+          guessMapping(headers) ??
+          (formData.get("mapping")
+            ? (JSON.parse(formData.get("mapping") as string) as SalesColumnMapping)
+            : null);
+
+        if (!mapping) {
+          parseWarning =
+            "No se pudieron identificar las columnas del archivo; se guardó como evidencia pero no generó ventas.";
+        } else {
+          const parsed = SalesIngestService.buildRows(csvText, mapping, {
+            defaultDay: businessDate,
+            delimiter,
+          });
+          if (parsed.rows.length === 0) {
+            parseWarning = `El archivo no contiene filas de ventas válidas (${parsed.errors[0]?.message ?? "sin datos"}); se guardó como evidencia.`;
+          } else {
+            salesSummary = await SalesIngestService.ingest({
+              companyId: tenant.id,
+              branchId,
+              userId: auth.user.id,
+              rows: parsed.rows,
+            });
+            if (parsed.errors.length > 0 || salesSummary.errors.length > 0) {
+              parseWarning = `${parsed.errors.length + salesSummary.errors.length} fila(s) omitida por errores.`;
+            }
+          }
+        }
+      } catch (parseError) {
+        console.error("[upload-pos] parse/ingest failed:", parseError);
+        parseWarning =
+          "El archivo se guardó como evidencia pero no pudo procesarse como ventas.";
+      }
+
       // Link the file to matching sales cuts for that date
       const updated = await db
         .update(dailySalesCuts)
@@ -64,6 +117,8 @@ export async function POST(req: NextRequest) {
         fileName: file.name,
         matchedCount: updated.length,
         workflowInstanceId,
+        ...(salesSummary ? { sales: salesSummary } : {}),
+        ...(parseWarning ? { warning: parseWarning } : {}),
         message: updated.length > 0
           ? `Archivo vinculado a ${updated.length} corte(s) de ventas.`
           : "Archivo recibido. No se encontraron cortes para vincular.",

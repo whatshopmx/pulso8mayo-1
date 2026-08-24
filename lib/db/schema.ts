@@ -2567,7 +2567,14 @@ export const salesEntries = pgTable("sales_entries", {
     totalRevenue: integer("total_revenue").default(0).notNull(), // in cents
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+    // AD-4 (plan-inventario-desconexion T7): reimportar el corte del POS no
+    // duplica filas ni consumo teórico. `sale_date` se sella a medianoche del
+    // día local de la sucursal por el ingest.
+    salesEntryUnique: uniqueIndex("sales_entries_unique_sale").on(
+        table.companyId, table.branchId, table.saleDate, table.recipeId
+    ),
+}));
 
 // M13: Daily sales cuts (corte de ventas diario por sucursal/turno/canal)
 // Ingested from POS files (upload/WhatsApp) or a manual fallback form.

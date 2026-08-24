@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { salesEntries, recipes, recipeItems, inventoryItems, inventoryMovements, inventoryBatches } from "@/lib/db/schema";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { salesEntries, recipes, recipeItems, inventoryItems, inventoryMovements } from "@/lib/db/schema";
+import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
 
 export interface VarianceReportRow {
     itemId: string;
@@ -11,6 +11,12 @@ export interface VarianceReportRow {
     actualQty: number;
     varianceQty: number; // actual - theoretical
     variancePercent: number; // (variance / theoretical) * 100
+    // Extensión a dinero (centavos): la varianza en cantidad no dice cuánto
+    // duele; multiplicar por el costo unitario vigente sí.
+    unitCostCents: number;
+    theoreticalCostCents: number;
+    actualCostCents: number;
+    varianceCostCents: number;
 }
 
 export class ReportsService {
@@ -59,38 +65,35 @@ export class ReportsService {
             actualMap[mov.itemId] = (actualMap[mov.itemId] || 0) + consumed;
         }
 
-        // 4. Combine maps into final report list
+        // 4. Metadata de insumos en una sola consulta (evita N+1 por fila).
         const allItemIds = new Set([
             ...Object.keys(theoreticalMap),
             ...Object.keys(actualMap)
         ]);
 
+        const itemRows = allItemIds.size > 0
+            ? await db.select()
+                .from(inventoryItems)
+                .where(inArray(inventoryItems.id, [...allItemIds]))
+            : [];
+        const itemMap = new Map(itemRows.map(i => [i.id, i]));
+
         const report: VarianceReportRow[] = [];
 
         for (const itemId of allItemIds) {
-            // Fetch name/unit from DB if missing in theoretical map
-            let name = theoreticalMap[itemId]?.name;
-            let unit = theoreticalMap[itemId]?.unit;
-            let sku = theoreticalMap[itemId]?.sku;
-
-            if (!name || !unit) {
-                const [item] = await db.select()
-                    .from(inventoryItems)
-                    .where(eq(inventoryItems.id, itemId));
-                if (item) {
-                    name = item.name;
-                    unit = item.unit;
-                    sku = item.sku || undefined;
-                } else {
-                    name = "Insumo desconocido";
-                    unit = "UNIT";
-                }
-            }
+            const item = itemMap.get(itemId);
+            const name = theoreticalMap[itemId]?.name ?? item?.name ?? "Insumo desconocido";
+            const unit = theoreticalMap[itemId]?.unit ?? item?.unit ?? "UNIT";
+            const sku = theoreticalMap[itemId]?.sku ?? item?.sku ?? undefined;
 
             const theoreticalQty = theoreticalMap[itemId]?.qty || 0;
             const actualQty = actualMap[itemId] || 0;
             const varianceQty = actualQty - theoreticalQty;
             const variancePercent = theoreticalQty > 0 ? (varianceQty / theoreticalQty) * 100 : 0;
+
+            const unitCostCents = item
+                ? (item.averageCost ?? item.lastCost ?? item.standardCost ?? 0)
+                : 0;
 
             report.push({
                 itemId,
@@ -101,8 +104,15 @@ export class ReportsService {
                 actualQty: parseFloat(actualQty.toFixed(4)),
                 varianceQty: parseFloat(varianceQty.toFixed(4)),
                 variancePercent: parseFloat(variancePercent.toFixed(2)),
+                unitCostCents,
+                theoreticalCostCents: Math.round(theoreticalQty * unitCostCents),
+                actualCostCents: Math.round(actualQty * unitCostCents),
+                varianceCostCents: Math.round(varianceQty * unitCostCents),
             });
         }
+
+        // La varianza que duele primero: ordenar por impacto en dinero.
+        report.sort((a, b) => Math.abs(b.varianceCostCents) - Math.abs(a.varianceCostCents));
 
         return report;
     }

@@ -375,6 +375,12 @@ export default function InventoryReportsPage() {
                                 <span className="text-xs font-semibold text-muted-foreground block">Subir archivo CSV</span>
                                 <span className="text-xs text-muted-foreground block mt-1">Soporta columnas: Receta, Cantidad, Total</span>
                             </div>
+                            <a
+                                href="/dashboard/inventory/sales-entry"
+                                className="block text-xs text-primary hover:underline text-center"
+                            >
+                                ¿Corte del POS completo con mapeo de columnas? Usa la carga masiva corporativa →
+                            </a>
                         </CardContent>
                     </Card>
                 </div>

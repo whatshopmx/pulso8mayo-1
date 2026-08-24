@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { employeeProfiles, employeeTraining } from "@/lib/db/schema";
+import { employeeTraining } from "@/lib/db/schema";
 import { and, eq, desc } from "drizzle-orm";
+import { getCurrentTenant } from "@/lib/tenant-context";
+import { isApiError } from "@/lib/api/error";
 
 export async function GET(
-    request: NextRequest,
+    _request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
@@ -15,14 +17,13 @@ export async function GET(
         }
 
         const employeeId = (await params).id;
-        const { searchParams } = new URL(request.url);
-        const companyIdParam = searchParams.get("companyId");
-        
-        const companyId = session.user.companyId || companyIdParam;
 
-        if (!companyId) {
-             return NextResponse.json({ error: "Company info missing" }, { status: 400 });
+        // El tenant SIEMPRE viene de la sesión; nunca de parámetros del cliente.
+        const tenant = await getCurrentTenant();
+        if (!tenant.id) {
+             return NextResponse.json({ error: "Company info missing" }, { status: 403 });
         }
+        const companyId = tenant.id;
 
         if (session.user.role === "EMPLEADO" && session.user.id !== employeeId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -45,6 +46,9 @@ export async function GET(
         });
 
     } catch (error) {
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
         console.error("Error fetching employee training:", error);
         return NextResponse.json(
             { error: "Internal server error" },
@@ -69,12 +73,13 @@ export async function POST(
 
         const employeeId = (await params).id;
         const body = await request.json();
-        
-        const companyId = session.user.companyId || body.companyId;
 
-        if (!companyId) {
-            return NextResponse.json({ error: "Company info missing" }, { status: 400 });
+        // El tenant SIEMPRE viene de la sesión; nunca del cuerpo del cliente.
+        const tenant = await getCurrentTenant();
+        if (!tenant.id) {
+            return NextResponse.json({ error: "Company info missing" }, { status: 403 });
         }
+        const companyId = tenant.id;
 
     const newTraining = await db.insert(employeeTraining).values({
       userId: employeeId,
@@ -100,6 +105,9 @@ export async function POST(
         });
 
     } catch (error) {
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
         console.error("Error creating employee training:", error);
         return NextResponse.json(
             { error: "Internal server error" },

@@ -123,12 +123,20 @@ export default function InventoryPage() {
         <section aria-label="Acciones del día">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold">Empezar el día</h2>
-            <Link
-              href="/dashboard/inventory/products"
-              className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-            >
-              Catálogo completo <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/dashboard/inventory/sales-entry"
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+              >
+                Cargar ventas POS <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              </Link>
+              <Link
+                href="/dashboard/inventory/products"
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+              >
+                Catálogo completo <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              </Link>
+            </div>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             {DAILY_ACTIONS.map((action) => (
