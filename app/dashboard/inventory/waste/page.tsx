@@ -1,5 +1,9 @@
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { getSession } from '@/lib/auth';
+import { enforceBranchScope } from '@/lib/branch-scope';
+import { BRANCH_COOKIE_NAME } from '@/lib/branch-cookies';
+import type { Role } from '@/lib/permissions';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
 import { WasteClient } from './waste-client';
@@ -22,7 +26,13 @@ export default async function WastePage({ searchParams }: Props) {
     redirect("/sign-in");
   }
 
-  const branchId = session.user.branchId;
+  // Misma resolución que el header y tenant-context: GERENTE/SUPERVISOR quedan
+  // fijos a su sucursal de sesión; para los demás manda el alcance del header
+  // (cookie). Sin alcance elegido ("Todas") la merma exige elegir una.
+  const cookieStore = await cookies();
+  const requestedBranchId = cookieStore.get(BRANCH_COOKIE_NAME)?.value ?? null;
+  const role = (session.user as { role?: Role }).role ?? "ADMIN";
+  const branchId = enforceBranchScope(role, session.user.branchId, requestedBranchId);
 
   if (!branchId) {
     return (
