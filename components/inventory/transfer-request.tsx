@@ -25,9 +25,11 @@ interface TransferRequestProps {
     branches?: Array<{ id: string; name: string }>;
     items?: Array<{ id: string; name: string; unit?: string; stock?: number }>;
     onComplete?: (transfer: any) => void;
+    /** Sucursal de origen (alcance del header); la ruta la valida con enforceBranchScope. */
+    fromBranchId?: string;
 }
 
-export function TransferRequest({ branches = [], items = [], onComplete }: TransferRequestProps) {
+export function TransferRequest({ branches = [], items = [], onComplete, fromBranchId }: TransferRequestProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [transferItems, setTransferItems] = useState<TransferItem[]>([]);
@@ -97,6 +99,7 @@ export function TransferRequest({ branches = [], items = [], onComplete }: Trans
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    fromBranchId: fromBranchId || undefined,
                     toBranchId: selectedBranch,
                     items: transferItems.map(item => ({
                         itemId: item.itemId,

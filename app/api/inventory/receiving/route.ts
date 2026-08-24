@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 import { processReceiving } from "@/lib/services/receiving-service";
 import { db } from "@/lib/db";
 import { inventoryBatches, inventoryItems, suppliers } from "@/lib/db/schema";
@@ -15,18 +17,31 @@ import { z } from "zod";
 export async function POST(req: NextRequest) {
     try {
         const session = await getSession();
-        if (!session?.user?.id || !session?.user?.branchId) {
+        if (!session?.user?.id) {
             return NextResponse.json(
-                { error: "Unauthorized - User must be logged in and belong to a branch" },
+                { error: "Unauthorized - User must be logged in" },
                 { status: 401 }
             );
         }
 
         const body = await req.json();
+        const role = (session.user as { role?: Role }).role ?? "ADMIN";
+        const branchId = enforceBranchScope(
+            role,
+            session.user.branchId,
+            (body as { branchId?: string }).branchId ?? null
+        );
+        if (!branchId) {
+            return NextResponse.json(
+                { error: "Selecciona una sucursal para registrar la recepción" },
+                { status: 400 }
+            );
+        }
+
         const receiving = await processReceiving(
             {
                 user: { id: session.user.id, companyId: session.user.companyId },
-                branchId: session.user.branchId,
+                branchId,
             },
             body
         );
@@ -69,6 +84,15 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const limit = parseInt(searchParams.get("limit") || "50");
 
+        const role = (session.user as { role?: Role }).role ?? "ADMIN";
+        const branchId = enforceBranchScope(role, session.user.branchId, searchParams.get("branchId"));
+        if (!branchId) {
+            return NextResponse.json(
+                { error: "Selecciona una sucursal para ver recepciones" },
+                { status: 400 }
+            );
+        }
+
         const recentBatches = await db.select({
             id: inventoryBatches.id,
             lotNumber: inventoryBatches.lotNumber,
@@ -92,7 +116,7 @@ export async function GET(req: NextRequest) {
         .leftJoin(suppliers, eq(inventoryBatches.supplierId, suppliers.id))
         .where(
             and(
-                eq(inventoryBatches.branchId, session.user.branchId!),
+                eq(inventoryBatches.branchId, branchId),
             )
         )
         .orderBy((t) => t.receivedAt)

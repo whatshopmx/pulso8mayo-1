@@ -27,7 +27,7 @@ export default function TransfersPage() {
         branchName={selectedBranch?.name}
         actions={
           branches.length > 0 && (
-            <TransferRequest branches={branches} />
+            <TransferRequest branches={branches} fromBranchId={selectedBranchId || undefined} />
           )
         }
       />

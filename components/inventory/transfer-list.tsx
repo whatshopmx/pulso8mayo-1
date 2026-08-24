@@ -84,12 +84,14 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
 
     const fetchTransfers = async () => {
         try {
-            const response = await fetch(`/api/inventory/transfers?role=${roleFilter}`);
+            const branchParam = branchId ? `&branchId=${encodeURIComponent(branchId)}` : "";
+            const response = await fetch(`/api/inventory/transfers?role=${roleFilter}${branchParam}`);
             const result = await response.json();
 
             if (response.ok) {
                 setTransfers(result.transfers);
             } else {
+                setTransfers([]);
                 toast.error(result.error || "Failed to fetch transfers");
             }
         } catch (error) {

@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { PageHeader, PageContainer } from "@/components/shared";
+import { useBranch } from "@/lib/branch-context";
 
 interface Supplier {
     id: string;
@@ -49,6 +50,7 @@ interface ReceivingRecord {
 export default function ReceivingPage() {
     const searchParams = useSearchParams();
     const poId = searchParams.get("poId") || undefined;
+    const { selectedBranchId } = useBranch();
 
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [items, setItems] = useState<InventoryItem[]>([]);
@@ -78,10 +80,15 @@ export default function ReceivingPage() {
             }
 
             // Fetch receiving history
-            const receivingRes = await fetch("/api/inventory/receiving?limit=20&days=30");
+            const branchParam = selectedBranchId ? `&branchId=${encodeURIComponent(selectedBranchId)}` : "";
+            const receivingRes = await fetch(`/api/inventory/receiving?limit=20&days=30${branchParam}`);
             if (receivingRes.ok) {
                 const data = await receivingRes.json();
-                setReceivings(data.receivings || []);
+                if (data.error) {
+                    setReceivings([]);
+                } else {
+                    setReceivings(data.receivings || []);
+                }
             }
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -141,6 +148,7 @@ export default function ReceivingPage() {
                                 items={items}
                                 onComplete={handleReceivingComplete}
                                 initialPOId={poId}
+                                branchId={selectedBranchId || undefined}
                             />
                         </CardContent>
                     </Card>

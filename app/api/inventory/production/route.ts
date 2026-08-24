@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { productionOrders, productionResults, productionIngredients, recipes } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -42,7 +44,8 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-        const branchId = searchParams.get("branchId") || session.user.branchId;
+        const role = (session.user as { role?: Role }).role ?? "ADMIN";
+        const branchId = enforceBranchScope(role, session.user.branchId, searchParams.get("branchId"));
 
         if (!branchId) {
             return NextResponse.json({ error: "branchId requerido" }, { status: 400 });
@@ -59,19 +62,25 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const session = await getSession();
-        if (!session?.user?.companyId || !session?.user?.branchId) {
+        if (!session?.user?.companyId) {
             return NextResponse.json({ error: "No autorizado" }, { status: 401 });
         }
 
         const body = await req.json();
-        const { action } = body;
+        const { action, branchId: requestedBranchId } = body;
+        const role = (session.user as { role?: Role }).role ?? "ADMIN";
+        const branchId = enforceBranchScope(role, session.user.branchId, requestedBranchId ?? null);
+
+        if (!branchId) {
+            return NextResponse.json({ error: "Selecciona una sucursal para registrar producción" }, { status: 400 });
+        }
 
         if (action === "record") {
             const validated = recordProductionSchema.parse(body);
 
             const result = await ProductionService.recordProduction({
                 companyId: session.user.companyId,
-                branchId: session.user.branchId,
+                branchId,
                 ...validated,
                 recordedBy: session.user.id,
             });
@@ -91,7 +100,7 @@ export async function POST(req: NextRequest) {
         const validated = createOrderSchema.parse(body);
         const order = await ProductionService.createOrder({
             companyId: session.user.companyId,
-            branchId: session.user.branchId,
+            branchId,
             recipeId: validated.recipeId,
             plannedQuantity: validated.plannedQuantity,
             unit: validated.unit,

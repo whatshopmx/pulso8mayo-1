@@ -2,7 +2,11 @@
 import { InventoryService } from "@/lib/services/inventory-service";
 import { getPriceHistory } from "@/app/actions/inventory";
 import { getSession } from "@/lib/auth";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import { BRANCH_COOKIE_NAME } from "@/lib/branch-cookies";
+import type { Role } from "@/lib/permissions";
 import { StockManager } from "@/components/inventory/stock-manager";
 import { UnitConversionManager } from "@/components/inventory/unit-conversion-manager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,9 +32,12 @@ export default async function ProductDetailPage({ params }: Props) {
         redirect("/sign-in");
     }
 
-    // Default to first branch if not set? Or require branch context.
-    // For now assuming user has a selected branch or we default to the first one available to them?
-    const branchId = session.user.branchId;
+    // Alcance del header (cookie), con fijado de GERENTE/SUPERVISOR desde la
+    // sesión — misma resolución que waste/stock-count/production.
+    const cookieStore = await cookies();
+    const requestedBranchId = cookieStore.get(BRANCH_COOKIE_NAME)?.value ?? null;
+    const role = (session.user as { role?: Role }).role ?? "ADMIN";
+    const branchId = enforceBranchScope(role, session.user.branchId, requestedBranchId);
 
     if (!branchId) {
         return (

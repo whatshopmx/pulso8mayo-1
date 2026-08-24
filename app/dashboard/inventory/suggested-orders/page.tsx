@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ShoppingCart, Package, RefreshCw, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, PageContainer, EmptyState } from "@/components/shared";
+import { useBranch } from "@/lib/branch-context";
 
 interface SuggestedItem {
   itemId: string;
@@ -35,6 +36,7 @@ interface SuggestedItem {
 
 export default function SuggestedOrdersPage() {
   const router = useRouter();
+  const { selectedBranchId } = useBranch();
   const [suggestions, setSuggestions] = React.useState<SuggestedItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -43,15 +45,19 @@ export default function SuggestedOrdersPage() {
   const fetchSuggestions = React.useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/inventory/suggested-orders");
+      const url = selectedBranchId
+        ? `/api/inventory/suggested-orders?branchId=${encodeURIComponent(selectedBranchId)}`
+        : "/api/inventory/suggested-orders";
+      const res = await fetch(url);
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al cargar sugerencias");
       setSuggestions(data.suggestions || []);
-    } catch {
-      toast.error("Error al cargar sugerencias");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al cargar sugerencias");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedBranchId]);
 
   React.useEffect(() => {
     fetchSuggestions();
@@ -119,7 +125,7 @@ export default function SuggestedOrdersPage() {
       const res = await fetch("/api/inventory/suggested-orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ items, branchId: selectedBranchId ?? undefined }),
       });
 
       const data = await res.json();

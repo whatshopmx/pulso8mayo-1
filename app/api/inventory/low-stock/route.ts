@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 import { InventoryService } from "@/lib/services/inventory-service";
 import { db } from "@/lib/db";
 import { inventoryItems, inventoryBatches, branches } from "@/lib/db/schema";
@@ -12,7 +14,7 @@ import { eq, and, sql, inArray } from "drizzle-orm";
 export async function GET(req: NextRequest) {
     try {
         const session = await getSession();
-        if (!session?.user?.id || !session?.user?.branchId) {
+        if (!session?.user?.id) {
             return NextResponse.json(
                 { error: "Unauthorized" },
                 { status: 401 }
@@ -20,7 +22,18 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-        const branchId = searchParams.get("branchId") || session.user.branchId;
+        // Alcance explícito validado (regla 2 del contrato de scope): el
+        // `branchId` del query manda; GERENTE/SUPERVISOR quedan fijos a su
+        // sucursal de sesión. Un rol corporativo sin alcance elegido obtiene
+        // un 400 accionable en vez de datos mezclados.
+        const role = (session.user as { role?: Role }).role ?? "ADMIN";
+        const branchId = enforceBranchScope(role, session.user.branchId, searchParams.get("branchId"));
+        if (!branchId) {
+            return NextResponse.json(
+                { error: "Selecciona una sucursal para consultar stock bajo" },
+                { status: 400 }
+            );
+        }
         const includeOk = searchParams.get("includeOk") === "true"; // Include items with stock >= minLevel
 
         // Get all stock levels for this branch

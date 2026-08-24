@@ -1,5 +1,9 @@
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { getSession } from '@/lib/auth';
+import { enforceBranchScope } from '@/lib/branch-scope';
+import { BRANCH_COOKIE_NAME } from '@/lib/branch-cookies';
+import type { Role } from '@/lib/permissions';
 import { Card, CardContent } from '@/components/ui/card';
 import { CookingPot } from 'lucide-react';
 import { ProductionClient } from './production-client';
@@ -16,7 +20,12 @@ export default async function ProductionPage() {
     redirect("/sign-in");
   }
 
-  const branchId = session.user.branchId;
+  // Misma resolución que waste/stock-count: GERENTE/SUPERVISOR quedan fijos a su
+  // sucursal de sesión; para los demás manda el alcance del header (cookie).
+  const cookieStore = await cookies();
+  const requestedBranchId = cookieStore.get(BRANCH_COOKIE_NAME)?.value ?? null;
+  const role = (session.user as { role?: Role }).role ?? "ADMIN";
+  const branchId = enforceBranchScope(role, session.user.branchId, requestedBranchId);
 
   if (!branchId) {
     return (

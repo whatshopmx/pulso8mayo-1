@@ -36,9 +36,11 @@ interface ReceivingWorkflowProps {
     items?: Array<{ id: string; name: string; sku?: string; unit?: string; barcode?: string }>;
     onComplete?: (receiving: any) => void;
     initialPOId?: string;
+    /** Alcance del header; la ruta lo valida con enforceBranchScope. */
+    branchId?: string;
 }
 
-export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, initialPOId }: ReceivingWorkflowProps) {
+export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, initialPOId, branchId }: ReceivingWorkflowProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isOCRing, setIsOCRing] = useState(false);
     const [receivingItems, setReceivingItems] = useState<ReceivingItem[]>([]);
@@ -339,6 +341,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                     supplierId: selectedSupplier || undefined,
                     purchaseOrderId: selectedPOId || undefined,
                     invoiceId: selectedInvoiceId || undefined,
+                    branchId: branchId || undefined,
                     notes: notes || undefined,
                 }),
             });

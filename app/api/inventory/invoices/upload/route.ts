@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 import { CFDIParserService } from "@/lib/services/cfdi-parser";
 import { db } from "@/lib/db";
 import { suppliers, inventoryItems, purchaseOrders, invoices, invoiceLines } from "@/lib/db/schema";
@@ -23,6 +25,13 @@ export async function POST(req: NextRequest) {
                 { status: 400 }
             );
         }
+
+        const role = (session.user as { role?: Role }).role ?? "ADMIN";
+        const branchId = enforceBranchScope(
+            role,
+            session.user.branchId,
+            (formData.get("branchId") as string | null) ?? null
+        );
 
         const xmlText = await file.text();
         const parsedCFDI = CFDIParserService.parse(xmlText);
@@ -160,7 +169,7 @@ export async function POST(req: NextRequest) {
         const invoiceRecord = await db.transaction(async (tx) => {
             const [inv] = await tx.insert(invoices).values({
                 companyId: session.user.companyId || "",
-                branchId: session.user.branchId || null,
+                branchId: branchId ?? null,
                 supplierId: matchedSupplier ? matchedSupplier.id : null,
                 purchaseOrderId: (matchingPOs.length > 0) ? matchingPOs[0].id : null,
                 uuid: parsedCFDI.uuid!,

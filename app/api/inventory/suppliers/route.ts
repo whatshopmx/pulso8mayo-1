@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 import { InventoryService } from "@/lib/services/inventory-service";
 import { AuditService } from "@/lib/services/audit-service";
 import { db } from "@/lib/db";
@@ -96,7 +98,11 @@ export async function POST(req: NextRequest) {
 
         AuditService.logInventoryAction({
             companyId: session.user.companyId,
-            branchId: session.user.branchId || '',
+            branchId: enforceBranchScope(
+                (session.user.role as Role) ?? "ADMIN",
+                session.user.branchId,
+                null
+            ) ?? '',
             action: 'CREATE',
             entityType: 'SUPPLIER',
             entityId: supplier.id,

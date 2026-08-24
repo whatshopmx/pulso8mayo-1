@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 import { SupplierClaimService } from "@/lib/services/supplier-claim-service";
 import { z } from "zod";
 
@@ -21,10 +23,15 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const validated = createClaimSchema.parse(body);
+    const branchId = enforceBranchScope(
+      (session.user.role as Role) ?? "ADMIN",
+      session.user.branchId,
+      (validated as { branchId?: string }).branchId ?? body.branchId ?? null
+    );
 
     const claim = await SupplierClaimService.createClaim({
       companyId: session.user.companyId,
-      branchId: session.user.branchId || "",
+      branchId: branchId ?? "",
       invoiceId: validated.invoiceId,
       supplierId: validated.supplierId,
       type: validated.type,

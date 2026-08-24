@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { storageLocations, branches } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -10,7 +12,13 @@ const locationSchema = z.object({
     type: z.enum(['DRY_STORAGE', 'REFRIGERATOR', 'FREEZER', 'BAR', 'KITCHEN', 'PRODUCTION', 'PACKAGING', 'OTHER']).default('DRY_STORAGE'),
     orgType: z.enum(['CENTRAL', 'BRANCH', 'VIRTUAL', 'TRANSIT']).default('CENTRAL'),
     active: z.boolean().default(true),
+    branchId: z.string().optional(),
 });
+
+function resolverAlcance(session: { user: { role?: string; branchId?: string | null } }, requested?: string | null): string | null {
+    const role = (session.user.role as Role | undefined) ?? "ADMIN";
+    return enforceBranchScope(role, session.user.branchId, requested);
+}
 
 export async function GET(req: NextRequest) {
     try {
@@ -23,12 +31,18 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-        const branchId = searchParams.get("branchId") || session.user.branchId;
+        const branchId = resolverAlcance(session, searchParams.get("branchId"));
+        if (!branchId) {
+            return NextResponse.json(
+                { error: "Selecciona una sucursal para ver ubicaciones" },
+                { status: 400 }
+            );
+        }
         const activeOnly = searchParams.get("active") !== "false";
 
         let conditions = [
             eq(storageLocations.companyId, session.user.companyId),
-            eq(storageLocations.branchId, branchId!),
+            eq(storageLocations.branchId, branchId),
         ];
 
         if (activeOnly) {
@@ -57,7 +71,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const session = await getSession();
-        if (!session?.user?.companyId || !session?.user?.branchId) {
+        if (!session?.user?.companyId) {
             return NextResponse.json(
                 { error: "No autorizado" },
                 { status: 401 }
@@ -65,11 +79,18 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const validatedData = locationSchema.parse(body);
+        const { branchId: requestedBranchId, ...validatedData } = locationSchema.parse(body);
+        const branchId = resolverAlcance(session, requestedBranchId ?? null);
+        if (!branchId) {
+            return NextResponse.json(
+                { error: "Selecciona una sucursal para crear la ubicación" },
+                { status: 400 }
+            );
+        }
 
         const [location] = await db.insert(storageLocations).values({
             companyId: session.user.companyId,
-            branchId: session.user.branchId,
+            branchId,
             ...validatedData,
         }).returning();
 

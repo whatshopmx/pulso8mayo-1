@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 import { AuditService } from "@/lib/services/audit-service";
 import { db } from "@/lib/db";
 import { suppliers } from "@/lib/db/schema";
@@ -109,7 +111,11 @@ export async function PATCH(
 
         AuditService.logInventoryAction({
             companyId: session.user.companyId,
-            branchId: session.user.branchId || '',
+            branchId: enforceBranchScope(
+                (session.user.role as Role) ?? "ADMIN",
+                session.user.branchId,
+                null
+            ) ?? '',
             action: 'UPDATE',
             entityType: 'SUPPLIER',
             entityId: id,
@@ -185,7 +191,11 @@ export async function DELETE(
 
         AuditService.logInventoryAction({
             companyId: session.user.companyId,
-            branchId: session.user.branchId || '',
+            branchId: enforceBranchScope(
+                (session.user.role as Role) ?? "ADMIN",
+                session.user.branchId,
+                null
+            ) ?? '',
             action: 'DELETE',
             entityType: 'SUPPLIER',
             entityId: id,

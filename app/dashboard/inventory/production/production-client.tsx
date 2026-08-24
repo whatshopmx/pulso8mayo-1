@@ -100,6 +100,7 @@ export function ProductionClient({ branchId }: { branchId: string }) {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    branchId,
                     recipeId,
                     plannedQuantity: plannedQty,
                     plannedDate,
@@ -134,6 +135,7 @@ export function ProductionClient({ branchId }: { branchId: string }) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     action: "record",
+                    branchId,
                     recipeId: recordRecipeId,
                     producedQuantity: producedQty,
                     notes: recordNotes,

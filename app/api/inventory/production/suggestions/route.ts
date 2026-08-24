@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { enforceBranchScope } from "@/lib/branch-scope";
+import type { Role } from "@/lib/permissions";
 import { ProductionService } from "@/lib/services/production-service";
 
 export async function GET(req: NextRequest) {
@@ -10,7 +12,8 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-        const branchId = searchParams.get("branchId") || session.user.branchId;
+        const role = (session.user as { role?: Role }).role ?? "ADMIN";
+        const branchId = enforceBranchScope(role, session.user.branchId, searchParams.get("branchId"));
 
         if (!branchId) {
             return NextResponse.json({ error: "branchId requerido" }, { status: 400 });
