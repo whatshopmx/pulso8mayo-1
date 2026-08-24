@@ -47,7 +47,27 @@ export function HighValueSkusSection({ branchId }: { branchId?: string }) {
     };
   }, [branchId]);
 
-  if (error) return null;
+  if (error) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-bold flex items-center gap-2">
+            <Star className="h-4 w-4 text-primary" /> SKUs de alto valor
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="py-4 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              No se pudieron cargar los SKUs de alto valor.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => { setError(false); setItems(null); }}>
+              Reintentar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const formatMXN = (cents: number | null) =>
     cents == null
