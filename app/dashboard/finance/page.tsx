@@ -127,9 +127,10 @@ export default function FinanceOverviewPage() {
         </p>
       </div>
 
-      {/* La narrativa de cuatro preguntas sale de los comentarios y se vuelve
-          visible: cada bloque lleva su rótulo discreto encima. */}
-      {/* 1. ¿Cómo vamos? — costos contra el objetivo del grupo, con tendencia. */}
+      {/* Un solo rótulo deliberado abre la narrativa; los otros tres bloques
+          ya se presentan solos con su título de card (Regla del anti-patrón
+          "eyebrow en cada sección" de DESIGN.md).
+          1. ¿Cómo vamos? — costos contra el objetivo del grupo, con tendencia. */}
       <section>
         <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
           ¿Cómo vamos?
@@ -138,30 +139,15 @@ export default function FinanceOverviewPage() {
       </section>
 
       {/* 2. ¿Qué necesita mi firma hoy? */}
-      <section>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-          ¿Qué necesita tu firma hoy?
-        </p>
-        <MoneyAttentionPanel branchId={selectedBranch} />
-      </section>
+      <MoneyAttentionPanel branchId={selectedBranch} />
 
       {/* 3. ¿Me alcanza? */}
-      <section>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-          ¿Me alcanza?
-        </p>
-        <CashFlowSummaryCard branchId={selectedBranch} />
-      </section>
+      <CashFlowSummaryCard branchId={selectedBranch} />
 
       {/* 4. ¿Dónde gano y dónde pierdo? El P&L es por sucursal a propósito: es
           la comparación que el dueño usa para decidir. No se filtra por el
           scope del encabezado porque su valor está justamente en verlas juntas. */}
-      <section>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-          ¿Dónde gano y dónde pierdo?
-        </p>
-        <PnlBranchTable />
-      </section>
+      <PnlBranchTable />
 
       {/* Accesos al detalle y la captura, agrupados para que buscar un módulo
           sea recorrer tres rótulos y no nueve tarjetas sueltas. */}
