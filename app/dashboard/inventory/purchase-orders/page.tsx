@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useRef, useId } from "react";
+import type { KeyboardEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,124 @@ function formatCurrency(cents: number | null | undefined) {
 function formatDate(date: string | Date | null | undefined) {
   if (!date) return "-";
   return new Date(date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+interface PickerProduct {
+  id: string;
+  name: string;
+  lastCost?: number | null;
+  averageCost?: number | null;
+}
+
+/**
+ * Selector de producto accesible (patrón combobox de ARIA APG): el input de
+ * búsqueda es el combobox, la lista es un listbox con opciones reales,
+ * navegación por flechas y aria-activedescendant.
+ */
+function ProductPickerPopover({
+  products,
+  selectedId,
+  onSelect,
+}: {
+  products: PickerProduct[];
+  selectedId: string;
+  onSelect: (product: PickerProduct) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const listboxId = useId();
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+
+  const selectedProduct = products.find((p) => p.id === selectedId);
+  const filtered = query
+    ? products.filter((p) => p.name.toLowerCase().includes(query.toLowerCase()))
+    : products;
+
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+
+  const select = (product: PickerProduct) => {
+    onSelect(product);
+    setOpen(false);
+    setQuery("");
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0)));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const target = filtered[activeIndex];
+      if (target) select(target);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) setQuery(""); }}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={open ? listboxId : undefined}
+          className="w-full justify-between h-8 text-sm px-2 font-normal border-input bg-background"
+        >
+          <span className="truncate">{selectedProduct ? selectedProduct.name : "Seleccionar..."}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-2 z-50 bg-popover border shadow-md rounded-md" align="start">
+        <div className="flex items-center border-b pb-2 mb-2 px-1 gap-2">
+          <Search className="h-4 w-4 shrink-0 opacity-50" />
+          <input
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listboxId}
+            aria-autocomplete="list"
+            aria-activedescendant={filtered[activeIndex] ? `${listboxId}-opt-${filtered[activeIndex].id}` : undefined}
+            placeholder="Buscar producto..."
+            className="flex h-8 w-full rounded-md bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); }}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
+        <div role="listbox" id={listboxId} aria-label="Productos" className="max-h-60 overflow-y-auto space-y-0.5">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-muted-foreground p-2 text-center">No se encontraron productos</p>
+          ) : (
+            filtered.map((p, i) => (
+              <button
+                key={p.id}
+                ref={i === activeIndex ? activeRef : undefined}
+                id={`${listboxId}-opt-${p.id}`}
+                type="button"
+                role="option"
+                aria-selected={selectedId === p.id}
+                data-active={i === activeIndex || undefined}
+                className={cn(
+                  "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none hover:bg-accent hover:text-accent-foreground text-left transition-colors",
+                  "data-[active=true]:bg-accent/50",
+                  selectedId === p.id && "font-medium"
+                )}
+                onMouseEnter={() => setActiveIndex(i)}
+                onClick={() => select(p)}
+              >
+                <Check className={cn("mr-2 h-3 w-3 shrink-0", selectedId === p.id ? "opacity-100" : "opacity-0")} />
+                <span className="truncate">{p.name}</span>
+              </button>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export default function PurchaseOrdersPage() {
@@ -369,8 +488,6 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
     { itemId: initialItemId || "", quantity: "", unitCost: "" },
   ]);
   const [priceAlerts, setPriceAlerts] = useState<Record<number, { avgCost: number; increasePercentage: number; exceedsThreshold: boolean } | null>>({});
-  const [searchQueries, setSearchQueries] = useState<Record<number, string>>({});
-  const [openPopovers, setOpenPopovers] = useState<Record<number, boolean>>({});
 
   const calculateTotals = () => {
     let subtotal = 0;
@@ -468,8 +585,6 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
     setDateRequired("");
     setItems([{ itemId: "", quantity: "", unitCost: "" }]);
     setPriceAlerts({});
-    setSearchQueries({});
-    setOpenPopovers({});
   };
 
   const addItem = () => {
@@ -483,34 +598,6 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
         const next = { ...prev };
         delete next[idx];
         const shifted: typeof priceAlerts = {};
-        Object.entries(next).forEach(([k, v]) => {
-          const keyNum = Number(k);
-          if (keyNum > idx) {
-            shifted[keyNum - 1] = v;
-          } else {
-            shifted[keyNum] = v;
-          }
-        });
-        return shifted;
-      });
-      setSearchQueries(prev => {
-        const next = { ...prev };
-        delete next[idx];
-        const shifted: typeof searchQueries = {};
-        Object.entries(next).forEach(([k, v]) => {
-          const keyNum = Number(k);
-          if (keyNum > idx) {
-            shifted[keyNum - 1] = v;
-          } else {
-            shifted[keyNum] = v;
-          }
-        });
-        return shifted;
-      });
-      setOpenPopovers(prev => {
-        const next = { ...prev };
-        delete next[idx];
-        const shifted: typeof openPopovers = {};
         Object.entries(next).forEach(([k, v]) => {
           const keyNum = Number(k);
           if (keyNum > idx) {
@@ -623,73 +710,16 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
                 <div className="grid grid-cols-12 gap-2 items-end">
                   <div className="col-span-5">
                     <Label className="text-xs">{idx === 0 ? "Producto" : ""}</Label>
-                    {(() => {
-                      const selectedProduct = (products as Array<{ id: string; name: string }>).find(p => p.id === item.itemId);
-                      const query = (searchQueries[idx] || "").toLowerCase();
-                      const filteredProducts = (products as Array<{ id: string; name: string }>).filter(p => 
-                        p.name.toLowerCase().includes(query)
-                      );
-                      
-                      return (
-                        <Popover 
-                          open={openPopovers[idx] || false} 
-                          onOpenChange={(open) => setOpenPopovers(prev => ({ ...prev, [idx]: open }))}
-                        >
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              aria-expanded={openPopovers[idx]}
-                              className="w-full justify-between h-8 text-sm px-2 font-normal border-input bg-background"
-                            >
-                              <span className="truncate">{selectedProduct ? selectedProduct.name : "Seleccionar..."}</span>
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-80 p-2 z-50 bg-popover border shadow-md rounded-md" align="start">
-                            <div className="flex items-center border-b pb-2 mb-2 px-1 gap-2">
-                              <Search className="h-4 w-4 shrink-0 opacity-50" />
-                              <input
-                                placeholder="Buscar producto..."
-                                className="flex h-8 w-full rounded-md bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                                value={searchQueries[idx] || ""}
-                                onChange={(e) => setSearchQueries(prev => ({ ...prev, [idx]: e.target.value }))}
-                              />
-                            </div>
-                            <div className="max-h-60 overflow-y-auto space-y-0.5">
-                              {filteredProducts.length === 0 ? (
-                                <p className="text-xs text-muted-foreground p-2 text-center">No se encontraron productos</p>
-                              ) : (
-                                filteredProducts.map((p) => (
-                                  <button
-                                    key={p.id}
-                                    type="button"
-                                    className={cn(
-                                      "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-xs outline-none hover:bg-accent hover:text-accent-foreground text-left transition-colors",
-                                      item.itemId === p.id && "bg-accent/50 font-medium"
-                                    )}
-                                    onClick={() => {
-                                      const costInCents = (p as any).lastCost ?? (p as any).averageCost;
-                                      const costPesos = costInCents !== undefined && costInCents !== null ? (costInCents / 100).toFixed(2) : "";
-                                      
-                                      const updatedItems = items.map((itm, i) => i === idx ? { ...itm, itemId: p.id, unitCost: costPesos } : itm);
-                                      setItems(updatedItems);
-                                      
-                                      handlePriceCheck(idx, p.id, costPesos);
-                                      setOpenPopovers(prev => ({ ...prev, [idx]: false }));
-                                      setSearchQueries(prev => ({ ...prev, [idx]: "" }));
-                                    }}
-                                  >
-                                    <Check className={cn("mr-2 h-3 w-3 shrink-0", item.itemId === p.id ? "opacity-100" : "opacity-0")} />
-                                    <span className="truncate">{p.name}</span>
-                                  </button>
-                                ))
-                              )}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      );
-                    })()}
+                    <ProductPickerPopover
+                      products={products as Array<{ id: string; name: string; lastCost?: number | null; averageCost?: number | null }>}
+                      selectedId={item.itemId}
+                      onSelect={(p) => {
+                        const costInCents = p.lastCost ?? p.averageCost;
+                        const costPesos = costInCents !== undefined && costInCents !== null ? (costInCents / 100).toFixed(2) : "";
+                        setItems(items.map((itm, i) => (i === idx ? { ...itm, itemId: p.id, unitCost: costPesos } : itm)));
+                        handlePriceCheck(idx, p.id, costPesos);
+                      }}
+                    />
                   </div>
                   <div className="col-span-2">
                     <Label className="text-xs">{idx === 0 ? "Cantidad" : ""}</Label>
