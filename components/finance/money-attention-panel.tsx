@@ -83,10 +83,13 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
   const [items, setItems] = useState<AttentionItem[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** Fuentes que fallaron sin tumbar el panel completo: la lista puede quedar corta. */
+  const [failedSources, setFailedSources] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setFailedSources([]);
 
     const scoped = (path: string) => {
       const url = new URL(path, window.location.origin);
@@ -120,6 +123,20 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
         setItems(null);
         return;
       }
+
+      // Fallo parcial: el panel sigue, pero decir "todo en orden" con una
+      // fuente caída es la misma afirmación de cumplimiento no verificada.
+      const failures: string[] = [];
+      if (!(violationsRes.ok && violationsJson.success)) {
+        failures.push("las excepciones de control interno");
+      }
+      if (!(expensesRes.ok && expensesJson.success)) {
+        failures.push("los gastos por autorizar");
+      }
+      if (!(cutsRes.ok && cutsJson.success)) {
+        failures.push("los arqueos del período");
+      }
+      setFailedSources(failures);
 
       const collected: AttentionItem[] = [];
 
@@ -255,7 +272,21 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
               <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
             </Button>
           </div>
-        ) : items && items.length === 0 ? (
+        ) : (
+          <div className="space-y-3">
+            {failedSources.length > 0 && (
+              <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-warning-text">
+                <AlertCircle className="w-4 h-4 mt-px shrink-0" />
+                <span className="flex-1">
+                  No se pudieron consultar {failedSources.join(" ni ")} — esta lista puede estar
+                  incompleta.
+                </span>
+                <Button variant="outline" size="sm" onClick={load} className="h-6 px-2 text-xs">
+                  <RefreshCw className="w-3 h-3 mr-1" /> Reintentar
+                </Button>
+              </div>
+            )}
+            {items && items.length === 0 && failedSources.length === 0 ? (
           <div className="py-8 flex flex-col items-center gap-2 text-center">
             <CheckCircle2 className="w-8 h-8 text-success" />
             <p className="text-sm font-medium">Nada pendiente de tu firma</p>
@@ -304,6 +335,8 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
                 Mostrando {VISIBLE_LIMIT} de {items.length}. Abre Control Interno o Gastos
                 Operativos para ver el resto.
               </p>
+            )}
+          </div>
             )}
           </div>
         )}
