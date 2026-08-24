@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { StockCountService } from "@/lib/services/stock-count-service";
 import { CATEGORIES } from "@/lib/inventory/constants";
@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ClipboardList, History, Settings, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { PageHeader, PageContainer } from "@/components/shared";
+import { BRANCH_COOKIE_NAME } from "@/lib/branch-cookies";
 
 async function toggleBlindCountSetting(formData: FormData) {
   "use server";
@@ -85,6 +86,15 @@ export default async function StockCountPage(props: { searchParams?: Promise<{ e
     const userBranches = await db.select().from(branches)
         .where(eq(branches.companyId, companyId));
 
+    // Alcance del header (BranchScopeControl): si hay sucursal en foco, el
+    // conteo hereda ese alcance en lugar de volver a preguntar — una sola
+    // fuente de verdad para "en qué sucursal estoy".
+    const cookieStore = await cookies();
+    const scopedBranchId = cookieStore.get(BRANCH_COOKIE_NAME)?.value || "";
+    // Validar contra las sucursales del tenant: una cookie huérfana no puede
+    // crear conteos fantasma.
+    const scopedBranch = userBranches.find((b) => b.id === scopedBranchId) ?? null;
+
     const history = await StockCountService.getStockCountHistory(companyId);
 
     const [company] = await db.select({
@@ -146,17 +156,29 @@ export default async function StockCountPage(props: { searchParams?: Promise<{ e
                             <form action={createStockCount} className="grid gap-4">
                                 <div className="grid gap-2">
                                     <Label htmlFor="branchId">Sucursal</Label>
-                                    <select
-                                        id="branchId"
-                                        name="branchId"
-                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        required
-                                    >
-                                        <option value="">Seleccionar sucursal</option>
-                                        {userBranches.map((b) => (
-                                            <option key={b.id} value={b.id}>{b.name}</option>
-                                        ))}
-                                    </select>
+                                    {scopedBranch ? (
+                                        <>
+                                            <input type="hidden" name="branchId" value={scopedBranch.id} />
+                                            <div
+                                                id="branchId"
+                                                className="flex h-9 w-full items-center rounded-md border border-input bg-muted/30 px-3 py-1 text-sm text-muted-foreground"
+                                            >
+                                                {scopedBranch.name}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <select
+                                            id="branchId"
+                                            name="branchId"
+                                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                            required
+                                        >
+                                            <option value="">Seleccionar sucursal</option>
+                                            {userBranches.map((b) => (
+                                                <option key={b.id} value={b.id}>{b.name}</option>
+                                            ))}
+                                        </select>
+                                    )}
                                 </div>
 
                                 <div className="grid gap-2">
