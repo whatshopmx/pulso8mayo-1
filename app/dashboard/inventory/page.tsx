@@ -86,7 +86,7 @@ export default function InventoryPage() {
                 type="button"
                 className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors -mt-3 mb-1"
               >
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
                 <span>Actualizado · {updatedAt}</span>
               </button>
             </TooltipTrigger>

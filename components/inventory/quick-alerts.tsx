@@ -52,7 +52,7 @@ export function QuickAlerts({ topLowStock, topExpiring, isError, onRetry, showBr
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertTriangle className="h-4 w-4 text-warning" />
             Stock Bajo
           </CardTitle>
         </CardHeader>
@@ -75,7 +75,7 @@ export function QuickAlerts({ topLowStock, topExpiring, isError, onRetry, showBr
                         <span className="block text-xs text-muted-foreground truncate">{item.branchName}</span>
                       )}
                     </div>
-                    <span className="text-sm text-amber-600 font-medium whitespace-nowrap">
+                    <span className="text-sm text-warning-text font-medium whitespace-nowrap">
                       {item.totalStock} / {item.minLevel ?? 0} {item.unit}
                     </span>
                   </Link>
@@ -89,7 +89,7 @@ export function QuickAlerts({ topLowStock, topExpiring, isError, onRetry, showBr
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <Clock className="h-4 w-4 text-orange-500" />
+            <Clock className="h-4 w-4 text-warning" />
             Próximos a Vencer
           </CardTitle>
         </CardHeader>
@@ -110,8 +110,8 @@ export function QuickAlerts({ topLowStock, topExpiring, isError, onRetry, showBr
                       <p className="text-sm font-medium truncate">{batch.itemName}</p>
                       <p className="text-xs text-muted-foreground">Lote: {batch.lotNumber ?? "N/A"}{showBranchAttribution && batch.branchName ? ` · ${batch.branchName}` : ""}</p>
                     </div>
-                    <span className="text-sm text-orange-600 font-medium whitespace-nowrap ml-2">
-                      {batch.expirationDate ? new Date(batch.expirationDate).toLocaleDateString() : "N/A"}
+                    <span className="text-sm text-warning-text font-medium whitespace-nowrap ml-2">
+                      {batch.expirationDate ? new Date(batch.expirationDate).toLocaleDateString("es-MX") : "N/A"}
                     </span>
                   </Link>
                 </li>

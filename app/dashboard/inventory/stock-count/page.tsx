@@ -265,7 +265,7 @@ export default async function StockCountPage(props: { searchParams?: Promise<{ e
                                                     </div>
                                                 </div>
                                                 {pendingApproval ? (
-                                                    <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400">
+                                                    <Badge variant="outline" className="border-warning text-warning-text">
                                                         Pendiente de aprobación
                                                     </Badge>
                                                 ) : (

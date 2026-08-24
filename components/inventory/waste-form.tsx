@@ -544,10 +544,10 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
         />
 
         {totalLoss > 0 && (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="p-4 bg-warning/10 border border-warning rounded-lg">
             <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-amber-600" />
-              <span className="text-sm font-medium text-amber-900">
+              <Package className="h-4 w-4 text-warning-text" />
+              <span className="text-sm font-medium text-warning-text">
                 Pérdida Estimada: ${totalLoss.toFixed(2)}
               </span>
             </div>

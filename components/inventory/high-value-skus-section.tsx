@@ -60,7 +60,7 @@ export function HighValueSkusSection({ branchId }: { branchId?: string }) {
     }
     if (days === null) return null;
     if (days > 14) return <Badge variant="destructive">{days} días sin contar</Badge>;
-    if (days > 7) return <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400">{days} días</Badge>;
+    if (days > 7) return <Badge variant="outline" className="border-warning text-warning-text">{days} días</Badge>;
     return <Badge variant="outline" className="text-success">Hace {days === 0 ? "hoy" : `${days} día${days > 1 ? "s" : ""}`}</Badge>;
   };
 

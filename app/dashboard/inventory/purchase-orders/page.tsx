@@ -748,7 +748,7 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0 text-red-500"
+                      className="h-8 w-8 p-0 text-destructive"
                       onClick={() => removeItem(idx)}
                       disabled={items.length === 1}
                     >
@@ -759,7 +759,7 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
                 {priceAlerts[idx] && (
                   <div className={cn(
                     "text-xs flex items-center gap-1.5 px-2 py-1 rounded-sm mt-1",
-                    priceAlerts[idx]?.exceedsThreshold ? "text-amber-700 bg-amber-50" : "text-muted-foreground bg-slate-50"
+                    priceAlerts[idx]?.exceedsThreshold ? "text-warning-text bg-warning/10" : "text-muted-foreground bg-muted"
                   )}>
                     <AlertTriangle className="h-3 w-3 shrink-0" />
                     <span>Promedio histórico: {formatCurrency(priceAlerts[idx]?.avgCost)}</span>
@@ -794,7 +794,7 @@ function CreatePODialog({ open, onOpenChange, initialItemId }: { open: boolean; 
             )}
             <div className="flex justify-between font-semibold text-base border-t pt-1.5">
               <span>Total Estimado</span>
-              <span className="font-mono text-emerald-700">{formatCurrency(Math.round(totals.total * 100))}</span>
+              <span className="font-mono">{formatCurrency(Math.round(totals.total * 100))}</span>
             </div>
           </div>
         </div>

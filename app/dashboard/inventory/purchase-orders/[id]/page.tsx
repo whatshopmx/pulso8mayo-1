@@ -175,7 +175,7 @@ export default function PODetailPage() {
 
           .card, [class*="card"] {
             box-shadow: none !important;
-            border: 1px solid #e2e8f0 !important;
+            border: 1px solid oklch(0.91 0.01 85) !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
             margin-bottom: 1.25rem !important;
