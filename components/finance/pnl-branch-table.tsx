@@ -96,7 +96,8 @@ function LineCell({
   );
 }
 
-/** Celda de utilidad: pesos y margen juntos, con la procedencia del renglón. */
+/** Celda de utilidad: pesos y margen juntos, con la procedencia del renglón.
+ *  El tinte sigue la polaridad: una pérdida no puede reposar sobre verde. */
 function ProfitCell({
   value,
   approximate,
@@ -107,8 +108,12 @@ function ProfitCell({
   const isNoData = value.source === "NO_DATA";
   return (
     <TableCell
-      className={`text-right font-bold bg-success/5 ${
-        isNoData ? "text-muted-foreground" : value.cents >= 0 ? "text-success" : "text-destructive"
+      className={`text-right font-bold ${
+        isNoData
+          ? "text-muted-foreground"
+          : value.cents >= 0
+            ? "bg-success/5 text-success"
+            : "bg-destructive/5 text-destructive"
       }`}
     >
       <NoteTip note={value.note}>
@@ -584,8 +589,10 @@ export function PnlBranchTable() {
                         : "—"}
                     </TableCell>
                     <TableCell
-                      className={`text-right font-bold bg-success/10 ${
-                        totals.operatingProfit >= 0 ? "text-success" : "text-destructive"
+                      className={`text-right font-bold ${
+                        totals.operatingProfit >= 0
+                          ? "bg-success/10 text-success"
+                          : "bg-destructive/10 text-destructive"
                       }`}
                     >
                       {totals.salesHasData
