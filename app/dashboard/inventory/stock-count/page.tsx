@@ -280,7 +280,9 @@ export default async function StockCountPage(props: { searchParams?: Promise<{ e
                                                 {content}
                                             </Link>
                                         ) : (
-                                            <div key={item.id}>{content}</div>
+                                            <Link key={item.id} href={`/dashboard/workflows/${item.id}/execute`} title="Continuar este conteo">
+                                                {content}
+                                            </Link>
                                         );
                                     })}
                                 </div>
