@@ -19,7 +19,7 @@
 ## Phase 2: Capa 01 — Unitarias lógica pura
 
 - [x] Task 5: Fechas/zonas horarias (`lib/workflows/today.ts`) × 3 zonas de México ✓ (85 tests, ~1 s; destapó y corrigió bug de ±1 min en `startOfLocalDayUtc` con segundos — commits 0c72e58 test rojo + 85e7acf fix)
-- [x] Task 6: LFT horas extra y descansos (`lib/labor-validation.ts`) ✓ (56 tests; 2 bugs corregidos: falsos traslapes por orden + extra semanal que restaba 2× las 8h — commits 8cac486/01a3c30/da8689e; 2 hallazgos congelados pendientes de decisión humana)
+- [x] Task 6: LFT horas extra y descansos (`lib/labor-validation.ts`) ✓ (59 tests; 2 bugs corregidos: falsos traslapes por orden + extra semanal que restaba 2× las 8h; 2 decisiones aplicadas con aprobación humana: bandas LFT 9h-doble/triple y continuo sólo evaluable sin descansos — commits 8cac486, 01a3c30, da8689e, b1b1695, 5a7ef20, 4f188ca)
 - [ ] Task 7: RBAC/ABAC/masking (branch-scope, permissions, abac, masking)
 - [ ] Task 8: parseMoneyToCents + rate-limiter
 - [ ] Task 9: Propinas con property-based (fast-check)
