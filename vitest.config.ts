@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 // Fijar la zona del proceso ANTES de que Vitest cree workers: los hijos
@@ -13,7 +14,15 @@ process.env.TZ = "UTC";
  *   propósito: otra suite, otro ciclo de vida.
  * - `.worktrees/` tiene su propio node_modules y nunca debe entrar al barrido.
  */
+// Alias `@/` igual que tsconfig.json: los módulos del repo se importan entre sí
+// con `@/lib/...`; sin esto un spec no puede cargar (p. ej.) `lib/rbac/abac.ts`.
+// No afecta los globs de inclusión ni TZ.
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL(".", import.meta.url)),
+    },
+  },
   test: {
     environment: "node",
     env: { TZ: "UTC" },
