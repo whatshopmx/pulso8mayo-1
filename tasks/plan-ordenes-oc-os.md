@@ -1,5 +1,7 @@
 # Implementation Plan: Sistema de Control OC/OS (Órdenes de Compra y Servicio)
 
+> **Fuente de verdad para continuidad entre sesiones:** `handoffs/oc-os-sistema-control-implementacion-y-pendientes.md` — contexto, implementado, pendientes y gotchas. Este plan y `tasks/todo-ordenes-oc-os.md` se mantienen sincronizados con ella.
+
 ## Overview
 
 Implementar el sistema de control documental y financiero descrito en `finzasordenes.md`: Órdenes de Servicio como documento formal independiente, matriz de autorización por monto, centros de costo con presupuesto mensual, folios `OC/OS-[SUCURSAL]-[AÑO]-[CONSECUTIVO]` sin saltos, compras de emergencia con tope mensual, y dashboard de KPIs gerenciales.
