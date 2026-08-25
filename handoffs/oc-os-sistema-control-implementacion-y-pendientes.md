@@ -16,7 +16,7 @@
 | `95d1c2c` | Task 6 — APIs aprobaciones/matriz/centros/presupuestos + integración OC (matriz+folio real en OC) |
 *(Nota: `d6fcc0a` commiteó trabajo fiscal suelto previo que compartía el working tree; no pertenece a este plan.)*
 
-**Estado al cierre:** ✅ **Phases 1–3 completas + Checkpoint de APIs verificado E2E contra dev server** (flujo OS completo con multi-nivel, OC con folio nuevo, auditoría de folios sin huecos; ver Checkpoint: APIs) — migraciones aplicadas sin destructivos, 31 tests unitarios nuevos del plan (348 total), `pnpm run build` exit 0, concurrencia real del generador de folios verificada contra Neon (8 transacciones paralelas → 8 folios únicos consecutivos).
+**Estado al cierre:** ✅ **Phases 1–3 completas + Checkpoint E2E + Task 7 (UI OS) completas** (flujo OS completo con multi-nivel, OC con folio nuevo, auditoría de folios sin huecos; ver Checkpoint: APIs) — migraciones aplicadas sin destructivos, 31 tests unitarios nuevos del plan (348 total), `pnpm run build` exit 0, concurrencia real del generador de folios verificada contra Neon (8 transacciones paralelas → 8 folios únicos consecutivos).
 **Cambios sin commitear:** `app/dashboard/inventory/expirations/page.tsx` modificado pero ajeno a este plan (no tocar).
 
 ---
@@ -26,7 +26,7 @@
 Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.md`: Órdenes de Servicio como módulo independiente con evidencia y conformidad, matriz de autorización multi-nivel configurable por monto, presupuesto mensual por sucursal×centro de costo×partida, folios `OC/OS-[SUC]-[AÑO]-[N]` sin saltos, tope mensual de compras de emergencia y dashboard de KPIs gerenciales.
 
 **Ya terminado:** datos (1), folios (2), lógica de aprobación (3), presupuesto/emergencias (4), API OS CRUD+submit (5a), quotes/evidence/conformity+transiciones (5b) y APIs de aprobaciones/catálogos/integración OC (6). **Phase 3 completa.**
-**Siguiente paso concreto:** **Task 7** — `app/dashboard/service-orders/page.tsx` (lista+filtros, patrón purchase-orders) y `[id]/page.tsx` (timeline aprobaciones, galería ANTES/DESPUES, acciones según estado×rol) + entrada en sidebar.
+**Siguiente paso concreto:** **Task 8** — `app/dashboard/approvals/page.tsx` (bandeja agrupada con presupuesto restante, aprobar/rechazar con razón; hooks useApproveRequest/useRejectRequest ya existen) + editor de matriz en `app/dashboard/company/approval-matrix/page.tsx` (patrón página cliente + API, NO en settings/).
 
 ---
 
@@ -128,7 +128,7 @@ Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.m
   - **Fix destapado por el e2e** (`f4fee9b`): validateMatrixRules permite traslapes con secuencias distintas (cadenas acumulativas multi-nivel); error solo si el traslape comparte secuencia
 
 ### Phase 4: UI
-- [ ] **Task 7** — `app/dashboard/service-orders/page.tsx` (lista+filtros+badges, patrón purchase-orders) y `[id]/page.tsx` (timeline aprobaciones, galería ANTES/DESPUES, acciones según estado×rol); entrada en sidebar/nav
+- [x] **Task 7** ✅ commit `9f83b79`→`9f83b59` (2026-08-25): lista `/dashboard/service-orders` (filtros estado/tipo, paginación, badges urgencia/estado, diálogo creación con sucursal+centro de costo) · detalle `[id]` (info enriquecida, timeline autorización con 'En turno', cotizaciones, galería ANTES/DESPUES con upload R2 vía usePhotoUpload, acciones estado×rol: editar/enviar/cancelar, aprobar/rechazar nivel corriente excluyendo creador, programar/iniciar/completar, conformidad GERENTE+) · sección 'Control' en sidebar · hooks react-query en `hooks/queries/use-service-orders.ts`. Build verde, rutas 200 con sesión real, lint limpio
 - [ ] **Task 8** — `app/dashboard/approvals/page.tsx` (bandeja agrupada, presupuesto restante, aprobar/rechazar con razón) + editor de matriz en `app/dashboard/company/approval-matrix/page.tsx` (junto a operating-config, patrón página cliente + API; NO en settings/)
 - [ ] **Task 9** — `app/dashboard/budgets/page.tsx`: catálogo centros + grid mensual por sucursal/partida + barra consumo vs presupuestado (alerta ≥90%)
 

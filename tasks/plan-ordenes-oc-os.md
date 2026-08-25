@@ -147,7 +147,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
 
 ### Phase 4: UI
 
-- [ ] **Task 7: Páginas de Órdenes de Servicio**
+- [ ] **Task 7: Páginas de Órdenes de Servicio** ✅ implementada (`9f83b59`, 2026-08-25)
   `app/dashboard/service-orders/page.tsx` (lista con filtros y badges de estado/urgencia, patrón de purchase-orders/page.tsx) y `[id]/page.tsx` (detalle: timeline de aprobaciones, galería evidencias antes/después, botones según estado y rol: editar/enviar/aprobar/firmar conformidad). Formulario de creación con selector de centro de costo.
 
   **Acceptance criteria:**

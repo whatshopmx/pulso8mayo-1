@@ -40,7 +40,7 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 
 ## Phase 4: UI
 
-- [ ] Task 7: Páginas service-orders (lista + detalle con timeline y evidencias)
+- [x] Task 7: Páginas service-orders (lista + detalle con timeline y evidencias) — commit `9f83b59`: sección 'Control' en sidebar; acciones estado×rol; upload R2 evidencias/cotizaciones
 - [ ] Task 8: Bandeja de aprobaciones + admin de matriz de autorización (`app/dashboard/company/approval-matrix`, junto a operating-config)
 - [ ] Task 9: UI presupuestos y centros de costo con consumo vs presupuestado
 
