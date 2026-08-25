@@ -21,18 +21,16 @@ import {
  * Suite de Task 6 (plan.md): validación LFT sobre lógica pura de
  * `lib/labor-validation.ts`.
  *
- * Contratos verificados contra el código fuente y sondas empíricas:
- * - `calculateOvertime` reparte la extra en TRES bandas de una hora: rate1
- *   (etiquetada "Normal (1x)"), rate2 ("Doble") y rate3 ("Triple"). OJO: la
- *   regla LFT de referencia del plan es "primeras 9 h semanales al doble,
- *   siguientes al triple"; la implementación actual NO refleja eso (paga la
- *   primera hora extra a tarifa normal). Aquí se CONGELA el comportamiento
- *   vigente porque afecta nómina — cambiarlo requiere decisión humana.
- * - `validateBreakCompliance` trata `workMinutes` como jornada total en las
- *   ramas de comida pero como tramo continuo en el límite de 300 min: una
- *   jornada de 8 h CON su descanso de 30 min sale no-compliant. Congelado y
- *   señalado como candidato a revisión (la ruta shift-sessions PUT marca
- *   `missedBreak` con este resultado).
+ * Contratos vigentes tras decisión humana del 2026-08-24:
+ * - `calculateOvertime` implementa LFT Art. 84/87: TODA hora extra se paga
+ *   mínimo al doble; las primeras 9 h extra semanales van a doble y el
+ *   excedente a triple. `weeklyOvertimeAccumulated` trae lo ya pagado a
+ *   doble en la semana y recorta ese allowance. `rate1Minutes` queda
+ *   deprecado en 0: no existe categoría legal de extra a tarifa normal.
+ * - `validateBreakCompliance` evalúa el límite de trabajo continuo SÓLO
+ *   cuando no hubo descansos (dato exacto); con descansos registrados no
+ *   acusa continuidad porque sin BreakLog segmentado sería adivinar. Las
+ *   exigencias legales de comida (30 min ≥8h) y 15 min (5-6h) quedan intactas.
  * - Todos los instantes usan sufijo `Z`; el proceso corre TZ=UTC (vitest
  *   config), así que las horas mostradas en mensajes son UTC y no se
  *   asertan substrings de reloj.
@@ -60,25 +58,25 @@ describe("DEFAULT_COMPLIANCE_RULES", () => {
 });
 
 describe("calculateOvertime", () => {
-    // CONTRATO VIGENTE (ver cabecera): banda 1 = primera hora de extra,
-    // banda 2 = siguiente hora, banda 3 = el resto. `weeklyOvertimeAccumulated`
-    // descuenta de la banda 1 lo ya pagado antes en la semana.
+    // LFT Art. 84/87: allowance semanal de 9h extra al doble (recortado por
+    // `weeklyOvertimeAccumulated`), excedente al triple, rate1 deprecado.
     it.each([
         ["jornada exacta de 8h no genera extra", 480, 0, { totalMinutes: 0, rate1Minutes: 0, rate2Minutes: 0, rate3Minutes: 0 }],
         ["menos de 8h no genera extra", 479, 0, { totalMinutes: 0, rate1Minutes: 0, rate2Minutes: 0, rate3Minutes: 0 }],
-        ["1 minuto de extra cae en banda 1", 481, 0, { totalMinutes: 1, rate1Minutes: 1, rate2Minutes: 0, rate3Minutes: 0 }],
-        ["primera hora extra completa en banda 1", 540, 0, { totalMinutes: 60, rate1Minutes: 60, rate2Minutes: 0, rate3Minutes: 0 }],
-        ["segunda hora pasa a banda 2", 600, 0, { totalMinutes: 120, rate1Minutes: 60, rate2Minutes: 60, rate3Minutes: 0 }],
-        ["tercera hora pasa a banda 3", 660, 0, { totalMinutes: 180, rate1Minutes: 60, rate2Minutes: 60, rate3Minutes: 60 }],
-        ["jornada de 17h: el excedente masivo se va a banda 3", 1020, 0, { totalMinutes: 540, rate1Minutes: 60, rate2Minutes: 60, rate3Minutes: 420 }],
-        ["acumulado semanal recorta la banda 1", 540, 30, { totalMinutes: 60, rate1Minutes: 30, rate2Minutes: 30, rate3Minutes: 0 }],
-        ["acumulado ≥ 60 agota banda 1 y corre las demás", 600, 90, { totalMinutes: 120, rate1Minutes: 0, rate2Minutes: 60, rate3Minutes: 60 }],
+        ["1 minuto de extra cae a doble", 481, 0, { totalMinutes: 1, rate1Minutes: 0, rate2Minutes: 1, rate3Minutes: 0 }],
+        ["primera hora extra completa a doble", 540, 0, { totalMinutes: 60, rate1Minutes: 0, rate2Minutes: 60, rate3Minutes: 0 }],
+        ["hasta 9h extra semanales van a doble (jornada de 17h)", 1020, 0, { totalMinutes: 540, rate1Minutes: 0, rate2Minutes: 540, rate3Minutes: 0 }],
+        ["la hora 10 de extra semanal ya es triple", 1021, 0, { totalMinutes: 541, rate1Minutes: 0, rate2Minutes: 540, rate3Minutes: 1 }],
+        ["el excedente sobre las 9h se acumula a triple", 1140, 0, { totalMinutes: 660, rate1Minutes: 0, rate2Minutes: 540, rate3Minutes: 120 }],
+        ["acumulado semanal recorta el allowance a doble", 600, 500, { totalMinutes: 120, rate1Minutes: 0, rate2Minutes: 40, rate3Minutes: 80 }],
+        ["acumulado ≥ 9h: toda la extra del día va a triple", 540, 600, { totalMinutes: 60, rate1Minutes: 0, rate2Minutes: 0, rate3Minutes: 60 }],
+        ["acumulado dentro del allowance no afecta", 540, 30, { totalMinutes: 60, rate1Minutes: 0, rate2Minutes: 60, rate3Minutes: 0 }],
     ])("%s (%i min, acumulado %i)", (_label, total, accumulated, expected) => {
         expect(calculateOvertime(total, accumulated)).toEqual(expected);
     });
 
     it("weeklyOvertimeAccumulated default es 0", () => {
-        expect(calculateOvertime(600)).toEqual({ totalMinutes: 120, rate1Minutes: 60, rate2Minutes: 60, rate3Minutes: 0 });
+        expect(calculateOvertime(600)).toEqual({ totalMinutes: 120, rate1Minutes: 0, rate2Minutes: 120, rate3Minutes: 0 });
     });
 });
 
@@ -98,11 +96,12 @@ describe("calculateWeeklyOvertime", () => {
         // como jornada total, así que cualquier semana con <8h de extra
         // acumulada devolvía todo en cero y las alertas nunca disparaban
         // (overtime-alert-service). [60, 0, 120, 30] = 210 min de extra.
+        // 210 min de extra semanales, todos dentro del allowance de 9h a doble.
         expect(calculateWeeklyOvertime([60, 0, 120, 30])).toEqual({
             totalMinutes: 210,
-            rate1Minutes: 60,
-            rate2Minutes: 60,
-            rate3Minutes: 90,
+            rate1Minutes: 0,
+            rate2Minutes: 210,
+            rate3Minutes: 0,
         });
     });
 
@@ -128,17 +127,13 @@ describe("validateBreakCompliance", () => {
         });
     });
 
-    it("DOCUMENTADO/PENDIENTE DE DECISIÓN: jornada de 8h CON descanso de 30 min también falla", () => {
-        // La rama final compara workMinutes (jornada neta total, así la pasa el
-        // caller de shift-sessions PUT) contra maxContinuousWork (300 min):
-        // toda sesión ≥ 5h01m sale no-compliant aunque haya tomado sus
-        // descansos. La variable mezcla semántica de "jornada total" y "tramo
-        // continuo". Congelado tal cual porque cambia flags de producción;
-        // requiere decisión sobre la semántica correcta.
-        expect(validateBreakCompliance(480, 30)).toEqual({
-            isCompliant: false,
-            message: "Trabajo continuo de 480 min excede límite de 300 min sin descanso",
-        });
+    it("DECIDIDO 2026-08-24: jornada de 8h CON descanso compliant es compliant", () => {
+        // El límite de continuo sólo es evaluable sin descansos: con ellos
+        // registrados no sabemos dónde cayeron (haría falta BreakLog por
+        // segmento) y NO se acusa. Antes toda sesión ≥ 5h01m salía
+        // no-compliant aunque hubiera tomado sus descansos y la ruta
+        // shift-sessions PUT marcaba missedBreak en masa.
+        expect(validateBreakCompliance(480, 30)).toEqual({ isCompliant: true });
     });
 
     it("jornada de 5h exacta exige 15 min de descanso", () => {
@@ -148,15 +143,17 @@ describe("validateBreakCompliance", () => {
 
     it.each([
         ["5.5h con 14 min falta poco", 330, 14, false],
-        ["5.5h con 15 min cumple la comida PERO cae por continuo >300", 330, 15, false],
+        ["5.5h con 15 min cumple la comida y hay descansos → no se acusa continuidad", 330, 15, true],
         ["4h59 sin descanso pasa (ni comida ni continuo)", 299, 0, true],
+        ["6h con 20 min de descanso → continuidad no evaluable, pasa", 360, 20, true],
+        ["8.35h con 45 min de descanso → comida ok, continuidad silente", 501, 45, true],
     ])("%s (%i trabajo / %i descanso → %j)", (_label, work, brk, expected) => {
         expect(validateBreakCompliance(work, brk).isCompliant).toBe(expected);
     });
 
-    it("hueco regulatorio 6-8h: sin mínimo propio de descanso; lo atrapa el límite de continuo", () => {
-        // 6h sin descanso: la rama 5-6h no aplica (>6h) y la de comida exige 8h;
-        // sólo el chequeo de 300 min continuos la marca.
+    it("hueco regulatorio 6-8h SIN descanso: lo atrapa el límite de continuo (dato exacto)", () => {
+        // 6h sin ningún descanso: la rama 5-6h no aplica (>6h) y la de comida
+        // exige 8h; el chequeo de continuo aplica porque breakMinutes = 0.
         expect(validateBreakCompliance(360, 0).message).toContain("excede límite de 300 min");
     });
 
@@ -366,7 +363,7 @@ describe("generateWeeklyReport", () => {
             overtimeMinutes: 60,
             status: "compliant",
         });
-        expect(u1?.overtimeBreakdown).toEqual({ totalMinutes: 120, rate1Minutes: 60, rate2Minutes: 60, rate3Minutes: 0 });
+        expect(u1?.overtimeBreakdown).toEqual({ totalMinutes: 120, rate1Minutes: 0, rate2Minutes: 120, rate3Minutes: 0 });
 
         const summary = report.summary;
         expect(summary).toMatchObject({
