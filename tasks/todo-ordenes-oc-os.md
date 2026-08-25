@@ -4,9 +4,11 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 
 ## Decisiones (2026-08-25)
 
-- Matrices de autorización **coexisten separadas**: `approvalMatrixRules` (OC/OS, multi-nivel) vs `expenseAuthorizationRules` (gastos sueltos).
+- Matrices de autorización **coexisten en tres capas**: `approvalMatrixRules` (OC/OS, multi-nivel) · `expenseAuthorizationRules` + umbrales del operating-config vía `rolExigidoPorMonto()` (gastos sueltos) · OC/OS no lee esos umbrales ni A16.
+- **Tope de emergencias** en `tenant_operating_config.emergencyPurchaseCapCents`, editable desde `app/dashboard/company/operating-config` (UI existente de umbrales).
 - Tesorería/corridas de pago **delegadas a plan-payees**; este plan solo deja hook de expectativa de pago.
 - Contratos recurrentes y domiciliados entran a este plan como **Phase 6**.
+- KPIs de control leen metas de `tenant_operating_config` (targets food/labor/margin ya configurables).
 
 ## Phase 1: Fundaciones (datos)
 
@@ -20,7 +22,7 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 ## Phase 2: Servicios de negocio
 
 - [ ] Task 3: Servicio matriz de autorización con seed default y niveles secuenciales (paralelizable con Task 4)
-- [ ] Task 4: Servicio presupuesto (disponibilidad por partida/mes) + tope emergencias mensual (paralelizable con Task 3)
+- [ ] Task 4: Servicio presupuesto (disponibilidad por partida/mes) + tope emergencias mensual en `emergencyPurchaseCapCents` (operating-config) (paralelizable con Task 3)
 
 ## Checkpoint: Business Logic
 
@@ -39,7 +41,7 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 ## Phase 4: UI
 
 - [ ] Task 7: Páginas service-orders (lista + detalle con timeline y evidencias)
-- [ ] Task 8: Bandeja de aprobaciones + admin de matriz de autorización
+- [ ] Task 8: Bandeja de aprobaciones + admin de matriz de autorización (`app/dashboard/company/approval-matrix`, junto a operating-config)
 - [ ] Task 9: UI presupuestos y centros de costo con consumo vs presupuestado
 
 ## Phase 5: KPIs y automatización

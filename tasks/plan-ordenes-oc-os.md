@@ -15,6 +15,8 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
 | Recepción | `app/dashboard/inventory/receiving/page.tsx` |
 | Mantenimiento equipos | `lib/db/schema/equipment.ts`: `equipmentMaintenanceHistory`, `serviceProviders`, `equipmentMaintenanceSchedules` |
 | Roles | enum `role` en lib/db/schema/auth.ts (`OWNER|ADMIN|GERENTE|SUPERVISOR|EMPLEADO|READONLY`) |
+| Config de umbrales | `tenantOperatingConfig` (schema.ts:2866) + UI `app/dashboard/company/operating-config/` + `components/company/operating-config-form.tsx`: 7 dimensiones estructurales, `managerAuthLimitCents`, `doubleApprovalThresholdCents`, `pettyCashLimitCents`, targets KPI (food/labor/margin) con defaults en `financial-kpi-types.ts` |
+| Política gastos sueltos | `lib/expenses/approval-policy.ts` (A16): segregación de funciones + fallback `rolExigidoPorMonto()` que lee los umbrales del operating-config; usado por `expense-service.ts` (:164, :713) |
 | Notificaciones | `NotificationDispatcher` / `NotificationService` (WhatsApp/email/in-app) |
 | Dinero | Montos en centavos (integer) — mantener convención |
 
@@ -26,9 +28,11 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
 4. **Folios generados por servicio transaccional** (`folio-generator.ts`): consecutivo por empresa+sucursal+tipo+año usando `SELECT ... FOR UPDATE` sobre tabla contador (evita colisiones y saltos). Órdenes legacy conservan su `poNumber`.
 5. **Corte vertical**: cada fase entrega un flujo usable end-to-end (schema+migración → servicios → API → UI).
 6. **Esquema nuevo en módulo separado** `lib/db/schema/service-orders.ts`, exportado desde `schema/index.ts` y `schema.ts`.
-7. **Matrices de autorización coexisten separadas** (decisión del usuario): `approvalMatrixRules` (multi-nivel secuencial) gobierna OC/OS; `expenseAuthorizationRules` (existente, un nivel) sigue gobernando gastos operativos sueltos. No se migra ni unifica.
+7. **Matrices/umbrales de autorización coexisten en tres capas** (decisión del usuario, refinada tras investigación del operating-config): (a) `approvalMatrixRules` multi-nivel secuencial gobierna OC/OS exclusivamente; (b) gastos operativos sueltos siguen con `expenseAuthorizationRules` (regla explícita) con fallback `rolExigidoPorMonto()` sobre los umbrales de `tenant_operating_config`; (c) OC/OS NO lee esos umbrales ni la política A16 — tiene su propia cadena. No se migra ni unifica nada.
+8. **Tope de emergencias vive en `tenant_operating_config`** (no constante ni regla nueva): columna nueva `emergencyPurchaseCapCents`, editable desde el formulario operating-config existente que ya administra los demás umbrales financieros.
 8. **Tesorería/corridas de pago fuera de alcance**: delegada al flujo de lotes CLABE de `tasks/plan-payees-contrapartes.md`. Este plan solo deja el hook: OC/OS aprobadas exponen expectativa de pago (payee/supplier, monto, vencimiento).
 9. **Lo que ya existe NO se rehace** (investigación 2026-08): caja chica (`pettyCashFunds`/`pettyCashTransactions`), 3-way match con CFDI SAT (`cfdiRecibidos` + conciliación por RFC emisor ±$0.01 en `fiscal-buzon-service.ts`), gastos operativos con autorización (`operatingExpenses`), payees anti-fragmentación, nómina timbrada (`cfdiNominaTimbrados`), recepción con checklist, P&L snapshots.
+10. **KPIs leen objetivos del operating-config** (investigación 2026-08-25): el dashboard de control usa `foodCostTargetPercent` etc. de `tenant_operating_config` (defaults `DEFAULT_FINANCIAL_TARGETS`) como metas de las semáforizaciones — no hardcodea metas propias.
 
 ## Task List
 
@@ -89,7 +93,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
 - [ ] **Task 4: Servicio de presupuesto y tope de emergencias**
   Crear `lib/services/budget-service.ts`:
   - `checkBudgetAvailability(branchId, costCenterId, month, amount)` → disponible = presupuestado − comprometido (OC/OS aprobadas del mes)
-  - `validateEmergencyCap(branchId, month)` → tope mensual configurable de compras EMERGENCIA (constante por empresa o regla en approvalMatrixRules)
+  - `validateEmergencyCap(branchId, month)` → tope mensual configurable de compras EMERGENCIA, leído de `tenantOperatingConfig.emergencyPurchaseCapCents` (columna nueva en migración propia; `null` = sin tope). UI: nuevo campo en `components/company/operating-config-form.tsx`, junto a los umbrales que ya administra
   - Integración en flujo de envío a aprobación: bloquea o advierte según política (bloquear si no hay presupuesto salvo emergencia)
 
   **Acceptance criteria:**
@@ -99,7 +103,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
 
   **Verification:** tests unitarios; build
   **Dependencies:** Task 1
-  **Files:** `lib/services/budget-service.ts`
+  **Files:** `lib/services/budget-service.ts`, `lib/db/schema.ts` (columna emergencyPurchaseCapCents) + migración, `components/company/operating-config-form.tsx`, `app/api/company/operating-config/route.ts`
   **Estimated scope:** Medium
 
 ### Checkpoint: Business Logic
@@ -140,6 +144,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Verification:** curl manual; lint
   **Dependencies:** Tasks 2, 3, 4
   **Files:** `app/api/approval-requests/**`, `app/api/approval-matrix/**`, `app/api/cost-centers/**`, `app/api/budgets/**`, `app/api/inventory/purchase-orders/**`
+  **UI Task 8:** `app/dashboard/approvals/**`, `app/dashboard/company/approval-matrix/**`
   **Estimated scope:** Large
 
 ### Checkpoint: APIs
@@ -162,7 +167,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Estimated scope:** Large
 
 - [ ] **Task 8: Bandeja de aprobaciones + admin de matriz**
-  `app/dashboard/approvals/page.tsx` (pendientes agrupados por documento, monto, regla aplicada, presupuesto restante, acciones aprobar/rechazar con razón). `app/dashboard/settings/approval-matrix/page.tsx` (editor de reglas: rangos, roles, cotizaciones mínimas).
+  `app/dashboard/approvals/page.tsx` (pendientes agrupados por documento, monto, regla aplicada, presupuesto restante, acciones aprobar/rechazar con razón). Editor de la matriz en `app/dashboard/company/approval-matrix/page.tsx` — bajo la sección Organización, junto al operating-config existente (mismo patrón de página cliente + API), NO en settings/.
 
   **Acceptance criteria:**
   - [ ] Aprobar desde la UI mueve el documento al siguiente nivel (visible en timeline)
@@ -170,7 +175,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
 
   **Verification:** recorrido manual; build
   **Dependencies:** Tasks 6, 7
-  **Files:** `app/dashboard/approvals/**`, `app/dashboard/settings/approval-matrix/**`
+  **Files:** `app/dashboard/approvals/**`, `app/dashboard/company/approval-matrix/**`
   **Estimated scope:** Large
 
 - [ ] **Task 9: Presupuestos y centros de costo (UI)**
@@ -188,7 +193,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
 ### Phase 5: KPIs y automatización
 
 - [ ] **Task 10: Dashboard de KPIs gerenciales**
-  `app/dashboard/reports/control/page.tsx` con Recharts (patrón de reports/executive):
+  `app/dashboard/reports/control/page.tsx` con Recharts (patrón de reports/executive). Metas/semáforos leídas de `tenant_operating_config` (`foodCostTargetPercent`, `laborCostTargetPercent`, defaults en `DEFAULT_FINANCIAL_TARGETS`) — decisión #10:
   - Food cost % real vs teórico por sucursal (usa datos recipes/sales-entry existentes)
   - Gasto operativo % (OS/ventas) y presupuesto vs ejecutado por partida
   - Comparativo de precios por insumo entre sucursales, ranking proveedores (cumplimiento + monto)
