@@ -111,3 +111,41 @@ export function loadCsdForTin(tin: string): TaxCredentialPayload[] {
   csdCache.set(key, creds);
   return creds;
 }
+
+const fielCache = new Map<string, TaxCredentialPayload[]>();
+
+/**
+ * Par FIEL/e.firma (.cer/.key en base64) del RFC solicitado — la credencial
+ * que el SAT exige para la descarga masiva (el "buzón" de facturas recibidas).
+ * Es distinta del CSD: la e.firma firma solicitudes, nunca facturas. Los
+ * archivos viven junto al CSD como fiel.cer / fiel.key. Sólo algunas personas
+ * de prueba la traen en el zip oficial.
+ */
+export function loadFielForTin(tin: string): TaxCredentialPayload[] {
+  const key = tin.trim().toUpperCase();
+  const cached = fielCache.get(key);
+  if (cached) return cached;
+
+  const dir = path.join(CERTS_ROOT, key);
+  const cerPath = path.join(dir, "fiel.cer");
+  const keyPath = path.join(dir, "fiel.key");
+
+  for (const p of [cerPath, keyPath]) {
+    if (!fs.existsSync(p)) {
+      throw new Error(
+        `Falta la FIEL de prueba ${p}. Copia el par de la carpeta del RFC en el ` +
+          "zip Certificados_Pruebas (rfc.cer de raíz + Claveprivada_FIEL_*.key)."
+      );
+    }
+  }
+
+  // fileType de FIEL: el SDK documenta 0/1 para CSD; 2/3 son certificado/
+  // llave de e.firma. Si FiscalAPI esperara otros valores, su error de
+  // validación lo dirá y se ajusta aquí.
+  const creds: TaxCredentialPayload[] = [
+    { base64File: fs.readFileSync(cerPath).toString("base64"), fileType: 2, password: TEST_CSD_PASSWORD },
+    { base64File: fs.readFileSync(keyPath).toString("base64"), fileType: 3, password: TEST_CSD_PASSWORD },
+  ];
+  fielCache.set(key, creds);
+  return creds;
+}
