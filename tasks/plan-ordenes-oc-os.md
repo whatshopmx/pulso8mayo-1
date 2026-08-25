@@ -109,9 +109,9 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   - `route.ts` (GET lista con filtros sucursal/status/tipo, POST crear borrador con validación zod)
   - `[id]/route.ts` (GET detalle con quotes+evidence+approvals, PATCH editar en DRAFT)
   - `[id]/submit/route.ts` (valida cotizaciones mínimas según matriz, presupuesto, crea approvals, pasa a PENDING_APPROVAL)
-  - `[id]/quotes/route.ts` (POST adjuntar cotización)
-  - `[id]/evidence/route.ts` (POST subir evidencia antes/después a R2/local fallback — mismo patrón que workflows)
-  - `[id]/conformity/route.ts` (POST firma de conformidad del gerente → CLOSED)
+  - `[id]/quotes/route.ts` (POST adjuntar cotización) ✅ 5b
+  - `[id]/evidence/route.ts` (POST subir evidencia antes/después a R2/local fallback — mismo patrón que workflows) ✅ 5b
+  - `[id]/conformity/route.ts` (POST firma de conformidad del gerente → CLOSED) ✅ 5b
 
   **Acceptance criteria:**
   - [ ] Todas las rutas verifican sesión (`getSession()`) y scoping por tenant (`lib/tenant-context.ts`)

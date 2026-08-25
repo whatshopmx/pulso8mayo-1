@@ -12,6 +12,7 @@
 | `d8a9b26` | docs — hallazgos del operating-config integrados al plan |
 | `5299cf8` | Tasks 3+4 — servicios de matriz de autorización y presupuesto/tope emergencias (`0063`: emergency_purchase_cap_cents) |
 | `7aa9b80` | Task 5a — API service-orders CRUD + submit transaccional (`lib/services/service-order-service.ts` + 3 rutas) |
+| `41bcae3` | Task 5b — quotes/evidence/conformity + transiciones operativas (schedule/start/complete/cancel) |
 *(Nota: `d6fcc0a` commiteó trabajo fiscal suelto previo que compartía el working tree; no pertenece a este plan.)*
 
 **Estado al cierre:** ✅ **Phase 1 (Fundaciones), Phase 2 (Business Logic) y Task 5a completas y verificadas** — migraciones aplicadas sin destructivos, 37 tests unitarios nuevos, suite completa **317 passed**, `pnpm run build` exit 0, concurrencia real del generador de folios verificada contra Neon (8 transacciones paralelas → 8 folios únicos consecutivos). Working tree limpio.
@@ -23,8 +24,12 @@
 
 Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.md`: Órdenes de Servicio como módulo independiente con evidencia y conformidad, matriz de autorización multi-nivel configurable por monto, presupuesto mensual por sucursal×centro de costo×partida, folios `OC/OS-[SUC]-[AÑO]-[N]` sin saltos, tope mensual de compras de emergencia y dashboard de KPIs gerenciales.
 
-**Ya terminado:** datos (Task 1), folios (Task 2), lógica de aprobación (Task 3), lógica de presupuesto/emergencias (Task 4) y API OS CRUD+submit (Task 5a).
-**Siguiente paso concreto:** **Task 5b** — rutas `[id]/quotes`, `[id]/evidence` y `[id]/conformity` bajo `app/api/service-orders/`. Quotes/evidence: POST con URL de archivo (patrón R2/local-fallback de workflows). Conformity: solo rol GERENTE+ y solo en PENDING_CONFORMITY → CLOSED (+conformitySignedBy/At); el flujo APPROVED→SCHEDULED→IN_PROGRESS→PENDING_CONFORMITY se puede cubrir con transiciones simples en `[id]/route.ts` PATCH o ruta `[id]/status`.
+**Ya terminado:** datos (Task 1), folios (Task 2), lógica de aprobación (Task 3), lógica de presupuesto/emergencias (Task 4), API OS CRUD+submit (Task 5a) y quotes/evidence/conformity+transiciones (Task 5b).
+**Siguiente paso concreto:** **Task 6** — APIs de aprobaciones y catálogos + integración OC:
+1. `app/api/approval-requests/route.ts` (GET bandeja: requests PENDING cuyo nivel = nivel mínimo pendiente de su doc y rol ≤ rol del usuario), `[id]/approve/route.ts` y `[id]/reject/route.ts` delegando en `approveRequest`/`rejectRequest`; denial ROLE/SELF/NOT_CURRENT_LEVEL → 403/409 con mensaje humano
+2. `app/api/approval-matrix/route.ts` GET/PUT (ADMIN+; validar traslape de rangos)
+3. `app/api/cost-centers/route.ts` GET/POST · `app/api/budgets/route.ts` GET/PUT por mes
+4. Extender OC (`app/api/inventory/purchase-orders/[id]/route.ts` action=submit): purchaseType+costCenterId obligatorios al enviar, misma cadena/presupuesto/folio que OS (`poNumber` ← `nextFolio`, poblar folioYear/folioSequence). Retrocompatibilidad: OC ya enviadas no requieren matriz.
 
 ---
 
@@ -86,6 +91,12 @@ Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.m
 - `createApprovalRequests` ahora acepta `tx?: Tx` opcional (retrocompatible)
 - Errores `ApiError` mapeados a su statusCode vía `isApiError`; permisos módulo `inventory` (read/create/update)
 
+### Task 5b ✅ — quotes / evidence / conformity + transiciones (commit `41bcae3`)
+- `app/api/service-orders/[id]/quotes/route.ts`: POST cotización {url (de `/api/upload`, R2 presignado), supplierName?, amount¢?, notes?} — solo en DRAFT (guard pura `quoteGuardError`)
+- `app/api/service-orders/[id]/evidence/route.ts`: POST evidencia ANTES|DESPUES con uploadedBy=user.id — bloqueada solo en terminales (CLOSED/REJECTED/CANCELLED)
+- `app/api/service-orders/[id]/conformity/route.ts`: POST firma — doble verificación GERENTE+ (ruta con `roleIsAtLeast` → 403 y servicio con `conformityDenial` → 403 ROLE/409 STATUS); solo PENDING_CONFORMITY → CLOSED + conformitySignedBy(displayName)/At + completedAt
+- PATCH `[id]` extendido con `body.action`: máquina de estados APPROVED→(schedule)→SCHEDULED→(start)→IN_PROGRESS→(complete)→PENDING_CONFORMITY; cancel desde DRAFT/PENDING_APPROVAL/APPROVED/SCHEDULED. Guardias puras exportadas y testeadas en `service-order-workflow.test.ts` (10 tests)
+
 ---
 
 ## 4. TAREAS PENDIENTES (fuente de verdad — actualizar este documento al avanzar)
@@ -96,7 +107,7 @@ Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.m
 
 ### Phase 3: APIs
 - [x] **Task 5a — API service-orders CRUD + submit** ✅ commit `7aa9b80` (ver detalle en §3)
-- [ ] **Task 5b — quotes / evidence / conformity**
+- [x] **Task 5b — quotes / evidence / conformity** ✅ commit `41bcae3` (ver detalle en §3); incluye transiciones operativas schedule/start/complete/cancel en PATCH `[id]`
   - `[id]/quotes` POST (adjuntar URL R2/local-fallback, mismo patrón que workflows)
   - `[id]/evidence` POST (ANTES|DESPUES)
   - `[id]/conformity` POST — solo rol GERENTE+, solo estado PENDING_CONFORMITY → CLOSED (+signedBy/At)
