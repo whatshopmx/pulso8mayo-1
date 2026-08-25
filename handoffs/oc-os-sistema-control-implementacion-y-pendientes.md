@@ -22,7 +22,7 @@
 | `7599d7a`,`6beec50`,`91e122c`,`aedccbb` | docs de seguimiento |
 
 **Estado al cierre:** ✅ **Phase 1 (datos), Phase 2 (servicios), Phase 3 (APIs) completas · Checkpoint E2E verificado contra dev server real · Task 7 (UI) completa.** Suite **360 tests unitarios pasan**, `pnpm run build` exit 0, lint limpio en archivos del plan. Working tree limpio salvo archivos del workstream paralelo.
-**Siguiente paso concreto:** **Task 8** — Bandeja de aprobaciones + editor de matriz (detalles en §5).
+**Siguiente paso concreto:** **Phase 4-bis (R1→R5)** — re-integrar UI: OS bajo `equipment/compliance/service-orders` con 'Generar OS' desde Servicios Normativos; bandeja 'Autorizaciones' y editor 'Matriz' como tabs de `finance/control-interno`. Detalles en `tasks/plan-ordenes-oc-os.md` Phase 4-bis.
 
 ---
 

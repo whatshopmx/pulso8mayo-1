@@ -44,6 +44,16 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 - [ ] Task 8: Bandeja de aprobaciones + admin de matriz de autorización (`app/dashboard/company/approval-matrix`, junto a operating-config)
 - [ ] Task 9: UI presupuestos y centros de costo con consumo vs presupuestado
 
+## Phase 4-bis: Re-integración de superficies (decisión usuario 2026-08-25)
+
+> OS bajo **Equipos › Servicios Normativos** · control gerencial bajo **Finanzas › Control Interno**. Sin sección "Control" suelta.
+
+- [ ] R1: Mover UI OS a `equipment/compliance/service-orders` + sidebar Equipos + eliminar sección "Control"
+- [ ] R2: API: crear/filtrar por `complianceServiceId`
+- [ ] R3: Botón "Generar OS" pre-llenado y enlace "Ver OS" en cada servicio normativo
+- [ ] R4: Bandeja "Autorizaciones" como tab de Control Interno (aprobación/rechazo con motivo, presupuesto restante)
+- [ ] R5: Editor "Matriz de Autorización" como tab de Control Interno (solo ADMIN+, warnings de huecos)
+
 ## Phase 5: KPIs y automatización
 
 - [ ] Task 10: Dashboard KPIs gerenciales (food cost, gasto operativo, comparativo precios, ranking proveedores, % emergencias, desviación)

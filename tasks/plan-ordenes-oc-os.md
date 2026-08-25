@@ -160,7 +160,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Files:** `app/dashboard/service-orders/**`, componente sidebar/nav
   **Estimated scope:** Large
 
-- [ ] **Task 8: Bandeja de aprobaciones + admin de matriz**
+- [x] ~~**Task 8: Bandeja de aprobaciones + admin de matriz**~~ → **REDIRIGIDA a Phase 4-bis (R4+R5)**: la bandeja vive como tab 'Autorizaciones' en `finance/control-interno` y el editor de matriz como tab 'Matriz' ahí mismo (decisión usuario). APIs ya implementadas en Task 6.
   `app/dashboard/approvals/page.tsx` (pendientes agrupados por documento, monto, regla aplicada, presupuesto restante, acciones aprobar/rechazar con razón). Editor de la matriz en `app/dashboard/company/approval-matrix/page.tsx` — bajo la sección Organización, junto al operating-config existente (mismo patrón de página cliente + API), NO en settings/.
 
   **Acceptance criteria:**
@@ -183,6 +183,83 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Dependencies:** Tasks 6, 9 depende de budgets API (Task 6)
   **Files:** `app/dashboard/budgets/**`
   **Estimated scope:** Medium
+
+### Phase 4-bis: Re-integración de superficies (decisión del usuario 2026-08-25)
+
+> **Contexto:** el usuario esperaba las OS dentro de `equipment/compliance` (Servicios Normativos —
+> origen natural vía `serviceOrders.complianceServiceId`) y el control gerencial dentro de
+> `finance/control-interno` (Bitácora + Excepciones). La sección suelta "Control" del sidebar y la
+> ubicación original de Task 8 (`/dashboard/approvals`, `/dashboard/company/approval-matrix`) quedan
+> **reemplazadas** por esta fase. Las rutas API no cambian.
+
+- [ ] **Task R1 (S): Mover UI de OS bajo Equipos**
+  - `git mv app/dashboard/service-orders app/dashboard/equipment/compliance/service-orders`
+  - Actualizar href/push internos a `/dashboard/equipment/compliance/service-orders(/:id)`
+  - Sidebar: item "Órdenes de Servicio" en sección Equipos (junto a Servicios Normativos) · **eliminar** sección "Control"
+
+  **Acceptance criteria:**
+  - [ ] `/dashboard/equipment/compliance/service-orders` lista y detalle funcionan; ruta vieja ya no existe
+  - [ ] Sidebar: OS visible bajo Equipos; sin sección "Control"
+  - [ ] Build verde
+
+  **Files:** 2 páginas movidas, `components/app-sidebar.tsx`
+  **Estimated scope:** Small
+
+- [ ] **Task R2 (S): Backend origen normativo**
+  - zod createOrderSchema += `complianceServiceId` (uuid nullable) · `listOrders` += filtro opcional `?complianceServiceId`
+
+  **Acceptance criteria:**
+  - [ ] POST crea OS con complianceServiceId · GET filtra por él
+  - [ ] FK validada contra la empresa como las demás referencias
+
+  **Verification:** curl e2e con cookie jar · build
+  **Dependencies:** ninguna
+  **Files:** `app/api/service-orders/route.ts`, `lib/services/service-order-service.ts`
+  **Estimated scope:** Small
+
+- [ ] **Task R3 (M): Generar OS desde Servicios Normativos**
+  - Extraer CreateOrderDialog → `components/service-orders/create-order-dialog.tsx` (acepta prefill)
+  - En `equipment/compliance/page.tsx`: acción por fila "Generar OS" (prefill complianceServiceId + branchId del servicio) y enlace "Ver OS" (lista filtrada)
+
+  **Acceptance criteria:**
+  - [ ] Desde un servicio normativo se genera una OS pre-llenada que llega DRAFT vinculada
+  - [ ] "Ver OS" abre la lista filtrada por ese servicio
+
+  **Verification:** playwright/curl · build
+  **Dependencies:** R1, R2
+  **Files:** `components/service-orders/create-order-dialog.tsx` (nuevo), `app/dashboard/equipment/compliance/page.tsx`, páginas que lo importaban
+  **Estimated scope:** Medium
+
+- [ ] **Task R4 (M-L): Bandeja "Autorizaciones" tab en Control Interno** *(reemplaza la parte de bandeja de Task 8)*
+  - Componente `components/service-orders/approval-inbox.tsx`: hook nuevo `useApprovalInbox()` sobre GET `/api/approval-requests`; agrupado por documento con monto, presupuesto restante / cap emergencia (ya vienen en la respuesta), aprobar/rechazar con motivo (hooks existentes); estados loading/error/empty con patrón EmptyState+retry de la página
+  - Tab nueva en `finance/control-interno/page.tsx`
+
+  **Acceptance criteria:**
+  - [ ] Un ADMIN ve y resuelve requests pendientes desde Finanzas › Control Interno
+  - [ ] Errores de rol/nivel se muestran con los mensajes humanos del API
+  - [ ] GERENTE solo ve su sucursal; creador no ve botones para lo propio
+
+  **Verification:** e2e con usuarios demo (maria/juan/ana) · build
+  **Dependencies:** ninguna (APIs existen)
+  **Files:** `hooks/queries/use-service-orders.ts`, componente nuevo, `app/dashboard/finance/control-interno/page.tsx`
+  **Estimated scope:** Medium-Large
+
+- [ ] **Task R5 (M): Editor "Matriz de Autorización" tab en Control Interno** *(reemplaza company/approval-matrix de Task 8)*
+  - Componente `components/service-orders/approval-matrix-editor.tsx`: tabla editable de reglas (pesos↔centavos, rol select sobre APPROVER_ROLES_HIERARCHY, minQuotes, sequence, active), PUT mostrando errores inline y warnings de huecos como avisos
+  - Tab visible solo ADMIN+
+
+  **Acceptance criteria:**
+  - [ ] PUT persiste reglas y la UI muestra advertencias de huecos sin bloquear
+  - [ ] Traslape misma secuencia rechazado inline; multi-nivel acumulativo aceptado
+
+  **Verification:** guardar matriz default y una acumulativa · build
+  **Dependencies:** ninguna
+  **Files:** componente nuevo, `finance/control-interno/page.tsx`, opcional hook `useApprovalMatrix`
+  **Estimated scope:** Medium
+
+### Checkpoint: Re-integración ✅ criterios
+- [ ] Flujo completo desde las superficies correctas: Servicios Normativos → Genera OS → autoriza en Finanzas › Control Interno → OS fluye
+- [ ] Sin sección "Control" huérfana · build/lint verdes
 
 ### Phase 5: KPIs y automatización
 
