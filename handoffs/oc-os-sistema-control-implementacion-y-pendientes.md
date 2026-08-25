@@ -13,10 +13,11 @@
 | `5299cf8` | Tasks 3+4 — servicios de matriz de autorización y presupuesto/tope emergencias (`0063`: emergency_purchase_cap_cents) |
 | `7aa9b80` | Task 5a — API service-orders CRUD + submit transaccional (`lib/services/service-order-service.ts` + 3 rutas) |
 | `41bcae3` | Task 5b — quotes/evidence/conformity + transiciones operativas (schedule/start/complete/cancel) |
+| `95d1c2c` | Task 6 — APIs aprobaciones/matriz/centros/presupuestos + integración OC (matriz+folio real en OC) |
 *(Nota: `d6fcc0a` commiteó trabajo fiscal suelto previo que compartía el working tree; no pertenece a este plan.)*
 
-**Estado al cierre:** ✅ **Phase 1 (Fundaciones), Phase 2 (Business Logic) y Task 5a completas y verificadas** — migraciones aplicadas sin destructivos, 37 tests unitarios nuevos, suite completa **317 passed**, `pnpm run build` exit 0, concurrencia real del generador de folios verificada contra Neon (8 transacciones paralelas → 8 folios únicos consecutivos). Working tree limpio.
-**Cambios sin commitear:** ninguno.
+**Estado al cierre:** ✅ **Phase 1 (Fundaciones), Phase 2 (Business Logic) y Phase 3 (APIs: Tasks 5a+5b+6) completas y verificadas** — migraciones aplicadas sin destructivos, 31 tests unitarios nuevos del plan (348 total), `pnpm run build` exit 0, concurrencia real del generador de folios verificada contra Neon (8 transacciones paralelas → 8 folios únicos consecutivos).
+**Cambios sin commitear:** `app/dashboard/inventory/expirations/page.tsx` modificado pero ajeno a este plan (no tocar).
 
 ---
 
@@ -24,12 +25,8 @@
 
 Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.md`: Órdenes de Servicio como módulo independiente con evidencia y conformidad, matriz de autorización multi-nivel configurable por monto, presupuesto mensual por sucursal×centro de costo×partida, folios `OC/OS-[SUC]-[AÑO]-[N]` sin saltos, tope mensual de compras de emergencia y dashboard de KPIs gerenciales.
 
-**Ya terminado:** datos (Task 1), folios (Task 2), lógica de aprobación (Task 3), lógica de presupuesto/emergencias (Task 4), API OS CRUD+submit (Task 5a) y quotes/evidence/conformity+transiciones (Task 5b).
-**Siguiente paso concreto:** **Task 6** — APIs de aprobaciones y catálogos + integración OC:
-1. `app/api/approval-requests/route.ts` (GET bandeja: requests PENDING cuyo nivel = nivel mínimo pendiente de su doc y rol ≤ rol del usuario), `[id]/approve/route.ts` y `[id]/reject/route.ts` delegando en `approveRequest`/`rejectRequest`; denial ROLE/SELF/NOT_CURRENT_LEVEL → 403/409 con mensaje humano
-2. `app/api/approval-matrix/route.ts` GET/PUT (ADMIN+; validar traslape de rangos)
-3. `app/api/cost-centers/route.ts` GET/POST · `app/api/budgets/route.ts` GET/PUT por mes
-4. Extender OC (`app/api/inventory/purchase-orders/[id]/route.ts` action=submit): purchaseType+costCenterId obligatorios al enviar, misma cadena/presupuesto/folio que OS (`poNumber` ← `nextFolio`, poblar folioYear/folioSequence). Retrocompatibilidad: OC ya enviadas no requieren matriz.
+**Ya terminado:** datos (1), folios (2), lógica de aprobación (3), presupuesto/emergencias (4), API OS CRUD+submit (5a), quotes/evidence/conformity+transiciones (5b) y APIs de aprobaciones/catálogos/integración OC (6). **Phase 3 completa.**
+**Siguiente paso concreto:** **Checkpoint de APIs** (opcional, requiere dev server): flujo OS→submit→aprobar niveles→conformidad→CLOSED vía curl. Después **Task 7** — `app/dashboard/service-orders/page.tsx` (lista+filtros, patrón purchase-orders) y `[id]/page.tsx` (timeline aprobaciones, galería ANTES/DESPUES, acciones según estado×rol) + entrada en sidebar.
 
 ---
 
@@ -97,6 +94,15 @@ Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.m
 - `app/api/service-orders/[id]/conformity/route.ts`: POST firma — doble verificación GERENTE+ (ruta con `roleIsAtLeast` → 403 y servicio con `conformityDenial` → 403 ROLE/409 STATUS); solo PENDING_CONFORMITY → CLOSED + conformitySignedBy(displayName)/At + completedAt
 - PATCH `[id]` extendido con `body.action`: máquina de estados APPROVED→(schedule)→SCHEDULED→(start)→IN_PROGRESS→(complete)→PENDING_CONFORMITY; cancel desde DRAFT/PENDING_APPROVAL/APPROVED/SCHEDULED. Guardias puras exportadas y testeadas en `service-order-workflow.test.ts` (10 tests)
 
+### Task 6 ✅ — APIs de aprobaciones, matriz, catálogos + integración OC (commit `95d1c2c`)
+- `app/api/approval-requests/route.ts`: GET bandeja actionable — solo requests PENDING cuyo nivel es el mínimo pendiente de su doc, con `roleIsAtLeast(actorRole, requiredRole)` y excluyendo SELF; enriquecida con contexto doc (folio/monto/sucursal/centro/tipo) y presupuesto restante (`checkBudgetAvailability` cacheado por sucursal×centro×mes) o cap emergencias (`getEmergencyCapUsage` nuevo en budget-service)
+- `app/api/approval-requests/[id]/approve|reject/route.ts`: guard multi-tenant (companyId opcional añadido a approveRequest/rejectRequest); denegaciones ROLE/SELF→403, NOT_CURRENT_LEVEL→409 con mensajes humanos; reject exige reason ≥3 chars
+- `lib/services/approval-matrix-service.ts`: `validateMatrixRules` pura (traslape entre activas=ERROR, hueco=WARNING recomendado, rol desconocido=fail-closed) + `replaceMatrixRules` (delete+insert en tx, semántica PUT) + `listApprovalInbox`; 7 tests nuevos (334→348 total suite)
+- `app/api/approval-matrix/route.ts`: GET ?docType / PUT reemplaza matriz completa por tipo (ADMIN+)
+- `app/api/cost-centers/route.ts`: GET (?includeInactive) / POST ADMIN+ (unique company+code →409)
+- `app/api/budgets/route.ts`: GET grid mensual sucursales×centros con budgeted/committed/available/alerta≥90%; PUT upsert ADMIN+ por sucursal×centro×mes; `getCommittedByPair` bulk en budget-service (2 queries, sin N+1)
+- **Integración OC** (`purchase-order-service.submitForApproval(id, userId, companyId?)`): status DRAFT + total>0 + purchaseType asignado requeridos → cadena matriz OC (vacía→400) → EMERGENCIA→cap / resto→costCenter obligatorio+budget → TX atómica: folio real `OC-[SUC]-[AÑO]-[N]` (+folioYear/folioSequence) WHERE status='DRAFT' + approvals → PENDING_APPROVAL + audit log. `approvePO/rejectPO` ahora lanzan 409 si hay requests PENDING de matriz (usar bandeja). Ruta `[id]`: GET/PATCH scoped por tenant, allowedFields += purchaseType/costCenterId, ApiError mapeado
+
 ---
 
 ## 4. TAREAS PENDIENTES (fuente de verdad — actualizar este documento al avanzar)
@@ -105,9 +111,10 @@ Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.m
 
 ### Checkpoint Foundation ✅ · Checkpoint Business Logic ✅
 
-### Phase 3: APIs
+### Phase 3: APIs ✅
 - [x] **Task 5a — API service-orders CRUD + submit** ✅ commit `7aa9b80` (ver detalle en §3)
 - [x] **Task 5b — quotes / evidence / conformity** ✅ commit `41bcae3` (ver detalle en §3); incluye transiciones operativas schedule/start/complete/cancel en PATCH `[id]`
+- [x] **Task 6 — APIs aprobaciones, matriz, centros, presupuestos + integración OC** ✅ commit `95d1c2c` (ver detalle en §3)
   - `[id]/quotes` POST (adjuntar URL R2/local-fallback, mismo patrón que workflows)
   - `[id]/evidence` POST (ANTES|DESPUES)
   - `[id]/conformity` POST — solo rol GERENTE+, solo estado PENDING_CONFORMITY → CLOSED (+signedBy/At)

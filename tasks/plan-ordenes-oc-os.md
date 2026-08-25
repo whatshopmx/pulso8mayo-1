@@ -139,6 +139,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Files:** `app/api/approval-requests/**`, `app/api/approval-matrix/**`, `app/api/cost-centers/**`, `app/api/budgets/**`, `app/api/inventory/purchase-orders/**`
   **UI Task 8:** `app/dashboard/approvals/**`, `app/dashboard/company/approval-matrix/**`
   **Estimated scope:** Large
+  ✅ Implementado y commiteado (`95d1c2c`, 2026-08-25): ver handoff §3 Task 6
 
 ### Checkpoint: APIs
 - [ ] Flujo completo via API: crear OS → submit → aprobar niveles → conformidad → CLOSED

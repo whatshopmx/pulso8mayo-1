@@ -32,11 +32,11 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 
 - [x] Task 5a: API service-orders CRUD + submit (valida cotizaciones/presupuesto) — commit `7aa9b80`: `lib/services/service-order-service.ts` + `app/api/service-orders/{route,[id]/route,[id]/submit/route}.ts`; submit en 1 tx (cadena→cotizaciones→presupuesto/emergencias→folio real→approvals→PENDING_APPROVAL); submit concurrente sin gap de folio
 - [x] Task 5b: API quotes/evidence/conformity + transiciones (schedule/start/complete/cancel) — commit `41bcae3`; conformity GERENTE+ solo en PENDING_CONFORMITY → CLOSED
-- [ ] Task 6: APIs approval-requests (⚠️ `approvals/` ya existe para turnos RH — usar `approval-requests/`), approval-matrix, cost-centers, budgets + integración OC (purchaseType, centro costo, nuevo folio)
+- [x] Task 6: APIs approval-requests (⚠️ `approvals/` ya existe para turnos RH — usar `approval-requests/`), approval-matrix, cost-centers, budgets + integración OC (purchaseType, centro costo, nuevo folio) — commit `95d1c2c`: bandeja actionable con presupuesto restante; OC submit pasa por matriz/presupuesto y emite folio real en tx
 
 ## Checkpoint: APIs
 
-- [ ] Flujo end-to-end via API: OS→submit→aprobaciones→conformidad→CLOSED; OC nueva con folio nuevo
+- [ ] Flujo end-to-end via API: OS→submit→aprobaciones→conformidad→CLOSED; OC nueva con folio nuevo (requiere dev server + curl)
 
 ## Phase 4: UI
 
