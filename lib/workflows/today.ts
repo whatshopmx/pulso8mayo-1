@@ -88,10 +88,11 @@ export function localMoment(at: Date, timeZone: string | null | undefined): Loca
 export function startOfLocalDayUtc(at: Date, timeZone: string | null | undefined): Date {
     const m = localMoment(at, timeZone);
     const wallAsUtc = Date.UTC(m.year, m.month - 1, m.day, Math.floor(m.minutesOfDay / 60), m.minutesOfDay % 60);
-    // La hora de pared sólo llega al minuto; redondeamos para que los segundos
-    // de `at` no se cuelen en el desfase y muevan la medianoche.
-    const offsetMs = Math.round((wallAsUtc - at.getTime()) / 60_000) * 60_000;
-    return new Date(Date.UTC(m.year, m.month - 1, m.day) - offsetMs);
+    // La hora de pared sólo llega al minuto; recortamos `at` al minuto para
+    // que sus segundos y milisegundos no sesguen el desfase y muevan la
+    // medianoche. Ambos operandos quedan en minutos exactos: sin redondeo.
+    const atToTheMinute = Math.floor(at.getTime() / 60_000) * 60_000;
+    return new Date(Date.UTC(m.year, m.month - 1, m.day) - (wallAsUtc - atToTheMinute));
 }
 
 /**
