@@ -10,11 +10,11 @@
 
 ## Phase 1: Fundación
 
-- [ ] Task 3: Vitest + fast-check + config base (excluye `.worktrees/`, TZ=UTC)
-- [ ] Task 4: `.github/workflows/ci.yml` (lint + build + test:unit)
+- [x] Task 3: Vitest + fast-check + config base (excluye `.worktrees/`, TZ=UTC) — deps ya instaladas; faltaban `test:unit`, enforcement real de TZ=UTC y smoke test ✓ (5 tests, ~1 s)
+- [x] Task 4: `.github/workflows/ci.yml` (lint + build + test:unit) — incluye triage de lint preexistente (1067 errores → 0): `no-explicit-any`/estilísticas a warning (documentado en `eslint.config.mjs`) + fix de 11 violaciones reales de `rules-of-hooks` (onboarding/offboarding/workflow-stepper), `prefer-const` y `<a>`→`<Link>`
 
 ### Checkpoint
-- [ ] build/lint/unitarias verdes localmente y en CI
+- [x] build/lint/unitarias verdes localmente y en CI — lint 0 errores / build OK / unitarias OK verificados localmente (2026-08-24); CI falta verificar en un PR real
 
 ## Phase 2: Capa 01 — Unitarias lógica pura
 

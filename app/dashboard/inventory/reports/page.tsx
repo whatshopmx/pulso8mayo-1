@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -375,12 +376,12 @@ export default function InventoryReportsPage() {
                                 <span className="text-xs font-semibold text-muted-foreground block">Subir archivo CSV</span>
                                 <span className="text-xs text-muted-foreground block mt-1">Soporta columnas: Receta, Cantidad, Total</span>
                             </div>
-                            <a
+                            <Link
                                 href="/dashboard/inventory/sales-entry"
                                 className="block text-xs text-primary hover:underline text-center"
                             >
                                 ¿Corte del POS completo con mapeo de columnas? Usa la carga masiva corporativa →
-                            </a>
+                            </Link>
                         </CardContent>
                     </Card>
                 </div>

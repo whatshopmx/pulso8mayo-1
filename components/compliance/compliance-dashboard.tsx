@@ -160,7 +160,7 @@ export function ComplianceDashboard() {
         });
 
         // Alerts Section
-        let finalY = (doc as any).lastAutoTable.finalY + 10;
+        const finalY = (doc as any).lastAutoTable.finalY + 10;
         doc.setFontSize(14);
         doc.text("Alertas Activas", 14, finalY);
         

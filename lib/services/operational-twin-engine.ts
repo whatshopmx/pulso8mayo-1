@@ -370,7 +370,7 @@ export async function recalculateCorporateTwin(companyId: string): Promise<any> 
   };
 
   // Find corporate twin row or create it
-  let corpTwin = await db.query.corporateTwins.findFirst({
+  const corpTwin = await db.query.corporateTwins.findFirst({
     where: eq(corporateTwins.companyId, companyId),
   });
 

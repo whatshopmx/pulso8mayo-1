@@ -96,7 +96,7 @@ export class IntelligenceService {
           ? [{ id: branchId }]
           : await db.select({ id: branches.id }).from(branches).where(eq(branches.companyId, companyId));
 
-        let itemData: string[] = [];
+        const itemData: string[] = [];
         for (const b of companyBranches) {
           const insights = await KnowledgeService.getInsights(companyId, b.id);
           const topItems = insights.slice(0, 10);
@@ -121,7 +121,7 @@ export class IntelligenceService {
           ? [{ id: branchId }]
           : await db.select({ id: branches.id }).from(branches).where(eq(branches.companyId, companyId));
 
-        let wasteItems: string[] = [];
+        const wasteItems: string[] = [];
         for (const b of companyBranches) {
           const insights = await KnowledgeService.getInsights(companyId, b.id);
           const topWaste = insights

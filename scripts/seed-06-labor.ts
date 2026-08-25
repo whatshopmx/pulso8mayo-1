@@ -80,11 +80,8 @@ export async function main() {
       if (dayOfWeek === 0) continue;
       if (!tmpl.daysOfWeek.includes(dayOfWeek)) continue;
 
-      let start = tmpl.startTime;
-      let end = tmpl.endTime;
-      if (isLateCase) {
-        start = "08:30";
-      }
+      const start = isLateCase ? "08:30" : tmpl.startTime;
+      const end = tmpl.endTime;
 
       shiftValues.push({
         companyId: COMPANY_ID,

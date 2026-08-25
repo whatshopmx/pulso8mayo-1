@@ -81,6 +81,33 @@ interface AIFeedback {
 
 // 1. Wrapper to handle dynamic step definition
 export function WorkflowStepper({ steps, existingSteps, mode = 'execution', ...props }: WorkflowStepperProps) {
+    // Los hooks van SIEMPRE al inicio del componente, antes de cualquier
+    // retorno condicional: si el número de hooks cambia entre renders
+    // (p.ej. steps pasa de vacío a poblado), React lanza
+    // "Rendered more hooks than during the previous render".
+    const { useStepper } = useMemo(() => {
+        const stepDefs = (steps ?? []).map(s => ({ id: s.id, title: s.title })) as [{ id: string, title: string }, ...{ id: string, title: string }[]];
+        if (stepDefs.length === 0) {
+            return defineStepper({ id: "empty", title: "No Steps" });
+        }
+        return defineStepper(...stepDefs);
+    }, [steps]);
+
+    const initialStepId = useMemo(() => {
+        if (!steps || steps.length === 0) return undefined;
+        if (mode === 'preview') return steps[0]?.id;
+        if (props.instance.status === 'COMPLETED') return steps[0]?.id;
+
+        const firstIncomplete = steps.find(s => {
+            const existing = existingSteps.find(es => es.stepId === s.id);
+            return !existing || existing.status !== 'COMPLETED';
+        });
+
+        return firstIncomplete ? firstIncomplete.id : steps[steps.length - 1]?.id || steps[0]?.id;
+    }, [steps, existingSteps, props.instance.status, mode]);
+
+    const stepIdsKey = useMemo(() => (steps ?? []).map(s => s.id).join(','), [steps]);
+
     if (!steps || steps.length === 0) {
         return (
             <div className="max-w-md mx-auto p-4">
@@ -93,31 +120,9 @@ export function WorkflowStepper({ steps, existingSteps, mode = 'execution', ...p
         );
     }
 
-    const { useStepper } = useMemo(() => {
-        const stepDefs = steps.map(s => ({ id: s.id, title: s.title })) as [{ id: string, title: string }, ...{ id: string, title: string }[]];
-        if (stepDefs.length === 0) {
-            return defineStepper({ id: "empty", title: "No Steps" });
-        }
-        return defineStepper(...stepDefs);
-    }, [steps]);
-
-    const initialStepId = useMemo(() => {
-        if (mode === 'preview') return steps[0]?.id;
-        if (props.instance.status === 'COMPLETED') return steps[0]?.id;
-
-        const firstIncomplete = steps.find(s => {
-            const existing = existingSteps.find(es => es.stepId === s.id);
-            return !existing || existing.status !== 'COMPLETED';
-        });
-
-        return firstIncomplete ? firstIncomplete.id : steps[steps.length - 1]?.id || steps[0]?.id;
-    }, [steps, existingSteps, props.instance.status, mode]);
-
     if (props.instance.status === 'COMPLETED' && mode === 'execution') {
         return <CompletionScreen />;
     }
-
-    const stepIdsKey = useMemo(() => steps.map(s => s.id).join(','), [steps]);
 
     return (
         <StepperContent
@@ -1167,7 +1172,7 @@ function StockCountConfirmSummary({ existingSteps, onConfirm, value }: { existin
   const rows = countSteps.map(s => {
     let systemQty = 0;
     let physicalQty = 0;
-    let itemName = s.stepId.replace("count-", "");
+    const itemName = s.stepId.replace("count-", "");
     try {
       const parsed = typeof s.value === 'string' ? JSON.parse(s.value) : s.value;
       systemQty = parsed.systemQuantity || 0;

@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
         }
         const activeOnly = searchParams.get("active") !== "false";
 
-        let conditions = [
+        const conditions = [
             eq(storageLocations.companyId, session.user.companyId),
             eq(storageLocations.branchId, branchId),
         ];

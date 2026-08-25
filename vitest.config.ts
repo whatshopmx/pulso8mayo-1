@@ -1,5 +1,9 @@
 import { defineConfig } from "vitest/config";
 
+// Fijar la zona del proceso ANTES de que Vitest cree workers: los hijos
+// (forks/threads) heredan este env. `env` abajo lo re-fuerza en cada worker.
+process.env.TZ = "UTC";
+
 /**
  * Capa unitaria: lógica pura en milisegundos, sin base de datos ni navegador.
  *
@@ -12,6 +16,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
+    env: { TZ: "UTC" },
     include: ["lib/**/*.test.ts", "tests/unit/**/*.test.ts"],
     exclude: ["**/node_modules/**", ".worktrees/**"],
     testTimeout: 10_000,

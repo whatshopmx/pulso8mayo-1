@@ -38,7 +38,7 @@ export class WorkflowConversationHandler {
   async handleMessage(message: IncomingMessage, userId: string): Promise<{ success: boolean; reply?: string }> {
     try {
       // Get or create conversation state
-      let state = await this.stateManager.getState(message.from);
+      const state = await this.stateManager.getState(message.from);
 
       // If no active workflow, try to match intent
       if (!state || !state.workflowInstanceId) {

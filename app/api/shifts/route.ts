@@ -176,7 +176,6 @@ export async function POST(req: NextRequest) {
             }
 
             // 4. Validar que el turno no exceda 12 horas (límite legal)
-            let hoursDiff: number;
             const startMinutes = (Math.floor(startHour / 100) * 60) + (startHour % 100);
             let endMinutes = (Math.floor(endHour / 100) * 60) + (endHour % 100);
             
@@ -185,7 +184,7 @@ export async function POST(req: NextRequest) {
                 endMinutes += (24 * 60);
             }
             
-            hoursDiff = (endMinutes - startMinutes) / 60;
+            const hoursDiff = (endMinutes - startMinutes) / 60;
 
             if (hoursDiff > 12) {
                 return ApiHandler.error(
@@ -311,7 +310,6 @@ export async function PUT(req: NextRequest) {
                     return ApiHandler.error(ApiError.badRequest("La hora de fin debe ser posterior a la hora de inicio"));
                 }
 
-                let hoursDiff: number;
                 const startMinutes = (Math.floor(startHour / 100) * 60) + (startHour % 100);
                 let endMinutes = (Math.floor(endHour / 100) * 60) + (endHour % 100);
                 
@@ -319,7 +317,7 @@ export async function PUT(req: NextRequest) {
                     endMinutes += (24 * 60);
                 }
                 
-                hoursDiff = (endMinutes - startMinutes) / 60;
+                const hoursDiff = (endMinutes - startMinutes) / 60;
 
                 if (hoursDiff > 12) {
                     return ApiHandler.error(

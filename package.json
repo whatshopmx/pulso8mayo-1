@@ -1,6 +1,7 @@
 {
   "name": "pulso29",
   "version": "0.1.0",
+  "packageManager": "pnpm@11.2.2",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",
+    "test:unit": "vitest run --configLoader bundle",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",

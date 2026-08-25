@@ -115,7 +115,7 @@ export async function calculatePayrollData(period: PayrollPeriod): Promise<Payro
     const vacationDays = vacations.reduce((sum, v) => sum + (v.totalDays || 0), 0);
 
     // 4. Get leave requests for this period
-    let sickDays = 0;
+    const sickDays = 0;
     let otherLeaveDays = 0;
     try {
       const leaves = await db

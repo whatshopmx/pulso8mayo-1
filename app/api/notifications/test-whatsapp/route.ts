@@ -29,7 +29,7 @@ if (!user || user.companyId !== session.user.companyId) {
 return NextResponse.json({ error: "User not found or unauthorized" }, { status: 404 });
 }
 
-let eventType: "workflow_assignment" | "stock_alert" | "incident" | "shift_reminder" = type;
+const eventType: "workflow_assignment" | "stock_alert" | "incident" | "shift_reminder" = type;
 let title = "";
 let message = "";
 let metadata: Record<string, unknown> = {};

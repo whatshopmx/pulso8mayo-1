@@ -1,0 +1,45 @@
+name: CI
+
+# Task 4 del plan de pruebas: lint + build + unitarias en cada push/PR.
+# El E2E vive en un workflow nocturno aparte (Task 15+).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # `version` se lee de package.json > packageManager (pnpm@11.2.2).
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+      # La conexión Neon es perezosa (`new Pool()` no conecta), así que la
+      # build no necesita credenciales reales — sólo URLs bien formadas.
+      - name: Build
+        run: pnpm run build
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          BETTER_AUTH_SECRET: ci-placeholder-secret-for-build-only

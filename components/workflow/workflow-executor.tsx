@@ -26,7 +26,7 @@ function StockCountConfirmSummary({ steps, onConfirm, value, blindCount }: { ste
   const rows = countSteps.map(s => {
     let systemQty = 0;
     let physicalQty = 0;
-    let itemName = s.stepId.replace("count-", "");
+    const itemName = s.stepId.replace("count-", "");
     try {
       const parsed = typeof s.value === 'string' ? JSON.parse(s.value as string) : s.value;
       systemQty = (parsed as any).systemQuantity || 0;
@@ -222,7 +222,7 @@ export function WorkflowExecutor({
     setSubmitting(true);
     try {
       let evidenceUrl = currentStepInstance?.evidenceUrl || null;
-      let value = stepData[currentStep.id] || null;
+      const value = stepData[currentStep.id] || null;
 
       // Upload files if present
       if (evidenceFiles.length > 0) {

@@ -462,7 +462,7 @@ export class ShiftService {
         const { userId, branchId, companyId, reason, requestedBy, targetUserId, notes } = data;
 
         // 1. Close active session if exists
-        let activeSession = await db.query.shiftSessions.findFirst({
+        const activeSession = await db.query.shiftSessions.findFirst({
             where: and(
                 eq(shiftSessions.userId, userId),
                 eq(shiftSessions.status, 'ACTIVE')

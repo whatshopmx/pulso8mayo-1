@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Otherwise, get all users in company/branch
-        let userQuery = db.query.users.findMany({
+        const userQuery = db.query.users.findMany({
             where: eq(users.id, session.user.id) // Default to current user
         });
 

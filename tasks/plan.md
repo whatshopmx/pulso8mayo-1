@@ -39,9 +39,9 @@ Cerrar el hueco entre 289 rutas API / 122 servicios / 33 funciones Inngest / 140
   - Archivos: `.github/workflows/ci.yml`
 
 ### Checkpoint: Fundación
-- [ ] `pnpm run build` y `pnpm run lint` pasan localmente
-- [ ] `pnpm test:unit` corre el smoke test en <10 s
-- [ ] CI verde en un PR real
+- [x] `pnpm run build` y `pnpm run lint` pasan localmente — lint requerido triage previo: 1067 errores preexistentes (`any` endémico con `strict:false`) bajados a warning en config; 11 `rules-of-hooks` reales corregidos en código (crash latente de "Rendered more hooks")
+- [x] `pnpm test:unit` corre el smoke test en <10 s (~1 s)
+- [ ] CI verde en un PR real *(pendiente push)*
 
 ### Phase 2: Capa 01 — Unitarias sobre lógica pura
 

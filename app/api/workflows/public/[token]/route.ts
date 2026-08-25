@@ -30,7 +30,7 @@ export async function GET(
     // Get current user from session (if authenticated)
     const headersList = await headers();
     const sessionToken = headersList.get("authorization")?.replace("Bearer ", "");
-    let currentUser = null;
+    const currentUser = null;
 
     if (sessionToken) {
       // In a real implementation, verify the session token

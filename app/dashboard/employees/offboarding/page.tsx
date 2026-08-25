@@ -33,9 +33,9 @@ export default function OffboardingDashboard() {
   const { session } = useSession();
   const router = useRouter();
 
-  if (authLoading) {
-    return null;
-  }
+  // Los hooks van SIEMPRE antes de cualquier retorno condicional:
+  // si `authLoading` pasa de true a false, un return temprano cambiaría el
+  // número de hooks entre renders y React lanzaría "Rendered more hooks".
   const [offboardings, setOffboardings] = useState<Offboarding[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -70,6 +70,10 @@ export default function OffboardingDashboard() {
   useEffect(() => {
     fetchOffboardings();
   }, [fetchOffboardings]);
+
+  if (authLoading) {
+    return null;
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {

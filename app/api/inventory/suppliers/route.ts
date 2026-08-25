@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
         const search = searchParams.get("search");
         const activeOnly = searchParams.get("active") !== "false";
 
-        let conditions = [eq(suppliers.companyId, session.user.companyId)];
+        const conditions = [eq(suppliers.companyId, session.user.companyId)];
         
         if (activeOnly) {
             conditions.push(eq(suppliers.active, true));

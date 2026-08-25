@@ -259,7 +259,7 @@ export class LaborCalculator {
         let diurnal = 0;
         let nocturnal = 0;
         let holiday = 0;
-        let weekly = 0;
+        const weekly = 0;
 
         // If holiday, all hours are 3x
         if (isHoliday) {
@@ -304,7 +304,7 @@ export class LaborCalculator {
      */
     private static calculateNightMinutes(start: Date, end: Date): number {
         let nightMinutes = 0;
-        let current = new Date(start);
+        const current = new Date(start);
 
         while (current < end) {
             const hour = current.getHours();

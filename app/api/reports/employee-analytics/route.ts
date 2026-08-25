@@ -73,7 +73,7 @@ export const GET = withTenantAuth(async (request: NextRequest, { auth }) => {
         }
 
         let data: any[] = [];
-        let metadata = {
+        const metadata = {
             reportName: reportDef.name,
             generatedAt: new Date().toISOString(),
             recordCount: 0,
@@ -242,7 +242,7 @@ export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
         const companyId = auth.tenantId;
 
         // Build custom query based on provided configuration
-        let data: any[] = [];
+        const data: any[] = [];
 
         // Similar logic to GET but with dynamic field selection
         // This would be expanded to handle all possible data sources and fields
