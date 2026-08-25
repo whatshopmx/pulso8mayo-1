@@ -21,12 +21,12 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 
 ## Phase 2: Servicios de negocio
 
-- [ ] Task 3: Servicio matriz de autorización con seed default y niveles secuenciales (paralelizable con Task 4)
-- [ ] Task 4: Servicio presupuesto (disponibilidad por partida/mes) + tope emergencias mensual en `emergencyPurchaseCapCents` (operating-config) (paralelizable con Task 3)
+- [x] Task 3: Servicio matriz de autorización con seed default y niveles secuenciales (denegaciones ROLE/SELF/nivel-no-actual)
+- [x] Task 4: Servicio presupuesto + tope emergencias en `emergencyPurchaseCapCents` (operating-config UI/API incluidos)
 
 ## Checkpoint: Business Logic
 
-- [ ] Tests unitarios matrix + budget pasan
+- [x] Tests unitarios matrix + budget pasan (25 nuevos, suite 317 OK)
 
 ## Phase 3: APIs
 

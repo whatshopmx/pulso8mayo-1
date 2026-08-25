@@ -26,6 +26,7 @@ export interface OperatingConfigValues {
   managerAuthLimitCents?: number | null;
   doubleApprovalThresholdCents?: number | null;
   pettyCashLimitCents?: number | null;
+  emergencyPurchaseCapCents?: number | null;
   foodCostTargetPercent?: string | null;
   foodCostWarnPercent?: string | null;
   laborCostTargetPercent?: string | null;
@@ -71,6 +72,12 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
   );
   const [pettyCashLimit, setPettyCashLimit] = useState(
     ((initialConfig?.pettyCashLimitCents || 500000) / 100).toString()
+  );
+  // Vacío = sin tope (null): hasta que el admin lo configure no se bloquea nada.
+  const [emergencyCap, setEmergencyCap] = useState(
+    initialConfig?.emergencyPurchaseCapCents
+      ? (initialConfig.emergencyPurchaseCapCents / 100).toString()
+      : ""
   );
 
   // Objetivos financieros (migración 0039). Llegan como `numeric` → string, y
@@ -126,6 +133,8 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
         managerAuthLimitCents: Math.round(parseFloat(managerAuthLimit) * 100),
         doubleApprovalThresholdCents: Math.round(parseFloat(doubleApprovalThreshold) * 100),
         pettyCashLimitCents: Math.round(parseFloat(pettyCashLimit) * 100),
+        emergencyPurchaseCapCents:
+          emergencyCap.trim() === "" ? null : Math.round(parseFloat(emergencyCap) * 100),
         foodCostTargetPercent: parseFloat(foodTarget),
         foodCostWarnPercent: parseFloat(foodWarn),
         laborCostTargetPercent: parseFloat(laborTarget),
@@ -331,6 +340,22 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
             />
             <span className="text-xs text-muted-foreground block">
               Fondo fijo asignado por sucursal para gastos imprevistos.
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="emergencyPurchaseCap">Tope Mensual Compras de Emergencia ($ MXN)</Label>
+            <Input
+              id="emergencyPurchaseCap"
+              type="number"
+              step="500"
+              value={emergencyCap}
+              onChange={(e) => setEmergencyCap(e.target.value)}
+              placeholder="Sin tope"
+            />
+            <span className="text-xs text-muted-foreground block">
+              Acumulado mensual de OC/OS de emergencia por sucursal. Vacío = sin tope. Al llegar al
+              tope, el envío a aprobación se bloquea.
             </span>
           </div>
         </CardContent>

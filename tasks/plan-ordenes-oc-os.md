@@ -73,12 +73,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
 
 ### Phase 2: Servicios de negocio
 
-- [ ] **Task 3: Servicio de matriz de autorización**
-  Crear `lib/services/approval-matrix-service.ts`:
-  - `resolveApprovalChain(companyId, docType, amount)` → lista ordenada de niveles (rol, cotizacionesMin) según reglas activas
-  - Seed de reglas default si la empresa no tiene configuración (usar matriz ejemplo del doc: $0–5K GERENTE/1, $5K–25K ADMIN/2, $25K–100K OWNER/3, >$100K OWNER/3+contrato)
-  - `createApprovalRequests(doc, chain)` inserta registros `approval_requests` por nivel
-  - `approveRequest(id, userId)` / `rejectRequest(id, userId, reason)` con verificación de rol y avance de nivel; al aprobar el último nivel actualiza el documento origen
+- [x] **Task 3: Servicio de matriz de autorización** ✅ Implementado (`lib/services/approval-matrix-service.ts`): `resolveApprovalChain` con seed perezoso de matriz default, `createApprovalRequests`, `approveRequest`/`rejectRequest` con denegaciones ROLE/SELF/NOT_CURRENT_LEVEL (segregación estilo A16), cierre automático del documento al aprobar el último nivel. Rangos inclusivos en centavos contiguos sin huecos. 13 tests unitarios
 
   **Acceptance criteria:**
   - [ ] Cadena correcta para montos límite ($5,000 exacto va al primer nivel)
@@ -90,11 +85,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Files:** `lib/services/approval-matrix-service.ts`
   **Estimated scope:** Medium
 
-- [ ] **Task 4: Servicio de presupuesto y tope de emergencias**
-  Crear `lib/services/budget-service.ts`:
-  - `checkBudgetAvailability(branchId, costCenterId, month, amount)` → disponible = presupuestado − comprometido (OC/OS aprobadas del mes)
-  - `validateEmergencyCap(branchId, month)` → tope mensual configurable de compras EMERGENCIA, leído de `tenantOperatingConfig.emergencyPurchaseCapCents` (columna nueva en migración propia; `null` = sin tope). UI: nuevo campo en `components/company/operating-config-form.tsx`, junto a los umbrales que ya administra
-  - Integración en flujo de envío a aprobación: bloquea o advierte según política (bloquear si no hay presupuesto salvo emergencia)
+- [x] **Task 4: Servicio de presupuesto y tope de emergencias** ✅ Implementado (`lib/services/budget-service.ts`): `checkBudgetAvailability` (comprometido = OS+OC en estados que comprometen, mes por `to_char(created_at)`) y `validateEmergencyCap` leyendo `tenantOperatingConfig.emergencyPurchaseCapCents` (migración `0063`, NULL = sin tope). Cuenta OC EMERGENCIA + OS urgencia EMERGENCIA. Campo agregado a operating-config-form + API zod + defaults. 12 tests unitarios. Integración en submits: Tasks 5/6
 
   **Acceptance criteria:**
   - [ ] Disponible calculado correctamente con múltiples OC/OS del mes
@@ -107,7 +98,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Estimated scope:** Medium
 
 ### Checkpoint: Business Logic
-- [ ] Tests unitarios de matrix + budget pasan; build verde
+- [x] Tests unitarios matrix (13) + budget (12) pasan · 317/317 suite completa · build verde
 
 ### Phase 3: APIs
 

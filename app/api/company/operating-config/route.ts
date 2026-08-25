@@ -52,6 +52,7 @@ const updateConfigSchema = z
     managerAuthLimitCents: thresholdSchema,
     doubleApprovalThresholdCents: thresholdSchema,
     pettyCashLimitCents: thresholdSchema,
+    emergencyPurchaseCapCents: thresholdSchema,
     foodCostTargetPercent: percentSchema,
     foodCostWarnPercent: percentSchema,
     laborCostTargetPercent: percentSchema,

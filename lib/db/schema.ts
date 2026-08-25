@@ -2883,6 +2883,11 @@ export const tenantOperatingConfig = pgTable("tenant_operating_config", {
     doubleApprovalThresholdCents: integer("double_approval_threshold_cents").default(1000000),
     pettyCashLimitCents: integer("petty_cash_limit_cents").default(500000),
 
+    // Tope mensual por sucursal para compras/OS de tipo EMERGENCIA (finzasordenes.md §4).
+    // NULL = sin tope (default conservador hasta que el admin lo configure);
+    // budget-service lo valida al enviar a aprobación.
+    emergencyPurchaseCapCents: integer("emergency_purchase_cap_cents"),
+
     // Objetivos financieros del grupo (M13/M16). Vivían hardcodeados en
     // `components/sales/financial-kpi-cards.tsx` y en `financial-kpi-service`,
     // así que una marisquería y una taquería compartían el mismo food cost

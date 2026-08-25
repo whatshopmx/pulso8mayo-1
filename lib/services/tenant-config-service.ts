@@ -51,6 +51,8 @@ export const DEFAULT_TENANT_OPERATING_CONFIG: Omit<TenantOperatingConfigData, "c
     managerAuthLimitCents: 100000,
     doubleApprovalThresholdCents: 1000000,
     pettyCashLimitCents: 500000,
+    // Sin tope de emergencias por default: se activa cuando el admin lo configure.
+    emergencyPurchaseCapCents: null,
     // Reproducen los valores que estaban hardcodeados antes de la 0039, para
     // que ningún tenant existente cambie de lectura.
     foodCostTargetPercent: "30.00",

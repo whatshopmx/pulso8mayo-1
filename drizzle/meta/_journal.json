@@ -442,6 +442,13 @@
       "when": 1787681354218,
       "tag": "0062_loving_paibok",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1787683142176,
+      "tag": "0063_square_mister_sinister",
+      "breakpoints": true
     }
   ]
 }

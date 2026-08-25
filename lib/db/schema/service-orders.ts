@@ -144,7 +144,7 @@ export const approvalMatrixRules = pgTable("approval_matrix_rules", {
 
   docType: approvalDocTypeEnum("doc_type").notNull(),
   amountMin: integer("amount_min").notNull(),   // Centavos, inclusivo
-  amountMax: integer("amount_max"),             // Centavos, exclusivo; NULL = sin límite
+  amountMax: integer("amount_max"),             // Centavos, inclusivo; NULL = sin límite
   requiredRole: text("required_role").notNull(),// OWNER|ADMIN|GERENTE|SUPERVISOR
   minQuotes: integer("min_quotes").default(1).notNull(),
   sequence: integer("sequence").default(1).notNull(), // Nivel en la cadena

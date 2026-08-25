@@ -1,0 +1,1 @@
+ALTER TABLE "tenant_operating_config" ADD COLUMN "emergency_purchase_cap_cents" integer;
