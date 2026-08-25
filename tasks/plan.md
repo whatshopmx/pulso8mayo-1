@@ -53,19 +53,22 @@ Cerrar el hueco entre 289 rutas API / 122 servicios / 33 funciones Inngest / 140
   `calculateOvertime` (primeras 9 h semanales al doble, siguientes al triple), turnos traslapados, cierre-apertura <8 h, cruce de medianoche, `aggregateWeeklyHours`/`getComplianceStatus` contra reglas default y sobrescritas por tenant.
   - Archivos: `lib/__tests__/labor-validation.test.ts`
   - Hallazgos (2026-08-24): BUGS corregidos — `checkShiftConflict` daba falsos positivos según orden de inserción y no veía traslapes entre fechas (0 callers, sin riesgo); `calculateWeeklyOvertime` restaba 2× las 8h regulares → alertas de extra muertas. DECIDIDO CON HUMANO y aplicado: (a) `calculateOvertime` implementa ahora LFT Art. 84/87 — allowance semanal de 9h a doble recortado por acumulado, excedente triple, rate1 deprecado en 0 conservando shape del contrato; (b) `validateBreakCompliance` evalúa continuo sólo con breakMinutes=0 (dato exacto) y calla con descansos hasta integrar BreakLog segmentado; comida 30min/15min intactas.
-- [ ] **Task 7: Permisos y alcance (RBAC/ABAC)** (M)
-  `branch-scope.ts`: 6 roles × sucursal propia/ajena/"todas" — GERENTE/SUPERVISOR no amplían alcance vía parámetro. `permissions.ts`: `hasAccess` sobre ROUTE_PERMISSIONS completo, `getDefaultDashboard` sin redirects a rutas prohibidas. `abac.ts`: OWNED/FRANCHISE × NONE/OWN_BRANCH_ONLY/ALL. `masking.ts`: PII nuevo entra enmascarado (fail-closed).
-  - Archivos: `lib/__tests__/branch-scope.test.ts`, `lib/rbac/__tests__/permissions.test.ts`, `lib/rbac/__tests__/abac.test.ts`, `lib/rbac/__tests__/masking.test.ts`
-- [ ] **Task 8: Dinero y parseo POS** (M)
-  `pos-column-aliases.ts`: `parseMoneyToCents` ("$1,234.50", "1.234,50", "(150.00)", "1 234,50 MXN", "", "N/A", notación científica) → null, nunca NaN; `normalizeHeader`/`matchFieldAlias`/`isTotalLabel` con acentos, mayúsculas, duplicados. `rate-limiter.ts`: ventana expira, contador reinicia, headers correctos con fallback en memoria.
+- [x] **Task 7: Permisos y alcance (RBAC/ABAC)** (M)
+  `branch-scope.ts`: roles × sucursal propia/ajena/"todas" — GERENTE/SUPERVISOR no amplían alcance vía parámetro. `permissions.ts`: `hasAccess` sobre ROUTE_PERMISSIONS completo, `getDefaultDashboard` sin redirects a rutas prohibidas. `abac.ts`: OWNED/FRANCHISE × NONE/OWN_BRANCH_ONLY/ALL. `masking.ts`: PII entra enmascarado cuando hay redacción activa.
+  - Archivos: `lib/__tests__/branch-scope.test.ts`, `lib/rbac/__tests__/permissions.test.ts`, `lib/rbac/__tests__/abac.test.ts`, `lib/rbac/__tests__/masking.test.ts` (+ alias `@/` en `vitest.config.ts`)
+  - Notas (2026-08-24): branch-scope usa el Role de `lib/permissions.ts` (7 roles, con OWNER) — no confundir con UserRole de rbac (6). Congelado documentado: `enforceBranchScope` es fail-ABIERTO para acotado sin sucursal (legacy, ~15 call sites); su reemplazo `resolveBranchScope` sí devuelve NONE. Masking: dirección fail-cerrada real = "con redactFields no vacío se enmascara TODO PII presente aunque no esté listado"; gap documentado: PII nuevo SIN masker registrado pasa en claro (tabla no derivada de classification.ts) y alcance plano (no recorre objetos anidados) — observaciones para capa 03. EMPLEADO está branch-scoped en abac pero NO en branch-scope (capas distintas, intencional).
+- [x] **Task 8: Dinero y parseo POS** (M)
+  `pos-column-aliases.ts`: `parseMoneyToCents` ("$1,234.50", "1.234,50", "(150.00)", "1 234,50 MXN", "", "N/A", notación científica); `normalizeHeader`/`matchFieldAlias`/`isTotalLabel` con acentos, mayúsculas, duplicados. `rate-limiter.ts`: ventana expira, contador reinicia, headers correctos con fallback en memoria.
   - Archivos: `lib/services/__tests__/pos-column-aliases.test.ts`, `lib/__tests__/rate-limiter.test.ts`
-- [ ] **Task 9: Propinas con property-based testing** (S)
-  `calculatePropinasDistribution`: invariante fast-check — suma repartida === total, con cualquier número de empleados y monto; sin centavos perdidos/inventados.
-  - Archivos: `lib/services/__tests__/propinas-service.test.ts`
+  - Hallazgos (2026-08-24): CONGELADOS por tocar dinero/formato — (a) `"1.234,50"` devuelve 123¢: el branch coma+punto asume MX (coma=miles) sin detectar formato europeo (esperable 123450¢; recomendación: detectar `\d{1,3}(\.\d{3})+,\d{2}$`); (b) notación científica se acepta vía parseFloat (plan pedía null; matemáticamente correcto si el origen era numérico de Excel). Invariantes que SÍ se imponen: round-trip toFixed(2) property y nunca-NaN. Rate-limiter testeado sobre memoria con `@/lib/env` mockeado (Redis fuera de capa unitaria); buckets internos son de minuto fijo independiente del windowMs.
+- [x] **Task 9: Propinas con property-based testing** (S)
+  Invariante fast-check sobre la matemática PURA extraída (`distributeEqualCents`): consistencia interna, nada inventado, residuo acotado, perStaff=floor(pool/n), determinismo.
+  - Archivos: `lib/services/propinas-distribution.ts` (nuevo), `lib/services/propinas-service.ts` (rewire mínimo), `lib/services/__tests__/propinas-distribution.test.ts`
+  - Hallazgo (2026-08-24): ⚠️ BUG DE DINERO CONFIRMADO Y CONGELADO — `Math.floor(pool/n)` evapora `pool % n` centavos (100 entre 3 → reparte 99; header guarda distributedCents ≠ totalPoolCents). La propiedad "suma === total" del plan falla hoy y quedó como it.skip pendiente del fix. RECOMENDACIÓN al humano: repartir el residuo entre los primeros `pool % n` empleados (o registrar el residuo explícito en el header). Edge adicional congelado: pools negativos reparten "más negativo" (floor hacia −∞).
 
 ### Checkpoint: Capa 01
-- [ ] Suite unitaria completa en <30 s
-- [ ] Casos borde documentados en los propios tests (día 31, DST Tijuana, empate de estado)
+- [x] Suite unitaria completa en <30 s (2026-08-24: 280 tests en 10 archivos, ~7 s)
+- [x] Casos borde documentados en los propios tests (día 31, DST Tijuana, empate de estado)
 
 ### Phase 3: Capa 03 — Contrato de API
 

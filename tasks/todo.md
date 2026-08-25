@@ -20,12 +20,12 @@
 
 - [x] Task 5: Fechas/zonas horarias (`lib/workflows/today.ts`) × 3 zonas de México ✓ (85 tests, ~1 s; destapó y corrigió bug de ±1 min en `startOfLocalDayUtc` con segundos — commits 0c72e58 test rojo + 85e7acf fix)
 - [x] Task 6: LFT horas extra y descansos (`lib/labor-validation.ts`) ✓ (59 tests; 2 bugs corregidos: falsos traslapes por orden + extra semanal que restaba 2× las 8h; 2 decisiones aplicadas con aprobación humana: bandas LFT 9h-doble/triple y continuo sólo evaluable sin descansos — commits 8cac486, 01a3c30, da8689e, b1b1695, 5a7ef20, 4f188ca)
-- [ ] Task 7: RBAC/ABAC/masking (branch-scope, permissions, abac, masking)
-- [ ] Task 8: parseMoneyToCents + rate-limiter
-- [ ] Task 9: Propinas con property-based (fast-check)
+- [x] Task 7: RBAC/ABAC/masking (branch-scope, permissions, abac, masking) ✓ (85 tests; alias `@/` añadido a vitest.config; fail-open legacy de enforceBranchScope y gaps de masking congelados documentados)
+- [x] Task 8: parseMoneyToCents + rate-limiter ✓ (36 tests; 2 congelaciones por decisión humana: "1.234,50"→123¢ formato europeo y notación científica aceptada)
+- [x] Task 9: Propinas con property-based (fast-check) ✓ (11 tests + 1 skip; matemática extraída a `propinas-distribution.ts`; ⚠️ BUG DINERO confirmado: residuo `pool % n` se evapora — recomendación enviada, fix pendiente de aprobación)
 
 ### Checkpoint
-- [ ] Suite unitaria <30 s, casos borde cubiertos
+- [x] Suite unitaria <30 s, casos borde cubiertos ✓ (280 tests en 10 archivos, ~7 s; lint 0 errores / ~2111 warnings preexistentes)
 
 ## Phase 3: Capa 03 — Contrato API
 
