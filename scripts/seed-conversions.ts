@@ -39,7 +39,7 @@ async function main() {
       companyId,
       fromUnit: conv.fromUnit,
       toUnit: conv.toUnit,
-      factor: conv.factor,
+      factor: String(conv.factor), // numeric(12,6): string en TS
       description: conv.description,
     });
   }
