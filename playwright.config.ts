@@ -57,18 +57,33 @@ export default defineConfig({
   ],
 
   /**
-   * Servidor bajo prueba. El dev server compila cada ruta al primer golpe, por
-   * eso los timeouts de arriba son generosos. Con un build ya hecho
+   * Servidores bajo prueba. El dev server compila cada ruta al primer golpe,
+   * por eso los timeouts de arriba son generosos. Con un build ya hecho
    * (`pnpm build`) conviene correrlos contra producción, que es mucho más
    * rápido y estable:
    *   PLAYWRIGHT_WEB_SERVER_CMD="npm run start" pnpm test:e2e
    * Ojo: `next dev` y `next start` comparten `.next`, así que no pueden
    * convivir — hay que apagar el dev server antes de construir.
+   *
+   * El Inngest Dev Server es obligatorio en local: desde 8f97d20 los
+   * extractores post-completado (conteo, merma, producción, recepción) viajan
+   * como evento `workflow/instance.completed`; sin un dev server consumiendo,
+   * `inngest.send()` publica y nadie ejecuta → las filas nunca llegan a la BD.
    */
-  webServer: {
-    command: process.env.PLAYWRIGHT_WEB_SERVER_CMD || 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 300_000,
-  },
+  webServer: [
+    {
+      command: process.env.PLAYWRIGHT_WEB_SERVER_CMD || 'npm run dev',
+      url: 'http://localhost:3000',
+      reuseExistingServer: !process.env.CI,
+      timeout: 300_000,
+      env: { ...process.env, INNGEST_DEV: '1' },
+    },
+    {
+      command:
+        'npx inngest-cli@latest dev -u http://localhost:3000/api/inngest',
+      url: 'http://localhost:8288',
+      reuseExistingServer: !process.env.CI,
+      timeout: 300_000,
+    },
+  ],
 });

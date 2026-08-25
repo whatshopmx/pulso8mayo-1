@@ -6,7 +6,10 @@ import {
   findTimbrado,
   seedTimbrado,
 } from "./support/db";
-import { timbrarNomina } from "../lib/services/fiscal-service";
+import {
+  construirPayloadNomina,
+  timbrarNomina,
+} from "../lib/services/fiscal-service";
 
 /**
  * Auditoría A6b — un folio fiscal no se pide dos veces por descuido.
@@ -220,6 +223,72 @@ test.describe("A6b · el timbrado se persiste y no se repite", () => {
       await countTimbrados(COMPANY_ID, RFC, PERIODO),
       "una carrera dejó dos comprobantes para el mismo período"
     ).toBe(1);
+  });
+});
+
+/**
+ * El desglose fiscal real y los datos reales del empleado son una función
+ * pura (`construirPayloadNomina`): no tocan PAC, base de datos ni servidor.
+ *
+ *   pnpm exec playwright test --no-deps --project=chromium tests/timbrado-idempotente.spec.ts
+ */
+test.describe("desglose real de nómina en el payload", () => {
+  test("con desglose, el CFDI refleja cada concepto y el total cuadra con las líneas", () => {
+    const { payload, expectedTotal } = construirPayloadNomina({
+      ...entrada,
+      // Totales agregados que NO corresponden al desglose: si se usaran,
+      // el comprobante no cuadraría línea por línea ante el SAT.
+      totalPercepciones: 999_999_999,
+      totalDeducciones: 111_111_111,
+      desglosePercepciones: [
+        { earningTypeCode: "001", code: "001", concept: "Sueldo nominal", taxedAmount: 1_200_000, exemptAmount: 0 },
+        { earningTypeCode: "038", code: "038", concept: "Propinas asignadas", taxedAmount: 0, exemptAmount: 300_000 },
+      ],
+      desgloseDeducciones: [
+        { deductionTypeCode: "002", code: "002", concept: "ISR retenido", amount: 150_000 },
+        { deductionTypeCode: "004", code: "004", concept: "Cuota IMSS", amount: 50_000 },
+      ],
+    });
+
+    const payroll = (payload as any).complement.payroll;
+    const earnings = payroll.earnings.earnings;
+    expect(earnings).toHaveLength(2);
+    expect(earnings[0].earningTypeCode).toBe("001");
+    expect(earnings[0].taxedAmount).toBe(12_000);
+    expect(earnings[1].exemptAmount).toBe(3_000);
+
+    expect(payroll.deductions).toHaveLength(2);
+    expect(payroll.deductions[1].deductionTypeCode).toBe("004");
+    expect(payroll.deductions[1].amount).toBe(500);
+
+    // Σ percepciones (gravado+exento) − Σ deducciones, en pesos.
+    expect(expectedTotal).toBe(13_000);
+  });
+
+  test("sin desglose cae al agregado de siempre (una percepción gravada)", () => {
+    const { payload, expectedTotal } = construirPayloadNomina(entrada);
+
+    const earnings = (payload as any).complement.payroll.earnings.earnings;
+    expect(earnings).toHaveLength(1);
+    expect(earnings[0].earningTypeCode).toBe("001");
+    expect(earnings[0].taxedAmount).toBe(15_000);
+    expect(expectedTotal).toBe(13_000);
+  });
+
+  test("los datos reales del empleado sustituyen a los sintéticos", () => {
+    const { payload } = construirPayloadNomina({
+      ...entrada,
+      empleadoNss: "98765432109",
+      empleadoFechaContratacion: "2022-03-01",
+      empleadoSalarioDiarioCents: 45_000,
+      registroPatronal: "REG-PAT-E2E",
+    });
+
+    const emp = (payload as any).recipient.employeeData;
+    expect(emp.socialSecurityNumber).toBe("98765432109");
+    expect(emp.laborRelationStartDate).toBe("2022-03-01");
+    expect(emp.baseSalaryForContributions).toBe(450);
+    expect((payload as any).issuer.employerData.employerRegistration).toBe("REG-PAT-E2E");
   });
 });
 

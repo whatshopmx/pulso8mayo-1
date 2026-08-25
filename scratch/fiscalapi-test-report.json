@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-08-25T04:50:58.915Z",
+  "resultados": [
+    {
+      "source": "PURCHASE_ORDER",
+      "sourceId": "313de0d0-39d3-4226-bb28-2956d01cca09",
+      "reference": "PO-2026-0551",
+      "issuerTin": "EKU9003173C9",
+      "issuerMatched": true,
+      "recipientTin": "URE180429TM6",
+      "expectedTotal": 440.64,
+      "uuid": "4ba3caac-b1b3-4975-858a-62d8a0d7a4fe",
+      "invoiceId": "6d53a84e-e580-4432-8f83-a3676091c922",
+      "status": "TIMBRADO",
+      "totalsMatch": true,
+      "stampedTotal": 440.64,
+      "message": ""
+    },
+    {
+      "source": "PURCHASE_ORDER",
+      "sourceId": "1c92d330-b767-4207-a6cf-10d3d9b027c4",
+      "reference": "PO-2026-0491",
+      "issuerTin": "IIA040805DZ4",
+      "issuerMatched": true,
+      "recipientTin": "URE180429TM6",
+      "expectedTotal": 1470,
+      "uuid": "1b8228ed-f05f-4948-a080-1b507197cad6",
+      "invoiceId": "4f245474-477d-4646-8470-1529805b456a",
+      "status": "TIMBRADO",
+      "totalsMatch": true,
+      "stampedTotal": 1470,
+      "message": ""
+    },
+    {
+      "source": "PURCHASE_ORDER",
+      "sourceId": "df536cfb-ec26-4a23-87dd-cf1bb2d48480",
+      "reference": "PO-2026-0361",
+      "issuerTin": "IXS7607092R5",
+      "issuerMatched": true,
+      "recipientTin": "URE180429TM6",
+      "expectedTotal": 369,
+      "uuid": "e17d2809-70b7-46b8-9a20-97783cf97ea1",
+      "invoiceId": "d40715f8-9207-4cf7-83fb-8d998d09cb2c",
+      "status": "TIMBRADO",
+      "totalsMatch": true,
+      "stampedTotal": 369,
+      "message": ""
+    },
+    {
+      "source": "OPERATING_EXPENSE",
+      "sourceId": "8b2a5292-2c4f-48da-94ee-59d388e4df54",
+      "reference": "renta sucursal",
+      "issuerTin": "EKU9003173C9",
+      "issuerMatched": false,
+      "recipientTin": "URE180429TM6",
+      "expectedTotal": 20000,
+      "uuid": "ac961971-9edf-462a-a426-d675dc721eff",
+      "invoiceId": "4f0951e3-e252-45e8-ad45-dce0c70131b0",
+      "status": "TIMBRADO",
+      "totalsMatch": true,
+      "stampedTotal": 20000,
+      "message": ""
+    }
+  ]
+}

@@ -61,6 +61,31 @@ export interface InvoiceValidationResult {
   rawResponse?: unknown;
 }
 
+/**
+ * Una percepción del desglose real de nómina, ya clasificada con las claves
+ * del catálogo `c_TipoPercepcion` del SAT. Importes en centavos.
+ */
+export interface NominaPercepcion {
+  /** Clave agrupadora del catálogo (ej: "001" sueldos, "038" otros ingresos). */
+  earningTypeCode: string;
+  /** Código interno del concepto dentro del catálogo de la empresa. */
+  code: string;
+  concept: string;
+  /** Parte gravada de ISR, en centavos. */
+  taxedAmount: number;
+  /** Parte exenta de ISR, en centavos. */
+  exemptAmount: number;
+}
+
+/** Una deducción real (ISR retenido, IMSS, etc.). Importe en centavos. */
+export interface NominaDeduccion {
+  /** Clave del catálogo `c_TipoDeduccion` ("002" ISR, "004" IMSS...). */
+  deductionTypeCode: string;
+  code: string;
+  concept: string;
+  amount: number;
+}
+
 export interface NominaTimbradoInput {
   /** Empresa que timbra. El comprobante se guarda a su nombre. */
   companyId: string;
@@ -72,12 +97,28 @@ export interface NominaTimbradoInput {
   empleadoNombre: string;
   /** CURP del empleado */
   empleadoCurp?: string;
+  /** NSS del empleado (de employeeProfiles). Sin él, uno sintético determinista. */
+  empleadoNss?: string;
+  /** Fecha de contratación AAAA-MM-DD (de employeeContracts). */
+  empleadoFechaContratacion?: string;
+  /** Salario diario base en centavos (SBC/SDI del contrato). */
+  empleadoSalarioDiarioCents?: number;
+  /** Registro patronal IMSS de la empresa. Sin él, el default de sandbox. */
+  registroPatronal?: string;
   /** Período de nómina (ej: "2025-01") */
   periodo: string;
   /** Total percepciones en centavos */
   totalPercepciones: number;
   /** Total deducciones en centavos */
   totalDeducciones: number;
+  /**
+   * Desglose fiscal real de percepciones. Si viene, manda sobre los totales
+   * agregados (el CFDI refleja cada concepto con su parte gravada/exenta);
+   * si no, cae al agregado de una sola línea "Sueldo nominal".
+   */
+  desglosePercepciones?: NominaPercepcion[];
+  /** Desglose fiscal real de deducciones. Mismo trato que las percepciones. */
+  desgloseDeducciones?: NominaDeduccion[];
 }
 
 export type NominaTimbradoStatus = "TIMBRADO" | "PENDIENTE" | "RECHAZADO" | "ERROR";
@@ -287,8 +328,8 @@ const DEFAULT_TEST_EMPLOYEE =
   SAT_TEST_FISICAS.find((p) => p.tin === "FUNK671228PH6") ?? SAT_TEST_FISICAS[0];
 
 /** Registro patronal de sandbox. Override con FISCALAPI_EMPLEADOR_REGISTRO. */
-function registroPatronal(): string {
-  return process.env.FISCALAPI_EMPLEADOR_REGISTRO || "B5510768108";
+function registroPatronal(override?: string): string {
+  return override || process.env.FISCALAPI_EMPLEADOR_REGISTRO || "B5510768108";
 }
 
 /** Entidad federativa del empleado. Override con FISCALAPI_NOMINA_ESTADO. */
@@ -357,15 +398,33 @@ export function construirPayloadNomina(input: NominaTimbradoInput): {
   const empleadoReal = resolveTestPerson(input.empleadoRfc);
   const receptor = empleadoReal ?? DEFAULT_TEST_EMPLOYEE;
 
-  const percepciones = dosDecimales(input.totalPercepciones / 100);
-  const deducciones = dosDecimales(input.totalDeducciones / 100);
+  // Con desglose real, los totales salen del propio desglose (el total del
+  // CFDI tiene que cuadrar línea por línea); sin él, los agregados de siempre.
+  const conDesglose = (input.desglosePercepciones?.length ?? 0) > 0;
+  const percepciones = dosDecimales(
+    conDesglose
+      ? input.desglosePercepciones!.reduce(
+          (acc, p) => acc + (p.taxedAmount + p.exemptAmount) / 100,
+          0
+        )
+      : input.totalPercepciones / 100
+  );
+  const deducciones = dosDecimales(
+    (input.desgloseDeducciones?.length ?? 0) > 0
+      ? input.desgloseDeducciones!.reduce((acc, d) => acc + d.amount / 100, 0)
+      : input.totalDeducciones / 100
+  );
   // Total del comprobante: percepciones menos deducciones (CFDI de nómina no
   // lleva IVA trasladado). Verificar contra el timbre es lo delata un mapeo roto.
   const expectedTotal = dosDecimales(percepciones - deducciones);
 
   const { inicio, fin, dias } = periodoAFechas(input.periodo);
-  const diario = dosDecimales(percepciones / Math.max(dias, 1));
-  const contratacion = "2020-01-15";
+  // SBC/SDI real si hay contrato; si no, el sintético determinista de sandbox.
+  const diario =
+    input.empleadoSalarioDiarioCents && input.empleadoSalarioDiarioCents > 0
+      ? dosDecimales(input.empleadoSalarioDiarioCents / 100)
+      : dosDecimales(percepciones / Math.max(dias, 1));
+  const contratacion = input.empleadoFechaContratacion || "2020-01-15";
   const antiguedadSemanas = Math.max(1, Math.floor(diasDesde(contratacion, fin) / 7));
 
   const payload = {
@@ -384,7 +443,7 @@ export function construirPayloadNomina(input: NominaTimbradoInput): {
       tin: emisor.tin,
       legalName: emisor.legalName,
       taxRegimeCode: emisor.taxRegimeCode,
-      employerData: { employerRegistration: registroPatronal() },
+      employerData: { employerRegistration: registroPatronal(input.registroPatronal) },
       taxCredentials: loadCsdForTin(emisor.tin),
     },
     recipient: {
@@ -395,7 +454,8 @@ export function construirPayloadNomina(input: NominaTimbradoInput): {
       cfdiUseCode: "CN01",
       employeeData: {
         employeeNumber: `PLS-${input.empleadoRfc.replace(/[^A-Z0-9]/gi, "").slice(-6).toUpperCase()}`,
-        socialSecurityNumber: nssDeterminista(input.empleadoRfc),
+        // NSS real si el perfil lo trae; si no, uno sintético determinista.
+        socialSecurityNumber: input.empleadoNss || nssDeterminista(input.empleadoRfc),
         // El complemento valida formato de CURP (NOM111): sin una real que
         // valga, la genérica del catálogo de pruebas del SAT.
         curp: input.empleadoCurp || "XEXX010101MNEXXXA8",
@@ -419,15 +479,25 @@ export function construirPayloadNomina(input: NominaTimbradoInput): {
         finalPaymentDate: fin,
         daysPaid: dias,
         earnings: {
-          earnings: [
-            {
-              earningTypeCode: "001", // sueldos, salarios, rayas y jornales
-              code: "001",
-              concept: `Sueldo nominal${empleadoReal ? "" : ` · ${input.empleadoNombre}`}`,
-              taxedAmount: percepciones,
-              exemptAmount: 0,
-            },
-          ],
+          earnings: conDesglose
+            ? input.desglosePercepciones!.map((p) => ({
+                earningTypeCode: p.earningTypeCode,
+                code: p.code,
+                concept:
+                  p.concept ||
+                  `Percepción ${p.code}${empleadoReal ? "" : ` · ${input.empleadoNombre}`}`,
+                taxedAmount: dosDecimales(p.taxedAmount / 100),
+                exemptAmount: dosDecimales(p.exemptAmount / 100),
+              }))
+            : [
+                {
+                  earningTypeCode: "001", // sueldos, salarios, rayas y jornales
+                  code: "001",
+                  concept: `Sueldo nominal${empleadoReal ? "" : ` · ${input.empleadoNombre}`}`,
+                  taxedAmount: percepciones,
+                  exemptAmount: 0,
+                },
+              ],
           // El PAC exige el nodo OtroPago con clave "002" (subsidio, en cero
           // si no aplica): ni omitirlo ni mandarlo vacío pasa la validación
           // NOM105. Igual que el ejemplo oficial del SDK.
@@ -442,9 +512,16 @@ export function construirPayloadNomina(input: NominaTimbradoInput): {
           ],
         },
         deductions:
-          deducciones > 0
-            ? [{ deductionTypeCode: "002", code: "002", concept: "ISR retenido", amount: deducciones }]
-            : [],
+          (input.desgloseDeducciones?.length ?? 0) > 0
+            ? input.desgloseDeducciones!.map((d) => ({
+                deductionTypeCode: d.deductionTypeCode,
+                code: d.code,
+                concept: d.concept || `Deducción ${d.code}`,
+                amount: dosDecimales(d.amount / 100),
+              }))
+            : deducciones > 0
+              ? [{ deductionTypeCode: "002", code: "002", concept: "ISR retenido", amount: deducciones }]
+              : [],
       },
     },
   };

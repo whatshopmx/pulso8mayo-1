@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, gte, lte, sum, desc } from "drizzle-orm";
 import { timbrarNomina } from "./fiscal-service";
+import type { NominaDeduccion, NominaPercepcion } from "./fiscal-service";
 import { differenceInDays, parseISO } from "date-fns";
 
 export async function calculateEmployeePayroll(userId: string, startDate: string, endDate: string) {
@@ -46,7 +47,49 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
     propinasCents: tipsCents,
     totalPercepcionesCents: baseSalaryCents + tipsCents,
     totalDeduccionesCents: 0,
+    /** Datos reales del contrato para el CFDI (SBC y fecha de contratación). */
+    salarioDiarioCents: contract?.baseSalary || 0,
+    fechaContratacion: contract?.startDate
+      ? new Date(contract.startDate).toISOString().slice(0, 10)
+      : undefined,
   };
+}
+
+/**
+ * Desglose fiscal del período para el CFDI de nómina.
+ *
+ * El sueldo va como "001 Sueldos" gravado; las propinas asignadas NO son
+ * salario (LFT art. 87) y el catálogo `c_TipoPercepcion` no les da clave
+ * propia, así que van como "038 Otros ingresos por salarios" exentas de ISR.
+ * Las deducciones reales (ISR/IMSS retenidos) aún no se calculan en este
+ * servicio: cuando existan, entran al array con sus claves de catálogo.
+ */
+export function construirDesgloseNomina(payroll: {
+  baseSalaryCents: number;
+  propinasCents: number;
+}): {
+  desglosePercepciones: NominaPercepcion[];
+  desgloseDeducciones: NominaDeduccion[];
+} {
+  const desglosePercepciones: NominaPercepcion[] = [
+    {
+      earningTypeCode: "001",
+      code: "001",
+      concept: "Sueldo nominal",
+      taxedAmount: payroll.baseSalaryCents,
+      exemptAmount: 0,
+    },
+  ];
+  if (payroll.propinasCents > 0) {
+    desglosePercepciones.push({
+      earningTypeCode: "038",
+      code: "038",
+      concept: "Propinas asignadas",
+      taxedAmount: 0,
+      exemptAmount: payroll.propinasCents,
+    });
+  }
+  return { desglosePercepciones, desgloseDeducciones: [] };
 }
 
 export async function executePayrollRun(
@@ -71,6 +114,7 @@ export async function executePayrollRun(
       name: users.name,
       rfc: employeeProfiles.rfc,
       curp: employeeProfiles.curp,
+      nss: employeeProfiles.nss,
     })
     .from(users)
     .innerJoin(employeeProfiles, eq(users.id, employeeProfiles.userId))
@@ -90,6 +134,7 @@ export async function executePayrollRun(
       }
 
       const payrollCalc = await calculateEmployeePayroll(emp.userId, startDate, endDate);
+      const desglose = construirDesgloseNomina(payrollCalc);
       
       // Timbrar nómina
       // El periodo en fiscal API suele ser "2025-01" o texto. Usaremos startDate
@@ -99,9 +144,13 @@ export async function executePayrollRun(
         empleadoRfc: emp.rfc,
         empleadoNombre: emp.name || "Sin Nombre",
         empleadoCurp: emp.curp || "",
+        empleadoNss: emp.nss || "",
+        empleadoFechaContratacion: payrollCalc.fechaContratacion,
+        empleadoSalarioDiarioCents: payrollCalc.salarioDiarioCents,
         periodo: `${startDate} - ${endDate}`,
         totalPercepciones: payrollCalc.totalPercepcionesCents,
         totalDeducciones: payrollCalc.totalDeduccionesCents,
+        ...desglose,
       });
 
       // Save payslip
