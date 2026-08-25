@@ -63,25 +63,19 @@ export function calculateOvertime(
 ): OvertimeCalculation {
   const regularMinutes = 8 * 60;
   const beyondRegular = Math.max(0, totalMinutes - regularMinutes);
-  
-  let rate1Minutes = 0;
-  let rate2Minutes = 0;
-  let rate3Minutes = 0;
 
-  if (beyondRegular > 0) {
-    const remainingForRate1 = Math.max(0, 60 - weeklyOvertimeAccumulated);
-    rate1Minutes = Math.min(beyondRegular, remainingForRate1);
-    const remaining = beyondRegular - rate1Minutes;
-    
-    if (remaining > 0) {
-      rate2Minutes = Math.min(remaining, 60);
-      rate3Minutes = Math.max(0, remaining - 60);
-    }
-  }
+  // LFT Art. 84/87 (decisión 2026-08-24): toda hora extra se paga mínimo al
+  // doble; las primeras 9 h extra de la semana van a doble y el excedente a
+  // triple. `weeklyOvertimeAccumulated` trae lo ya pagado a doble en la
+  // semana y recorta ese allowance. rate1 queda deprecado en 0: no existe
+  // categoría legal de extra a tarifa normal.
+  const doubleAllowance = Math.max(0, 540 - weeklyOvertimeAccumulated);
+  const rate2Minutes = Math.min(beyondRegular, doubleAllowance);
+  const rate3Minutes = beyondRegular - rate2Minutes;
 
   return {
     totalMinutes: beyondRegular,
-    rate1Minutes,
+    rate1Minutes: 0,
     rate2Minutes,
     rate3Minutes,
   };
