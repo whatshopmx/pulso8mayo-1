@@ -1,7 +1,11 @@
 import { db } from "@/lib/db";
-import { purchaseOrders, purchaseOrderItems, requisitions, requisitionItems, suppliers, branches, inventoryBatches, inventoryItems, companies, users } from "@/lib/db/schema";
+import { approvalRequests, purchaseOrders, purchaseOrderItems, requisitions, requisitionItems, suppliers, branches, inventoryBatches, inventoryItems, companies, users } from "@/lib/db/schema";
 import { eq, and, desc, sql, inArray, or, asc, ilike } from "drizzle-orm";
 import { AuditService } from "./audit-service";
+import { ApiError } from "@/lib/api/error";
+import { nextFolio } from "./folio-generator";
+import { createApprovalRequests, resolveApprovalChain } from "./approval-matrix-service";
+import { checkBudgetAvailability, validateEmergencyCap } from "./budget-service";
 
 type POStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SENT' | 'PARTIALLY_RECEIVED' | 'CLOSED' | 'CANCELLED';
 type POItemStatus = 'PENDING' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
@@ -489,11 +493,166 @@ export class PurchaseOrderService {
 
   // --- Status Transitions ---
 
-  static async submitForApproval(id: string, userId: string) {
-    return this.transitionStatus(id, 'PENDING_APPROVAL', userId);
+  /**
+   * Submit de OC a aprobación por matriz (finzasordenes.md §4, Task 6).
+   *
+   * Misma mecánica que la OS (service-order-service.submitOrder): cadena de
+   * autorización → presupuesto o tope de emergencias → folio real OC-[SUC]-[AÑO]-[N]
+   * emitido en transacción atómica junto al cambio de estado y los approval_requests.
+   *
+   * Requisitos nuevos al enviar (retrocompatibles): purchaseType asignado y
+   * total > 0. Las OC ya enviadas antes de la matriz no pasan por aquí.
+   */
+  static async submitForApproval(id: string, userId: string, companyId?: string) {
+    const [po] = await db
+      .select()
+      .from(purchaseOrders)
+      .where(
+        companyId
+          ? and(eq(purchaseOrders.id, id), eq(purchaseOrders.companyId, companyId))
+          : eq(purchaseOrders.id, id),
+      )
+      .limit(1);
+    if (!po) throw new ApiError("Orden de compra no encontrada", 404);
+    if (po.status !== 'DRAFT') {
+      throw new ApiError("La orden ya fue enviada y no está en borrador", 409);
+    }
+
+    const total = po.totalAmount ?? 0;
+    if (total <= 0) {
+      throw new ApiError("La orden requiere un total mayor a cero antes de enviarla a aprobación", 400);
+    }
+    const purchaseType = po.purchaseType ?? null;
+    if (!purchaseType) {
+      throw new ApiError(
+        "Selecciona el tipo de compra (PROGRAMADA / STOCK / EMERGENCIA) antes de enviar la orden",
+        400,
+      );
+    }
+
+    const effectiveCompanyId = companyId ?? po.companyId;
+
+    // 1. Cadena de autorización según matriz OC (seed perezoso en primera llamada).
+    const chain = await resolveApprovalChain(effectiveCompanyId, "OC", total);
+    if (chain.length === 0) {
+      throw new ApiError(
+        "El monto no está cubierto por la matriz de autorización. " +
+          "Pide a un administrador que agregue una regla que cubra este rango.",
+        400,
+      );
+    }
+
+    // 2. Presupuesto o tope de emergencias — mes de created_at, igual que OS.
+    const month = po.createdAt.toISOString().slice(0, 7);
+    if (purchaseType === 'EMERGENCIA') {
+      const capCheck = await validateEmergencyCap(effectiveCompanyId, po.branchId, month, total);
+      if (!capCheck.allowed) {
+        const overBy = capCheck.overBy ?? 0;
+        throw new ApiError(
+          `Tope mensual de compras de emergencia excedido por $${(overBy / 100).toFixed(2)}. ` +
+            `Tope: $${((capCheck.cap ?? 0) / 100).toFixed(2)}, usado antes: $${((capCheck.usedBefore ?? 0) / 100).toFixed(2)}.`,
+          400,
+          { cap: capCheck.cap, usedBefore: capCheck.usedBefore, overBy },
+        );
+      }
+    } else {
+      if (!po.costCenterId) {
+        throw new ApiError(
+          "Asigna un centro de costo a la orden: sin partida no hay contra qué validar presupuesto.",
+          400,
+        );
+      }
+      const budget = await checkBudgetAvailability(po.branchId, po.costCenterId, month, total);
+      if (!budget.ok) {
+        throw new ApiError(
+          `Presupuesto insuficiente: disponible $${(budget.available / 100).toFixed(2)} ` +
+            `de $${(budget.budgeted / 100).toFixed(2)} presupuestado; la orden requiere $${(total / 100).toFixed(2)}.`,
+          400,
+          { budget },
+        );
+      }
+    }
+
+    // 3. Transacción atómica: folio real + status + approvals. Un submit
+    // concurrente pierde por el WHERE status='DRAFT' y el rollback devuelve
+    // también el consecutivo (folios sin saltos).
+    const result = await db.transaction(async (tx) => {
+      const issued = await nextFolio({
+        companyId: effectiveCompanyId,
+        branchId: po.branchId,
+        docType: "OC",
+        tx,
+      });
+      const updated = await tx
+        .update(purchaseOrders)
+        .set({
+          poNumber: issued.folio,
+          folioYear: issued.year,
+          folioSequence: issued.sequence,
+          status: 'PENDING_APPROVAL' as POStatus,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(purchaseOrders.id, id),
+            eq(purchaseOrders.companyId, effectiveCompanyId),
+            eq(purchaseOrders.status, 'DRAFT'),
+          ),
+        )
+        .returning();
+      if (updated.length === 0) {
+        throw new ApiError("La orden ya fue enviada por otro usuario", 409);
+      }
+      const approvalsCreated = await createApprovalRequests({
+        companyId: effectiveCompanyId,
+        docType: "OC",
+        docId: id,
+        chain,
+        tx,
+      });
+      return { order: updated[0], issued, approvalsCreated };
+    });
+
+    AuditService.logInventoryAction({
+      companyId: effectiveCompanyId,
+      branchId: po.branchId,
+      action: 'UPDATE',
+      entityType: 'PURCHASE_ORDER',
+      entityId: id,
+      oldValue: { status: po.status, poNumber: po.poNumber },
+      newValue: { status: 'PENDING_APPROVAL', poNumber: result.issued.folio },
+      performedBy: userId,
+    });
+
+    return result.order;
+  }
+
+  /**
+   * ¿Tiene esta OC requests PENDING de la matriz? Si sí, ya no se aprueba/rechaza
+   * directo: manda a la bandeja (segregación de niveles de la matriz §4).
+   */
+  private static async assertNotMatrixManaged(id: string) {
+    const [req] = await db
+      .select({ id: approvalRequests.id })
+      .from(approvalRequests)
+      .where(
+        and(
+          eq(approvalRequests.docType, 'OC'),
+          eq(approvalRequests.docId, id),
+          eq(approvalRequests.status, 'PENDING'),
+        ),
+      )
+      .limit(1);
+    if (req) {
+      throw new ApiError(
+        "Esta orden está bajo la matriz de autorización: apruébala o recházala desde la bandeja de aprobaciones",
+        409,
+      );
+    }
   }
 
   static async approvePO(id: string, approvedBy: string) {
+    await this.assertNotMatrixManaged(id);
     const po = await this.transitionStatus(id, 'APPROVED', approvedBy);
     await db.update(purchaseOrders)
       .set({ approvedBy, approvedAt: new Date() })
@@ -502,6 +661,7 @@ export class PurchaseOrderService {
   }
 
   static async rejectPO(id: string, rejectedBy: string, reason: string) {
+    await this.assertNotMatrixManaged(id);
     const po = await this.transitionStatus(id, 'REJECTED', rejectedBy);
     await db.update(purchaseOrders)
       .set({ approvedBy: rejectedBy, approvedAt: new Date(), rejectionReason: reason })

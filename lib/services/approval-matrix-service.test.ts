@@ -5,6 +5,7 @@ import {
     denyApproval,
     matchesRange,
     nextPendingLevel,
+    validateMatrixRules,
 } from "./approval-matrix-service";
 
 const defaults = defaultMatrixRules();
@@ -149,5 +150,61 @@ describe("denyApproval — segregación de funciones y orden de niveles", () => 
         expect(
             denyApproval({ ...base, requestLevel: 2, actorRole: undefined, requiredRole: "GERENTE" }),
         ).toBe("ROLE");
+    });
+});
+
+describe("validateMatrixRules", () => {
+    const base = { requiredRole: "GERENTE", minQuotes: 1, sequence: 1, active: true };
+
+    it("acepta la matriz default (contigua sin traslapes)", () => {
+        const result = validateMatrixRules(defaultMatrixRules().map((r) => ({ ...r, active: true })));
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.warnings).toHaveLength(0);
+    });
+
+    it("rechaza rangos traslapados entre reglas activas", () => {
+        const result = validateMatrixRules([
+            { ...base, amountMin: 0, amountMax: 500000 },
+            { ...base, sequence: 2, amountMin: 400000, amountMax: 900000 },
+        ]);
+        expect(result.ok).toBe(false);
+        if (result.ok === false) expect(result.error).toMatch(/traslapados/);
+    });
+
+    it("el límite inclusivo no es traslape: [0,500] y [501,null] son válidos", () => {
+        const result = validateMatrixRules([
+            { ...base, amountMin: 0, amountMax: 500 },
+            { ...base, sequence: 2, amountMin: 501, amountMax: null },
+        ]);
+        expect(result.ok).toBe(true);
+    });
+
+    it("marca hueco como advertencia, no error (contigüidad recomendada)", () => {
+        const result = validateMatrixRules([
+            { ...base, amountMin: 0, amountMax: 100000 },
+            { ...base, sequence: 2, amountMin: 200000, amountMax: null },
+        ]);
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.warnings[0]).toMatch(/Hueco/);
+    });
+
+    it("ignora reglas inactivas para traslapes pero advierte si todas inactivas", () => {
+        const overlapOk = validateMatrixRules([
+            { ...base, amountMin: 0, amountMax: 100000, active: false },
+            { ...base, amountMin: 0, amountMax: 100000, active: false },
+        ]);
+        expect(overlapOk.ok).toBe(true);
+        if (overlapOk.ok) expect(overlapOk.warnings.join(" ")).toMatch(/inactivas/);
+    });
+
+    it("rechaza rol desconocido (fail closed)", () => {
+        const result = validateMatrixRules([{ ...base, requiredRole: "DUENO", amountMin: 0, amountMax: 100 }]);
+        expect(result.ok).toBe(false);
+        if (result.ok === false) expect(result.error).toMatch(/desconocido/);
+    });
+
+    it("rechaza max < min y cotizaciones < 1", () => {
+        expect(validateMatrixRules([{ ...base, amountMin: 500, amountMax: 100 }]).ok).toBe(false);
+        expect(validateMatrixRules([{ ...base, amountMin: 0, amountMax: 100, minQuotes: 0 }]).ok).toBe(false);
     });
 });

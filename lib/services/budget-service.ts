@@ -214,6 +214,78 @@ async function getEmergencyCap(companyId: string): Promise<number | null> {
     return row?.cap ?? null;
 }
 
+/** Cap y uso actual de emergencias para mostrar en bandeja/presupuestos. */
+export async function getEmergencyCapUsage(
+    companyId: string,
+    branchId: string,
+    month: string,
+): Promise<{ cap: number | null; used: number }> {
+    const [cap, used] = await Promise.all([
+        getEmergencyCap(companyId),
+        getEmergencyUsage(branchId, month),
+    ]);
+    return { cap, used };
+}
+
+/**
+ * Comprometido del mes agrupado por sucursal×centro en DOS queries (uno por tipo
+ * de documento). Para bandejas y grids de presupuesto sin N+1.
+ * Clave del mapa: `${branchId}:${costCenterId}`. Docs sin centro no se atribuyen.
+ */
+export async function getCommittedByPair(
+    branchIds: string[],
+    month: string,
+): Promise<Map<string, number>> {
+    const totals = new Map<string, number>();
+    if (branchIds.length === 0) return totals;
+
+    const accumulate = (
+        rows: { branchId: string; costCenterId: string | null; total: number | null }[],
+    ) => {
+        for (const r of rows) {
+            if (!r.costCenterId) continue;
+            const key = `${r.branchId}:${r.costCenterId}`;
+            totals.set(key, (totals.get(key) ?? 0) + (r.total ?? 0));
+        }
+    };
+
+    const osRows = await db
+        .select({
+            branchId: serviceOrders.branchId,
+            costCenterId: serviceOrders.costCenterId,
+            total: sql<number>`coalesce(sum(${serviceOrders.amount}), 0)::int`,
+        })
+        .from(serviceOrders)
+        .where(
+            and(
+                inArray(serviceOrders.branchId, branchIds),
+                inArray(serviceOrders.status, [...OS_COMMITTING_STATUSES]),
+                sql`${monthExpr} = ${month}`,
+            ),
+        )
+        .groupBy(serviceOrders.branchId, serviceOrders.costCenterId);
+    accumulate(osRows);
+
+    const ocRows = await db
+        .select({
+            branchId: purchaseOrders.branchId,
+            costCenterId: purchaseOrders.costCenterId,
+            total: sql<number>`coalesce(sum(${purchaseOrders.totalAmount}), 0)::int`,
+        })
+        .from(purchaseOrders)
+        .where(
+            and(
+                inArray(purchaseOrders.branchId, branchIds),
+                inArray(purchaseOrders.status, [...OC_COMMITTING_STATUSES]),
+                sql`${monthExpr} = ${month}`,
+            ),
+        )
+        .groupBy(purchaseOrders.branchId, purchaseOrders.costCenterId);
+    accumulate(ocRows);
+
+    return totals;
+}
+
 export interface EmergencyCheckResult extends EmergencyCapDecision {
     usage: number[];
 }

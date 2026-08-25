@@ -26,7 +26,12 @@ export class UnitConversionService {
     factor: number;
     description?: string;
   }) {
-    const [conversion] = await db.insert(unitConversions).values(data).returning();
+    // numeric(12,6): Drizzle tipa numeric como string — escribir Number() hace
+    // que Postgres rechace el insert por tipo.
+    const [conversion] = await db.insert(unitConversions).values({
+      ...data,
+      factor: String(data.factor),
+    }).returning();
     return conversion;
   }
 
@@ -52,7 +57,7 @@ export class UnitConversionService {
     });
 
     if (conversion) {
-      return quantity * conversion.factor;
+      return quantity * Number(conversion.factor);
     }
 
     const reverseConversion = await db.query.unitConversions.findFirst({
@@ -64,7 +69,7 @@ export class UnitConversionService {
     });
 
     if (reverseConversion) {
-      return quantity / reverseConversion.factor;
+      return quantity / Number(reverseConversion.factor);
     }
 
     return null;

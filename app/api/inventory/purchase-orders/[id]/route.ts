@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAuth } from "@/lib/tenant-context";
+import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { PurchaseOrderService } from "@/lib/services/purchase-order-service";
 import { hasPermission } from "@/lib/permissions";
+import { isApiError } from "@/lib/api/error";
 
 const transitionSchema = z.object({
   action: z.enum(['submit', 'approve', 'reject', 'send', 'close', 'cancel']),
@@ -26,6 +27,7 @@ interface RouteParams {
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
+    const tenant = await requireTenant();
     const { user } = await requireAuth();
 
     if (!hasPermission(user.role, 'inventory', 'read')) {
@@ -35,13 +37,16 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const po = await PurchaseOrderService.getPO(id);
 
-    if (!po) {
+    if (!po || (tenant.id && po.companyId !== tenant.id)) {
       return NextResponse.json({ error: "Orden de compra no encontrada" }, { status: 404 });
     }
 
     return NextResponse.json(po);
   } catch (error: unknown) {
     console.error("Failed to fetch purchase order", error);
+    if (isApiError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Error interno del servidor" },
       { status: 500 }
@@ -51,6 +56,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
+    const tenant = await requireTenant();
     const { user } = await requireAuth();
 
     if (!hasPermission(user.role, 'inventory', 'update')) {
@@ -66,7 +72,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
       switch (action) {
         case 'submit':
-          return NextResponse.json(await PurchaseOrderService.submitForApproval(id, user.id));
+          // Flujo matriz OC/OS (Task 6): scoping por tenant + validaciones de
+          // presupuesto/emergencias + folio real en transacción.
+          return NextResponse.json(await PurchaseOrderService.submitForApproval(id, user.id, tenant.id ?? undefined));
         case 'approve':
           return NextResponse.json(await PurchaseOrderService.approvePO(id, user.id));
         case 'reject':
@@ -97,7 +105,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     // Update PO details
     const updateData: Record<string, unknown> = {};
-    const allowedFields = ['dateRequired', 'expectedDeliveryDate', 'notes', 'termsConditions', 'supplierId'];
+    // purchaseType y costCenterId son obligatorios al enviar (submit); se capturan en borrador.
+    const allowedFields = ['dateRequired', 'expectedDeliveryDate', 'notes', 'termsConditions', 'supplierId', 'purchaseType', 'costCenterId'];
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         updateData[field] = body[field];
@@ -118,6 +127,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         { error: "Datos inválidos", details: error.issues },
         { status: 400 }
       );
+    }
+
+    if (isApiError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
 
     return NextResponse.json(
