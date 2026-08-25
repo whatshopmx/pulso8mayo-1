@@ -30,7 +30,7 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 
 ## Phase 3: APIs
 
-- [ ] Task 5a: API service-orders CRUD + submit (valida cotizaciones/presupuesto)
+- [x] Task 5a: API service-orders CRUD + submit (valida cotizaciones/presupuesto) — commit `7aa9b80`: `lib/services/service-order-service.ts` + `app/api/service-orders/{route,[id]/route,[id]/submit/route}.ts`; submit en 1 tx (cadena→cotizaciones→presupuesto/emergencias→folio real→approvals→PENDING_APPROVAL); submit concurrente sin gap de folio
 - [ ] Task 5b: API service-orders quotes/evidence/conformity
 - [ ] Task 6: APIs approval-requests (⚠️ `approvals/` ya existe para turnos RH — usar `approval-requests/`), approval-matrix, cost-centers, budgets + integración OC (purchaseType, centro costo, nuevo folio)
 

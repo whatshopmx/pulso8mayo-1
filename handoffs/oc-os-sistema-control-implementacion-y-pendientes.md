@@ -11,9 +11,10 @@
 | `47187c7` | Task 2 — generador de folios transaccional (`0062`: folio_counters + branches.code) |
 | `d8a9b26` | docs — hallazgos del operating-config integrados al plan |
 | `5299cf8` | Tasks 3+4 — servicios de matriz de autorización y presupuesto/tope emergencias (`0063`: emergency_purchase_cap_cents) |
+| `7aa9b80` | Task 5a — API service-orders CRUD + submit transaccional (`lib/services/service-order-service.ts` + 3 rutas) |
 *(Nota: `d6fcc0a` commiteó trabajo fiscal suelto previo que compartía el working tree; no pertenece a este plan.)*
 
-**Estado al cierre:** ✅ **Phase 1 (Fundaciones) y Phase 2 (Business Logic) completas y verificadas** — migraciones aplicadas sin destructivos, 37 tests unitarios nuevos, suite completa **317 passed**, `pnpm run build` exit 0, concurrencia real del generador de folios verificada contra Neon (8 transacciones paralelas → 8 folios únicos consecutivos). Working tree limpio.
+**Estado al cierre:** ✅ **Phase 1 (Fundaciones), Phase 2 (Business Logic) y Task 5a completas y verificadas** — migraciones aplicadas sin destructivos, 37 tests unitarios nuevos, suite completa **317 passed**, `pnpm run build` exit 0, concurrencia real del generador de folios verificada contra Neon (8 transacciones paralelas → 8 folios únicos consecutivos). Working tree limpio.
 **Cambios sin commitear:** ninguno.
 
 ---
@@ -22,8 +23,8 @@
 
 Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.md`: Órdenes de Servicio como módulo independiente con evidencia y conformidad, matriz de autorización multi-nivel configurable por monto, presupuesto mensual por sucursal×centro de costo×partida, folios `OC/OS-[SUC]-[AÑO]-[N]` sin saltos, tope mensual de compras de emergencia y dashboard de KPIs gerenciales.
 
-**Ya terminado:** datos (Task 1), folios (Task 2), lógica de aprobación (Task 3) y lógica de presupuesto/emergencias (Task 4).
-**Siguiente paso concreto:** **Task 5a** — API de Órdenes de Servicio bajo `app/api/service-orders/` (CRUD + submit). El submit debe, dentro de UNA transacción: validar cotizaciones mínimas según la cadena (`resolveApprovalChain`), validar presupuesto (`checkBudgetAvailability`; emergencias vía `validateEmergencyCap`), emitir folio real (`nextFolio({tx})`, reemplazando el placeholder `DRAFT-*`), crear los `approval_requests` (`createApprovalRequests`) y mover status a `PENDING_APPROVAL`.
+**Ya terminado:** datos (Task 1), folios (Task 2), lógica de aprobación (Task 3), lógica de presupuesto/emergencias (Task 4) y API OS CRUD+submit (Task 5a).
+**Siguiente paso concreto:** **Task 5b** — rutas `[id]/quotes`, `[id]/evidence` y `[id]/conformity` bajo `app/api/service-orders/`. Quotes/evidence: POST con URL de archivo (patrón R2/local-fallback de workflows). Conformity: solo rol GERENTE+ y solo en PENDING_CONFORMITY → CLOSED (+conformitySignedBy/At); el flujo APPROVED→SCHEDULED→IN_PROGRESS→PENDING_CONFORMITY se puede cubrir con transiciones simples en `[id]/route.ts` PATCH o ruta `[id]/status`.
 
 ---
 
@@ -72,6 +73,19 @@ Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.m
 - Integración operating-config existente: columna `emergency_purchase_cap_cents` + campo en `components/company/operating-config-form.tsx` ("Vacío = sin tope") + zod en `app/api/company/operating-config/route.ts` + default `null` en `DEFAULT_TENANT_OPERATING_CONFIG` (`tenant-config-service.ts`)
 - Tests: `lib/services/budget-service.test.ts` (12)
 
+### Task 5a ✅ — API service-orders CRUD + submit (commit `7aa9b80`)
+`lib/services/service-order-service.ts` + rutas:
+- `app/api/service-orders/route.ts`: GET lista (filtros branchId/status/type, paginación, joins a branch/supplier/cost-center; el alcance del tenant manda sobre query params para GERENTE/SUPERVISOR) · POST crea borrador (zod; folio=`draftFolio()`; valida que branch/supplier/costCenter pertenezcan a la empresa)
+- `app/api/service-orders/[id]/route.ts`: GET detalle (order+quotes+evidence+approvals ordenados por nivel) · PATCH solo DRAFT (campos permitidos, mismas validaciones FK)
+- `app/api/service-orders/[id]/submit/route.ts`: POST delega en `submitOrder(companyId, id)`:
+  1. Orden scoped por companyId; solo DRAFT; amount>0 requerido
+  2. `resolveApprovalChain('OS', amount)` — cadena vacía → 400 accionable
+  3. Cotizaciones existentes ≥ max(minQuotes de la cadena) → 400 con required/current
+  4. Mes de atribución = mes de `created_at` del doc (misma base que `getCommitted`): EMERGENCIA → `validateEmergencyCap` (sin costCenter requerido); resto → costCenterId obligatorio + `checkBudgetAvailability`
+  5. TX atómica: `nextFolio({tx})` reemplaza placeholder → UPDATE condicional `WHERE status='DRAFT'` (0 filas = submit concurrente → 409 y rollback devuelve el consecutivo, sin saltos) → `createApprovalRequests({tx})` → PENDING_APPROVAL
+- `createApprovalRequests` ahora acepta `tx?: Tx` opcional (retrocompatible)
+- Errores `ApiError` mapeados a su statusCode vía `isApiError`; permisos módulo `inventory` (read/create/update)
+
 ---
 
 ## 4. TAREAS PENDIENTES (fuente de verdad — actualizar este documento al avanzar)
@@ -81,11 +95,7 @@ Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.m
 ### Checkpoint Foundation ✅ · Checkpoint Business Logic ✅
 
 ### Phase 3: APIs
-- [ ] **Task 5a — API service-orders CRUD + submit** (`app/api/service-orders/route.ts`, `[id]/route.ts`, `[id]/submit/route.ts`)
-  - GET lista con filtros (branchId/status/type) · POST crea borrador (zod; folio=`draftFolio()`, createdBy=session.user.id)
-  - GET detalle (quotes+evidence+approvals) · PATCH solo en DRAFT
-  - **submit** en UNA transacción: cadena=`resolveApprovalChain` (cadena vacía → 400 "monto no cubierto por la matriz"), cotizaciones ≥ max(minQuotes de la cadena), `checkBudgetAvailability` (bloquea si no ok salvo EMERGENCIA→`validateEmergencyCap`), `nextFolio({tx})` reemplaza placeholder, `createApprovalRequests({tx})`, status→PENDING_APPROVAL
-  - Todas las rutas: `auth.api.getSession` + `requireTenant()` scoping
+- [x] **Task 5a — API service-orders CRUD + submit** ✅ commit `7aa9b80` (ver detalle en §3)
 - [ ] **Task 5b — quotes / evidence / conformity**
   - `[id]/quotes` POST (adjuntar URL R2/local-fallback, mismo patrón que workflows)
   - `[id]/evidence` POST (ANTES|DESPUES)

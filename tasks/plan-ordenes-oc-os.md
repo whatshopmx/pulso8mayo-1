@@ -104,7 +104,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
 
 ### Phase 3: APIs
 
-- [ ] **Task 5: API de Órdenes de Servicio**
+- [ ] **Task 5: API de Órdenes de Servicio** — ✅ 5a implementada y commiteada (`7aa9b80`, 2026-08-25): `lib/services/service-order-service.ts` con `listOrders/getOrderDetail/createDraft/updateDraft/submitOrder`; rutas `app/api/service-orders/route.ts` (GET lista+POST), `[id]/route.ts` (GET detalle, PATCH solo DRAFT) e `[id]/submit/route.ts`. Submit en UNA transacción: `resolveApprovalChain` → cotizaciones ≥ max(minQuotes) → presupuesto o `validateEmergencyCap` → `nextFolio({tx})` reemplaza DRAFT-* → `createApprovalRequests({tx}, ahora con tx opcional)` → PENDING_APPROVAL. Concurrencia resuelta con UPDATE condicional `WHERE status='DRAFT'` + rollback del folio. FKs opcionales validadas contra la empresa del tenant. Build/lint verdes, 317 tests OK
   Rutas bajo `app/api/service-orders/`:
   - `route.ts` (GET lista con filtros sucursal/status/tipo, POST crear borrador con validación zod)
   - `[id]/route.ts` (GET detalle con quotes+evidence+approvals, PATCH editar en DRAFT)
