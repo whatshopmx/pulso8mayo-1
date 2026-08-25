@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { inventoryItems, inventoryBatches, branches } from "@/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { StockAlertService } from "@/lib/services/stock-alert-service";
+// Task 2 plan loteprod-gaps: alertas escalonadas de caducidad 48h/24h/vencido.
+import { ExpirationAlertService } from "@/lib/services/expiration-alert-service";
 
 export const cronStockCheck = inngest.createFunction(
   {
@@ -11,7 +13,7 @@ export const cronStockCheck = inngest.createFunction(
     retries: 2,
   },
   async ({ step }) => {
-    return await step.run("check-stock-levels", async () => {
+    const stockResult = await step.run("check-stock-levels", async () => {
       const allBranches = await db.select({ id: branches.id, name: branches.name, companyId: branches.companyId }).from(branches);
       const alerts: any[] = [];
 
@@ -69,5 +71,14 @@ export const cronStockCheck = inngest.createFunction(
 
       return { success: true, branchesChecked: allBranches.length, alertsCount: alerts.length, notificationsSent, notificationsFailed };
     });
+
+    // Task 2 plan loteprod-gaps (§5.4): clasifica lotes por ventana de
+    // caducidad (≤48h / ≤24h / vencido), marca vencidos como EXPIRED (bloqueo
+    // FEFO) y notifica una sola vez por (lote, ventana).
+    const expiration = await step.run("process-expiration-cutoffs", async () => {
+      return await ExpirationAlertService.processExpirationCutoffs();
+    });
+
+    return { ...stockResult, expiration };
   }
 );

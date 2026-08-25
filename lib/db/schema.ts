@@ -1332,6 +1332,29 @@ export const inventoryWaste = pgTable("inventory_waste", {
         .where(sql`${table.workflowInstanceId} IS NOT NULL AND ${table.origin} <> 'lote_insuficiente'`),
 }));
 
+/**
+ * Estado de notificación de caducidad por (lote, ventana) — Task 2 del plan
+ * loteprod-gaps (manual loteprod.md §5.4). El cron cada 6h clasifica los lotes
+ * disponibles en ventanas ≤48h / ≤24h / vencido; este registro evita
+ * re-notificar el mismo lote por la misma ventana en corridas posteriores.
+ *
+ * La idempotencia es el único (batchId, window): el disparador es el cron, no
+ * una captura de workflow, así que aquí no aplica el patrón A9.
+ */
+export const inventoryExpirationAlerts = pgTable("inventory_expiration_alerts", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    batchId: uuid("batch_id").notNull().references(() => inventoryBatches.id),
+    /** Ventana ya notificada: 'H48' | 'H24' | 'EXPIRED'. */
+    window: text("window").notNull(),
+    notifiedAt: timestamp("notified_at").defaultNow().notNull(),
+}, (table) => ({
+    // Un lote se notifica una sola vez por ventana aunque el cron corra cada 6h.
+    batchWindowUnique: uniqueIndex("inventory_expiration_alerts_batch_window_unique")
+        .on(table.batchId, table.window),
+}));
+
 // WhatsApp Sessions table
 export const whatsappSessionStatusEnum = pgEnum("whatsapp_session_status", ['DISCONNECTED', 'CONNECTING', 'CONNECTED', 'FAILED']);
 

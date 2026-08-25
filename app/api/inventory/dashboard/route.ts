@@ -4,6 +4,7 @@ import { eq, and, sql, desc, lte, gte } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { hasPermission } from "@/lib/permissions";
+import { ExpirationAlertService } from "@/lib/services/expiration-alert-service";
 
 export async function GET(req: NextRequest) {
   try {
@@ -203,6 +204,13 @@ export async function GET(req: NextRequest) {
 
     const wasteLossRatio = totalStockValue > 0 ? Math.round((wasteLossTotal / totalStockValue) * 100 * 10) / 10 : null;
 
+    // Task 2 plan loteprod-gaps (§5.4): lotes vencidos con stock aún sin merma
+    // registrada — pendiente obligatorio visible en el dashboard.
+    const expiredWastePendingCount = await ExpirationAlertService.getExpiredWastePendingCount(
+      tenant.id,
+      branchId || null
+    );
+
     const topExpiring = branchId
       ? await db.select({
           id: inventoryBatches.id,
@@ -323,6 +331,7 @@ export async function GET(req: NextRequest) {
       branchesWithStock,
       threeWayMatchRate,
       wasteLossRatio,
+      expiredWastePendingCount,
       stockByCategory,
       recentMovements,
       topLowStock,

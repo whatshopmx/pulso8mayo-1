@@ -100,6 +100,8 @@ export type InventoryDashboardData = {
   branchesWithStock: number
   threeWayMatchRate: number | null
   wasteLossRatio: number | null
+  /** Task 2 plan loteprod-gaps: lotes vencidos con stock sin merma registrada (§5.4). */
+  expiredWastePendingCount?: number
   stockByCategory: Array<{ category: string | null; count: number }>
   recentMovements: Array<{ date: string; type: string; count: number }>
   attribution?: {

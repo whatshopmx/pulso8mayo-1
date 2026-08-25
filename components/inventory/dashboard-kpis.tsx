@@ -2,7 +2,7 @@
 
 import { MetricCard, MetricGrid, MetricCardSkeleton } from "@/components/ui/metric-card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertTriangle, DollarSign, ShieldCheck, TrendingDown, Info, ChevronRight } from "lucide-react";
+import { AlertTriangle, DollarSign, ShieldCheck, TrendingDown, Info, ChevronRight, CalendarX } from "lucide-react";
 import { ErrorState } from "@/components/shared/error-state";
 
 interface BranchContribution {
@@ -25,6 +25,8 @@ interface DashboardKpisProps {
       alertsByBranch: BranchContribution[];
       wasteLossByBranch: BranchContribution[];
     } | null;
+    /** Task 2 plan loteprod-gaps (§5.4): lotes vencidos con stock sin merma registrada. */
+    expiredWastePendingCount?: number;
   } | null;
   loading: boolean;
   isError?: boolean;
@@ -84,6 +86,7 @@ export function DashboardKpis({ data, loading, isError, onRetry, scopeLabel }: D
   const activeAlerts = data.activeAlertsCount;
   const matchRate = data.threeWayMatchRate;
   const wasteLoss = data.wasteLossRatio;
+  const expiredPending = data.expiredWastePendingCount ?? 0;
   const attribution = data.attribution;
 
   return (
@@ -190,6 +193,50 @@ export function DashboardKpis({ data, loading, isError, onRetry, scopeLabel }: D
           <Contributors rows={attribution.wasteLossByBranch} format={formatMXN} />
         )}
       </MetricCard>
+
+      {/* 5. Merma obligatoria pendiente (§5.4): solo cuando existe — es una
+          deuda operativa concreta, no un KPI de tendencia. Lotes vencidos que
+          el cron ya bloqueó (EXPIRED) y siguen con stock sin tirar. */}
+      {expiredPending > 0 && (
+        <MetricCard
+          href="/dashboard/inventory/expirations"
+          label="Merma Obligatoria Pendiente"
+          value={
+            <span className="inline-flex items-center gap-2">
+              {expiredPending}
+              <span
+                className="inline-flex h-2 w-2 rounded-full bg-destructive"
+                role="img"
+                aria-label="Lotes vencidos sin registrar merma"
+              />
+            </span>
+          }
+          icon={<CalendarX className="h-4 w-4" />}
+          tone="warning"
+          subtitle={
+            <span className="inline-flex items-center gap-1">
+              Lotes vencidos sin merma registrada{scopeLabel ? ` · ${scopeLabel}` : ""}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" aria-label="Qué es la merma obligatoria" className="cursor-help">
+                      <Info className="h-3.5 w-3.5 text-muted-foreground/60" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[240px]">
+                    Lotes que caducaron y siguen en inventario. Registra su merma para conciliar el stock.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </span>
+          }
+        >
+          <div className="flex items-center gap-1 text-xs font-medium text-primary">
+            Registrar merma
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </div>
+        </MetricCard>
+      )}
     </MetricGrid>
   );
 }
