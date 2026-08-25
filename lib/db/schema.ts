@@ -2998,6 +2998,59 @@ export const payees = pgTable("payees", {
     ),
 }));
 
+// ---------------------------------------------------------------------------
+// Buzón fiscal: CFDIs recibidos vía descarga masiva SAT (FiscalAPI)
+// ---------------------------------------------------------------------------
+
+/** Ciclo de conciliación de cada CFDI descargado del buzón. */
+export const cfdiConciliationStatusEnum = pgEnum("cfdi_conciliation_status", [
+    /** Descargado del buzón; la conciliación no encontró contraparte/monto. */
+    'SIN_MATCH',
+    /** Matcheado contra OC y/o gasto por taxId del emisor + monto ±$0.01. */
+    'CONCILIADA',
+]);
+
+export const cfdiRecibidos = pgTable("cfdi_recibidos", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+
+    /** Tenant dueño del buzón (el receptor del CFDI). Scope multi-tenant. */
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+
+    /** Folio fiscal SAT — identidad del comprobante e idempotencia de la baja. */
+    invoiceUuid: text("invoice_uuid").notNull().unique(),
+
+    issuerTin: text("issuer_tin").notNull(),
+    issuerName: text("issuer_name"),
+    recipientTin: text("recipient_tin"),
+
+    /** Total del comprobante CON impuestos, en centavos (convención del repo). */
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").default('MXN'),
+
+    invoiceDate: timestamp("invoice_date", { withTimezone: true }),
+    satCertificationDate: timestamp("sat_certification_date", { withTimezone: true }),
+
+    /** Solicitud FiscalAPI que trajo este metadata (trazabilidad de la baja). */
+    downloadRequestId: text("download_request_id"),
+
+    /** Resultado de la conciliación contra OCs/gastos del tenant. */
+    conciliationStatus: cfdiConciliationStatusEnum("conciliation_status").default('SIN_MATCH').notNull(),
+    matchedSupplierId: uuid("matched_supplier_id").references(() => suppliers.id),
+    matchedPayeeId: uuid("matched_payee_id").references(() => payees.id),
+    matchedPurchaseOrderId: uuid("matched_purchase_order_id").references(() => purchaseOrders.id),
+    matchedExpenseId: uuid("matched_expense_id").references(() => operatingExpenses.id),
+
+    /** Metadata crudo de FiscalAPI, para diagnóstico sin re-bajar el buzón. */
+    rawMetadata: jsonb("raw_metadata"),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    // El dashboard filtra por empresa + fecha; la conciliación busca por emisor.
+    companyIdDateIdx: index("cfdi_recibidos_company_date_idx").on(table.companyId, table.invoiceDate),
+    companyIssuerIdx: index("cfdi_recibidos_company_issuer_idx").on(table.companyId, table.issuerTin),
+}));
+
 export const operatingExpenses = pgTable("operating_expenses", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
     companyId: uuid("company_id").notNull().references(() => companies.id),

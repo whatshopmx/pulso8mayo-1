@@ -104,10 +104,13 @@ PO-2026-0551 (EKU, $440.64) · PO-2026-0491 (IIA, $1470) · PO-2026-0361 (IXS, $
 3. ~~Integrar en `fiscal-buzon-service.ts`~~ ✅ HECHO.
 4. ~~Flujo completo OC~~ ✅ HECHO. ~~Gastos (--gasto)~~ ✅ HECHO.
 5. **Producción**: cuando haya tenant live, `downloadRules.create`/`downloadRequests.create` manuales pasan a ser el camino primario (el servicio ya los intenta primero y cae a `createTestRule` sólo con 403). Ventanas por `--dias`; agendar baja periódica (siguiente punto).
-6. **Ideas posteriores (no iniciadas)**:
-   - Tabla `cfdi_recibidos` en Drizzle + endpoint API con RBAC para el dashboard.
+6. **Persistencia + API — HECHO (esta sesión)**:
+   - Tabla `cfdi_recibidos` (Drizzle, migración `drizzle/0060_*`): folio SAT único (idempotencia de la baja), montos en centavos, estatus `CONCILIADA/SIN_MATCH`, FKs a supplier/payee/OC/gasto matched, metadata crudo en jsonb.
+   - `lib/services/cfdi-recibidos-service.ts`: `persistirYConciliar` (upsert por uuid + match scoped al tenant) y `listarRecibidos`.
+   - `GET /api/fiscal/cfdi-recibidos` (lista paginada, filtros `status/limit/offset`) y `POST /api/fiscal/cfdi-recibidos/sync` (baja manual; poll acotado 60s, idempotente). Roles finanzas: SUPER_ADMIN/ADMIN/GERENTE/SUPERVISOR. Validado en dev: GET 200 con joins · sync 200 (3 actualizadas, 3 conciliadas) · EMPLEADO → 403.
+7. **Ideas posteriores (no iniciadas)**:
+   - Función Inngest `cron-buzon-fiscal` que tome el relevo del POST /sync en producción (polling durable con step.sleep entre estados SAT) + notificaciones por facturas SIN_MATCH vía NotificationDispatcher.
    - Conciliación completa contra `invoice-matching-service.ts` (3-way match ya existe); hoy el match es emisor→contraparte por taxId + monto ±$0.01 (si dos OCs comparten total gana la más reciente).
-   - Automatizar la baja periódica del buzón como función Inngest (patrón cron existente).
    - `getXmls(requestId)` / `downloadPackage(requestId)` para guardar el XML completo, no sólo metadatos.
 
 ### NOTA sobre WIP ajeno en el árbol
