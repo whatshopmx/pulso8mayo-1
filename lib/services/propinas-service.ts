@@ -4,6 +4,7 @@
 import { db } from "@/lib/db";
 import { propinas, propinaAsignaciones, users, branches, shiftSessions } from "@/lib/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { distributeEqualCents } from "./propinas-distribution";
 
 export interface CalculatePropinasInput {
   companyId: string;
@@ -58,11 +59,18 @@ export async function calculatePropinasDistribution(input: CalculatePropinasInpu
     throw new Error("No hay empleados registrados en esta sucursal para distribuir propinas.");
   }
 
-  // Equal or hours-weighted allocation (default 8 hours per staff member in shift)
+  // Equal or hours-weighted allocation (default 8 hours per staff member in shift).
+  // La aritmética pura vive en ./propinas-distribution para poder
+  // property-testearla; hoy replica el histórico Math.floor (residuo perdido —
+  // ver el header de ese módulo).
   const hoursPerStaff = 8;
   const totalWeightedHours = activeStaff.length * hoursPerStaff;
-  const perStaffAmountCents = Math.floor(input.totalPoolCents / activeStaff.length);
-  const totalDistributedCents = perStaffAmountCents * activeStaff.length;
+  const reparto = distributeEqualCents(
+    input.totalPoolCents,
+    activeStaff.map((u) => u.id)
+  );
+  const perStaffAmountCents = reparto.perStaffAmountCents;
+  const totalDistributedCents = reparto.totalDistributedCents;
 
   const [propinaHeader] = await db
     .insert(propinas)
