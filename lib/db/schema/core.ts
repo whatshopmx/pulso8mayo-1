@@ -30,6 +30,9 @@ export const branches = pgTable("branches", {
   id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
   companyId: uuid("company_id"),
   name: text("name").notNull(),
+  // Código corto de sucursal para folios documentales (OC-CDMX01-2026-0045).
+  // Catálogo maestro (finzasordenes.md §2): único por empresa, configurable por el admin.
+  code: text("code"),
   address: text("address"),
   timezone: text("timezone").default('America/Mexico_City'),
   operatingHours: jsonb("operating_hours"),
@@ -54,6 +57,10 @@ export const branches = pgTable("branches", {
   return {
     branchesInviteTokenUnique: uniqueIndex("branches_invite_token_unique").on(table.inviteToken),
     branchesManagerInviteTokenUnique: uniqueIndex("branches_manager_invite_token_unique").on(table.managerInviteToken),
+    // Único solo cuando code está asignado (NULL no participa en el índice parcial)
+    branchesCompanyCodeUnique: uniqueIndex("branches_company_code_unique")
+      .on(table.companyId, table.code)
+      .where(sql`code is not null`),
     branchesManagerIdFk: foreignKey({
       columns: [table.managerId],
       foreignColumns: [users.id],

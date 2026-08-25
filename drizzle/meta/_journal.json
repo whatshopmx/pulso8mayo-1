@@ -435,6 +435,13 @@
       "when": 1787676032929,
       "tag": "0061_cute_the_captain",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1787681354218,
+      "tag": "0062_loving_paibok",
+      "breakpoints": true
     }
   ]
 }

@@ -51,9 +51,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Files:** `lib/db/schema/service-orders.ts` (nuevo), `lib/db/schema/index.ts`, `lib/db/schema.ts`, `drizzle/*` (generado)
   **Estimated scope:** Medium
 
-- [ ] **Task 2: Generador de folios transaccional**
-  Crear `lib/services/folio-generator.ts`: tabla contador `folio_counters` (companyId, branchId, docType, year, lastSequence) con lock; función `nextFolio(companyId, branchCode, 'OC'|'OS')` → `OC-CDMX01-2026-0045`; función de auditoría `findFolioGaps()` que detecta huecos comparando secuencias vs documentos existentes.
-  Incluir migración para la tabla contador.
+- [x] **Task 2: Generador de folios transaccional** ✅ Implementado (migración `0062_loving_paibok.sql` aplicada): tabla `folio_counters`, columna `branches.code` (unique parcial por empresa), `lib/services/folio-generator.ts` con upsert atómico `ON CONFLICT DO UPDATE RETURNING` (lock de fila implícito), folio de borrador `DRAFT-*` para no romper la serie, `findFolioGaps()` + 12 tests unitarios (`folio-generator.test.ts`). Concurrencia verificada con 8 tx paralelas → 8 folios únicos consecutivos (scratch/verify-folio-generator.ts, rollback)
 
   **Acceptance criteria:**
   - [ ] Folio sigue formato `[TIPO]-[CODIGO_SUCURSAL]-[AÑO]-[CONSECUTIVO]`
@@ -66,7 +64,8 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Estimated scope:** Small
 
 ### Checkpoint: Foundation
-- [ ] Migración aplicada sin destructivos, build verde
+- [x] Migraciones 0061+0062 aplicadas sin destructivos (`db:migrate` OK)
+- [x] Build verde (`pnpm run build` exit 0) · 292 tests unitarios pasan
 
 ### Phase 2: Servicios de negocio
 

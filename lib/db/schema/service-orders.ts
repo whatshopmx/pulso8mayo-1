@@ -118,6 +118,24 @@ export const serviceOrderEvidence = pgTable("service_order_evidence", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ── Contador de folios ──
+// Consecutivo por empresa+ sucursal+ tipo+ año. El generador (folio-generator.ts)
+// hace INSERT..ON CONFLICT DO UPDATE RETURNING: una sola sentencia atómica que
+// toma el lock de fila — dos llamadas concurrentes nunca obtienen el mismo número.
+export const folioCounters = pgTable("folio_counters", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  branchId: uuid("branch_id").notNull().references(() => branches.id),
+  docType: approvalDocTypeEnum("doc_type").notNull(), // OC | OS
+  year: integer("year").notNull(),
+  lastSequence: integer("last_sequence").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  folioCountersUnique: uniqueIndex("folio_counters_unique").on(
+    table.companyId, table.branchId, table.docType, table.year
+  ),
+}));
+
 // ── Matriz de autorización ──
 
 export const approvalMatrixRules = pgTable("approval_matrix_rules", {

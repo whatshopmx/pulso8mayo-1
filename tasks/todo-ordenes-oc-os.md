@@ -10,12 +10,12 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 
 ## Phase 1: Fundaciones (datos)
 
-- [x] Task 1: Esquema OS + matriz autorización + centros costo + presupuestos (`lib/db/schema/service-orders.ts`, migración `0061` sin drops)
-- [ ] Task 2: Generador de folios transaccional `OC/OS-[SUC]-[AÑO]-[N]` + auditoría de gaps (`lib/services/folio-generator.ts`)
+- [x] Task 1: Esquema OS + matriz autorización + centros costo + presupuestos (`lib/db/schema/service-orders.ts`, migraciones `0061`/`0062` aplicadas, commiteado)
+- [x] Task 2: Generador de folios transaccional `OC/OS-[SUC]-[AÑO]-[N]` + auditoría de gaps (`lib/services/folio-generator.ts`, concurrencia verificada 8/8 únicos)
 
 ## Checkpoint: Foundation
 
-- [ ] Migración aplicada, build verde
+- [x] Migraciones aplicadas, build verde, tests unitarios OK
 
 ## Phase 2: Servicios de negocio
 
