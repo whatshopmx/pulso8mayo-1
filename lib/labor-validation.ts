@@ -117,7 +117,13 @@ export function validateBreakCompliance(
     }
   }
 
-  if (workMinutes > rules.maxContinuousWork) {
+  // El límite de trabajo continuo sólo es evaluable con certeza cuando NO
+  // hubo descansos: entonces toda la jornada neta fue un bloque continuo.
+  // Con descansos registrados no sabemos dónde cayeron (haría falta el
+  // BreakLog por segmento), así que no se acusa — antes toda sesión ≥5h
+  // salía no-compliant aunque hubiera tomado sus descansos (decisión
+  // 2026-08-24).
+  if (breakMinutes <= 0 && workMinutes > rules.maxContinuousWork) {
     return {
       isCompliant: false,
       message: `Trabajo continuo de ${workMinutes} min excede límite de ${rules.maxContinuousWork} min sin descanso`,
