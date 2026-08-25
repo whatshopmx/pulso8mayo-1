@@ -114,15 +114,21 @@ export async function resolveApprovalChain(
     return buildChain(rules, amountCents);
 }
 
-/** Inserta un `approval_requests` por nivel de la cadena. */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DbExecutor = typeof db | Tx;
+
+/** Inserta un `approval_requests` por nivel de la cadena. Con `tx` participa de la transacción del submit. */
 export async function createApprovalRequests(input: {
     companyId: string;
     docType: ApprovalDocType;
     docId: string;
     chain: MatrixRuleLike[];
+    /** Transacción externa opcional — pásala para que folio+status+approvals sean atómicos. */
+    tx?: Tx;
 }): Promise<number> {
     if (input.chain.length === 0) return 0;
-    const rows = await db
+    const executor: DbExecutor = input.tx ?? db;
+    const rows = await executor
         .insert(approvalRequests)
         .values(
             input.chain.map((level) => ({
