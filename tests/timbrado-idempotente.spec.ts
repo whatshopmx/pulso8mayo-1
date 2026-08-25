@@ -46,7 +46,7 @@ function montarPacFalso() {
   llamadasAlPac = 0;
   globalThis.fetch = (async (url: any, init: any) => {
     // Sólo se intercepta el PAC; cualquier otra petición sigue su curso.
-    if (String(url).includes("/cfdi/nomina/timbrar")) {
+    if (String(url).includes("/api/v4/invoices")) {
       llamadasAlPac++;
       return {
         ok: respuestaPac.ok,
@@ -86,12 +86,16 @@ test.describe("A6b · el timbrado se persiste y no se repite", () => {
     montarPacFalso();
     respuestaPac = {
       ok: true,
+      // Envoltura ApiResponse real de FiscalAPI v4 (POST /invoices).
       body: {
-        uuid: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
-        status: "TIMBRADO",
-        cadena_original: "||1.1|E2E||",
-        sello_digital: "SELLO-E2E",
-        fecha_timbrado: "2026-08-21T12:00:00.000Z",
+        succeeded: true,
+        data: {
+          id: "factura-e2e-1",
+          uuid: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
+          total: 13_000,
+          seal: "SELLO-E2E",
+          fechaTimbrado: "2026-08-21T12:00:00.000Z",
+        },
       },
     };
   });
@@ -125,11 +129,12 @@ test.describe("A6b · el timbrado se persiste y no se repite", () => {
     respuestaPac = {
       ok: true,
       body: {
-        uuid: "99999999-9999-9999-9999-999999999999",
-        status: "TIMBRADO",
-        cadena_original: "||1.1|OTRO||",
-        sello_digital: "SELLO-OTRO",
-        fecha_timbrado: "2026-08-21T13:00:00.000Z",
+        succeeded: true,
+        data: {
+          uuid: "99999999-9999-9999-9999-999999999999",
+          seal: "SELLO-OTRO",
+          fechaTimbrado: "2026-08-21T13:00:00.000Z",
+        },
       },
     };
 
@@ -141,13 +146,10 @@ test.describe("A6b · el timbrado se persiste y no se repite", () => {
   });
 
   test("un rechazo del PAC no se guarda como TIMBRADO", async () => {
+    // succeeded=false con HTTP 200: rechazo de negocio del PAC.
     respuestaPac = {
       ok: true,
-      body: {
-        uuid: null,
-        status: "RECHAZADO",
-        mensaje: "CSD vencido",
-      },
+      body: { succeeded: false, message: "CSD vencido" },
     };
 
     const resultado = await timbrarNomina(entrada);
@@ -161,17 +163,19 @@ test.describe("A6b · el timbrado se persiste y no se repite", () => {
   test("un período rechazado se puede reintentar, y al timbrarse deja de preguntar", async () => {
     // El índice único es por período, no por folio, justamente para esto: si
     // fuera por folio, un rechazo sin UUID bloquearía el reintento legítimo.
-    respuestaPac = { ok: true, body: { uuid: null, status: "RECHAZADO" } };
+    respuestaPac = { ok: true, body: { succeeded: false, message: "rechazado" } };
     await timbrarNomina(entrada);
     expect(llamadasAlPac).toBe(1);
 
     respuestaPac = {
       ok: true,
       body: {
-        uuid: "12345678-1234-1234-1234-123456789012",
-        status: "TIMBRADO",
-        sello_digital: "SELLO-OK",
-        fecha_timbrado: "2026-08-21T14:00:00.000Z",
+        succeeded: true,
+        data: {
+          uuid: "12345678-1234-1234-1234-123456789012",
+          seal: "SELLO-OK",
+          fechaTimbrado: "2026-08-21T14:00:00.000Z",
+        },
       },
     };
     const reintento = await timbrarNomina(entrada);
@@ -187,17 +191,19 @@ test.describe("A6b · el timbrado se persiste y no se repite", () => {
     expect(llamadasAlPac).toBe(2);
   });
 
-  test("sin `status` en la respuesta, un folio con sello es timbre y lo demás queda pendiente", async () => {
-    // El PAC no promete el campo. Afirmar TIMBRADO sin evidencia es lo que
-    // hacía la versión anterior; la regla es no afirmar de más.
+  test("el folio fiscal (uuid) es la evidencia del timbre; sin él queda pendiente", async () => {
+    // En el contrato v4 el `uuid` dentro de `data` lo asigna el SAT al
+    // certificar: su presencia ES el timbre, con o sin sello en la respuesta.
+    // Afirmar TIMBRADO sin folio es lo que hacía la versión anterior; la regla
+    // sigue siendo no afirmar de más.
     respuestaPac = {
       ok: true,
-      body: { uuid: "ABCDEFAB-1111-2222-3333-444444444444", sello_digital: "SELLO" },
+      body: { succeeded: true, data: { uuid: "ABCDEFAB-1111-2222-3333-444444444444" } },
     };
     expect((await timbrarNomina(entrada)).status).toBe("TIMBRADO");
 
     await deleteTestTimbrados();
-    respuestaPac = { ok: true, body: { mensaje: "en proceso" } };
+    respuestaPac = { ok: true, body: { succeeded: true, message: "en proceso", data: {} } };
     expect((await timbrarNomina(entrada)).status).toBe("PENDIENTE");
   });
 

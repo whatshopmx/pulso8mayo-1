@@ -1,29 +1,34 @@
 // M15: Fiscal & Facturación Service
 // SAT invoice validation and CFDI nómina timbrado via FiscalAPI.
 //
-// Contrato real de FiscalAPI (docs.fiscalapi.com): hosts test.fiscalapi.com /
-// live.fiscalapi.com, recurso `api/v4/invoices/status`, autenticación por API
-// key. Para activar: FISCALAPI_API_KEY (+ FISCALAPI_TENANT si se usa el SDK)
-// en .env; sin la llave los endpoints devuelven error de configuración.
+// Contrato real de FiscalAPI v4 (docs.fiscalapi.com): hosts test.fiscalapi.com /
+// live.fiscalapi.com, recursos `api/v4/invoices` y `api/v4/invoices/status`,
+// autenticación por headers X-API-KEY + X-TENANT-KEY. Para activar:
+// FISCALAPI_API_KEY + FISCALAPI_TENANT en .env; sin la llave los endpoints
+// devuelven error de configuración.
 //
-// Nota: `timbrarNomina` aún no sigue el contrato v4 real —el timbrado de
-// nómina vía invoices.create con complemento requiere un mapeo completo del
-// recibo— y está protegido por idempotencia (tests/timbrado-idempotente.spec.ts).
-// La facturación de OCs y gastos con contrato correcto vive en
-// fiscal-invoicing-service.ts.
+// El timbrado de nómina usa el mismo contrato que las facturas normales:
+// `POST /invoices` con typeCode "N" y complement.payroll 1.2 (percepciones,
+// deducciones, período). En sandbox el emisor debe ser una persona de prueba
+// del SAT con SU CSD (lib/fiscal/sat-test-data.ts) y los datos patronales/
+// laborales se rellenan con valores deterministas de sandbox. Idempotencia:
+// tests/timbrado-idempotente.spec.ts.
 
 import { db } from "@/lib/db";
 import { cfdiNominaTimbrados } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
+import { DEFAULT_TEST_ISSUER } from "@/lib/fiscal/fiscalapi";
+import { loadCsdForTin, resolveTestPerson, SAT_TEST_FISICAS } from "@/lib/fiscal/sat-test-data";
 
 const FISCALAPI_BASE_TEST = "https://test.fiscalapi.com/api/v4";
 const FISCALAPI_BASE_PROD = "https://live.fiscalapi.com/api/v4";
 
 function getConfig() {
   const apiKey = process.env.FISCALAPI_API_KEY;
+  const tenant = process.env.FISCALAPI_TENANT;
   const env = process.env.FISCALAPI_ENV || "test";
   const baseUrl = env === "production" ? FISCALAPI_BASE_PROD : FISCALAPI_BASE_TEST;
-  return { apiKey, baseUrl, configured: !!apiKey };
+  return { apiKey, tenant, baseUrl, configured: !!apiKey };
 }
 
 // ---------------------------------------------------------------------------
@@ -188,6 +193,34 @@ export interface RespuestaPac {
   [campo: string]: unknown;
 }
 
+/** Envoltura estándar de FiscalAPI v4: { succeeded, data, message, details }. */
+interface ApiResponse {
+  succeeded?: boolean;
+  data?: {
+    id?: string;
+    uuid?: string;
+    total?: number;
+    status?: string;
+    seal?: string;
+    fechaTimbrado?: string;
+    [campo: string]: unknown;
+  };
+  message?: string;
+  details?: unknown;
+}
+
+/** Dedup de FiscalAPI: el mismo contenido ya tiene registro (ver stamp() en fiscal-invoicing-service). */
+function esDuplicado(message: string | undefined): boolean {
+  return /same unique values/i.test(message ?? "");
+}
+
+/** El dedup a veces reporta el mensaje genérico y manda la causa en `details`. */
+function respuestaEsDuplicado(envelope: ApiResponse | null | undefined): boolean {
+  if (!envelope) return false;
+  const detalle = typeof envelope.details === "string" ? envelope.details : JSON.stringify(envelope.details ?? "");
+  return esDuplicado(envelope.message) || esDuplicado(detalle);
+}
+
 export function mapPacStatus(data: RespuestaPac | null | undefined): NominaTimbradoStatus {
   const reportado = String(data?.status ?? data?.estado ?? "").trim().toUpperCase();
 
@@ -243,6 +276,182 @@ export async function getTimbrado(
   return fila ? comoResultado(fila) : null;
 }
 
+// ---------------------------------------------------------------------------
+// Mapeo nómina → CFDI (contrato v4 real)
+// ---------------------------------------------------------------------------
+
+const dosDecimales = (n: number) => Math.round(n * 100) / 100;
+
+/** Empleado de prueba de respaldo cuando el RFC real no está en el catálogo. */
+const DEFAULT_TEST_EMPLOYEE =
+  SAT_TEST_FISICAS.find((p) => p.tin === "FUNK671228PH6") ?? SAT_TEST_FISICAS[0];
+
+/** Registro patronal de sandbox. Override con FISCALAPI_EMPLEADOR_REGISTRO. */
+function registroPatronal(): string {
+  return process.env.FISCALAPI_EMPLEADOR_REGISTRO || "B5510768108";
+}
+
+/** Entidad federativa del empleado. Override con FISCALAPI_NOMINA_ESTADO. */
+function estadoNomina(): string {
+  return process.env.FISCALAPI_NOMINA_ESTADO || "JAL";
+}
+
+/**
+ * Traduce el período al rango de pago que exige el complemento de nómina
+ * (`paymentDate`, `initialPaymentDate`, `finalPaymentDate`, `daysPaid`).
+ * Acepta el rango que manda payroll-service ("2025-01-01 - 2025-01-15") y el
+ * formato corto "AAAA-MM". Cualquier otra cosa cae al mes en curso: es un
+ * valor de sandbox, no un dato fiscal.
+ */
+function periodoAFechas(periodo: string): { inicio: string; fin: string; dias: number } {
+  const limpio = periodo.trim();
+  const rango = /^(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})$/.exec(limpio);
+  if (rango) {
+    const dias = Math.round((Date.parse(rango[2]) - Date.parse(rango[1])) / 86_400_000) + 1;
+    if (Number.isFinite(dias) && dias > 0) return { inicio: rango[1], fin: rango[2], dias };
+  }
+  const mes = /^(\d{4})-(\d{2})$/.exec(limpio);
+  const anio = mes ? Number(mes[1]) : new Date().getUTCFullYear();
+  const numMes = mes ? Number(mes[2]) : new Date().getUTCMonth() + 1;
+  const valido = numMes >= 1 && numMes <= 12;
+  const y = valido ? anio : new Date().getUTCFullYear();
+  const m = valido ? numMes : new Date().getUTCMonth() + 1;
+  const mm = String(m).padStart(2, "0");
+  const ultimoDia = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return {
+    inicio: `${y}-${mm}-01`,
+    fin: `${y}-${mm}-${String(ultimoDia).padStart(2, "0")}`,
+    dias: ultimoDia,
+  };
+}
+
+function diasDesde(contratacion: string, hasta: string): number {
+  const dias = Math.round((Date.parse(hasta) - Date.parse(contratacion)) / 86_400_000);
+  return Number.isFinite(dias) && dias > 0 ? dias : 30;
+}
+
+/** NSS sintético pero determinista por RFC: estable entre reintentos. */
+function nssDeterminista(rfc: string): string {
+  let nss = "";
+  for (let i = 0; nss.length < 11; i++) {
+    const c = rfc.charCodeAt(i % rfc.length);
+    nss += String(c % 10);
+  }
+  return nss;
+}
+
+/**
+ * Arma el payload `Invoice` de nómina para `POST /api/v4/invoices`.
+ *
+ * El emisor es la empresa representada por la persona moral de prueba del SAT
+ * (EKU9003173C9) con su CSD —en sandbox el SAT rechaza certificados cruzados—,
+ * más los datos patronales que el complemento exige. El receptor es el
+ * empleado: si su RFC corresponde a una persona física de prueba emite hacia
+ * ésa; si no, entra la de respaldo (el RFC real queda anotado en el concepto).
+ */
+export function construirPayloadNomina(input: NominaTimbradoInput): {
+  payload: Record<string, unknown>;
+  expectedTotal: number;
+} {
+  const emisor = DEFAULT_TEST_ISSUER;
+  const empleadoReal = resolveTestPerson(input.empleadoRfc);
+  const receptor = empleadoReal ?? DEFAULT_TEST_EMPLOYEE;
+
+  const percepciones = dosDecimales(input.totalPercepciones / 100);
+  const deducciones = dosDecimales(input.totalDeducciones / 100);
+  // Total del comprobante: percepciones menos deducciones (CFDI de nómina no
+  // lleva IVA trasladado). Verificar contra el timbre es lo delata un mapeo roto.
+  const expectedTotal = dosDecimales(percepciones - deducciones);
+
+  const { inicio, fin, dias } = periodoAFechas(input.periodo);
+  const diario = dosDecimales(percepciones / Math.max(dias, 1));
+  const contratacion = "2020-01-15";
+  const antiguedadSemanas = Math.max(1, Math.floor(diasDesde(contratacion, fin) / 7));
+
+  const payload = {
+    versionCode: "4.0",
+    series: "NOM",
+    // Margen −2h: mismo gotcha del sandbox que en fiscal-invoicing-service —
+    // los nodos desplazan la fecha hasta +1h y el PAC rechaza fuera de rango.
+    date: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    paymentMethodCode: "PUE",
+    currencyCode: "MXN",
+    typeCode: "N", // nómina
+    expeditionZipCode: emisor.zipCode,
+    exportCode: "01",
+    exchangeRate: 1,
+    issuer: {
+      tin: emisor.tin,
+      legalName: emisor.legalName,
+      taxRegimeCode: emisor.taxRegimeCode,
+      employerData: { employerRegistration: registroPatronal() },
+      taxCredentials: loadCsdForTin(emisor.tin),
+    },
+    recipient: {
+      tin: receptor.tin,
+      legalName: receptor.legalName,
+      zipCode: receptor.zipCode,
+      taxRegimeCode: "605", // sueldos (c_TipoRegimen del receptor de nómina)
+      cfdiUseCode: "CN01",
+      employeeData: {
+        employeeNumber: `PLS-${input.empleadoRfc.replace(/[^A-Z0-9]/gi, "").slice(-6).toUpperCase()}`,
+        socialSecurityNumber: nssDeterminista(input.empleadoRfc),
+        // El complemento valida formato de CURP (NOM111): sin una real que
+        // valga, la genérica del catálogo de pruebas del SAT.
+        curp: input.empleadoCurp || "XEXX010101MNEXXXA8",
+        laborRelationStartDate: contratacion,
+        seniority: `P${antiguedadSemanas}W`,
+        satContractTypeId: "01", // plazo indeterminado
+        satTaxRegimeTypeId: "02", // sueldos LISR art. 94
+        satJobRiskId: "1",
+        satPaymentPeriodicityId: "04", // quincenal
+        satPayrollStateId: estadoNomina(),
+        baseSalaryForContributions: diario,
+        integratedDailySalary: diario,
+      },
+    },
+    complement: {
+      payroll: {
+        version: "1.2",
+        payrollTypeCode: "O", // ordinaria
+        paymentDate: fin,
+        initialPaymentDate: inicio,
+        finalPaymentDate: fin,
+        daysPaid: dias,
+        earnings: {
+          earnings: [
+            {
+              earningTypeCode: "001", // sueldos, salarios, rayas y jornales
+              code: "001",
+              concept: `Sueldo nominal${empleadoReal ? "" : ` · ${input.empleadoNombre}`}`,
+              taxedAmount: percepciones,
+              exemptAmount: 0,
+            },
+          ],
+          // El PAC exige el nodo OtroPago con clave "002" (subsidio, en cero
+          // si no aplica): ni omitirlo ni mandarlo vacío pasa la validación
+          // NOM105. Igual que el ejemplo oficial del SDK.
+          otherPayments: [
+            {
+              otherPaymentTypeCode: "002",
+              code: "5050",
+              concept: "Exceso de subsidio al empleo",
+              amount: 0,
+              subsidyCaused: 0,
+            },
+          ],
+        },
+        deductions:
+          deducciones > 0
+            ? [{ deductionTypeCode: "002", code: "002", concept: "ISR retenido", amount: deducciones }]
+            : [],
+      },
+    },
+  };
+
+  return { payload, expectedTotal };
+}
+
 /**
  * Timbra un CFDI de nómina vía FiscalAPI y **deja constancia**.
  *
@@ -278,7 +487,7 @@ export async function timbrarNomina(
     return comoResultado(yaTimbrado[0]);
   }
 
-  const { apiKey, baseUrl, configured } = getConfig();
+  const { apiKey, tenant, baseUrl, configured } = getConfig();
 
   if (!configured) {
     throw new Error(
@@ -346,35 +555,85 @@ export async function timbrarNomina(
   };
 
   try {
-    const response = await fetch(`${baseUrl}/cfdi/nomina/timbrar`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        empleado_rfc: input.empleadoRfc,
-        empleado_nombre: input.empleadoNombre,
-        empleado_curp: input.empleadoCurp || "",
-        periodo: input.periodo,
-        total_percepciones: (input.totalPercepciones / 100).toFixed(2),
-        total_deducciones: (input.totalDeducciones / 100).toFixed(2),
-      }),
-    });
+    const { payload, expectedTotal } = construirPayloadNomina(input);
+    const headers = {
+      "X-API-KEY": apiKey!,
+      ...(tenant ? { "X-TENANT-KEY": tenant } : {}),
+      "X-TIME-ZONE": "America/Mexico_City",
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      // El rechazo también se guarda: sin la fila, el siguiente intento repite
-      // la petición a ciegas y nadie sabe qué contestó el PAC la vez anterior.
-      await guardar("RECHAZADO", { error: errorBody, http_status: response.status });
-      throw new Error(`FiscalAPI error ${response.status}: ${errorBody}`);
+    // El dedup de FiscalAPI rechaza un comprobante idéntico ya registrado
+    // (típico al reintentar tras otro error): basta variar la serie.
+    let serie = payload.series;
+    let envelope: ApiResponse | null = null;
+    for (let intento = 0; intento < 2; intento++) {
+      const response = await fetch(`${baseUrl}/invoices`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ ...payload, series: serie }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        // El rechazo también se guarda: sin la fila, el siguiente intento repite
+        // la petición a ciegas y nadie sabe qué contestó el PAC la vez anterior.
+        await guardar("RECHAZADO", { error: errorBody, http_status: response.status });
+        throw new Error(`FiscalAPI error ${response.status}: ${errorBody}`);
+      }
+
+      envelope = (await response.json()) as ApiResponse;
+
+      const duplicado = envelope?.succeeded === false && respuestaEsDuplicado(envelope);
+      if (duplicado && intento === 0) {
+        serie = `NOM-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+        continue;
+      }
+      break;
     }
 
-    const data = await response.json();
-    const status = mapPacStatus(data);
-    const fila = await guardar(status, data, data?.fecha_timbrado);
+    // Rechazo de negocio del PAC (HTTP 200 pero succeeded=false): se deja
+    // constancia y NO se lanza — el reintento legítimo lo maneja el llamador.
+    if (envelope?.succeeded === false) {
+      const filaRechazada = await guardar("RECHAZADO", {
+        error: envelope.message ?? "",
+        details: envelope.details,
+      });
+      return comoResultado(filaRechazada!);
+    }
 
-    return comoResultado(fila);
+    const data = envelope?.data ?? {};
+    if (!data.uuid) {
+      // Sin folio no hay timbre, con o sin mensaje del PAC. Queda PENDIENTE y
+      // el reintento es legítimo: el índice único es por período, no por folio.
+      const status = mapPacStatus({ status: data.status, uuid: data.uuid });
+      const filaPendiente = await guardar(status, { ...data } as RespuestaPac);
+      return comoResultado(filaPendiente!);
+    }
+
+    // Verificación doble contra Pulso: el total timbrado debe cuadrar con lo
+    // calculado localmente; un desfase mayor a un centavo es mapeo roto.
+    const totalTimbrado = typeof data.total === "number" ? data.total : null;
+    if (totalTimbrado !== null && Math.abs(totalTimbrado - expectedTotal) > 0.01) {
+      console.error(
+        `[FiscalService] Nómina ${input.empleadoRfc}/${input.periodo}: total timbrado ` +
+          `${totalTimbrado} ≠ esperado ${expectedTotal}`
+      );
+    }
+
+    const filaTimbrada = await guardar(
+      "TIMBRADO",
+      {
+        uuid: data.uuid,
+        sello_digital: data.seal ?? null,
+        fecha_timbrado: data.fechaTimbrado ?? undefined,
+        ...data,
+        total_esperado: expectedTotal,
+      },
+      data.fechaTimbrado
+    );
+    return comoResultado(filaTimbrada!);
   } catch (error) {
     console.error("[FiscalService] Nomina timbrado error:", error);
     throw error;
