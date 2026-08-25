@@ -1,0 +1,1 @@
+ALTER TABLE "unit_conversions" ALTER COLUMN "factor" SET DATA TYPE numeric(12, 6);
