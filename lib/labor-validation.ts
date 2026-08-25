@@ -92,8 +92,12 @@ export function calculateDailyOvertime(workMinutes: number, scheduledMinutes: nu
 }
 
 export function calculateWeeklyOvertime(dailyOvertime: number[]): OvertimeCalculation {
-  const total = dailyOvertime.reduce((sum, m) => sum + m, 0);
-  return calculateOvertime(total);
+  // Las entradas YA son minutos de extra diaria: sumarlas y pasárselas a
+  // calculateOvertime tal cual restaba OTRO VEZ las 8h regulares y toda
+  // semana con <8h de extra acumulada devolvía bandas en cero. Se ancla el
+  // pool a una jornada completa para reusar la misma repartición de bandas.
+  const totalOvertime = dailyOvertime.reduce((sum, m) => sum + Math.max(0, m), 0);
+  return calculateOvertime(8 * 60 + totalOvertime);
 }
 
 export function validateBreakCompliance(
@@ -131,20 +135,27 @@ export function validateBreakCompliance(
 
 export function checkShiftConflict(shifts: Shift[]): Array<{ shiftId: string; message: string; type: "error" | "warning" }> {
   const conflicts: Array<{ shiftId: string; message: string; type: "error" | "warning" }> = [];
-  
+
+  // Se agrupa sólo por usuario, no por fecha de inicio: un turno que cruza
+  // medianoche cae en el grupo de su día de arranque y los traslapes contra
+  // turnos del día siguiente eran invisibles. Ordenando por inicio basta
+  // comparar pares i<j con start_j < end_i para saber si se traslapan,
+  // independiente del orden en que lleguen los turnos.
   const groupedByUser: Record<string, Shift[]> = {};
   shifts.forEach(shift => {
-    const dateKey = format(parseISO(shift.startTime), "yyyy-MM-dd");
-    const userKey = `${shift.userId}-${dateKey}`;
-    if (!groupedByUser[userKey]) groupedByUser[userKey] = [];
-    groupedByUser[userKey].push(shift);
+    if (!groupedByUser[shift.userId]) groupedByUser[shift.userId] = [];
+    groupedByUser[shift.userId].push(shift);
   });
 
-  Object.values(groupedByUser).forEach(dayShifts => {
-    for (let i = 0; i < dayShifts.length; i++) {
-      for (let j = i + 1; j < dayShifts.length; j++) {
-        const s1 = dayShifts[i];
-        const s2 = dayShifts[j];
+  Object.values(groupedByUser).forEach(userShifts => {
+    const sorted = [...userShifts].sort(
+      (a, b) => parseISO(a.startTime).getTime() - parseISO(b.startTime).getTime()
+    );
+
+    for (let i = 0; i < sorted.length; i++) {
+      for (let j = i + 1; j < sorted.length; j++) {
+        const s1 = sorted[i];
+        const s2 = sorted[j];
         const s1End = parseISO(s1.endTime);
         const s2Start = parseISO(s2.startTime);
 
