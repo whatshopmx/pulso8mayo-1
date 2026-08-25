@@ -14,6 +14,7 @@ import { PurchaseOrderService } from "./purchase-order-service";
 import { UnitConversionService } from "./unit-conversion-service";
 import { InvoiceMatchingService } from "./invoice-matching-service";
 import { StockAlertService } from "./stock-alert-service";
+import { evaluateReceivingTemperature } from "./receiving-temperature";
 
 export const receivingSchema = z.object({
     items: z.array(z.object({
@@ -169,7 +170,10 @@ export async function processReceiving(
             }
         }
 
-        if (temperature !== undefined && temperature > 4) {
+        // Validación de temperatura por tipo de almacenamiento (loteprod §5.2):
+        // congelado ≤ -18°C, refrigerado 0–4°C; fuera de rango = rechazo.
+        const temperatureCheck = evaluateReceivingTemperature(temperature, item.storageType ?? null);
+        if (temperatureCheck.quarantined) {
             discrepancyType = 'QUALITY';
         }
 
@@ -187,7 +191,7 @@ export async function processReceiving(
             productionDate: productionDate ? new Date(productionDate) : undefined,
             supplierId: validatedData.supplierId || item.supplierId || null,
             unitCost: finalUnitCostCents,
-            status: (temperature !== undefined && temperature > 4) ? 'QUARANTINED' : 'AVAILABLE',
+            status: temperatureCheck.quarantined ? 'QUARANTINED' : 'AVAILABLE',
             supplierBatchInfo: {
                 receivingReportId: report.id,
                 invoiceNumber: validatedData.invoiceNumber || null,
@@ -250,16 +254,16 @@ export async function processReceiving(
             );
         }
 
-        // If the item is quarantined due to high temperature, automatically trigger an incident
-        if (temperature !== undefined && temperature > 4) {
+        // Si la temperatura violó el rango del ítem, incidente automático
+        if (temperatureCheck.quarantined) {
             await db.insert(incidents).values({
                 instanceId: uuidv4(),
                 stepId: `RECEIVING_QA_${item.id}`,
                 branchId,
                 severity: 'WARNING',
                 status: 'DETECTED',
-                title: `Rechazo de Calidad: ${item.name} por Alta Temperatura`,
-                description: `El producto ${item.name} fue recibido con una temperatura de ${temperature}°C, excediendo el límite máximo de calidad (4°C). Lote mandado a cuarentena automáticamente.`,
+                title: `Rechazo de Calidad: ${item.name} por Temperatura Fuera de Rango`,
+                description: `El producto ${item.name} fue recibido a ${temperature}°C (${temperatureCheck.violation}). Lote mandado a cuarentena automáticamente.`,
                 detectedBy: actor.user.id,
                 metadata: {
                     itemId: item.id,
