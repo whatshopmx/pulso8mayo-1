@@ -138,7 +138,10 @@ export type MatrixValidation =
  * Valida un set de reglas antes de reemplazar la matriz:
  * - Rangos inclusivos bien formados (min ≥ 0, max ≥ min o null).
  * - Rol exigido existente en la jerarquía de aprobadores.
- * - Sin traslapes entre reglas activas (ERROR — haría cadenas ambiguas).
+ * - Reglas ACTIVAS que se traslapan Y comparten `sequence` → ERROR (el orden
+ *   de aprobación sería ambiguo). El traslape con secuencias distintas es el
+ *   mecanismo LEGÍTIMO de cadenas acumulativas multi-nivel (p. ej. GERENTE
+ *   seq1 [0,∞] + ADMIN seq2 [0,∞]: todo monto pasa por ambos niveles).
  * - Contigüidad solo RECOMENDADA: un hueco hace que los montos dentro de él
  *   no tengan cadena y el submit falle con 400 accionable.
  */
@@ -164,29 +167,46 @@ export function validateMatrixRules(rules: MatrixRuleInput[]): MatrixValidation 
         }
     }
 
-    const activeSorted = rules
-        .filter((r) => r.active !== false)
-        .sort((a, b) => a.amountMin - b.amountMin);
+    const activeRules = rules.filter((r) => r.active !== false);
 
-    for (let i = 1; i < activeSorted.length; i++) {
-        const prev = activeSorted[i - 1];
-        const curr = activeSorted[i];
-        const prevMax = prev.amountMax ?? Number.POSITIVE_INFINITY;
-        if (curr.amountMin <= prevMax) {
-            return {
-                ok: false,
-                error: `Rangos traslapados: [${prev.amountMin}, ${prev.amountMax ?? "sin límite"}] y [${curr.amountMin}, ${curr.amountMax ?? "sin límite"}]`,
-                warnings,
-            };
-        }
-        if (curr.amountMin > prevMax + 1) {
-            warnings.push(
-                `Hueco entre $${((prevMax + 1) / 100).toFixed(2)} y $${(curr.amountMin / 100).toFixed(2)}: montos dentro de ese rango quedarán sin cadena y no podrán enviarse`,
-            );
+    // Traslape + misma secuencia = ambigüedad de orden. Traslape con secuencias
+    // distintas = niveles apilados deliberados.
+    for (let i = 0; i < activeRules.length; i++) {
+        for (let j = i + 1; j < activeRules.length; j++) {
+            const a = activeRules[i];
+            const b = activeRules[j];
+            if (a.sequence !== b.sequence) continue;
+            const aMax = a.amountMax ?? Number.POSITIVE_INFINITY;
+            const bMax = b.amountMax ?? Number.POSITIVE_INFINITY;
+            if (a.amountMin <= bMax && b.amountMin <= aMax) {
+                return {
+                    ok: false,
+                    error: `Rangos traslapados con la misma secuencia ${a.sequence}: [${a.amountMin}, ${a.amountMax ?? "sin límite"}] y [${b.amountMin}, ${b.amountMax ?? "sin límite"}] — usa secuencias distintas para niveles apilados`,
+                    warnings,
+                };
+            }
         }
     }
 
-    if (activeSorted.length === 0 && rules.length > 0) {
+    // Cobertura unionada para detectar huecos (los traslapes no crean huecos).
+    let coveredUpTo = -1;
+    let openEnded = false;
+    const byMin = [...activeRules].sort((x, y) => x.amountMin - y.amountMin);
+    for (const r of byMin) {
+        if (!openEnded && r.amountMin > coveredUpTo + 1) {
+            warnings.push(
+                `Hueco entre $${((coveredUpTo + 1) / 100).toFixed(2)} y $${(r.amountMin / 100).toFixed(2)}: montos dentro de ese rango quedarán sin cadena y no podrán enviarse`,
+            );
+        }
+        if (r.amountMax === null) openEnded = true;
+        else coveredUpTo = Math.max(coveredUpTo, r.amountMax);
+    }
+    if (!openEnded && activeRules.length > 0) {
+        warnings.push(
+            `Ninguna regla cubre montos mayores a $${(coveredUpTo / 100).toFixed(2)}: esos documentos quedarán sin cadena y no podrán enviarse`,
+        );
+    }
+    if (activeRules.length === 0 && rules.length > 0) {
         warnings.push("Todas las reglas están inactivas: ningún monto tendrá cadena de autorización");
     }
 
