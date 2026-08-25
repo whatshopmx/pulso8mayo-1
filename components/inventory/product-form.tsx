@@ -117,6 +117,26 @@ export function ProductForm({ suppliers = [], initialData }: ProductFormProps) {
 
                     <div className="grid grid-cols-2 gap-4 pt-2 border-t">
                         <div className="space-y-2">
+                            <Label htmlFor="storageType">Tipo de Almacenamiento</Label>
+                            <Select name="storageType" defaultValue={initialData?.storageType || ""}>
+                                <SelectTrigger id="storageType">
+                                    <SelectValue placeholder="Sin clasificar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">Sin clasificar</SelectItem>
+                                    <SelectItem value="DRY">Seco (sin control de temperatura)</SelectItem>
+                                    <SelectItem value="REFRIGERATED">Refrigerado (0–4°C)</SelectItem>
+                                    <SelectItem value="FROZEN">Congelado (≤ -18°C)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                Define el rango de temperatura que se exige al recibir este producto.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+                        <div className="space-y-2">
                             <Label htmlFor="brand">Marca</Label>
                             <Input id="brand" name="brand" placeholder="Ej: Maseca" defaultValue={initialData?.brand} />
                         </div>

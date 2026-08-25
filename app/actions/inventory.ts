@@ -23,6 +23,9 @@ export async function createProduct(formData: FormData) {
     const lastCost = formData.get("lastCost") ? Math.round(Number(formData.get("lastCost")) * 100) : undefined;
     const allergenInfo = formData.get("allergenInfo") as string;
     const storageRequirements = formData.get("storageRequirements") as string;
+    // Tipo de almacenamiento (loteprod §5.2): vacío = sin clasificar.
+    const storageTypeRaw = formData.get("storageType") as string;
+    const storageType = ['DRY', 'REFRIGERATED', 'FROZEN'].includes(storageTypeRaw) ? storageTypeRaw as 'DRY' | 'REFRIGERATED' | 'FROZEN' : undefined;
     const typicalShelfLifeDays = formData.get("typicalShelfLifeDays") ? Number(formData.get("typicalShelfLifeDays")) : undefined;
     const photoUrl = formData.get("photoUrl") as string;
     const brand = formData.get("brand") as string || undefined;
@@ -44,6 +47,7 @@ export async function createProduct(formData: FormData) {
         lastCost,
         allergenInfo,
         storageRequirements,
+        storageType,
         typicalShelfLifeDays,
         photoUrl: photoUrl || undefined,
         brand,
@@ -75,6 +79,9 @@ export async function updateProduct(id: string, formData: FormData) {
     const lastCost = formData.get("lastCost") ? Math.round(Number(formData.get("lastCost")) * 100) : undefined;
     const allergenInfo = formData.get("allergenInfo") as string;
     const storageRequirements = formData.get("storageRequirements") as string;
+    // Tipo de almacenamiento (loteprod §5.2): vacío = sin clasificar.
+    const storageTypeRaw = formData.get("storageType") as string;
+    const storageType = ['DRY', 'REFRIGERATED', 'FROZEN'].includes(storageTypeRaw) ? storageTypeRaw as 'DRY' | 'REFRIGERATED' | 'FROZEN' : undefined;
     const typicalShelfLifeDays = formData.get("typicalShelfLifeDays") ? Number(formData.get("typicalShelfLifeDays")) : undefined;
     const photoUrl = formData.get("photoUrl") as string;
     const brand = formData.get("brand") as string || undefined;
@@ -94,6 +101,7 @@ export async function updateProduct(id: string, formData: FormData) {
         lastCost,
         allergenInfo,
         storageRequirements,
+        storageType,
         typicalShelfLifeDays,
         photoUrl: photoUrl || undefined,
         brand,

@@ -17,6 +17,9 @@ const updateProductSchema = z.object({
   storageArea: z.string().optional(),
   allergenInfo: z.string().optional(),
   storageRequirements: z.string().optional(),
+  // Tipo de almacenamiento del ítem (loteprod §5.2): dirige la validación de
+  // temperatura en recepción. Ausente = sin clasificar (regla legacy > 4°C).
+  storageType: z.enum(['DRY', 'REFRIGERATED', 'FROZEN']).optional(),
   typicalShelfLifeDays: z.number().optional(),
   supplierId: z.string().uuid().optional(),
   lastCost: z.number().optional(),
