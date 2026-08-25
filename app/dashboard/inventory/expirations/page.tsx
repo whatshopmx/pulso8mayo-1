@@ -15,7 +15,7 @@ export default async function ExpirationsPage() {
     <PageContainer>
       <PageHeader
         title="Reporte de Vencimientos"
-        description="Monitoreo de productos próximos a vencer (FIFO)"
+        description="Monitoreo de productos próximos a vencer (FEFO: se usa primero lo que caduca primero)"
         icon={Calendar}
       />
       <ExpirationReport />
