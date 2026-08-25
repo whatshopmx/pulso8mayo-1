@@ -16,3 +16,6 @@ export * from './morning-brief';
 // Supuestos capturados de tesorería (saldo inicial de la proyección de flujo).
 export * from './finance';
 
+// Control OC/OS: órdenes de servicio, matriz de autorización, centros de costo y presupuestos.
+export * from './service-orders';
+

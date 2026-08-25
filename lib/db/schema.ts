@@ -13,6 +13,7 @@ import { account, users, session, sessions, verifications, magicLinks, roleEnum 
 // Import core tables for foreign key references
 import { companies, branches } from './schema/core';
 import { branchComplianceServices } from './schema/equipment';
+import { purchaseTypeEnum } from './schema/service-orders';
 
 // Re-export modular schema
 export * from './schema/index';
@@ -1056,6 +1057,11 @@ export const purchaseOrders = pgTable("purchase_orders", {
     currency: text("currency").default('MXN'),
     notes: text("notes"),
     termsConditions: text("terms_conditions"),
+    // Control OC/OS: tipo de compra, centro de costo y componentes del folio OC-[SUC]-[AÑO]-[N]
+    purchaseType: purchaseTypeEnum("purchase_type").default('PROGRAMADA'),
+    costCenterId: uuid("cost_center_id"),
+    folioYear: integer("folio_year"),
+    folioSequence: integer("folio_sequence"),
     sentAt: timestamp("sent_at"),
     receivedAt: timestamp("received_at"),
     cancelledAt: timestamp("cancelled_at"),
