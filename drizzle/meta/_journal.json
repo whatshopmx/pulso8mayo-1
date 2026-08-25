@@ -414,6 +414,13 @@
       "when": 1787599075181,
       "tag": "0058_add-waste-evidence-url",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1787622373537,
+      "tag": "0059_add_invoice_number_to_receiving_reports",
+      "breakpoints": true
     }
   ]
 }

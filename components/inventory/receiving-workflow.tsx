@@ -49,6 +49,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
     const [selectedPOId, setSelectedPOId] = useState<string>("");
     const [invoicesList, setInvoicesList] = useState<any[]>([]);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>("");
+    const [invoiceNumber, setInvoiceNumber] = useState<string>("");
     const [notes, setNotes] = useState<string>("");
     const [scanMode, setScanMode] = useState(false);
     const [scannedBarcode, setScannedBarcode] = useState("");
@@ -73,6 +74,8 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
         setReceivingItems([]);
         setSelectedSupplier("");
         setSelectedPOId("");
+        setSelectedInvoiceId("");
+        setInvoiceNumber("");
         setNotes("");
         setStep("supplier-po");
         setIsDialogOpen(false);
@@ -341,6 +344,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                     supplierId: selectedSupplier || undefined,
                     purchaseOrderId: selectedPOId || undefined,
                     invoiceId: selectedInvoiceId || undefined,
+                    invoiceNumber: invoiceNumber.trim() || undefined,
                     branchId: branchId || undefined,
                     notes: notes || undefined,
                 }),
@@ -467,30 +471,47 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="invoice">Factura / CFDI (Opcional)</Label>
-                                <Select
-                                    value={selectedInvoiceId || "none"}
-                                    onValueChange={(v) => setSelectedInvoiceId(v === "none" ? "" : v)}
-                                >
-                                    <SelectTrigger id="invoice">
-                                        <SelectValue placeholder="Seleccionar factura..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">Sin factura</SelectItem>
-                                        {availableInvoices.map((inv: any) => (
-                                            <SelectItem key={inv.id} value={inv.id}>
-                                                {inv.serie && `${inv.serie}-`}{inv.folio || 'S/F'}
-                                                {' — $'}{((inv.total || 0) / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                    {availableInvoices.length === 0 && selectedSupplier
-                                        ? "No hay facturas sin conciliar para este proveedor."
-                                        : "Al confirmar la recepción se ejecutará la conciliación (PO vs recepción vs factura)."}
-                                </p>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label htmlFor="invoice-number">No. de Factura / Remisión</Label>
+                                    <Input
+                                        id="invoice-number"
+                                        placeholder="Ej. A-12345 o REM-789"
+                                        value={invoiceNumber}
+                                        onChange={(e) => setInvoiceNumber(e.target.value)}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Captura el folio impreso del comprobante del proveedor.
+                                        Cuando subas el CFDI, se conciliará automáticamente por este número.
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="invoice">Factura CFDI registrada (Opcional)</Label>
+                                    <Select
+                                        value={selectedInvoiceId || "none"}
+                                        onValueChange={(v) => setSelectedInvoiceId(v === "none" ? "" : v)}
+                                    >
+                                        <SelectTrigger id="invoice">
+                                            <SelectValue placeholder="Seleccionar factura..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">Sin factura registrada</SelectItem>
+                                            {availableInvoices.map((inv: any) => (
+                                                <SelectItem key={inv.id} value={inv.id}>
+                                                    {inv.serie && `${inv.serie}-`}{inv.folio || 'S/F'}
+                                                    {' — $'}{((inv.total || 0) / 100).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                        {selectedInvoiceId
+                                            ? "Al confirmar se ejecutará la conciliación (PO vs recepción vs factura)."
+                                            : availableInvoices.length === 0 && selectedSupplier
+                                                ? "Sin CFDIs pendientes de este proveedor — usa el No. de factura arriba."
+                                                : "Solo CFDIs ya subidos al sistema y sin conciliar."}
+                                    </p>
+                                </div>
                             </div>
 
                             <div className="border border-dashed rounded-lg p-6 flex flex-col items-center justify-center bg-muted/30">

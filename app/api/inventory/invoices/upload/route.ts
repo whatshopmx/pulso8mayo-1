@@ -3,9 +3,10 @@ import { getSession } from "@/lib/auth";
 import { enforceBranchScope } from "@/lib/branch-scope";
 import type { Role } from "@/lib/permissions";
 import { CFDIParserService } from "@/lib/services/cfdi-parser";
+import { InvoiceMatchingService } from "@/lib/services/invoice-matching-service";
 import { db } from "@/lib/db";
-import { suppliers, inventoryItems, purchaseOrders, invoices, invoiceLines } from "@/lib/db/schema";
-import { eq, and, or, ilike, sql } from "drizzle-orm";
+import { suppliers, inventoryItems, purchaseOrders, invoices, invoiceLines, receivingReports } from "@/lib/db/schema";
+import { eq, and, or, ilike, sql, inArray } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
     try {
@@ -206,6 +207,45 @@ export async function POST(req: NextRequest) {
             return inv;
         });
 
+        // 5. Auto-reconciliación: si quien recibió capturó el No. de factura
+        // (receiving_reports.invoice_number), liga este CFDI a esa recepción y
+        // corre la conciliación (3-way con OC, 2-way sin ella).
+        let autoMatch: { receivingReportId: string; matched: boolean; isPerfectMatch?: boolean } | null = null;
+        if (parsedCFDI.folio) {
+            const folioVariants = [parsedCFDI.folio];
+            if (parsedCFDI.serie) folioVariants.push(`${parsedCFDI.serie}-${parsedCFDI.folio}`, `${parsedCFDI.serie}${parsedCFDI.folio}`);
+
+            const [candidate] = await db.select({ id: receivingReports.id })
+                .from(receivingReports)
+                .where(
+                    and(
+                        eq(receivingReports.companyId, session.user.companyId),
+                        ...(matchedSupplier ? [eq(receivingReports.supplierId, matchedSupplier.id)] : []),
+                        inArray(receivingReports.invoiceNumber, folioVariants),
+                        sql`NOT EXISTS (SELECT 1 FROM ${invoices} i WHERE i.receiving_report_id = ${receivingReports.id})`
+                    )
+                )
+                .orderBy(sql`${receivingReports.receivedAt} DESC`)
+                .limit(1);
+
+            if (candidate) {
+                try {
+                    const matchDetail = await InvoiceMatchingService.associateToReceiving(
+                        invoiceRecord.id,
+                        candidate.id,
+                        invoiceRecord.purchaseOrderId,
+                    );
+                    autoMatch = {
+                        receivingReportId: candidate.id,
+                        matched: true,
+                        isPerfectMatch: matchDetail.matchDetails?.isPerfectMatch ?? false,
+                    };
+                } catch (matchError) {
+                    console.error("Auto-match by folio failed:", matchError);
+                }
+            }
+        }
+
         return NextResponse.json({
             success: true,
             invoice: {
@@ -229,6 +269,7 @@ export async function POST(req: NextRequest) {
             } : null,
             purchaseOrders: matchingPOs,
             items: matchedItems,
+            autoMatch,
         });
 
     } catch (error) {

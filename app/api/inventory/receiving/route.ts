@@ -5,7 +5,7 @@ import type { Role } from "@/lib/permissions";
 import { processReceiving } from "@/lib/services/receiving-service";
 import { db } from "@/lib/db";
 import { inventoryBatches, inventoryItems, suppliers } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
 
 /**
@@ -103,6 +103,9 @@ export async function GET(req: NextRequest) {
             expirationDate: inventoryBatches.expirationDate,
             supplierId: inventoryBatches.supplierId,
             supplierBatchInfo: inventoryBatches.supplierBatchInfo,
+            /** Folio capturado en la recepción (guardado en supplierBatchInfo
+             *  por processReceiving). Null para recepciones anteriores. */
+            invoiceNumber: sql<string | null>`${inventoryBatches.supplierBatchInfo} ->> 'invoiceNumber'`,
             item: {
                 name: inventoryItems.name,
                 sku: inventoryItems.sku,

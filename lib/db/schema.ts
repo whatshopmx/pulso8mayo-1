@@ -2497,6 +2497,10 @@ export const receivingReports = pgTable("receiving_reports", {
     receivedAt: timestamp("received_at").defaultNow().notNull(),
     notes: text("notes"),
     discrepancyNotes: text("discrepancy_notes"),
+    /** Folio/número de la factura o remisión física del proveedor, capturado
+     *  por quien recibe. Permite conciliar automáticamente el CFDI cuando
+     *  llegue después (match por folio + proveedor). */
+    invoiceNumber: text("invoice_number"),
     signatureUrl: text("signature_url"),
     photoUrls: jsonb("photo_urls"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

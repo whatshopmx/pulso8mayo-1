@@ -29,6 +29,9 @@ export const receivingSchema = z.object({
     supplierId: z.string().uuid().optional(),
     purchaseOrderId: z.string().uuid().optional(),
     invoiceId: z.string().uuid().optional(),
+    /** Folio/número de la factura o remisión física del proveedor. Se guarda en
+     *  el reporte para conciliar automáticamente cuando llegue el CFDI. */
+    invoiceNumber: z.string().trim().max(100).optional(),
     storageLocationId: z.string().uuid().optional(),
     notes: z.string().optional(),
     signatureUrl: z.string().optional(),
@@ -47,6 +50,7 @@ export type ReceivingResult = {
     receivedBy: string;
     supplierId: string | null;
     purchaseOrderId: string | null;
+    invoiceNumber: string | null;
     items: unknown[];
     totalItems: number;
     notes: string | null;
@@ -75,6 +79,7 @@ export async function processReceiving(
         branchId,
         supplierId: validatedData.supplierId || null,
         purchaseOrderId: validatedData.purchaseOrderId || null,
+        invoiceNumber: validatedData.invoiceNumber || null,
         receivedBy: actor.user.id,
         notes: validatedData.notes || null,
         signatureUrl: validatedData.signatureUrl || null,
@@ -184,6 +189,8 @@ export async function processReceiving(
             unitCost: finalUnitCostCents,
             status: (temperature !== undefined && temperature > 4) ? 'QUARANTINED' : 'AVAILABLE',
             supplierBatchInfo: {
+                receivingReportId: report.id,
+                invoiceNumber: validatedData.invoiceNumber || null,
                 receivedBy: actor.user.id,
                 receivedAt: new Date().toISOString(),
                 notes: validatedData.notes,
@@ -353,6 +360,7 @@ export async function processReceiving(
         receivedBy: actor.user.id,
         supplierId: validatedData.supplierId || null,
         purchaseOrderId: validatedData.purchaseOrderId || null,
+        invoiceNumber: validatedData.invoiceNumber || null,
         items: receivingResults,
         totalItems: receivingResults.length,
         notes: validatedData.notes || null,

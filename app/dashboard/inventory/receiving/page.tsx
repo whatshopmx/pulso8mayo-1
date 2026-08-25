@@ -38,6 +38,7 @@ interface ReceivingRecord {
     expirationDate?: string;
     supplierId: string;
     supplierBatchInfo?: string;
+    invoiceNumber?: string | null;
     item: {
         name: string;
         sku?: string;
@@ -190,6 +191,9 @@ export default function ReceivingPage() {
                                                          </h4>
                                                          <p className="text-sm text-muted-foreground">
                                                              Lote: {String(receiving.lotNumber || 'N/A')} • Proveedor: {receiving.supplier?.name || "No especificado"}
+                                                             {receiving.invoiceNumber && (
+                                                                 <> • Factura: <span className="font-medium text-foreground">{receiving.invoiceNumber}</span></>
+                                                             )}
                                                          </p>
                                                          <p className="text-sm text-muted-foreground">
                                                              {receiving.receivedAt ? format(new Date(receiving.receivedAt), "dd 'de' MMMM 'de' yyyy, HH:mm", { locale: es }) : 'Fecha desconocida'}

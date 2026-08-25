@@ -1,0 +1,1 @@
+ALTER TABLE "receiving_reports" ADD COLUMN "invoice_number" text;
