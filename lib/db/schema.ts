@@ -701,6 +701,9 @@ export const inventoryBatchStatusEnum = pgEnum("inventory_batch_status", ['AVAIL
 export const inventoryTransferStatusEnum = pgEnum("inventory_transfer_status", ['PENDING', 'APPROVED', 'REJECTED', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED']);
 export const storageLocationTypeEnum = pgEnum("storage_location_type", ['DRY_STORAGE', 'REFRIGERATOR', 'FREEZER', 'BAR', 'KITCHEN', 'PRODUCTION', 'PACKAGING', 'OTHER']);
 export const storageLocationOrgTypeEnum = pgEnum("storage_location_org_type", ['CENTRAL', 'BRANCH', 'VIRTUAL', 'TRANSIT']);
+// Tipo de almacenamiento del ítem (manual loteprod.md §5.2): dirige el rango de
+// temperatura exigido en recepción. NULL = sin clasificar (conserva regla legacy > 4°C).
+export const itemStorageTypeEnum = pgEnum("item_storage_type", ['DRY', 'REFRIGERATED', 'FROZEN']);
 
 export const suppliers = pgTable("suppliers", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -868,6 +871,10 @@ export const inventoryItems = pgTable("inventory_items", {
     storageArea: text("storage_area"),
     allergenInfo: text("allergen_info"),
     storageRequirements: text("storage_requirements"), // Temp/Humidity text
+    // Clasificación estructurada para validación de temperatura en recepción
+    // (congelado ≤ -18°C, refrigerado 0–4°C, seco sin requisito). Nullable:
+    // ítems existentes sin clasificar siguen la regla genérica > 4°C.
+    storageType: itemStorageTypeEnum("storage_type"),
     typicalShelfLifeDays: integer("typical_shelf_life_days"),
     active: boolean("active").default(true),
     // Fase 4 (capa dinero): SKUs "alto valor" — dirigen el conteo semanal a
@@ -914,7 +921,10 @@ export const unitConversions = pgTable("unit_conversions", {
     companyId: uuid("company_id").notNull().references(() => companies.id),
     fromUnit: text("from_unit").notNull(),
     toUnit: text("to_unit").notNull(),
-    factor: integer("factor").notNull(),
+    // numeric(12,6) y no integer: factores reales de conversión son
+    // fraccionarios (kg↔lb = 0.453592, oz↔g = 28.3495). En integer se
+    // redondeaban a 0 o 1 y la conversión devolvía basura.
+    factor: numeric("factor", { precision: 12, scale: 6 }).notNull(),
     description: text("description"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
