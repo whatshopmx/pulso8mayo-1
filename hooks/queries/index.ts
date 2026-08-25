@@ -3,3 +3,4 @@ export { useInventory, useCreateProduct, useProduct, useUpdateProduct, useDelete
 export { useEquipment, useEquipmentItem } from "./use-equipment"
 export { useWorkflows, useWorkflowExecution } from "./use-workflows"
 export { useEmployees, useEmployee } from "./use-employees"
+export { useServiceOrders, useServiceOrder, useCreateServiceOrder, useUpdateServiceOrder, useTransitionServiceOrder, useSubmitServiceOrder, useAddQuote, useAddEvidence, useSignConformity, useApproveRequest, useRejectRequest, useCostCenters } from "./use-service-orders"

@@ -21,6 +21,7 @@ import {
   Crown,
   Shield,
   Landmark,
+  ClipboardCheck,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -205,6 +206,17 @@ const navMain = [
       {
         title: "Ubicaciones",
         url: "/dashboard/inventory/locations",
+      },
+    ],
+  },
+  {
+    title: "Control",
+    url: "/dashboard/service-orders",
+    icon: ClipboardCheck,
+    items: [
+      {
+        title: "Órdenes de Servicio",
+        url: "/dashboard/service-orders",
       },
     ],
   },

@@ -99,12 +99,30 @@ export async function listOrders(params: ListOrdersParams) {
 // ── Detalle ──
 
 export async function getOrderDetail(companyId: string, id: string) {
-    const [order] = await db
-        .select()
+    const [row] = await db
+        .select({
+            order: serviceOrders,
+            branchName: branches.name,
+            branchCode: branches.code,
+            costCenterCode: costCenters.code,
+            costCenterName: costCenters.name,
+            supplierName: suppliers.name,
+        })
         .from(serviceOrders)
+        .leftJoin(branches, eq(branches.id, serviceOrders.branchId))
+        .leftJoin(costCenters, eq(costCenters.id, serviceOrders.costCenterId))
+        .leftJoin(suppliers, eq(suppliers.id, serviceOrders.supplierId))
         .where(and(eq(serviceOrders.id, id), eq(serviceOrders.companyId, companyId)))
         .limit(1);
-    if (!order) return null;
+    if (!row) return null;
+    const order = {
+        ...row.order,
+        branchName: row.branchName,
+        branchCode: row.branchCode,
+        costCenterCode: row.costCenterCode,
+        costCenterName: row.costCenterName,
+        supplierName: row.supplierName,
+    };
 
     const [quotes, evidence, approvals] = await Promise.all([
         db
