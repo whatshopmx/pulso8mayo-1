@@ -45,9 +45,10 @@ Cerrar el hueco entre 289 rutas API / 122 servicios / 33 funciones Inngest / 140
 
 ### Phase 2: Capa 01 — Unitarias sobre lógica pura
 
-- [ ] **Task 5: Fechas y zonas horarias (`lib/workflows/today.ts`)** (M)
+- [x] **Task 5: Fechas y zonas horarias (`lib/workflows/today.ts`)** (M)
   Table-driven: `localMoment`, `startOfLocalDayUtc`, `localDateString`, `addCalendarDays`, `localDayRangeUtc` × 3 zonas (Mexico_City, Cancún UTC−5 fijo, Tijuana DST); captura 23:50 cae en día operativo correcto. `isScheduleDueOn`/`parseTimeOfDay`: ONCE/DAILY/WEEKLY/MONTHLY, día 31, 29-feb, hora inválida. `deriveItemState`: matriz HECHO/EN_CURSO/VENCIDO/PENDIENTE + empate.
   - Archivos: `lib/workflows/__tests__/today.test.ts`
+  - Hallazgos (2026-08-24): BUG corregido — el redondeo de `startOfLocalDayUtc` sesgaba +1 min con segundos ≥31 (`history/route.ts` pasa `new Date()`; test rojo commit 0c72e58, fix mínimo 85e7acf). Congelado como contrato: `"08:30:15"` sí parsea (regex sin ancla final). Documentado en tests: días DST Tijuana reportan rango de 24 h corrido ±1 h (día real 23/25 h), según admite el docstring del módulo; WEEKLY con `daysOfWeek:[7]` filtra y cae al escalar `dayOfWeek ?? 1`.
 - [ ] **Task 6: LFT (`lib/labor-validation.ts`)** (M)
   `calculateOvertime` (primeras 9 h semanales al doble, siguientes al triple), turnos traslapados, cierre-apertura <8 h, cruce de medianoche, `aggregateWeeklyHours`/`getComplianceStatus` contra reglas default y sobrescritas por tenant.
   - Archivos: `lib/__tests__/labor-validation.test.ts`

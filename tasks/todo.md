@@ -18,7 +18,7 @@
 
 ## Phase 2: Capa 01 — Unitarias lógica pura
 
-- [ ] Task 5: Fechas/zonas horarias (`lib/workflows/today.ts`) × 3 zonas de México
+- [x] Task 5: Fechas/zonas horarias (`lib/workflows/today.ts`) × 3 zonas de México ✓ (85 tests, ~1 s; destapó y corrigió bug de ±1 min en `startOfLocalDayUtc` con segundos — commits 0c72e58 test rojo + 85e7acf fix)
 - [ ] Task 6: LFT horas extra y descansos (`lib/labor-validation.ts`)
 - [ ] Task 7: RBAC/ABAC/masking (branch-scope, permissions, abac, masking)
 - [ ] Task 8: parseMoneyToCents + rate-limiter
