@@ -116,7 +116,7 @@ describe("calculateWeeklyOvertime", () => {
     });
 
     it("extras negativos (dato sucio) no descuentan del pool", () => {
-        expect(calculateWeeklyOvertime([-15, 75]).totalMinutes).toBe(60);
+        expect(calculateWeeklyOvertime([-15, 75]).totalMinutes).toBe(75);
     });
 });
 
