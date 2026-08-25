@@ -1,181 +1,142 @@
-# Handoff — Sistema de Control OC/OS (finzasordenes.md): Phases 1–2 implementadas, pendiente Phase 3 en adelante
+# Handoff — Sistema de Control OC/OS (finzasordenes.md): Phases 1–3 + Checkpoint E2E + Task 7 completos · siguiente Task 8
 
-**Fecha:** sesión 2026-08-25
-**Repositorio:** `C:/Users/david/pulso29` — Pulso HORECA (Next.js 16 App Router, TypeScript strict:false, Drizzle + Neon Postgres, better-auth)
-**Documento fuente del negocio:** `finzasordenes.md` (raíz del repo) — guía de Órdenes de Compra/Servicio, matriz de autorización, controles multi-sucursal y KPIs para grupo QSR de 3–15 sucursales.
-**Plan de trabajo:** `tasks/plan-ordenes-oc-os.md` · checklist ejecutiva: `tasks/todo-ordenes-oc-os.md`
-**Commits de esta línea de trabajo (en main):**
+**Fecha de última sesión:** 2026-08-25 (tercera sesión del plan)
+**Repositorio:** `C:/Users/david/pulso29` — Pulso HORECA (Next.js 16 App Router + Turbopack, React 19, TypeScript strict:false, Drizzle + Neon Postgres, better-auth, react-query, Tailwind v4, Radix/shadcn)
+**Documento fuente del negocio:** `finzasordenes.md` (raíz del repo) — Órdenes de Compra/Servicio, matriz de autorización §4, controles multi-sucursal, folios sin saltos §6, KPIs gerenciales.
+**Plan de trabajo:** `tasks/plan-ordenes-oc-os.md` · checklist ejecutiva: `tasks/todo-ordenes-oc-os.md` · este archivo es la **fuente de verdad para continuidad**.
+
+## ⚠️ Contexto crítico antes de empezar
+
+1. **Hay un workstream PARALELO activo en este repo** (inventario/temperaturas "Task 1a–1e", plan `tasks/plan-loteprod-gaps.md`, migración `drizzle/0064_closed_shen.sql`, `loteprod.md`). NO tocar sus archivos ni sus migraciones. Si `.next/lock` está tomado al hacer `pnpm run build`, es otro build corriendo: esperar con loop de 10 s en vez de matar procesos.
+2. **Commits de este plan (en main, todos aplicados):**
 | Commit | Contenido |
 |---|---|
-| `973c34b` | Task 1 — esquema OS/matriz/centros/presupuestos (migración `0061`) + docs del plan |
+| `973c34b` | Task 1 — esquema OS/matriz/centros/presupuestos (migración `0061`) |
 | `47187c7` | Task 2 — generador de folios transaccional (`0062`: folio_counters + branches.code) |
-| `d8a9b26` | docs — hallazgos del operating-config integrados al plan |
-| `5299cf8` | Tasks 3+4 — servicios de matriz de autorización y presupuesto/tope emergencias (`0063`: emergency_purchase_cap_cents) |
-| `7aa9b80` | Task 5a — API service-orders CRUD + submit transaccional (`lib/services/service-order-service.ts` + 3 rutas) |
-| `41bcae3` | Task 5b — quotes/evidence/conformity + transiciones operativas (schedule/start/complete/cancel) |
-| `95d1c2c` | Task 6 — APIs aprobaciones/matriz/centros/presupuestos + integración OC (matriz+folio real en OC) |
-*(Nota: `d6fcc0a` commiteó trabajo fiscal suelto previo que compartía el working tree; no pertenece a este plan.)*
+| `5299cf8` | Tasks 3+4 — matriz de autorización + presupuesto/tope emergencias (`0063`: emergency_purchase_cap_cents) |
+| `7aa9b80` | Task 5a — API service-orders CRUD + submit transaccional |
+| `41bcae3` | Task 5b — quotes/evidence/conformity + transiciones operativas |
+| `95d1c2c` | Task 6 — APIs aprobaciones/matriz/cost-centers/budgets + integración OC |
+| `f4fee9b` | fix e2e — validador de matriz: traslapes con secuencias distintas son LEGALES |
+| `9f83b59` | Task 7 — UI service-orders (lista + detalle estado×rol + sidebar "Control") |
+| `7599d7a`,`6beec50`,`91e122c`,`aedccbb` | docs de seguimiento |
 
-**Estado al cierre:** ✅ **Phases 1–3 completas + Checkpoint E2E + Task 7 (UI OS) completas** (flujo OS completo con multi-nivel, OC con folio nuevo, auditoría de folios sin huecos; ver Checkpoint: APIs) — migraciones aplicadas sin destructivos, 31 tests unitarios nuevos del plan (348 total), `pnpm run build` exit 0, concurrencia real del generador de folios verificada contra Neon (8 transacciones paralelas → 8 folios únicos consecutivos).
-**Cambios sin commitear:** `app/dashboard/inventory/expirations/page.tsx` modificado pero ajeno a este plan (no tocar).
-
----
-
-## 1. Resumen para retomar
-
-Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.md`: Órdenes de Servicio como módulo independiente con evidencia y conformidad, matriz de autorización multi-nivel configurable por monto, presupuesto mensual por sucursal×centro de costo×partida, folios `OC/OS-[SUC]-[AÑO]-[N]` sin saltos, tope mensual de compras de emergencia y dashboard de KPIs gerenciales.
-
-**Ya terminado:** datos (1), folios (2), lógica de aprobación (3), presupuesto/emergencias (4), API OS CRUD+submit (5a), quotes/evidence/conformity+transiciones (5b) y APIs de aprobaciones/catálogos/integración OC (6). **Phase 3 completa.**
-**Siguiente paso concreto:** **Task 8** — `app/dashboard/approvals/page.tsx` (bandeja agrupada con presupuesto restante, aprobar/rechazar con razón; hooks useApproveRequest/useRejectRequest ya existen) + editor de matriz en `app/dashboard/company/approval-matrix/page.tsx` (patrón página cliente + API, NO en settings/).
+**Estado al cierre:** ✅ **Phase 1 (datos), Phase 2 (servicios), Phase 3 (APIs) completas · Checkpoint E2E verificado contra dev server real · Task 7 (UI) completa.** Suite **360 tests unitarios pasan**, `pnpm run build` exit 0, lint limpio en archivos del plan. Working tree limpio salvo archivos del workstream paralelo.
+**Siguiente paso concreto:** **Task 8** — Bandeja de aprobaciones + editor de matriz (detalles en §5).
 
 ---
 
-## 2. Decisiones de arquitectura (vinculantes — NO re-abrir)
+## 1. Qué construye este plan (resumen)
 
-1. **OS es módulo independiente**: documento financiero/aprobatorio propio; FK opcional a equipos (`serviceOrders.equipmentId` nullable, sin constraint hoy) y opcional a servicios normativos (`complianceServiceId`). No se integra forzosamente al módulo equipment.
-2. **Matriz de autorización configurable en BD** (`approval_matrix_rules`), no hardcodeada. Seed perezoso: empresa sin reglas recibe la default del doc §4 al primer `resolveApprovalChain`.
-3. **Presupuesto por sucursal × centro de costo × mes** (`branch_budgets`, unique branch+cc+mes). Validación en submit; alertas mensuales vía job Inngest (Task 11).
-4. **Folios por contador transaccional** (`folio_counters`): upsert atómico `INSERT..ON CONFLICT DO UPDATE RETURNING` (lock de fila implícito, sin FOR UPDATE explícito). **El folio real se emite en el SUBMIT**, no al crear borrador — un borrador cancelado no deja hueco (doc §6 "folios sin saltos"). Los drafts llevan placeholder único `DRAFT-XXXXXXXX`.
-5. **Corte vertical**: cada fase entrega flujo usable end-to-end.
-6. **Esquema nuevo en módulo separado** `lib/db/schema/service-orders.ts`, exportado desde `schema/index.ts` y `schema.ts`.
-7. **TRES capas de autorización coexisten sin unificarse**: (a) `approvalMatrixRules` multi-nivel → SOLO OC/OS; (b) gastos operativos sueltos → `expenseAuthorizationRules` con fallback `rolExigidoPorMonto()` sobre umbrales de `tenant_operating_config` (`lib/expenses/approval-policy.ts`, A16); (c) OC/OS NO lee esos umbrales ni A16.
-8. **Tope de emergencias vive en `tenant_operating_config.emergencyPurchaseCapCents`** (NULL = sin tope), editable desde la UI existente del operating-config. Cuenta OC `purchaseType=EMERGENCIA` **y** OS `urgency=EMERGENCIA` (para que no se burle vía orden de servicio).
-9. **Tesorería/corridas de pago fuera de alcance** → delegadas a `tasks/plan-payees-contrapartes.md`. Este plan solo deja el hook: OC/OS aprobadas exponen expectativa de pago (payee/supplier, monto, vencimiento).
-10. **KPIs leen metas de `tenant_operating_config`** (`foodCostTargetPercent` etc., defaults en `DEFAULT_FINANCIAL_TARGETS` de `financial-kpi-types.ts`). No hardcodear metas propias.
-11. **Lo existente NO se rehace** (ya funciona): requisiciones→OC→recepción→3-way match con CFDI SAT (`cfdiRecibidos`, RFC emisor ±$0.01 en `fiscal-buzon-service.ts`), caja chica, gastos operativos con autorización A16, payees anti-fragmentación, nómina timbrada, P&L snapshots.
+Sistema documental-financiero OC/OS: Órdenes de Servicio como módulo independiente con evidencia y conformidad, matriz de autorización configurable por monto, presupuesto mensual sucursal×centro×partida, folios `OC/OS-[SUC]-[AÑO]-[N]` sin saltos, tope mensual de emergencias, dashboard de KPIs. Fases: datos→servicios→APIs→UI→KPIs/job→contratos recurrentes→KPIs extendidos.
 
----
+## 2. Decisiones de arquitectura (VINCULANTES — no re-abrir)
 
-## 3. LO QUE YA ESTÁ IMPLEMENTADO
+1. **OS es módulo independiente**: FK opcional a equipos/servicios normativos; no se integra forzadamente a equipment.
+2. **Matriz en BD** (`approval_matrix_rules`), seed perezoso con la default del doc §4 al primer `resolveApprovalChain`.
+3. **Presupuesto por sucursal×centro×mes** (`branch_budgets`, unique triple). Validación en submit; docs sin costCenterId no se atribuyen.
+4. **Folio real SOLO en submit** (borradores llevan `DRAFT-*`): cancelar borrador no deja hueco. Contador transaccional `INSERT..ON CONFLICT DO UPDATE RETURNING`.
+5. **TRES capas de autorización coexisten sin unificarse**: (a) `approvalMatrixRules` SOLO OC/OS; (b) gastos sueltos → `expenseAuthorizationRules`+A16; (c) OC/OS no lee A16 ni umbrales del operating-config.
+6. **Tope de emergencias** en `tenant_operating_config.emergencyPurchaseCapCents` (NULL=sin tope), editable desde la UI del operating-config existente. Cuenta OC EMERGENCIA **y** OS urgency=EMERGENCIA.
+12. **Matriz default = bandas DISJUNTAS** ($0–5k GERENTE/1q · $5,001–25k ADMIN/2q · $25,001–100k OWNER/3q · >100k OWNER/3q) → cadenas de 1 nivel por monto. **Cadenas multi-nivel se configuran con reglas TRASLAPADAS y secuencias distintas** (ej. GERENTE seq1 [0,∞] + ADMIN seq2 [0,∞]) — el validador lo soporta desde `f4fee9b` (traslape+misma secuencia=ERROR; traslape con secuencias distintas=apilado legítimo; huecos=advertencia).
+13. **Mes de atribución presupuestal = mes de `created_at` del documento** (misma base que `getCommitted` usa para los demás docs).
 
-### Task 1 ✅ — Esquema (migración `drizzle/0061_cute_the_captain.sql`)
-`lib/db/schema/service-orders.ts`:
-- Enums: `service_order_type` (CORRECTIVO|PREVENTIVO|CONTRACTUAL|EXTRAORDINARIO), `service_urgency` (NORMAL|URGENTE|EMERGENCIA), `service_order_status` (DRAFT|PENDING_APPROVAL|APPROVED|SCHEDULED|IN_PROGRESS|PENDING_CONFORMITY|CLOSED|REJECTED|CANCELLED), `purchase_type` (PROGRAMADA|STOCK|EMERGENCIA), `approval_doc_type` (OC|OS), `approval_request_status`, `evidence_type` (ANTES|DESPUES)
-- Tablas: `service_orders` (folio unique, companyId, branchId, equipoId/complianceServiceId opcionales, supplierId, monto centavos, conformity_signed_by/at, createdBy text), `service_order_quotes`, `service_order_evidence`, `approval_matrix_rules` (**amountMin/amountMax INCLUSIVOS en centavos**, requiredRole, minQuotes, sequence, active), `approval_requests` (level, requiredRole, minQuotes, PENDING|APPROVED|REJECTED, resolvedBy/at/reason), `cost_centers` (unique company+code), `branch_budgets`
-- Columnas nuevas en `purchase_orders`: `purchase_type`, `cost_center_id`, `folio_year`, `folio_sequence`
+## 3. LO QUE YA ESTÁ IMPLEMENTADO (mapa rápido)
 
-### Task 2 ✅ — Generador de folios (migración `drizzle/0062_loving_paibok.sql`)
-- `folio_counters` (companyId, branchId, docType, year, lastSequence; unique 4-tuple)
-- `branches.code` columna nueva (text, nullable) + unique parcial `(company_id, code) WHERE code IS NOT NULL` — **requisito del formato de folio que no existía**
-- `lib/services/folio-generator.ts`: `formatFolio`, `parseFolio` (regex anclada `^(OC|OS)-([A-Z0-9]{1,12})-(\d{4})-(\d{4,})$` — rechaza DRAFT-* y legacy), `draftFolio()`, `detectGaps`, `nextFolio({companyId, branchId, docType, tx?})` (lanza `ApiError` claro si la sucursal no tiene `code` configurado), `findFolioGaps(companyId)` (auditoría §6; compara counters vs folios emitidos parseados)
-- Verificación de concurrencia: `scratch/verify-folio-generator.ts` (tsx, rollback completo) — **8 tx paralelas → secuencias 1..8 exactas**
-- Tests: `lib/services/folio-generator.test.ts` (12)
+### Datos (migraciones 0061–0063 aplicadas, sin drops)
+`lib/db/schema/service-orders.ts`: enums (service_order_type/urgency/status, purchase_type, approval_doc_type, approval_request_status, evidence_type) · tablas `service_orders`, `service_order_quotes`, `service_order_evidence`, `approval_matrix_rules`, `approval_requests`, `cost_centers`, `branch_budgets`, `folio_counters` · columnas nuevas en `purchase_orders` (`purchase_type`, `cost_center_id`, `folio_year`, `folio_sequence`) y `branches.code`.
 
-### Task 3 ✅ — Matriz de autorización
-`lib/services/approval-matrix-service.ts`:
-- Puros: `matchesRange` (inclusivo ambos extremos), `defaultMatrixRules()` ($0–500000¢ GERENTE/1 · $500001–2500000¢ ADMIN/2 · $2500001–10000000¢ OWNER/3 · >$10000000¢ OWNER/3, contiguos sin huecos), `buildChain` (filtra activos+cubiertos, ordena por sequence; monto sin cobertura → cadena vacía = error de config, el submit debe rechazar), `nextPendingLevel`, `denyApproval` → `"ROLE" | "SELF" | "NOT_CURRENT_LEVEL" | null`
-- BD: `resolveApprovalChain` (seed perezoso), `createApprovalRequests`, `approveRequest(id, actorId, actorRole)` (al aprobar el último nivel: OS→APPROVED; OC→APPROVED+approvedBy/approvedAt), `rejectRequest(...)` (documento→REJECTED de inmediato; OC guarda rejectionReason)
-- Segregación de funciones estilo A16: quien creó el doc (`serviceOrders.createdBy` / `purchaseOrders.requestedBy`) nunca puede aprobarlo
-- Tests: `lib/services/approval-matrix-service.test.ts` (13)
+### Servicios (`lib/services/`)
+- `folio-generator.ts`: `formatFolio`, `parseFolio` (regex anclada; descarta DRAFT-*), `draftFolio()`, `nextFolio({companyId,branchId,docType,tx?})` (lanza ApiError 400 accionable si la sucursal no tiene code), `findFolioGaps(companyId)` (auditoría §6).
+- `approval-matrix-service.ts`: puros `matchesRange`/`defaultMatrixRules`/`buildChain`/`nextPendingLevel`/`denyApproval` (ROLE|SELF|NOT_CURRENT_LEVEL)/`validateMatrixRules` · BD `resolveApprovalChain` (seed perezoso), `replaceMatrixRules` (PUT transaccional), `createApprovalRequests({...tx?})`, `approveRequest(id,actorId,actorRole,companyId?)`, `rejectRequest(...,reason,companyId?)` (al aprobar último nivel cierra el doc; rechazo lo manda a REJECTED de inmediato), **`listApprovalInbox`** (bandeja actionable: nivel mínimo pendiente + rol suficiente + excluye SELF + filtro sucursal opcional; enriquecida con folio/monto/tipo/sucursal/centro).
+- `budget-service.ts`: puros `computeBudgetStatus`/`evaluateEmergencyCap` · BD `getBudget`, `getCommitted` (OS_COMMITTING_STATUSES=APPROVED..CLOSED; OC=APPROVED|SENT|PARTIALLY_RECEIVED|CLOSED), `checkBudgetAvailability`, `validateEmergencyCap`, **`getCommittedByPair`** (bulk 2 queries para grids/bandeja), **`getEmergencyCapUsage`**.
+- `service-order-service.ts`: `listOrders` (filtros status/type/branch, paginación, joins nombres) · `getOrderDetail` (order enriquecida con branchName/Code, costCenterCode/Name, supplierName + quotes + evidence + approvals por nivel) · `createDraft` (valida FKs contra la empresa) · `updateDraft` (solo DRAFT) · `submitOrder` (**UNA tx**: cadena→cotizaciones ≥ max(minQuotes)→presupuesto o tope emergencia→`nextFolio({tx})`→UPDATE condicional `WHERE status='DRAFT'`(0 filas=409 y rollback devuelve el consecutivo)→approvals→PENDING_APPROVAL) · `transitionOrder` (schedule/start/complete/cancel con guard pura `actionTransitionError`) · `addQuote` (solo DRAFT) · `addEvidence` (bloqueada solo en terminales) · `signConformity` (GERENTE+ y PENDING_CONFORMITY→CLOSED+signedBy/At+completedAt; guard pura `conformityDenial` distingue ROLE→403/STATUS→409).
+- Tests: `folio-generator.test.ts` (12) · `approval-matrix-service.test.ts` (23+) · `budget-service.test.ts` (12) · `service-order-workflow.test.ts` (10 guardias puras).
 
-### Task 4 ✅ — Presupuesto y tope de emergencias (migración `drizzle/0063_square_mister_sinister.sql`)
-`lib/services/budget-service.ts`:
-- Puros: `computeBudgetStatus(budgeted, commitments[])`, `evaluateEmergencyCap(cap|null, used, newAmount)` (límite inclusivo; cap null = permitido siempre)
-- BD: `getBudget`, `getCommitted` (OS_COMMITTING_STATUSES = APPROVED..CLOSED; OC_COMMITTING_STATUSES = APPROVED|SENT|PARTIALLY_RECEIVED|CLOSED; mes por `to_char(created_at,'YYYY-MM')`; docs sin costCenterId no se atribuyen), `checkBudgetAvailability`, `getEmergencyUsage` (OC EMERGENCIA + OS EMERGENCIA), `validateEmergencyCap(companyId, branchId, month, pendingAmount)`
-- Integración operating-config existente: columna `emergency_purchase_cap_cents` + campo en `components/company/operating-config-form.tsx` ("Vacío = sin tope") + zod en `app/api/company/operating-config/route.ts` + default `null` en `DEFAULT_TENANT_OPERATING_CONFIG` (`tenant-config-service.ts`)
-- Tests: `lib/services/budget-service.test.ts` (12)
+### APIs
+```
+app/api/service-orders/route.ts              GET lista · POST borrador
+app/api/service-orders/[id]/route.ts         GET detalle · PATCH solo-DRAFT · PATCH {action:schedule|start|complete|cancel}
+app/api/service-orders/[id]/submit/route.ts  POST submit (matriz+presupuesto+folio en 1 tx)
+app/api/service-orders/[id]/quotes/route.ts   POST (solo DRAFT)
+app/api/service-orders/[id]/evidence/route.ts POST ANTES|DESPUES
+app/api/service-orders/[id]/conformity/route.ts POST GERENTE+ PENDING_CONFORMITY→CLOSED
+app/api/approval-requests/route.ts            GET bandeja (items con budget/emergency enriquecidos)
+app/api/approval-requests/[id]/approve|reject POST (denial ROLE/SELF→403, NOT_CURRENT_LEVEL→409; reject exige reason≥3)
+app/api/approval-matrix/route.ts              GET ?docType · PUT reemplaza matriz (ADMIN+, validateMatrixRules)
+app/api/cost-centers/route.ts                 GET · POST ADMIN+ (unique company+code→409)
+app/api/budgets/route.ts                      GET grid mensual (budgeted/committed/available/alert≥90%) · PUT upsert ADMIN+
+```
+⚠️ `app/api/approvals/` YA EXISTE (turnos RH, ShiftApprovalService) — la bandeja OC/OS vive en `app/api/approval-requests/`. NO colisionar.
+**Integración OC** (Task 6): `purchase-order-service.submitForApproval(id,userId,companyId?)` exige DRAFT+total>0+purchaseType asignado → cadena 'OC' → presupuesto/emergencia → TX folio real `OC-[SUC]-...`(+folioYear/folioSequence)+approvals. `approvePO/rejectPO` lanzan 409 si hay requests PENDING (usar bandeja). PATCH de PO acepta `purchaseType`/`costCenterId`; GET scoped por tenant. Retrocompatible: OC ya enviadas antes de la matriz no pasan por ella.
 
-### Task 5a ✅ — API service-orders CRUD + submit (commit `7aa9b80`)
-`lib/services/service-order-service.ts` + rutas:
-- `app/api/service-orders/route.ts`: GET lista (filtros branchId/status/type, paginación, joins a branch/supplier/cost-center; el alcance del tenant manda sobre query params para GERENTE/SUPERVISOR) · POST crea borrador (zod; folio=`draftFolio()`; valida que branch/supplier/costCenter pertenezcan a la empresa)
-- `app/api/service-orders/[id]/route.ts`: GET detalle (order+quotes+evidence+approvals ordenados por nivel) · PATCH solo DRAFT (campos permitidos, mismas validaciones FK)
-- `app/api/service-orders/[id]/submit/route.ts`: POST delega en `submitOrder(companyId, id)`:
-  1. Orden scoped por companyId; solo DRAFT; amount>0 requerido
-  2. `resolveApprovalChain('OS', amount)` — cadena vacía → 400 accionable
-  3. Cotizaciones existentes ≥ max(minQuotes de la cadena) → 400 con required/current
-  4. Mes de atribución = mes de `created_at` del doc (misma base que `getCommitted`): EMERGENCIA → `validateEmergencyCap` (sin costCenter requerido); resto → costCenterId obligatorio + `checkBudgetAvailability`
-  5. TX atómica: `nextFolio({tx})` reemplaza placeholder → UPDATE condicional `WHERE status='DRAFT'` (0 filas = submit concurrente → 409 y rollback devuelve el consecutivo, sin saltos) → `createApprovalRequests({tx})` → PENDING_APPROVAL
-- `createApprovalRequests` ahora acepta `tx?: Tx` opcional (retrocompatible)
-- Errores `ApiError` mapeados a su statusCode vía `isApiError`; permisos módulo `inventory` (read/create/update)
+### UI (Task 7)
+- `hooks/queries/use-service-orders.ts` (+exportado en index.ts): `useServiceOrders/useServiceOrder/useCreateServiceOrder/useUpdateServiceOrder/useTransitionServiceOrder/useSubmitServiceOrder/useAddQuote/useAddEvidence/useSignConformity/useApproveRequest()/useRejectRequest()`(sin id param; reciben requestId)/`useCostCenters`.
+- `app/dashboard/service-orders/page.tsx`: lista con filtros estado/tipo, paginación, badges, diálogo creación (sucursal deshabilitada si rol fijo vía `useBranch`).
+- `app/dashboard/service-orders/[id]/page.tsx`: detalle con acciones estado×rol (aprobar/rechazar solo nivel corriente + `roleIsAtLeast` client-side + excluye creador), timeline "En turno", galería ANTES/DESPUES con `usePhotoUpload` (R2 presignado `/api/upload`), QuoteDialog (file o URL), EditDraftDialog.
+- Sidebar `components/app-sidebar.tsx`: sección nueva **"Control"** (icon ClipboardCheck) con "Órdenes de Servicio" — ahí agregar Aprobaciones (Task 8) y Presupuestos (Task 9).
+- Patrones UI aprendidos: `PageHeader` usa prop **`actions?: ReactNode`** (NO `action`/badge string) · `EmptyState` usa **`action={{label, onClick|href}}`** (no nodo) · rol client-side: `useSession()` + `roleIsAtLeast(user.role, required)` (lib/permissions es puro, importable en cliente) · dinero input pesos → `Math.round(parseFloat*100)`.
 
-### Task 5b ✅ — quotes / evidence / conformity + transiciones (commit `41bcae3`)
-- `app/api/service-orders/[id]/quotes/route.ts`: POST cotización {url (de `/api/upload`, R2 presignado), supplierName?, amount¢?, notes?} — solo en DRAFT (guard pura `quoteGuardError`)
-- `app/api/service-orders/[id]/evidence/route.ts`: POST evidencia ANTES|DESPUES con uploadedBy=user.id — bloqueada solo en terminales (CLOSED/REJECTED/CANCELLED)
-- `app/api/service-orders/[id]/conformity/route.ts`: POST firma — doble verificación GERENTE+ (ruta con `roleIsAtLeast` → 403 y servicio con `conformityDenial` → 403 ROLE/409 STATUS); solo PENDING_CONFORMITY → CLOSED + conformitySignedBy(displayName)/At + completedAt
-- PATCH `[id]` extendido con `body.action`: máquina de estados APPROVED→(schedule)→SCHEDULED→(start)→IN_PROGRESS→(complete)→PENDING_CONFORMITY; cancel desde DRAFT/PENDING_APPROVAL/APPROVED/SCHEDULED. Guardias puras exportadas y testeadas en `service-order-workflow.test.ts` (10 tests)
+## 4. DATOS DEMO EN BD (para desarrollar/pruebas)
 
-### Task 6 ✅ — APIs de aprobaciones, matriz, catálogos + integración OC (commit `95d1c2c`)
-- `app/api/approval-requests/route.ts`: GET bandeja actionable — solo requests PENDING cuyo nivel es el mínimo pendiente de su doc, con `roleIsAtLeast(actorRole, requiredRole)` y excluyendo SELF; enriquecida con contexto doc (folio/monto/sucursal/centro/tipo) y presupuesto restante (`checkBudgetAvailability` cacheado por sucursal×centro×mes) o cap emergencias (`getEmergencyCapUsage` nuevo en budget-service)
-- `app/api/approval-requests/[id]/approve|reject/route.ts`: guard multi-tenant (companyId opcional añadido a approveRequest/rejectRequest); denegaciones ROLE/SELF→403, NOT_CURRENT_LEVEL→409 con mensajes humanos; reject exige reason ≥3 chars
-- `lib/services/approval-matrix-service.ts`: `validateMatrixRules` pura (traslape entre activas=ERROR, hueco=WARNING recomendado, rol desconocido=fail-closed) + `replaceMatrixRules` (delete+insert en tx, semántica PUT) + `listApprovalInbox`; 7 tests nuevos (334→348 total suite)
-- `app/api/approval-matrix/route.ts`: GET ?docType / PUT reemplaza matriz completa por tipo (ADMIN+)
-- `app/api/cost-centers/route.ts`: GET (?includeInactive) / POST ADMIN+ (unique company+code →409)
-- `app/api/budgets/route.ts`: GET grid mensual sucursales×centros con budgeted/committed/available/alerta≥90%; PUT upsert ADMIN+ por sucursal×centro×mes; `getCommittedByPair` bulk en budget-service (2 queries, sin N+1)
-- **Integración OC** (`purchase-order-service.submitForApproval(id, userId, companyId?)`): status DRAFT + total>0 + purchaseType asignado requeridos → cadena matriz OC (vacía→400) → EMERGENCIA→cap / resto→costCenter obligatorio+budget → TX atómica: folio real `OC-[SUC]-[AÑO]-[N]` (+folioYear/folioSequence) WHERE status='DRAFT' + approvals → PENDING_APPROVAL + audit log. `approvePO/rejectPO` ahora lanzan 409 si hay requests PENDING de matriz (usar bandeja). Ruta `[id]`: GET/PATCH scoped por tenant, allowedFields += purchaseType/costCenterId, ApiError mapeado
+- Usuarios (password **`123456`**, seeds `scripts/seed-passwords.ts`): carlos@pulso.mx SUPER_ADMIN(Roma) · maria@pulso.mx ADMIN(Condesa, alcance empresa) · juan@pulso.mx GERENTE(**fijo Condesa**) · ana@pulso.mx SUPERVISOR(**fija Polanco**) · pedro/luisa/roberto EMPLEADO · diana READONLY.
+- COMPANY_ID `a1b2c3d4-e5f6-7890-abcd-ef1234567890` · Branches: Condesa=`b1000001-...-0001` code **CDMX01**, Polanco=`…0002` code **PLNC01**, Roma=`…0003` sin code · CostCenter MANT=`b805b372-65d3-4c0f-9dbe-19ef903cbce4`.
+- Presupuestos mes corriente: CDMX01 $50,000 · PLNC01 $20,000.
+- Documentos vivos: OS1 `OS-CDMX01-2026-0001` CLOSED · OS2 `OS-PLNC01-2026-0001` APPROVED · OS3 `OS-PLNC01-2026-0002` APPROVED · OS-emergencia `OS-PLNC01-2026-0003` PENDING_APPROVAL · OC `OC-CDMX01-2026-0001` APPROVED · 1 draft Condesa + 1 cancelada.
+- Login API: `POST /api/auth/sign-in/email {"email","password"}` con cookie jar.
 
----
+## 5. TAREAS PENDIENTES (marcar aquí Y en plan/todo al avanzar + commit)
 
-12. **Matriz default = bandas disjuntas** (1 nivel por monto). Para cadenas multi-nivel el admin configura reglas traslapadas con secuencias distintas (GERENTE seq1 [0,∞] + ADMIN seq2 [0,∞]); soportado por el validador desde `f4fee9b`.
-## 4. TAREAS PENDIENTES (fuente de verdad — actualizar este documento al avanzar)
+### Checkpoints Foundation/Business/APIs ✅ · Phase 4 UI: Task 7 ✅
 
-> Convención: marcar `[x]` aquí Y en `tasks/plan-ordenes-oc-os.md` + `tasks/todo-ordenes-oc-os.md`, y añadir el commit.
+### Phase 4 (restante)
+- [ ] **Task 8 — Bandeja de aprobaciones + editor de matriz** ← SIGUIENTE
+  - `app/dashboard/approvals/page.tsx`: consume `GET /api/approval-requests` (ya devuelve items enriquecidos con `budget.available`, `emergency.cap/used`, folio, monto, nivel, rol requerido, tipo). Agrupar por documento; botones aprobar/rechazar (motivo) → `POST /api/approval-requests/[id]/approve|reject`. Crear hook `useApprovalInbox()` en `use-service-orders.ts` (o nuevo archivo). Mostrar presupuesto restante por ítem (ya viene en la respuesta).
+  - `app/dashboard/company/approval-matrix/page.tsx`: editor GET/PUT `/api/approval-matrix` (ADMIN+; ocultar pestañas si no). Reglas editables (min/max ¢, rol select de APPROVER_ROLES_HIERARCHY, minQuotes, sequence, active). Mostrar warnings del PUT (huecos) como avisos no bloqueantes y errores inline. **Ubicación: junto al operating-config bajo /dashboard/company, NO en settings/** (patrón página cliente + API de `operating-config-form.tsx`).
+  - Agregar entradas al sidebar sección "Control".
+- [ ] **Task 9 — `app/dashboard/budgets/page.tsx`**: selector mes (`GET /api/budgets?month=YYYY-MM` ya devuelve grid completo sucursales×centros con `alert` ≥90%) + captura celda a celda con `PUT /api/budgets` (ADMIN+: ocultar/deshabilitar edición para el resto). Barra consumo vs presupuestado.
 
-### Checkpoint Foundation ✅ · Checkpoint Business Logic ✅
+### Phase 5
+- [ ] **Task 10 — Dashboard KPIs**: `app/dashboard/reports/control/page.tsx` + `app/api/reports/control/route.ts`. Food cost % real vs teórico (recipes/sales-entry), gasto operativo %, presupuesto vs ejecutado por partida (usar `getCommittedByPair`), comparativo precios por insumo entre sucursales, ranking proveedores, % emergencias (<5% meta), desviación presupuestal. **Metas desde `tenant_operating_config`** (decisión #10; defaults `DEFAULT_FINANCIAL_TARGETS` en financial-kpi-types). Patrón Recharts de reports/executive. Filtro mes/sucursal.
+- [ ] **Task 11 — Job Inngest mensual** `lib/inngest/functions/control-monthly-report.ts`: desviaciones, `findFolioGaps`, contratos por vencer ≤90 días (Phase 6), domiciliados desviados → `NotificationDispatcher` a OWNER/ADMIN. Cron `0 6 1 * *` (o similar). Registrar en `app/api/inngest/route.ts`.
 
-### Phase 3: APIs ✅
-- [x] **Task 5a — API service-orders CRUD + submit** ✅ commit `7aa9b80` (ver detalle en §3)
-- [x] **Task 5b — quotes / evidence / conformity** ✅ commit `41bcae3` (ver detalle en §3); incluye transiciones operativas schedule/start/complete/cancel en PATCH `[id]`
-- [x] **Task 6 — APIs aprobaciones, matriz, centros, presupuestos + integración OC** ✅ commit `95d1c2c` (ver detalle en §3)
+### Phase 6 — Contratos y recurrentes
+- [ ] **Task 12** tabla `supplierContracts` (payee/supplier nullable, scope, monto ¢, vigencia, escalación INPC bool, paymentMethod CORRIDA|DOMICILIADO|TRANSFERENCIA, día cargo, partida, urlContrato, activo) — migración SIN drops.
+- [ ] **Task 13** CRUD `app/api/contracts/**` (ADMIN+ escribir); flag REQUIERE_INVESTIGACION si factura vs contrato >10%; alerta renovación ≤90 días 1 vez/mes.
+- [ ] **Task 14** domiciliados: esperado vs cargos reales del mes (`cfdiRecibidos`/expenses del payee); alertas desviación/cargo ausente/suscripción huérfana.
+- [ ] **Task 15** `app/dashboard/contracts/page.tsx` (badges vigencia verde/ámbar≤90d/rojo, calendario cargos, editor básico).
 
-### Checkpoint: APIs ✅
-- [x] Flujo end-to-end verificado contra dev server (2026-08-25; usuarios demo password `123456`; helpers `scratch/e2e-helpers.sh`):
-  - Setup ADMIN: codes CDMX01/PLNC01 · centro MANT · presupuestos $50k/$20k mes corriente
-  - **OS ciclo completo**: juan(GERENTE) crea DRAFT-* → submit sin cotizaciones=400 → 2 quotes → submit folio `OS-CDMX01-2026-0001` PENDING_APPROVAL → bandeja filtrada por rol/sucursal → ana 403 ROLE · juan 403 SELF · maria aprueba→APPROVED → schedule/start(+evidencias ANTES/DESPUES)/complete → conformidad ana 403 · maria→CLOSED firmado
-  - **Multi-nivel**: matriz acumulativa PUT (GERENTE seq1 [0,∞] + ADMIN seq2 [0,∞]) → OS3 folio `OS-PLNC01-2026-0002` con 2 niveles → maria nivel2 prematuro=409 → juan nivel1 (doc sigue pendiente) → maria nivel2→APPROVED. Bandeja correctamente oculta niveles no corrientes
-  - **Negativas**: presupuesto $5k vs comprometido $8k → 400 con desglose; EMERGENCIA sin centro ni budget pasa (cap null) pero exige cotizaciones mínimas; cancel desde PENDING_APPROVAL OK; quote post-aprobación 409
-  - **OC**: draft PO-2026-0561 → PATCH centro → submit → folio `OC-CDMX01-2026-0001` (+folioYear/Sequence) → approve directo bloqueado 409 → maria via bandeja → APPROVED+approvedBy
-  - **Auditoría final**: findFolioGaps SIN HUECOS · comprometido exacto ($14,000 CDMX01 = OS1+OC; $7,000 PLNC01 = OS2+OS3)
-  - **Fix destapado por el e2e** (`f4fee9b`): validateMatrixRules permite traslapes con secuencias distintas (cadenas acumulativas multi-nivel); error solo si el traslape comparte secuencia
-
-### Phase 4: UI
-- [x] **Task 7** ✅ commit `9f83b59` (2026-08-25): lista `/dashboard/service-orders` (filtros estado/tipo, paginación, badges urgencia/estado, diálogo creación con sucursal+centro de costo) · detalle `[id]` (info enriquecida, timeline autorización con 'En turno', cotizaciones, galería ANTES/DESPUES con upload R2 vía usePhotoUpload, acciones estado×rol: editar/enviar/cancelar, aprobar/rechazar nivel corriente excluyendo creador, programar/iniciar/completar, conformidad GERENTE+) · sección 'Control' en sidebar · hooks react-query en `hooks/queries/use-service-orders.ts`. Build verde, rutas 200 con sesión real, lint limpio
-- [ ] **Task 8** — `app/dashboard/approvals/page.tsx` (bandeja agrupada, presupuesto restante, aprobar/rechazar con razón) + editor de matriz en `app/dashboard/company/approval-matrix/page.tsx` (junto a operating-config, patrón página cliente + API; NO en settings/)
-- [ ] **Task 9** — `app/dashboard/budgets/page.tsx`: catálogo centros + grid mensual por sucursal/partida + barra consumo vs presupuestado (alerta ≥90%)
-
-### Phase 5: KPIs y automatización
-- [ ] **Task 10** — `app/dashboard/reports/control/page.tsx` + `app/api/reports/control/route.ts`: food cost % real vs teórico (recipes/sales-entry), gasto operativo % (OS/ventas), presupuesto vs ejecutado por partida, comparativo precios por insumo entre sucursales, ranking proveedores, % emergencias (<5%), desviación presupuestal. Metas desde `tenant_operating_config` (decisión #10). Filtro mes/sucursal
-- [ ] **Task 11** — Job Inngest mensual `lib/inngest/functions/control-monthly-report.ts`: desviaciones, `findFolioGaps`, contratos por vencer ≤90 días (Phase 6), domiciliados desviados → NotificationDispatcher a OWNER/ADMIN. Registrar en `app/api/inngest/route.ts`
-
-### Phase 6: Contratos y recurrentes
-- [ ] **Task 12** — tabla `supplierContracts` (payee/supplier nullable, scope, monto ¢, vigencia, escalación INPC bool, paymentMethod CORRIDA|DOMICILIADO|TRANSFERENCIA, día cargo, partida, urlContrato, activo) — migración sin drops
-- [ ] **Task 13** — CRUD `app/api/contracts/**` (ADMIN+ escribir); flag REQUIERE_INVESTIGACION si factura vs contrato varía >10%; alerta renovación ≤90 días una vez por contrato/mes
-- [ ] **Task 14** — domiciliados: esperado vs cargos reales del mes (`cfdiRecibidos`/expenses del payee); alertas por desviación, cargo ausente, suscripción huérfana (sin consumo en trimestre)
-- [ ] **Task 15** — `app/dashboard/contracts/page.tsx` (badges vigencia verde/ámbar≤90d/rojo, calendario de cargos, editor básico)
-
-### Phase 7: KPIs extendidos (amplían Task 10)
-- [ ] Cumplimiento proveedor (entregas a tiempo vs expectedDeliveryDate) · días de inventario (kardex) · % egresos sin documento origen (<2%) · % correctivo vs preventivo (<40%) · contratos vencidos (0)
-- Excluido explícitamente: comparativo kWh (sin captura energética), auditorías físicas sorpresa (proceso humano), par levels (módulo inventory existente)
+### Phase 7 — KPIs extendidos (amplían Task 10)
+Cumplimiento proveedor (entregas vs expectedDeliveryDate) · días de inventario (kardex) · % egresos sin documento origen (<2%) · % correctivo vs preventivo (<40%) · contratos vencidos (0). Excluido: kWh, auditorías físicas, par levels.
 
 ### Checkpoint final
-- [ ] Flujo end-to-end demostrable (OS→aprobación→evidencia→conformidad; OC→matriz→recepción→conciliación) + KPIs con datos demo + `pnpm run build && pnpm run lint` verdes
+Flujo end-to-end demostrable + KPIs con datos demo + `pnpm run build && pnpm run lint` verdes.
 
----
+## 6. Gotchas acumulados (leídos y sufridos en sesión)
 
-## 5. Gotchas para el agente (leídos de esta sesión)
+1. **`ApiError(mensaje, statusCode)`** — mensaje PRIMERO. Mapear en rutas con `isApiError(error)` → `{error.message}, status statusCode` (hay ejemplos en todas las rutas nuevas).
+2. **`db.transaction` funciona** porque driver `neon-serverless` + WebSocket. No cambiar a neon-http.
+3. **Scripts tsx**: primera línea `import "dotenv/config";` (hoisting ESM). Alias `@/` funciona.
+4. **Git Bash `/tmp` NO existe para Python de Windows**: archivos intermedios curl↔python usar rutas del proyecto (`scratch/...`).
+5. **Build Turbopack**: tras editar barrel exports (`hooks/queries/index.ts`) puede quedar caché stale ("Export X doesn't exist") → `rm -rf .next/cache` y rebuild. El warning "Error loading document stats …/dashboard/labor/documents" es PREEXISTENTE e inocuo (juzgar por exit code).
+6. **`.next/lock`**: builds paralelos (workstream paralelo o pipelines truncados) lo retienen → loop espera 10 s; nunca db:push; migraciones solo `pnpm db:generate` + revisar SQL + `pnpm db:migrate` (61-63 aplicadas; **0064 es del workstream paralelo**).
+7. **Dinero SIEMPRE centavos integer · meses "YYYY-MM" · rangos matriz inclusivos**.
+8. **Tests unitarios** vitest: solo lógica pura (`pnpm test:unit`, globs `lib/**/*.test.ts`, `tests/unit/**`). TS con `strict:false` NO hace narrowing por negación de discriminantes (`if (!v.ok)` falla) → usar `if (v.ok === false)` o `"error" in v`.
+9. **Uploads R2**: `usePhotoUpload()` (components/shared) hace presign `/api/upload` + PUT; devuelve `{url,key,name}`. Sin R2 configurado fallará (fallback local pendiente de validar).
+10. **agent_browser (tool) roto esta sesión** con "live daemon restore policy" aunque `doctor` pasa — verificar UI vía HTTP con cookie jar o pedir al usuario revisión manual.
+11. **Bandeja y scoping**: GERENTE/SUPERVISOR ven solo su sucursal (tenant.branchId fijo); ADMIN/OWNER/SUPER_ADMIN ven toda la empresa salvo cookie de sucursal. Los requests de niveles futuros NO aparecen en la bandeja (solo nivel corriente).
+12. **i18n**: UI en español, sin next-intl en estas páginas (convención del dashboard).
 
-1. **`ApiError(mensaje, statusCode)`** — mensaje PRIMERO (clase en `lib/api/error.ts`). No invertir.
-2. **Rutas API**: `app/api/approvals/` está tomado por turnos RH → bandeja OC/OS en `app/api/approval-requests/`.
-3. **Folio en submit, no en draft**: crear OS con `draftFolio()`; `parseFolio()` lo descarta para que `findFolioGaps` no lo audite.
-4. **Sucursal sin `code`** → `nextFolio` lanza 400 con mensaje accionable; las sucursales demo aún no tienen código asignado.
-5. **Transacciones**: `db.transaction` solo funciona porque `lib/db/index.ts` usa driver `neon-serverless` + WebSocket (`ws`). No cambiar a neon-http.
-6. **Scripts tsx**: primera línea `import "dotenv/config";` — los imports ESM se hoistean, un `config()` normal corre DESPUÉS de inicializar `lib/db` y falla sin DATABASE_URL. Alias `@/` funciona en tsx.
-7. **Tests unitarios** (`pnpm test:unit`, vitest): solo lógica pura, sin DB ni browser. Globs: `lib/**/*.test.ts`, `tests/unit/**/*.test.ts`.
-8. **Dinero SIEMPRE en centavos integer.** Meses como string "YYYY-MM". Rangos de matriz inclusivos en ambos extremos.
-9. **Migraciones**: `pnpm db:generate` y REVISAR el SQL antes de `pnpm db:migrate` (nunca `db:push`). Las 3 migraciones de este plan (61-63) están aplicadas.
-10. **Build**: warning "Error loading document stats … /dashboard/labor/documents" es PREEXISTENTE y no fatal — juzgar por exit code.
-11. **i18n**: UI en español (convención del dashboard); usar `next-intl` si las páginas existentes lo hacen.
+## 7. Open questions heredados
+- ¿Conformidad con firma digital real o basta userId+timestamp? (implementación actual: registro simple nombre+fecha)
+- Contrato firmado para >$100K (doc §4): sin campo aún → Phase 6 (contracts) probablemente.
+- Calidad de datos recipes/sales-entry para food cost teórico antes de Task 10.
 
-## 6. Open questions heredados (decidir durante Tasks 5–8)
-
-- ¿Conformidad exige firma digital real o basta userId+timestamp? *(implementación actual asume registro simple)*
-- Contrato firmado para >$100K (doc §4): no hay campo aún; considerar `requiresContract` en rules o dejarlo a Phase 6 (contracts).
-- Calidad de datos de recipes/sales-entry para food cost teórico antes de Task 10.
-
-## 7. Comandos rápidos
-
+## 8. Comandos rápidos
 ```bash
-pnpm test:unit                 # 317 tests (37 nuevos de este plan)
-pnpm run build                 # verificar antes de commit
-npx tsx scratch/verify-folio-generator.ts   # concurrencia de folios (rollback, deja BD intacta)
+pnpm test:unit                  # 360 tests (suite completa)
+pnpm run build                  # juzgar por exit code (warning labor/documents preexistente)
+npx tsx scratch/check-folio-gaps.ts          # auditoría findFolioGaps (empresa demo)
+# helpers e2e con login por rol: scratch/e2e-helpers.sh (BASE localhost:3000; requiere dev server)
 npx inngest-cli@latest dev -u http://localhost:3000/api/inngest   # para Task 11
 ```
