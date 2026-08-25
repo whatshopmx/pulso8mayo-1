@@ -36,7 +36,7 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 
 ## Checkpoint: APIs
 
-- [ ] Flujo end-to-end via API: OS→submit→aprobaciones→conformidad→CLOSED; OC nueva con folio nuevo (requiere dev server + curl)
+- [x] Flujo end-to-end via API verificado contra dev server (OS→submit→aprobaciones multi-nivel→conformidad→CLOSED; OC nueva con folio `OC-CDMX01-2026-0001`; findFolioGaps sin huecos)
 
 ## Phase 4: UI
 

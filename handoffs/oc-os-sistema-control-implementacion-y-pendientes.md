@@ -16,7 +16,7 @@
 | `95d1c2c` | Task 6 — APIs aprobaciones/matriz/centros/presupuestos + integración OC (matriz+folio real en OC) |
 *(Nota: `d6fcc0a` commiteó trabajo fiscal suelto previo que compartía el working tree; no pertenece a este plan.)*
 
-**Estado al cierre:** ✅ **Phase 1 (Fundaciones), Phase 2 (Business Logic) y Phase 3 (APIs: Tasks 5a+5b+6) completas y verificadas** — migraciones aplicadas sin destructivos, 31 tests unitarios nuevos del plan (348 total), `pnpm run build` exit 0, concurrencia real del generador de folios verificada contra Neon (8 transacciones paralelas → 8 folios únicos consecutivos).
+**Estado al cierre:** ✅ **Phases 1–3 completas + Checkpoint de APIs verificado E2E contra dev server** (flujo OS completo con multi-nivel, OC con folio nuevo, auditoría de folios sin huecos; ver Checkpoint: APIs) — migraciones aplicadas sin destructivos, 31 tests unitarios nuevos del plan (348 total), `pnpm run build` exit 0, concurrencia real del generador de folios verificada contra Neon (8 transacciones paralelas → 8 folios únicos consecutivos).
 **Cambios sin commitear:** `app/dashboard/inventory/expirations/page.tsx` modificado pero ajeno a este plan (no tocar).
 
 ---
@@ -26,7 +26,7 @@
 Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.md`: Órdenes de Servicio como módulo independiente con evidencia y conformidad, matriz de autorización multi-nivel configurable por monto, presupuesto mensual por sucursal×centro de costo×partida, folios `OC/OS-[SUC]-[AÑO]-[N]` sin saltos, tope mensual de compras de emergencia y dashboard de KPIs gerenciales.
 
 **Ya terminado:** datos (1), folios (2), lógica de aprobación (3), presupuesto/emergencias (4), API OS CRUD+submit (5a), quotes/evidence/conformity+transiciones (5b) y APIs de aprobaciones/catálogos/integración OC (6). **Phase 3 completa.**
-**Siguiente paso concreto:** **Checkpoint de APIs** (opcional, requiere dev server): flujo OS→submit→aprobar niveles→conformidad→CLOSED vía curl. Después **Task 7** — `app/dashboard/service-orders/page.tsx` (lista+filtros, patrón purchase-orders) y `[id]/page.tsx` (timeline aprobaciones, galería ANTES/DESPUES, acciones según estado×rol) + entrada en sidebar.
+**Siguiente paso concreto:** **Task 7** — `app/dashboard/service-orders/page.tsx` (lista+filtros, patrón purchase-orders) y `[id]/page.tsx` (timeline aprobaciones, galería ANTES/DESPUES, acciones según estado×rol) + entrada en sidebar.
 
 ---
 
@@ -105,6 +105,7 @@ Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.m
 
 ---
 
+12. **Matriz default = bandas disjuntas** (1 nivel por monto). Para cadenas multi-nivel el admin configura reglas traslapadas con secuencias distintas (GERENTE seq1 [0,∞] + ADMIN seq2 [0,∞]); soportado por el validador desde `f4fee9b`.
 ## 4. TAREAS PENDIENTES (fuente de verdad — actualizar este documento al avanzar)
 
 > Convención: marcar `[x]` aquí Y en `tasks/plan-ordenes-oc-os.md` + `tasks/todo-ordenes-oc-os.md`, y añadir el commit.
@@ -115,14 +116,16 @@ Se construye el sistema documental-financiero OC/OS descrito en `finzasordenes.m
 - [x] **Task 5a — API service-orders CRUD + submit** ✅ commit `7aa9b80` (ver detalle en §3)
 - [x] **Task 5b — quotes / evidence / conformity** ✅ commit `41bcae3` (ver detalle en §3); incluye transiciones operativas schedule/start/complete/cancel en PATCH `[id]`
 - [x] **Task 6 — APIs aprobaciones, matriz, centros, presupuestos + integración OC** ✅ commit `95d1c2c` (ver detalle en §3)
-  - `[id]/quotes` POST (adjuntar URL R2/local-fallback, mismo patrón que workflows)
-  - `[id]/evidence` POST (ANTES|DESPUES)
-  - `[id]/conformity` POST — solo rol GERENTE+, solo estado PENDING_CONFORMITY → CLOSED (+signedBy/At)
-- [ ] **Task 6 — APIs aprobaciones, matriz, centros, presupuestos + integración OC**
-  - ⚠️ **`app/api/approvals/` YA EXISTE (turnos RH, ShiftApprovalService) — NO colisionar**: usar `app/api/approval-requests/route.ts` (GET bandeja del rol), `[id]/approve/route.ts`, `[id]/reject/route.ts` (delegan en approveRequest/rejectRequest del servicio; denial→mapear a 403/409 con mensaje humano)
-  - `app/api/approval-matrix/route.ts` GET/PUT (solo ADMIN+; validar traslape de rangos y contigüidad recomendada)
-  - `app/api/cost-centers/route.ts` GET/POST · `app/api/budgets/route.ts` GET/PUT por mes
-  - Extender submit de OC (`app/api/inventory/purchase-orders/`): purchaseType+costCenterId obligatorios al enviar, misma cadena/presupuesto/folio que OS (`poNumber` ← `nextFolio`, poblar folioYear/folioSequence). Retrocompatibilidad: OC ya enviadas no requieren matriz.
+
+### Checkpoint: APIs ✅
+- [x] Flujo end-to-end verificado contra dev server (2026-08-25; usuarios demo password `123456`; helpers `scratch/e2e-helpers.sh`):
+  - Setup ADMIN: codes CDMX01/PLNC01 · centro MANT · presupuestos $50k/$20k mes corriente
+  - **OS ciclo completo**: juan(GERENTE) crea DRAFT-* → submit sin cotizaciones=400 → 2 quotes → submit folio `OS-CDMX01-2026-0001` PENDING_APPROVAL → bandeja filtrada por rol/sucursal → ana 403 ROLE · juan 403 SELF · maria aprueba→APPROVED → schedule/start(+evidencias ANTES/DESPUES)/complete → conformidad ana 403 · maria→CLOSED firmado
+  - **Multi-nivel**: matriz acumulativa PUT (GERENTE seq1 [0,∞] + ADMIN seq2 [0,∞]) → OS3 folio `OS-PLNC01-2026-0002` con 2 niveles → maria nivel2 prematuro=409 → juan nivel1 (doc sigue pendiente) → maria nivel2→APPROVED. Bandeja correctamente oculta niveles no corrientes
+  - **Negativas**: presupuesto $5k vs comprometido $8k → 400 con desglose; EMERGENCIA sin centro ni budget pasa (cap null) pero exige cotizaciones mínimas; cancel desde PENDING_APPROVAL OK; quote post-aprobación 409
+  - **OC**: draft PO-2026-0561 → PATCH centro → submit → folio `OC-CDMX01-2026-0001` (+folioYear/Sequence) → approve directo bloqueado 409 → maria via bandeja → APPROVED+approvedBy
+  - **Auditoría final**: findFolioGaps SIN HUECOS · comprometido exacto ($14,000 CDMX01 = OS1+OC; $7,000 PLNC01 = OS2+OS3)
+  - **Fix destapado por el e2e** (`f4fee9b`): validateMatrixRules permite traslapes con secuencias distintas (cadenas acumulativas multi-nivel); error solo si el traslape comparte secuencia
 
 ### Phase 4: UI
 - [ ] **Task 7** — `app/dashboard/service-orders/page.tsx` (lista+filtros+badges, patrón purchase-orders) y `[id]/page.tsx` (timeline aprobaciones, galería ANTES/DESPUES, acciones según estado×rol); entrada en sidebar/nav
