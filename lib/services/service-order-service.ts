@@ -19,6 +19,7 @@ import {
     checkBudgetAvailability,
     validateEmergencyCap,
 } from "@/lib/services/budget-service";
+import { roleIsAtLeast } from "@/lib/permissions";
 
 /**
  * Servicio de Órdenes de Servicio (finzasordenes.md).
@@ -293,6 +294,75 @@ function monthOf(date: Date): string {
     return date.toISOString().slice(0, 7); // "YYYY-MM" — misma base que to_char(created_at,'YYYY-MM') en budget-service
 }
 
+// ── Guardias de estado y rol (puras, cubiertas por service-order-workflow.test.ts) ──
+
+export type ServiceOrderAction = "schedule" | "start" | "complete" | "cancel";
+
+/** Estados desde los que una orden puede cancelarse manualmente. */
+const CANCELLABLE_STATUSES = new Set(["DRAFT", "PENDING_APPROVAL", "APPROVED", "SCHEDULED"]);
+/** Estados terminales: sin más evidencias ni cambios. */
+const TERMINAL_STATUSES = new Set(["CLOSED", "REJECTED", "CANCELLED"]);
+
+/**
+ * Transiciones manuales del ciclo operativo post-aprobación:
+ *   APPROVED → schedule → SCHEDULED → start → IN_PROGRESS → complete → PENDING_CONFORMITY
+ * La salida a CLOSED no va por aquí sino por la firma de conformidad.
+ */
+export function actionTransitionError(current: string, action: ServiceOrderAction): string | null {
+    switch (action) {
+        case "cancel":
+            return CANCELLABLE_STATUSES.has(current)
+                ? null
+                : `No se puede cancelar una orden en estado ${current}`;
+        case "schedule":
+            return current === "APPROVED"
+                ? null
+                : `Solo una orden aprobada puede programarse (estado actual: ${current})`;
+        case "start":
+            return current === "SCHEDULED"
+                ? null
+                : `Solo una orden programada puede iniciarse (estado actual: ${current})`;
+        case "complete":
+            return current === "IN_PROGRESS"
+                ? null
+                : `Solo una orden en ejecución puede marcarse como completada (estado actual: ${current})`;
+    }
+}
+
+export function quoteGuardError(current: string): string | null {
+    return current === "DRAFT"
+        ? null
+        : "Las cotizaciones solo se pueden adjuntar mientras la orden está en borrador";
+}
+
+export function evidenceGuardError(current: string): string | null {
+    return TERMINAL_STATUSES.has(current)
+        ? `No se puede subir evidencia de una orden en estado ${current}`
+        : null;
+}
+
+export type ConformityDenial =
+    | { kind: "ROLE"; message: string }
+    | { kind: "STATUS"; message: string }
+    | null;
+
+/** La conformidad la firma GERENTE+ y solo con el servicio ya ejecutado. */
+export function conformityDenial(
+    actorRole: string | null | undefined,
+    current: string,
+): ConformityDenial {
+    if (!actorRole || !roleIsAtLeast(actorRole, "GERENTE")) {
+        return { kind: "ROLE", message: "Solo un GERENTE o rol superior puede firmar la conformidad" };
+    }
+    if (current !== "PENDING_CONFORMITY") {
+        return {
+            kind: "STATUS",
+            message: `La conformidad se firma únicamente en estado PENDING_CONFORMITY (estado actual: ${current})`,
+        };
+    }
+    return null;
+}
+
 /**
  * Envía una OS en borrador a aprobación. Validaciones previas (lecturas fuera
  * de la transacción) + mutaciones atómicas dentro de ella:
@@ -413,4 +483,139 @@ export async function submitOrder(companyId: string, orderId: string): Promise<S
             approvalsCreated,
         };
     });
+}
+
+// ── Ciclo operativo post-aprobación (Task 5b) ──
+
+export async function transitionOrder(
+    companyId: string,
+    orderId: string,
+    action: ServiceOrderAction,
+    opts?: { scheduledDate?: Date | null },
+): Promise<ServiceOrderRow> {
+    const order = await loadCompanyOrder(companyId, orderId);
+    const guard = actionTransitionError(order.status, action);
+    if (guard) throw new ApiError(guard, 409);
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    switch (action) {
+        case "schedule":
+            updates.status = "SCHEDULED";
+            if (opts?.scheduledDate !== undefined) updates.scheduledDate = opts.scheduledDate;
+            break;
+        case "start":
+            updates.status = "IN_PROGRESS";
+            break;
+        case "complete":
+            updates.status = "PENDING_CONFORMITY";
+            break;
+        case "cancel":
+            updates.status = "CANCELLED";
+            break;
+    }
+
+    const [updated] = await db
+        .update(serviceOrders)
+        .set(updates)
+        .where(and(eq(serviceOrders.id, orderId), eq(serviceOrders.companyId, companyId)))
+        .returning();
+    return updated;
+}
+
+export interface AddQuoteInput {
+    url: string;
+    supplierName?: string | null;
+    amount?: number | null; // centavos
+    notes?: string | null;
+}
+
+/** Adjunta una cotización. La URL la genera `POST /api/upload` (R2 presignado). Solo en DRAFT. */
+export async function addQuote(
+    companyId: string,
+    orderId: string,
+    data: AddQuoteInput,
+): Promise<typeof serviceOrderQuotes.$inferSelect> {
+    const order = await loadCompanyOrder(companyId, orderId);
+    const guard = quoteGuardError(order.status);
+    if (guard) throw new ApiError(guard, 409);
+
+    const [row] = await db
+        .insert(serviceOrderQuotes)
+        .values({
+            serviceOrderId: orderId,
+            url: data.url,
+            supplierName: data.supplierName ?? null,
+            amount: data.amount ?? null,
+            notes: data.notes ?? null,
+        })
+        .returning();
+    return row;
+}
+
+export interface AddEvidenceInput {
+    type: "ANTES" | "DESPUES";
+    url: string;
+    description?: string | null;
+}
+
+/** Sube evidencia ANTES/DESPUES. Bloqueada solo en estados terminales. */
+export async function addEvidence(
+    companyId: string,
+    orderId: string,
+    data: AddEvidenceInput,
+    userId: string,
+): Promise<typeof serviceOrderEvidence.$inferSelect> {
+    const order = await loadCompanyOrder(companyId, orderId);
+    const guard = evidenceGuardError(order.status);
+    if (guard) throw new ApiError(guard, 409);
+
+    const [row] = await db
+        .insert(serviceOrderEvidence)
+        .values({
+            serviceOrderId: orderId,
+            type: data.type,
+            url: data.url,
+            description: data.description ?? null,
+            uploadedBy: userId,
+        })
+        .returning();
+    return row;
+}
+
+export interface ConformityActor {
+    id: string;
+    role: string | null | undefined;
+    /** Nombre a registrar en conformitySignedBy (fallback: email o id). */
+    displayName: string;
+}
+
+/**
+ * Firma de conformidad del gerente: PENDING_CONFORMITY → CLOSED.
+ * Registro simple userId+timestamp (open question del plan sobre firma digital).
+ * El rol se verifica aquí de nuevo — la ruta también lo hace, pero el servicio
+ * es el punto de verdad si se llama desde otro contexto.
+ */
+export async function signConformity(
+    companyId: string,
+    orderId: string,
+    actor: ConformityActor,
+): Promise<ServiceOrderRow> {
+    const order = await loadCompanyOrder(companyId, orderId);
+    const denial = conformityDenial(actor.role, order.status);
+    if (denial) {
+        throw new ApiError(denial.message, denial.kind === "ROLE" ? 403 : 409);
+    }
+
+    const [updated] = await db
+        .update(serviceOrders)
+        .set({
+            status: "CLOSED",
+            conformitySignedBy: actor.displayName,
+            conformitySignedAt: new Date(),
+            completedAt: new Date(),
+            updatedAt: new Date(),
+        })
+        .where(and(eq(serviceOrders.id, orderId), eq(serviceOrders.companyId, companyId)))
+        .returning();
+    return updated;
 }

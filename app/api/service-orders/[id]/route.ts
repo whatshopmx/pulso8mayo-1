@@ -5,7 +5,9 @@ import { hasPermission } from "@/lib/permissions";
 import { isApiError } from "@/lib/api/error";
 import {
     getOrderDetail,
+    transitionOrder,
     updateDraft,
+    type ServiceOrderAction,
 } from "@/lib/services/service-order-service";
 
 const patchOrderSchema = z.object({
@@ -21,6 +23,11 @@ const patchOrderSchema = z.object({
     amount: z.number().int().min(0).nullable().optional(), // centavos
     scheduledDate: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
     costCenterId: z.string().uuid().nullable().optional(),
+});
+
+const actionSchema = z.object({
+    action: z.enum(["schedule", "start", "complete", "cancel"]),
+    scheduledDate: z.string().datetime({ offset: true }).or(z.string().date()).optional(),
 });
 
 interface RouteParams {
@@ -64,7 +71,21 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         }
 
         const { id } = await params;
-        const data = patchOrderSchema.parse(await req.json());
+        const body = await req.json();
+
+        // Transiciones del ciclo operativo (schedule/start/complete/cancel).
+        if (body.action) {
+            if (!hasPermission(user.role, "inventory", "update")) {
+                return NextResponse.json({ error: "No tienes permisos" }, { status: 403 });
+            }
+            const { action, scheduledDate } = actionSchema.parse(body);
+            const order = await transitionOrder(tenant.id!, id, action as ServiceOrderAction, {
+                scheduledDate: scheduledDate === undefined ? undefined : new Date(scheduledDate),
+            });
+            return NextResponse.json({ order });
+        }
+
+        const data = patchOrderSchema.parse(body);
 
         if (Object.keys(data).length === 0) {
             return NextResponse.json({ error: "No se especificaron cambios" }, { status: 400 });
