@@ -1,20 +1,28 @@
 // M15: Fiscal & Facturación Service
 // SAT invoice validation and CFDI nómina timbrado via FiscalAPI.
 //
-// To activate: set FISCALAPI_API_KEY and FISCALAPI_ENV (sandbox|production)
-// in your .env file. Without the key, endpoints return a "not configured" error.
+// Contrato real de FiscalAPI (docs.fiscalapi.com): hosts test.fiscalapi.com /
+// live.fiscalapi.com, recurso `api/v4/invoices/status`, autenticación por API
+// key. Para activar: FISCALAPI_API_KEY (+ FISCALAPI_TENANT si se usa el SDK)
+// en .env; sin la llave los endpoints devuelven error de configuración.
+//
+// Nota: `timbrarNomina` aún no sigue el contrato v4 real —el timbrado de
+// nómina vía invoices.create con complemento requiere un mapeo completo del
+// recibo— y está protegido por idempotencia (tests/timbrado-idempotente.spec.ts).
+// La facturación de OCs y gastos con contrato correcto vive en
+// fiscal-invoicing-service.ts.
 
 import { db } from "@/lib/db";
 import { cfdiNominaTimbrados } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 
-const FISCALAPI_BASE_SANDBOX = "https://sandbox.fiscalapi.com/api/v2";
-const FISCALAPI_BASE_PROD = "https://api.fiscalapi.com/api/v2";
+const FISCALAPI_BASE_TEST = "https://test.fiscalapi.com/api/v4";
+const FISCALAPI_BASE_PROD = "https://live.fiscalapi.com/api/v4";
 
 function getConfig() {
   const apiKey = process.env.FISCALAPI_API_KEY;
-  const env = process.env.FISCALAPI_ENV || "sandbox";
-  const baseUrl = env === "production" ? FISCALAPI_BASE_PROD : FISCALAPI_BASE_SANDBOX;
+  const env = process.env.FISCALAPI_ENV || "test";
+  const baseUrl = env === "production" ? FISCALAPI_BASE_PROD : FISCALAPI_BASE_TEST;
   return { apiKey, baseUrl, configured: !!apiKey };
 }
 
@@ -85,7 +93,12 @@ export interface NominaTimbradoResult {
 
 /**
  * Validates a CFDI invoice against the SAT via FiscalAPI.
- * Returns the invoice status and certification details.
+ *
+ * Contrato v4 real (`POST api/v4/invoices/status`, campos camelCase). El PAC
+ * responde `status: "Vigente" | "Cancelado" | "No Encontrado"`; se normaliza
+ * al enum que pinta la UI. La consulta es la del SAT por RFC+UUID+total, así
+ * que `fechaCertificacion` y nombres no vienen en esta llamada: se reportan
+ * vacíos en vez de inventarlos.
  */
 export async function validateInvoice(
   input: InvoiceValidationInput
@@ -99,17 +112,18 @@ export async function validateInvoice(
   }
 
   try {
-    const response = await fetch(`${baseUrl}/cfdi/status`, {
+    const response = await fetch(`${baseUrl}/invoices/status`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        "X-API-KEY": apiKey!,
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify({
-        emisor_rfc: input.emisorRfc,
-        receptor_rfc: input.receptorRfc,
-        uuid: input.uuid,
-        total: (input.totalCents / 100).toFixed(2),
+        issuerTin: input.emisorRfc.toUpperCase(),
+        recipientTin: input.receptorRfc.toUpperCase(),
+        invoiceUuid: input.uuid.toUpperCase(),
+        invoiceTotal: input.totalCents / 100,
       }),
     });
 
@@ -118,18 +132,33 @@ export async function validateInvoice(
       throw new Error(`FiscalAPI error ${response.status}: ${errorBody}`);
     }
 
-    const data = await response.json();
+    const envelope = await response.json();
+    // FiscalAPI envuelve todo en ApiResponse<T>: { succeeded, data, message }.
+    if (envelope?.succeeded === false) {
+      throw new Error(envelope.message || "FiscalAPI rechazó la consulta");
+    }
+    const data = envelope?.data ?? envelope ?? {};
+
+    const estadoNormalizado = String(data.status ?? "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "_");
+    const status: InvoiceValidationResult["status"] = (
+      ["VIGENTE", "CANCELADO", "NO_ENCONTRADO"] as const
+    ).includes(estadoNormalizado as never)
+      ? (estadoNormalizado as InvoiceValidationResult["status"])
+      : "ERROR";
 
     return {
       uuid: input.uuid,
-      isValid: data.status === "VIGENTE",
-      status: data.status || "ERROR",
-      emisorNombre: data.emisor_nombre || "",
-      emisorRfc: data.emisor_rfc || input.emisorRfc,
-      receptorRfc: data.receptor_rfc || input.receptorRfc,
-      total: data.total || input.totalCents / 100,
-      fechaEmision: data.fecha_emision || input.fechaEmision,
-      fechaCertificacion: data.fecha_certificacion || "",
+      isValid: status === "VIGENTE",
+      status,
+      emisorNombre: "",
+      emisorRfc: input.emisorRfc,
+      receptorRfc: input.receptorRfc,
+      total: input.totalCents / 100,
+      fechaEmision: input.fechaEmision,
+      fechaCertificacion: "",
       rawResponse: data,
     };
   } catch (error) {
