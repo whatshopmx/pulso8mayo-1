@@ -26,6 +26,8 @@ interface InventoryItem {
     unit?: string;
     barcode?: string;
     category?: string;
+    /** Tipo de almacenamiento (loteprod §5.2): dirige el rango de temperatura en recepción. */
+    storageType?: "DRY" | "REFRIGERATED" | "FROZEN" | null;
 }
 
 interface ReceivingRecord {

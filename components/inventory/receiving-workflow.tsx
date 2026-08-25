@@ -14,6 +14,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Scan, PackagePlus, Trash2, CheckCircle, AlertCircle, Loader2, Barcode, Package } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+    evaluateReceivingTemperature,
+    expectedTemperatureRange,
+    type ItemStorageType,
+} from "@/lib/services/receiving-temperature";
 
 interface ReceivingItem {
     itemId: string;
@@ -29,11 +34,13 @@ interface ReceivingItem {
     unit?: string;
     temperature?: number | "";
     ocrData?: boolean;
+    /** Tipo de almacenamiento del ítem (loteprod §5.2): dirige el rango de temperatura esperado. */
+    storageType?: ItemStorageType | null;
 }
 
 interface ReceivingWorkflowProps {
     suppliers?: Array<{ id: string; name: string }>;
-    items?: Array<{ id: string; name: string; sku?: string; unit?: string; barcode?: string }>;
+    items?: Array<{ id: string; name: string; sku?: string; unit?: string; barcode?: string; storageType?: ItemStorageType | null }>;
     onComplete?: (receiving: any) => void;
     initialPOId?: string;
     /** Alcance del header; la ruta lo valida con enforceBranchScope. */
@@ -156,6 +163,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                         productionDate: "",
                         unitCost: poItem.unitCost ? poItem.unitCost / 100 : 0,
                         temperature: "",
+                        storageType: matchedItem?.storageType ?? null,
                     };
                 });
                 setReceivingItems(mapped);
@@ -189,6 +197,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                 productionDate: "",
                 unitCost: 0,
                 temperature: "",
+                storageType: null,
             }
         ]);
     }, []);
@@ -223,6 +232,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                             unitCost: Number(ocrItem.unitPrice) || 0,
                             temperature: "",
                             ocrData: true,
+                            storageType: matchedItem?.storageType ?? null,
                         };
                     });
                     
@@ -265,6 +275,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                     updated[index].itemName = selectedItem.name;
                     updated[index].sku = selectedItem.sku;
                     updated[index].unit = selectedItem.unit || "unidades";
+                    updated[index].storageType = selectedItem.storageType ?? null;
                 }
             }
             
@@ -293,6 +304,7 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                         batchNumber: `BATCH-${Date.now()}`,
                         expirationDate: "",
                         unit: foundItem.unit || "unidades",
+                        storageType: foundItem.storageType ?? null,
                     }
                 ]);
             }
@@ -656,11 +668,11 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                             
                             <div className="space-y-4">
                                 {receivingItems.map((item, index) => {
-                                    const isCold = item.itemName?.toLowerCase().includes("refriger") || 
-                                                   item.itemName?.toLowerCase().includes("fres") ||
-                                                   item.itemName?.toLowerCase().includes("láct") ||
-                                                   item.itemName?.toLowerCase().includes("ques") ||
-                                                   item.itemName?.toLowerCase().includes("carne");
+                                    const tempRange = expectedTemperatureRange(item.storageType ?? null);
+                                    const tempCheck = evaluateReceivingTemperature(
+                                        typeof item.temperature === 'number' ? item.temperature : undefined,
+                                        item.storageType ?? null
+                                    );
                                     return (
                                         <div key={index} className="p-4 border rounded-lg bg-card space-y-3">
                                             <div className="flex justify-between items-center border-b pb-2">
@@ -700,20 +712,30 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                                                     />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <Label className="text-xs">Temp. (°C) {isCold && "*"}</Label>
+                                                    <Label className="text-xs">
+                                                        Temp. (°C)
+                                                        {tempRange && ` · esperado ${tempRange.label}`}
+                                                    </Label>
                                                     <Input
                                                         type="number"
                                                         step="0.1"
                                                         value={item.temperature ?? ""}
                                                         onChange={(e) => updateItem(index, "temperature", e.target.value === "" ? "" : Number(e.target.value))}
-                                                        placeholder="Ej. 4.0"
+                                                        placeholder={tempRange ? `Ej. ${tempRange.maxC}` : "Ej. 4.0"}
                                                         className={cn(
                                                             "h-9 text-xs",
-                                                            typeof item.temperature === 'number' && item.temperature > 4 
-                                                            ? "border-destructive focus-visible:ring-destructive bg-destructive/10" 
+                                                            tempCheck.quarantined
+                                                            ? "border-destructive focus-visible:ring-destructive bg-destructive/10"
                                                             : ""
                                                         )}
                                                     />
+                                                    {!tempRange && (
+                                                        <p className="text-[11px] text-muted-foreground">
+                                                            {item.storageType === 'DRY'
+                                                                ? "Seco: sin requisito de temperatura"
+                                                                : "Sin clasificar: se rechaza > 4°C"}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -726,11 +748,11 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
                                                 </div>
                                             )}
 
-                                            {typeof item.temperature === 'number' && item.temperature > 4 && (
+                                            {tempCheck.quarantined && (
                                                 <Alert variant="destructive" className="mt-2 py-2">
                                                     <AlertCircle className="h-4 w-4" />
                                                     <AlertDescription className="text-xs">
-                                                        Temperatura fuera de rango ( &gt; 4°C ). Este producto será enviado a <strong>CUARENTENA</strong> (Auto-rechazo).
+                                                        {tempCheck.violation}. Este producto será enviado a <strong>CUARENTENA</strong> (Auto-rechazo).
                                                     </AlertDescription>
                                                 </Alert>
                                             )}
