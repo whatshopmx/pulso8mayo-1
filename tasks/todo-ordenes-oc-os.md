@@ -51,8 +51,8 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 - [x] R1: Mover UI OS a `equipment/compliance/service-orders` + sidebar Equipos + eliminar sección "Control" — commit `git mv` por archivo (el dir estaba lockeado por dev server); hrefs internos actualizados; sin sección "Control"
 - [x] R2: API: crear/filtrar por `complianceServiceId` — zod ya lo aceptaba; se agregó filtro en `listOrders`, validación FK contra empresa en create/update (400 accionable, antes 500) y query param en GET + hook
 - [x] R3: Botón "Generar OS" pre-llenado y enlace "Ver OS" en cada servicio normativo — `components/service-orders/create-order-dialog.tsx` compartido (estado derivado, sin useEffect); lista soporta `?complianceServiceId=` con badge para quitar filtro. Verificado e2e: crear OS vinculada 201, filtro OK, FK foránea 400, rutas 200/404 correctas
-- [ ] R4: Bandeja "Autorizaciones" como tab de Control Interno (aprobación/rechazo con motivo, presupuesto restante)
-- [ ] R5: Editor "Matriz de Autorización" como tab de Control Interno (solo ADMIN+, warnings de huecos)
+- [x] R4: Bandeja "Autorizaciones" como tab de Control Interno (aprobación/rechazo con motivo, presupuesto restante) — commit `6fd6403`: `components/service-orders/approval-inbox.tsx` + `useApprovalInbox()`; badge de pendientes en el tab (misma query react-query → un solo fetch); barra de presupuesto ámbar ≥90%; cap emergencias mostrado; e2e: approve→documentFinalized→OS APPROVED→bandeja vacía
+- [x] R5: Editor "Matriz de Autorización" como tab de Control Interno (solo ADMIN+, warnings de huecos) — commit `6fd6403`: `components/service-orders/approval-matrix-editor.tsx` con patrón borrador derivado; toggle OS/OC; errores inline del PUT y huecos como avisos; verificado traslape misma-secuencia→400, multi-nivel acumulativo→200 sin warnings, hueco→200 con warning; matriz demo restaurada
 
 ## Phase 5: KPIs y automatización
 

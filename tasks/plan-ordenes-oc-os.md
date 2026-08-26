@@ -230,27 +230,27 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Files:** `components/service-orders/create-order-dialog.tsx` (nuevo), `app/dashboard/equipment/compliance/page.tsx`, páginas que lo importaban
   **Estimated scope:** Medium
 
-- [ ] **Task R4 (M-L): Bandeja "Autorizaciones" tab en Control Interno** *(reemplaza la parte de bandeja de Task 8)*
+- [x] **Task R4 (M-L): Bandeja "Autorizaciones" tab en Control Interno** *(reemplaza la parte de bandeja de Task 8)* ✅ implementada (commit `6fd6403`)
   - Componente `components/service-orders/approval-inbox.tsx`: hook nuevo `useApprovalInbox()` sobre GET `/api/approval-requests`; agrupado por documento con monto, presupuesto restante / cap emergencia (ya vienen en la respuesta), aprobar/rechazar con motivo (hooks existentes); estados loading/error/empty con patrón EmptyState+retry de la página
   - Tab nueva en `finance/control-interno/page.tsx`
 
   **Acceptance criteria:**
-  - [ ] Un ADMIN ve y resuelve requests pendientes desde Finanzas › Control Interno
-  - [ ] Errores de rol/nivel se muestran con los mensajes humanos del API
-  - [ ] GERENTE solo ve su sucursal; creador no ve botones para lo propio
+  - [x] Un ADMIN ve y resuelve requests pendientes desde Finanzas › Control Interno (e2e: maria aprueba OS-emergencia → documentFinalized, OS APPROVED, bandeja vacía)
+  - [x] Errores de rol/nivel se muestran con los mensajes humanos del API (toast usa error.message)
+  - [x] GERENTE solo ve su sucursal; creador no ve botones para lo propio (lo aplica listApprovalInbox; ana SUPERVISOR 0 items por rol insuficiente)
 
   **Verification:** e2e con usuarios demo (maria/juan/ana) · build
   **Dependencies:** ninguna (APIs existen)
   **Files:** `hooks/queries/use-service-orders.ts`, componente nuevo, `app/dashboard/finance/control-interno/page.tsx`
   **Estimated scope:** Medium-Large
 
-- [ ] **Task R5 (M): Editor "Matriz de Autorización" tab en Control Interno** *(reemplaza company/approval-matrix de Task 8)*
+- [x] **Task R5 (M): Editor "Matriz de Autorización" tab en Control Interno** *(reemplaza company/approval-matrix de Task 8)* ✅ implementada (commit `6fd6403`)
   - Componente `components/service-orders/approval-matrix-editor.tsx`: tabla editable de reglas (pesos↔centavos, rol select sobre APPROVER_ROLES_HIERARCHY, minQuotes, sequence, active), PUT mostrando errores inline y warnings de huecos como avisos
   - Tab visible solo ADMIN+
 
   **Acceptance criteria:**
-  - [ ] PUT persiste reglas y la UI muestra advertencias de huecos sin bloquear
-  - [ ] Traslape misma secuencia rechazado inline; multi-nivel acumulativo aceptado
+  - [x] PUT persiste reglas y la UI muestra advertencias de huecos sin bloquear (e2e: hueco $5k–$10k → warning textual)
+  - [x] Traslape misma secuencia rechazado inline; multi-nivel acumulativo aceptado (400 vs 200 verificados contra API)
 
   **Verification:** guardar matriz default y una acumulativa · build
   **Dependencies:** ninguna
@@ -258,8 +258,9 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Estimated scope:** Medium
 
 ### Checkpoint: Re-integración ✅ criterios
-- [ ] Flujo completo desde las superficies correctas: Servicios Normativos → Genera OS → autoriza en Finanzas › Control Interno → OS fluye
-- [ ] Sin sección "Control" huérfana · build/lint verdes
+- [x] Flujo completo desde las superficies correctas: Servicios Normativos → Genera OS (R3, API verificada) → autoriza en Finanzas › Control Interno (R4, e2e aprobación completa) → OS fluye a APPROVED
+- [x] Sin sección "Control" huérfana · build/lint verdes
+> Nota: interacción visual fina (hover/focus del diálogo pre-llenado) pendiente de revisión manual — agent_browser roto ambas sesiones.
 
 ### Phase 5: KPIs y automatización
 
