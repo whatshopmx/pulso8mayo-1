@@ -3,6 +3,8 @@ import {
   aggregateBudgetExecution,
   computeBudgetExecution,
   computeEmergencyShare,
+  computeFoodCostGap,
+  computeOperatingExpenseRatio,
   computePriceSpread,
   withSupplierShare,
   DEFAULT_CONTROL_TARGETS,
@@ -186,5 +188,64 @@ describe("withSupplierShare", () => {
 
   it("sin proveedores devuelve lista vacía", () => {
     expect(withSupplierShare([])).toEqual([]);
+  });
+});
+
+describe("computeFoodCostGap", () => {
+  it("devuelve la brecha en puntos porcentuales", () => {
+    expect(computeFoodCostGap(34.2, 29.8)).toBe(4.4);
+  });
+
+  it("una brecha negativa (real por debajo del teórico) se conserva", () => {
+    expect(computeFoodCostGap(27, 30)).toBe(-3);
+  });
+
+  it("sin teórico no hay brecha — no se asume cero", () => {
+    expect(computeFoodCostGap(34.2, null)).toBeNull();
+  });
+
+  it("sin real tampoco hay brecha", () => {
+    expect(computeFoodCostGap(null, 30)).toBeNull();
+  });
+});
+
+describe("computeOperatingExpenseRatio", () => {
+  it("calcula Gastos OS / Ventas", () => {
+    const r = computeOperatingExpenseRatio({
+      serviceSpendCents: 1_500_000,
+      salesCents: 15_000_000,
+      serviceOrderCount: 4,
+    });
+    expect(r.percent).toBe(10);
+    expect(r.serviceOrderCount).toBe(4);
+  });
+
+  it("no trae semáforo: el documento no fija meta para este KPI", () => {
+    const r = computeOperatingExpenseRatio({
+      serviceSpendCents: 9_000_000,
+      salesCents: 10_000_000,
+      serviceOrderCount: 1,
+    });
+    expect(r.percent).toBe(90);
+    expect(r.status).toBeNull();
+  });
+
+  it("sin ventas capturadas devuelve null, no 0%", () => {
+    const r = computeOperatingExpenseRatio({
+      serviceSpendCents: 500_000,
+      salesCents: 0,
+      serviceOrderCount: 2,
+    });
+    expect(r.percent).toBeNull();
+    expect(r.note).toMatch(/base que falta/);
+  });
+
+  it("sin gasto de OS y con ventas es 0% legítimo", () => {
+    const r = computeOperatingExpenseRatio({
+      serviceSpendCents: 0,
+      salesCents: 15_000_000,
+      serviceOrderCount: 0,
+    });
+    expect(r.percent).toBe(0);
   });
 });

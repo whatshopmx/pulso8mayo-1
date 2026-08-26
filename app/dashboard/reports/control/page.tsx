@@ -17,7 +17,11 @@ import {
 } from "@/components/ui/table";
 import { useControlReport } from "@/hooks/queries/use-control-report";
 import { useBranch } from "@/lib/branch-context";
-import type { BudgetExecutionRow, SemaphoreStatus } from "@/lib/services/control-kpi-types";
+import type {
+  BudgetExecutionRow,
+  KpiMetric,
+  SemaphoreStatus,
+} from "@/lib/services/control-kpi-types";
 import {
   AlertCircle,
   AlertTriangle,
@@ -30,7 +34,9 @@ import {
   Store,
   Tags,
   Truck,
+  UtensilsCrossed,
   Wallet,
+  Wrench,
 } from "lucide-react";
 
 // ── Utilidades de mes y dinero ──
@@ -79,6 +85,25 @@ function StatusBadge({ status, label }: { status: SemaphoreStatus | null; label?
   return <Badge variant={cfg.variant}>{label ?? cfg.label}</Badge>;
 }
 
+/**
+ * Procedencia del dato. Se muestra siempre: un food cost "derivado de compras"
+ * y uno "medido sobre consumo" no se discuten igual en una junta.
+ */
+const SOURCE_LABEL: Record<KpiMetric["source"], string> = {
+  MEASURED: "Medido",
+  DERIVED: "Derivado",
+  SECTOR_DEFAULT: "Estimación sectorial",
+  NO_DATA: "Sin dato",
+};
+
+function SourceChip({ source }: { source: KpiMetric["source"] }) {
+  return (
+    <span className="text-xs uppercase tracking-wide text-muted-foreground">
+      {SOURCE_LABEL[source]}
+    </span>
+  );
+}
+
 /** Desviación: sobregiro en rojo, ahorro en neutro. */
 function DeviationCell({ row }: { row: BudgetExecutionRow }) {
   if (row.unbudgeted) {
@@ -123,6 +148,8 @@ export default function ControlReportPage() {
   const priceComparison = report.data?.priceComparison ?? [];
   const supplierRanking = report.data?.supplierRanking ?? [];
   const branchCount = report.data?.branchCount ?? 0;
+  const foodCost = report.data?.foodCost;
+  const operatingExpense = report.data?.operatingExpense;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -281,6 +308,101 @@ export default function ControlReportPage() {
                 <p className="text-xs text-muted-foreground">
                   Cuenta OC con tipo EMERGENCIA y OS con urgencia EMERGENCIA, en estados que
                   comprometen presupuesto.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Food cost real vs. teórico */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <UtensilsCrossed className="h-4 w-4 text-muted-foreground" /> Food cost real
+                      vs. teórico
+                    </CardTitle>
+                    <CardDescription>
+                      Ventas del mes {formatCurrency(foodCost?.salesCents)}
+                    </CardDescription>
+                  </div>
+                  <StatusBadge status={foodCost?.real.status ?? null} />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Real</p>
+                    <p className="text-2xl font-bold tabular-nums">
+                      {formatPercent(foodCost?.real.percent)}
+                    </p>
+                    {foodCost && <SourceChip source={foodCost.real.source} />}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Teórico</p>
+                    <p className="text-2xl font-bold tabular-nums text-muted-foreground">
+                      {formatPercent(foodCost?.theoretical.percent)}
+                    </p>
+                    {foodCost && <SourceChip source={foodCost.theoretical.source} />}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Brecha</p>
+                    <p className="text-2xl font-bold tabular-nums">
+                      {foodCost?.gapPoints === null || foodCost?.gapPoints === undefined
+                        ? "—"
+                        : `${foodCost.gapPoints > 0 ? "+" : ""}${foodCost.gapPoints} pp`}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">{foodCost?.real.note}</p>
+                {foodCost?.theoretical.source === "NO_DATA" && (
+                  <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-500">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    {foodCost.theoretical.note}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Gasto operativo % = Gastos OS / Ventas (doc §E) */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Wrench className="h-4 w-4 text-muted-foreground" /> Gasto operativo
+                </CardTitle>
+                <CardDescription>Órdenes de servicio del mes sobre ventas</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold tabular-nums">
+                    {formatPercent(operatingExpense?.percent)}
+                  </span>
+                  <span className="text-sm text-muted-foreground">de las ventas</span>
+                </div>
+                <dl className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <dt className="text-muted-foreground text-xs">Gasto en OS</dt>
+                    <dd className="font-medium tabular-nums">
+                      {formatCurrency(operatingExpense?.serviceSpendCents)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">Ventas</dt>
+                    <dd className="font-medium tabular-nums">
+                      {formatCurrency(operatingExpense?.salesCents)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">Órdenes</dt>
+                    <dd className="font-medium tabular-nums">
+                      {operatingExpense?.serviceOrderCount ?? 0}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="text-xs text-muted-foreground">{operatingExpense?.note}</p>
+                <p className="text-xs text-muted-foreground">
+                  Sin semáforo: el documento de control no fija meta para este indicador.
                 </p>
               </CardContent>
             </Card>

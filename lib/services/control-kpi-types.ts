@@ -5,9 +5,9 @@
 // `control-kpi-service` (servidor) y la página `reports/control` (cliente),
 // para que la UI importe los tipos sin arrastrar Drizzle al bundle.
 
-import { costStatus, type SemaphoreStatus } from "@/lib/services/financial-kpi-types";
+import { costStatus, type KpiMetric, type SemaphoreStatus } from "@/lib/services/financial-kpi-types";
 
-export type { SemaphoreStatus };
+export type { KpiMetric, SemaphoreStatus };
 
 /**
  * Metas de control documental-financiero. A diferencia de food/labor cost
@@ -212,6 +212,75 @@ export function withSupplierShare(
     .sort((a, b) => b.totalCents - a.totalCents);
 }
 
+// --- Food cost real vs. teórico ---------------------------------------------
+
+/**
+ * Los dos lados del food cost. `real` sale del consumo valorizado
+ * (`financial-kpi-service`, con su procedencia intacta); `theoretical` exige
+ * venta a nivel platillo en `sales_entries` × costeo de receta.
+ *
+ * Cuando el teórico no es calculable NO se rellena con el real ni con un cero:
+ * la brecha entre ambos es justamente lo que el dueño quiere ver (merma, robo,
+ * porciones fuera de receta), y un cero la borraría.
+ */
+export interface FoodCostComparison {
+  real: KpiMetric;
+  theoretical: KpiMetric;
+  /** real − teórico, en puntos porcentuales. `null` si falta cualquiera de los dos. */
+  gapPoints: number | null;
+  salesCents: number;
+}
+
+/** Brecha real vs. teórico en puntos porcentuales. */
+export function computeFoodCostGap(
+  realPercent: number | null,
+  theoreticalPercent: number | null,
+): number | null {
+  if (realPercent === null || theoreticalPercent === null) return null;
+  return Number((realPercent - theoreticalPercent).toFixed(1));
+}
+
+// --- Gasto operativo --------------------------------------------------------
+
+/**
+ * Gasto operativo % = Gastos OS / Ventas (finzasordenes.md §E).
+ *
+ * Deliberadamente NO trae semáforo: el documento de negocio fija meta para el
+ * food cost (30/35) y para las emergencias (<5%), pero no para este KPI.
+ * Inventar un umbral haría que un número correcto se leyera como un veredicto
+ * que nadie acordó. Cuando el grupo defina su meta, entra en `ControlTargets`.
+ */
+export interface OperatingExpenseRatio {
+  /** OS del mes en estados que comprometen presupuesto. */
+  serviceSpendCents: number;
+  salesCents: number;
+  /** `null` si no hubo ventas capturadas: dividir entre cero no es 0%. */
+  percent: number | null;
+  status: SemaphoreStatus | null;
+  serviceOrderCount: number;
+  note: string;
+}
+
+export function computeOperatingExpenseRatio(input: {
+  serviceSpendCents: number;
+  salesCents: number;
+  serviceOrderCount: number;
+}): OperatingExpenseRatio {
+  const { serviceSpendCents, salesCents, serviceOrderCount } = input;
+  const hasSales = salesCents > 0;
+  return {
+    serviceSpendCents,
+    salesCents,
+    percent: hasSales ? Number(((serviceSpendCents / salesCents) * 100).toFixed(1)) : null,
+    // Sin meta acordada no hay semáforo (ver comentario del tipo).
+    status: null,
+    serviceOrderCount,
+    note: hasSales
+      ? "Órdenes de servicio comprometidas del mes sobre ventas capturadas en cortes."
+      : "Sin cortes de venta capturados en el mes. No es 0%: es una base que falta.",
+  };
+}
+
 // --- Resultado del reporte --------------------------------------------------
 
 export interface BudgetExecutionRow extends BudgetExecution {
@@ -241,6 +310,8 @@ export interface ControlReportResult {
    */
   priceComparison: ItemPriceComparisonRow[];
   supplierRanking: SupplierRankingRow[];
+  foodCost: FoodCostComparison;
+  operatingExpense: OperatingExpenseRatio;
   /** Sucursales dentro del alcance; la UI lo usa para explicar un comparativo vacío. */
   branchCount: number;
   targets: ControlTargets;
