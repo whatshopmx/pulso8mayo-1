@@ -22,6 +22,7 @@ import {
   Shield,
   Landmark,
   PiggyBank,
+  Gauge,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -412,6 +413,13 @@ const navMain = [
         title: "Presupuestos",
         url: "/dashboard/budgets",
         icon: PiggyBank,
+      },
+      // Control gerencial (Task 10): lectura de la misma data de presupuesto
+      // que captura la pantalla anterior, más la disciplina de compra del mes.
+      {
+        title: "Control Gerencial",
+        url: "/dashboard/reports/control",
+        icon: Gauge,
       },
       {
         title: "Cuentas por Pagar",

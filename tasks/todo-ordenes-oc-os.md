@@ -41,8 +41,8 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 ## Phase 4: UI
 
 - [x] Task 7: Páginas service-orders (lista + detalle con timeline y evidencias) — commit `9f83b59`: sección 'Control' en sidebar; acciones estado×rol; upload R2 evidencias/cotizaciones
-- [ ] Task 8: Bandeja de aprobaciones + admin de matriz de autorización (`app/dashboard/company/approval-matrix`, junto a operating-config)
-- [ ] Task 9: UI presupuestos y centros de costo con consumo vs presupuestado
+- [x] Task 8: Bandeja de aprobaciones + admin de matriz de autorización — **entregado por R4/R5 de la Phase 4-bis** (commit `6fd6403`), como tabs de Finanzas › Control Interno en vez de `company/approval-matrix`: la ubicación original se descartó al reintegrar superficies
+- [x] Task 9: UI presupuestos y centros de costo con consumo vs presupuestado — commit `b44f598`: `app/dashboard/budgets/page.tsx` (grid mensual sucursales×centros, captura ADMIN+, barra de consumo, alerta ≥90%) + `hooks/queries/use-budgets.ts` + entrada "Presupuestos" en sidebar Finanzas
 
 ## Phase 4-bis: Re-integración de superficies (decisión usuario 2026-08-25)
 
@@ -56,7 +56,14 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 
 ## Phase 5: KPIs y automatización
 
-- [ ] Task 10: Dashboard KPIs gerenciales (food cost, gasto operativo, comparativo precios, ranking proveedores, % emergencias, desviación)
+- [x] Task 10: Dashboard KPIs gerenciales — rama `feat/oc-os-task10-kpis`, tres commits incrementales (`1f00cf6`, `2f35c37`, `677e480`): `lib/services/control-kpi-types.ts` (contrato puro, 32 tests) + `control-kpi-service.ts` + `GET /api/reports/control` (GERENTE+) + `app/dashboard/reports/control/page.tsx` + entrada "Control Gerencial" en sidebar Finanzas
+  - [x] Presupuesto vs. ejecutado por partida y desviación presupuestal (§7, §E)
+  - [x] % de compras de emergencia contra meta <5% (§7)
+  - [x] Comparativo de precios del mismo insumo entre sucursales (§7) — promedio ponderado, dispersión contra la sucursal más barata, umbral 5/10%; se apaga si el alcance es una sola sucursal
+  - [x] Ranking de proveedores por monto (§7). **Cumplimiento de entrega queda en Phase 7**, donde el plan ya lo tenía
+  - [x] Gasto operativo % = Gastos OS / Ventas (§E). SIN semáforo: el documento no fija meta para este KPI y no se inventó una
+  - [x] Food cost % real (reutiliza `calculateFinancialKPIs`, conserva procedencia MEASURED/DERIVED/NO_DATA)
+  - [ ] Food cost % **teórico**: BLOQUEADO por datos, no por código. Exige venta a nivel platillo en `sales_entries` y la ingesta de POS solo llena `daily_sales_cuts` con totales por turno (1 fila en toda la tabla). Se expone como `NO_DATA` con nota que nombra el dato faltante; la brecha real−teórico queda en `—`. Desbloquea: ingesta de POS a nivel platillo → cierra open question #3
 - [ ] Task 11: Job Inngest mensual (desviaciones, folios gap, contratos por vencer, domiciliados conciliados, alertas vía NotificationDispatcher)
 
 ## Phase 6: Contratos y gastos recurrentes (nueva)

@@ -1,6 +1,6 @@
-# Handoff — Sistema de Control OC/OS (finzasordenes.md): Phases 1–3 + Task 7 + Phase 4-bis completa (R1–R5) · siguiente Task 9
+# Handoff — Sistema de Control OC/OS (finzasordenes.md): Phases 1–5 parciales · Tasks 1–10 COMPLETAS · siguiente Task 11
 
-**Fecha de última sesión:** 2026-08-26 (cuarta sesión del plan)
+**Fecha de última sesión:** 2026-08-26 (quinta sesión del plan — Task 10)
 **Repositorio:** `C:/Users/david/pulso29` — Pulso HORECA (Next.js 16 App Router + Turbopack, React 19, TypeScript strict:false, Drizzle + Neon Postgres, better-auth, react-query, Tailwind v4, Radix/shadcn)
 **Documento fuente del negocio:** `finzasordenes.md` (raíz del repo) — Órdenes de Compra/Servicio, matriz de autorización §4, controles multi-sucursal, folios sin saltos §6, KPIs gerenciales.
 **Plan de trabajo:** `tasks/plan-ordenes-oc-os.md` · checklist ejecutiva: `tasks/todo-ordenes-oc-os.md` · este archivo es la **fuente de verdad para continuidad**.
@@ -25,8 +25,25 @@
 | `6fd6403` | R4–R5 — bandeja "Autorizaciones" + editor "Matriz" como tabs de Finanzas › Control Interno |
 | `7599d7a`,`6beec50`,`91e122c`,`aedccbb` | docs de seguimiento |
 
-**Estado al cierre:** ✅ **Phases 1–3, Task 7 y Phase 4-bis (R1–R5) COMPLETAS.** El flujo normativo→OS→autorización funciona desde las superficies correctas. Suite **360 tests unitarios pasan**, build exit 0, lint 0 errores. Matriz demo OS restaurada a la default tras las pruebas.
-**Siguiente paso concreto:** **Task 9** — UI de presupuestos (`app/dashboard/budgets/page.tsx`, selector mes + grid editable + barra consumo; APIs ya existen). Luego Phase 5 (Task 10 KPIs, Task 11 job Inngest). Decidir ubicación en sidebar para Presupuestos (candidato: sección Finanzas o Equipos).
+**Estado al cierre:** ✅ **Tasks 1–10 COMPLETAS** (Phases 1–4, Phase 4-bis R1–R5, y de la Phase 5 el Task 10). El flujo normativo→OS→autorización→presupuesto→KPIs está entregado de punta a punta.
+**Siguiente paso concreto:** **Task 11** — job Inngest mensual (`lib/inngest/functions/control-monthly-report.ts`). Luego Phase 6 (contratos, Tasks 12–15) y Phase 7 (KPIs extendidos).
+
+### ⚠️ Task 10 vive en una rama, no en main
+
+Los commits del Task 10 están en **`feat/oc-os-task10-kpis`** (bifurcada de `main` en `1ad6f24`), no en `main`: cuando se implementó, el working tree estaba en la rama del workstream paralelo de inventario y mezclarlos habría ensuciado ambas historias. **Falta hacer merge a `main`.**
+
+| Commit | Contenido |
+|---|---|
+| `1f00cf6` | Task 10 fase 1 — ejecución presupuestal, desviación y % de emergencias |
+| `2f35c37` | Task 10 fase 2 — comparativo de precios entre sucursales y ranking de proveedores |
+| `677e480` | Task 10 fase 3 — food cost real vs. teórico y gasto operativo % |
+
+Y estos dos, del Task 9, sí están en `main`:
+
+| Commit | Contenido |
+|---|---|
+| `b44f598` | Task 9 — UI de Presupuestos (grid mensual sucursales×centros, captura ADMIN+) |
+| `38b194c` | docs — handover v2 |
 
 ---
 
@@ -84,6 +101,20 @@ app/api/budgets/route.ts                      GET grid mensual (budgeted/committ
 - `components/service-orders/approval-matrix-editor.tsx` (R5): editor de matriz OC/OS — filas editables pesos↔centavos, rol, cotiz., secuencia, activa; patrón borrador derivado; warnings de huecos como Alert ámbar no bloqueante; errores inline vía toast con mensaje del API.
 - `app/dashboard/finance/control-interno/page.tsx`: tabs Bitácora · Excepciones · **Autorizaciones** (badge = `useApprovalInbox().total`) · **Matriz de Autorización** (solo ADMIN+, gate client-side con `roleIsAtLeast`).
 - Sidebar `components/app-sidebar.tsx`: **sin sección "Control"**; ítem "Órdenes de Servicio" bajo sección Equipos. Presupuestos (Task 9) falta decidir ubicación en sidebar.
+### KPIs de control (Task 10 — rama `feat/oc-os-task10-kpis`)
+- `lib/services/control-kpi-types.ts`: **contrato puro, sin runtime de servidor** (mismo criterio que `financial-kpi-types`, para que la página importe los tipos sin arrastrar Drizzle al bundle). Puras cubiertas por 32 tests: `computeBudgetExecution` · `aggregateBudgetExecution` · `computeEmergencyShare` · `computePriceSpread` · `withSupplierShare` · `computeFoodCostGap` · `computeOperatingExpenseRatio`. Metas en `DEFAULT_CONTROL_TARGETS` (emergencias 5/10%, presupuesto ámbar ≥90%, dispersión de precio 5/10%).
+- `lib/services/control-kpi-service.ts`: `getControlReport({companyId, month, branchId})`. Reutiliza `getCommittedByPair` y las constantes `*_COMMITTING_STATUSES` de `budget-service`, y delega el food cost real a `calculateFinancialKPIs`. `getCommitmentTotals` devuelve **OS y OC por separado** (el gasto operativo del doc §E es Gastos OS / Ventas; el % de emergencias usa el combinado).
+- `GET /api/reports/control?month=YYYY-MM&branchId=` — **GERENTE+**; el pin de sucursal del tenant manda sobre el `branchId` pedido, igual que `/api/budgets`.
+- `hooks/queries/use-control-report.ts` (+barrel) · `app/dashboard/reports/control/page.tsx` · sidebar Finanzas › "Control Gerencial".
+- Sondeos reutilizables: `scratch/probe-control-report.ts` (reporte completo por mes, acepta el mes como argv), `scratch/probe-precios-proveedores.ts` (auditoría SQL de precios/proveedores), `scratch/probe-foodcost.ts`, `scratch/e2e-control-kpis.sh` (matriz de roles por HTTP).
+
+**Decisiones de lectura de datos (no re-abrir):**
+- Gasto comprometido contra un centro **sin presupuesto capturado** → `unbudgeted: true` + semáforo CRITICAL, nunca 0% ni 100%: no hubo techo contra el cual medir y ése es el hallazgo.
+- Denominador del % de emergencias **incluye documentos sin centro de costo** (sí son gasto); por eso ese total es mayor que el "comprometido" del grid de presupuestos. La UI lo explica en la tarjeta.
+- Comparativo de precios: promedio **ponderado por cantidad**, dispersión contra la sucursal **más barata** (el ahorro recuperable), y **se apaga si el alcance es una sola sucursal** — un GERENTE no debe ver precios ajenos.
+- Ranking de proveedores: excluye documentos sin proveedor asignado en vez de agregar una fila "(sin proveedor)" sobre la que nadie puede actuar.
+- Sin ventas capturadas, food cost y gasto operativo devuelven `null`, **nunca 0%**.
+
 - Patrones UI aprendidos: `PageHeader` usa prop **`actions?: ReactNode`** (NO `action`/badge string) · `EmptyState` usa **`action={{label, onClick|href}}`** (no nodo) · rol client-side: `useSession()` + `roleIsAtLeast(user.role, required)` (lib/permissions es puro, importable en cliente) · dinero input pesos → `Math.round(parseFloat*100)`.
 
 ## 4. DATOS DEMO EN BD (para desarrollar/pruebas)
@@ -96,13 +127,14 @@ app/api/budgets/route.ts                      GET grid mensual (budgeted/committ
 
 ## 5. TAREAS PENDIENTES (marcar aquí Y en plan/todo al avanzar + commit)
 
-### Checkpoints Foundation/Business/APIs ✅ · Phase 4 UI: Task 7 ✅ · Phase 4-bis: R1–R5 ✅ COMPLETA
+### Checkpoints Foundation/Business/APIs ✅ · Phase 4 UI: Tasks 7, 8, 9 ✅ · Phase 4-bis: R1–R5 ✅ COMPLETA
 
-### Phase 4 restante
-- [ ] **Task 9 — `app/dashboard/budgets/page.tsx`** ← SIGUIENTE: selector mes (`GET /api/budgets?month=YYYY-MM` ya devuelve grid completo sucursales×centros con `alert` ≥90%) + captura celda a celda con `PUT /api/budgets` (ADMIN+: ocultar/deshabilitar edición para el resto). Barra consumo vs presupuestado. Reutilizar `BudgetHint`-like pattern de approval-inbox.
+### Phase 4 — COMPLETA
+- [x] **Task 8** — entregado por R4/R5 como tabs de Finanzas › Control Interno (la ubicación original `company/approval-matrix` se descartó al reintegrar superficies).
+- [x] **Task 9 — `app/dashboard/budgets/page.tsx`** (commit `b44f598`): grid mensual sucursales×centros, captura ADMIN+, barra de consumo, alerta ≥90%. Sidebar: Finanzas › Presupuestos.
 ### Phase 5
-- [ ] **Task 10 — Dashboard KPIs**: `app/dashboard/reports/control/page.tsx` + `app/api/reports/control/route.ts`. Food cost % real vs teórico (recipes/sales-entry), gasto operativo %, presupuesto vs ejecutado por partida (usar `getCommittedByPair`), comparativo precios por insumo entre sucursales, ranking proveedores, % emergencias (<5% meta), desviación presupuestal. **Metas desde `tenant_operating_config`** (decisión #10; defaults `DEFAULT_FINANCIAL_TARGETS` en financial-kpi-types). Patrón Recharts de reports/executive. Filtro mes/sucursal.
-- [ ] **Task 11 — Job Inngest mensual** `lib/inngest/functions/control-monthly-report.ts`: desviaciones, `findFolioGaps`, contratos por vencer ≤90 días (Phase 6), domiciliados desviados → `NotificationDispatcher` a OWNER/ADMIN. Cron `0 6 1 * *` (o similar). Registrar en `app/api/inngest/route.ts`.
+- [x] **Task 10 — Dashboard KPIs** (rama `feat/oc-os-task10-kpis`): `lib/services/control-kpi-types.ts` (contrato puro sin runtime de servidor, 32 tests) + `control-kpi-service.ts` + `GET /api/reports/control?month&branchId` (GERENTE+) + `app/dashboard/reports/control/page.tsx` + sidebar Finanzas › "Control Gerencial". Entregado: ejecución presupuestal y desviación por partida · % emergencias vs meta <5% · comparativo de precios entre sucursales · ranking de proveedores por monto · gasto operativo % · food cost real. **Sin Recharts**: los KPIs son escalares y comparativos de pocas filas; tablas + barras de consumo comunican mejor que gráficas aquí.
+- [ ] **Task 11 — Job Inngest mensual** ← SIGUIENTE `lib/inngest/functions/control-monthly-report.ts`: desviaciones, `findFolioGaps`, contratos por vencer ≤90 días (Phase 6), domiciliados desviados → `NotificationDispatcher` a OWNER/ADMIN. Cron `0 6 1 * *` (o similar). Registrar en `app/api/inngest/route.ts`.
 
 ### Phase 6 — Contratos y recurrentes
 - [ ] **Task 12** tabla `supplierContracts` (payee/supplier nullable, scope, monto ¢, vigencia, escalación INPC bool, paymentMethod CORRIDA|DOMICILIADO|TRANSFERENCIA, día cargo, partida, urlContrato, activo) — migración SIN drops.
@@ -137,10 +169,17 @@ Flujo end-to-end demostrable + KPIs con datos demo + `pnpm run build && pnpm run
 17. **Radix Tabs no monta TabsContent inactivos** (sin forceMount): el contenido solo se puede verificar activando el tab; en SSR solo se ven los triggers. El gate ADMIN+ del tab Matriz depende de `useSession()` → aparece post-hidratación, invisible para SSR.
 18. **Hooks de react-query comparten cache por queryKey**: la página llama `useApprovalInbox()` para el badge y `<ApprovalInbox />` lo llama internamente — un solo fetch. Mismo patrón si Task 9 necesita conteo.
 
+19. **Los archivos sin commitear del workstream paralelo te siguen al cambiar de rama.** Al bifurcar `feat/oc-os-task10-kpis` desde `main`, los untracked `components/inventory/prep-list-*.tsx` viajaron con el switch y rompieron el build (`Cannot find module '@/lib/inventory/prep-list'` — ese módulo solo existe en la rama de loteprod). Costó un build de 3.6 min. Antes de bifurcar, aparcar los untracked ajenos fuera del árbol.
+20. **`git switch` se bloquea si un archivo sucio difiere entre las dos ramas.** Comprobar con `git diff --stat main HEAD -- <archivo>` antes de intentarlo; para los que difieran, `git stash push -- <pathspec>` acotado en vez de un stash global que arrastre trabajo ajeno.
+21. **La verificación por HTTP no prueba que la página renderice.** Un `curl` a una ruta del dashboard devuelve 200 con solo el shell; el componente cliente y su fetch corren en el navegador. El MCP de chrome-devtools sí funciona en este entorno (`new_page` → `/sign-in` → `fill_form` → `take_screenshot` + `list_console_messages`) y ahí se detectó que `formatCurrency` imprimía `$-36,000.00` en vez de `-$36,000.00`, invisible para curl.
+22. **La ruta de login es `/sign-in`**, no `/login` (`/login` da 404).
+23. **El hook de diseño `impeccable` corre en cada Write/Edit** y marca tamaños de fuente fuera de la escala de `DESIGN.md` (p. ej. `text-[11px]` → usar `text-xs`). Vale la pena hacerle caso: es barato y evita deriva del sistema de diseño.
+
 ## 7. Open questions heredados
 - ¿Conformidad con firma digital real o basta userId+timestamp? (implementación actual: registro simple nombre+fecha)
 - Contrato firmado para >$100K (doc §4): sin campo aún → Phase 6 (contracts) probablemente.
-- Calidad de datos recipes/sales-entry para food cost teórico antes de Task 10.
+- ~~Calidad de datos recipes/sales-entry para food cost teórico antes de Task 10.~~ **RESUELTO (Task 10, verificado contra la BD):** `sales_entries` tiene **1 fila en toda la tabla**. La ingesta de POS llena `daily_sales_cuts` con totales por turno/canal, no venta a nivel platillo — lo que el comentario de `food-cost-service.ts` ya documentaba. El food cost **teórico no es implementable hoy**; se expone como `NO_DATA` con una nota que nombra el dato faltante (armada contando `sales_entries` del mes en vivo, así que el texto se actualiza solo si la ingesta cambia). **No se rellenó con el real**: eso dejaría la brecha en 0 y escondería justo lo que el indicador busca (merma, robo, porciones fuera de receta). Desbloquea: ingesta de POS a nivel platillo.
+- **NUEVA — meta de gasto operativo %:** el doc §E define la fórmula (Gastos OS / Ventas) pero no fija umbral, a diferencia del food cost (30/35) y las emergencias (<5%). El KPI se entrega **sin semáforo** en vez de inventar un número. Cuando el grupo acuerde su meta, entra en `ControlTargets` (`control-kpi-types.ts`).
 
 ## 8. Comandos rápidos
 ```bash
