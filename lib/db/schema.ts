@@ -2927,10 +2927,28 @@ export const supplierItems = pgTable("supplier_items", {
     price: integer("price"),
     presentation: text("presentation"),
     leadTimeDays: integer("lead_time_days").default(3),
+    /**
+     * Proveedor principal vs alterno del insumo (manual loteprod §4: "si el
+     * principal falla, el alterno ya está aprobado"). 1 = principal, 2+ =
+     * alternos en orden de preferencia, null = en el catálogo pero sin
+     * clasificar.
+     *
+     * `inventory_items.supplier_id` —lo que agrupa las OC del sugeridor— queda
+     * como ESPEJO del rango 1: la fuente de verdad es esta columna y el
+     * servicio los mueve juntos, para no terminar con dos respuestas distintas
+     * a "¿a quién le compro esto?".
+     */
+    preferenceRank: integer("preference_rank"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
     supplierItemUnique: uniqueIndex("supplier_item_unique").on(table.supplierId, table.itemId),
+    // Un insumo tiene A LO MÁS un proveedor principal. La regla vive en la BD
+    // porque "quién surte esto" no puede depender de que el servicio se acuerde
+    // de degradar al anterior.
+    supplierItemPrimaryUnique: uniqueIndex("supplier_item_primary_unique")
+        .on(table.companyId, table.itemId)
+        .where(sql`${table.preferenceRank} = 1`),
 }));
 
 export const nom035ActionPlans = pgTable("nom035_action_plans", {

@@ -9,6 +9,7 @@ import { BRANCH_COOKIE_NAME } from "@/lib/branch-cookies";
 import type { Role } from "@/lib/permissions";
 import { StockManager } from "@/components/inventory/stock-manager";
 import { UnitConversionManager } from "@/components/inventory/unit-conversion-manager";
+import { ItemSuppliersManager } from "@/components/inventory/item-suppliers-manager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
@@ -86,6 +87,7 @@ export default async function ProductDetailPage({ params }: Props) {
                 <TabsList>
                     <TabsTrigger value="stock">Stock y Movimientos</TabsTrigger>
                     <TabsTrigger value="conversions">Conversiones de Unidad</TabsTrigger>
+                    <TabsTrigger value="suppliers">Proveedores</TabsTrigger>
                 </TabsList>
                 <TabsContent value="stock">
                     <StockManager
@@ -99,6 +101,9 @@ export default async function ProductDetailPage({ params }: Props) {
                 </TabsContent>
                 <TabsContent value="conversions">
                     <UnitConversionManager />
+                </TabsContent>
+                <TabsContent value="suppliers">
+                    <ItemSuppliersManager itemId={id} />
                 </TabsContent>
             </Tabs>
         </PageContainer>

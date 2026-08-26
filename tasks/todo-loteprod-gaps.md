@@ -156,6 +156,30 @@ Origen: investigación 2026-08-25 de `loteprod.md` contra `app/dashboard/invento
 - [ ] Tests nuevos pasan · build limpio · migraciones en staging
 - [ ] Docs actualizadas (`PROJECT_CONTEXT.md`, `docs/admin-guide.md`)
 
+## Fuera del plan pero cerrado sobre la marcha (§4 del manual)
+
+Salieron de una revisión del usuario, no del informe original:
+
+- [x] **Condiciones de pago a proveedor** — `suppliers.payment_terms_days` existía (0 = contado) y
+  alimentaba el vencimiento de las facturas, pero NADIE podía capturarlo: el zod de la API no lo
+  aceptaba y la UI no lo mostraba, así que todos los proveedores estaban en contado por default.
+  `updateSupplierPaymentTerms()` llevaba escrita sin un solo llamador y **tronaba al ejecutarse**
+  (`operator is not unique: date + unknown` — parámetro sin tipo entre `date + integer` y
+  `date + interval`); va con `::integer`. Nueva forma de pago: enum propio
+  `supplier_payment_method` alineado a c_FormaPago del SAT (no se reusó el `payment_method` de
+  nómina, que tiene PAYROLL_CARD). Migración `0070`. Vocabulario en
+  `lib/inventory/supplier-payment.ts`.
+- [x] **Proveedor principal vs alterno por insumo** — `supplier_items.preference_rank`
+  (1 = principal, 2+ = alternos, null = catálogo sin clasificar) con único parcial
+  `(company_id, item_id) WHERE preference_rank = 1`: la regla vive en la BD, no en el servicio.
+  `inventory_items.supplier_id` —lo que agrupa las OC del sugeridor— queda como ESPEJO del rango 1
+  y se mueve en la misma transacción, para no tener dos respuestas a "¿a quién le compro esto?".
+  Backfill en la migración `0071`: cada "proveedor preferido" ya capturado se volvió principal
+  (30 insumos, 0 huérfanos) — sin eso el deploy habría dejado a todos sin principal y el sugeridor
+  habría dejado de armar órdenes. Lógica de reordenamiento pura y probada
+  (`lib/inventory/supplier-preference.ts`, 10 tests). UI: pestaña Proveedores en el detalle del
+  insumo, con aviso explícito cuando no hay principal.
+
 ## Verificado que YA existe (no son gaps)
 
 - §3.3 Rendimiento crudo→cocido: `yieldPercent` en recetas y líneas de receta
