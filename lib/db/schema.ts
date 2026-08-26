@@ -4,7 +4,7 @@
  * All tables will be moved to domain-specific modules in lib/db/schema/
  */
 
-import { pgTable, text, timestamp, date, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, time, date, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // Import auth tables and enums for internal use within this file
@@ -320,11 +320,42 @@ export const productionOrders = pgTable("production_orders", {
     plannedDate: timestamp("planned_date").notNull(),
     status: productionOrderStatusEnum("status").default('PLANNED').notNull(),
     notes: text("notes"),
+
+    /**
+     * Task 6 (loteprod §6.2): la Hoja de Producción Diaria. Las cuatro columnas
+     * que el manual pide y la orden no tenía — estación, turno, responsable y
+     * hora límite — más quién cerró la línea.
+     *
+     * Todas nullable: la orden suelta que ya existía (fecha + cantidad) sigue
+     * siendo válida y cae en el grupo "Sin estación" de la hoja.
+     *
+     * `station` es TEXTO LIBRE, no enum: cada cocina nombra sus estaciones
+     * distinto ("Parrilla", "Prep station", "Plancha 2"). El agrupado normaliza
+     * acentos y mayúsculas en `lib/inventory/prep-list.ts`, que es donde vive el
+     * criterio; la columna guarda la forma capturada.
+     *
+     * `deadlineTime` es `time` SIN fecha ni zona a propósito: es una hora de
+     * pared ("09:30") que se compara contra los minutos del día en la zona de la
+     * sucursal. Un timestamp obligaría a elegir un huso al escribirla y volvería
+     * a abrir el problema de reloj que ya costó caro en Task 5.
+     */
+    station: text("station"),
+    shift: shiftTypeEnum("shift"),
+    responsibleUserId: text("responsible_user_id"),
+    deadlineTime: time("deadline_time"),
+    completedBy: text("completed_by"),
+
     createdBy: text("created_by"),
     completedAt: timestamp("completed_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+    // Task 6: la hoja del día se pide siempre por (empresa, sucursal, fecha).
+    // Sin este índice cada apertura de la pestaña escanea todas las órdenes
+    // históricas de la sucursal.
+    productionOrdersPrepListIdx: index("production_orders_prep_list_idx")
+        .on(table.companyId, table.branchId, table.plannedDate),
+}));
 
 export const productionResults = pgTable("production_results", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),

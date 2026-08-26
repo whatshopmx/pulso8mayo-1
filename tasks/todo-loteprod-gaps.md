@@ -110,9 +110,29 @@ Origen: investigación 2026-08-25 de `loteprod.md` contra `app/dashboard/invento
   idempotente en 2ª corrida, cierre automático sin duplicar merma, prorrateo 10000¢/20 = 500¢/u,
   confirmación parcial 4 de 10 = 2000¢, cantidad 0 sin merma, ALREADY_DISCARDED / NOT_EXPIRED /
   OVER_QUANTITY / RESULT_NOT_FOUND cross-tenant) · tsc exit 0 · unit 419 passed · lint 0 errores.
-- [ ] **Task 6:** Prep list por estación/turno/hora límite
-  (columnas nuevas en `production_orders`, vista agrupada con checkbox, lote FEFO visible,
-  completar dispara producción real) — dividir 6a datos / 6b UI si excede 5 archivos
+- [x] **Task 6a:** Prep list — datos y servicio (§6.2)
+  Migración `0073`: `production_orders` += `station` (texto libre) / `shift` (reusa el enum
+  `shift_type`) / `responsible_user_id` / `deadline_time` (`time`, hora de pared) / `completed_by`,
+  más el índice `(company_id, branch_id, planned_date)` que la hoja del día consulta siempre.
+  Lógica pura en `lib/inventory/prep-list.ts` (19 tests): normalización de estación, agrupado que
+  junta "Cocina Fría" y "cocina fria", estatus contra la hora límite (a la hora en punto todavía
+  está a tiempo; sin hora nunca se marca atrasada) y orden por urgencia dentro de cada estación.
+  Servicio `lib/services/prep-list-service.ts` + rutas `prep-list` (GET/POST/PATCH) y
+  `prep-list/complete` (POST).
+  **Dos relojes distintos, a propósito:** el día es una FECHA DE CALENDARIO (`planned_date::date`,
+  porque la orden se escribe desde un `<input type="date">` como medianoche UTC y un rango con la
+  zona de la sucursal dejaría fuera justo las del día), mientras que la hora límite SÍ es hora
+  local de la sucursal (`localMoment(now, branch.timezone).minutesOfDay`, la misma forma del
+  tablero de hoy).
+  **Reuso en vez de copia:** la explosión de receta + FEFO + merma por lote insuficiente salió de
+  `production-from-workflow.ts` a `lib/services/recipe-production.ts` (`produceRecipeWithFefo`);
+  completar una línea y el extractor de workflow recorren exactamente el mismo camino.
+  La vista previa FEFO reparte el stock entre las líneas abiertas en el orden en que se muestran
+  —sin bloquear ni escribir— para que dos líneas del mismo insumo no anuncien el mismo lote.
+  Verificación: `tests/tmp-verify/prep-list-6a.ts` — 22 asserts en verde contra dev (agrupado,
+  los 5 estatus, lote FEFO = el más próximo a vencer, sin doble promesa de lote, completar
+  descuenta y firma la orden, y los 4 rechazos) · tsc exit 0 · unit 438 passed · lint 0 errores.
+- [ ] **Task 6b:** Prep list — UI (vista agrupada por estación con checkbox de completado)
 - [ ] **Task 7:** Pars por franja horaria batch cooking
   (`recipe_par_slots`, sugeridor par − stock listo hoy, integración a panel de sugerencias) —
   dividir 7a datos / 7b UI
