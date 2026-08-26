@@ -10,6 +10,7 @@ import {
     branches,
 } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
 
 // ---------------------------------------------------------------------------
 // Reportes operativos de inventario (usage, COGS, par level, valuation,
@@ -572,6 +573,9 @@ export class InventoryReportsService {
             eq(inventoryWaste.companyId, companyId),
             gte(inventoryWaste.recordedAt, startDate),
             lte(inventoryWaste.recordedAt, endDate),
+            // Pendientes/rechazadas no aparecen en el reporte: aún no son (o
+            // nunca serán) consumo aceptado (Task 3 §8.1).
+            wasteLossEligible,
         ];
         if (branchId) conditions.push(eq(inventoryWaste.branchId, branchId));
 

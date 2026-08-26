@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { inventoryKnowledgeGraph, inventoryMovements, inventoryWaste, inventoryBatches, inventoryItems } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, sum, avg, count } from "drizzle-orm";
+import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
 
 export interface ItemInsight {
     itemId: string;
@@ -68,8 +69,10 @@ export class KnowledgeService {
                 eq(inventoryWaste.branchId, branchId),
                 eq(inventoryWaste.itemId, itemId),
                 gte(inventoryWaste.recordedAt, thirtyDaysAgo),
-                // STAFF y COURTESY son consumo, no merma: no ensucian el trend (OQ-1).
+                // STAFF y COURTESY son consumo, no merma: no ensucian el trend
+                // (OQ-1); pendientes/rechazadas tampoco suman (Task 3 §8.1).
                 sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
+                wasteLossEligible,
             ));
 
         const totalWasteQty = Number(wasteData[0]?.totalWaste ?? 0);

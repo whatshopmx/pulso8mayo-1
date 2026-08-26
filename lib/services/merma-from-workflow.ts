@@ -33,6 +33,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import type { inventoryWasteReasonEnum } from "@/lib/db/schema";
+import { initialApprovalStatus } from "@/lib/inventory/waste-approval";
 import { createChildLogger } from "@/lib/logger";
 
 const logger = createChildLogger("services:merma-from-workflow");
@@ -267,6 +268,10 @@ export async function extractMermaFromInstance(instanceId: string): Promise<void
           reason: m.reasonKey as WasteReason,
           costPerUnit: unitCost,
           totalLoss: unitCost !== null ? Math.round(unitCost * m.quantity) : null,
+          // Task 3 (§8.1): STAFF/COURTESY nacen PENDING_APPROVAL también desde
+          // workflow; este extractor no mueve inventario, así que no hay nada
+          // que diferir — la aprobación sólo cierra el estatus.
+          approvalStatus: initialApprovalStatus(m.reasonKey),
           recordedBy,
           // A9: instancia y origen en columnas, no sólo en el texto de `notes`.
           workflowInstanceId: instanceId,

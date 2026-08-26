@@ -290,8 +290,13 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
       }
 
       setPendingSubmission(null);
-      toast.success('Merma registrada', {
-        description: `Se dieron de baja ${data.quantity} ${data.unit} de ${selectedProduct?.name ?? 'producto'}.`,
+      // Task 3 (§8.1): STAFF/COURTESY nacen pendientes — el mensaje no puede
+      // decir "se dieron de baja": el descuento ocurre al aprobar.
+      const pendiente = payload?.data?.waste?.approvalStatus === 'PENDING_APPROVAL';
+      toast.success(pendiente ? 'Merma enviada a aprobación' : 'Merma registrada', {
+        description: pendiente
+          ? `Un gerente debe aprobarla para que se descuente el inventario (${data.quantity} ${data.unit} de ${selectedProduct?.name ?? 'producto'}).`
+          : `Se dieron de baja ${data.quantity} ${data.unit} de ${selectedProduct?.name ?? 'producto'}.`,
         action: {
           label: 'Ver registro',
           onClick: () => router.push('/dashboard/inventory/movements'),

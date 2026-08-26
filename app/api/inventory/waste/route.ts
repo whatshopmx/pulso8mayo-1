@@ -26,6 +26,8 @@ import { withTenantAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import { enforceBranchScope, resolveBranchScope } from "@/lib/branch-scope";
+import { initialApprovalStatus } from "@/lib/inventory/waste-approval";
+import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
 import { formatQty } from "@/lib/utils";
 
 type WasteReason = (typeof inventoryWasteReasonEnum.enumValues)[number];
@@ -139,14 +141,17 @@ export const GET = withTenantAuth(async (req: NextRequest, { auth }) => {
 
   // Resumen y conteo con los MISMOS filtros que la lista (join a ítems incluido):
   // los totales no deben cambiar al paginar. STAFF/COURTESY son consumo interno,
-  // no merma real (OQ-1, mismo criterio que inventory-reports-service).
+  // no merma real (OQ-1, mismo criterio que inventory-reports-service). Las
+  // PENDING_APPROVAL/REJECTED tampoco suman: aún no son consumo aceptado o
+  // jamás lo serán (Task 3 §8.1, criterio único en waste-kpi).
   const itemJoin = eq(inventoryWaste.itemId, inventoryItems.id);
+  const eligible = [wasteLossEligible];
 
   const [agg] = await db
     .select({
       count: sql<number>`count(*)`,
-      totalLossCents: sql<string>`coalesce(sum(${inventoryWaste.totalLoss}), 0)`,
-      trueWasteLossCents: sql<string>`coalesce(sum(case when ${inventoryWaste.reason} not in ('STAFF', 'COURTESY') then ${inventoryWaste.totalLoss} else 0 end), 0)`,
+      totalLossCents: sql<string>`coalesce(sum(case when ${wasteLossEligible} then ${inventoryWaste.totalLoss} else 0 end), 0)`,
+      trueWasteLossCents: sql<string>`coalesce(sum(case when ${inventoryWaste.reason} not in ('STAFF', 'COURTESY') and ${wasteLossEligible} then ${inventoryWaste.totalLoss} else 0 end), 0)`,
     })
     .from(inventoryWaste)
     .leftJoin(inventoryItems, itemJoin)
@@ -160,7 +165,7 @@ export const GET = withTenantAuth(async (req: NextRequest, { auth }) => {
     })
     .from(inventoryWaste)
     .leftJoin(inventoryItems, itemJoin)
-    .where(and(...conditions))
+    .where(and(...conditions, ...eligible))
     .groupBy(inventoryWaste.reason);
 
   const rows = await db
@@ -290,6 +295,10 @@ export const POST = withTenantAuth(async (req: NextRequest, { auth }) => {
     throw ApiError.badRequest(`Motivo de merma inválido: ${reason}`);
   }
 
+  // Task 3 (§8.1): STAFF/COURTESY nacen PENDING_APPROVAL — sin baja de lote ni
+  // movimiento. El descuento ocurre sólo cuando un GERENTE+ aprueba.
+  const approvalStatus = initialApprovalStatus(reason);
+
   // --- Sucursal: tenancy + scope por rol --------------------------------------
   const tenantBranchIds = (
     await db
@@ -384,8 +393,9 @@ export const POST = withTenantAuth(async (req: NextRequest, { auth }) => {
         : null;
 
   // --- Baja del lote (si viene) ------------------------------------------------
+  // Sólo para mermas AUTO: una PENDING_APPROVAL descuenta al aprobar, no aquí.
   let updatedStock: number | null = null;
-  if (batch) {
+  if (batch && approvalStatus === "AUTO") {
     const newQuantity = Number(batch.currentQuantity) - qty;
     // 2.5 - 0.4 = 2.1000000000000005 en IEEE; Postgres redondea a 4dp al guardar
     // y el status se decide sobre el valor ya redondeado.
@@ -417,28 +427,32 @@ export const POST = withTenantAuth(async (req: NextRequest, { auth }) => {
       recordedBy: auth.user.id,
       recordedAt: new Date(),
       notes: typeof notes === "string" && notes ? notes : null,
+      approvalStatus,
     })
     .returning();
 
   // COURTESY se trata igual que STAFF: es consumo (regalo a cliente), no
-  // desperdicio — no debe inflar el % de merma (OQ-1).
+  // desperdicio — no debe inflar el % de merma (OQ-1). El movimiento USAGE/WASTE
+  // sólo para AUTO; el aprobador lo genera al aprobar (waste/[id]/approval).
   const consumoInterno = reason === "STAFF" || reason === "COURTESY";
-  await db
-    .insert(inventoryMovements)
-    .values({
-      branchId: effectiveBranchId,
-      itemId,
-      batchId: batch?.id ?? null,
-      type: consumoInterno ? "USAGE" : "WASTE",
-      quantityChange: String(-qty),
-      reason: consumoInterno
-        ? reason === "STAFF"
-          ? "Consumo de Personal"
-          : "Cortesía a Cliente"
-        : `WASTE: ${reason}`,
-      performedBy: auth.user.id,
-      timestamp: new Date(),
-    });
+  if (approvalStatus === "AUTO") {
+    await db
+      .insert(inventoryMovements)
+      .values({
+        branchId: effectiveBranchId,
+        itemId,
+        batchId: batch?.id ?? null,
+        type: consumoInterno ? "USAGE" : "WASTE",
+        quantityChange: String(-qty),
+        reason: consumoInterno
+          ? reason === "STAFF"
+            ? "Consumo de Personal"
+            : "Cortesía a Cliente"
+          : `WASTE: ${reason}`,
+        performedBy: auth.user.id,
+        timestamp: new Date(),
+      });
+  }
 
   AuditService.logInventoryAction({
     companyId: auth.tenantId,
@@ -446,7 +460,7 @@ export const POST = withTenantAuth(async (req: NextRequest, { auth }) => {
     action: "CREATE",
     entityType: "WASTE",
     entityId: waste.id,
-    newValue: { itemId, quantity: qty, unit, reason, notes },
+    newValue: { itemId, quantity: qty, unit, reason, notes, approvalStatus },
     performedBy: auth.user.id,
     reason: `Waste: ${reason}`,
     metadata: {

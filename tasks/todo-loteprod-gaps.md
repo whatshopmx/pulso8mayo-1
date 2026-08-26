@@ -28,8 +28,20 @@ Origen: investigación 2026-08-25 de `loteprod.md` contra `app/dashboard/invento
   `/api/inventory/dashboard`; tarjeta condicional "Merma Obligatoria Pendiente" en
   `dashboard-kpis.tsx`; test con 10 casos (`__tests__/expiration-alert.test.ts`).
   Verificación: unit 360 passed · build OK · migración aplicada.
-- [ ] **Task 3:** Tope mensual + aprobación de mermas STAFF/COURTESY
+- [x] **Task 3:** Tope mensual + aprobación de mermas STAFF/COURTESY
   (`approvalStatus/approvedBy`; rechazada no descuenta inventario)
+  — DONE (código): `inventory_waste` += `approval_status/approved_by/approved_at` +
+  `companies.courtesy_waste_monthly_cap_cents` (migración manual `0067_waste_approval.sql` +
+  journal idx 67); lógica pura en `lib/inventory/waste-approval.ts` (12 tests) con `roleIsAtLeast`
+  fail-closed; POST waste difiere descuento/movimiento para PENDING_APPROVAL; nuevo endpoint
+  `POST /api/inventory/waste/[id]/approval` (GERENTE+ acotado a sucursal; sobre tope exige ADMIN+;
+  aprobar descuenta lote FOR UPDATE en tx); criterio único de KPIs en `lib/inventory/waste-kpi.ts`
+  (`wasteLossEligible`) aplicado en dashboard/executive/predictive/knowledge/reports + summary del
+  historial; UI: columna Estado, aprobar/rechazar en detalle sheet (`useWasteApprovalAction`),
+  toast "enviada a aprobación" en el form, tarjeta ADMIN+ para el tope en la página.
+  Decisión open question #1: tope = monto fijo mensual por empresa.
+  Verificación: tsc exit 0 · unit 372 passed · lint 0 errores · **pendiente**: db:migrate 0067 en dev,
+  `pnpm run build`, flujo manual E2E, commit selectivo → ver `handoffs/loteprod-task3-handover.md`.
 
 ### Checkpoint Phase 1
 - [x] tsc limpio* · build pasa · migraciones aplican en dev (*2 errores preexistentes de otro

@@ -19,6 +19,9 @@ export const companies = pgTable("companies", {
   billingStatus: text("billing_status").default('ACTIVE'),
   stripeCustomerId: text("stripe_customer_id"),
   blindStockCount: boolean("blind_stock_count").default(false),
+  // Task 3 (plan-loteprod-gaps §8.1): tope mensual de mermas STAFF/COURTESY en
+  // centavos, a nivel empresa. Null = sin tope: cualquier GERENTE aprueba.
+  courtesyWasteMonthlyCapCents: integer("courtesy_waste_monthly_cap_cents"),
   costingMethod: text("costing_method").default('LAST_PRICE'), // 'LAST_PRICE' | 'AVERAGE_COST'
   taxRate: integer("tax_rate").default(16), // IVA percentage default 16%
   createdAt: timestamp("created_at").defaultNow(),

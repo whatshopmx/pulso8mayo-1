@@ -16,11 +16,13 @@ import {
   temperatureLogs,
   shiftSessions,
   inventoryWaste,
+
   inventoryBatches,
   employeeDocuments,
 } from "@/lib/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
 import { subDays, startOfDay } from "date-fns";
+import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -247,8 +249,10 @@ export const PredictiveScoringService = {
           eq(inventoryWaste.branchId, branchId),
           gte(inventoryWaste.recordedAt, twentyOneDaysAgo),
           sql`${inventoryWaste.recordedAt} < ${sevenDaysAgo.toISOString()}`,
-          // STAFF y COURTESY son consumo, no merma (OQ-1).
+          // STAFF y COURTESY son consumo, no merma (OQ-1); pendientes/rechazadas
+          // tampoco suman (Task 3 §8.1).
           sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
+          wasteLossEligible,
         ),
       );
 
@@ -263,6 +267,7 @@ export const PredictiveScoringService = {
           eq(inventoryWaste.branchId, branchId),
           gte(inventoryWaste.recordedAt, sevenDaysAgo),
           sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
+          wasteLossEligible,
         ),
       );
 

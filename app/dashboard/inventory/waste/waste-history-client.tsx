@@ -28,6 +28,7 @@ import { formatQty } from "@/lib/utils";
 import {
   REASON_FILTER_OPTIONS,
   REASON_LABELS,
+  approvalLabel,
   isInternalConsumption,
   originLabel,
 } from "@/lib/inventory/waste-labels";
@@ -65,7 +66,14 @@ function SummaryStat({ label, value, tone }: { label: string; value: string; ton
   );
 }
 
-export function WasteHistoryClient({ branchId }: { branchId: string }) {
+export function WasteHistoryClient({
+  branchId,
+  canApproveWaste = false,
+}: {
+  branchId: string;
+  /** GERENTE+ resuelve mermas STAFF/COURTESY pendientes (Task 3 §8.1). */
+  canApproveWaste?: boolean;
+}) {
   // Periodo default: mes en curso (decisión del plan).
   const [dateFrom, setDateFrom] = useState(startOfMonthISO);
   const [dateTo, setDateTo] = useState(dayISO(new Date()));
@@ -258,6 +266,7 @@ export function WasteHistoryClient({ branchId }: { branchId: string }) {
                 <TableHead className="text-right">Cantidad</TableHead>
                 <TableHead>Motivo</TableHead>
                 <TableHead>Origen</TableHead>
+                <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Pérdida</TableHead>
                 <TableHead>Lote</TableHead>
                 <TableHead>Registró</TableHead>
@@ -301,6 +310,12 @@ export function WasteHistoryClient({ branchId }: { branchId: string }) {
                     <TableCell>
                       <Badge variant={ol.variant}>{ol.label}</Badge>
                     </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const al = approvalLabel(r.waste.approvalStatus);
+                        return al ? <Badge variant={al.variant}>{al.label}</Badge> : <span className="text-xs text-muted-foreground">—</span>;
+                      })()}
+                    </TableCell>
                     <TableCell className={`text-right tabular-nums ${interno ? "text-muted-foreground" : "text-destructive"}`}>
                       {formatMXN(r.waste.totalLoss)}
                     </TableCell>
@@ -332,7 +347,12 @@ export function WasteHistoryClient({ branchId }: { branchId: string }) {
         </>
       )}
 
-      <WasteDetailSheet record={selected} open={selected !== null} onOpenChange={(o) => !o && setSelected(null)} />
+      <WasteDetailSheet
+        record={selected}
+        open={selected !== null}
+        onOpenChange={(o) => !o && setSelected(null)}
+        canApprove={canApproveWaste}
+      />
     </div>
   );
 }

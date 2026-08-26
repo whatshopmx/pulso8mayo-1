@@ -363,6 +363,33 @@ export function useMovements(params?: {
 }
 
 /**
+ * Task 3 (plan-loteprod-gaps §8.1): aprobar/rechazar una merma
+ * STAFF/COURTESY pendiente. POST /api/inventory/waste/:id/approval.
+ * El mensaje de error del server (tope excedido, rol insuficiente) viaja en
+ * `error.message` listo para toast.
+ */
+export function useWasteApprovalAction() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "APPROVE" | "REJECT" }) => {
+      const res = await fetch(`/api/inventory/waste/${id}/approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(json?.error?.message || "No se pudo actualizar la merma")
+      }
+      return json.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory", "waste-history"] })
+    },
+  })
+}
+
+/**
  * Historial de mermas con filtros y resumen server-side
  * (plan-mermas-historial Task 2). Misma forma que la respuesta del GET:
  * `{ waste, total, limit, offset, summary }`. El summary ya separa merma real

@@ -1,5 +1,5 @@
 export { useBranches } from "./use-branches"
-export { useInventory, useCreateProduct, useProduct, useUpdateProduct, useDeleteProduct, useDashboard, useMovements, useWasteHistory, usePurchaseOrders, usePurchaseOrder, useCreatePurchaseOrder, useUpdatePurchaseOrder, usePriceCheck } from "./use-inventory"
+export { useInventory, useCreateProduct, useProduct, useUpdateProduct, useDeleteProduct, useDashboard, useMovements, useWasteHistory, useWasteApprovalAction, usePurchaseOrders, usePurchaseOrder, useCreatePurchaseOrder, useUpdatePurchaseOrder, usePriceCheck } from "./use-inventory"
 export { useEquipment, useEquipmentItem } from "./use-equipment"
 export { useWorkflows, useWorkflowExecution } from "./use-workflows"
 export { useEmployees, useEmployee } from "./use-employees"

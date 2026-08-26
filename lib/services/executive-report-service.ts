@@ -5,6 +5,7 @@ import {
     branches, workflowInstances, workflowTemplates
 } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
 
 const STOCK_COUNT_TEMPLATE_NAME = "Conteo de Inventario";
 
@@ -183,8 +184,10 @@ export class ExecutiveReportService {
                 eq(inventoryWaste.branchId, branchId),
                 gte(inventoryWaste.recordedAt, startDate),
                 lte(inventoryWaste.recordedAt, endDate),
-                // STAFF y COURTESY son consumo, no merma (OQ-1).
+                // STAFF y COURTESY son consumo, no merma (OQ-1); pendientes/
+                // rechazadas tampoco suman (Task 3 §8.1).
                 sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
+                wasteLossEligible,
             ));
         return Number(rows[0]?.total ?? 0); // sum() SQL devuelve string
     }

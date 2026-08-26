@@ -470,6 +470,13 @@
       "when": 1787695074732,
       "tag": "0066_sudden_stepford_cuckoos",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1787781600000,
+      "tag": "0067_waste_approval",
+      "breakpoints": true
     }
   ]
 }

@@ -1316,6 +1316,15 @@ export const inventoryWaste = pgTable("inventory_waste", {
      */
     evidenceUrl: text("evidence_url"),
 
+    /**
+     * Task 3 (plan-loteprod-gaps §8.1): STAFF/COURTESY nacen PENDING_APPROVAL
+     * y NO descuentan inventario hasta que un GERENTE+ aprueba; rechazada queda
+     * REJECTED sin movimiento. Todo lo demás nace AUTO (sin flujo de aprobación).
+     */
+    approvalStatus: text("approval_status").default("AUTO").notNull(), // AUTO | PENDING_APPROVAL | APPROVED | REJECTED
+    approvedBy: text("approved_by"),
+    approvedAt: timestamp("approved_at"),
+
     // Audit
     recordedBy: text("recorded_by").notNull(), // User ID
     recordedAt: timestamp("recorded_at").notNull().defaultNow(),

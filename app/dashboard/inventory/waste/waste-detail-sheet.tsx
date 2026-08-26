@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -10,9 +11,11 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { REASON_LABELS, originLabel, isInternalConsumption } from "@/lib/inventory/waste-labels";
+import { REASON_LABELS, originLabel, isInternalConsumption, approvalLabel } from "@/lib/inventory/waste-labels";
+import { useWasteApprovalAction } from "@/hooks/queries";
 import { formatQty } from "@/lib/utils";
-import { ExternalLink } from "lucide-react";
+import { toast } from "sonner";
+import { Check, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 import { EvidenceImage } from "./evidence-image";
 
@@ -37,6 +40,10 @@ export interface WasteRecordRow {
     recordedAt: string;
     notes: string | null;
     evidenceUrl?: string | null;
+    /** Task 3 (§8.1): AUTO | PENDING_APPROVAL | APPROVED | REJECTED. */
+    approvalStatus?: string;
+    approvedBy?: string | null;
+    approvedAt?: string | null;
   };
   item: {
     id: string;
@@ -71,15 +78,43 @@ export function WasteDetailSheet({
   record,
   open,
   onOpenChange,
+  canApprove = false,
 }: {
   record: WasteRecordRow | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** GERENTE+ puede resolver pendientes (Task 3 §8.1). */
+  canApprove?: boolean;
 }) {
   const w = record?.waste;
   const reason = w ? REASON_LABELS[w.reason as keyof typeof REASON_LABELS] ?? { label: w.reason, variant: "outline" as const } : null;
   const origin = originLabel(w?.origin);
   const interno = w ? isInternalConsumption(w.reason) : false;
+  const approval = approvalLabel(w?.approvalStatus);
+  const isPending = w?.approvalStatus === "PENDING_APPROVAL";
+
+  const [confirming, setConfirming] = useState<"APPROVE" | "REJECT" | null>(null);
+  const approvalAction = useWasteApprovalAction();
+
+  const resolve = (action: "APPROVE" | "REJECT") => {
+    if (!w) return;
+    approvalAction.mutate(
+      { id: w.id, action },
+      {
+        onSuccess: () => {
+          toast.success(action === "APPROVE"
+            ? "Merma aprobada — inventario descontado"
+            : "Merma rechazada — inventario intacto");
+          setConfirming(null);
+          onOpenChange(false);
+        },
+        onError: (err) => {
+          toast.error(err.message);
+          setConfirming(null);
+        },
+      }
+    );
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -122,7 +157,70 @@ export function WasteDetailSheet({
                 <DetailField label="Origen">
                   <Badge variant={origin.variant}>{origin.label}</Badge>
                 </DetailField>
+                {approval && (
+                  <DetailField label="Aprobación">
+                    <Badge variant={approval.variant}>{approval.label}</Badge>
+                  </DetailField>
+                )}
               </dl>
+
+              {/* Task 3 (§8.1): resolver una merma pendiente. Aprobar descuenta
+                  inventario EN ESE MOMENTO; rechazar no toca stock. */}
+              {isPending && canApprove && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    {confirming === null ? (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="flex-1 shadow-none"
+                          disabled={approvalAction.isPending}
+                          onClick={() => setConfirming("APPROVE")}
+                        >
+                          <Check className="h-4 w-4 mr-1" /> Aprobar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="flex-1 shadow-none"
+                          disabled={approvalAction.isPending}
+                          onClick={() => setConfirming("REJECT")}
+                        >
+                          <X className="h-4 w-4 mr-1" /> Rechazar
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border p-3 space-y-3 bg-sidebar">
+                        <p className="text-sm">
+                          {confirming === "APPROVE"
+                            ? `¿Confirmas aprobar el consumo de ${formatQty(w.quantity)} ${w.unit}? El inventario se descontará del lote.`
+                            : "¿Confirmas rechazar esta merma? No afectará el inventario ni los reportes."}
+                        </p>
+                        <div className="flex gap-2 justify-end">
+                          <Button size="sm" variant="ghost" className="shadow-none" disabled={approvalAction.isPending} onClick={() => setConfirming(null)}>
+                            Cancelar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={confirming === "APPROVE" ? "default" : "destructive"}
+                            className="shadow-none"
+                            disabled={approvalAction.isPending}
+                            onClick={() => resolve(confirming)}
+                          >
+                            {approvalAction.isPending ? "Procesando…" : "Confirmar"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+              {isPending && !canApprove && (
+                <p className="text-xs text-muted-foreground">
+                  Pendiente de aprobación por un gerente. No descuenta inventario hasta entonces.
+                </p>
+              )}
 
               <Separator />
 

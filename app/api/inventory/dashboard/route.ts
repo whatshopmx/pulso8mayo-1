@@ -4,6 +4,7 @@ import { eq, and, sql, desc, lte, gte } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { hasPermission } from "@/lib/permissions";
+import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
 import { ExpirationAlertService } from "@/lib/services/expiration-alert-service";
 
 export async function GET(req: NextRequest) {
@@ -197,8 +198,10 @@ export async function GET(req: NextRequest) {
         eq(inventoryWaste.companyId, tenant.id),
         ...(branchId ? [eq(inventoryWaste.branchId, branchId)] : []),
         gte(inventoryWaste.recordedAt, currentMonthStart),
-        // STAFF y COURTESY son consumo, no merma: no inflan el %. (OQ-1)
-        sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`
+        // STAFF y COURTESY son consumo, no merma (OQ-1); pendientes/rechazadas
+        // tampoco suman (Task 3 §8.1).
+        sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
+        wasteLossEligible
       ))
       .then(r => r[0]?.total || 0);
 
@@ -313,7 +316,8 @@ export async function GET(req: NextRequest) {
             .where(and(
               eq(inventoryWaste.companyId, tenant.id),
               gte(inventoryWaste.recordedAt, currentMonthStart),
-              sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`
+              sql`${inventoryWaste.reason} NOT IN ('STAFF', 'COURTESY')`,
+              wasteLossEligible
             ))
             .groupBy(inventoryWaste.branchId, branches.name)
             .orderBy(sql`coalesce(sum(${inventoryWaste.totalLoss}), 0) desc`)

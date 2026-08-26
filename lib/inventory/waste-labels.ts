@@ -50,6 +50,24 @@ export function isInternalConsumption(reason: string): boolean {
   return reason === "STAFF" || reason === "COURTESY";
 }
 
+/**
+ * Task 3 (§8.1): etiquetas del flujo de aprobación. AUTO no se muestra — es el
+ * default y pintar "sin aprobación" en cada fila sería ruido.
+ */
+export const APPROVAL_LABELS: Record<string, { label: string; variant: BadgeVariant }> = {
+  PENDING_APPROVAL: { label: "Por aprobar", variant: "warning" },
+  APPROVED: { label: "Aprobada", variant: "outline" },
+  REJECTED: { label: "Rechazada", variant: "destructive" },
+};
+
+/** Null/undefined/"AUTO" → sin badge. Función para no duplicar el default. */
+export function approvalLabel(
+  status: string | null | undefined
+): { label: string; variant: BadgeVariant } | null {
+  if (!status || status === "AUTO") return null;
+  return APPROVAL_LABELS[status] ?? { label: status, variant: "outline" };
+}
+
 /** Opciones para un Select de filtro de motivo, en orden operativo. */
 export const REASON_FILTER_OPTIONS = (
   Object.keys(REASON_LABELS) as WasteReason[]
