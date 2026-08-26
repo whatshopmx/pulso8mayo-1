@@ -1,5 +1,9 @@
 # Handover — Plan loteprod-gaps: Task 3 implementada, cómo continuar
 
+> ⚠️ **SUPERADO (2026-08-26):** Task 3 quedó cerrada — commits `f5d42b7` + `fd8f7c2`
+> (migración final es `0068`, no la `0067` manual que describe este doc). Verificación E2E
+> completa en `tasks/todo-loteprod-gaps.md`. Continuar con Task 4 (Paso 2 de este doc).
+
 > **Documento de entrega** para retomar el plan `tasks/plan-loteprod-gaps.md` en una sesión nueva.
 > Fuentes de verdad: `loteprod.md` (manual operativo QSR) · `tasks/plan-loteprod-gaps.md` (plan técnico,
 > Tasks 1–10) · `tasks/todo-loteprod-gaps.md` (checklist viva con estado y evidencia por tarea).
