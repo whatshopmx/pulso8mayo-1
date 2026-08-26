@@ -21,6 +21,7 @@ import {
   Crown,
   Shield,
   Landmark,
+  PiggyBank,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -398,6 +399,13 @@ const navMain = [
         title: "Gastos Operativos",
         url: "/dashboard/finance/expenses",
         icon: Receipt,
+      },
+      // Presupuestos (Task 9): captura administrativa financiera junto a Gastos
+      // Operativos; edición ADMIN+, consumo desde OC/OS aprobadas.
+      {
+        title: "Presupuestos",
+        url: "/dashboard/budgets",
+        icon: PiggyBank,
       },
       {
         title: "Cuentas por Pagar",
