@@ -34,13 +34,18 @@ export const REASON_LABELS: Record<WasteReason, { label: string; variant: BadgeV
 
 /**
  * Origen conocido de la merma (`inventory_waste.origin` es text libre; null =
- * captura manual vía formulario/API). Los tres valores con nombre los escriben
- * los extractores de workflow.
+ * captura manual vía formulario/API). Los tres primeros los escriben los
+ * extractores de workflow; los dos de retención, el ciclo de hold times.
  */
 export const ORIGIN_LABELS: Record<string, { label: string; variant: BadgeVariant }> = {
   workflow_merma: { label: "Workflow WhatsApp", variant: "default" },
   diferencia_conteo: { label: "Varianza de conteo", variant: "warning" },
   lote_insuficiente: { label: "Producción", variant: "outline" },
+  // Task 5 (§6.4): descarte por tiempo de retención vencido. Se distinguen a
+  // propósito — que el cron haya tenido que cerrarla solo dice que la línea
+  // quedó desatendida, y eso es una señal operativa, no un detalle técnico.
+  hold_time: { label: "Retención (confirmada)", variant: "outline" },
+  hold_time_auto: { label: "Retención (sin confirmar)", variant: "warning" },
 };
 
 /** Origen null → captura manual. Función para no duplicar el default. */

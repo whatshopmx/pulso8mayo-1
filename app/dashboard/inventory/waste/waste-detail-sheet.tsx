@@ -27,7 +27,8 @@ import { EvidenceImage } from "./evidence-image";
 export interface WasteRecordRow {
   waste: {
     id: string;
-    itemId: string;
+    /** Null en la merma de producto terminado (HOLD_TIME, Task 5). */
+    itemId: string | null;
     batchId: string | null;
     quantity: number;
     unit: string;
@@ -51,12 +52,15 @@ export interface WasteRecordRow {
     yieldFlagged?: boolean;
   };
   item: {
-    id: string;
+    /** Null cuando la merma es de producto terminado, no de un insumo. */
+    id: string | null;
     name: string | null;
     sku: string | null;
     unit: string | null;
     category?: string | null;
   };
+  /** Task 5: identifica la merma de retención, que no tiene insumo. */
+  recipe?: { id: string | null; name: string | null };
   batch: {
     id: string | null;
     lotNumber: string | null;
@@ -128,7 +132,7 @@ export function WasteDetailSheet({
           <>
             <SheetHeader className="pb-2">
               <SheetTitle className="text-base flex items-center gap-2">
-                {record.item.name ?? "Producto"}
+                {record.item.name ?? record.recipe?.name ?? "Producto terminado"}
                 {interno && (
                   <Badge variant="secondary">Consumo interno</Badge>
                 )}

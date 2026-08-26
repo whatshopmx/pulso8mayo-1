@@ -498,6 +498,13 @@
       "when": 1787757256616,
       "tag": "0071_busy_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1787761063070,
+      "tag": "0072_nosy_bloodstrike",
+      "breakpoints": true
     }
   ]
 }

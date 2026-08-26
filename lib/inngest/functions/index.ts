@@ -10,6 +10,8 @@ export { cronInventorySnapshot } from "./cron-inventory-snapshot";
 export { cronComplianceAlerts } from "./cron-compliance-alerts";
 export { cronScheduledReports } from "./cron-scheduled-reports";
 export { cronStockCheck } from "./cron-stock-check";
+// Task 5 plan-loteprod-gaps (§6.4): vencimiento del tiempo de retención en línea.
+export { cronHoldTimes } from "./cron-hold-times";
 export { cronDocumentExpirationCheck } from "./cron-document-expiration-check";
 export { cronBreakReminders } from "./cron-break-reminders";
 export { cronPerformanceReminders } from "./cron-performance-reminders";

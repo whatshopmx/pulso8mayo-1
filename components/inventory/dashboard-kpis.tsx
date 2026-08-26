@@ -2,7 +2,7 @@
 
 import { MetricCard, MetricGrid, MetricCardSkeleton } from "@/components/ui/metric-card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertTriangle, DollarSign, ShieldCheck, TrendingDown, Info, ChevronRight, CalendarX } from "lucide-react";
+import { AlertTriangle, DollarSign, ShieldCheck, TrendingDown, Info, ChevronRight, CalendarX, Timer } from "lucide-react";
 import { ErrorState } from "@/components/shared/error-state";
 
 interface BranchContribution {
@@ -27,6 +27,10 @@ interface DashboardKpisProps {
     } | null;
     /** Task 2 plan loteprod-gaps (§5.4): lotes vencidos con stock sin merma registrada. */
     expiredWastePendingCount?: number;
+    /** Task 5 (§6.4): tandas cocinadas dentro de su ventana pero por vencer. */
+    holdTimeExpiringSoonCount?: number;
+    /** Task 5 (§6.4): tandas que vencieron en línea y siguen sin cerrarse. */
+    holdTimeExpiredPendingCount?: number;
   } | null;
   loading: boolean;
   isError?: boolean;
@@ -87,6 +91,8 @@ export function DashboardKpis({ data, loading, isError, onRetry, scopeLabel }: D
   const matchRate = data.threeWayMatchRate;
   const wasteLoss = data.wasteLossRatio;
   const expiredPending = data.expiredWastePendingCount ?? 0;
+  const holdExpiring = data.holdTimeExpiringSoonCount ?? 0;
+  const holdExpired = data.holdTimeExpiredPendingCount ?? 0;
   const attribution = data.attribution;
 
   return (
@@ -233,6 +239,57 @@ export function DashboardKpis({ data, loading, isError, onRetry, scopeLabel }: D
         >
           <div className="flex items-center gap-1 text-xs font-medium text-primary">
             Registrar merma
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </div>
+        </MetricCard>
+      )}
+
+      {/* 6. Tiempo de retención en línea (§6.4). Igual que la anterior: sólo
+          aparece cuando hay algo que hacer. El número grande es lo VENCIDO —
+          merma que aún no se registra— y "por vencer" va de apoyo, porque es
+          la única de las dos que todavía se puede evitar. */}
+      {(holdExpired > 0 || holdExpiring > 0) && (
+        <MetricCard
+          href="/dashboard/inventory/production"
+          label="Producto en Línea"
+          value={
+            <span className="inline-flex items-center gap-2">
+              {holdExpired}
+              {holdExpired > 0 && (
+                <span
+                  className="inline-flex h-2 w-2 rounded-full bg-destructive"
+                  role="img"
+                  aria-label="Tandas vencidas sin tirar"
+                />
+              )}
+            </span>
+          }
+          icon={<Timer className="h-4 w-4" />}
+          tone={holdExpired > 0 ? "warning" : "neutral"}
+          subtitle={
+            <span className="inline-flex items-center gap-1">
+              {holdExpired > 0
+                ? `Vencidas sin tirar · ${holdExpiring} por vencer`
+                : `${holdExpiring} por vencer en línea`}
+              {scopeLabel ? ` · ${scopeLabel}` : ""}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" aria-label="Qué es el tiempo de retención" className="cursor-help">
+                      <Info className="h-3.5 w-3.5 text-muted-foreground/60" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[260px]">
+                    Cada producto cocinado tiene una ventana máxima en línea. Al vencer se
+                    tira y se registra como merma de retención.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </span>
+          }
+        >
+          <div className="flex items-center gap-1 text-xs font-medium text-primary">
+            Ver tablero en línea
             <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
           </div>
         </MetricCard>

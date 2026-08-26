@@ -74,8 +74,42 @@ Origen: investigación 2026-08-25 de `loteprod.md` contra `app/dashboard/invento
   (`recipes/page.tsx` + validadores + POST/PUT). Verificación: receta con holdTime=30 →
   `expires_at − production_date = 30.0000 min` exacto; receta sin hold time produce con
   `expires_at` null (`tests/tmp-verify/hold-time-produccion.ts`).
-- [ ] **Task 5:** Hold times — ciclo de vencimiento en línea
-  (cron horario, notificación a turno, merma idempotente A9, dashboard "por vencer")
+- [x] **Task 5:** Hold times — ciclo de vencimiento en línea
+  (cron, notificación a turno, merma idempotente A9, dashboard "por vencer")
+  — DONE: migración **`0072_nosy_bloodstrike.sql`** (aplicada en dev): `production_results` +=
+  `hold_alert_notified_at / discarded_at / discarded_quantity / discarded_by` + índice parcial
+  `production_results_hold_pending_idx`; `inventory_waste` += `production_result_id` con **único
+  parcial** (idempotencia A9 del descarte) y `item_id` pasa a **nullable** — la merma de retención
+  es de producto TERMINADO, que no existe como `inventory_items` (la producción descuenta insumos
+  y no crea lote de salida); exigir un insumo obligaba a inventar uno falso.
+  Lógica pura en `lib/inventory/hold-time.ts` (26 tests): clasificación OK/EXPIRING/EXPIRED,
+  gracia del cierre automático, prorrateo del costo (redondeo una sola vez, A7) y validación del
+  descarte. Servicio `lib/services/hold-time-service.ts` con los tres caminos: (1) el cron avisa
+  al turno —sesión `shift_sessions` ACTIVE, con caída a gerencia de la sucursal— una sola vez por
+  tanda vía claim atómico `UPDATE ... WHERE hold_alert_notified_at IS NULL RETURNING`;
+  (2) el turno confirma cuánto se tiró → merma `origin='hold_time'`, y **cantidad 0 es respuesta
+  válida** ("venció en el sistema pero se vendió": cierra la tanda sin merma); (3) pasada la
+  gracia de 180 min el cron la cierra completa con `origin='hold_time_auto'` (§7 21:00 exige que
+  la merma quede registrada; sin esto la varianza del día se queda corta justo cuando la línea
+  estuvo desatendida). La merma HOLD_TIME **no** toca lotes ni `inventory_movements`: es pérdida
+  de costo, no movimiento de stock.
+  Cron `cron-hold-times.ts` cada **15 min, no horario** — desviación deliberada del plan: los hold
+  times del manual van de 7 a 30 min y con un cron horario el aviso llegaba hasta 59 min tarde,
+  que es exactamente lo que §6.4 quiere evitar.
+  API `GET/POST /api/inventory/production/hold-time` (tablero + confirmación, códigos estables en
+  `details.code`); UI: pestaña "En línea" en producción (`hold-time-board.tsx`, refresco de 30 s,
+  montada sólo con la pestaña abierta) y tarjeta "Producto en Línea" en el dashboard con los dos
+  números que pide el plan (por vencer vs vencidos sin tirar).
+  **Bug de reloj encontrado por la verificación** (y por qué el servicio se ve así): `db.execute`
+  devuelve el timestamp como STRING y `new Date(str)` lo lee como hora local, mientras Drizzle lee
+  la columna como UTC — 6 horas de desfase, con las que el cron daba por vencida hasta una tanda
+  con 15 min por delante. El `now` se pide ahora como una columna más del mismo select,
+  `sql`now()::timestamp`.mapWith(productionResults.expiresAt)`, así el marco coincide por
+  construcción. `sql<Date>` no basta: es una promesa de TypeScript, no una conversión.
+  Verificación: `tests/tmp-verify/hold-time-ciclo.ts` — 14 asserts en verde contra dev (aviso
+  idempotente en 2ª corrida, cierre automático sin duplicar merma, prorrateo 10000¢/20 = 500¢/u,
+  confirmación parcial 4 de 10 = 2000¢, cantidad 0 sin merma, ALREADY_DISCARDED / NOT_EXPIRED /
+  OVER_QUANTITY / RESULT_NOT_FOUND cross-tenant) · tsc exit 0 · unit 419 passed · lint 0 errores.
 - [ ] **Task 6:** Prep list por estación/turno/hora límite
   (columnas nuevas en `production_orders`, vista agrupada con checkbox, lote FEFO visible,
   completar dispara producción real) — dividir 6a datos / 6b UI si excede 5 archivos

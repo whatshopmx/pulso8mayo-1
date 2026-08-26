@@ -6,6 +6,8 @@ import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { hasPermission } from "@/lib/permissions";
 import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
 import { ExpirationAlertService } from "@/lib/services/expiration-alert-service";
+// Task 5 plan-loteprod-gaps (§6.4): tiempo de retención en línea.
+import { HoldTimeService } from "@/lib/services/hold-time-service";
 
 export async function GET(req: NextRequest) {
   try {
@@ -214,6 +216,11 @@ export async function GET(req: NextRequest) {
       branchId || null
     );
 
+    // Task 5 plan-loteprod-gaps (§6.4): producto cocinado que sigue en línea.
+    // Dos números distintos a propósito — "por vencer" es una acción a tiempo
+    // (sácalo o véndelo) y "vencido sin tirar" ya es una merma no registrada.
+    const holdTime = await HoldTimeService.getCounts(tenant.id, branchId || null);
+
     const topExpiring = branchId
       ? await db.select({
           id: inventoryBatches.id,
@@ -336,6 +343,8 @@ export async function GET(req: NextRequest) {
       threeWayMatchRate,
       wasteLossRatio,
       expiredWastePendingCount,
+      holdTimeExpiringSoonCount: holdTime.expiringSoon,
+      holdTimeExpiredPendingCount: holdTime.expiredPending,
       stockByCategory,
       recentMovements,
       topLowStock,

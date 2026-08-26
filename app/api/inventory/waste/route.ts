@@ -188,6 +188,13 @@ export const GET = withTenantAuth(async (req: NextRequest, { auth }) => {
         lotNumber: inventoryBatches.lotNumber,
         expirationDate: inventoryBatches.expirationDate,
       },
+      // Task 5: la merma HOLD_TIME no tiene insumo (es producto terminado);
+      // lo que la identifica es la receta. Left join: el resto de las mermas
+      // sigue llegando con `recipe` en null.
+      recipe: {
+        id: recipes.id,
+        name: recipes.name,
+      },
       recordedByUser: {
         id: users.id,
         name: users.name,
@@ -196,6 +203,7 @@ export const GET = withTenantAuth(async (req: NextRequest, { auth }) => {
     .from(inventoryWaste)
     .leftJoin(inventoryItems, itemJoin)
     .leftJoin(inventoryBatches, eq(inventoryWaste.batchId, inventoryBatches.id))
+    .leftJoin(recipes, eq(inventoryWaste.recipeId, recipes.id))
     .leftJoin(users, eq(inventoryWaste.recordedBy, users.id))
     .where(and(...conditions))
     .orderBy(desc(inventoryWaste.recordedAt))

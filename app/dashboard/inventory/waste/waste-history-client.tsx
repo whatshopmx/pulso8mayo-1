@@ -128,7 +128,7 @@ export function WasteHistoryClient({
       headers: ["Fecha", "Producto", "SKU", "Categoría", "Cantidad", "Unidad", "Motivo", "Origen", "Pérdida", "Lote", "Registró"],
       rows: rows.map((r) => [
         r.waste.recordedAt ? new Date(r.waste.recordedAt).toLocaleString("es-MX") : "",
-        r.item.name ?? "",
+        r.item.name ?? r.recipe?.name ?? "",
         r.item.sku ?? "",
         r.item.category ?? "",
         String(formatQty(r.waste.quantity)),
@@ -290,15 +290,24 @@ export function WasteHistoryClient({
                       })}
                     </TableCell>
                     <TableCell>
-                      <Link
-                        href={`/dashboard/inventory/${r.item.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="font-medium hover:underline"
-                      >
-                        {r.item.name ?? "N/A"}
-                      </Link>
+                      {/* La merma de retención (Task 5) es de producto
+                          terminado: no hay insumo al que enlazar, se nombra
+                          por su receta. */}
+                      {r.item.id ? (
+                        <Link
+                          href={`/dashboard/inventory/${r.item.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-medium hover:underline"
+                        >
+                          {r.item.name ?? "N/A"}
+                        </Link>
+                      ) : (
+                        <span className="font-medium">{r.recipe?.name ?? "Producto terminado"}</span>
+                      )}
                       <span className="block text-xs text-muted-foreground">
-                        {[r.item.sku, r.item.category].filter(Boolean).join(" · ") || "—"}
+                        {r.item.id
+                          ? [r.item.sku, r.item.category].filter(Boolean).join(" · ") || "—"
+                          : "Producción"}
                       </span>
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">

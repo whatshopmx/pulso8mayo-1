@@ -9,7 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, CookingPot, Lightbulb, ClipboardList, Package } from "lucide-react";
+import { Loader2, Plus, CookingPot, Lightbulb, ClipboardList, Package, Timer } from "lucide-react";
+// Task 5 (plan-loteprod-gaps §6.4): producto cocinado dentro/fuera de su ventana en línea.
+import { HoldTimeBoard } from "@/components/inventory/hold-time-board";
 import { toast } from "sonner";
 
 interface Recipe {
@@ -184,6 +186,10 @@ export function ProductionClient({ branchId }: { branchId: string }) {
                     <TabsTrigger value="suggestions" className="gap-2">
                         <Lightbulb className="w-4 h-4" />
                         Sugerencias
+                    </TabsTrigger>
+                    <TabsTrigger value="line" className="gap-2">
+                        <Timer className="w-4 h-4" />
+                        En línea
                     </TabsTrigger>
                 </TabsList>
                 <div className="flex gap-2">
@@ -364,6 +370,13 @@ export function ProductionClient({ branchId }: { branchId: string }) {
                         ))}
                     </div>
                 )}
+            </TabsContent>
+
+            {/* §6.4 — tiempo de retención: qué hay que tirar ahora mismo. Se
+                monta sólo al abrir la pestaña para no encender su refresco
+                automático de 30 s mientras se planean órdenes. */}
+            <TabsContent value="line" className="space-y-4">
+                {activeTab === "line" && <HoldTimeBoard branchId={branchId} />}
             </TabsContent>
         </Tabs>
     );

@@ -346,6 +346,23 @@ export const productionResults = pgTable("production_results", {
      */
     expiresAt: timestamp("expires_at"),
     ingredientCost: integer("ingredient_cost").default(0), // Sum of consumed ingredients in cents
+
+    /**
+     * Task 5 (loteprod §6.4). Ciclo de vencimiento en línea sobre el `expiresAt`
+     * que dejó Task 4:
+     *  - `holdAlertNotifiedAt`: sello del cron al avisar al turno. Es la
+     *    idempotencia de la notificación (claim atómico con UPDATE ... WHERE
+     *    hold_alert_notified_at IS NULL RETURNING); sin él, el cron re-notifica
+     *    la misma tanda en cada corrida.
+     *  - `discardedAt/Quantity/By`: cierre de la tanda. Cantidad 0 es legítima
+     *    ("venció en el sistema pero se vendió") y por eso el cierre no se
+     *    infiere de la existencia de la merma.
+     */
+    holdAlertNotifiedAt: timestamp("hold_alert_notified_at"),
+    discardedAt: timestamp("discarded_at"),
+    discardedQuantity: numeric("discarded_quantity", { precision: 12, scale: 4 }),
+    discardedBy: text("discarded_by"),
+
     notes: text("notes"),
     recordedBy: text("recorded_by").notNull(),
     productionDate: timestamp("production_date").defaultNow().notNull(),
@@ -359,6 +376,11 @@ export const productionResults = pgTable("production_results", {
     productionResultInstanceRecipeUnique: uniqueIndex("production_results_instance_recipe_unique")
         .on(table.workflowInstanceId, table.recipeId)
         .where(sql`${table.workflowInstanceId} IS NOT NULL`),
+    // Task 5: el cron barre cada 15 min buscando tandas vencidas sin cerrar.
+    // Parcial para que el índice sólo cargue lo que está vivo en línea.
+    productionResultsHoldPendingIdx: index("production_results_hold_pending_idx")
+        .on(table.expiresAt)
+        .where(sql`${table.expiresAt} IS NOT NULL AND ${table.discardedAt} IS NULL`),
 }));
 
 export const productionIngredients = pgTable("production_ingredients", {
@@ -1327,7 +1349,15 @@ export const inventoryWaste = pgTable("inventory_waste", {
     companyId: uuid("company_id").notNull().references(() => companies.id),
     branchId: uuid("branch_id").notNull().references(() => branches.id),
     batchId: uuid("batch_id").references(() => inventoryBatches.id),
-    itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
+    /**
+     * Nullable desde Task 5 (§6.4): la merma por tiempo de retención es de un
+     * producto TERMINADO (una tanda de `production_results`), no de un insumo.
+     * El producto terminado no existe como `inventory_items` — la producción no
+     * crea lote de salida — así que exigir `itemId` obligaba a inventar un
+     * insumo falso. Toda merma de insumo lo sigue trayendo; sólo HOLD_TIME lo
+     * deja en null y se identifica por `productionResultId`/`recipeId`.
+     */
+    itemId: uuid("item_id").references(() => inventoryItems.id),
 
     // Waste details
     // Cantidad en `numeric(12,4)` (string en TS, ver arriba en inventoryBatches):
@@ -1378,6 +1408,14 @@ export const inventoryWaste = pgTable("inventory_waste", {
     expectedQuantity: numeric("expected_quantity", { precision: 12, scale: 4 }),
     yieldFlagged: boolean("yield_flagged").default(false).notNull(),
 
+    /**
+     * Task 5 (§6.4): tanda de producción que venció en línea. Su único parcial
+     * (abajo) es la idempotencia A9 del descarte: la confirmación del turno y
+     * el cierre automático del cron escriben por el mismo camino y la segunda
+     * escritura no entra. Null en toda merma que no sea de retención.
+     */
+    productionResultId: uuid("production_result_id"),
+
     // Audit
     recordedBy: text("recorded_by").notNull(), // User ID
     recordedAt: timestamp("recorded_at").notNull().defaultNow(),
@@ -1392,6 +1430,11 @@ export const inventoryWaste = pgTable("inventory_waste", {
     inventoryWasteInstanceItemOriginUnique: uniqueIndex("inventory_waste_instance_item_origin_unique")
         .on(table.workflowInstanceId, table.itemId, table.origin)
         .where(sql`${table.workflowInstanceId} IS NOT NULL AND ${table.origin} <> 'lote_insuficiente'`),
+    // Task 5 (A9): una tanda vencida genera UNA merma, la confirme el turno o
+    // la cierre el cron pasada la gracia.
+    inventoryWasteProductionResultUnique: uniqueIndex("inventory_waste_production_result_unique")
+        .on(table.productionResultId)
+        .where(sql`${table.productionResultId} IS NOT NULL`),
 }));
 
 /**
