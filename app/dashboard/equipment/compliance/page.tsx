@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,13 +21,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Search, Shield, Calendar, CheckCircle2 } from "lucide-react";
+import { Plus, Search, Shield, Calendar, CheckCircle2, FileSignature, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ComplianceServiceForm } from "@/components/equipment/compliance-service-form";
+import { CreateOrderDialog } from "@/components/service-orders/create-order-dialog";
 import { getComplianceServiceTypeLabel, getMaintenanceFrequencyLabel } from "@/lib/equipment-constants";
 
 interface ComplianceService {
   id: string;
+  branchId?: string;
   serviceType: string;
   serviceName: string;
   frequency: string;
@@ -45,6 +48,8 @@ export default function EquipmentCompliancePage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  // Fila desde la que se genera una OS (prefill complianceServiceId + branchId).
+  const [osService, setOsService] = useState<ComplianceService | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -215,12 +220,13 @@ export default function EquipmentCompliancePage() {
                 <TableHead>Último Servicio</TableHead>
                 <TableHead>Proveedor</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredServices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">
+                  <TableCell colSpan={9} className="text-center py-8">
                     <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">No hay servicios configurados</p>
                   </TableCell>
@@ -261,6 +267,28 @@ export default function EquipmentCompliancePage() {
                         {service.isActive ? "Activo" : "Inactivo"}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setOsService(service)}
+                          title="Generar Orden de Servicio vinculada a este servicio normativo"
+                        >
+                          <FileSignature className="h-4 w-4 mr-1" />
+                          Generar OS
+                        </Button>
+                        <Link
+                          href={`/dashboard/equipment/compliance/service-orders?complianceServiceId=${service.id}`}
+                          title="Ver órdenes de servicio de este servicio normativo"
+                        >
+                          <Button size="sm" variant="ghost">
+                            <ExternalLink className="h-4 w-4" />
+                            <span className="sr-only">Ver OS</span>
+                          </Button>
+                        </Link>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -268,6 +296,21 @@ export default function EquipmentCompliancePage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Generar OS desde este servicio normativo (prefill vínculo + sucursal + alcance). */}
+      <CreateOrderDialog
+        open={!!osService}
+        onClose={() => setOsService(null)}
+        prefill={
+          osService
+            ? {
+                complianceServiceId: osService.id,
+                branchId: osService.branchId,
+                scope: osService.serviceName,
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }

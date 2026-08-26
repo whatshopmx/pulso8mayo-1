@@ -32,6 +32,7 @@ export function useServiceOrders(params?: {
   branchId?: string;
   status?: string;
   type?: string;
+  complianceServiceId?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -42,6 +43,7 @@ export function useServiceOrders(params?: {
       if (params?.branchId) sp.set("branchId", params.branchId);
       if (params?.status) sp.set("status", params.status);
       if (params?.type) sp.set("type", params.type);
+      if (params?.complianceServiceId) sp.set("complianceServiceId", params.complianceServiceId);
       if (params?.limit !== undefined) sp.set("limit", String(params.limit));
       if (params?.offset !== undefined) sp.set("offset", String(params.offset));
       const res = await fetch(`/api/service-orders?${sp.toString()}`);

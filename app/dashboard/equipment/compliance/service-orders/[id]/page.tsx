@@ -109,7 +109,7 @@ export default function ServiceOrderDetailPage() {
         <div className="py-24 text-center space-y-4">
           <p className="text-muted-foreground">No se pudo cargar la orden.</p>
           <Button variant="ghost" asChild>
-            <Link href="/dashboard/service-orders"><ArrowLeft className="h-4 w-4 mr-2" /> Volver</Link>
+            <Link href="/dashboard/equipment/compliance/service-orders"><ArrowLeft className="h-4 w-4 mr-2" /> Volver</Link>
           </Button>
         </div>
       </PageContainer>
@@ -160,7 +160,7 @@ export default function ServiceOrderDetailPage() {
           <>
             <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
             <Button variant="ghost" asChild>
-              <Link href="/dashboard/service-orders"><ArrowLeft className="h-4 w-4 mr-2" /> Volver</Link>
+              <Link href="/dashboard/equipment/compliance/service-orders"><ArrowLeft className="h-4 w-4 mr-2" /> Volver</Link>
             </Button>
           </>
         }

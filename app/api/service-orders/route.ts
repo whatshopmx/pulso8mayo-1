@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
             branchId,
             status: searchParams.get("status") || undefined,
             type: searchParams.get("type") || undefined,
+            complianceServiceId: searchParams.get("complianceServiceId") || undefined,
             limit: parseInt(searchParams.get("limit") || "50"),
             offset: parseInt(searchParams.get("offset") || "0"),
         });

@@ -2,6 +2,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
     branches,
+    branchComplianceServices,
     costCenters,
     suppliers,
     serviceOrderEvidence,
@@ -44,6 +45,7 @@ export interface ListOrdersParams {
     branchId?: string;
     status?: string;
     type?: string;
+    complianceServiceId?: string;
     limit?: number;
     offset?: number;
 }
@@ -56,6 +58,8 @@ export async function listOrders(params: ListOrdersParams) {
     if (params.branchId) conditions.push(eq(serviceOrders.branchId, params.branchId));
     if (params.status) conditions.push(eq(serviceOrders.status, params.status as ServiceOrderRow["status"]));
     if (params.type) conditions.push(eq(serviceOrders.type, params.type as ServiceOrderRow["type"]));
+    // Origen normativo (R2): OS generadas desde un Servicio Normativo.
+    if (params.complianceServiceId) conditions.push(eq(serviceOrders.complianceServiceId, params.complianceServiceId));
 
     const where = and(...conditions);
 
@@ -184,14 +188,24 @@ async function assertCostCenterInCompany(costCenterId: string, companyId: string
     if (!row) throw new ApiError("El centro de costo indicado no pertenece a la empresa", 400);
 }
 
+async function assertComplianceServiceInCompany(complianceServiceId: string, companyId: string): Promise<void> {
+    const [row] = await db
+        .select({ id: branchComplianceServices.id })
+        .from(branchComplianceServices)
+        .where(and(eq(branchComplianceServices.id, complianceServiceId), eq(branchComplianceServices.companyId, companyId)))
+        .limit(1);
+    if (!row) throw new ApiError("El servicio normativo indicado no pertenece a la empresa", 400);
+}
+
 /** Valida las FKs opcionales presentes en el payload contra la empresa del tenant. */
 async function validateReferences(
     companyId: string,
-    data: { branchId: string; supplierId?: string | null; costCenterId?: string | null },
+    data: { branchId: string; supplierId?: string | null; costCenterId?: string | null; complianceServiceId?: string | null },
 ): Promise<void> {
     await assertBranchInCompany(data.branchId, companyId);
     if (data.supplierId) await assertSupplierInCompany(data.supplierId, companyId);
     if (data.costCenterId) await assertCostCenterInCompany(data.costCenterId, companyId);
+    if (data.complianceServiceId) await assertComplianceServiceInCompany(data.complianceServiceId, companyId);
 }
 
 // ── Creación de borrador ──
@@ -220,6 +234,7 @@ export async function createDraft(
         branchId: input.branchId,
         supplierId: input.supplierId,
         costCenterId: input.costCenterId,
+        complianceServiceId: input.complianceServiceId,
     });
 
     // Folio placeholder DRAFT-*: el folio real se emite en submit para no dejar
@@ -271,6 +286,7 @@ export async function updateDraft(
         branchId: patch.branchId ?? order.branchId,
         supplierId: patch.supplierId !== undefined ? patch.supplierId : order.supplierId,
         costCenterId: patch.costCenterId !== undefined ? patch.costCenterId : order.costCenterId,
+        complianceServiceId: patch.complianceServiceId !== undefined ? patch.complianceServiceId : order.complianceServiceId,
     });
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };

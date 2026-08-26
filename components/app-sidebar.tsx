@@ -21,7 +21,6 @@ import {
   Crown,
   Shield,
   Landmark,
-  ClipboardCheck,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -210,17 +209,6 @@ const navMain = [
     ],
   },
   {
-    title: "Control",
-    url: "/dashboard/service-orders",
-    icon: ClipboardCheck,
-    items: [
-      {
-        title: "Órdenes de Servicio",
-        url: "/dashboard/service-orders",
-      },
-    ],
-  },
-  {
     title: "Equipos",
     url: "/dashboard/equipment",
     icon: Wrench,
@@ -240,6 +228,12 @@ const navMain = [
       {
         title: "Servicios Normativos",
         url: "/dashboard/equipment/compliance",
+      },
+      // Las OS nacen aquí (desde Servicios Normativos) y su control gerencial
+      // vive en Finanzas › Control Interno — sin sección "Control" suelta.
+      {
+        title: "Órdenes de Servicio",
+        url: "/dashboard/equipment/compliance/service-orders",
       },
       {
         title: "Proveedores",
