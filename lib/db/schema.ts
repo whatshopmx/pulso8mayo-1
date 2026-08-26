@@ -712,6 +712,18 @@ export const storageLocationOrgTypeEnum = pgEnum("storage_location_org_type", ['
 // temperatura exigido en recepción. NULL = sin clasificar (conserva regla legacy > 4°C).
 export const itemStorageTypeEnum = pgEnum("item_storage_type", ['DRY', 'REFRIGERATED', 'FROZEN']);
 
+/**
+ * Forma de pago acordada con el proveedor, alineada al catálogo c_FormaPago del
+ * SAT (etiquetas y códigos en `lib/inventory/supplier-payment.ts`):
+ * TRANSFER 03 · CASH 01 · CHECK 02 · CREDIT_CARD 04 · DEBIT_CARD 28 · OTHER 99.
+ *
+ * Distinto de "días de crédito", que es CUÁNDO se paga (y en lenguaje CFDI,
+ * PUE vs PPD); esto es CON QUÉ se paga.
+ */
+export const supplierPaymentMethodEnum = pgEnum("supplier_payment_method", [
+    'TRANSFER', 'CASH', 'CHECK', 'CREDIT_CARD', 'DEBIT_CARD', 'OTHER'
+]);
+
 export const suppliers = pgTable("suppliers", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
     companyId: uuid("company_id").notNull(),
@@ -723,6 +735,16 @@ export const suppliers = pgTable("suppliers", {
     taxId: text("tax_id"),
     active: boolean("active").default(true),
     matchTolerancePercent: integer("match_tolerance_percent").default(5), // Tolerance for 3-way match
+    /**
+     * Forma de pago acordada. Enum PROPIO y no el `payment_method` de nómina:
+     * ése tiene PAYROLL_CARD (tarjeta de nómina), que a un proveedor no le
+     * aplica, y crecerlo por proveedores contaminaría el catálogo de empleados.
+     * Los valores mapean al catálogo c_FormaPago del SAT para poder conciliar
+     * contra el CFDI recibido (ver `SUPPLIER_PAYMENT_METHODS`).
+     * Null = sin especificar: no se asume transferencia por los proveedores ya
+     * capturados.
+     */
+    paymentMethod: supplierPaymentMethodEnum("payment_method"),
     /**
      * Días de crédito acordados. 0 = contado.
      * De aquí sale el vencimiento de cada factura recibida (M15 → M16): sin

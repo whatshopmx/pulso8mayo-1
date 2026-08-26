@@ -18,6 +18,16 @@ const supplierSchema = z.object({
     taxId: z.string().optional(),
     active: z.boolean().default(true),
     matchTolerancePercent: z.number().int().min(0).max(100).default(5).optional(),
+    /**
+     * Días de crédito acordados con el proveedor. 0 = pago de contado.
+     * De aquí sale el vencimiento de cada factura recibida (accounts-payable).
+     */
+    paymentTermsDays: z.number().int().min(0).max(180).optional(),
+    /** Forma de pago acordada (catálogo c_FormaPago del SAT). Null = sin especificar. */
+    paymentMethod: z
+        .enum(["TRANSFER", "CASH", "CHECK", "CREDIT_CARD", "DEBIT_CARD", "OTHER"])
+        .nullable()
+        .optional(),
 });
 
 /**

@@ -5,6 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { SUPPLIER_PAYMENT_METHOD_OPTIONS } from "@/lib/inventory/supplier-payment";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,6 +26,10 @@ interface Supplier {
     taxId?: string;
     active?: boolean;
     matchTolerancePercent?: number;
+    /** Días de crédito acordados. 0 = pago de contado. */
+    paymentTermsDays?: number;
+    /** Forma de pago acordada. null/undefined = sin especificar. */
+    paymentMethod?: string | null;
 }
 
 interface SupplierFormProps {
@@ -37,6 +49,8 @@ export function SupplierForm({ supplier, onSuccess, onCancel }: SupplierFormProp
         taxId: "",
         active: true,
         matchTolerancePercent: 5,
+        paymentTermsDays: 0,
+        paymentMethod: null,
     });
 
     useEffect(() => {
@@ -45,6 +59,8 @@ export function SupplierForm({ supplier, onSuccess, onCancel }: SupplierFormProp
                 ...supplier,
                 active: supplier.active !== undefined ? supplier.active : true,
                 matchTolerancePercent: supplier.matchTolerancePercent !== undefined ? supplier.matchTolerancePercent : 5,
+                paymentTermsDays: supplier.paymentTermsDays ?? 0,
+                paymentMethod: supplier.paymentMethod ?? null,
             });
         }
     }, [supplier]);
@@ -165,6 +181,50 @@ export function SupplierForm({ supplier, onSuccess, onCancel }: SupplierFormProp
                         onChange={(e) => setFormData({ ...formData, matchTolerancePercent: Number(e.target.value) })}
                         placeholder="Ej. 5"
                     />
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="paymentTermsDays">Días de crédito</Label>
+                    <Input
+                        id="paymentTermsDays"
+                        type="number"
+                        min={0}
+                        max={180}
+                        value={formData.paymentTermsDays ?? 0}
+                        onChange={(e) => setFormData({ ...formData, paymentTermsDays: Number(e.target.value) })}
+                        placeholder="Ej. 30"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                        {(formData.paymentTermsDays ?? 0) === 0
+                            ? "0 = pago de contado: la factura vence el día que se emite."
+                            : `La factura vencerá ${formData.paymentTermsDays} días después de su fecha de emisión.`}
+                    </p>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="paymentMethod">Forma de pago</Label>
+                    <Select
+                        value={formData.paymentMethod ?? "UNSET"}
+                        onValueChange={(v) =>
+                            setFormData({ ...formData, paymentMethod: v === "UNSET" ? null : v })
+                        }
+                    >
+                        <SelectTrigger id="paymentMethod">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="UNSET">Sin especificar</SelectItem>
+                            {SUPPLIER_PAYMENT_METHOD_OPTIONS.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                        Con qué se le paga; los días de crédito dicen cuándo. Los valores
+                        corresponden al catálogo de formas de pago del SAT.
+                    </p>
                 </div>
 
                 <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/10">

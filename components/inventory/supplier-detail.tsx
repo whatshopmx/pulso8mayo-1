@@ -19,6 +19,7 @@ import {
     Plus,
     Trash2,
     ClipboardCheck,
+    CalendarClock,
     TrendingDown,
     ShieldAlert,
     TrendingUp,
@@ -29,6 +30,7 @@ import {
     Loader2
 } from "lucide-react";
 import { format } from "date-fns";
+import { paymentConditionsLabel } from "@/lib/inventory/supplier-payment";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { SupplierItemDialog } from "./supplier-item-dialog";
@@ -43,6 +45,10 @@ interface Supplier {
     taxId?: string;
     active: boolean;
     matchTolerancePercent?: number;
+    /** Días de crédito acordados. 0 = pago de contado. */
+    paymentTermsDays?: number;
+    /** Forma de pago acordada. null = sin especificar. */
+    paymentMethod?: string | null;
     createdAt: string;
     updatedAt: string;
 }
@@ -289,6 +295,13 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                             <ClipboardCheck className="w-4 h-4 text-muted-foreground" />
                                             <span className="text-sm font-medium">Tolerancia de Desvío:</span>
                                             <span className="text-sm text-muted-foreground font-mono">{supplier.matchTolerancePercent !== undefined ? `${supplier.matchTolerancePercent}%` : "5%"}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <CalendarClock className="w-4 h-4 text-muted-foreground" />
+                                            <span className="text-sm font-medium">Condiciones de pago:</span>
+                                            <span className="text-sm text-muted-foreground">
+                                                {paymentConditionsLabel(supplier.paymentTermsDays, supplier.paymentMethod)}
+                                            </span>
                                         </div>
                                     </CardContent>
                                 </Card>

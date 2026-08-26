@@ -15,6 +15,7 @@ import {
     Phone, 
     MapPin, 
     FileText,
+    CalendarClock,
     Edit,
     Trash2,
     Eye,
@@ -23,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { SupplierForm } from "./supplier-form";
 import { SupplierDetail } from "./supplier-detail";
+import { paymentConditionsLabel } from "@/lib/inventory/supplier-payment";
 
 interface Supplier {
     id: string;
@@ -34,6 +36,10 @@ interface Supplier {
     taxId?: string;
     active: boolean;
     matchTolerancePercent?: number;
+    /** Días de crédito acordados. 0 = pago de contado. */
+    paymentTermsDays?: number;
+    /** Forma de pago acordada. null = sin especificar. */
+    paymentMethod?: string | null;
     createdAt: string;
     updatedAt: string;
 }
@@ -231,6 +237,12 @@ export function SupplierList({ companyId }: SupplierListProps) {
                                         <span className="truncate">{supplier.address}</span>
                                     </div>
                                 )}
+                                {/* Condiciones de pago: de aquí sale el vencimiento de cada
+                                    factura recibida, así que vale verlo sin abrir el detalle. */}
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <CalendarClock className="w-3 h-3" />
+                                    <span>{paymentConditionsLabel(supplier.paymentTermsDays, supplier.paymentMethod)}</span>
+                                </div>
 
                                 {/* Actions */}
                                 <div className="flex items-center gap-2 pt-2">

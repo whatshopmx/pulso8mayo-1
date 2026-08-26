@@ -293,7 +293,12 @@ export async function updateSupplierPaymentTerms(
   await db
     .update(invoices)
     .set({
-      dueDate: sql`(substring(${invoices.fecha} from 1 for 10)::date + ${paymentTermsDays})`,
+      // `::integer` explícito: sin él el parámetro viaja como `unknown` y
+      // Postgres no puede elegir entre `date + integer` y `date + interval`
+      // ("operator is not unique: date + unknown"). Esta función nunca se había
+      // ejecutado —estaba definida y sin llamadores—, así que el error salió a
+      // la luz al conectarla con la edición de proveedores.
+      dueDate: sql`(substring(${invoices.fecha} from 1 for 10)::date + ${paymentTermsDays}::integer)`,
       updatedAt: new Date(),
     })
     .where(

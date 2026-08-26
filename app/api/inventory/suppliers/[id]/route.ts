@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { enforceBranchScope } from "@/lib/branch-scope";
 import type { Role } from "@/lib/permissions";
 import { AuditService } from "@/lib/services/audit-service";
+import { updateSupplierPaymentTerms } from "@/lib/services/accounts-payable-service";
 import { db } from "@/lib/db";
 import { suppliers } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -17,6 +18,16 @@ const supplierSchema = z.object({
     taxId: z.string().optional(),
     active: z.boolean().default(true).optional(),
     matchTolerancePercent: z.number().int().min(0).max(100).default(5).optional(),
+    /**
+     * Días de crédito acordados con el proveedor. 0 = pago de contado.
+     * De aquí sale el vencimiento de cada factura recibida (accounts-payable).
+     */
+    paymentTermsDays: z.number().int().min(0).max(180).optional(),
+    /** Forma de pago acordada (catálogo c_FormaPago del SAT). Null = sin especificar. */
+    paymentMethod: z
+        .enum(["TRANSFER", "CASH", "CHECK", "CREDIT_CARD", "DEBIT_CARD", "OTHER"])
+        .nullable()
+        .optional(),
 });
 
 /**
@@ -108,6 +119,22 @@ export async function PATCH(
             })
             .where(eq(suppliers.id, id))
             .returning();
+
+        // Cambiar los días de crédito no es solo editar un campo: los
+        // vencimientos ya calculados con los términos viejos quedarían
+        // mintiendo. El servicio de cuentas por pagar recalcula el dueDate de
+        // las facturas que siguen SIN pagarse (las liquidadas no se tocan, eso
+        // sería reescribir historial).
+        if (
+            validatedData.paymentTermsDays !== undefined &&
+            validatedData.paymentTermsDays !== existingSupplier.paymentTermsDays
+        ) {
+            await updateSupplierPaymentTerms(
+                session.user.companyId!,
+                id,
+                validatedData.paymentTermsDays
+            );
+        }
 
         AuditService.logInventoryAction({
             companyId: session.user.companyId,
