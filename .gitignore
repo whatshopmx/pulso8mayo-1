@@ -52,3 +52,10 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# logs de arranque local en puertos alternos (verificacion de UI)
+/.next-start-*.log
+/.next-start-*.err.log
+
+# artefactos temporales de verificacion manual
+/tests/tmp-verify/

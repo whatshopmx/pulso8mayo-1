@@ -170,6 +170,12 @@ const navMain = [
         title: "Vencimientos",
         url: "/dashboard/inventory/expirations",
       },
+      // Vista operativa FEFO: stock por lote ordenado por vencimiento
+      // (/api/inventory/batches reutilizado; Task abierta del plan loteprod).
+      {
+        title: "Lotes",
+        url: "/dashboard/inventory/lotes",
+      },
       {
         title: "Movimientos",
         url: "/dashboard/inventory/movements",

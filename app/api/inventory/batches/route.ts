@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { eq, and, gte } from 'drizzle-orm';
-import { inventoryBatches, branches } from '@/lib/db/schema';
+import { inventoryBatches, branches, inventoryItems } from '@/lib/db/schema';
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,9 +51,15 @@ export async function GET(request: NextRequest) {
         unitCost: inventoryBatches.unitCost,
         status: inventoryBatches.status,
         branchName: branches.name,
+        // Enriquecido para la vista de lotes (/dashboard/inventory/lotes); los
+        // consumidores previos ignoran estos campos extra.
+        itemName: inventoryItems.name,
+        itemSku: inventoryItems.sku,
+        itemUnit: inventoryItems.unit,
       })
       .from(inventoryBatches)
       .innerJoin(branches, eq(inventoryBatches.branchId, branches.id))
+      .innerJoin(inventoryItems, eq(inventoryBatches.itemId, inventoryItems.id))
       .where(whereClause)
       .orderBy(inventoryBatches.expirationDate);
 

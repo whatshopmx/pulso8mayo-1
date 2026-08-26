@@ -84,10 +84,72 @@ Origen: investigación 2026-08-25 de `loteprod.md` contra `app/dashboard/invento
   (cron trimestral → workflow por sucursal con muestra aleatoria ABC, evidencia foto,
   % cumplimiento a KPI corporativo)
 
-### Checkpoint Complete
-- [ ] 9/9 gaps cerrados y trazados a sección del manual
+### Checkpoint Phase 3
+- [ ] 9/9 gaps originales cerrados y trazados a sección del manual
+- [ ] Tests nuevos pasan · build limpio · migraciones en staging
+
+
+## Phase 4: Segunda pasada del manual — brechas puntuales
+
+> Auditoría 2026-08-26: comparación completa `loteprod.md` (16 secciones) ↔ plan. Los gaps que
+> quedaban fuera se incorporaron al plan como Phases 4 y 5 (Tasks 11–20).
+
+- [ ] **Task 11:** Causas de merma faltantes `PREPARATION` + `CUSTOMER_RETURN` (§8.1)
+  — hacerlo en la MISMA migración que el `HOLD_TIME` de Task 4 (un solo `ALTER TYPE`)
+- [ ] **Task 12:** Metas de merma por categoría + investigación obligatoria (§8.4)
+  (proteínas 2–4%, vegetales 5–8%, empaque 1–2%, abarrotes 0.5–1%; configurables por empresa)
+- [ ] **Task 13:** Umbrales de varianza con semáforo (§9.3/§10)
+  (<1.5% ok · 1.5–3% investigar · >3% investigar a fondo; tarea de investigación al rojo)
+- [ ] **Task 14:** Par levels de insumos calculados por tipo de almacenamiento (§4)
+  (uso diario × días de cobertura + seguridad; usa `storageType`/`typicalShelfLifeDays` de T1)
+- [ ] **Task 15:** Etiqueta de producto preparado + código de colores por vida útil (§5.3)
+  — parcial: el semáforo 🔴 hoy/vencido · 🟡 1–2 d ya está en `/dashboard/inventory/lotes`;
+  falta la etiqueta imprimible (prep/caduca/lote origen/elaboró)
+- [ ] **Task 16:** Ajustes manuales al forecast: clima/promoción/quincena/evento (§6.1)
+  — confirmado: `ForecastService` solo expone `calculate`/`calculateAll`, sin overrides
+- [ ] **Task 17:** KPIs faltantes del §12 + ranking corporativo (§15)
+  (días de inventario perecederos · exactitud de forecast ±10% · cumplimiento de etiquetado)
+
+### Checkpoint Phase 4
+- [ ] build limpio · migraciones aplicadas · KPIs del §12 calculan sobre datos reales de dev
+- [ ] Revisión con humano antes de Phase 5
+
+## Phase 5: Cocina central y trazabilidad
+
+> Solo aplica a tenants con `foodProduction = COCINA_CENTRAL | MIXTO`. **Decisión pendiente
+> (open question 8):** si no hay cliente con este modelo, sacar la fase del plan activo y
+> quedarse con Task 20 acotada a producción en sucursal.
+
+- [ ] **Task 18:** Consolidación de demanda D-2 y plan de producción central (§11.2 pasos 1–2)
+- [ ] **Task 19:** Lotes de producción central con herencia de lote origen + distribución y
+  recepción contra orden de transferencia con temperatura (§11.2 pasos 3–5)
+- [ ] **Task 20:** Trazabilidad y recall extremo a extremo (§5.5)
+  — verificado: cero matches de recall/traceability en servicios y UI
+
+### Checkpoint Complete (ampliado)
+- [ ] 9 gaps originales + brechas de la segunda pasada cerrados y trazados al manual
 - [ ] Tests nuevos pasan · build limpio · migraciones en staging
 - [ ] Docs actualizadas (`PROJECT_CONTEXT.md`, `docs/admin-guide.md`)
+
+## Verificado que YA existe (no son gaps)
+
+- §3.3 Rendimiento crudo→cocido: `yieldPercent` en recetas y líneas de receta
+  (`schema.ts:370, 901, 2594`).
+- §15 Temperatura de cámaras: tabla `temperature_logs` con equipo, umbrales min/max, foto e
+  `isCompliant` (`schema.ts:981`) — T1 cubre recepción, esto cubre el monitoreo continuo.
+- §7 Sugerencia de OC nocturna: `lib/services/suggested-order-service.ts`
+  (reorden = consumo diario promedio × lead time + stock de seguridad).
+- §4 Par mínimo/máximo: `inventoryItems.minLevel/maxLevel` (`schema.ts:868`) — existe el campo,
+  falta el cálculo del manual (Task 14).
+- §3.2 Sub-recetas con explosión en cascada · transfers documentados · alertas escalonadas
+  (T2 done) · conteo ciego y frecuencias (T9) · POS auto-descuento vía fichas.
+
+## Pendientes de verificar antes de abrir tarea
+
+- **§5.2 Conciliación triple** recepción→pago (nota firmada habilita pago): probablemente ya
+  cubierto por purchases/invoices.
+- **§3.4 Explosión del POS a través de sub-recetas anidadas**: la investigación la dio por
+  cubierta; confirmar el caso de anidamiento.
 
 ## Notas de ejecución
 
@@ -105,3 +167,12 @@ Origen: investigación 2026-08-25 de `loteprod.md` contra `app/dashboard/invento
 3. Slots de pars: ¿fijos 11/14/17/20 o configurables? (propuesta: configurables con defaults)
    (→ Task 7)
 4. Tamaño de muestra de auditoría sorpresa: ¿N SKUs o % catálogo? (→ Task 10)
+5. Merma por preparación: ¿captura explícita o derivada de bruto vs `yieldPercent` al producir?
+   (→ Task 11)
+6. Metas de merma: ¿la categoría del benchmark es la categoría de insumo actual o hace falta un
+   agrupador nuevo (proteínas/vegetales/lácteos/abarrotes)? (→ Task 12)
+7. Ranking corporativo: ¿el gerente ve el ranking completo con nombres o solo su posición?
+   (→ Task 17)
+8. Cocina central: ¿hay cliente con ese modelo hoy? Si no, sacar Phase 5 del plan activo y dejar
+   Task 20 acotada a producción en sucursal. (→ Phase 5)
+9. Corte D-2: ¿hora fija configurable por empresa o cierre manual de la central? (→ Task 18)
