@@ -48,9 +48,9 @@ Plan completo: `tasks/plan-ordenes-oc-os.md`
 
 > OS bajo **Equipos › Servicios Normativos** · control gerencial bajo **Finanzas › Control Interno**. Sin sección "Control" suelta.
 
-- [ ] R1: Mover UI OS a `equipment/compliance/service-orders` + sidebar Equipos + eliminar sección "Control"
-- [ ] R2: API: crear/filtrar por `complianceServiceId`
-- [ ] R3: Botón "Generar OS" pre-llenado y enlace "Ver OS" en cada servicio normativo
+- [x] R1: Mover UI OS a `equipment/compliance/service-orders` + sidebar Equipos + eliminar sección "Control" — commit `git mv` por archivo (el dir estaba lockeado por dev server); hrefs internos actualizados; sin sección "Control"
+- [x] R2: API: crear/filtrar por `complianceServiceId` — zod ya lo aceptaba; se agregó filtro en `listOrders`, validación FK contra empresa en create/update (400 accionable, antes 500) y query param en GET + hook
+- [x] R3: Botón "Generar OS" pre-llenado y enlace "Ver OS" en cada servicio normativo — `components/service-orders/create-order-dialog.tsx` compartido (estado derivado, sin useEffect); lista soporta `?complianceServiceId=` con badge para quitar filtro. Verificado e2e: crear OS vinculada 201, filtro OK, FK foránea 400, rutas 200/404 correctas
 - [ ] R4: Bandeja "Autorizaciones" como tab de Control Interno (aprobación/rechazo con motivo, presupuesto restante)
 - [ ] R5: Editor "Matriz de Autorización" como tab de Control Interno (solo ADMIN+, warnings de huecos)
 

@@ -192,38 +192,38 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
 > ubicación original de Task 8 (`/dashboard/approvals`, `/dashboard/company/approval-matrix`) quedan
 > **reemplazadas** por esta fase. Las rutas API no cambian.
 
-- [ ] **Task R1 (S): Mover UI de OS bajo Equipos**
+- [x] **Task R1 (S): Mover UI de OS bajo Equipos** ✅ implementada (2026-08-25): `git mv` archivo por archivo (el directorio estaba lockeado por el dev server — mover archivos individuales sí funciona); hrefs/push internos a `/dashboard/equipment/compliance/service-orders(/:id)`; sidebar sin sección "Control", ítem "Órdenes de Servicio" bajo Equipos junto a Servicios Normativos
   - `git mv app/dashboard/service-orders app/dashboard/equipment/compliance/service-orders`
   - Actualizar href/push internos a `/dashboard/equipment/compliance/service-orders(/:id)`
   - Sidebar: item "Órdenes de Servicio" en sección Equipos (junto a Servicios Normativos) · **eliminar** sección "Control"
 
   **Acceptance criteria:**
-  - [ ] `/dashboard/equipment/compliance/service-orders` lista y detalle funcionan; ruta vieja ya no existe
-  - [ ] Sidebar: OS visible bajo Equipos; sin sección "Control"
-  - [ ] Build verde
+  - [x] `/dashboard/equipment/compliance/service-orders` lista y detalle funcionan; ruta vieja ya no existe (verificado e2e: 200 vs 404)
+  - [x] Sidebar: OS visible bajo Equipos; sin sección "Control" (verificado en HTML renderizado)
+  - [x] Build verde
 
   **Files:** 2 páginas movidas, `components/app-sidebar.tsx`
   **Estimated scope:** Small
 
-- [ ] **Task R2 (S): Backend origen normativo**
+- [x] **Task R2 (S): Backend origen normativo** ✅ implementada (2026-08-25): el zod ya aceptaba `complianceServiceId`; se agregó filtro `?complianceServiceId` en `listOrders` + GET, validación FK contra empresa (`assertComplianceServiceInCompany` sobre `branchComplianceServices`) en createDraft/updateDraft, y soporte del parámetro en `useServiceOrders`. Bug encontrado en e2e: sin pasarle el campo a `validateReferences`, FK inválida llegaba a Postgres → 500; ahora 400 con mensaje accionable
   - zod createOrderSchema += `complianceServiceId` (uuid nullable) · `listOrders` += filtro opcional `?complianceServiceId`
 
   **Acceptance criteria:**
-  - [ ] POST crea OS con complianceServiceId · GET filtra por él
-  - [ ] FK validada contra la empresa como las demás referencias
+  - [x] POST crea OS con complianceServiceId · GET filtra por él (e2e con cookie jar)
+  - [x] FK validada contra la empresa como las demás referencias (400, no 500)
 
   **Verification:** curl e2e con cookie jar · build
   **Dependencies:** ninguna
   **Files:** `app/api/service-orders/route.ts`, `lib/services/service-order-service.ts`
   **Estimated scope:** Small
 
-- [ ] **Task R3 (M): Generar OS desde Servicios Normativos**
+- [x] **Task R3 (M): Generar OS desde Servicios Normativos** ✅ implementada (2026-08-25): diálogo extraído a `components/service-orders/create-order-dialog.tsx` compartido (exporta `TYPE_LABELS`; prefill `{complianceServiceId, branchId, type?, scope?}` vía estado derivado — overrides nullables, sin useEffect); compliance page con botón "Generar OS" (prefill vínculo+sucursal+alcance=serviceName) y enlace "Ver OS" por fila; lista lee `?complianceServiceId=` con badge "quitar filtro"
   - Extraer CreateOrderDialog → `components/service-orders/create-order-dialog.tsx` (acepta prefill)
   - En `equipment/compliance/page.tsx`: acción por fila "Generar OS" (prefill complianceServiceId + branchId del servicio) y enlace "Ver OS" (lista filtrada)
 
   **Acceptance criteria:**
-  - [ ] Desde un servicio normativo se genera una OS pre-llenada que llega DRAFT vinculada
-  - [ ] "Ver OS" abre la lista filtrada por ese servicio
+  - [x] Desde un servicio normativo se genera una OS pre-llenada que llega DRAFT vinculada (API verificada; interacción UI pendiente de revisión manual — agent_browser roto esta sesión)
+  - [x] "Ver OS" abre la lista filtrada por ese servicio
 
   **Verification:** playwright/curl · build
   **Dependencies:** R1, R2

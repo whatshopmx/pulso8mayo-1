@@ -1,6 +1,6 @@
-# Handoff — Sistema de Control OC/OS (finzasordenes.md): Phases 1–3 + Checkpoint E2E + Task 7 completos · siguiente Task 8
+# Handoff — Sistema de Control OC/OS (finzasordenes.md): Phases 1–3 + Task 7 + Phase 4-bis R1–R3 completos · siguiente R4–R5
 
-**Fecha de última sesión:** 2026-08-25 (tercera sesión del plan)
+**Fecha de última sesión:** 2026-08-25 (cuarta sesión del plan)
 **Repositorio:** `C:/Users/david/pulso29` — Pulso HORECA (Next.js 16 App Router + Turbopack, React 19, TypeScript strict:false, Drizzle + Neon Postgres, better-auth, react-query, Tailwind v4, Radix/shadcn)
 **Documento fuente del negocio:** `finzasordenes.md` (raíz del repo) — Órdenes de Compra/Servicio, matriz de autorización §4, controles multi-sucursal, folios sin saltos §6, KPIs gerenciales.
 **Plan de trabajo:** `tasks/plan-ordenes-oc-os.md` · checklist ejecutiva: `tasks/todo-ordenes-oc-os.md` · este archivo es la **fuente de verdad para continuidad**.
@@ -19,10 +19,12 @@
 | `95d1c2c` | Task 6 — APIs aprobaciones/matriz/cost-centers/budgets + integración OC |
 | `f4fee9b` | fix e2e — validador de matriz: traslapes con secuencias distintas son LEGALES |
 | `9f83b59` | Task 7 — UI service-orders (lista + detalle estado×rol + sidebar "Control") |
+| `65becfa` | docs — plan Phase 4-bis (R1–R5) |
+| `4828d85` | R1–R3 — OS bajo Equipos (`equipment/compliance/service-orders`) + origen normativo complianceServiceId + Generar OS/Ver OS desde Servicios Normativos |
 | `7599d7a`,`6beec50`,`91e122c`,`aedccbb` | docs de seguimiento |
 
-**Estado al cierre:** ✅ **Phase 1 (datos), Phase 2 (servicios), Phase 3 (APIs) completas · Checkpoint E2E verificado contra dev server real · Task 7 (UI) completa.** Suite **360 tests unitarios pasan**, `pnpm run build` exit 0, lint limpio en archivos del plan. Working tree limpio salvo archivos del workstream paralelo.
-**Siguiente paso concreto:** **Phase 4-bis (R1→R5)** — re-integrar UI: OS bajo `equipment/compliance/service-orders` con 'Generar OS' desde Servicios Normativos; bandeja 'Autorizaciones' y editor 'Matriz' como tabs de `finance/control-interno`. Detalles en `tasks/plan-ordenes-oc-os.md` Phase 4-bis.
+**Estado al cierre:** ✅ **Phase 1 (datos), Phase 2 (servicios), Phase 3 (APIs), Task 7 (UI) y Phase 4-bis R1–R3 completas.** Suite **360 tests unitarios pasan**, `pnpm run build` exit 0, lint 0 errores en archivos del plan. Working tree limpio salvo archivos del workstream paralelo (`tasks/plan.md`, `tasks/todo.md`, loteprod).
+**Siguiente paso concreto:** **Phase 4-bis R4–R5** — bandeja "Autorizaciones" (tab de `finance/control-interno`) con hook `useApprovalInbox()` sobre GET `/api/approval-requests`, y editor "Matriz de Autorización" como otra tab (solo ADMIN+). Detalles en `tasks/plan-ordenes-oc-os.md` Phase 4-bis.
 
 ---
 
@@ -70,11 +72,13 @@ app/api/budgets/route.ts                      GET grid mensual (budgeted/committ
 ⚠️ `app/api/approvals/` YA EXISTE (turnos RH, ShiftApprovalService) — la bandeja OC/OS vive en `app/api/approval-requests/`. NO colisionar.
 **Integración OC** (Task 6): `purchase-order-service.submitForApproval(id,userId,companyId?)` exige DRAFT+total>0+purchaseType asignado → cadena 'OC' → presupuesto/emergencia → TX folio real `OC-[SUC]-...`(+folioYear/folioSequence)+approvals. `approvePO/rejectPO` lanzan 409 si hay requests PENDING (usar bandeja). PATCH de PO acepta `purchaseType`/`costCenterId`; GET scoped por tenant. Retrocompatible: OC ya enviadas antes de la matriz no pasan por ella.
 
-### UI (Task 7)
-- `hooks/queries/use-service-orders.ts` (+exportado en index.ts): `useServiceOrders/useServiceOrder/useCreateServiceOrder/useUpdateServiceOrder/useTransitionServiceOrder/useSubmitServiceOrder/useAddQuote/useAddEvidence/useSignConformity/useApproveRequest()/useRejectRequest()`(sin id param; reciben requestId)/`useCostCenters`.
-- `app/dashboard/service-orders/page.tsx`: lista con filtros estado/tipo, paginación, badges, diálogo creación (sucursal deshabilitada si rol fijo vía `useBranch`).
-- `app/dashboard/service-orders/[id]/page.tsx`: detalle con acciones estado×rol (aprobar/rechazar solo nivel corriente + `roleIsAtLeast` client-side + excluye creador), timeline "En turno", galería ANTES/DESPUES con `usePhotoUpload` (R2 presignado `/api/upload`), QuoteDialog (file o URL), EditDraftDialog.
-- Sidebar `components/app-sidebar.tsx`: sección nueva **"Control"** (icon ClipboardCheck) con "Órdenes de Servicio" — ahí agregar Aprobaciones (Task 8) y Presupuestos (Task 9).
+### UI (Task 7 + Phase 4-bis R1–R3)
+- `hooks/queries/use-service-orders.ts` (+exportado en index.ts): `useServiceOrders/useServiceOrder/useCreateServiceOrder/useUpdateServiceOrder/useTransitionServiceOrder/useSubmitServiceOrder/useAddQuote/useAddEvidence/useSignConformity/useApproveRequest()/useRejectRequest()`(sin id param; reciben requestId)/`useCostCenters`. `useServiceOrders` acepta `complianceServiceId`.
+- `components/service-orders/create-order-dialog.tsx`: diálogo compartido de creación; exporta `TYPE_LABELS`; props `{open, onClose, prefill?, onCreated?}` — prefill `{complianceServiceId, branchId, type?, scope?}` aplicado vía **estado derivado** (overrides nullables, sin useEffect); sin `onCreated` navega al detalle.
+- `app/dashboard/equipment/compliance/service-orders/page.tsx`: lista con filtros estado/tipo, paginación, badges, soporta `?complianceServiceId=` (badge "quitar filtro").
+- `app/dashboard/equipment/compliance/service-orders/[id]/page.tsx`: detalle con acciones estado×rol (aprobar/rechazar solo nivel corriente + `roleIsAtLeast` client-side + excluye creador), timeline "En turno", galería ANTES/DESPUES con `usePhotoUpload` (R2 presignado `/api/upload`), QuoteDialog (file o URL), EditDraftDialog.
+- `app/dashboard/equipment/compliance/page.tsx`: acciones por fila "Generar OS" (abre el dialog con prefill) y "Ver OS" (link a la lista filtrada).
+- Sidebar `components/app-sidebar.tsx`: **sin sección "Control"**; ítem "Órdenes de Servicio" bajo sección Equipos. Las bandejas/matriz van como tabs de Finanzas › Control Interno (R4/R5) y Presupuestos decidir ubicación al implementar Task 9.
 - Patrones UI aprendidos: `PageHeader` usa prop **`actions?: ReactNode`** (NO `action`/badge string) · `EmptyState` usa **`action={{label, onClick|href}}`** (no nodo) · rol client-side: `useSession()` + `roleIsAtLeast(user.role, required)` (lib/permissions es puro, importable en cliente) · dinero input pesos → `Math.round(parseFloat*100)`.
 
 ## 4. DATOS DEMO EN BD (para desarrollar/pruebas)
@@ -87,15 +91,14 @@ app/api/budgets/route.ts                      GET grid mensual (budgeted/committ
 
 ## 5. TAREAS PENDIENTES (marcar aquí Y en plan/todo al avanzar + commit)
 
-### Checkpoints Foundation/Business/APIs ✅ · Phase 4 UI: Task 7 ✅
+### Checkpoints Foundation/Business/APIs ✅ · Phase 4 UI: Task 7 ✅ · Phase 4-bis: R1–R3 ✅
 
-### Phase 4 (restante)
-- [ ] **Task 8 — Bandeja de aprobaciones + editor de matriz** ← SIGUIENTE
-  - `app/dashboard/approvals/page.tsx`: consume `GET /api/approval-requests` (ya devuelve items enriquecidos con `budget.available`, `emergency.cap/used`, folio, monto, nivel, rol requerido, tipo). Agrupar por documento; botones aprobar/rechazar (motivo) → `POST /api/approval-requests/[id]/approve|reject`. Crear hook `useApprovalInbox()` en `use-service-orders.ts` (o nuevo archivo). Mostrar presupuesto restante por ítem (ya viene en la respuesta).
-  - `app/dashboard/company/approval-matrix/page.tsx`: editor GET/PUT `/api/approval-matrix` (ADMIN+; ocultar pestañas si no). Reglas editables (min/max ¢, rol select de APPROVER_ROLES_HIERARCHY, minQuotes, sequence, active). Mostrar warnings del PUT (huecos) como avisos no bloqueantes y errores inline. **Ubicación: junto al operating-config bajo /dashboard/company, NO en settings/** (patrón página cliente + API de `operating-config-form.tsx`).
-  - Agregar entradas al sidebar sección "Control".
+### Phase 4-bis (restante)
+- [ ] **R4 — Bandeja "Autorizaciones" tab en Control Interno** ← SIGUIENTE
+  - Componente `components/service-orders/approval-inbox.tsx`: hook `useApprovalInbox()` sobre GET `/api/approval-requests` (items ya vienen enriquecidos con `budget.available`, `emergency.cap/used`, folio, monto, nivel, rol requerido, tipo). Agrupar por documento; aprobar/rechazar (motivo) con los hooks existentes `useApproveRequest()`/`useRejectRequest({requestId, reason})`. Estados loading/error/empty con patrón EmptyState+retry.
+  - Tab nueva en `finance/control-interno/page.tsx`. GERENTE/SUPERVISOR solo ven su sucursal (el API ya filtra); creador excluido (SELF ya viene filtrado).
+- [ ] **R5 — Editor "Matriz de Autorización" tab en Control Interno**: tabla editable de reglas (pesos↔centavos, rol select de APPROVER_ROLES_HIERARCHY, minQuotes, sequence, active), PUT mostrando errores inline (traslape misma secuencia) y warnings de huecos como avisos no bloqueantes. Solo ADMIN+ (ocultar tab).
 - [ ] **Task 9 — `app/dashboard/budgets/page.tsx`**: selector mes (`GET /api/budgets?month=YYYY-MM` ya devuelve grid completo sucursales×centros con `alert` ≥90%) + captura celda a celda con `PUT /api/budgets` (ADMIN+: ocultar/deshabilitar edición para el resto). Barra consumo vs presupuestado.
-
 ### Phase 5
 - [ ] **Task 10 — Dashboard KPIs**: `app/dashboard/reports/control/page.tsx` + `app/api/reports/control/route.ts`. Food cost % real vs teórico (recipes/sales-entry), gasto operativo %, presupuesto vs ejecutado por partida (usar `getCommittedByPair`), comparativo precios por insumo entre sucursales, ranking proveedores, % emergencias (<5% meta), desviación presupuestal. **Metas desde `tenant_operating_config`** (decisión #10; defaults `DEFAULT_FINANCIAL_TARGETS` en financial-kpi-types). Patrón Recharts de reports/executive. Filtro mes/sucursal.
 - [ ] **Task 11 — Job Inngest mensual** `lib/inngest/functions/control-monthly-report.ts`: desviaciones, `findFolioGaps`, contratos por vencer ≤90 días (Phase 6), domiciliados desviados → `NotificationDispatcher` a OWNER/ADMIN. Cron `0 6 1 * *` (o similar). Registrar en `app/api/inngest/route.ts`.
@@ -126,6 +129,9 @@ Flujo end-to-end demostrable + KPIs con datos demo + `pnpm run build && pnpm run
 10. **agent_browser (tool) roto esta sesión** con "live daemon restore policy" aunque `doctor` pasa — verificar UI vía HTTP con cookie jar o pedir al usuario revisión manual.
 11. **Bandeja y scoping**: GERENTE/SUPERVISOR ven solo su sucursal (tenant.branchId fijo); ADMIN/OWNER/SUPER_ADMIN ven toda la empresa salvo cookie de sucursal. Los requests de niveles futuros NO aparecen en la bandeja (solo nivel corriente).
 12. **i18n**: UI en español, sin next-intl en estas páginas (convención del dashboard).
+13. **Dev server lockea directorios en Windows**: `git mv app/dashboard/service-orders ...` falla con Permission denied si el dir está siendo watcheado por `next dev` (PID en puerto 3000). Solución: `git mv` archivo por archivo + `rmdir` del dir vacío — los archivos individuales sí se renombran.
+14. **Validar TODAS las FKs opcionales en `validateReferences`**: si se agrega un campo nuevo al payload pero no a la llamada de validación, la FK inválida llega a Postgres y explota como 500 genérico en vez de 400 accionable (leído en e2e de R2).
+15. **Prefill en diálogos reutilizados**: usar estado derivado (`override ?? prefill ?? default`) en vez de `useEffect` que haga setState — evita warning react-hooks/set-state-in-effect y renders en cascada.
 
 ## 7. Open questions heredados
 - ¿Conformidad con firma digital real o basta userId+timestamp? (implementación actual: registro simple nombre+fecha)
