@@ -1,5 +1,8 @@
 # Handover — Sistema de Control OC/OS: estado y próximos pasos sugeridos
 
+> ⚠️ **SUPERADO** por `handoffs/oc-os-handover-proximos-pasos-v2.md` (Task 9 ya implementado).
+> Se conserva como contexto de decisiones; para continuar, usar v2.
+
 > **Documento de entrega** para retomar el plan `tasks/plan-ordenes-oc-os.md` en una sesión nueva.
 > La **fuente de verdad técnica completa** es `handoffs/oc-os-sistema-control-implementacion-y-pendientes.md`
 > (mapa de servicios/APIs/UI, decisiones vinculantes #1–13, gotchas #1–18, datos demo).
