@@ -427,3 +427,180 @@ Documento origen (OC/OS) + Evidencia (recepción/servicio) + Factura = Requisito
 
 3. Un solo punto de verdad (single source of truth)
 Todos los módulos alimentan la MISMA base de datos y el MISMO dashboard — nadie reporta "por su lado"
+Sistema Integral de Egresos: OC, OS, Pagos, Nómina y Gastos Operativos — Grupo QSR (3-15 sucursales)
+(Contexto: México — CFDI, IMSS, SAT. Adaptable a otro país.)
+
+1. El mapa completo: TODAS las salidas de dinero del grupo
+Todo lo que sale de la concentradora cae en solo 6 categorías. Este es el sistema entero:
+
+text
+
+                        PRESUPUESTO ANUAL (columna vertebral)
+                        (partida × sucursal × mes)
+                                   ↓
+ ┌─────────────────────────────────┼─────────────────────────────────┐
+ ↓                 ↓               ↓                 ↓               ↓
+INSUMOS         SERVICIOS      NÓMINA          GASTOS OP.       IMPUESTOS/CAPEX
+(COGS)          (mantenim.)    (checador)      (recurrentes)    (obligaciones)
+ OC → recepción  OS → conformidad  timbrado →   contrato/factura  declaraciones
+                                   dispersión
+ └──────────────────┬──────────────┴──────────┬──────────────────────┘
+                    ↓                         ↓
+             CONCILIACIÓN TRIPLE          DISPERSIÓN
+          (OC/OS + evidencia + CFDI)      (fechas fijas)
+                    ↓                         ↓
+        ┌───────────────────────────────────────┐
+        │   CUENTA CONCENTRADORA — corridas de   │
+        │   pago en días fijos. NADA se paga      │
+        │   fuera del calendario ni sin documento │
+        └───────────────────────────────────────┘
+                    ↓
+        CONTABILIZACIÓN por centro de costo →
+        P&L mensual por sucursal → varianzas → nuevo presupuesto
+2. Los gastos operativos a fondo (la pieza que falta)
+2.1 Catálogo de partidas operativas por sucursal
+Código	Partida	Fijo/Variable	Cómo se paga	Responsable
+4101	Renta del local	Fijo + % ventas	Transferencia 1-5 de mes	Corporativo
+4102	Cuota de plaza (CAM)	Fijo	Transferencia con renta	Corporativo
+4103	Energía eléctrica	Variable	Domiciliado	Sucursal
+4104	Agua	Variable	Domiciliado	Sucursal
+4105	Gas LP/natural	Variable	Contrato con precio/kg	Sucursal
+4106	Internet/telefonía	Fijo	Domiciliado	Corporativo
+4107	Seguridad/alarma	Fijo	Domiciliado	Corporativo
+4108	Fumigación	Fijo (contrato)	Corrida mensual	Corporativo
+4109	Limpieza de ductos/grasas	Fijo (contrato)	Corrida mensual	Corporativo
+4110	Mantenimiento correctivo	Variable	OS + corrida semanal	Sucursal
+4111	Mantenimiento preventivo	Fijo (programa)	Corrida mensual	Corporativo
+4112	Seguros de sucursal	Fijo	Póliza flotante anual	Corporativo
+4113	Licencias y permisos	Fijo anual	Corrida cuando toca	Corporativo
+4114	Publicidad local	Variable	OS + corrida	Con aprobación
+4115	Consumibles/papelería	Variable	OC pequeña	Sucursal
+4116	Caja chica/viáticos	Variable	Reposición con comprobantes	Gerente
+4117	Predial	Fijo anual	Transferencia	Corporativo
+Partidas corporativas (5xxx): honorarios contables y legales, auditoría, sueldos corporativos, software (POS, ERP, nómina), marketing nacional, capacitación, comisiones bancarias, cuotas de franquicia (si aplica).
+
+2.2 El ciclo del gasto operativo (diferente a compras)
+Las compras nacen de una necesidad de stock. Los gastos operativos nacen de contratos y compromisos, por eso se controlan distinto:
+
+text
+
+1. PRESUPUESTO ANUAL por partida × sucursal (histórico + contratos vigentes)
+2. CONTRATO registrado en el sistema: monto, vigencia, escalación,
+   fecha de renovación (alerta 90 días antes)
+3. Cada mes: factura del proveedor recurrente
+4. CONTRAERROBOSTRE: monto facturado vs. contrato vs. presupuesto
+   (variación >10% = se investiga antes de pagar)
+5. Pago: domiciliado (servicios) o corrida (contratos)
+6. Cierre: comparativo presupuestal → explicación de varianzas
+2.3 Controles específicos de las partidas más caras
+Renta (la partida #1):
+
+Contrato con vigencia, % sobre ventas si aplica, cláusula de escalación (INPC) registrada
+Retenciones de ISR/IVA al pagar (México) — si no las retienes, el fisco te las cobra a ti
+Calendario de renovación: negociar 6 meses antes de vencer, no cuando ya venció
+Electricidad (la #2 en QSR — refrigeración 24/7):
+
+Comparativo mensual de kWh entre sucursales (normalizado por ventas: kWh por $10,000 vendidos)
+Una sucursal que consume 30% más que sus gemelas = equipo fallando (compresor, empaques de puerta, termostato)
+Revisar demanda contratada anualmente (pagas capacidad aunque no la uses)
+Contratos de mantenimiento preventivo:
+
+Registro de activos por sucursal (refrigeradores, freidoras, planchas, campanas, A/A) con su plan de mantenimiento
+Regla: cada peso en preventivo ahorra $3-5 en correctivo y cero ventas perdidas
+Cada preventivo ejecutado = OS con conformidad firmada (así no pagas preventivos que nunca llegaron)
+Pagos domiciliados (donde se filtra dinero silenciosamente):
+
+Lista maestra de TODOS los domiciliados: empresa, concepto, monto esperado, día de cargo
+Conciliación mensual: cargo real vs. monto esperado
+Aumento de tarifa no notificado = se detecta y se negocia
+Suscripciones huérfanas (software que nadie usa) = se cancelan en la revisión trimestral
+2.4 Presupuesto de gastos operativos: cómo se arma
+Partida	Base de presupuesto
+Renta/CAM	Contrato vigente + escalación
+Energía, gas, agua	kWh/kg histórico × tarifa proyectada × crecimiento de ventas
+Mantenimiento	% del valor de activos (2-3% anual) o histórico por antigüedad de sucursal
+Fumigación/limpieza/seguridad	Contrato anual
+Licencias	Calendario de vencimientos por sucursal
+Correctivo	Reserva: sucursales nuevas +15%, maduras +5%
+Caja chica	Tope fijo mensual por sucursal
+3. Cómo se conecta TODO: el documento único de egreso
+Cada salida de dinero —sin excepción— sigue el mismo esqueleto, solo cambia quién lo origina:
+
+Insumos	Servicios	Nómina	Opex recurrente	Impuestos
+Origen	Par level del POS	Avería / preventivo	Checador	Contrato	Declaración
+Documento	OC	OS	Recibo timbrado	Factura + contrato	Declaración + línea de pago
+Evidencia	Nota de recepción	Conformidad firmada	Horas validadas	Servicio vigente	Sello SAT
+Referencia presupuestal	Partida 2xxx	Partida 4110/4111	Partida 3xxx	Partida 4xxx	Partida 5xxx
+Aprobación	Matriz	Matriz	Finanzas	Contracontrato	Conta + Finanzas
+Pago	Corrida quincenal (30 días)	Corrida semanal	Dispersión fecha fija	Domiciliado/programado	Día 17 aprox.
+Regla del sistema: si un egreso no tiene partida presupuestal y centro de costo asignados desde su origen, no existe para el sistema — y no se paga.
+
+4. Matriz de autorización unificada (todos los tipos de gasto)
+Monto	Insumos/Servicios	Opex recurrente	Nómina	CAPEX
+≤ $5,000	Gerente sucursal	Automático (contratado)	n/a	Prohibido sin autorización
+$5,001–25,000	Dir. Operaciones	n/a (ya autorizado al firmar contrato)	n/a	Dir. Finanzas
+$25,001–100,000	Dir. Finanzas	n/a	Planilla completa: Dir. Finanzas	Dir. General
+> $100,000	Dir. General	Contratos nuevos: Dir. General	Cambios estructurales: Dir. General	Comité/Socios
+Contratos de opex recurrentes: la autorización ocurre una vez al firmar el contrato anual, no cada mes. Por eso la negociación de contratos es el control más rentable del sistema — la batalla se gana ahí, no en la factura mensual.
+
+5. El calendario maestro: un mes del sistema completo
+Día	Actividad
+Diario	Corte de caja → depósito → concentradora. Recepción de insumos contra OC. Checador. Caja chica con comprobante.
+Lunes	Cierre semanal: ventas, food cost, labor %. Pedido semanal consolidado ajustado.
+Martes	Validación y timbrado de nómina (horas + altas/bajas + horas extra).
+Miércoles	Dispersión de nómina + corrida de pagos menores (servicios, perecederos locales, correctivos).
+Día 1-5	Rentas y CAM de todas las sucursales (transferencias programadas).
+Día 5-10	Cargos domiciliados del mes anterior conciliados contra lista maestra.
+Día 15	Corrida grande: proveedores nacionales (30 días fecha factura), contratos de mantenimiento.
+Día 17	Impuestos: IMSS, IVA, retenciones ISR, Infonavit (según dígito).
+Día 20-25	Cierre contable del mes: conciliaciones bancarias, provisiones (aguinaldo, vacaciones), P&L por sucursal.
+Día 28-30	Comité mensual de resultados: Dirección + Finanzas + Operaciones + gerentes top/bottom. Varianzas presupuestales explicadas por cada quien.
+Trimestral	Auditoría sorpresa a X sucursales. Revisión de contratos vigentes y domiciliados. Evaluación de proveedores.
+Anual	Presupuesto del año siguiente. Renovación de póliza flotante de seguros. Inventario físico total. Auditoría externa.
+6. La estructura de centros de costo
+text
+
+CORP-100  Corporativo
+  ALM-050 Almacén central (si existe)
+SUC-001   ┐
+SUC-002   │  Cada sucursal carga su:
+SUC-...   │    2xxx = COGS (insumos, empaques)
+SUC-015   ┘    3xxx = nómina operativa (con cargas)
+               4xxx = gastos operativos
+CORP-100       5xxx = corporativo
+               6xxx = CAPEX
+Con esto, cualquier reporte sale cortado como quieras: por sucursal, por partida, por marca, por mes. El gerente de cada sucursal recibe su P&L mensual y responde por sus números — es el dueño de su unidad.
+
+7. El P&L estándar con metas de control
+Línea	% ventas	Quién responde
+Ventas netas	100%	Gerente
+Food cost (proteína, abarrotes, perecederos)	28-32%	Gerente + Corporativo
+Empaques	2-3%	Corporativo
+Nómina operación (con cargas)	25-28%	Gerente
+Renta + CAM	6-10%	Corporativo
+Energía, gas, agua	4-6%	Gerente
+Mantenimiento	1.5-2.5%	Gerente + Corporativo
+Seguridad, fumigación, limpieza técnica	1-1.5%	Corporativo
+Seguros, licencias, otros	1-2%	Corporativo
+EBITDA por sucursal	15-18%	Gerente
+Gastos corporativos	3-5%	Dirección
+EBITDA consolidado	12-15%	Dirección General
+Cada línea tiene un responsable con nombre y apellido. Sin dueño, ninguna línea baja.
+
+8. Indicadores de que el sistema está funcionando
+Indicador	Meta	Qué detecta si falla
+% egresos sin OC/OS/contrato	<2%	Compras fuera de sistema, fraude
+% domiciliados conciliados a tiempo	100%	Fugas de dinero silenciosas
+Varianza presupuestal por partida	±10%	Presupuesto mal armado o descontrol
+Diferencia kWh entre sucursales gemelas	<15%	Equipos fallando
+Órdenes de nómina a empleados sin checador	0	Empleados fantasma
+Contratos vencidos sin renegociar	0	Renovaciones automáticas caras
+% mantenimiento correctivo vs. total	<40%	Se abandonó el preventivo
+Cumplimiento corrida de pagos	100%	Pagos sueltos, favores, caos
+9. Resumen del sistema en una frase por elemento
+Compras: nadie compra con criterio libre; se compra contra par levels, contratos y presupuesto
+Servicios: nada se arregla sin OS, nada se paga sin conformidad firmada
+Gastos operativos: se controlan al firmar el contrato, no al pagar la factura
+Pagos: solo de la concentradora, solo en corridas de fechas fijas, solo con conciliación triple
+Nómina: dispersión bancaria, horas validadas contra checador, provisiones mensuales del 35-40%
+Todo: cargado a centro de costo + partida, cierra en P&L por sucursal, y el gerente responde por él

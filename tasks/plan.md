@@ -1,148 +1,302 @@
-# Implementation Plan: Estrategia de Pruebas Pulso HORECA
+# Implementation Plan: Evidence Gallery Overhaul (`app/dashboard/evidence`)
 
 ## Overview
 
-Cerrar el hueco entre 289 rutas API / 122 servicios / 33 funciones Inngest / 140 páginas y 0 pruebas unitarias + 0 CI. La suite actual son 36 specs Playwright contra la base de dev compartida, en serie. Este plan implementa las capas del documento de estrategia en orden costo/beneficio, con dos ajustes derivados de la verificación del 2026-08-24:
+Fix the design critique (18/40) of the Galería de Evidencias: restore trust in an audit
+surface (dead controls, racy fetching, wrong fields), make the primary action accessible,
+re-tokenize onto the Pulso OKLCH palette per DESIGN.md, and surface the branch dimension
+for the multi-branch owner persona. Work spans one API route (`app/api/workflows/evidence/route.ts`)
+and one client page (`app/dashboard/evidence/page.tsx`) plus small config/supporting pieces.
 
-1. **Los dos hallazgos de seguridad ya están corregidos en el código** (IDOR en `employees/[id]/*` → ahora usa `getCurrentTenant()` de sesión; webhook de WhatsApp → token-in-path con `timingSafeEqual`). El paso 1 pasa de "tapar fugas" a "escribir las regresiones que impidan que se rompan de nuevo".
-2. Los conteos reales difieren levemente del doc (289 rutas, no 287; 122 servicios, no 111) — los barridos deben derivarse del filesystem, no de números hardcodeados.
+## Planning Findings (verified against source)
+
+Beyond the critique, source inspection confirmed:
+
+1. **Dead filters**: the API reads only `dateFrom`, `dateTo`, `search`. The `type` and
+   `verified` params sent by the page are silently ignored — those two selects do nothing.
+2. **Fabricated data**: every row is returned as `type: "PHOTO"` regardless of content;
+   `stepName` is the raw `stepId`, while the frozen `title` column on
+   `workflowInstanceSteps` is ignored. TEXT evidence content lives in the `value` jsonb
+   column, not `url`.
+3. **Image config gap**: `next.config.ts` has no `images.remotePatterns`; R2 presigned
+   URLs (rotating query strings, 10-min TTL) would fail `next/image` optimization anyway.
+   Plain `<img loading="lazy">` is the pragmatic render path.
+4. **No migration needed**: schema columns `title`, `type`, `value`, `definition` already
+   exist on `workflowInstanceSteps`.
+5. **Tokens ready**: `bg-info`, `bg-success`, `bg-warning`, `text-destructive` etc. are
+   mapped in `app/globals.css`; UI primitives exist (`skeleton.tsx`, `empty-state.tsx`,
+   `toggle-group.tsx`, `tooltip.tsx`, `label.tsx`).
+6. **Branches API exists**: `GET /api/branches` (`BranchService.listBranches`) can feed a
+   Sucursal filter dropdown.
 
 ## Architecture Decisions
 
-- **Vitest para la capa unitaria**: ciclo de milisegundos, soporta table-driven tests y fast-check para property-based (`calculatePropinasDistribution`). Playwright queda exclusivamente para E2E.
-- **Barridos parametrizados desde el filesystem**: una sola prueba que recorra `app/api/**/route.ts` cubre invariantes transversales (401 sin sesión, sobre `{ success, data | error }`) y detecta rutas nuevas sin guardia automáticamente.
-- **Regresiones de seguridad como tests unitarios/integración primero**: baratas, rápidas y documentan el contrato de seguridad que proxy.ts y las guardias mantienen.
-- **Base efímera con ramas de Neon** (decidido): Docker no está disponible en el entorno y el repo usa `@neondatabase/serverless` (WebSocket) — probar contra Postgres local/TCP sería otra configuración de conexión que la de producción. Flujo por corrida: create_branch → migrar desde cero → seeds → suite → delete_branch. La prueba de drift sale gratis porque la rama siempre se migra desde cero.
-- **Lista de excepciones del barrido 401 con revisión humana** (decidido): primero barrido exploratorio que clasifica las rutas sin guardia (legítima-pública / debería-tener-guardia / desconocida), tabla al humano para aprobar, recién entonces se congela como fixture del test.
-- **E2E nocturno en GitHub Actions scheduled** (decidido): segundo workflow en `.github/workflows/` con `schedule`; sin servicios externos gracias a las ramas efímeras de Neon.
-- **Excluir `.worktrees/`** de todos los barridos (hay un worktree con su propio node_modules).
-- **No probar**: primitivos shadcn de `components/ui/`, wrappers de reexportación, el esquema Drizzle en sí (sí la migración que lo produce), cobertura por porcentaje.
+- **Derive media type server-side** from the evidence URL extension (photo/video/audio),
+  falling back to the frozen step `type` column, then PHOTO. No schema change.
+- **Plain `<img>` instead of `next/image`** for evidence photos: presigned URLs rotate
+  their query string each fetch, defeating the optimizer and its cache; also avoids the
+  missing `remotePatterns` config entirely.
+- **Pagination via `page`/`limit` + `total` in the response**, not infinite scroll — keeps
+  the fetch model simple and gives the "N evidencias · filtros activos" count for free.
+- **Debounce (300 ms) + AbortController** in the page's fetch effect; latest response wins.
+- **Stats become an inline summary strip** beside the header (counts computed over the
+  filtered result set, labeled "de N filtradas"), replacing the banned 5-card hero row.
+- **Vertical slices**: each phase leaves the page working; API contract changes land first
+  and stay additive so the old page keeps rendering between tasks.
 
-## Task List
+---
 
-### Phase 0: Regresiones de seguridad (los fixes ya existen — blindarlos)
+## Task 1: Truthful evidence payload — real media type, real step title, TEXT content
 
-- [ ] **Task 1: Regresión webhook WhatsApp autenticado** (S)
-  Specs: POST a `/api/whatsapp/webhook` (sin token) → 405/404; POST a `/api/whatsapp/webhook/<token-malo>` → 404; token válido + payload con `messages` → emite evento Inngest con `id = message.id`; mismo `message.id` dos veces → un solo procesamiento; JSON malformado → 400/500 sin encolar.
-  - Archivos: `tests/api/whatsapp-webhook-auth.spec.ts`
-- [ ] **Task 2: Regresión tenant-desde-sesión en employees/[id]/*** (S)
-  Specs: sesión válida + `?companyId=<otra-empresa>` sobre documents/benefits/contracts/training → los datos devueltos filtran por companyId de sesión (nunca el parámetro); sin sesión → 401.
-  - Archivos: `tests/api/employees-tenant-isolation.spec.ts`
+**Description:** The API currently fabricates its data: every row claims `type: "PHOTO"`,
+`stepName` is a raw step ID, and TEXT content is unreachable. Select `title`, `type`,
+and `value` from `workflowInstanceSteps` (columns already exist), derive the real media
+type from the URL extension with fallbacks, return human titles, and add a `textContent`
+field sourced from `value` for text evidence.
 
-### Phase 1: Fundación de pruebas
+**Acceptance criteria:**
+- [ ] Media type derived from URL extension: `.mp4/.mov/.webm` → VIDEO; `.mp3/.wav/.ogg/.m4a/.aac` → AUDIO; image extensions → PHOTO
+- [ ] Fallback chain when no/unknown extension: frozen `type` column → `"PHOTO"`
+- [ ] `stepName` returns `COALESCE(title, stepId)` — never a bare UUID when a title exists
+- [ ] Response rows include optional `textContent` (from `value` jsonb) populated when type resolves to TEXT
+- [ ] Existing fields unchanged (`data[]` shape stays additive)
 
-- [ ] **Task 3: Instalar Vitest + configuración base** (S)
-  `vitest`, `fast-check`; script `pnpm test:unit`; config con exclude de `.worktrees/` y de specs Playwright; smoke test trivial verde.
-  - Archivos: `package.json`, `vitest.config.ts`, `lib/workflows/__tests__/today.smoke.test.ts`
-- [ ] **Task 4: CI mínimo** (S)
-  `.github/workflows/ci.yml`: pnpm install → lint → build → test:unit en cada push/PR. Sin E2E todavía (nocturno más adelante).
-  - Archivos: `.github/workflows/ci.yml`
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check via dev server + curl: seed/demo data shows at least one non-PHOTO type or title fallback working
 
-### Checkpoint: Fundación
-- [x] `pnpm run build` y `pnpm run lint` pasan localmente — lint requerido triage previo: 1067 errores preexistentes (`any` endémico con `strict:false`) bajados a warning en config; 11 `rules-of-hooks` reales corregidos en código (crash latente de "Rendered more hooks")
-- [x] `pnpm test:unit` corre el smoke test en <10 s (~1 s)
-- [ ] CI verde en un PR real *(pendiente push)*
+**Dependencies:** None
 
-### Phase 2: Capa 01 — Unitarias sobre lógica pura
+**Files likely touched:**
+- `app/api/workflows/evidence/route.ts`
+- `lib/storage/scoped-evidence.ts` (small pure helper for extension→type, exported for testability)
 
-- [x] **Task 5: Fechas y zonas horarias (`lib/workflows/today.ts`)** (M)
-  Table-driven: `localMoment`, `startOfLocalDayUtc`, `localDateString`, `addCalendarDays`, `localDayRangeUtc` × 3 zonas (Mexico_City, Cancún UTC−5 fijo, Tijuana DST); captura 23:50 cae en día operativo correcto. `isScheduleDueOn`/`parseTimeOfDay`: ONCE/DAILY/WEEKLY/MONTHLY, día 31, 29-feb, hora inválida. `deriveItemState`: matriz HECHO/EN_CURSO/VENCIDO/PENDIENTE + empate.
-  - Archivos: `lib/workflows/__tests__/today.test.ts`
-  - Hallazgos (2026-08-24): BUG corregido — el redondeo de `startOfLocalDayUtc` sesgaba +1 min con segundos ≥31 (`history/route.ts` pasa `new Date()`; test rojo commit 0c72e58, fix mínimo 85e7acf). Congelado como contrato: `"08:30:15"` sí parsea (regex sin ancla final). Documentado en tests: días DST Tijuana reportan rango de 24 h corrido ±1 h (día real 23/25 h), según admite el docstring del módulo; WEEKLY con `daysOfWeek:[7]` filtra y cae al escalar `dayOfWeek ?? 1`.
-- [x] **Task 6: LFT (`lib/labor-validation.ts`)** (M)
-  `calculateOvertime` (primeras 9 h semanales al doble, siguientes al triple), turnos traslapados, cierre-apertura <8 h, cruce de medianoche, `aggregateWeeklyHours`/`getComplianceStatus` contra reglas default y sobrescritas por tenant.
-  - Archivos: `lib/__tests__/labor-validation.test.ts`
-  - Hallazgos (2026-08-24): BUGS corregidos — `checkShiftConflict` daba falsos positivos según orden de inserción y no veía traslapes entre fechas (0 callers, sin riesgo); `calculateWeeklyOvertime` restaba 2× las 8h regulares → alertas de extra muertas. DECIDIDO CON HUMANO y aplicado: (a) `calculateOvertime` implementa ahora LFT Art. 84/87 — allowance semanal de 9h a doble recortado por acumulado, excedente triple, rate1 deprecado en 0 conservando shape del contrato; (b) `validateBreakCompliance` evalúa continuo sólo con breakMinutes=0 (dato exacto) y calla con descansos hasta integrar BreakLog segmentado; comida 30min/15min intactas.
-- [x] **Task 7: Permisos y alcance (RBAC/ABAC)** (M)
-  `branch-scope.ts`: roles × sucursal propia/ajena/"todas" — GERENTE/SUPERVISOR no amplían alcance vía parámetro. `permissions.ts`: `hasAccess` sobre ROUTE_PERMISSIONS completo, `getDefaultDashboard` sin redirects a rutas prohibidas. `abac.ts`: OWNED/FRANCHISE × NONE/OWN_BRANCH_ONLY/ALL. `masking.ts`: PII entra enmascarado cuando hay redacción activa.
-  - Archivos: `lib/__tests__/branch-scope.test.ts`, `lib/rbac/__tests__/permissions.test.ts`, `lib/rbac/__tests__/abac.test.ts`, `lib/rbac/__tests__/masking.test.ts` (+ alias `@/` en `vitest.config.ts`)
-  - Notas (2026-08-24): branch-scope usa el Role de `lib/permissions.ts` (7 roles, con OWNER) — no confundir con UserRole de rbac (6). Congelado documentado: `enforceBranchScope` es fail-ABIERTO para acotado sin sucursal (legacy, ~15 call sites); su reemplazo `resolveBranchScope` sí devuelve NONE. Masking: dirección fail-cerrada real = "con redactFields no vacío se enmascara TODO PII presente aunque no esté listado"; gap documentado: PII nuevo SIN masker registrado pasa en claro (tabla no derivada de classification.ts) y alcance plano (no recorre objetos anidados) — observaciones para capa 03. EMPLEADO está branch-scoped en abac pero NO en branch-scope (capas distintas, intencional).
-- [x] **Task 8: Dinero y parseo POS** (M)
-  `pos-column-aliases.ts`: `parseMoneyToCents` ("$1,234.50", "1.234,50", "(150.00)", "1 234,50 MXN", "", "N/A", notación científica); `normalizeHeader`/`matchFieldAlias`/`isTotalLabel` con acentos, mayúsculas, duplicados. `rate-limiter.ts`: ventana expira, contador reinicia, headers correctos con fallback en memoria.
-  - Archivos: `lib/services/__tests__/pos-column-aliases.test.ts`, `lib/__tests__/rate-limiter.test.ts`
-  - Hallazgos (2026-08-24): CONGELADOS por tocar dinero/formato — (a) `"1.234,50"` devuelve 123¢: el branch coma+punto asume MX (coma=miles) sin detectar formato europeo (esperable 123450¢; recomendación: detectar `\d{1,3}(\.\d{3})+,\d{2}$`); (b) notación científica se acepta vía parseFloat (plan pedía null; matemáticamente correcto si el origen era numérico de Excel). Invariantes que SÍ se imponen: round-trip toFixed(2) property y nunca-NaN. Rate-limiter testeado sobre memoria con `@/lib/env` mockeado (Redis fuera de capa unitaria); buckets internos son de minuto fijo independiente del windowMs.
-- [x] **Task 9: Propinas con property-based testing** (S)
-  Invariante fast-check sobre la matemática PURA extraída (`distributeEqualCents`): consistencia interna, nada inventado, residuo acotado, perStaff=floor(pool/n), determinismo.
-  - Archivos: `lib/services/propinas-distribution.ts` (nuevo), `lib/services/propinas-service.ts` (rewire mínimo), `lib/services/__tests__/propinas-distribution.test.ts`
-  - Hallazgo (2026-08-24): ⚠️ BUG DE DINERO CONFIRMADO Y CONGELADO — `Math.floor(pool/n)` evapora `pool % n` centavos (100 entre 3 → reparte 99; header guarda distributedCents ≠ totalPoolCents). La propiedad "suma === total" del plan falla hoy y quedó como it.skip pendiente del fix. RECOMENDACIÓN al humano: repartir el residuo entre los primeros `pool % n` empleados (o registrar el residuo explícito en el header). Edge adicional congelado: pools negativos reparten "más negativo" (floor hacia −∞).
+**Estimated scope:** Small (1–2 files)
 
-### Checkpoint: Capa 01
-- [x] Suite unitaria completa en <30 s (2026-08-24: 280 tests en 10 archivos, ~7 s)
-- [x] Casos borde documentados en los propios tests (día 31, DST Tijuana, empate de estado)
+---
 
-### Phase 3: Capa 03 — Contrato de API
+## Task 2: Filter parity + pagination + branch filter + date guard
 
-- [ ] **Task 10: Barrido 401 sin sesión sobre todas las rutas** (M)
-  Paso previo (exploratorio): clasificar las rutas sin guardia en legítima-pública / debería-tener-guardia / desconocida y entregar la tabla al humano para aprobar. Después, prueba parametrizada que recorre `app/api/**/route.ts` del filesystem; cada ruta responde 401 sin sesión (ni 200 ni 500). Lista de excepciones congelada como fixture solo tras aprobación. Ruta nueva sin excepción → test falla.
-  - Archivos: `tests/support/public-routes.ts` (fixture), `tests/api/contract/unauth-sweep.spec.ts`, tabla de clasificación en el PR
-- [ ] **Task 11: Sobre de respuesta y método no permitido** (M)
-  Éxito y error respetan `{ success, data | error }`; DELETE sobre ruta GET-only → 405, no 500. Mismo mecanismo de barrido.
-  - Archivos: `tests/api/contract/envelope-sweep.spec.ts`, `tests/api/contract/method-sweep.spec.ts`
+**Description:** Honor every param the UI already sends (`type`, `verified`) plus new
+`branchId`, `page`, `limit`. Add a `dateFrom ≤ dateTo` guard, replace the hard
+`.limit(200)` with real pagination, and include `total` so the client can show counts.
 
-### Phase 4: Capa 04 — Aislamiento multi-tenant
+**Acceptance criteria:**
+- [ ] `type` param filters on the derived media type (SQL-level where possible; post-filter acceptable given derived types)
+- [ ] `verified=true/false` filters on `aiAnalysis.passed` (jsonb)
+- [ ] `branchId` param filters by `workflowInstances.branchId`
+- [ ] `dateFrom > dateTo` returns empty result set or 400 — never an inverted silent range
+- [ ] `page`/`limit` params supported (default limit ~24); response includes `total`
+- [ ] Tenant scoping untouched (companyId condition preserved)
 
-- [ ] **Task 12: Barrido IDOR communications + employees** (S)
-  Sembrar empresa B con un recurso de cada tipo; sesión de A intenta leer/editar/borrar por id → 403/404; control positivo sigue pasando (fail-closed no cierra a quien sí tiene permiso).
-  - Archivos: `tests/api/tenant-idor.spec.ts`
-- [ ] **Task 13: Cruce entre sucursales GERENTE/SUPERVISOR** (M)
-  Por dominio con datos por sucursal (inventario, finanzas, incidentes, turnos, nómina): cookie `pulso_selected_branch` no amplía alcance.
-  - Archivos: `tests/api/branch-cross-domain.spec.ts`
-- [ ] **Task 14: Exportaciones y evidencias R2 sin fuga** (S)
-  CSV/PDF de A no contiene filas de B; URL de foto de B ilegible con sesión de A.
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check: `?verified=false`, `?type=AUDIO`, `?branchId=…&page=2` each change results; `total` reflects filtered set
 
-### Checkpoint: Contrato + Aislamiento
-- [ ] Los tres barridos pasan completos contra la base de dev
-- [ ] Revisión con humano antes de tocar infraestructura de BD
+**Dependencies:** Task 1 (type derivation)
 
-### Phase 5: Capa 02 — Base efímera + paralelización
+**Files likely touched:**
+- `app/api/workflows/evidence/route.ts`
 
-- [ ] **Task 15: Postgres efímero por corrida (ramas de Neon)** (L — dividir si excede una sesión)
-  DECIDIDO: ramas de Neon (Docker no disponible en el entorno; el repo usa driver WebSocket que difiere de un Postgres local TCP). Flujo: create_branch → migrar desde cero + seeds → suite → delete_branch. Configurar `playwright.config.ts` workers > 1. La migración desde cero en cada corrida verifica drift contra `lib/db/schema.ts`.
-  - Archivos: `playwright.config.ts`, script de setup/teardown Neon en `tests/support/`
-- [ ] **Task 16: Pruebas de idempotencia/transacción sobre BD efímera** (M)
-  Extractores workflow re-ejecutados no duplican; transacción inventario fallada a medias no deja huérfanos; doble `executePayrollRun` → un solo recibo; recepción parcial/sobre-ordenada/OC cerrada.
+**Estimated scope:** Small (1 file, but query-logic dense)
 
-### Phase 6: Capa 06 — Inngest con @inngest/test
+---
 
-- [ ] **Task 17: Setup @inngest/test + whatsapp-router** (S)
-  Número no registrado, empleado dado de baja, multimedia sin descargar, texto sin match de intent.
-- [ ] **Task 18: Idempotencia de extractores y snapshots** (M)
-  Replay del mismo evento no duplica mermas/recepciones/conteos; doble corrida de snapshot KPI → un snapshot.
-- [ ] **Task 19: Crons por zona horaria y escalamiento** (M)
-  Cancún/CDMX/Tijuana disparan a su hora local; DST sin saltar/duplicar días; escalera de escalamiento sale de `tenant_operating_config`; alerta no escala dos veces al mismo nivel.
+### Checkpoint: Foundation
 
-### Phase 7: Capa 07 — Recorridos E2E de negocio
+- [ ] curl against dev server confirms derived types, titles, `total`, `branchId` filtering
+- [ ] Old page still renders (additive contract) — `pnpm run dev` smoke pass
 
-- [ ] **Task 20: Onboarding completo** (M) registro → empresa → sucursal → invitar gerente → primer workflow → primera ejecución.
-- [ ] **Task 21: Empleado vía WhatsApp + AI verify** (M) smart link sin sesión → checklist → foto → >85% auto-aprueba / <85% a revisión.
-- [ ] **Task 22: Cierre de turno** (S) arqueo → corte → propinas → notificación; casos faltante y sobrante.
-- [ ] **Task 23: Ciclo de compra** (M) OC → recepción parcial → CFDI → conciliación 3-way → reclamación.
-- [ ] **Task 24: Nómina e incidentes** (M) periodo → horas extra → timbrado → reintento; incidente → escalamiento → remediación → cierre.
-- [ ] **Task 25: Recorrido por rol** (S) 6 roles entran a su dashboard y navegan sin 403 ni bucle de redirect.
+---
 
-### Phase 8: No funcionales (continuo)
+## Task 3: Client fetch hardening — debounce, abort, retry, skeleton, count
 
-- [ ] **Task 26: Presupuesto p95 en agregados** (S) `/api/finance/pnl`, `/api/executive/twin`, `/api/analytics/*` con 15 sucursales + 1 año de datos.
-- [ ] **Task 27: axe-core en pantallas críticas** (S) extender `tests/support/contrast.ts` a teclado, foco visible, labels.
-- [ ] **Task 28: i18n sweep** (S) ninguna clave usada falta en `messages/es.json`; sin strings EN visibles.
+**Description:** Search fires one fetch per keystroke with no abort, so stale responses
+can overwrite fresh ones — fatal credibility for a compliance tool. Move fetching into a
+debounced effect with AbortController, show a skeleton grid instead of a layout-jumping
+spinner, add a retry affordance on error, and surface a result count.
+
+**Acceptance criteria:**
+- [ ] Search input debounced 300 ms; changing selects/dates fetches immediately
+- [ ] AbortController cancels superseded requests; only the latest response sets state
+- [ ] Loading state renders a skeleton grid/list holding layout position (no spinner swap)
+- [ ] Error state offers "Reintentar" button instead of toast-only failure
+- [ ] Result count shown near gallery header, e.g. "N evidencias · filtros activos", using API `total`
+- [ ] Pagination controls (prev/next + page indicator) wired to `page`/`limit`/`total`
+
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check: type quickly → single request in network tab after pause; throttle network → retry works
+
+**Dependencies:** Task 2 (`total`, pagination params)
+
+**Files likely touched:**
+- `app/dashboard/evidence/page.tsx`
+- possibly `hooks/use-debounced-value.ts` if no equivalent hook exists
+
+**Estimated scope:** Medium (2–3 files)
+
+---
+
+## Task 4: Accessibility P0 — keyboard-openable cards, labeled inputs, aria-labels
+
+**Description:** Cards and list rows are `<div onClick>` — keyboard and screen-reader
+users cannot open any evidence. Filter labels aren't associated with inputs; the list Eye
+button is icon-only. Make the primary action accessible.
+
+**Acceptance criteria:**
+- [ ] Grid cards and list rows render as `<button>` (full-width reset styling) or `role="button"` + `tabIndex=0` + Enter/Space handlers
+- [ ] Visible focus ring on all interactive elements (`focus-visible:` utilities)
+- [ ] Every filter uses `components/ui/label` with matching `htmlFor`/`id`
+- [ ] Eye button gets `aria-label="Ver evidencia"` (or becomes redundant once row is a button — then remove it)
+- [ ] Dialog traps focus correctly (Radix default) and closes on Escape
+
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual keyboard-only pass: Tab through filters → open evidence via Enter → close via Escape → switch view mode
+
+**Dependencies:** None strictly; do after Task 3 to avoid same-file churn
+
+**Files likely touched:**
+- `app/dashboard/evidence/page.tsx`
+
+**Estimated scope:** Small–Medium (1 file)
+
+---
+
+### Checkpoint: Hardening
+
+- [ ] Keyboard-only walkthrough passes end-to-end
+- [ ] Rapid typing produces exactly one in-flight request; stale responses discarded
+- [ ] No layout jump during loading
+
+---
+
+## Task 5: Re-tokenize visuals + collapse stat row into summary strip
+
+**Description:** Replace stock Tailwind palette with Pulso OKLCH tokens, delete banned
+card shadows, and demote the five hero-metric stat cards into a compact inline summary
+strip beside the header. Mapping per critique: PHOTO→info, VIDEO→chart/accent token,
+AUDIO→warning, TEXT→muted, verification→success.
+
+**Acceptance criteria:**
+- [ ] Zero stock-palette classes remain (`blue-*`, `purple-*`, `orange-*`, `green-500`, `gray-*` replaced by info/chart/warning/muted/success tokens)
+- [ ] `hover:shadow-lg transition-shadow` removed; hover = border/background tonal shift per Flat-By-Default rule
+- [ ] Five stat cards replaced by one compact strip: total · fotos · videos · audios · verificadas, labeled to reflect they describe the filtered set ("de N filtradas")
+- [ ] View-mode toggle uses lighter control (ToggleGroup or ghost segmented buttons), not two full Buttons
+- [ ] Dark mode remains coherent (tokens handle it)
+
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check against DESIGN.md: no shadows, no hero-metric row, warm palette throughout
+
+**Dependencies:** Task 4 (same file; avoids edit conflicts)
+
+**Files likely touched:**
+- `app/dashboard/evidence/page.tsx`
+
+**Estimated scope:** Medium (1 file, broad diff)
+
+---
+
+## Task 6: Trust controls — download, Eye wiring, TEXT rendering, fallbacks, score 0
+
+**Description:** Ship the promises the UI makes: "Descargar" actually downloads, TEXT
+evidence shows its content (not the storage URL), broken images degrade gracefully, and
+a failed AI verification (score 0) renders instead of disappearing.
+
+**Acceptance criteria:**
+- [ ] Descargar renders as `<a href={url} download>` (presigned URL) — file saves; for legacy http URLs opens in new tab as fallback
+- [ ] List-view Eye either opens the dialog (wired) or is removed in favor of the now-focusable row (Task 4 decision)
+- [ ] TEXT evidence in dialog renders `textContent` (Task 1 field), not `url`
+- [ ] Photo tiles/dialog show fallback UI (icon + "No disponible") on image error
+- [ ] Audio evidence gets a compact player row instead of sitting inside an `aspect-video` muted box
+- [ ] `aiScore` displays whenever present including `0`; unverified badge distinguishes pending vs failed using `aiReason` presence
+
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check: download a seeded photo; open a TEXT evidence; break one image URL (devtools) → fallback appears
+
+**Dependencies:** Tasks 1 (textContent), 4 (row/button semantics), 5 (token classes)
+
+**Files likely touched:**
+- `app/dashboard/evidence/page.tsx`
+
+**Estimated scope:** Medium (1–2 files)
+
+---
+
+## Task 7: Branch dimension — Sucursal filter, card caption, list column
+
+**Description:** The primary persona (owner of 3–15 branches) asks "which branch is
+behind on evidence?" — answer it. Fetch `/api/branches` for the dropdown (API support
+landed in Task 2), and make branch visible everywhere evidence is listed.
+
+**Acceptance criteria:**
+- [ ] "Sucursal" select in filter bar fed by `GET /api/branches`, scoped to tenant
+- [ ] Branch name shown as caption on grid cards and as a column/segment in list view
+- [ ] Detail dialog already shows sucursal — keep consistent naming
+- [ ] Filter combines correctly with existing filters (AND semantics verified)
+- [ ] Stretch (optional): group-by-sucursal sections in list mode
+
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`
+- [ ] Manual check: pick one branch → only its evidence appears; captions match selection
+
+**Dependencies:** Tasks 2 (API branchId), 5 (layout/tokens settled)
+
+**Files likely touched:**
+- `app/dashboard/evidence/page.tsx`
+
+**Estimated scope:** Medium (1–2 files)
+
+---
+
+## Task 8: Language & labels polish
+
+**Description:** Close the copy drift: Spanish labels for media types, sane initials,
+self-explanatory AI badge, and the small consistency items from the critique's minor list.
+
+**Acceptance criteria:**
+- [ ] Type label map: PHOTO→Foto, VIDEO→Video, AUDIO→Audio, TEXT→Texto (chips + filters + dialog)
+- [ ] Initials take the first two words only ("María De La O" → "MD"; single names don't crash)
+- [ ] Green badge reads "Verificada por IA" (compact variant on cards, tooltip with score)
+- [ ] `h1` gets `tracking-tight` matching sibling pages
+- [ ] Empty state embeds a "Limpiar filtros" button inline
+
+**Verification:**
+- [ ] Build succeeds: `pnpm run build`; `pnpm run lint` clean
+- [ ] Manual read-through: zero raw enum leaks in UI
+
+**Dependencies:** Tasks 5–7 (final pass over same file)
+
+**Files likely touched:**
+- `app/dashboard/evidence/page.tsx`
+
+**Estimated scope:** Small (1 file)
+
+---
+
+### Checkpoint: Complete
+
+- [ ] All acceptance criteria across tasks met
+- [ ] `pnpm run build` && `pnpm run lint` clean
+- [ ] DESIGN.md review: flat surfaces, OKLCH tokens only, no hero-metric row, Operational Red discipline intact
+- [ ] Critique re-run target: ≥30/40 (from 18/40)
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Barrido 401 destapa muchas rutas públicas sin excepción documentada | Medio | Fase exploratoria previa: clasificar las ~56 rutas sin guardia antes de fijar la lista de excepciones |
-| Base efímera (Neon branches) cuesta o golpea límites del plan | Medio | Docker Postgres como fallback; decisión explícita en Task 15 |
-| `strict: false` oculta errores de tipo que solo `pnpm build` atrapa | Bajo | CI ejecuta build en cada push desde Task 4 |
-| Tests de zona horaria dependen de TZ de la máquina CI | Medio | Fijar `TZ=UTC` en vitest config y usar zonas explícitas, nunca locales |
-| Worktree `.worktrees/refactor-shift-scheduler` contamina barridos | Bajo | Exclude explícito en configs desde Task 3 |
+| Media-type inference misclassifies legacy seed URLs | Low | Fallback chain: extension → frozen `type` column → PHOTO |
+| Presigned URLs expire while user idles (10-min TTL) | Med | Known behavior; document; images refetch on next page load |
+| Pagination changes response shape breaks other consumers | Low | Route consumed only by this page today; verify with grep before merging; keep `data` key intact |
+| `strict: false` hides type regressions | Med | Per-task manual verification + build gate |
+| Scope creep toward bulk actions / sort (heuristic #7) | Med | Explicitly deferred — see Open Questions |
 
 ## Open Questions
 
-*(Resueltas el 2026-08-24 — ver Architecture Decisions. Pendiente de ejecución: la tabla de clasificación de rutas sin guardia del Task 10 requiere aprobación humana antes de congelar el fixture.)*
-
-## Parallelization Opportunities
-
-- Tasks 1–2 (regresiones) son independientes entre sí.
-- Tasks 5–9 (capa 01) son archivos de test independientes — paralelizables por agente/sesión.
-- Tasks 10–11 comparten el mecanismo de barrido: definir helper primero, luego paralelizar.
-- Tasks 20–25 (E2E) son independientes una vez existe la base efímera (Task 15).
+- Bulk actions and sort controls (critique heuristic #7 scored 1/4): separate follow-up plan, or fold in later?
+- List-mode "group by sucursal": stretch goal inside Task 7, or deferred?
+- Should WhatsApp-originated evidence carry a channel mark? Provenance data doesn't appear
+  to exist yet in `workflowInstanceSteps` — would need upstream work first.

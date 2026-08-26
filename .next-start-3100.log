@@ -1,0 +1,119 @@
+▲ Next.js 16.1.6
+- Local:         http://localhost:3100
+- Network:       http://192.168.1.66:3100
+
+✓ Starting...
+✓ Ready in 2.6s
+[Auth API] No session found
+[Auth API] No session found
+[Auth API] No session found
+[Auth API] No session found
+[Auth API] No session found
+[Auth API] No session found
+[Auth API] No session found
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+{"level":40,"time":1787760142399,"pid":3684,"hostname":"daveescam","component":"rate-limiter","msg":"Redis not available, falling back to in-memory rate limiting"}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+{"level":30,"time":1787760144735,"pid":3684,"hostname":"daveescam","component":"supplier-preference","companyId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","itemId":"1833d579-da48-4b73-ad43-80b5f6b0b1cf","supplierId":"78e46090-9a7c-4521-858e-e91247da832c","cambios":2,"msg":"Proveedor principal actualizado"}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+{"level":30,"time":1787760172178,"pid":3684,"hostname":"daveescam","component":"supplier-preference","companyId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","itemId":"1833d579-da48-4b73-ad43-80b5f6b0b1cf","supplierId":"775c2e50-5ba1-4d8a-bae5-0a6195b892d3","cambios":2,"msg":"Proveedor principal actualizado"}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+{"level":30,"time":1787760228792,"pid":3684,"hostname":"daveescam","component":"supplier-preference","companyId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","itemId":"1833d579-da48-4b73-ad43-80b5f6b0b1cf","supplierId":"775c2e50-5ba1-4d8a-bae5-0a6195b892d3","cambios":2,"msg":"Proveedor principal actualizado"}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+{"level":30,"time":1787760263930,"pid":3684,"hostname":"daveescam","component":"supplier-preference","companyId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","itemId":"1833d579-da48-4b73-ad43-80b5f6b0b1cf","supplierId":"775c2e50-5ba1-4d8a-bae5-0a6195b892d3","cambios":2,"msg":"Proveedor principal actualizado"}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+{"level":30,"time":1787760291683,"pid":3684,"hostname":"daveescam","component":"supplier-preference","companyId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","itemId":"1833d579-da48-4b73-ad43-80b5f6b0b1cf","supplierId":"775c2e50-5ba1-4d8a-bae5-0a6195b892d3","cambios":2,"msg":"Proveedor principal actualizado"}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+{"level":30,"time":1787760346673,"pid":3684,"hostname":"daveescam","component":"supplier-preference","companyId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","itemId":"1833d579-da48-4b73-ad43-80b5f6b0b1cf","supplierId":"775c2e50-5ba1-4d8a-bae5-0a6195b892d3","cambios":2,"msg":"Proveedor principal actualizado"}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+{"level":30,"time":1787760418150,"pid":3684,"hostname":"daveescam","component":"supplier-preference","companyId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","itemId":"1833d579-da48-4b73-ad43-80b5f6b0b1cf","supplierId":"78e46090-9a7c-4521-858e-e91247da832c","cambios":2,"msg":"Proveedor principal actualizado"}
