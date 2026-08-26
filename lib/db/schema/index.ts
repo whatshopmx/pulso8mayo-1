@@ -19,3 +19,8 @@ export * from './finance';
 // Control OC/OS: órdenes de servicio, matriz de autorización, centros de costo y presupuestos.
 export * from './service-orders';
 
+// Control de Egresos: contratos recurrentes y corridas de tesorería.
+export * from './treasury';
+
+// Producción Diaria: planes de producción y control de lotes FEFO generados internamente.
+export * from './production';

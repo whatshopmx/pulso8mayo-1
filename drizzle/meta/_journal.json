@@ -512,6 +512,13 @@
       "when": 1787772001277,
       "tag": "0073_solid_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1787786199620,
+      "tag": "0074_brief_gressill",
+      "breakpoints": true
     }
   ]
 }

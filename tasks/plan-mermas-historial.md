@@ -1,4 +1,4 @@
-# Implementation Plan: Mermas — Historial con detalle por registro
+lo # Implementation Plan: Mermas — Historial con detalle por registro
 
 Source investigation: sesión 2026 (ver hallazgos abajo) · Complementa/supersede la parte no
 implementada del "Phase 3 — Evidence and anulación" de `tasks/plan-inventory-waste.md`
@@ -220,5 +220,7 @@ merma solo aparece como tooltip o agregado.
 
 ## Open Questions
 
-Ninguna bloqueante. Resueltas por el humano (2026): "Registrar Merma" como **dialog** y
-filtro default del historial = **mes en curso** (alineado con el KPI mensual).
+1. ¿Dialog o vista dedicada para "Registrar Merma"? Propuesta: dialog (menos navegación en
+   tablet); si el form crece con el umbral de fotos del plan anterior, migrar a toggle de vista.
+2. Default del filtro de periodo del historial: ¿mes en curso o últimos 30 días?
+   (Propuesta: mes en curso, alineado con el KPI mensual.)
