@@ -212,6 +212,98 @@ export function useRejectRequest() {
   });
 }
 
+// ── Bandeja de autorizaciones (approval_requests OC/OS) ──
+// ⚠️ La fuente es /api/approval-requests (NO /api/approvals — turnos RH).
+
+export interface ApprovalInboxItem {
+  requestId: string;
+  docType: "OC" | "OS";
+  docId: string;
+  level: number;
+  requiredRole: string;
+  minQuotes: number;
+  requestedAt: string;
+  folio: string;
+  docStatus: string;
+  amountCents: number;
+  branchId: string;
+  branchName: string | null;
+  costCenterId: string | null;
+  costCenterCode: string | null;
+  costCenterName: string | null;
+  requestedBy: string;
+  docCreatedAt: string;
+  docTypeLabel: string;
+  urgency: string | null;
+  isEmergency: boolean;
+  scope: string | null;
+  notes: string | null;
+  budget: { budgeted: number; committed: number; available: number; ok: boolean; requested: number } | null;
+  emergency: { cap: number | null; used: number } | null;
+}
+
+/** Requests accionables por el usuario actual (nivel corriente, rol suficiente, sin SELF). */
+export function useApprovalInbox() {
+  return useQuery({
+    queryKey: ["service-orders", "inbox"],
+    queryFn: async () => {
+      const res = await fetch("/api/approval-requests");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Error al cargar la bandeja de autorizaciones");
+      }
+      return res.json() as Promise<{ items: ApprovalInboxItem[]; total: number }>;
+    },
+    staleTime: 10 * 1000,
+  });
+}
+
+// ── Matriz de autorización (solo ADMIN+) ──
+
+export interface MatrixRule {
+  id?: string;
+  amountMin: number; // centavos
+  amountMax: number | null; // centavos; null = sin límite superior
+  requiredRole: string;
+  minQuotes: number;
+  sequence: number;
+  active: boolean;
+}
+
+export function useApprovalMatrix(docType: "OC" | "OS") {
+  return useQuery({
+    queryKey: ["service-orders", "matrix", docType],
+    queryFn: async () => {
+      const res = await fetch(`/api/approval-matrix?docType=${docType}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Error al cargar la matriz de autorización");
+      return data as { rules: MatrixRule[] };
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export interface SaveMatrixResult {
+  rules: MatrixRule[];
+  /** Huecos en los rangos: avisos no bloqueantes del servidor. */
+  warnings: string[];
+}
+
+/** Reemplaza la matriz completa de un docType. Errores de validación llegan como excepción con mensaje del API. */
+export function useSaveApprovalMatrix(docType: "OC" | "OS") {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (rules: MatrixRule[]) => {
+      try {
+        return await postJson("/api/approval-matrix", { docType, rules }, "PUT") as Promise<SaveMatrixResult>;
+      } catch (err) {
+        throw err instanceof Error ? err : new Error("Error al guardar la matriz");
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service-orders", "matrix"] }),
+  });
+}
+
 // ── Catálogos auxiliares ──
 
 export function useCostCenters(includeInactive = false) {

@@ -7,8 +7,13 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AuditLogTable, type AuditLogEntry } from "@/components/finance/audit-log-table";
 import { ExcepcionesPanel, type Violation } from "@/components/finance/excepciones-panel";
+import { ApprovalInbox } from "@/components/service-orders/approval-inbox";
+import { ApprovalMatrixEditor } from "@/components/service-orders/approval-matrix-editor";
 import { useBranch } from "@/lib/branch-context";
-import { Shield, FileSearch, AlertTriangle, AlertCircle, RefreshCw } from "lucide-react";
+import { useSession } from "@/hooks/use-session";
+import { useApprovalInbox } from "@/hooks/queries";
+import { roleIsAtLeast } from "@/lib/permissions";
+import { Shield, FileSearch, AlertTriangle, AlertCircle, RefreshCw, ClipboardCheck, SlidersHorizontal } from "lucide-react";
 
 /** Tope de entradas solicitadas a la bitácora; se avisa cuando hay más. */
 const AUDIT_LIMIT = 100;
@@ -26,6 +31,15 @@ export default function ControlInternoPage() {
   const [violationsLoading, setViolationsLoading] = useState(true);
   const [violationsError, setViolationsError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("audit");
+
+  // Bandeja OC/OS: el conteo alimenta el badge del tab; el contenido lo renderiza
+  // <ApprovalInbox /> con la misma query de react-query (misma key → un solo fetch).
+  const inbox = useApprovalInbox();
+  const pendingApprovals = inbox.data?.total ?? 0;
+
+  // La matriz solo se administra desde ADMIN+; el tab no existe para el resto.
+  const { session } = useSession();
+  const isAdmin = !!session?.user?.role && roleIsAtLeast(session.user.role, "ADMIN");
 
   const fetchAuditLog = useCallback(async () => {
     setAuditLoading(true);
@@ -143,6 +157,23 @@ export default function ControlInternoPage() {
               </span>
             )}
           </TabsTrigger>
+          {/* Bandeja OC/OS (R4): scoping por rol/sucursal lo aplica el API. */}
+          <TabsTrigger value="autorizaciones" className="gap-1.5">
+            <ClipboardCheck className="w-3.5 h-3.5" />
+            Autorizaciones
+            {pendingApprovals > 0 && (
+              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-xs font-bold bg-primary text-primary-foreground">
+                {pendingApprovals}
+                <span className="sr-only"> autorizaciones pendientes en tu turno</span>
+              </span>
+            )}
+          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="matriz" className="gap-1.5">
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Matriz de Autorización
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="audit">
@@ -214,6 +245,42 @@ export default function ControlInternoPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="autorizaciones">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <ClipboardCheck className="w-4 h-4" />
+                Órdenes que requieren tu autorización
+              </CardTitle>
+              <CardDescription className="text-xs">
+                OC y OS en tu nivel de turno según la matriz de autorización: monto, presupuesto restante y resolución con motivo.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ApprovalInbox />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="matriz">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4" />
+                  Matriz de Autorización
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Define qué rol aprueba cada rango de monto, cuántas cotizaciones exige y los niveles secuenciales para OC y OS.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ApprovalMatrixEditor />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
