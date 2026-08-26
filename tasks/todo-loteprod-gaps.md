@@ -53,13 +53,27 @@ Origen: investigación 2026-08-25 de `loteprod.md` contra `app/dashboard/invento
 ### Checkpoint Phase 1
 - [x] tsc limpio* · build pasa · migraciones aplican en dev (*2 errores preexistentes de otro
   workstream en `app/dashboard/service-orders/`; los archivos tocados no reportan errores)
-- [ ] Flujos verificados manualmente (pendiente: corrida doble de cron con `INNGEST_DEV=1`
-  para confirmar no-duplicación en vivo)
+- [x] Flujos verificados manualmente — doble corrida de `processExpirationCutoffs()` contra la BD
+  de dev con lotes sembrados en las ventanas H48 y H24 (las que dependen del único
+  `(batch_id, window)`, porque el lote sigue AVAILABLE y el cron lo reencuentra): una sola fila
+  por (lote, ventana), 2ª corrida con `notificationsSent = 0` y `alreadyNotified = 2`. También se
+  observó la ruta de vencidos sobre datos reales de dev: 18 lotes → `markedExpired: 18` en la 1ª
+  corrida y 0 en la 2ª (quedan EXPIRED y salen del candidato). Se verificó el servicio, no el
+  wrapper de Inngest, que es una sola línea sobre él en `cron-stock-check.ts`.
 
 ## Phase 2: Núcleo de producción diaria
 
-- [ ] **Task 4:** Hold times — esquema y captura
+- [x] **Task 4:** Hold times — esquema y captura
   (`recipes.holdTimeMinutes`, `production_results.expires_at`, enum merma HOLD_TIME)
+  — DONE: migración **`0069_freezing_mathemanic.sql`** (aplicada en dev) con los 3 valores de
+  enum de Tasks 4 y 11 en un solo `ALTER TYPE` — el riesgo anotado en el plan no se materializó,
+  drizzle-kit los aplica sin problema. `production-service.recordProduction` deriva `expires_at`
+  de la receta usando `now()` del **servidor**, no el reloj del proceso: `production_date` usa el
+  default `now()` y mezclar relojes en una máquina con huso local (Windows en CST) haría nacer el
+  vencimiento corrido varias horas. Captura de minutos en la ficha técnica
+  (`recipes/page.tsx` + validadores + POST/PUT). Verificación: receta con holdTime=30 →
+  `expires_at − production_date = 30.0000 min` exacto; receta sin hold time produce con
+  `expires_at` null (`tests/tmp-verify/hold-time-produccion.ts`).
 - [ ] **Task 5:** Hold times — ciclo de vencimiento en línea
   (cron horario, notificación a turno, merma idempotente A9, dashboard "por vencer")
 - [ ] **Task 6:** Prep list por estación/turno/hora límite
@@ -94,8 +108,19 @@ Origen: investigación 2026-08-25 de `loteprod.md` contra `app/dashboard/invento
 > Auditoría 2026-08-26: comparación completa `loteprod.md` (16 secciones) ↔ plan. Los gaps que
 > quedaban fuera se incorporaron al plan como Phases 4 y 5 (Tasks 11–20).
 
-- [ ] **Task 11:** Causas de merma faltantes `PREPARATION` + `CUSTOMER_RETURN` (§8.1)
-  — hacerlo en la MISMA migración que el `HOLD_TIME` de Task 4 (un solo `ALTER TYPE`)
+- [x] **Task 11:** Causas de merma faltantes `PREPARATION` + `CUSTOMER_RETURN` (§8.1)
+  — DONE en la misma migración `0069` que el `HOLD_TIME` de Task 4. `inventory_waste` +=
+  `recipe_id / processed_quantity / expected_quantity / yield_flagged`; lógica pura en
+  `lib/inventory/waste-yield.ts` (11 tests): esperado = procesado × (1 − rendimiento), no marca si
+  se rindió de más ni si el excedente es ruido de báscula (< 0.5 u), marca sobre 20% de
+  desviación. El POST de mermas valida receta/insumo con código estable `PREPARATION_INVALID`.
+  De paso se eliminaron DOS mapas duplicados de motivos (el del formulario, al que ya se le había
+  caído COURTESY, y el del reporte operativo): ambos salen ahora de `waste-labels.ts`, así que los
+  7 tipos del manual aparecen en captura, historial, detalle y reporte.
+  Verificación por API con sesión de demo (`tests/tmp-verify/merma-preparacion-api.ts`):
+  dentro de lo esperado → `expected 1.0000, flagged false`; desviada → `flagged true`;
+  receta con motivo ajeno / sin cantidad procesada / insumo fuera de la receta → 400
+  `PREPARATION_INVALID`. build OK · tsc limpio · 383 unit tests.
 - [ ] **Task 12:** Metas de merma por categoría + investigación obligatoria (§8.4)
   (proteínas 2–4%, vegetales 5–8%, empaque 1–2%, abarrotes 0.5–1%; configurables por empresa)
 - [ ] **Task 13:** Umbrales de varianza con semáforo (§9.3/§10)

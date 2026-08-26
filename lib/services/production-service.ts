@@ -82,6 +82,21 @@ export class ProductionService {
             unit: string;
         }[] = [];
 
+        // Task 4 (§6.4) — ventana de retención en línea. El vencimiento sale de
+        // `now()` del servidor, no del reloj del proceso: `production_date` usa
+        // el default `now()` y si mezcláramos ambos relojes en una máquina con
+        // huso local (Windows en CST) `expires_at` nacería corrido varias horas.
+        // Receta sin hold time → null y la producción sigue igual que antes.
+        const [recipe] = await q
+            .select({ holdTimeMinutes: recipes.holdTimeMinutes })
+            .from(recipes)
+            .where(eq(recipes.id, data.recipeId))
+            .limit(1);
+        const holdTimeMinutes = recipe?.holdTimeMinutes ?? null;
+        const expiresAt = holdTimeMinutes && holdTimeMinutes > 0
+            ? sql`now() + (${holdTimeMinutes} || ' minutes')::interval`
+            : null;
+
         // A9 — el resultado se inserta ANTES de tocar ningún lote. El único
         // parcial `(workflow_instance_id, recipe_id)` convierte este insert en
         // la guarda de idempotencia: si la instancia ya se procesó, el
@@ -91,7 +106,7 @@ export class ProductionService {
         // `ingredientCost` todavía no se conoce: se calcula abajo y se escribe
         // con un UPDATE al cerrar.
         const [result] = await q.insert(productionResults)
-            .values({ ...resultData, ingredientCost: 0 })
+            .values({ ...resultData, ingredientCost: 0, expiresAt: expiresAt as any })
             .onConflictDoNothing()
             .returning();
 

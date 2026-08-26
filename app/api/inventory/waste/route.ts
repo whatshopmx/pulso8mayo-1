@@ -20,6 +20,8 @@ import {
   inventoryMovements,
   branches,
   users,
+  recipes,
+  recipeItems,
 } from "@/lib/db/schema";
 import { AuditService } from "@/lib/services/audit-service";
 import { withTenantAuth } from "@/lib/api/with-auth";
@@ -27,6 +29,7 @@ import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import { enforceBranchScope, resolveBranchScope } from "@/lib/branch-scope";
 import { initialApprovalStatus } from "@/lib/inventory/waste-approval";
+import { compareYield } from "@/lib/inventory/waste-yield";
 import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
 import { formatQty } from "@/lib/utils";
 
@@ -44,6 +47,8 @@ export const WASTE_ERROR_CODES = {
   BATCH_NOT_FOUND: "BATCH_NOT_FOUND",
   /** Usuario con rol de sucursal (GERENTE/SUPERVISOR) escribiendo en otra. */
   BRANCH_FORBIDDEN: "BRANCH_FORBIDDEN",
+  /** Datos de merma por preparación incompletos o inconsistentes (Task 11). */
+  PREPARATION_INVALID: "PREPARATION_INVALID",
 } as const;
 
 /**
@@ -375,6 +380,66 @@ export const POST = withTenantAuth(async (req: NextRequest, { auth }) => {
     }
   }
 
+  // --- Merma por preparación: contraste contra el rendimiento de la ficha -------
+  // Task 11 (§8.1/§8.3). El manual pide que el recorte/grasa se mida contra el
+  // rendimiento esperado; sin eso "preparación" sería un OTHER con otro nombre.
+  // Los campos son opcionales (una merma de proceso sin ficha sigue siendo
+  // capturable) pero vienen juntos: receta + cuánto se procesó en bruto.
+  const rawRecipeId = typeof body.recipeId === "string" && body.recipeId ? body.recipeId : null;
+  const processedRaw = Number(body.processedQuantity);
+  const hasProcessed = Number.isFinite(processedRaw) && processedRaw > 0;
+
+  if (rawRecipeId && reason !== "PREPARATION") {
+    throw ApiError.badRequest(
+      "La receta y la cantidad procesada solo aplican a la merma por preparación",
+      { code: WASTE_ERROR_CODES.PREPARATION_INVALID }
+    );
+  }
+
+  let recipeId: string | null = null;
+  let processedQuantity: number | null = null;
+  let expectedQuantity: number | null = null;
+  let yieldFlagged = false;
+
+  if (reason === "PREPARATION" && rawRecipeId) {
+    if (!hasProcessed) {
+      throw ApiError.badRequest(
+        "Indica cuánto se procesó en bruto para comparar contra el rendimiento de la ficha",
+        { code: WASTE_ERROR_CODES.PREPARATION_INVALID }
+      );
+    }
+
+    // Receta scopeada al tenant: 404 en vez de 403 para no filtrar existencia.
+    const [recipe] = await db
+      .select({ id: recipes.id })
+      .from(recipes)
+      .where(and(eq(recipes.id, rawRecipeId), eq(recipes.companyId, auth.tenantId)))
+      .limit(1);
+    if (!recipe) throw ApiError.notFound("No se encontró la receta");
+
+    const [line] = await db
+      .select({ yieldPercent: recipeItems.yieldPercent })
+      .from(recipeItems)
+      .where(and(eq(recipeItems.recipeId, recipe.id), eq(recipeItems.itemId, itemId)))
+      .limit(1);
+    if (!line) {
+      throw ApiError.badRequest("El insumo no forma parte de esa receta", {
+        code: WASTE_ERROR_CODES.PREPARATION_INVALID,
+      });
+    }
+
+    const comparison = compareYield({
+      processedQuantity: processedRaw,
+      actualWaste: qty,
+      yieldPercent: line.yieldPercent,
+    });
+
+    recipeId = recipe.id;
+    processedQuantity = processedRaw;
+    expectedQuantity = Number(comparison.expectedQuantity.toFixed(4));
+    yieldFlagged = comparison.flagged;
+  }
+
   // --- Costos: centavos, sin deriva por decimales editados ----------------------
   const costPerUnitRaw = Number(body.costPerUnit);
   const hasCost = Number.isFinite(costPerUnitRaw) && costPerUnitRaw > 0;
@@ -428,6 +493,10 @@ export const POST = withTenantAuth(async (req: NextRequest, { auth }) => {
       recordedAt: new Date(),
       notes: typeof notes === "string" && notes ? notes : null,
       approvalStatus,
+      recipeId,
+      processedQuantity: processedQuantity !== null ? String(processedQuantity) : null,
+      expectedQuantity: expectedQuantity !== null ? String(expectedQuantity) : null,
+      yieldFlagged,
     })
     .returning();
 

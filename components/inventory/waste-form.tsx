@@ -37,15 +37,30 @@ import { AlertTriangle, Package, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { formatQty } from '@/lib/utils';
+import { REASON_LABELS, type WasteReason } from '@/lib/inventory/waste-labels';
 
-const reasonLabels: Record<string, string> = {
-  EXPIRED: 'Caducidad',
-  DAMAGED: 'Dañado',
-  QUALITY: 'Calidad',
-  SPILLAGE: 'Derrame',
-  STAFF: 'Consumo de personal',
-  OTHER: 'Otro',
-};
+/**
+ * Motivos capturables, en orden operativo. Salen de `REASON_LABELS` (vocabulario
+ * único con el historial y el detalle) en vez del mapa local que vivía aquí, al
+ * que ya se le había quedado fuera COURTESY. Tasks 4 y 11 completan los 7 tipos
+ * del manual (§8.1): retención, preparación y devolución de cliente.
+ */
+const REASON_ORDER: WasteReason[] = [
+  'EXPIRED',
+  'DAMAGED',
+  'QUALITY',
+  'SPILLAGE',
+  'PREPARATION',
+  'HOLD_TIME',
+  'CUSTOMER_RETURN',
+  'STAFF',
+  'COURTESY',
+  'OTHER',
+];
+
+const reasonLabels: Record<string, string> = Object.fromEntries(
+  Object.entries(REASON_LABELS).map(([value, { label }]) => [value, label])
+);
 
 /**
  * Traduce el fallo de la API a lenguaje de cocina.
@@ -102,9 +117,13 @@ function buildWasteFormSchema(limitRef: { current: BatchLimit }) {
       batchId: z.string().min(1, 'Selecciona un lote'),
       quantity: z.coerce.number().positive('La cantidad debe ser mayor a 0'),
       unit: z.string().min(1, 'Unidad es requerida'),
-      reason: z.enum(['EXPIRED', 'DAMAGED', 'QUALITY', 'SPILLAGE', 'OTHER', 'STAFF']),
+      reason: z.enum(REASON_ORDER as [WasteReason, ...WasteReason[]]),
       costPerUnit: z.coerce.number().min(0).optional(),
       notes: z.string().optional(),
+      // Task 11 (§8.1): solo para PREPARATION — contra qué ficha se procesó y
+      // cuánto en bruto, para comparar la merma con el rendimiento esperado.
+      recipeId: z.string().optional(),
+      processedQuantity: z.coerce.number().positive().optional(),
     })
     .superRefine((data, ctx) => {
       const limit = limitRef.current;
@@ -114,6 +133,15 @@ function buildWasteFormSchema(limitRef: { current: BatchLimit }) {
           code: 'custom',
           path: ['quantity'],
           message: `Solo quedan ${formatQty(limit.maxQuantity)} ${limit.unit} en este lote`,
+        });
+      }
+      // La receta es opcional; con receta, la cantidad procesada deja de serlo
+      // (sin ella no hay contra qué comparar y la API rechaza la merma).
+      if (data.reason === 'PREPARATION' && data.recipeId && !data.processedQuantity) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['processedQuantity'],
+          message: 'Indica cuánto se procesó en bruto',
         });
       }
     });
@@ -149,6 +177,7 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingBatches, setLoadingBatches] = useState(false);
+  const [recipes, setRecipes] = useState<{ id: string; name: string }[]>([]);
   const [pendingSubmission, setPendingSubmission] = useState<WasteFormValues | null>(null);
   const router = useRouter();
 
@@ -166,6 +195,8 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
       reason: 'EXPIRED',
       costPerUnit: 0,
       notes: '',
+      recipeId: '',
+      processedQuantity: undefined,
     },
   });
 
@@ -175,6 +206,28 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
   const quantity = Number(form.watch('quantity')) || 0;
   const costPerUnit = Number(form.watch('costPerUnit')) || 0;
   const totalLoss = quantity * costPerUnit;
+
+  // Task 11: recetas para la merma por preparación. Se cargan sólo cuando el
+  // motivo lo pide — la mayoría de las mermas no las necesita.
+  const selectedReason = form.watch('reason');
+  useEffect(() => {
+    if (selectedReason !== 'PREPARATION' || recipes.length > 0) return;
+    let cancelado = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/inventory/recipes');
+        if (!res.ok) return;
+        const data = await res.json();
+        const lista = Array.isArray(data) ? data : (data?.recipes ?? data?.data ?? []);
+        if (!cancelado) setRecipes(lista);
+      } catch {
+        toast.error('No se cargaron las recetas');
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [selectedReason, recipes.length]);
 
   // Load products on mount
   useEffect(() => {
@@ -269,6 +322,11 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...data,
+          // Los campos de preparación solo viajan con su motivo: la API rechaza
+          // una receta colgada de cualquier otra causa (PREPARATION_INVALID).
+          recipeId: data.reason === 'PREPARATION' ? data.recipeId || undefined : undefined,
+          processedQuantity:
+            data.reason === 'PREPARATION' && data.recipeId ? data.processedQuantity : undefined,
           branchId,
           totalLoss,
         }),
@@ -508,12 +566,11 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="EXPIRED">Caducidad</SelectItem>
-                    <SelectItem value="DAMAGED">Dañado</SelectItem>
-                    <SelectItem value="QUALITY">Calidad</SelectItem>
-                    <SelectItem value="SPILLAGE">Derrame</SelectItem>
-                    <SelectItem value="STAFF">Consumo de Personal</SelectItem>
-                    <SelectItem value="OTHER">Otro</SelectItem>
+                    {REASON_ORDER.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {REASON_LABELS[value].label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -521,6 +578,65 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
             )}
           />
         </div>
+
+        {/* Task 11 (§8.1): la merma de proceso se mide contra el rendimiento de
+            la ficha. Opcional — sin receta se registra como merma de preparación
+            sin contraste, que sigue siendo mejor que un OTHER. */}
+        {selectedReason === 'PREPARATION' && (
+          <div className="grid gap-4 md:grid-cols-2 rounded-md border p-3">
+            <FormField
+              control={form.control}
+              name="recipeId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Receta procesada (opcional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={(field.value as string) ?? ''}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona la ficha técnica" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {recipes.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Compara la merma contra el rendimiento declarado en la ficha
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="processedQuantity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cantidad procesada (bruto)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      inputMode="decimal"
+                      placeholder="0"
+                      {...field}
+                      value={(field.value as string | number) ?? ''}
+                      onChange={(e) => field.onChange(e.target.value === '' ? undefined : e.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>Lo que entró al proceso, antes del recorte</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
 
         <FormField
           control={form.control}

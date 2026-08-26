@@ -26,6 +26,10 @@ export const REASON_LABELS: Record<WasteReason, { label: string; variant: BadgeV
   OTHER: { label: "Otro", variant: "outline" },
   STAFF: { label: "Consumo de personal", variant: "secondary" },
   COURTESY: { label: "Cortesía a cliente", variant: "secondary" },
+  // Tasks 4 y 11 (§8.1): completan los 7 tipos de merma del manual.
+  HOLD_TIME: { label: "Tiempo de retención", variant: "destructive" },
+  PREPARATION: { label: "Preparación", variant: "outline" },
+  CUSTOMER_RETURN: { label: "Devolución de cliente", variant: "warning" },
 };
 
 /**

@@ -29,6 +29,7 @@ import {
     CartesianGrid,
     Tooltip,
 } from "recharts";
+import { REASON_LABELS as WASTE_REASON_LABELS } from "@/lib/inventory/waste-labels";
 
 interface Props {
     branchId: string;
@@ -83,15 +84,12 @@ interface WasteReport {
     byReason: WasteReason[]; byItem: WasteItem[];
 }
 
-const REASON_LABELS: Record<string, string> = {
-    EXPIRED: "Caducidad",
-    DAMAGED: "Dañado",
-    QUALITY: "Calidad",
-    SPILLAGE: "Derrame",
-    OTHER: "Otro",
-    STAFF: "Consumo de personal",
-    COURTESY: "Cortesía",
-};
+// Vocabulario único con el formulario, el historial y el detalle: el mapa local
+// que vivía aquí se quedaba atrás cada vez que el enum crecía (Tasks 4 y 11
+// suman retención, preparación y devolución de cliente — los 7 tipos del §8.1).
+const REASON_LABELS: Record<string, string> = Object.fromEntries(
+    Object.entries(WASTE_REASON_LABELS).map(([value, { label }]) => [value, label])
+);
 
 const PAR_STATUS_BADGES: Record<string, { label: string; className: string }> = {
     BELOW_MIN: { label: "Bajo mínimo", className: "bg-destructive/10 text-destructive" },

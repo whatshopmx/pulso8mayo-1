@@ -29,6 +29,7 @@ interface Recipe {
     unit: string;
     calculatedCost: number; // cents
     priceSelling: number; // cents
+    holdTimeMinutes?: number | null;
     foodCostPercentage: string;
     createdAt: string;
 }
@@ -64,6 +65,8 @@ export default function RecipesPage() {
     const [recipeYield, setRecipeYield] = useState(1);
     const [recipeUnit, setRecipeUnit] = useState("PORTION");
     const [recipePriceSelling, setRecipePriceSelling] = useState(0);
+    // Task 4 (loteprod §6.4): "" = la receta no maneja tiempo de retención.
+    const [recipeHoldTime, setRecipeHoldTime] = useState<string>("");
     const [recipeIngredients, setRecipeIngredients] = useState<RecipeItem[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -108,6 +111,7 @@ export default function RecipesPage() {
         setRecipeYield(1);
         setRecipeUnit("PORTION");
         setRecipePriceSelling(0);
+        setRecipeHoldTime("");
         setRecipeIngredients([]);
         setIsDialogOpen(true);
     };
@@ -119,6 +123,7 @@ export default function RecipesPage() {
         setRecipeYield(Number(recipe.baseYield));
         setRecipeUnit(recipe.unit);
         setRecipePriceSelling(recipe.priceSelling / 100);
+        setRecipeHoldTime(recipe.holdTimeMinutes != null ? String(recipe.holdTimeMinutes) : "");
 
         try {
             const res = await fetch(`/api/inventory/recipes/${recipe.id}`);
@@ -189,6 +194,7 @@ export default function RecipesPage() {
             baseYield: recipeYield,
             unit: recipeUnit,
             priceSelling: recipePriceSelling,
+            holdTimeMinutes: recipeHoldTime.trim() === "" ? null : Number(recipeHoldTime),
             items: recipeIngredients,
         };
 
@@ -541,6 +547,24 @@ export default function RecipesPage() {
                                     onChange={(e) => setRecipePriceSelling(Number(e.target.value))}
                                     placeholder="0.00"
                                 />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <div className="space-y-2">
+                                <Label>Tiempo de retención (min)</Label>
+                                <Input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={recipeHoldTime}
+                                    onChange={(e) => setRecipeHoldTime(e.target.value)}
+                                    placeholder="Ej. 30"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Ventana máxima en línea después de producir (pollo 30, hamburguesa armada 10).
+                                    Vacío = la receta no maneja hold time.
+                                </p>
                             </div>
                         </div>
 

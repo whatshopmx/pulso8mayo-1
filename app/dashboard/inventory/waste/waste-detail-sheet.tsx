@@ -44,6 +44,11 @@ export interface WasteRecordRow {
     approvalStatus?: string;
     approvedBy?: string | null;
     approvedAt?: string | null;
+    /** Task 11 (§8.1): solo en merma por preparación. */
+    recipeId?: string | null;
+    processedQuantity?: string | number | null;
+    expectedQuantity?: string | number | null;
+    yieldFlagged?: boolean;
   };
   item: {
     id: string;
@@ -163,6 +168,26 @@ export function WasteDetailSheet({
                   </DetailField>
                 )}
               </dl>
+
+              {/* Task 11 (§8.1/§8.3): merma de proceso contra el rendimiento de
+                  la ficha. Sin este contraste "preparación" no diría nada. */}
+              {w.reason === "PREPARATION" && w.expectedQuantity != null && (
+                <dl className="grid grid-cols-3 gap-3 rounded-lg border bg-sidebar p-3">
+                  <DetailField label="Procesado">
+                    {formatQty(Number(w.processedQuantity))} {w.unit}
+                  </DetailField>
+                  <DetailField label="Merma esperada">
+                    {formatQty(Number(w.expectedQuantity))} {w.unit}
+                  </DetailField>
+                  <DetailField label="Desviación">
+                    {w.yieldFlagged ? (
+                      <Badge variant="destructive">Revisar</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">Dentro de lo esperado</span>
+                    )}
+                  </DetailField>
+                </dl>
+              )}
 
               {/* Task 3 (§8.1): resolver una merma pendiente. Aprobar descuenta
                   inventario EN ESE MOMENTO; rechazar no toca stock. */}

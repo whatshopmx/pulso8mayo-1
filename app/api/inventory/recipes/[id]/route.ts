@@ -81,6 +81,7 @@ export async function PUT(
                     baseYield: validated.baseYield.toFixed(2),
                     unit: validated.unit,
                     priceSelling: Math.round(validated.priceSelling * 100),
+                    holdTimeMinutes: validated.holdTimeMinutes ?? null,
                     updatedAt: new Date(),
                 })
                 .where(

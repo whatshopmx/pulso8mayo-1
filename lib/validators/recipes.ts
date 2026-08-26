@@ -19,6 +19,11 @@ export const createRecipeSchema = z.object({
     baseYield: z.number().positive().default(1),
     unit: z.string().default("PORTION"),
     priceSelling: z.number().nonnegative().default(0), // in decimal dollars/pesos
+    /**
+     * Task 4 (loteprod §6.4): ventana de retención en línea, en minutos.
+     * Null/ausente = la receta no maneja hold time.
+     */
+    holdTimeMinutes: z.number().int().positive().nullable().optional(),
     items: z.array(recipeItemInputSchema).default([]),
 });
 
@@ -28,6 +33,7 @@ export const updateRecipeSchema = z.object({
     baseYield: z.number().positive(),
     unit: z.string(),
     priceSelling: z.number().nonnegative(),
+    holdTimeMinutes: z.number().int().positive().nullable().optional(),
     items: z.array(recipeItemInputSchema),
 });
 

@@ -60,6 +60,8 @@ export async function POST(req: NextRequest) {
                 baseYield: validated.baseYield.toFixed(2),
                 unit: validated.unit,
                 priceSelling: Math.round(validated.priceSelling * 100), // convert to cents
+                // Task 4 (§6.4): null = la receta no maneja tiempo de retención.
+                holdTimeMinutes: validated.holdTimeMinutes ?? null,
                 calculatedCost: 0,
                 foodCostPercentage: "0.00",
             }).returning();

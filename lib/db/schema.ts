@@ -338,6 +338,13 @@ export const productionResults = pgTable("production_results", {
 
     producedQuantity: integer("produced_quantity").notNull(),
     unit: text("unit").notNull().default("PORTION"),
+    /**
+     * Task 4 (loteprod §6.4): fin de la ventana de retención en línea, derivado de
+     * `recipes.holdTimeMinutes` al registrar la producción. Null = la receta no
+     * define hold time (la mayoría hoy) — el ciclo de vencimiento simplemente no
+     * la considera.
+     */
+    expiresAt: timestamp("expires_at"),
     ingredientCost: integer("ingredient_cost").default(0), // Sum of consumed ingredients in cents
     notes: text("notes"),
     recordedBy: text("recorded_by").notNull(),
@@ -1217,7 +1224,17 @@ export const inventoryAuditLog = pgTable("inventory_audit_log", {
 // Inventory Alerts table
 export const inventoryAlertStatusEnum = pgEnum("inventory_alert_status", ['ACTIVE', 'VIEWED', 'IN_PROGRESS', 'RESOLVED', 'DISMISSED']);
 export const inventoryAlertTypeEnum = pgEnum("inventory_alert_type", ['LOW_STOCK', 'OUT_OF_STOCK', 'EXPIRING_SOON', 'EXPIRED', 'PRICE_INCREASE', 'HIGH_VARIANCE', 'ANOMALOUS_WASTE', 'YIELD_DROP']);
-export const inventoryWasteReasonEnum = pgEnum("inventory_waste_reason", ['EXPIRED', 'DAMAGED', 'QUALITY', 'SPILLAGE', 'OTHER', 'STAFF', 'COURTESY']);
+/**
+ * Causas de merma del manual (loteprod §8.1). Los 3 últimos valores entran en la
+ * misma migración (Tasks 4 y 11 del plan loteprod-gaps) para no repetir
+ * `ALTER TYPE` sobre el mismo enum:
+ *   HOLD_TIME       — venció el tiempo de retención en línea (§6.4)
+ *   PREPARATION     — recorte/grasa/merma de proceso, se contrasta con el rendimiento esperado
+ *   CUSTOMER_RETURN — devolución del cliente
+ * Agregar siempre AL FINAL: `ALTER TYPE ... ADD VALUE` es aditivo y el orden es el
+ * del enum en Postgres.
+ */
+export const inventoryWasteReasonEnum = pgEnum("inventory_waste_reason", ['EXPIRED', 'DAMAGED', 'QUALITY', 'SPILLAGE', 'OTHER', 'STAFF', 'COURTESY', 'HOLD_TIME', 'PREPARATION', 'CUSTOMER_RETURN']);
 
 export const inventoryAlerts = pgTable("inventory_alerts", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -1324,6 +1341,20 @@ export const inventoryWaste = pgTable("inventory_waste", {
     approvalStatus: text("approval_status").default("AUTO").notNull(), // AUTO | PENDING_APPROVAL | APPROVED | REJECTED
     approvedBy: text("approved_by"),
     approvedAt: timestamp("approved_at"),
+
+    /**
+     * Task 11 (loteprod §8.1, merma por preparación). Solo se llenan cuando
+     * `reason = 'PREPARATION'`: la receta contra la que se procesó, cuánto se
+     * procesó en bruto y cuánta merma esperaba el rendimiento de la ficha
+     * (`recipe_items.yield_percent`). `yieldFlagged` marca la fila para revisión
+     * cuando la merma real se desvía del esperado más allá del umbral
+     * (`lib/inventory/waste-yield.ts`) — es lo que convierte el §8.3
+     * causa→acción en algo consultable en vez de un OTHER más.
+     */
+    recipeId: uuid("recipe_id").references(() => recipes.id),
+    processedQuantity: numeric("processed_quantity", { precision: 12, scale: 4 }),
+    expectedQuantity: numeric("expected_quantity", { precision: 12, scale: 4 }),
+    yieldFlagged: boolean("yield_flagged").default(false).notNull(),
 
     // Audit
     recordedBy: text("recorded_by").notNull(), // User ID
@@ -2597,6 +2628,12 @@ export const recipes = pgTable("recipes", {
     // `inventory_items.tags`: filtro de los pasos dinámicos de workflow con
     // `metadata.dynamicSource = { entity: 'recipe' }` (T15).
     tags: jsonb("tags").default(sql`'[]'::jsonb`),
+    /**
+     * Task 4 (loteprod §6.4): ventana máxima que el producto puede estar en línea
+     * después de producirse (pollo 30 min, hamburguesa armada 10 min). Null = la
+     * receta no maneja hold time; la producción sigue funcionando igual.
+     */
+    holdTimeMinutes: integer("hold_time_minutes"),
     calculatedCost: integer("calculated_cost").default(0).notNull(), // in cents
     priceSelling: integer("price_selling").default(0).notNull(), // in cents
     foodCostPercentage: numeric("food_cost_percentage", { precision: 5, scale: 2 }).default("0.00").notNull(),
