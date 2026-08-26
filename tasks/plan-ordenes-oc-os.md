@@ -172,7 +172,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
   **Files:** `app/dashboard/approvals/**`, `app/dashboard/company/approval-matrix/**`
   **Estimated scope:** Large
 
-- [ ] **Task 9: Presupuestos y centros de costo (UI)**
+- [x] **Task 9: Presupuestos y centros de costo (UI)** ✅ implementada (commit `b44f598`)
   `app/dashboard/budgets/page.tsx`: catálogo de centros de costo + captura mensual por sucursal/partida (grid editable) + barra de consumo real vs presupuestado por partida.
 
   **Acceptance criteria:**
@@ -264,7 +264,7 @@ Implementar el sistema de control documental y financiero descrito en `finzasord
 
 ### Phase 5: KPIs y automatización
 
-- [ ] **Task 10: Dashboard de KPIs gerenciales**
+- [x] **Task 10: Dashboard de KPIs gerenciales** ✅ implementada en rama `feat/oc-os-task10-kpis` (commits `1f00cf6`, `2f35c37`, `677e480`) — **pendiente de merge a `main`**. Desviaciones respecto de lo planeado: **sin Recharts** (los KPIs son escalares y comparativos de pocas filas: tablas + barras de consumo comunican mejor); **cumplimiento de proveedor movido a Phase 7**, donde el plan ya lo tenía; **food cost teórico entregado como `NO_DATA`** porque `sales_entries` está vacía (ver open question #3 en el handoff); **gasto operativo sin semáforo** porque el doc §E no fija meta para ese KPI.
   `app/dashboard/reports/control/page.tsx` con Recharts (patrón de reports/executive). Metas/semáforos leídas de `tenant_operating_config` (`foodCostTargetPercent`, `laborCostTargetPercent`, defaults en `DEFAULT_FINANCIAL_TARGETS`) — decisión #10:
   - Food cost % real vs teórico por sucursal (usa datos recipes/sales-entry existentes)
   - Gasto operativo % (OS/ventas) y presupuesto vs ejecutado por partida

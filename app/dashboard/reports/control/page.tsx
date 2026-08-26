@@ -58,9 +58,15 @@ function monthLabel(month: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString("es-MX", { month: "long", year: "numeric" });
 }
 
+/**
+ * El signo va ANTES del símbolo (−$36,000.00, no $-36,000.00): en este reporte
+ * casi toda la columna de desviación es negativa y la variante con el signo
+ * dentro se lee como un error de formato.
+ */
 function formatCurrency(cents: number | null | undefined): string {
   if (cents === null || cents === undefined) return "$0.00";
-  return `$${(cents / 100).toLocaleString("es-MX", { minimumFractionDigits: 2 })}`;
+  const abs = Math.abs(cents / 100).toLocaleString("es-MX", { minimumFractionDigits: 2 });
+  return `${cents < 0 ? "-" : ""}$${abs}`;
 }
 
 /** Porcentaje o guion: un "0.0%" donde no hay base se lee como un dato real. */
@@ -307,7 +313,8 @@ export default function ControlReportPage() {
                 </dl>
                 <p className="text-xs text-muted-foreground">
                   Cuenta OC con tipo EMERGENCIA y OS con urgencia EMERGENCIA, en estados que
-                  comprometen presupuesto.
+                  comprometen presupuesto. El gasto total incluye documentos sin centro de costo
+                  asignado, por eso es mayor que el comprometido contra partidas.
                 </p>
               </CardContent>
             </Card>
