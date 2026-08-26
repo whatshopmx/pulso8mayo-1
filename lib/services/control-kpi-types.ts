@@ -21,6 +21,13 @@ export interface ControlTargets {
   emergencyWarnPercent: number;
   /** % de presupuesto consumido a partir del cual se enciende el ámbar. */
   budgetWarnConsumedPercent: number;
+  /**
+   * Dispersión tolerable del precio de un mismo insumo entre sucursales.
+   * MENOR es mejor. El doc §7 pide el comparativo pero no fija el umbral; se
+   * toma la tolerancia de conciliación de proveedores (5%) como meta.
+   */
+  priceSpreadTargetPercent: number;
+  priceSpreadWarnPercent: number;
 }
 
 export const DEFAULT_CONTROL_TARGETS: ControlTargets = {
@@ -30,6 +37,8 @@ export const DEFAULT_CONTROL_TARGETS: ControlTargets = {
   emergencyWarnPercent: 10,
   // Mismo umbral que la alerta del grid de presupuestos (Task 9).
   budgetWarnConsumedPercent: 90,
+  priceSpreadTargetPercent: 5,
+  priceSpreadWarnPercent: 10,
 };
 
 // --- Ejecución presupuestal -------------------------------------------------
@@ -124,6 +133,85 @@ export function computeEmergencyShare(
   };
 }
 
+// --- Comparativo de precios entre sucursales --------------------------------
+
+export interface PriceSpread {
+  minCents: number;
+  maxCents: number;
+  /** (max − min) / min × 100. `null` si el mínimo es 0: no hay base. */
+  spreadPercent: number | null;
+  status: SemaphoreStatus | null;
+}
+
+/**
+ * Dispersión del precio unitario de un mismo insumo entre sucursales.
+ *
+ * Se mide contra el precio MÁS BAJO, no contra el promedio: la pregunta del
+ * dueño es "cuánto de más está pagando la sucursal cara respecto de la que
+ * mejor compró", y ése es el ahorro recuperable.
+ */
+export function computePriceSpread(
+  unitCosts: number[],
+  targets: ControlTargets = DEFAULT_CONTROL_TARGETS,
+): PriceSpread {
+  const valid = unitCosts.filter((c) => Number.isFinite(c) && c > 0);
+  if (valid.length === 0) {
+    return { minCents: 0, maxCents: 0, spreadPercent: null, status: null };
+  }
+  const minCents = Math.min(...valid);
+  const maxCents = Math.max(...valid);
+  const spreadPercent = ((maxCents - minCents) / minCents) * 100;
+  return {
+    minCents,
+    maxCents,
+    spreadPercent,
+    status: costStatus(spreadPercent, targets.priceSpreadTargetPercent, targets.priceSpreadWarnPercent),
+  };
+}
+
+export interface ItemPriceByBranch {
+  branchId: string;
+  branchName: string;
+  branchCode: string | null;
+  /** Precio unitario promedio ponderado por cantidad, en centavos. */
+  unitCostCents: number;
+  /** Líneas de OC que sustentan el promedio. */
+  lines: number;
+}
+
+export interface ItemPriceComparisonRow extends PriceSpread {
+  itemId: string;
+  itemName: string;
+  unit: string;
+  branches: ItemPriceByBranch[];
+  /** Sucursal que mejor compró y la que peor compró, para leer la fila de un golpe. */
+  cheapestBranch: string;
+  dearestBranch: string;
+}
+
+// --- Ranking de proveedores -------------------------------------------------
+
+export interface SupplierRankingRow {
+  supplierId: string;
+  supplierName: string;
+  /** Comprometido del mes con ese proveedor (OC + OS con proveedor asignado). */
+  totalCents: number;
+  purchaseOrders: number;
+  serviceOrders: number;
+  /** Participación sobre el gasto atribuido a proveedores del período. */
+  sharePercent: number;
+}
+
+/** Reparte la participación porcentual sobre el total ya ordenado por monto. */
+export function withSupplierShare(
+  rows: Omit<SupplierRankingRow, "sharePercent">[],
+): SupplierRankingRow[] {
+  const total = rows.reduce((s, r) => s + r.totalCents, 0);
+  return rows
+    .map((r) => ({ ...r, sharePercent: total > 0 ? (r.totalCents / total) * 100 : 0 }))
+    .sort((a, b) => b.totalCents - a.totalCents);
+}
+
 // --- Resultado del reporte --------------------------------------------------
 
 export interface BudgetExecutionRow extends BudgetExecution {
@@ -146,6 +234,15 @@ export interface ControlReportResult {
     totals: BudgetExecution;
   };
   emergencyShare: EmergencyShare;
+  /**
+   * Insumos comprados en más de una sucursal durante el mes, ordenados por
+   * dispersión. Vacío cuando el alcance es una sola sucursal: comparar exige
+   * al menos dos, y un GERENTE no debe ver precios de sucursales ajenas.
+   */
+  priceComparison: ItemPriceComparisonRow[];
+  supplierRanking: SupplierRankingRow[];
+  /** Sucursales dentro del alcance; la UI lo usa para explicar un comparativo vacío. */
+  branchCount: number;
   targets: ControlTargets;
 }
 

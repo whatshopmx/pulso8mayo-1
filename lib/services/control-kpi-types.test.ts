@@ -3,6 +3,8 @@ import {
   aggregateBudgetExecution,
   computeBudgetExecution,
   computeEmergencyShare,
+  computePriceSpread,
+  withSupplierShare,
   DEFAULT_CONTROL_TARGETS,
 } from "./control-kpi-types";
 
@@ -120,5 +122,69 @@ describe("aggregateBudgetExecution", () => {
     const total = aggregateBudgetExecution([]);
     expect(total.budgetedCents).toBe(0);
     expect(total.status).toBeNull();
+  });
+});
+
+describe("computePriceSpread", () => {
+  it("mide la dispersión contra el precio más bajo, no contra el promedio", () => {
+    const r = computePriceSpread([10_000, 12_000]);
+    expect(r.minCents).toBe(10_000);
+    expect(r.maxCents).toBe(12_000);
+    expect(r.spreadPercent).toBe(20);
+  });
+
+  it("precios idénticos entre sucursales son 0% y OK", () => {
+    const r = computePriceSpread([11_000, 11_000, 11_000]);
+    expect(r.spreadPercent).toBe(0);
+    expect(r.status).toBe("OK");
+  });
+
+  it("hasta 5% es OK, hasta 10% es WARNING, arriba es CRITICAL", () => {
+    expect(computePriceSpread([100, 105]).status).toBe("OK");
+    expect(computePriceSpread([100, 110]).status).toBe("WARNING");
+    expect(computePriceSpread([100, 111]).status).toBe("CRITICAL");
+  });
+
+  it("una sola sucursal no tiene con qué compararse: dispersión 0", () => {
+    const r = computePriceSpread([7_500]);
+    expect(r.spreadPercent).toBe(0);
+    expect(r.minCents).toBe(7_500);
+  });
+
+  it("ignora precios cero o negativos en vez de inventar una dispersión infinita", () => {
+    const r = computePriceSpread([0, 10_000, -50]);
+    expect(r.minCents).toBe(10_000);
+    expect(r.spreadPercent).toBe(0);
+  });
+
+  it("sin precios válidos no hay dispersión ni semáforo", () => {
+    const r = computePriceSpread([0, 0]);
+    expect(r.spreadPercent).toBeNull();
+    expect(r.status).toBeNull();
+  });
+});
+
+describe("withSupplierShare", () => {
+  const base = { purchaseOrders: 1, serviceOrders: 0 };
+
+  it("ordena por monto descendente y reparte la participación", () => {
+    const rows = withSupplierShare([
+      { supplierId: "a", supplierName: "A", totalCents: 25_000, ...base },
+      { supplierId: "b", supplierName: "B", totalCents: 75_000, ...base },
+    ]);
+    expect(rows.map((r) => r.supplierId)).toEqual(["b", "a"]);
+    expect(rows[0].sharePercent).toBe(75);
+    expect(rows[1].sharePercent).toBe(25);
+  });
+
+  it("sin gasto no divide entre cero", () => {
+    const rows = withSupplierShare([
+      { supplierId: "a", supplierName: "A", totalCents: 0, ...base },
+    ]);
+    expect(rows[0].sharePercent).toBe(0);
+  });
+
+  it("sin proveedores devuelve lista vacía", () => {
+    expect(withSupplierShare([])).toEqual([]);
   });
 });

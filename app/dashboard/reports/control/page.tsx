@@ -27,6 +27,9 @@ import {
   Loader2,
   RefreshCw,
   Siren,
+  Store,
+  Tags,
+  Truck,
   Wallet,
 } from "lucide-react";
 
@@ -117,6 +120,9 @@ export default function ControlReportPage() {
   const totals = report.data?.budgetExecution.totals;
   const emergency = report.data?.emergencyShare;
   const targets = report.data?.targets;
+  const priceComparison = report.data?.priceComparison ?? [];
+  const supplierRanking = report.data?.supplierRanking ?? [];
+  const branchCount = report.data?.branchCount ?? 0;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -341,6 +347,149 @@ export default function ControlReportPage() {
                               status={row.status}
                               label={row.unbudgeted ? "Sin presupuesto" : undefined}
                             />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Comparativo de precios del mismo insumo entre sucursales */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Tags className="h-4 w-4 text-muted-foreground" /> Comparativo de precios entre
+                sucursales
+              </CardTitle>
+              <CardDescription>
+                Precio unitario promedio ponderado por sucursal, sobre OC del mes en estados que
+                comprometen. La dispersión se mide contra la sucursal que mejor compró.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {branchCount < 2 ? (
+                <EmptyState
+                  icon={Store}
+                  bare
+                  title="El comparativo necesita al menos dos sucursales"
+                  description="El alcance actual es de una sola sucursal. Quita el filtro de sucursal para comparar precios entre ellas."
+                />
+              ) : priceComparison.length === 0 ? (
+                <EmptyState
+                  icon={Tags}
+                  bare
+                  title="Sin insumos comparables este mes"
+                  description="Ningún insumo se compró en más de una sucursal con órdenes que comprometan presupuesto."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Insumo</TableHead>
+                        <TableHead>Sucursales</TableHead>
+                        <TableHead className="text-right">Mejor precio</TableHead>
+                        <TableHead className="text-right">Peor precio</TableHead>
+                        <TableHead className="text-right">Dispersión</TableHead>
+                        <TableHead>Estado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {priceComparison.map((item) => (
+                        <TableRow key={item.itemId}>
+                          <TableCell className="font-medium">
+                            {item.itemName}
+                            <span className="text-muted-foreground text-xs"> / {item.unit}</span>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-xs">
+                            {item.branches
+                              .map(
+                                (b) =>
+                                  `${b.branchCode ?? b.branchName} ${formatCurrency(b.unitCostCents)}`,
+                              )
+                              .join(" · ")}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatCurrency(item.minCents)}
+                            <span className="text-muted-foreground text-xs">
+                              {" "}
+                              {item.cheapestBranch}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatCurrency(item.maxCents)}
+                            <span className="text-muted-foreground text-xs">
+                              {" "}
+                              {item.dearestBranch}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatPercent(item.spreadPercent)}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={item.status} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Ranking de proveedores por monto */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Truck className="h-4 w-4 text-muted-foreground" /> Ranking de proveedores
+              </CardTitle>
+              <CardDescription>
+                Gasto comprometido del mes por proveedor (OC + OS). Los documentos sin proveedor
+                asignado quedan fuera porque no son atribuibles.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {supplierRanking.length === 0 ? (
+                <EmptyState
+                  icon={Truck}
+                  bare
+                  title="Sin gasto atribuido a proveedores este mes"
+                  description="No hay OC ni OS con proveedor asignado en estados que comprometan presupuesto."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Proveedor</TableHead>
+                        <TableHead className="text-right">Documentos</TableHead>
+                        <TableHead className="text-right">Monto</TableHead>
+                        <TableHead>Participación</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {supplierRanking.map((s) => (
+                        <TableRow key={s.supplierId}>
+                          <TableCell className="font-medium">{s.supplierName}</TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">
+                            {s.purchaseOrders > 0 && `${s.purchaseOrders} OC`}
+                            {s.purchaseOrders > 0 && s.serviceOrders > 0 && " · "}
+                            {s.serviceOrders > 0 && `${s.serviceOrders} OS`}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatCurrency(s.totalCents)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress value={s.sharePercent} className="h-1.5 w-24" />
+                              <span className="tabular-nums text-xs text-muted-foreground w-12">
+                                {s.sharePercent.toFixed(1)}%
+                              </span>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

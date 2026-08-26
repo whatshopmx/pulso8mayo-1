@@ -9,7 +9,16 @@
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { branchBudgets, branches, costCenters, purchaseOrders, serviceOrders } from "@/lib/db/schema";
+import {
+  branchBudgets,
+  branches,
+  costCenters,
+  inventoryItems,
+  purchaseOrderItems,
+  purchaseOrders,
+  serviceOrders,
+  suppliers,
+} from "@/lib/db/schema";
 import {
   OC_COMMITTING_STATUSES,
   OS_COMMITTING_STATUSES,
@@ -19,10 +28,14 @@ import {
   aggregateBudgetExecution,
   computeBudgetExecution,
   computeEmergencyShare,
+  computePriceSpread,
+  withSupplierShare,
   DEFAULT_CONTROL_TARGETS,
   type BudgetExecutionRow,
   type ControlReportResult,
   type ControlTargets,
+  type ItemPriceComparisonRow,
+  type SupplierRankingRow,
 } from "@/lib/services/control-kpi-types";
 
 export const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -109,6 +122,182 @@ async function getCommitmentTotals(
 }
 
 /**
+ * Precio unitario promedio ponderado por insumo×sucursal, sobre líneas de OC
+ * en estados que comprometen (una OC en borrador no es un precio pagado).
+ *
+ * Ponderado por cantidad y no promedio simple: dos cajas a $100 y una a $130
+ * costaron $110 en promedio real, no $115.
+ */
+async function getPriceComparison(
+  branchIds: string[],
+  month: string,
+  targets: ControlTargets,
+): Promise<ItemPriceComparisonRow[]> {
+  // Comparar exige al menos dos sucursales en el alcance.
+  if (branchIds.length < 2) return [];
+
+  const rows = await db
+    .select({
+      itemId: purchaseOrderItems.itemId,
+      itemName: inventoryItems.name,
+      unit: inventoryItems.unit,
+      branchId: purchaseOrders.branchId,
+      branchName: branches.name,
+      branchCode: branches.code,
+      unitCostCents: sql<number>`round(
+        sum(${purchaseOrderItems.unitCost}::numeric * greatest(${purchaseOrderItems.orderedQuantity}, 1))
+        / nullif(sum(greatest(${purchaseOrderItems.orderedQuantity}, 1)), 0)
+      )::int`,
+      lines: sql<number>`count(*)::int`,
+    })
+    .from(purchaseOrderItems)
+    .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderItems.poId))
+    .innerJoin(branches, eq(branches.id, purchaseOrders.branchId))
+    .innerJoin(inventoryItems, eq(inventoryItems.id, purchaseOrderItems.itemId))
+    .where(
+      and(
+        inArray(purchaseOrders.branchId, branchIds),
+        inArray(purchaseOrders.status, [...OC_COMMITTING_STATUSES]),
+        sql`to_char(${purchaseOrders.createdAt}, 'YYYY-MM') = ${month}`,
+      ),
+    )
+    .groupBy(
+      purchaseOrderItems.itemId,
+      inventoryItems.name,
+      inventoryItems.unit,
+      purchaseOrders.branchId,
+      branches.name,
+      branches.code,
+    );
+
+  const byItem = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const list = byItem.get(r.itemId);
+    if (list) list.push(r);
+    else byItem.set(r.itemId, [r]);
+  }
+
+  const comparison: ItemPriceComparisonRow[] = [];
+  for (const [itemId, itemRows] of byItem) {
+    // Un insumo comprado en una sola sucursal no dice nada del comparativo.
+    if (itemRows.length < 2) continue;
+
+    const branchPrices = itemRows
+      .map((r) => ({
+        branchId: r.branchId,
+        branchName: r.branchName,
+        branchCode: r.branchCode,
+        unitCostCents: Number(r.unitCostCents ?? 0),
+        lines: Number(r.lines ?? 0),
+      }))
+      .sort((a, b) => a.unitCostCents - b.unitCostCents);
+
+    const spread = computePriceSpread(
+      branchPrices.map((b) => b.unitCostCents),
+      targets,
+    );
+    if (spread.spreadPercent === null) continue;
+
+    const cheapest = branchPrices[0];
+    const dearest = branchPrices[branchPrices.length - 1];
+    comparison.push({
+      itemId,
+      itemName: itemRows[0].itemName,
+      unit: itemRows[0].unit,
+      branches: branchPrices,
+      cheapestBranch: cheapest.branchCode ?? cheapest.branchName,
+      dearestBranch: dearest.branchCode ?? dearest.branchName,
+      ...spread,
+    });
+  }
+
+  // Primero lo caro de explicar: mayor dispersión arriba.
+  return comparison.sort((a, b) => (b.spreadPercent ?? 0) - (a.spreadPercent ?? 0));
+}
+
+/**
+ * Gasto del mes por proveedor (OC + OS). Los documentos sin proveedor asignado
+ * quedan fuera: no son atribuibles y ensuciarían el ranking con una fila
+ * "(sin proveedor)" que no se puede accionar.
+ */
+async function getSupplierRanking(
+  companyId: string,
+  branchIds: string[],
+  month: string,
+): Promise<SupplierRankingRow[]> {
+  if (branchIds.length === 0) return [];
+
+  const [ocRows, osRows] = await Promise.all([
+    db
+      .select({
+        supplierId: purchaseOrders.supplierId,
+        supplierName: suppliers.name,
+        totalCents: sql<number>`coalesce(sum(${purchaseOrders.totalAmount}), 0)::int`,
+        docs: sql<number>`count(*)::int`,
+      })
+      .from(purchaseOrders)
+      .innerJoin(suppliers, eq(suppliers.id, purchaseOrders.supplierId))
+      .where(
+        and(
+          eq(suppliers.companyId, companyId),
+          inArray(purchaseOrders.branchId, branchIds),
+          inArray(purchaseOrders.status, [...OC_COMMITTING_STATUSES]),
+          sql`to_char(${purchaseOrders.createdAt}, 'YYYY-MM') = ${month}`,
+        ),
+      )
+      .groupBy(purchaseOrders.supplierId, suppliers.name),
+    db
+      .select({
+        supplierId: serviceOrders.supplierId,
+        supplierName: suppliers.name,
+        totalCents: sql<number>`coalesce(sum(${serviceOrders.amount}), 0)::int`,
+        docs: sql<number>`count(*)::int`,
+      })
+      .from(serviceOrders)
+      .innerJoin(suppliers, eq(suppliers.id, serviceOrders.supplierId))
+      .where(
+        and(
+          eq(suppliers.companyId, companyId),
+          inArray(serviceOrders.branchId, branchIds),
+          inArray(serviceOrders.status, [...OS_COMMITTING_STATUSES]),
+          sql`to_char(${serviceOrders.createdAt}, 'YYYY-MM') = ${month}`,
+        ),
+      )
+      .groupBy(serviceOrders.supplierId, suppliers.name),
+  ]);
+
+  const merged = new Map<string, Omit<SupplierRankingRow, "sharePercent">>();
+  const upsert = (
+    supplierId: string,
+    supplierName: string,
+    cents: number,
+    docs: number,
+    kind: "oc" | "os",
+  ) => {
+    const current = merged.get(supplierId) ?? {
+      supplierId,
+      supplierName,
+      totalCents: 0,
+      purchaseOrders: 0,
+      serviceOrders: 0,
+    };
+    current.totalCents += cents;
+    if (kind === "oc") current.purchaseOrders += docs;
+    else current.serviceOrders += docs;
+    merged.set(supplierId, current);
+  };
+
+  for (const r of ocRows) {
+    if (r.supplierId) upsert(r.supplierId, r.supplierName, Number(r.totalCents ?? 0), Number(r.docs ?? 0), "oc");
+  }
+  for (const r of osRows) {
+    if (r.supplierId) upsert(r.supplierId, r.supplierName, Number(r.totalCents ?? 0), Number(r.docs ?? 0), "os");
+  }
+
+  return withSupplierShare([...merged.values()]);
+}
+
+/**
  * Reporte de control del mes: ejecución presupuestal por sucursal×centro y
  * porcentaje de compras de emergencia.
  *
@@ -140,20 +329,23 @@ export async function getControlReport(
 
   const branchIds = branchRows.map((b) => b.id);
 
-  const [budgetRows, committedByPair, commitmentTotals] = await Promise.all([
-    branchIds.length
-      ? db
-          .select({
-            branchId: branchBudgets.branchId,
-            costCenterId: branchBudgets.costCenterId,
-            amount: branchBudgets.amount,
-          })
-          .from(branchBudgets)
-          .where(and(inArray(branchBudgets.branchId, branchIds), eq(branchBudgets.month, month)))
-      : Promise.resolve([]),
-    getCommittedByPair(branchIds, month),
-    getCommitmentTotals(branchIds, month),
-  ]);
+  const [budgetRows, committedByPair, commitmentTotals, priceComparison, supplierRanking] =
+    await Promise.all([
+      branchIds.length
+        ? db
+            .select({
+              branchId: branchBudgets.branchId,
+              costCenterId: branchBudgets.costCenterId,
+              amount: branchBudgets.amount,
+            })
+            .from(branchBudgets)
+            .where(and(inArray(branchBudgets.branchId, branchIds), eq(branchBudgets.month, month)))
+        : Promise.resolve([]),
+      getCommittedByPair(branchIds, month),
+      getCommitmentTotals(branchIds, month),
+      getPriceComparison(branchIds, month, targets),
+      getSupplierRanking(companyId, branchIds, month),
+    ]);
 
   const budgetByKey = new Map(
     budgetRows.map((r) => [`${r.branchId}:${r.costCenterId}`, r.amount]),
@@ -188,6 +380,9 @@ export async function getControlReport(
       totals: aggregateBudgetExecution(rows, targets),
     },
     emergencyShare: computeEmergencyShare(commitmentTotals, targets),
+    priceComparison,
+    supplierRanking,
+    branchCount: branchRows.length,
     targets,
   };
 }
