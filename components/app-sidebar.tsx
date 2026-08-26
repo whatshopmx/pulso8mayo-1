@@ -436,6 +436,11 @@ const navMain = [
         url: "/dashboard/finance/cash-flow",
         icon: Calendar,
       },
+      {
+        title: "Tesorería",
+        url: "/dashboard/finance/treasury",
+        icon: Wallet,
+      },
       // Ambas existían y no estaban enlazadas desde ningún lado: sólo se llegaba
       // escribiendo la URL, y son las dos pantallas con más especificidad fiscal
       // mexicana del producto.

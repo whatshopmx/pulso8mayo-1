@@ -108,4 +108,24 @@ export class TreasuryService {
 
     return contract;
   }
+  
+  /**
+   * Fetch all payment runs for a company.
+   */
+  static async getPaymentRuns(companyId: string) {
+    return db.query.paymentRuns.findMany({
+      where: eq(paymentRuns.companyId, companyId),
+      orderBy: (paymentRuns, { asc }) => [asc(paymentRuns.runDate)],
+    });
+  }
+
+  /**
+   * Fetch all recurring contracts for a company.
+   */
+  static async getRecurringContracts(companyId: string) {
+    return db.query.recurringContracts.findMany({
+      where: eq(recurringContracts.companyId, companyId),
+      orderBy: (contracts, { asc }) => [asc(contracts.createdAt)],
+    });
+  }
 }
