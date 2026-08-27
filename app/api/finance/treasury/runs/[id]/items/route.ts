@@ -15,10 +15,11 @@ const addItemSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const paymentRunId = params.id;
+    const { id } = await params;
+    const paymentRunId = id;
     
     // Authorization
     const { ctx } = await requirePermissionApi("reports", "update", {

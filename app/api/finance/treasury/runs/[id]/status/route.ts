@@ -12,10 +12,11 @@ const updateStatusSchema = z.object({
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const paymentRunId = params.id;
+    const { id } = await params;
+    const paymentRunId = id;
     
     // First, let's verify if the run belongs to their company
     const runDetails = await TreasuryService.getPaymentRunDetails(paymentRunId);

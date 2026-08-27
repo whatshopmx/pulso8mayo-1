@@ -6,15 +6,16 @@ import { TreasuryService } from "@/lib/services/treasury-service";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { ctx } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
       audit: { action: "READ", req },
     });
 
-    const paymentRunId = params.id;
+    const paymentRunId = id;
     const details = await TreasuryService.getPaymentRunDetails(paymentRunId);
 
     // Ensure they only read runs for their own company
