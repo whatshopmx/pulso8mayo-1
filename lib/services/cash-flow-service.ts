@@ -405,16 +405,10 @@ export async function getCashFlowProjection(
       )
     : null;
 
-  // ── 1. Entradas estimadas desde los cortes de venta ─────────────
+  // ── 1. Entradas reales desde los cortes de venta registrados ─────
   //
-  // Antes esto era el promedio de TODA la historia aplicado plano a los 30 días:
-  // la serie "Entradas" de la gráfica era una línea recta por construcción. Y el
-  // fallback `1500000` era inalcanzable —`Number(daysCount || 1)` nunca da 0—,
-  // así que un inquilino sin cortes recibía $0/día de entradas y estrenaba la
-  // pantalla en rojo completo. Ahora: promedio por día de la semana sobre los
-  // últimos 90 días, y sin historial se declara en vez de inventarse.
-  const lookbackStartStr = addCalendarDays(startDateStr, -INFLOW_LOOKBACK_DAYS);
-
+  // No se extrapolan estimaciones ni supuestos hacia el futuro: sólo se cuentan
+  // las ventas reales registradas en cortes de caja (`dailySalesCuts`).
   const salesByDate = await db
     .select({
       businessDate: dailySalesCuts.businessDate,
@@ -425,11 +419,15 @@ export async function getCashFlowProjection(
       and(
         eq(dailySalesCuts.companyId, companyId),
         ...(branchId ? [eq(dailySalesCuts.branchId, branchId)] : []),
-        gte(dailySalesCuts.businessDate, lookbackStartStr),
-        lte(dailySalesCuts.businessDate, startDateStr)
+        gte(dailySalesCuts.businessDate, startDateStr),
+        lte(dailySalesCuts.businessDate, endDateStr)
       )
     )
     .groupBy(dailySalesCuts.businessDate);
+
+  const actualSalesMap = new Map<string, number>(
+    salesByDate.map((r) => [r.businessDate, Number(r.totalSales || 0)])
+  );
 
   const historyDays = salesByDate.length;
   const historyTotalCents = salesByDate.reduce(
@@ -439,39 +437,11 @@ export async function getCashFlowProjection(
   const avgDailyInflowCents =
     historyDays > 0 ? Math.round(historyTotalCents / historyDays) : null;
 
-  const inflowBasis: InflowBasis =
-    historyDays === 0
-      ? "NONE"
-      : historyDays >= MIN_DAYS_FOR_SEASONAL
-        ? "SEASONAL"
-        : "AVERAGE";
+  const inflowBasis: InflowBasis = "NONE";
 
-  // Promedio por día de la semana. Un día sin muestra en la ventana cae al
-  // promedio simple: preferimos la cifra menos precisa a un hueco.
-  const inflowByDayOfWeek: (number | null)[] = new Array(7).fill(null);
-  if (inflowBasis === "SEASONAL") {
-    const buckets: { total: number; count: number }[] = Array.from(
-      { length: 7 },
-      () => ({ total: 0, count: 0 })
-    );
-    for (const row of salesByDate) {
-      const bucket = buckets[dayOfWeekOf(row.businessDate)];
-      bucket.total += Number(row.totalSales || 0);
-      bucket.count += 1;
-    }
-    for (let dow = 0; dow < 7; dow++) {
-      inflowByDayOfWeek[dow] =
-        buckets[dow].count > 0
-          ? Math.round(buckets[dow].total / buckets[dow].count)
-          : avgDailyInflowCents;
-    }
-  }
-
-  /** Entradas estimadas para una fecha; `null` cuando no hay de dónde estimarlas. */
-  const inflowFor = (dateStr: string): number | null => {
-    if (inflowBasis === "NONE") return null;
-    if (inflowBasis === "AVERAGE") return avgDailyInflowCents;
-    return inflowByDayOfWeek[dayOfWeekOf(dateStr)] ?? avgDailyInflowCents;
+  /** Entradas basadas únicamente en cortes de caja reales registrados */
+  const inflowFor = (dateStr: string): number => {
+    return actualSalesMap.get(dateStr) ?? 0;
   };
 
   // ── 2. Operating expenses (scheduled) ──────────────────────────

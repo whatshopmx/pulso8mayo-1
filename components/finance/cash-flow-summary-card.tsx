@@ -19,6 +19,7 @@ const HORIZON_DAYS = 30;
 interface Summary {
   /** `null` cuando nadie lo ha capturado: no hay constante de respaldo. */
   initialBalanceCents: number | null;
+  totalInflowCents: number;
   totalOutflowCents: number;
   /** `null` cuando no hay entradas estimadas y por lo tanto no hay saldo proyectado. */
   endingBalanceCents: number | null;
@@ -35,9 +36,6 @@ function toSummary(payload: CashFlowProjection | CashFlowDay[]): Summary | null 
 
   const overdue = Array.isArray(payload) ? [] : (payload.overdueItems ?? []);
 
-  // Sin cortes de venta el servicio no estima entradas y el saldo acumulado
-  // llega en `null`. Un `null` comparado con `<` se lee como cero y pintaría el
-  // peor día en rojo con una cifra que nadie calculó.
   const conSaldo = days.filter((d) => d.cumulativeBalanceCents !== null);
 
   const worstDay = conSaldo.reduce<CashFlowDay | null>(
@@ -50,6 +48,7 @@ function toSummary(payload: CashFlowProjection | CashFlowDay[]): Summary | null 
 
   return {
     initialBalanceCents: Array.isArray(payload) ? null : payload.initialBalanceCents,
+    totalInflowCents: days.reduce((sum, d) => sum + (d.projectedInflowCents ?? 0), 0),
     totalOutflowCents: days.reduce((sum, d) => sum + d.projectedOutflowCents, 0),
     endingBalanceCents: conSaldo.length
       ? conSaldo[conSaldo.length - 1].cumulativeBalanceCents
@@ -134,7 +133,7 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
           <div className="space-y-4">
             {/* Tres columnas desde sm: con grid-cols-2 el tercer stat caía
                 solo en su propia fila en tablet. */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">Saldo inicial</p>
                 {summary.initialBalanceCents === null ? (
@@ -146,6 +145,12 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
                     {formatCents(summary.initialBalanceCents)}
                   </p>
                 )}
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Ventas registradas</p>
+                <p className="text-lg font-bold tabular-nums text-foreground">
+                  +{formatCents(summary.totalInflowCents)}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Salidas proyectadas</p>
