@@ -1038,6 +1038,8 @@ export const inventoryBatches = pgTable("inventory_batches", {
     unitCost: integer("unit_cost"), // Cost per unit for this specific batch
     status: inventoryBatchStatusEnum("status").default('AVAILABLE'),
     supplierBatchInfo: jsonb("supplier_batch_info"),
+    origin: text("origin"), // e.g. 'RECEIVING', 'PRODUCTION', 'TRANSFER'
+    parentBatchIds: jsonb("parent_batch_ids"), // UUIDs of batches consumed to produce this one
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });

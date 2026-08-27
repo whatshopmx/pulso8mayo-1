@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       audit: { action: "READ", req },
     });
 
-    const companyId = ctx.session.companyId;
+    const companyId = ctx.userCompanyId;
 
     const [paymentRuns, recurringContracts] = await Promise.all([
       TreasuryService.getPaymentRuns(companyId),
