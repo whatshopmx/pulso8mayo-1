@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import {
   operatingExpenses,
   expenseAuthorizationRules,
+  recurringContracts,
+  invoices,
   users,
   branches,
 } from "@/lib/db/schema";
@@ -30,7 +32,7 @@ export interface AuditLogEntry {
 
 export interface Violation {
   id: string;
-  type: "SELF_APPROVAL" | "OVERDUE_APPROVAL" | "ROLE_MISMATCH";
+  type: "SELF_APPROVAL" | "OVERDUE_APPROVAL" | "ROLE_MISMATCH" | "CONTRACT_VARIANCE_EXCEEDED";
   severity: "LOW" | "MEDIUM" | "HIGH";
   expenseId: string;
   branchName: string;
@@ -298,6 +300,49 @@ export async function detectViolations(
         detail: `${e.approvedByName || "Aprobador"} (rol: ${e.approvedByRole}) aprobó un gasto que requiere rol ${matchingRule.approverRole}.`,
         createdAt: e.createdAt,
       });
+    }
+  }
+
+  // 4. CONTRACT_VARIANCE_EXCEEDED: Facturas de servicios recurrentes (Renta/CFE) que exceden la tolerancia base (Módulo 4.2 & 5.1)
+  const contracts = await db.query.recurringContracts.findMany({
+    where: and(
+      eq(recurringContracts.companyId, companyId),
+      eq(recurringContracts.active, true),
+      ...(branchId ? [eq(recurringContracts.branchId, branchId)] : [])
+    ),
+  });
+
+  for (const contract of contracts) {
+    const recentInvoices = await db.query.invoices.findMany({
+      where: and(
+        eq(invoices.companyId, companyId),
+        eq(invoices.supplierId, contract.supplierId),
+        ...(contract.branchId ? [eq(invoices.branchId, contract.branchId)] : [])
+      ),
+      limit: 5,
+      orderBy: (inv, { desc }) => [desc(inv.createdAt)],
+    });
+
+    for (const inv of recentInvoices) {
+      const varianceCents = inv.total - contract.baseAmountCents;
+      const variancePercent = contract.baseAmountCents > 0
+        ? Math.round((varianceCents / contract.baseAmountCents) * 1000) / 10
+        : 0;
+
+      if (variancePercent > contract.varianceTolerancePercent) {
+        violations.push({
+          id: `contract-${inv.id}`,
+          type: "CONTRACT_VARIANCE_EXCEEDED",
+          severity: variancePercent > 25 ? "HIGH" : "MEDIUM",
+          expenseId: inv.id,
+          branchName: contract.branchId ? "Sucursal asignada" : "Corporativo / Cadena",
+          category: contract.contractType,
+          amountCents: inv.total,
+          description: `Sobrecosto en contrato recurrente: ${contract.title}`,
+          detail: `Factura ${inv.folio || inv.uuid.slice(0, 8)} por $${(inv.total / 100).toFixed(2)} MXN supera el monto contratado de $${(contract.baseAmountCents / 100).toFixed(2)} MXN (+${variancePercent}% vs tolerancia +${contract.varianceTolerancePercent}%).`,
+          createdAt: inv.createdAt,
+        });
+      }
     }
   }
 

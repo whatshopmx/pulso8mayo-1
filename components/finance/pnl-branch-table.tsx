@@ -193,6 +193,40 @@ function SortableHead({
   );
 }
 
+function PrimeCostCell({
+  foodCost,
+  labor,
+}: {
+  foodCost: PnLLine;
+  labor: PnLLine;
+}) {
+  if (foodCost.percentOfSales === null || labor.percentOfSales === null) {
+    return <TableCell className="text-right text-muted-foreground">—</TableCell>;
+  }
+
+  const primeCost = Number((foodCost.percentOfSales + labor.percentOfSales).toFixed(1));
+  let badgeClass = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20";
+  let statusText = "🟢 Óptimo (≤58%)";
+
+  if (primeCost > 65) {
+    badgeClass = "bg-destructive/15 text-destructive border-destructive/20 font-bold";
+    statusText = "🔴 Crítico (>65%)";
+  } else if (primeCost > 58) {
+    badgeClass = "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20";
+    statusText = "🟡 Atención (58-65%)";
+  }
+
+  return (
+    <TableCell className="text-right whitespace-nowrap">
+      <NoteTip note={`Prime Cost = Food Cost + Nómina: ${primeCost}%. Semáforo QSR: ${statusText}`}>
+        <Badge variant="outline" className={`text-xs px-1.5 py-0 font-medium ${badgeClass}`}>
+          {primeCost}%
+        </Badge>
+      </NoteTip>
+    </TableCell>
+  );
+}
+
 export function PnlBranchTable() {
   const [pnlData, setPnlData] = useState<BranchPnLItem[]>([]);
   const [period, setPeriod] = useState<{ startDate: string; endDate: string; days: number } | null>(
@@ -556,6 +590,7 @@ export function PnlBranchTable() {
                     />
                     <TableHead className="text-right">Food Cost %</TableHead>
                     <TableHead className="text-right">Nómina %</TableHead>
+                    <TableHead className="text-right">Prime Cost %</TableHead>
                     <TableHead className="text-right">Gastos Operativos</TableHead>
                     <SortableHead
                       label="Utilidad ($ y %)"
@@ -603,6 +638,22 @@ export function PnlBranchTable() {
                     <TableCell className="text-right">
                       {totals.lineHasData.labor ? pct(totals.labor) : "—"}
                     </TableCell>
+                    <PrimeCostCell
+                      foodCost={{
+                        cents: totals.foodCost,
+                        percentOfSales: totals.lineHasData.foodCost && totals.salesHasData ? Number(((totals.foodCost / totals.sales) * 100).toFixed(1)) : null,
+                        source: totals.incompleteLines > 0 ? "DERIVED" : "MEASURED",
+                        coveragePercent: 100,
+                        note: "",
+                      }}
+                      labor={{
+                        cents: totals.labor,
+                        percentOfSales: totals.lineHasData.labor && totals.salesHasData ? Number(((totals.labor / totals.sales) * 100).toFixed(1)) : null,
+                        source: totals.incompleteLines > 0 ? "DERIVED" : "MEASURED",
+                        coveragePercent: 100,
+                        note: "",
+                      }}
+                    />
                     <TableCell className="text-right font-bold">
                       {totals.lineHasData.operatingExpenses
                         ? formatCents(totals.operatingExpenses)
@@ -662,6 +713,7 @@ export function PnlBranchTable() {
                         <LineCell value={item.sales} mode="money" className="font-medium" />
                         <LineCell value={item.foodCost} mode="percent" extraNote={mermaNote} />
                         <LineCell value={item.labor} mode="percent" />
+                        <PrimeCostCell foodCost={item.foodCost} labor={item.labor} />
                         <LineCell
                           value={item.operatingExpenses}
                           mode="money"
@@ -685,7 +737,7 @@ export function PnlBranchTable() {
 
                   {paginated.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-6 text-xs text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-6 text-xs text-muted-foreground">
                         No se encontraron sucursales con el filtro actual.
                       </TableCell>
                     </TableRow>

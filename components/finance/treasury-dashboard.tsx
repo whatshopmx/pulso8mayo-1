@@ -34,6 +34,8 @@ import {
   AlertCircle,
   Building2,
   Clock,
+  Download,
+  CheckCheck,
 } from "lucide-react";
 import { CreatePaymentRunModal } from "./create-payment-run-modal";
 import { CreateRecurringContractModal } from "./create-recurring-contract-modal";
@@ -155,6 +157,26 @@ export function TreasuryDashboard() {
       );
     });
   }, [rawRecurringContracts, searchQuery]);
+
+  const downloadLayout = async (runId: string, format: "SPEI_CSV" | "BANORTE_TXT" | "BBVA_TXT" = "SPEI_CSV") => {
+    try {
+      const res = await fetch(`/api/finance/treasury/runs/${runId}/layout?format=${format}`);
+      const json = await res.json();
+      if (res.ok && json.success) {
+        const blob = new Blob([json.data.content], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `layout_${json.data.runTitle.replace(/\s+/g, "_")}_${format}.${format === "SPEI_CSV" ? "csv" : "txt"}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (e) {
+      console.error("Error downloading bank layout:", e);
+    }
+  };
 
   // Executive KPI summary calculations
   const totalScheduledCents = useMemo(() => {
@@ -311,6 +333,7 @@ export function TreasuryDashboard() {
                       <TableHead>Fecha / Urgencia</TableHead>
                       <TableHead>Estatus</TableHead>
                       <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Dispersión</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -363,6 +386,17 @@ export function TreasuryDashboard() {
                           <TableCell className="text-right font-medium text-sm whitespace-nowrap">
                             ${formatCents(run.totalAmountCents)}{" "}
                             <span className="text-xs text-muted-foreground">{run.currency || "MXN"}</span>
+                          </TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1 border-primary/30 hover:bg-primary/10"
+                              onClick={() => downloadLayout(run.id, "SPEI_CSV")}
+                              title="Descargar Layout Bancario SPEI (CSV)"
+                            >
+                              <Download className="h-3 w-3" /> Layout SPEI
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );

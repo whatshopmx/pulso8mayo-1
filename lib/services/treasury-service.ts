@@ -4,6 +4,8 @@ import {
   paymentRunItems, 
   recurringContracts, 
   invoices,
+  suppliers,
+  supplierBankAccounts,
   paymentRunStatusEnum,
   paymentRunItemTypeEnum 
 } from "@/lib/db/schema";
@@ -33,13 +35,13 @@ export class TreasuryService {
   }
 
   /**
-   * Fetch invoices ready to be paid (MATCHED and UNPAID).
+   * Fetch invoices ready to be paid (MATCHED or EXCEPTION_APPROVED, and UNPAID).
    */
   static async getUnpaidMatchedInvoices(companyId: string) {
     return db.query.invoices.findMany({
       where: and(
         eq(invoices.companyId, companyId),
-        eq(invoices.matchStatus, "MATCHED"),
+        inArray(invoices.matchStatus, ["MATCHED", "EXCEPTION_APPROVED"]),
         eq(invoices.paymentStatus, "PENDING")
       ),
       orderBy: (inv, { asc }) => [asc(inv.fecha)],
@@ -47,7 +49,7 @@ export class TreasuryService {
   }
 
   /**
-   * Adds an item (e.g. an Invoice) to a payment run.
+   * Adds an item (e.g. an Invoice) to a payment run with 3-way match & CLABE verification checks (Módulo 6.1).
    */
   static async addItemToRun(
     paymentRunId: string, 
@@ -56,6 +58,37 @@ export class TreasuryService {
     amountCents: number,
     notes?: string
   ) {
+    // 1. If invoice, strictly enforce 3-Way Match & verified CLABE account checks
+    if (itemType === 'INVOICE') {
+      const invoice = await db.query.invoices.findFirst({
+        where: eq(invoices.id, referenceId),
+      });
+
+      if (!invoice) throw new Error("Factura no encontrada");
+      
+      if (invoice.matchStatus === 'DISCREPANCY') {
+        throw new Error("Factura bloqueada por discrepancia en 3-Way Match sin autorización de excepción");
+      }
+
+      if (invoice.supplierId) {
+        const verifiedAccount = await db.query.supplierBankAccounts.findFirst({
+          where: and(
+            eq(supplierBankAccounts.supplierId, invoice.supplierId),
+            eq(supplierBankAccounts.status, 'VERIFIED'),
+            eq(supplierBankAccounts.active, true)
+          ),
+        });
+
+        if (!verifiedAccount) {
+          const supplier = await db.query.suppliers.findFirst({
+            where: eq(suppliers.id, invoice.supplierId),
+          });
+          const suppName = supplier?.name || "del proveedor";
+          throw new Error(`El proveedor "${suppName}" no tiene una cuenta bancaria CLABE verificada. Se requiere validación previa contra fraude (Módulo 6.1).`);
+        }
+      }
+    }
+
     const [item] = await db.insert(paymentRunItems)
       .values({
         paymentRunId,
@@ -65,14 +98,6 @@ export class TreasuryService {
         notes
       })
       .returning();
-
-    // If it's an invoice, we might want to update its status or track that it's queued for payment.
-    if (itemType === 'INVOICE') {
-      // Assuming we can convert referenceId back to UUID if it is UUID
-      await db.update(invoices)
-        .set({ paymentStatus: 'PENDING' }) // Actually it remains pending until APPROVED/PAID
-        .where(eq(invoices.id, referenceId));
-    }
 
     // Update the total amount of the payment run
     const run = await db.query.paymentRuns.findFirst({
@@ -156,17 +181,85 @@ export class TreasuryService {
   }
 
   /**
-   * Transition the status of a payment run.
+   * Valida un CFDI/Gasto recibido contra el contrato recurrente base (Renta/CFE/Servicios)
+   * detectando sobrecostos > tolerancia (default +10%) (Módulo 4.2 & 5.1).
+   */
+  static async validateInvoiceAgainstContract(
+    companyId: string,
+    supplierId: string,
+    invoicedAmountCents: number,
+    branchId?: string | null
+  ) {
+    const contracts = await db.query.recurringContracts.findMany({
+      where: and(
+        eq(recurringContracts.companyId, companyId),
+        eq(recurringContracts.supplierId, supplierId),
+        eq(recurringContracts.active, true)
+      ),
+    });
+
+    // Match branch-specific contract first, fallback to corporate contract
+    const contract = (branchId ? contracts.find(c => c.branchId === branchId) : null) || contracts[0];
+
+    if (!contract) {
+      return {
+        hasContract: false,
+        invoicedAmountCents,
+        varianceCents: 0,
+        variancePercent: 0,
+        isCompliant: true,
+      };
+    }
+
+    const varianceCents = invoicedAmountCents - contract.baseAmountCents;
+    const variancePercent = contract.baseAmountCents > 0
+      ? Math.round((varianceCents / contract.baseAmountCents) * 1000) / 10
+      : 0;
+
+    // Variance exceeds tolerance (e.g. +10%)
+    const isCompliant = variancePercent <= contract.varianceTolerancePercent;
+    const alertMessage = !isCompliant
+      ? `Desviación en contrato recurrente "${contract.title}": Facturado $${(invoicedAmountCents / 100).toFixed(2)} vs Base $${(contract.baseAmountCents / 100).toFixed(2)} (+${variancePercent}% vs tolerancia +${contract.varianceTolerancePercent}%)`
+      : undefined;
+
+    return {
+      hasContract: true,
+      contract: {
+        id: contract.id,
+        title: contract.title,
+        contractType: contract.contractType,
+        baseAmountCents: contract.baseAmountCents,
+        varianceTolerancePercent: contract.varianceTolerancePercent,
+      },
+      invoicedAmountCents,
+      varianceCents,
+      variancePercent,
+      isCompliant,
+      alertMessage,
+    };
+  }
+
+  /**
+   * Transition the status of a payment run with dual-signature segregation of duties (Módulo 6.2).
    */
   static async updatePaymentRunStatus(
     paymentRunId: string,
     newStatus: typeof paymentRunStatusEnum.enumValues[number],
     userId: string
   ) {
-    const updateData: any = { status: newStatus };
+    const currentRun = await db.query.paymentRuns.findFirst({
+      where: eq(paymentRuns.id, paymentRunId),
+    });
+
+    if (!currentRun) throw new Error("Corrida de pago no encontrada");
+
+    const updateData: any = { status: newStatus, updatedAt: new Date() };
     
-    // If it's being approved, record who approved it
+    // Regla de Segregación de Funciones: Quien prepara NO puede auto-aprobar (Módulo 6.2)
     if (newStatus === "APPROVED") {
+      if (currentRun.preparedBy === userId) {
+        throw new Error("Segregación de funciones: El usuario que preparó la corrida de pago no puede auto-aprobarla (se requiere doble firma de un segundo usuario autorizado).");
+      }
       updateData.approvedBy = userId;
     }
 
@@ -175,7 +268,7 @@ export class TreasuryService {
       .where(eq(paymentRuns.id, paymentRunId))
       .returning();
 
-    // If it's completed, we should ideally mark all its invoices as PAID.
+    // If it's completed, mark all its invoices as PAID.
     if (newStatus === "COMPLETED") {
       const items = await db.query.paymentRunItems.findMany({
         where: eq(paymentRunItems.paymentRunId, paymentRunId),
@@ -187,11 +280,88 @@ export class TreasuryService {
 
       if (invoiceIds.length > 0) {
         await db.update(invoices)
-          .set({ paymentStatus: 'PAID' })
+          .set({ paymentStatus: 'PAID', paidAt: new Date(), paidBy: userId })
           .where(inArray(invoices.id, invoiceIds));
       }
     }
 
     return updatedRun;
+  }
+
+  /**
+   * Genera el layout de dispersión bancaria para transferencias masivas SPEI (Banorte/BBVA/Genérico) (Módulo 6.2).
+   */
+  static async generateBankDisbursementLayout(
+    paymentRunId: string,
+    companyId: string,
+    format: "SPEI_CSV" | "BANORTE_TXT" | "BBVA_TXT" = "SPEI_CSV"
+  ) {
+    const run = await db.query.paymentRuns.findFirst({
+      where: and(eq(paymentRuns.id, paymentRunId), eq(paymentRuns.companyId, companyId)),
+    });
+
+    if (!run) throw new Error("Corrida de pago no encontrada");
+
+    const items = await db.query.paymentRunItems.findMany({
+      where: eq(paymentRunItems.paymentRunId, paymentRunId),
+    });
+
+    const lines: string[] = [];
+    let recordCount = 0;
+    let totalCents = 0;
+
+    if (format === "SPEI_CSV") {
+      lines.push("CUENTA_ORIGEN,CLABE_DESTINO,BANCO_DESTINO,BENEFICIARIO,MONTO_PESOS,CONCEPTO,REFERENCIA");
+    }
+
+    for (const item of items) {
+      if (item.itemType === "INVOICE") {
+        const invoice = await db.query.invoices.findFirst({
+          where: eq(invoices.id, item.referenceId),
+        });
+
+        if (invoice && invoice.supplierId) {
+          const bankAccount = await db.query.supplierBankAccounts.findFirst({
+            where: and(
+              eq(supplierBankAccounts.supplierId, invoice.supplierId),
+              eq(supplierBankAccounts.status, "VERIFIED"),
+              eq(supplierBankAccounts.active, true)
+            ),
+          });
+
+          const supplier = await db.query.suppliers.findFirst({
+            where: eq(suppliers.id, invoice.supplierId),
+          });
+
+          const sourceAcc = run.sourceAccount || "0000000000";
+          const destClabe = bankAccount ? `************${bankAccount.clabeLast4}` : "SIN_CLABE";
+          const destBank = bankAccount?.bankName || "BANCO";
+          const holderName = bankAccount?.accountHolderName || supplier?.name || "PROVEEDOR";
+          const amountPesos = (item.amountCents / 100).toFixed(2);
+          const concept = `PAGO FAC ${invoice.folio || invoice.uuid.slice(0, 8)}`;
+          const ref = String(Date.now()).slice(-7);
+
+          if (format === "SPEI_CSV") {
+            lines.push(`"${sourceAcc}","${destClabe}","${destBank}","${holderName}",${amountPesos},"${concept}","${ref}"`);
+          } else if (format === "BANORTE_TXT") {
+            lines.push(`D|${sourceAcc}|${destClabe}|${amountPesos}|${concept}|${holderName}|${ref}`);
+          } else {
+            lines.push(`01|${sourceAcc}|${destClabe}|${amountPesos}|${concept}|${ref}|${holderName}`);
+          }
+
+          recordCount++;
+          totalCents += item.amountCents;
+        }
+      }
+    }
+
+    return {
+      runId: run.id,
+      runTitle: run.title,
+      format,
+      recordCount,
+      totalPesos: (totalCents / 100).toFixed(2),
+      content: lines.join("\n"),
+    };
   }
 }

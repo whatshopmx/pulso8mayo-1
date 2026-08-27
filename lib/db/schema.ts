@@ -2909,6 +2909,11 @@ export const invoices = pgTable("invoices", {
     hasPriceDiscrepancy: boolean("has_price_discrepancy").default(false).notNull(),
     hasQtyDiscrepancy: boolean("has_qty_discrepancy").default(false).notNull(),
 
+    // Autorización de excepción para 3-Way Match con discrepancia (Módulo 5.2)
+    exceptionApprovedBy: text("exception_approved_by").references(() => users.id),
+    exceptionApprovedAt: timestamp("exception_approved_at"),
+    exceptionReason: text("exception_reason"),
+
     // --- Cuentas por pagar (M15 §"Cuentas por pagar como consecuencia") -----
     // `match_status` describe la conciliación contra la OC y la recepción; NO
     // dice si ya se pagó. Sin estas tres columnas una factura liquidada seguía

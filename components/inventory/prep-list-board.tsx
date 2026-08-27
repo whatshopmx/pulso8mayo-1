@@ -28,10 +28,12 @@ import {
     DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
-import { ClipboardList, Loader2, Pencil, Plus, TriangleAlert } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ClipboardList, Loader2, Pencil, Plus, TriangleAlert, CloudSun, Flame, CloudRain, Trophy, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { PREP_SHIFT_LABELS, PREP_STATE_LABELS, type PrepLineState } from "@/lib/inventory/prep-list";
 import { PrepListLineDialog } from "./prep-list-line-dialog";
+import type { WeatherProfile } from "@/lib/inventory/weather-forecast";
 
 export interface PrepFefoPreview {
     itemId: string;
@@ -216,18 +218,56 @@ export function PrepListBoard({ branchId }: { branchId: string }) {
         setFormOpen(true);
     };
 
+    const [weatherProfile, setWeatherProfile] = useState<WeatherProfile>("NORMAL");
+
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-end justify-between gap-4">
-                <div className="space-y-1.5">
-                    <Label htmlFor="prep-list-date">Fecha de la hoja</Label>
-                    <Input
-                        id="prep-list-date"
-                        type="date"
-                        className="w-44"
-                        value={date ?? ""}
-                        onChange={(e) => setDate(e.target.value || null)}
-                    />
+                <div className="flex flex-wrap items-end gap-3">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="prep-list-date">Fecha de la hoja</Label>
+                        <Input
+                            id="prep-list-date"
+                            type="date"
+                            className="w-44"
+                            value={date ?? ""}
+                            onChange={(e) => setDate(e.target.value || null)}
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label htmlFor="prep-weather-modifier">Factor Clima / Evento MTY</Label>
+                        <Select
+                            value={weatherProfile}
+                            onValueChange={(val) => setWeatherProfile(val as WeatherProfile)}
+                        >
+                            <SelectTrigger id="prep-weather-modifier" className="w-64">
+                                <SelectValue placeholder="Seleccionar clima/evento..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="NORMAL">
+                                    <span className="flex items-center gap-2">
+                                        <CloudSun className="size-4 text-muted-foreground" /> Día Normal (100% Estándar)
+                                    </span>
+                                </SelectItem>
+                                <SelectItem value="HEATWAVE_MTY">
+                                    <span className="flex items-center gap-2">
+                                        <Flame className="size-4 text-orange-500" /> Ola de Calor (&gt;40°C Canícula MTY)
+                                    </span>
+                                </SelectItem>
+                                <SelectItem value="RAINY_COLD">
+                                    <span className="flex items-center gap-2">
+                                        <CloudRain className="size-4 text-blue-500" /> Día Lluvioso / Frente Frío MTY
+                                    </span>
+                                </SelectItem>
+                                <SelectItem value="SPORT_EVENT_MTY">
+                                    <span className="flex items-center gap-2">
+                                        <Trophy className="size-4 text-amber-500" /> Clásico Regio / Rayados / Tigres
+                                    </span>
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -247,6 +287,35 @@ export function PrepListBoard({ branchId }: { branchId: string }) {
                     </Button>
                 </div>
             </div>
+
+            {/* Contextual Weather Impact Alert */}
+            {weatherProfile !== "NORMAL" && (
+                <div className="p-3 bg-card/60 border border-primary/20 rounded-lg flex items-center justify-between text-xs space-x-3">
+                    <div className="flex items-center gap-2">
+                        <Sparkles className="size-4 text-primary shrink-0" />
+                        <span>
+                            {weatherProfile === "HEATWAVE_MTY" && (
+                                <>
+                                    <strong>Modificador de Ola de Calor Activado:</strong> Proyección de bebidas frías/hielo <strong>+30%</strong>, caldos y sopas <strong>-20%</strong>, café caliente <strong>-25%</strong>.
+                                </>
+                            )}
+                            {weatherProfile === "RAINY_COLD" && (
+                                <>
+                                    <strong>Modificador de Lluvia/Frío Activado:</strong> Proyección de caldos/sopas <strong>+30%</strong>, café/chocolate <strong>+35%</strong>, bebidas frías <strong>-25%</strong>.
+                                </>
+                            )}
+                            {weatherProfile === "SPORT_EVENT_MTY" && (
+                                <>
+                                    <strong>Modificador de Evento Deportivo Activado:</strong> Proyección de cervezas/bebidas <strong>+40%</strong>, alitas/boneless/snacks <strong>+35%</strong>.
+                                </>
+                            )}
+                        </span>
+                    </div>
+                    <Badge variant="secondary" className="font-mono text-[10px] uppercase shrink-0">
+                        Forecast MTY
+                    </Badge>
+                </div>
+            )}
 
             {loading ? (
                 <div className="space-y-3" aria-busy="true" aria-label="Cargando prep list">

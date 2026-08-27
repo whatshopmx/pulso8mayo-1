@@ -15,6 +15,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useBranch } from "@/lib/branch-context";
 import { useFocusedRow } from "@/hooks/use-focused-row";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
@@ -26,13 +35,16 @@ import {
 } from "@/lib/services/accounts-payable-types";
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   Clock,
   FileText,
+  Filter,
   Loader2,
   Receipt,
   RefreshCw,
+  ShieldAlert,
   ShieldCheck,
   Wallet,
 } from "lucide-react";
@@ -83,6 +95,13 @@ function PayablesContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Filtros interactivos y autorización de excepción 3-way match (Módulo 5.2)
+  const [filterMode, setFilterMode] = useState<"ALL" | "DISCREPANCIES" | "OVERDUE">("ALL");
+  const [selectedInvoiceForException, setSelectedInvoiceForException] = useState<PayableItem | null>(null);
+  const [exceptionReason, setExceptionReason] = useState("");
+  const [isApproving, setIsApproving] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const load = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true);
@@ -115,6 +134,31 @@ function PayablesContent() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleApproveException = async () => {
+    if (!selectedInvoiceForException || !exceptionReason.trim()) return;
+    setIsApproving(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/inventory/invoices/${selectedInvoiceForException.id}/approve-exception`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: exceptionReason.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "No se pudo autorizar la excepción.");
+      }
+      setSelectedInvoiceForException(null);
+      setExceptionReason("");
+      await load(true);
+    } catch (err: any) {
+      console.error("Error approving match exception:", err);
+      setActionError(err.message || "Error al procesar la autorización.");
+    } finally {
+      setIsApproving(false);
+    }
+  };
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -312,26 +356,49 @@ function PayablesContent() {
 
           {/* Detalle */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold">Detalle de partidas</CardTitle>
-              <CardDescription className="text-xs">
-                Lo vencido primero.
-                {data.itemsTotal > data.items.length
-                  ? ` Se muestran las ${data.items.length} más urgentes de ${data.itemsTotal}; acota por sucursal o proveedor desde el encabezado para ver el resto.`
-                  : ""}
-              </CardDescription>
+            <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-base font-bold">Detalle de partidas</CardTitle>
+                <CardDescription className="text-xs">
+                  {filterMode === "DISCREPANCIES"
+                    ? "Facturas bloqueadas para pago por discrepancia 3-Way (precio o cantidad). Requieren autorización de excepción."
+                    : filterMode === "OVERDUE"
+                      ? "Partidas cuyo plazo de crédito ya expiró."
+                      : "Lo vencido primero."}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={filterMode === "ALL" ? "default" : "outline"}
+                  size="sm"
+                  className="text-xs h-8"
+                  onClick={() => setFilterMode("ALL")}
+                >
+                  Todas ({data.items.length})
+                </Button>
+                <Button
+                  variant={filterMode === "DISCREPANCIES" ? "default" : "outline"}
+                  size="sm"
+                  className={`text-xs h-8 ${data.items.some(i => i.hasDiscrepancy || i.matchStatus === "DISCREPANCY") ? "border-warning/50 text-warning-text" : ""}`}
+                  onClick={() => setFilterMode("DISCREPANCIES")}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 mr-1" /> Discrepancias ({data.items.filter(i => i.hasDiscrepancy || i.matchStatus === "DISCREPANCY").length})
+                </Button>
+                <Button
+                  variant={filterMode === "OVERDUE" ? "default" : "outline"}
+                  size="sm"
+                  className="text-xs h-8"
+                  onClick={() => setFilterMode("OVERDUE")}
+                >
+                  Vencidas ({data.overdueCount})
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="border rounded-md overflow-x-auto">
                 <Table>
-                  {/* A20 — La leyenda anunciaba una "acción de pago" que no
-                      existe: la tabla tiene seis columnas y ninguna es un botón.
-                      A quien navega con lector de pantalla le contradecía, justo
-                      a él, la nota que dice que esta vista es de consulta —y lo
-                      dejaba buscando un control ausente. */}
                   <TableCaption className="sr-only">
-                    Partidas por pagar, vista de consulta sin acciones: referencia, contraparte,
-                    sucursal, origen, fecha de vencimiento y monto.
+                    Partidas por pagar: referencia, contraparte, sucursal, origen, fecha de vencimiento, monto y estado de conciliación.
                   </TableCaption>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
@@ -341,66 +408,104 @@ function PayablesContent() {
                       <TableHead>Origen</TableHead>
                       <TableHead>Vence</TableHead>
                       <TableHead className="text-right">Monto</TableHead>
+                      <TableHead className="text-right">3-Way Match / Acción</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.items.map((item) => (
-                      <TableRow
-                        key={`${item.source}-${item.id}`}
-                        {...focusProps(item.id, "hover:bg-muted/40")}
-                      >
-                        <TableCell className="font-medium">
-                          <span className="flex items-center gap-1.5">
-                            {item.source === "INVOICE" ? (
-                              <FileText className="w-3.5 h-3.5 text-muted-foreground" />
-                            ) : (
-                              <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
+                    {data.items
+                      .filter((item) => {
+                        if (filterMode === "DISCREPANCIES") return item.hasDiscrepancy || item.matchStatus === "DISCREPANCY";
+                        if (filterMode === "OVERDUE") return item.bucket === "OVERDUE";
+                        return true;
+                      })
+                      .map((item) => (
+                        <TableRow
+                          key={`${item.source}-${item.id}`}
+                          {...focusProps(item.id, "hover:bg-muted/40")}
+                        >
+                          <TableCell className="font-medium">
+                            <span className="flex items-center gap-1.5">
+                              {item.source === "INVOICE" ? (
+                                <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                              ) : (
+                                <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
+                              )}
+                              {item.reference}
+                            </span>
+                            {item.hasDiscrepancy && (
+                              <span className="text-xs text-warning-text block mt-0.5 font-medium">
+                                Discrepancia en conciliación
+                              </span>
                             )}
-                            {item.reference}
-                          </span>
-                          {item.hasDiscrepancy && (
-                            <span className="text-xs text-warning-text block mt-0.5">
-                              Discrepancia en conciliación
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>{item.counterparty}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {item.branchName ?? "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {SOURCE_LABEL[item.source]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-sm">{item.dueDate ?? "Sin fecha"}</span>
-                            <span
-                              className={`text-xs px-1.5 py-0.5 rounded-full border w-fit ${statusBadgeClasses(
-                                BUCKET_TONE[item.bucket],
-                              )}`}
-                            >
-                              {item.daysUntilDue === null
-                                ? "Sin vencimiento"
-                                : item.daysUntilDue < 0
-                                  ? `${Math.abs(item.daysUntilDue)} días vencida`
-                                  : item.daysUntilDue === 0
-                                    ? "Vence hoy"
-                                    : `en ${item.daysUntilDue} días`}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">
-                          {formatCents(item.amountCents)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>{item.counterparty}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {item.branchName ?? "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {SOURCE_LABEL[item.source]}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm">{item.dueDate ?? "Sin fecha"}</span>
+                              <span
+                                className={`text-xs px-1.5 py-0.5 rounded-full border w-fit ${statusBadgeClasses(
+                                  BUCKET_TONE[item.bucket],
+                                )}`}
+                              >
+                                {item.daysUntilDue === null
+                                  ? "Sin vencimiento"
+                                  : item.daysUntilDue < 0
+                                    ? `${Math.abs(item.daysUntilDue)} días vencida`
+                                    : item.daysUntilDue === 0
+                                      ? "Vence hoy"
+                                      : `en ${item.daysUntilDue} días`}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold tabular-nums">
+                            {formatCents(item.amountCents)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.source === "INVOICE" ? (
+                              item.matchStatus === "EXCEPTION_APPROVED" ? (
+                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs">
+                                  Excepción Autorizada
+                                </Badge>
+                              ) : item.hasDiscrepancy || item.matchStatus === "DISCREPANCY" ? (
+                                <div className="flex items-center justify-end gap-2">
+                                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs">
+                                    Bloqueada
+                                  </Badge>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs border-primary/30 hover:bg-primary/10"
+                                    onClick={() => {
+                                      setSelectedInvoiceForException(item);
+                                      setExceptionReason("");
+                                      setActionError(null);
+                                    }}
+                                  >
+                                    Autorizar Excepción
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Badge variant="outline" className="bg-muted text-muted-foreground text-xs">
+                                  {item.matchStatus || "Conciliada"}
+                                </Badge>
+                              )
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
                   </TableBody>
                 </Table>
               </div>
-              {/* Mismo patrón que la tabla de arriba: la cota se dice debajo,
-                  donde termina de leerse la lista. */}
               {data.itemsTotal > data.items.length && (
                 <p className="text-xs text-muted-foreground mt-2">
                   Mostrando las {data.items.length} partidas más urgentes de {data.itemsTotal}.
@@ -408,6 +513,92 @@ function PayablesContent() {
               )}
             </CardContent>
           </Card>
+
+          {/* Modal de Autorización de Excepción (Módulo 5.2) */}
+          <Dialog
+            open={!!selectedInvoiceForException}
+            onOpenChange={(open) => {
+              if (!open) {
+                setSelectedInvoiceForException(null);
+                setExceptionReason("");
+                setActionError(null);
+              }
+            }}
+          >
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5 text-warning-text" />
+                  Autorizar Excepción en 3-Way Match
+                </DialogTitle>
+                <DialogDescription>
+                  Esta factura presenta discrepancias de precio o cantidad respecto a la Orden de Compra o Recepción física. Autorizar la excepción desbloqueará la factura para su pago en Tesorería.
+                </DialogDescription>
+              </DialogHeader>
+
+              {selectedInvoiceForException && (
+                <div className="space-y-4 py-2 text-sm">
+                  <div className="rounded-md bg-muted/50 p-3 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Factura:</span>
+                      <span className="font-semibold">{selectedInvoiceForException.reference}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Proveedor:</span>
+                      <span className="font-medium">{selectedInvoiceForException.counterparty}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Monto:</span>
+                      <span className="font-semibold">{formatCents(selectedInvoiceForException.amountCents)}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Justificación / Motivo de Auditoría <span className="text-destructive">*</span>
+                    </label>
+                    <Textarea
+                      placeholder="Ej. Se acordó incremento de precio con proveedor por flete urgente autorizado por Dirección General..."
+                      value={exceptionReason}
+                      onChange={(e) => setExceptionReason(e.target.value)}
+                      rows={3}
+                      className="text-sm"
+                    />
+                  </div>
+
+                  {actionError && (
+                    <div className="rounded-md bg-destructive/10 border border-destructive/20 p-2.5 text-xs text-destructive flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>{actionError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedInvoiceForException(null)}
+                  disabled={isApproving}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleApproveException}
+                  disabled={isApproving || exceptionReason.trim().length < 5}
+                  className="bg-primary text-primary-foreground"
+                >
+                  {isApproving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Autorizando...
+                    </>
+                  ) : (
+                    "Autorizar y Desbloquear"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
 

@@ -4,8 +4,8 @@
 // extractor and the API don't duplicate stock/batch/PO/CFDI handling).
 
 import { db } from "@/lib/db";
-import { incidents, receivingReports, receivingReportItems, purchaseOrderItems, invoices, invoiceLines } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { incidents, receivingReports, receivingReportItems, purchaseOrderItems, invoices, invoiceLines, temperatureLogs, users } from "@/lib/db/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import { InventoryService } from "./inventory-service";
@@ -15,6 +15,8 @@ import { UnitConversionService } from "./unit-conversion-service";
 import { InvoiceMatchingService } from "./invoice-matching-service";
 import { StockAlertService } from "./stock-alert-service";
 import { evaluateReceivingTemperature } from "./receiving-temperature";
+import { SupplierClaimService } from "./supplier-claim-service";
+import { NotificationDispatcher } from "./notification-dispatcher";
 
 export const receivingSchema = z.object({
     items: z.array(z.object({
@@ -254,8 +256,24 @@ export async function processReceiving(
             );
         }
 
-        // Si la temperatura violó el rango del ítem, incidente automático
+        // Registrar lectura térmica en temperature_logs (NOM-251) si se capturó temperatura
+        if (temperature !== undefined && temperature !== null && !Number.isNaN(temperature)) {
+            await db.insert(temperatureLogs).values({
+                branchId,
+                readingValue: Math.round(temperature),
+                unit: 'C',
+                isCompliant: !temperatureCheck.quarantined,
+                captureMethod: 'RECEIVING',
+                capturedBy: actor.user.id,
+                notes: temperatureCheck.quarantined
+                    ? `Rechazo NOM-251 en recepción: ${temperatureCheck.violation}. Lote en cuarentena: ${batch.lotNumber}`
+                    : `Lectura conforme NOM-251 en recepción de ${item.name} (${temperature}°C)`,
+            });
+        }
+
+        // Si la temperatura violó el rango del ítem: Incidente + Reclamo a Proveedor + Notificación Inmediata
         if (temperatureCheck.quarantined) {
+            // 1. Registro de Incidente
             await db.insert(incidents).values({
                 instanceId: uuidv4(),
                 stepId: `RECEIVING_QA_${item.id}`,
@@ -272,6 +290,45 @@ export async function processReceiving(
                     supplierId: validatedData.supplierId || item.supplierId
                 }
             });
+
+            // 2. Creación automática de Reclamo al Proveedor (Módulo 2.1)
+            const targetSupplierId = validatedData.supplierId || item.supplierId;
+            if (targetSupplierId) {
+                await SupplierClaimService.createClaim({
+                    companyId,
+                    branchId,
+                    supplierId: targetSupplierId,
+                    invoiceId: validatedData.invoiceId,
+                    type: 'QUALITY',
+                    description: `Rechazo térmico NOM-251: ${item.name} recibido a ${temperature}°C (${temperatureCheck.violation}). Lote ${batch.lotNumber} (${quantity} ${item.unit || 'uds'}) puesto en CUARENTENA.`,
+                    totalAmount: finalUnitCostCents ? Math.round(quantity * finalUnitCostCents) : undefined,
+                    notes: `Incidencia generada automáticamente desde Recepción de Mercancía (${report.id}).`,
+                }).catch((err) => console.error("Error creating automated supplier claim:", err));
+            }
+
+            // 3. Notificación Inmediata a Gerentes / Administradores
+            const branchManagers = await db.select({ id: users.id })
+                .from(users)
+                .where(and(
+                    eq(users.companyId, companyId),
+                    sql`${users.role} IN ('ADMIN', 'GERENTE', 'DIRECTOR_OPS', 'OWNER')`
+                ));
+
+            for (const mgr of branchManagers) {
+                await NotificationDispatcher.sendNotification({
+                    userId: mgr.id,
+                    title: `🚨 Alerta NOM-251: Rechazo de Calidad (${item.name})`,
+                    message: `El producto ${item.name} fue recibido a ${temperature}°C (${temperatureCheck.violation}). Lote puesto en CUARENTENA y reclamo generado.`,
+                    type: 'error',
+                    eventType: 'incident',
+                    actionUrl: `/dashboard/inventory/claims`,
+                    metadata: {
+                        incidentTitle: `Alerta NOM-251: ${item.name}`,
+                        severity: 'CRITICAL',
+                        description: `Temperatura fuera de rango: ${temperature}°C (${temperatureCheck.violation})`,
+                    }
+                }).catch((err) => console.error("Error dispatching NOM-251 alert:", err));
+            }
         }
 
         receivingResults.push({

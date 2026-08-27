@@ -502,4 +502,36 @@ export class InvoiceMatchingService {
         if (!detail) throw new Error("Factura no encontrada");
         return detail;
     }
+
+    /**
+     * Autoriza formalmente una excepción de discrepancia en una factura para permitir su pago (Módulo 5.2).
+     */
+    static async approveMatchException(
+        invoiceId: string,
+        companyId: string,
+        approvedBy: string,
+        reason: string
+    ) {
+        const [invoice] = await db.select()
+            .from(invoices)
+            .where(and(eq(invoices.id, invoiceId), eq(invoices.companyId, companyId)));
+
+        if (!invoice) throw new Error("Factura no encontrada");
+        if (invoice.matchStatus !== 'DISCREPANCY') {
+            throw new Error("Solo se pueden autorizar excepciones en facturas con discrepancia");
+        }
+
+        const [updated] = await db.update(invoices)
+            .set({
+                matchStatus: 'EXCEPTION_APPROVED',
+                exceptionApprovedBy: approvedBy,
+                exceptionApprovedAt: new Date(),
+                exceptionReason: reason,
+                updatedAt: new Date(),
+            })
+            .where(eq(invoices.id, invoiceId))
+            .returning();
+
+        return updated;
+    }
 }

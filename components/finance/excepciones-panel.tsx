@@ -2,11 +2,11 @@
 
 import { Badge } from "@/components/ui/badge";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
-import { CheckCircle2, Clock, UserCheck, ShieldAlert } from "lucide-react";
+import { CheckCircle2, Clock, UserCheck, ShieldAlert, FileWarning } from "lucide-react";
 
 export interface Violation {
   id: string;
-  type: "SELF_APPROVAL" | "OVERDUE_APPROVAL" | "ROLE_MISMATCH";
+  type: "SELF_APPROVAL" | "OVERDUE_APPROVAL" | "ROLE_MISMATCH" | "CONTRACT_VARIANCE_EXCEEDED";
   severity: "LOW" | "MEDIUM" | "HIGH";
   expenseId: string;
   branchName: string;
@@ -26,12 +26,14 @@ const VIOLATION_ICONS: Record<string, React.ReactNode> = {
   SELF_APPROVAL: <UserCheck className="w-4 h-4" />,
   OVERDUE_APPROVAL: <Clock className="w-4 h-4" />,
   ROLE_MISMATCH: <ShieldAlert className="w-4 h-4" />,
+  CONTRACT_VARIANCE_EXCEEDED: <FileWarning className="w-4 h-4 text-warning-text" />,
 };
 
 const VIOLATION_TITLES: Record<string, string> = {
   SELF_APPROVAL: "Auto-aprobación",
   OVERDUE_APPROVAL: "Pendiente >48h",
   ROLE_MISMATCH: "Rol insuficiente",
+  CONTRACT_VARIANCE_EXCEEDED: "Sobrecosto vs Contrato",
 };
 
 // Tonos del sistema en vez de paleta cruda: `bg-red-50` no tiene contraparte

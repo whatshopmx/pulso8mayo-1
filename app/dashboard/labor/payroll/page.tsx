@@ -7,11 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertCircle, CheckCircle, Calculator } from "lucide-react";
+import { 
+  Loader2, 
+  AlertCircle, 
+  CheckCircle, 
+  Calculator, 
+  ShieldAlert, 
+  UserX, 
+  Percent, 
+  DollarSign, 
+  FileCheck2 
+} from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
+import { formatCents } from "@/lib/utils";
 
 interface PayrollRun {
   id: string;
@@ -21,12 +32,34 @@ interface PayrollRun {
   createdAt: string;
 }
 
+interface ValidationData {
+  canStamp: boolean;
+  totalActiveEmployees: number;
+  verifiedEmployees: number;
+  blockingErrorsCount: number;
+  validationErrors: Array<{
+    userId: string;
+    employeeName: string;
+    error: string;
+    code: string;
+    severity: "BLOCKING" | "WARNING";
+  }>;
+  financialSummary: {
+    totalGrossSalaryCents: number;
+    totalTipsCents: number;
+    totalEmployerSocialSecurityCents: number;
+    totalRealLaborCostCents: number;
+  };
+}
+
 export default function PayrollPage() {
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [validating, setValidating] = useState(false);
+  const [validationData, setValidationData] = useState<ValidationData | null>(null);
   const [running, setRunning] = useState(false);
   
   const { toast } = useToast();
@@ -49,6 +82,52 @@ export default function PayrollPage() {
     fetchRuns();
   }, [fetchRuns]);
 
+  const handleValidate = async () => {
+    if (!startDate || !endDate) {
+      toast({
+        title: "Fechas requeridas",
+        description: "Ingresa la fecha de inicio y fin del periodo a validar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setValidating(true);
+    try {
+      const res = await fetch("/api/payroll/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startDate, endDate }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setValidationData(data.data);
+        if (data.data.canStamp) {
+          toast({
+            title: "Auditoría de Checador Aprobada",
+            description: `Se verificaron ${data.data.verifiedEmployees} empleados sin incidencias bloqueantes.`,
+          });
+        } else {
+          toast({
+            title: "Incidencias Detectadas",
+            description: `Se encontraron ${data.data.blockingErrorsCount} errores que bloquean el timbrado.`,
+            variant: "destructive",
+          });
+        }
+      } else {
+        throw new Error(data.error?.message || "Error al validar nómina");
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error de Validación",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setValidating(false);
+    }
+  };
+
   const handleRunPayroll = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!startDate || !endDate) return;
@@ -70,21 +149,22 @@ export default function PayrollPage() {
       
       if (hasErrors) {
         toast({
-          title: "Proceso completado con errores",
-          description: "Algunos empleados no se timbraron (ej. falta RFC). Revisa el detalle.",
+          title: "Proceso completado con advertencias",
+          description: "Algunos recibos presentaron advertencias fiscales.",
           variant: "destructive"
         });
       } else {
         toast({
-          title: "Nómina procesada",
-          description: "El timbrado de CFDI se ejecutó exitosamente.",
+          title: "Nómina timbrada exitosamente",
+          description: "Los recibos CFDI 4.0 han sido generados y sellados.",
         });
       }
       
       fetchRuns();
+      setValidationData(null);
     } catch (err: any) {
       toast({
-        title: "Error",
+        title: "Bloqueo de Ejecución",
         description: err.message,
         variant: "destructive"
       });
@@ -132,22 +212,95 @@ export default function PayrollPage() {
                 />
               </div>
               
-              <Alert className="bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border-amber-200">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Validación Pre-Vuelo</AlertTitle>
-                <AlertDescription className="text-xs mt-1">
-                  Los empleados deben tener configurado su <strong>RFC</strong> en su expediente antes de ejecutar. El proceso fallará para aquellos sin RFC.
-                </AlertDescription>
-              </Alert>
+              <div className="flex gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full text-xs font-semibold gap-1.5"
+                  onClick={handleValidate}
+                  disabled={validating || !startDate || !endDate}
+                >
+                  {validating ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Auditando Checador...
+                    </>
+                  ) : (
+                    <>
+                      <FileCheck2 className="h-3.5 w-3.5 text-primary" />
+                      1. Validar Pre-Timbrado & Checador
+                    </>
+                  )}
+                </Button>
+              </div>
 
-              <Button type="submit" className="w-full" disabled={running}>
+              {validationData && (
+                <div className="space-y-3 pt-2 border-t text-xs">
+                  <div className="flex items-center justify-between font-semibold">
+                    <span>Resultado Auditoría:</span>
+                    {validationData.canStamp ? (
+                      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
+                        <CheckCircle className="mr-1 h-3 w-3" /> Aprobada para Timbrar
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive" className="gap-1">
+                        <ShieldAlert className="h-3 w-3" /> {validationData.blockingErrorsCount} Bloqueos
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="bg-muted/40 p-2.5 rounded-lg space-y-1.5 border">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Empleados Activos:</span>
+                      <span className="font-semibold">{validationData.totalActiveEmployees}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Verificados sin Incidencia:</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        {validationData.verifiedEmployees} / {validationData.totalActiveEmployees}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1">
+                      <span className="text-muted-foreground">Sueldo Bruto Nómina:</span>
+                      <span className="font-medium">${formatCents(validationData.financialSummary.totalGrossSalaryCents)}</span>
+                    </div>
+                    <div className="flex justify-between text-amber-700 dark:text-amber-400 font-medium">
+                      <span>Carga Social Real Patronal (IMSS/ISN ~35%):</span>
+                      <span>+${formatCents(validationData.financialSummary.totalEmployerSocialSecurityCents)}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1 font-bold text-foreground">
+                      <span>Costo Laboral Total Empresa:</span>
+                      <span>${formatCents(validationData.financialSummary.totalRealLaborCostCents)}</span>
+                    </div>
+                  </div>
+
+                  {validationData.validationErrors.length > 0 && (
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      <p className="font-semibold text-destructive flex items-center gap-1">
+                        <UserX className="h-3.5 w-3.5" /> Incidencias del Checador / RFC:
+                      </p>
+                      {validationData.validationErrors.map((err, i) => (
+                        <div key={i} className="bg-destructive/10 p-1.5 rounded border border-destructive/20 text-[11px] leading-tight">
+                          <span className="font-bold">{err.employeeName}:</span> {err.error}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={running || (validationData ? !validationData.canStamp : false)}
+              >
                 {running ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Procesando y Timbrando...
                   </>
                 ) : (
-                  "Ejecutar y Timbrar Nómina"
+                  "2. Ejecutar y Timbrar Nómina"
                 )}
               </Button>
             </form>

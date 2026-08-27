@@ -4,6 +4,9 @@ import {
   propinaAsignaciones, 
   employeeProfiles, 
   employeeContracts, 
+  shiftSessions,
+  vacationRequests,
+  leaveRequests,
   users,
   payrollRuns,
   payrollPayslips
@@ -12,6 +15,172 @@ import { eq, and, gte, lte, sum, desc } from "drizzle-orm";
 import { timbrarNomina } from "./fiscal-service";
 import type { NominaDeduccion, NominaPercepcion } from "./fiscal-service";
 import { differenceInDays, parseISO } from "date-fns";
+
+export interface PayrollPreStampingValidation {
+  canStamp: boolean;
+  totalActiveEmployees: number;
+  verifiedEmployees: number;
+  blockingErrorsCount: number;
+  validationErrors: Array<{
+    userId: string;
+    employeeName: string;
+    error: string;
+    code: 'GHOST_EMPLOYEE' | 'MISSING_RFC' | 'MISSING_CURP' | 'NO_CONTRACT';
+    severity: 'BLOCKING' | 'WARNING';
+  }>;
+  financialSummary: {
+    totalGrossSalaryCents: number;
+    totalTipsCents: number;
+    totalEmployerSocialSecurityCents: number;
+    totalRealLaborCostCents: number;
+  };
+}
+
+/**
+ * Valida checadas de turno, detecta empleados fantasma y calcula la carga social patronal real
+ * antes de permitir el timbrado fiscal o dispersión (Módulo 7.1, 7.2 & 7.3).
+ */
+export async function validatePayrollPreStamping(
+  companyId: string,
+  startDate: string,
+  endDate: string,
+  branchId?: string
+): Promise<PayrollPreStampingValidation> {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  const activeStaff = await db
+    .select({
+      userId: users.id,
+      name: users.name,
+      rfc: employeeProfiles.rfc,
+      curp: employeeProfiles.curp,
+      nss: employeeProfiles.nss,
+      employeeNumber: employeeProfiles.employeeNumber,
+      baseSalary: employeeContracts.baseSalary,
+    })
+    .from(users)
+    .innerJoin(employeeProfiles, eq(users.id, employeeProfiles.userId))
+    .leftJoin(employeeContracts, and(
+      eq(users.id, employeeContracts.userId),
+      eq(employeeContracts.status, 'ACTIVE')
+    ))
+    .where(
+      and(
+        eq(users.companyId, companyId),
+        eq(employeeProfiles.isActive, true),
+        ...(branchId ? [eq(users.branchId, branchId)] : [])
+      )
+    );
+
+  const validationErrors: PayrollPreStampingValidation["validationErrors"] = [];
+  let totalGrossSalaryCents = 0;
+  let totalTipsCents = 0;
+  let verifiedEmployees = 0;
+
+  for (const emp of activeStaff) {
+    let hasBlockingError = false;
+
+    // Check RFC
+    if (!emp.rfc || emp.rfc.trim().length < 12) {
+      validationErrors.push({
+        userId: emp.userId,
+        employeeName: emp.name || "Sin Nombre",
+        error: `RFC inválido o no configurado para timbrado CFDI 4.0 (${emp.rfc || "VACÍO"}).`,
+        code: "MISSING_RFC",
+        severity: "BLOCKING",
+      });
+      hasBlockingError = true;
+    }
+
+    // Check CURP
+    if (!emp.curp || emp.curp.trim().length < 18) {
+      validationErrors.push({
+        userId: emp.userId,
+        employeeName: emp.name || "Sin Nombre",
+        error: `CURP incompleta (${emp.curp || "VACÍO"}).`,
+        code: "MISSING_CURP",
+        severity: "WARNING",
+      });
+    }
+
+    // Check Contract
+    if (!emp.baseSalary) {
+      validationErrors.push({
+        userId: emp.userId,
+        employeeName: emp.name || "Sin Nombre",
+        error: "Empleado activo sin contrato vigente o salario base registrado.",
+        code: "NO_CONTRACT",
+        severity: "BLOCKING",
+      });
+      hasBlockingError = true;
+    }
+
+    // Check Attendance Sessions vs Vacations/Leaves (Detección de Empleados Fantasma)
+    const sessions = await db
+      .select({ id: shiftSessions.id })
+      .from(shiftSessions)
+      .where(
+        and(
+          eq(shiftSessions.userId, emp.userId),
+          gte(shiftSessions.startedAt, start),
+          lte(shiftSessions.startedAt, end)
+        )
+      );
+
+    const vacations = await db
+      .select({ id: vacationRequests.id })
+      .from(vacationRequests)
+      .where(
+        and(
+          eq(vacationRequests.userId, emp.userId),
+          eq(vacationRequests.status, "APPROVED"),
+          gte(vacationRequests.startDate, start),
+          lte(vacationRequests.startDate, end)
+        )
+      );
+
+    if (sessions.length === 0 && vacations.length === 0) {
+      validationErrors.push({
+        userId: emp.userId,
+        employeeName: emp.name || "Sin Nombre",
+        error: `Alerta antifraude: Empleado sin checadas registradas en el período ni vacaciones/incidencias aprobadas (Posible empleado fantasma).`,
+        code: "GHOST_EMPLOYEE",
+        severity: "BLOCKING",
+      });
+      hasBlockingError = true;
+    }
+
+    if (!hasBlockingError) {
+      verifiedEmployees++;
+    }
+
+    // Aggregate financial amounts
+    const daysInPeriod = differenceInDays(parseISO(endDate), parseISO(startDate)) + 1;
+    const baseCents = (emp.baseSalary || 0) * daysInPeriod;
+    totalGrossSalaryCents += baseCents;
+  }
+
+  // Carga social patronal estimada (IMSS + Infonavit + ISN = 35% del salario base) (Módulo 7.3)
+  const totalEmployerSocialSecurityCents = Math.round(totalGrossSalaryCents * 0.35);
+  const totalRealLaborCostCents = totalGrossSalaryCents + totalEmployerSocialSecurityCents + totalTipsCents;
+
+  const blockingErrorsCount = validationErrors.filter((e) => e.severity === "BLOCKING").length;
+
+  return {
+    canStamp: blockingErrorsCount === 0,
+    totalActiveEmployees: activeStaff.length,
+    verifiedEmployees,
+    blockingErrorsCount,
+    validationErrors,
+    financialSummary: {
+      totalGrossSalaryCents,
+      totalTipsCents,
+      totalEmployerSocialSecurityCents,
+      totalRealLaborCostCents,
+    },
+  };
+}
 
 export async function calculateEmployeePayroll(userId: string, startDate: string, endDate: string) {
   // 1. Calculate tips
@@ -42,11 +211,17 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
   const daysInPeriod = differenceInDays(parseISO(endDate), parseISO(startDate)) + 1;
   const baseSalaryCents = (contract?.baseSalary || 0) * daysInPeriod;
 
+  // Carga Patronal Real (35% IMSS/Infonavit/ISN) (Módulo 7.3)
+  const employerSocialSecurityCents = Math.round(baseSalaryCents * 0.35);
+  const realLaborCostCents = baseSalaryCents + employerSocialSecurityCents + tipsCents;
+
   return {
     baseSalaryCents,
     propinasCents: tipsCents,
     totalPercepcionesCents: baseSalaryCents + tipsCents,
     totalDeduccionesCents: 0,
+    employerSocialSecurityCents,
+    realLaborCostCents,
     /** Datos reales del contrato para el CFDI (SBC y fecha de contratación). */
     salarioDiarioCents: contract?.baseSalary || 0,
     fechaContratacion: contract?.startDate
@@ -99,6 +274,18 @@ export async function executePayrollRun(
   /** Quién corrió la nómina. Viaja al timbrado, que ahora deja constancia. */
   performedBy?: string
 ) {
+  // 0. Pre-Flight Validation Check (Módulo 7.1 & 7.2)
+  const validation = await validatePayrollPreStamping(companyId, startDate, endDate);
+  if (!validation.canStamp) {
+    const errorDetails = validation.validationErrors
+      .filter((e) => e.severity === "BLOCKING")
+      .map((e) => `${e.employeeName}: ${e.error}`)
+      .join("; ");
+    throw new Error(
+      `Bloqueo de Nómina Pre-Timbrado: Existen ${validation.blockingErrorsCount} incidencias bloqueantes. [${errorDetails}]`
+    );
+  }
+
   // 1. Create a payroll run
   const [run] = await db.insert(payrollRuns).values({
     companyId,
