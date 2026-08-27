@@ -7,7 +7,7 @@ import {
   paymentRunStatusEnum,
   paymentRunItemTypeEnum 
 } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 export class TreasuryService {
   /**
@@ -30,6 +30,20 @@ export class TreasuryService {
       .returning();
       
     return run;
+  }
+
+  /**
+   * Fetch invoices ready to be paid (MATCHED and UNPAID).
+   */
+  static async getUnpaidMatchedInvoices(companyId: string) {
+    return db.query.invoices.findMany({
+      where: and(
+        eq(invoices.companyId, companyId),
+        eq(invoices.matchStatus, "MATCHED"),
+        eq(invoices.paymentStatus, "PENDING")
+      ),
+      orderBy: (inv, { asc }) => [asc(inv.fecha)],
+    });
   }
 
   /**
@@ -58,6 +72,18 @@ export class TreasuryService {
       await db.update(invoices)
         .set({ paymentStatus: 'PENDING' }) // Actually it remains pending until APPROVED/PAID
         .where(eq(invoices.id, referenceId));
+    }
+
+    // Update the total amount of the payment run
+    const run = await db.query.paymentRuns.findFirst({
+      where: eq(paymentRuns.id, paymentRunId),
+      columns: { totalAmountCents: true }
+    });
+
+    if (run) {
+      await db.update(paymentRuns)
+        .set({ totalAmountCents: run.totalAmountCents + amountCents })
+        .where(eq(paymentRuns.id, paymentRunId));
     }
 
     return item;
@@ -127,5 +153,45 @@ export class TreasuryService {
       where: eq(recurringContracts.companyId, companyId),
       orderBy: (contracts, { asc }) => [asc(contracts.createdAt)],
     });
+  }
+
+  /**
+   * Transition the status of a payment run.
+   */
+  static async updatePaymentRunStatus(
+    paymentRunId: string,
+    newStatus: typeof paymentRunStatusEnum.enumValues[number],
+    userId: string
+  ) {
+    const updateData: any = { status: newStatus };
+    
+    // If it's being approved, record who approved it
+    if (newStatus === "APPROVED") {
+      updateData.approvedBy = userId;
+    }
+
+    const [updatedRun] = await db.update(paymentRuns)
+      .set(updateData)
+      .where(eq(paymentRuns.id, paymentRunId))
+      .returning();
+
+    // If it's completed, we should ideally mark all its invoices as PAID.
+    if (newStatus === "COMPLETED") {
+      const items = await db.query.paymentRunItems.findMany({
+        where: eq(paymentRunItems.paymentRunId, paymentRunId),
+      });
+
+      const invoiceIds = items
+        .filter(i => i.itemType === 'INVOICE')
+        .map(i => i.referenceId);
+
+      if (invoiceIds.length > 0) {
+        await db.update(invoices)
+          .set({ paymentStatus: 'PAID' })
+          .where(inArray(invoices.id, invoiceIds));
+      }
+    }
+
+    return updatedRun;
   }
 }
