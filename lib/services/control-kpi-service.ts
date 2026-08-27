@@ -401,19 +401,19 @@ async function getFoodCostComparison(
   const theoretical: KpiMetric = {
     cents: theoreticalCents,
     percent: theoreticalPercent,
-    status: hasDangerVariance ? "DANGER" : (hasMissingData ? "MISSING_DATA" : (hasData ? "SUCCESS" : null)),
+    status: hasDangerVariance ? "CRITICAL" : (hasMissingData ? "WARNING" : (hasData ? "OK" : null)),
     source: hasData ? "MEASURED" : "NO_DATA",
     note: !hasData
       ? "Requiere venta a nivel platillo en sales_entries; la ingesta de POS solo captura totales por turno en daily_sales_cuts. Sin ese dato no hay teórico — no es 0%."
-      : (hasDangerVariance ? "Existen varianzas en insumos mayores a 3 puntos (DANGER)." : "Costo teórico basado en recetas y ventas."),
+      : (hasDangerVariance ? "Existen varianzas en insumos mayores a 3 puntos (CRITICAL)." : "Costo teórico basado en recetas y ventas."),
     deltaPoints: null,
   };
 
   const gapPoints = computeFoodCostGap(kpis.foodCost.percent, theoretical.percent);
 
-  // El semáforo global del negocio también dependa de que no haya varianzas DANGER.
+  // El semáforo global del negocio también dependa de que no haya varianzas CRITICAL.
   // We override the gap status based on hasDangerVariance.
-  const gapStatus = gapPoints !== null ? (hasDangerVariance ? "DANGER" : "SUCCESS") : null;
+  const gapStatus = gapPoints !== null ? (hasDangerVariance ? "CRITICAL" : "OK") : null;
 
   return {
     real: kpis.foodCost,

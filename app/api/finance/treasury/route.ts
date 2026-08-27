@@ -24,6 +24,50 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     if (error instanceof ApiError) return ApiHandler.error(error);
-    return ApiHandler.internalError(error);
+    return ApiHandler.error(error);
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { ctx } = await requirePermissionApi("reports", "create", {
+      classification: "FINANCIAL",
+      audit: { action: "UPDATE", req },
+    });
+
+    const companyId = ctx.userCompanyId;
+    const userId = ctx.userId;
+    const body = await req.json();
+
+    if (body.action === "CREATE_PAYMENT_RUN") {
+      const { title, runDate } = body.payload;
+      const run = await TreasuryService.createPaymentRun(
+        companyId,
+        title,
+        new Date(runDate),
+        userId
+      );
+      return ApiHandler.success({ run });
+    }
+
+    if (body.action === "CREATE_RECURRING_CONTRACT") {
+      const { branchId, supplierId, title, contractType, baseAmountCents, startDate } = body.payload;
+      const contract = await TreasuryService.createRecurringContract(
+        companyId,
+        branchId || null,
+        supplierId,
+        title,
+        contractType,
+        baseAmountCents,
+        new Date(startDate),
+        userId
+      );
+      return ApiHandler.success({ contract });
+    }
+
+    return ApiHandler.error(ApiError.badRequest("Invalid action"));
+  } catch (error: any) {
+    if (error instanceof ApiError) return ApiHandler.error(error);
+    return ApiHandler.error(error);
   }
 }

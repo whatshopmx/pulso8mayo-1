@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Loader2, Plus, RefreshCw, Wallet, FileText, ArrowRight } from "lucide-react";
+import { CreatePaymentRunModal } from "./create-payment-run-modal";
+import { CreateRecurringContractModal } from "./create-recurring-contract-modal";
 
 export function TreasuryDashboard() {
   const [data, setData] = useState<{ paymentRuns: any[]; recurringContracts: any[] } | null>(null);
@@ -74,9 +76,12 @@ export function TreasuryDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold tracking-tight">Panel de Tesorería</h2>
-        <Button variant="outline" size="sm" onClick={() => load(true)}>
-          <RefreshCw className="mr-2 h-4 w-4" /> Actualizar
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm" onClick={() => load(true)}>
+            <RefreshCw className="mr-2 h-4 w-4" /> Actualizar
+          </Button>
+          <CreatePaymentRunModal onSuccess={() => load(true)} />
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -95,11 +100,7 @@ export function TreasuryDashboard() {
                 icon={Wallet}
                 title="Sin corridas programadas"
                 description="No hay corridas de pago pendientes."
-                action={
-                  <Button variant="secondary" size="sm">
-                    <Plus className="mr-2 h-4 w-4" /> Crear Corrida
-                  </Button>
-                }
+                action={<CreatePaymentRunModal onSuccess={() => load(true)} />}
               />
             ) : (
               <div className="space-y-4 pt-4">
@@ -160,11 +161,7 @@ export function TreasuryDashboard() {
                 icon={FileText}
                 title="Sin contratos registrados"
                 description="Registra la renta mensual o CFE para habilitar alertas."
-                action={
-                  <Button variant="secondary" size="sm">
-                    <Plus className="mr-2 h-4 w-4" /> Nuevo Contrato
-                  </Button>
-                }
+                action={<CreateRecurringContractModal onSuccess={() => load(true)} />}
               />
             ) : (
               <div className="space-y-4 pt-4">
@@ -194,7 +191,11 @@ export function TreasuryDashboard() {
                     ))}
                   </TableBody>
                 </Table>
-                <div className="flex justify-end">
+                <div className="flex justify-end space-x-2">
+                  <CreateRecurringContractModal 
+                    onSuccess={() => load(true)} 
+                    trigger={<Button variant="outline" size="sm"><Plus className="mr-2 h-4 w-4" /> Registrar Otro</Button>}
+                  />
                   <Button variant="ghost" size="sm">
                     Administrar contratos <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
