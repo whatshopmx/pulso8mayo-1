@@ -154,7 +154,7 @@ export default function FinanceOverviewPage() {
       <div className="space-y-5">
         {SECTION_GROUPS.map((group) => (
           <section key={group.label}>
-            <h2 className="text-sm font-semibold text-muted-foreground mb-3">{group.label}</h2>
+            <h2 className="text-sm font-semibold text-foreground/80 mb-3">{group.label}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {group.items.map((section) => (
                 <Link
@@ -162,7 +162,7 @@ export default function FinanceOverviewPage() {
                   href={section.href}
                   className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <Card className="h-full transition-colors hover:bg-muted/50">
+                  <Card className="h-full transition-all duration-150 hover:bg-muted/40 hover:border-muted-foreground/30">
                     <CardContent className="flex items-start gap-3 p-4">
                       <span className="mt-0.5 shrink-0 rounded-md border border-border p-2 text-primary">
                         <section.icon className="w-4 h-4" />

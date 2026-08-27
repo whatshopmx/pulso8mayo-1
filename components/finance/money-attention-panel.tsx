@@ -222,6 +222,17 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
     load();
   }, [load]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && (e.key === "r" || e.key === "R")) {
+        e.preventDefault();
+        load();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [load]);
+
   const VISIBLE_LIMIT = 8;
   const visible = items?.slice(0, VISIBLE_LIMIT) ?? [];
   const highCount = items?.filter((i) => i.severity === "HIGH").length ?? 0;
@@ -248,16 +259,21 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
               Excepciones de control interno, gastos sin autorizar y arqueos que no cuadran.
             </CardDescription>
           </div>
-          {items !== null && items.length > 0 && (
-            <span
-              className={`self-start text-xs px-2 py-1 rounded-full border ${statusBadgeClasses(
-                escalated ? "destructive" : "warning",
-              )}`}
-            >
-              {items.length} pendiente{items.length === 1 ? "" : "s"}
-              {escalated ? ` · ${highCount} crítico${highCount === 1 ? "" : "s"}` : ""}
-            </span>
-          )}
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-mono text-muted-foreground bg-muted border border-border rounded cursor-help" title="Atajo de teclado: Recargar alertas">
+              Alt+R
+            </kbd>
+            {items !== null && items.length > 0 && (
+              <span
+                className={`text-xs px-2 py-1 rounded-full border ${statusBadgeClasses(
+                  escalated ? "destructive" : "warning",
+                )}`}
+              >
+                {items.length} pendiente{items.length === 1 ? "" : "s"}
+                {escalated ? ` · ${highCount} crítico${highCount === 1 ? "" : "s"}` : ""}
+              </span>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>

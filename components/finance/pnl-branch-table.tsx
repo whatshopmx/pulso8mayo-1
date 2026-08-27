@@ -649,7 +649,7 @@ export function PnlBranchTable() {
                             MARKER[item.waste.source] || ""
                           }.`;
                     return (
-                      <TableRow key={item.branchId} className="hover:bg-muted/40 transition text-xs">
+                      <TableRow key={item.branchId} className="hover:bg-muted/40 focus-within:bg-muted/40 transition text-xs">
                         <TableCell className="font-medium">
                           <Link
                             href={`/dashboard/branches?branchId=${item.branchId}`}
