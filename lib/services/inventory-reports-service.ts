@@ -8,8 +8,9 @@ import {
     recipes,
     recipeItems,
     branches,
+    stockCounts,
 } from "@/lib/db/schema";
-import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, gt, sql, inArray, desc } from "drizzle-orm";
 import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
 
 // ---------------------------------------------------------------------------
@@ -27,12 +28,12 @@ export interface UsageReportRow {
     itemName: string;
     sku?: string;
     unit: string;
-    beginningQty: number;
+    beginningQty: number | null;
     receivedQty: number;
-    endingQty: number;
-    usageQty: number;
+    endingQty: number | null;
+    usageQty: number | null;
     unitCostCents: number;
-    usageCostCents: number;
+    usageCostCents: number | null;
 }
 
 export interface UsageReport {
@@ -138,33 +139,60 @@ interface RecipeCostIndex {
 export class InventoryReportsService {
     /**
      * Uso por insumo en un periodo: Inicial + Compras − Final = Uso.
-     * El saldo inicial/final se deriva de la suma acumulada de movimientos
-     * (`inventory_movements`), no de lotes, para capturar ajustes y mermas
-     * aunque los lotes ya se hayan cerrado.
+     * Toma el Inicial y Final de los conteos físicos (stock_counts) y las
+     * compras de los movimientos de tipo RECEIVING.
      */
     static async getUsageReport(
         branchId: string,
         startDate: Date,
         endDate: Date
     ): Promise<UsageReport> {
-        const movements = await db.select({
-            itemId: inventoryMovements.itemId,
-            opening: sql<string>`coalesce(sum(case when ${inventoryMovements.timestamp} < ${startDate} then ${inventoryMovements.quantityChange} else 0 end), 0)`,
-            periodChange: sql<string>`coalesce(sum(case when ${inventoryMovements.timestamp} <= ${endDate} then ${inventoryMovements.quantityChange} else 0 end), 0)`,
-            received: sql<string>`coalesce(sum(case when ${inventoryMovements.timestamp} between ${startDate} and ${endDate} and ${inventoryMovements.type} = 'RECEIVING' then ${inventoryMovements.quantityChange} else 0 end), 0)`,
-        })
-            .from(inventoryMovements)
-            .where(and(
-                eq(inventoryMovements.branchId, branchId),
-                lte(inventoryMovements.timestamp, endDate),
-            ))
-            .groupBy(inventoryMovements.itemId);
+        const startStr = startDate.toISOString().split('T')[0];
+        const endStr = endDate.toISOString().split('T')[0];
 
-        // Filtrar ítems sin actividad en el periodo: el reporte es de uso,
-        // no del catálogo completo. Un ítem puede tener periodo neto en cero
-        // pero actividad real (recibió y consumió lo mismo).
-        const active = movements.filter(m => Number(m.periodChange) !== 0 || Number(m.received) !== 0);
-        if (active.length === 0) {
+        const initialCounts = await db.selectDistinctOn([stockCounts.itemId], {
+            itemId: stockCounts.itemId,
+            qty: stockCounts.countedQuantity
+        })
+        .from(stockCounts)
+        .where(and(
+            eq(stockCounts.branchId, branchId),
+            lte(stockCounts.countDate, startStr)
+        ))
+        .orderBy(stockCounts.itemId, desc(stockCounts.countDate));
+
+        const finalCounts = await db.selectDistinctOn([stockCounts.itemId], {
+            itemId: stockCounts.itemId,
+            qty: stockCounts.countedQuantity
+        })
+        .from(stockCounts)
+        .where(and(
+            eq(stockCounts.branchId, branchId),
+            lte(stockCounts.countDate, endStr),
+            gt(stockCounts.countDate, startStr)
+        ))
+        .orderBy(stockCounts.itemId, desc(stockCounts.countDate));
+
+        const receivedRows = await db.select({
+            itemId: inventoryMovements.itemId,
+            received: sql<string>`coalesce(sum(${inventoryMovements.quantityChange}), 0)`,
+        })
+        .from(inventoryMovements)
+        .where(and(
+            eq(inventoryMovements.branchId, branchId),
+            gte(inventoryMovements.timestamp, startDate),
+            lte(inventoryMovements.timestamp, endDate),
+            eq(inventoryMovements.type, 'RECEIVING')
+        ))
+        .groupBy(inventoryMovements.itemId);
+
+        const allItemIds = new Set([
+            ...initialCounts.map(c => c.itemId),
+            ...finalCounts.map(c => c.itemId),
+            ...receivedRows.map(c => c.itemId)
+        ]);
+
+        if (allItemIds.size === 0) {
             return {
                 branchId,
                 period: { start: startDate.toISOString(), end: endDate.toISOString() },
@@ -175,42 +203,49 @@ export class InventoryReportsService {
 
         const items = await db.select()
             .from(inventoryItems)
-            .where(inArray(inventoryItems.id, active.map(m => m.itemId)));
+            .where(inArray(inventoryItems.id, [...allItemIds]));
         const itemMap = new Map(items.map(i => [i.id, i]));
+
+        const initialMap = new Map(initialCounts.map(c => [c.itemId, Number(c.qty)]));
+        const finalMap = new Map(finalCounts.map(c => [c.itemId, Number(c.qty)]));
+        const receivedMap = new Map(receivedRows.map(c => [c.itemId, Number(c.received)]));
 
         const rows: UsageReportRow[] = [];
         let totalUsageCostCents = 0;
 
-        for (const m of active) {
-            const item = itemMap.get(m.itemId);
+        for (const itemId of allItemIds) {
+            const item = itemMap.get(itemId);
             if (!item) continue;
 
-            const beginningQty = Number(m.opening);
-            const endingQty = beginningQty + Number(m.periodChange);
-            const receivedQty = Number(m.received);
-            // Uso = Inicial + Compras − Final. Equivale al consumo neto del
-            // periodo, pero deja explícitos los tres términos de la fórmula.
-            const usageQty = beginningQty + receivedQty - endingQty;
-
+            const beginningQty = initialMap.has(itemId) ? initialMap.get(itemId)! : null;
+            const endingQty = finalMap.has(itemId) ? finalMap.get(itemId)! : null;
+            const receivedQty = receivedMap.get(itemId) ?? 0;
+            
+            let usageQty: number | null = null;
+            let usageCostCents: number | null = null;
             const unitCostCents = itemUnitCost(item);
-            const usageCostCents = Math.round(usageQty * unitCostCents);
-            totalUsageCostCents += usageCostCents;
+
+            if (beginningQty !== null && endingQty !== null) {
+                usageQty = beginningQty + receivedQty - endingQty;
+                usageCostCents = Math.round(usageQty * unitCostCents);
+                totalUsageCostCents += usageCostCents;
+            }
 
             rows.push({
-                itemId: m.itemId,
+                itemId: itemId,
                 itemName: item.name,
                 sku: item.sku || undefined,
                 unit: item.unit,
-                beginningQty: r4(beginningQty),
+                beginningQty: beginningQty !== null ? r4(beginningQty) : null,
                 receivedQty: r4(receivedQty),
-                endingQty: r4(endingQty),
-                usageQty: r4(usageQty),
+                endingQty: endingQty !== null ? r4(endingQty) : null,
+                usageQty: usageQty !== null ? r4(usageQty) : null,
                 unitCostCents,
                 usageCostCents,
             });
         }
 
-        rows.sort((a, b) => b.usageCostCents - a.usageCostCents);
+        rows.sort((a, b) => (b.usageCostCents ?? 0) - (a.usageCostCents ?? 0));
 
         return {
             branchId,

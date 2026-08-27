@@ -357,45 +357,70 @@ async function getFoodCostComparison(
 ): Promise<FoodCostComparison> {
   const { startDate, endDate } = monthBounds(month);
 
-  const [kpis, entryRows] = await Promise.all([
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T23:59:59Z`);
+
+  const [kpis, branchRows] = await Promise.all([
     calculateFinancialKPIs({
       companyId,
       branchId: branchId ?? undefined,
       startDate,
       endDate,
     }),
-    // Se cuenta en vez de asumir: si algún día la ingesta empieza a poblar
-    // sales_entries, la nota lo dice sola y queda claro qué falta implementar.
-    db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(salesEntries)
-      .where(
-        and(
-          eq(salesEntries.companyId, companyId),
-          branchId ? eq(salesEntries.branchId, branchId) : undefined,
-          sql`to_char(${salesEntries.saleDate}, 'YYYY-MM') = ${month}`,
-        ),
-      ),
+    db.select({ id: branches.id })
+      .from(branches)
+      .where(and(eq(branches.companyId, companyId), branchId ? eq(branches.id, branchId) : undefined))
   ]);
 
-  const entriesInMonth = Number(entryRows[0]?.n ?? 0);
+  let theoreticalCents = 0;
+  let hasMissingData = false;
+  let hasDangerVariance = false;
+  let hasData = false;
+
+  const bIds = branchRows.map(b => b.id);
+  
+  // We need ReportsService dynamically imported or imported at the top.
+  // Actually, I can just use it if I add the import at the top of the file.
+  const { ReportsService } = await import('@/lib/services/reports-service');
+
+  for (const bId of bIds) {
+    const varianceReport = await ReportsService.getVarianceReport(bId, start, end);
+    if (varianceReport.length > 0) {
+      hasData = true;
+    }
+    for (const row of varianceReport) {
+      theoreticalCents += row.theoreticalCostCents;
+      if (row.status === "MISSING_DATA") hasMissingData = true;
+      if (row.status === "DANGER") hasDangerVariance = true;
+    }
+  }
+
+  const salesCents = kpis.totalSalesCents;
+  const theoreticalPercent = (salesCents > 0 && hasData) ? Number(((theoreticalCents / salesCents) * 100).toFixed(1)) : null;
+
   const theoretical: KpiMetric = {
-    cents: 0,
-    percent: null,
-    status: null,
-    source: "NO_DATA",
-    note:
-      entriesInMonth === 0
-        ? "Requiere venta a nivel platillo en sales_entries; la ingesta de POS solo captura totales por turno en daily_sales_cuts. Sin ese dato no hay teórico — no es 0%."
-        : `Hay ${entriesInMonth} venta(s) por platillo en el mes, pero el costeo teórico contra recetas todavía no está conectado a este reporte.`,
+    cents: theoreticalCents,
+    percent: theoreticalPercent,
+    status: hasDangerVariance ? "DANGER" : (hasMissingData ? "MISSING_DATA" : (hasData ? "SUCCESS" : null)),
+    source: hasData ? "MEASURED" : "NO_DATA",
+    note: !hasData
+      ? "Requiere venta a nivel platillo en sales_entries; la ingesta de POS solo captura totales por turno en daily_sales_cuts. Sin ese dato no hay teórico — no es 0%."
+      : (hasDangerVariance ? "Existen varianzas en insumos mayores a 3 puntos (DANGER)." : "Costo teórico basado en recetas y ventas."),
     deltaPoints: null,
   };
+
+  const gapPoints = computeFoodCostGap(kpis.foodCost.percent, theoretical.percent);
+
+  // El semáforo global del negocio también dependa de que no haya varianzas DANGER.
+  // We override the gap status based on hasDangerVariance.
+  const gapStatus = gapPoints !== null ? (hasDangerVariance ? "DANGER" : "SUCCESS") : null;
 
   return {
     real: kpis.foodCost,
     theoretical,
-    gapPoints: computeFoodCostGap(kpis.foodCost.percent, theoretical.percent),
-    salesCents: kpis.totalSalesCents,
+    gapPoints,
+    status: gapStatus,
+    salesCents,
   };
 }
 

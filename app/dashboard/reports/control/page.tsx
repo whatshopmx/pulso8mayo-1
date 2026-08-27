@@ -360,6 +360,11 @@ export default function ControlReportPage() {
                         ? "—"
                         : `${foodCost.gapPoints > 0 ? "+" : ""}${foodCost.gapPoints} pp`}
                     </p>
+                    {foodCost?.status && (
+                      <div className="mt-1">
+                        <StatusBadge status={foodCost.status} />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">{foodCost?.real.note}</p>

@@ -17,10 +17,10 @@ Auditoría origen: artifact "Brechas de Egresos y FEFO" (26 ago 2026) — 7 cubi
 
 ## Phase 1: La verdad del consumo
 
-- [ ] Task 1: Consumo real desde el conteo físico, no desde los movimientos (M)
-- [ ] Task 2: Restar la merma registrada y excluir transferencias (S)
-- [ ] Task 3: Semáforos del §9.2 + borrar `CostingService.getVarianceReport` (M)
-- [ ] Task 4: Brecha food cost real vs teórico en el reporte de control (M)
+- [x] Task 1: Consumo real desde el conteo físico, no desde los movimientos (M)
+- [x] Task 2: Restar la merma registrada y excluir transferencias (S)
+- [x] Task 3: Semáforos del §9.2 + borrar `CostingService.getVarianceReport` (M)
+- [x] Task 4: Brecha food cost real vs teórico en el reporte de control (M)
 
 **Checkpoint:** varianza verificable a mano; una merma registrada la baja en vez de subirla. **Revisión humana antes de seguir.**
 

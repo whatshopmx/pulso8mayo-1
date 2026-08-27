@@ -228,6 +228,8 @@ export interface FoodCostComparison {
   theoretical: KpiMetric;
   /** real − teórico, en puntos porcentuales. `null` si falta cualquiera de los dos. */
   gapPoints: number | null;
+  /** Semáforo global de la brecha. */
+  status?: SemaphoreStatus | null;
   salesCents: number;
 }
 

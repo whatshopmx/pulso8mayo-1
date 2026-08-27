@@ -1,6 +1,9 @@
 import { db } from "@/lib/db";
 import { salesEntries, recipes, recipeItems, inventoryItems, inventoryMovements } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { InventoryReportsService } from "./inventory-reports-service";
+
+export type SemaphoreStatus = "SUCCESS" | "WARNING" | "DANGER" | "MISSING_DATA";
 
 export interface VarianceReportRow {
     itemId: string;
@@ -8,15 +11,17 @@ export interface VarianceReportRow {
     sku?: string;
     unit: string;
     theoreticalQty: number;
-    actualQty: number;
-    varianceQty: number; // actual - theoretical
-    variancePercent: number; // (variance / theoretical) * 100
-    // Extensión a dinero (centavos): la varianza en cantidad no dice cuánto
-    // duele; multiplicar por el costo unitario vigente sí.
+    actualQty: number | null;
+    wasteQty: number;
+    transfersOutQty: number;
+    varianceQty: number | null; // actualQty - wasteQty - transfersOutQty - theoreticalQty
+    variancePercent: number | null; // (varianceQty / theoreticalQty) * 100
     unitCostCents: number;
     theoreticalCostCents: number;
-    actualCostCents: number;
-    varianceCostCents: number;
+    actualCostCents: number | null;
+    varianceCostCents: number | null;
+    status: SemaphoreStatus;
+    actionableNote?: string;
 }
 
 export class ReportsService {
@@ -47,28 +52,45 @@ export class ReportsService {
             await this.accumulateTheoretical(sale.recipeId, qtySold, theoreticalMap);
         }
 
-        // 3. Calculate Actual Consumption per Item (sum of all negative movements in the period)
-        const movements = await db.select()
-            .from(inventoryMovements)
-            .where(
-                and(
-                    eq(inventoryMovements.branchId, branchId),
-                    gte(inventoryMovements.timestamp, startDate),
-                    lte(inventoryMovements.timestamp, endDate),
-                    sql`${inventoryMovements.quantityChange} < 0` // negative changes mean reductions
-                )
-            );
+        // 3. Get Actual Usage from Inventory Reports Service (Initial + Purchases - Final)
+        const usageReport = await InventoryReportsService.getUsageReport(branchId, startDate, endDate);
+        const usageMap = new Map(usageReport.rows.map(r => [r.itemId, r]));
 
-        const actualMap: Record<string, number> = {};
-        for (const mov of movements) {
-            const consumed = -mov.quantityChange; // convert to positive amount consumed
-            actualMap[mov.itemId] = (actualMap[mov.itemId] || 0) + consumed;
+        // 4. Fetch waste and transfers out to subtract from usage
+        const nonConsumptionMovements = await db.select({
+            itemId: inventoryMovements.itemId,
+            type: inventoryMovements.type,
+            qty: sql<string>`coalesce(sum(${inventoryMovements.quantityChange}), 0)`
+        })
+        .from(inventoryMovements)
+        .where(
+            and(
+                eq(inventoryMovements.branchId, branchId),
+                gte(inventoryMovements.timestamp, startDate),
+                lte(inventoryMovements.timestamp, endDate),
+                sql`(${inventoryMovements.type} = 'TRANSFER' AND ${inventoryMovements.quantityChange} < 0) OR (${inventoryMovements.type} = 'WASTE' AND coalesce(${inventoryMovements.reason}, '') NOT IN ('STAFF', 'COURTESY'))`
+            )
+        )
+        .groupBy(inventoryMovements.itemId, inventoryMovements.type);
+
+        const wasteMap = new Map<string, number>();
+        const transfersOutMap = new Map<string, number>();
+
+        for (const mov of nonConsumptionMovements) {
+            const qty = Math.abs(parseFloat(mov.qty));
+            if (mov.type === 'WASTE') {
+                wasteMap.set(mov.itemId, (wasteMap.get(mov.itemId) || 0) + qty);
+            } else if (mov.type === 'TRANSFER') {
+                transfersOutMap.set(mov.itemId, (transfersOutMap.get(mov.itemId) || 0) + qty);
+            }
         }
 
-        // 4. Metadata de insumos en una sola consulta (evita N+1 por fila).
+        // 5. Metadata de insumos en una sola consulta
         const allItemIds = new Set([
             ...Object.keys(theoreticalMap),
-            ...Object.keys(actualMap)
+            ...usageReport.rows.map(r => r.itemId),
+            ...wasteMap.keys(),
+            ...transfersOutMap.keys()
         ]);
 
         const itemRows = allItemIds.size > 0
@@ -87,13 +109,47 @@ export class ReportsService {
             const sku = theoreticalMap[itemId]?.sku ?? item?.sku ?? undefined;
 
             const theoreticalQty = theoreticalMap[itemId]?.qty || 0;
-            const actualQty = actualMap[itemId] || 0;
-            const varianceQty = actualQty - theoreticalQty;
-            const variancePercent = theoreticalQty > 0 ? (varianceQty / theoreticalQty) * 100 : 0;
+            const usageRow = usageMap.get(itemId);
+            const actualQty = usageRow?.usageQty ?? null;
+            
+            const wasteQty = wasteMap.get(itemId) || 0;
+            const transfersOutQty = transfersOutMap.get(itemId) || 0;
 
             const unitCostCents = item
                 ? (item.averageCost ?? item.lastCost ?? item.standardCost ?? 0)
                 : 0;
+            const theoreticalCostCents = Math.round(theoreticalQty * unitCostCents);
+
+            let varianceQty: number | null = null;
+            let variancePercent: number | null = null;
+            let actualCostCents: number | null = null;
+            let varianceCostCents: number | null = null;
+            let status: SemaphoreStatus = "MISSING_DATA";
+            let actionableNote: string | undefined = undefined;
+
+            if (actualQty === null) {
+                actionableNote = "Falta conteo físico inicial o final en este periodo.";
+            } else {
+                varianceQty = actualQty - wasteQty - transfersOutQty - theoreticalQty;
+                
+                if (theoreticalQty > 0) {
+                    variancePercent = (varianceQty / theoreticalQty) * 100;
+                } else {
+                    variancePercent = varianceQty === 0 ? 0 : 100; // Flag significant unrecorded usage
+                }
+
+                actualCostCents = Math.round(actualQty * unitCostCents);
+                varianceCostCents = Math.round(varianceQty * unitCostCents);
+
+                const absPercent = Math.abs(variancePercent);
+                if (absPercent < 1.5) {
+                    status = "SUCCESS";
+                } else if (absPercent <= 3.0) {
+                    status = "WARNING";
+                } else {
+                    status = "DANGER";
+                }
+            }
 
             report.push({
                 itemId,
@@ -101,18 +157,27 @@ export class ReportsService {
                 sku,
                 unit,
                 theoreticalQty: parseFloat(theoreticalQty.toFixed(4)),
-                actualQty: parseFloat(actualQty.toFixed(4)),
-                varianceQty: parseFloat(varianceQty.toFixed(4)),
-                variancePercent: parseFloat(variancePercent.toFixed(2)),
+                actualQty: actualQty !== null ? parseFloat(actualQty.toFixed(4)) : null,
+                wasteQty: parseFloat(wasteQty.toFixed(4)),
+                transfersOutQty: parseFloat(transfersOutQty.toFixed(4)),
+                varianceQty: varianceQty !== null ? parseFloat(varianceQty.toFixed(4)) : null,
+                variancePercent: variancePercent !== null ? parseFloat(variancePercent.toFixed(2)) : null,
                 unitCostCents,
-                theoreticalCostCents: Math.round(theoreticalQty * unitCostCents),
-                actualCostCents: Math.round(actualQty * unitCostCents),
-                varianceCostCents: Math.round(varianceQty * unitCostCents),
+                theoreticalCostCents,
+                actualCostCents,
+                varianceCostCents,
+                status,
+                actionableNote,
             });
         }
 
-        // La varianza que duele primero: ordenar por impacto en dinero.
-        report.sort((a, b) => Math.abs(b.varianceCostCents) - Math.abs(a.varianceCostCents));
+        // Ordenar por impacto en dinero (descendente), y luego los de missing data
+        report.sort((a, b) => {
+            if (a.varianceCostCents === null && b.varianceCostCents === null) return 0;
+            if (a.varianceCostCents === null) return 1;
+            if (b.varianceCostCents === null) return -1;
+            return Math.abs(b.varianceCostCents) - Math.abs(a.varianceCostCents);
+        });
 
         return report;
     }
