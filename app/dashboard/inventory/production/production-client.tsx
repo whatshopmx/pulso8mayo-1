@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, CookingPot, Lightbulb, ClipboardList, Package, Timer } from "lucide-react";
-// Task 5 (plan-loteprod-gaps §6.4): producto cocinado dentro/fuera de su ventana en línea.
+import { Loader2, Plus, CookingPot, Lightbulb, ClipboardList, Package, Timer, ChefHat, AlertTriangle, Layers } from "lucide-react";
+import { PrepListBoard } from "@/components/inventory/prep-list-board";
 import { HoldTimeBoard } from "@/components/inventory/hold-time-board";
 import { toast } from "sonner";
 
@@ -39,56 +39,106 @@ interface Suggestion {
     currentStock: number;
 }
 
+interface FefoAllocationItem {
+    itemId: string;
+    itemName: string;
+    requiredQuantity: number;
+    unit: string;
+    allocations: Array<{
+        batchId: string;
+        lotNumber: string;
+        expirationDate: string | null;
+        quantity: number;
+    }>;
+    allocatedQuantity: number;
+    shortfall: number;
+}
+
 export function ProductionClient({ branchId }: { branchId: string }) {
     const [orders, setOrders] = useState<ProductionOrder[]>([]);
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [recipes, setRecipes] = useState<Recipe[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState("plan");
+    const [activeTab, setActiveTab] = useState("prep-list");
     const [isOrderOpen, setIsOrderOpen] = useState(false);
     const [isRecordOpen, setIsRecordOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
-    // Form state
+    // Form state for creating orders
     const [recipeId, setRecipeId] = useState("");
     const [plannedQty, setPlannedQty] = useState(1);
     const [plannedDate, setPlannedDate] = useState(new Date().toISOString().split("T")[0]);
     const [orderNotes, setOrderNotes] = useState("");
 
-    // Record form state
+    // Record form state with live FEFO preview
     const [recordRecipeId, setRecordRecipeId] = useState("");
     const [producedQty, setProducedQty] = useState(1);
     const [recordNotes, setRecordNotes] = useState("");
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const [fefoPreview, setFefoPreview] = useState<FefoAllocationItem[]>([]);
 
-    const fetchOrders = async () => {
+    const fetchOrders = useCallback(async () => {
         try {
             const res = await fetch(`/api/inventory/production?branchId=${branchId}`);
             const data = await res.json();
             if (res.ok) setOrders(data.orders || []);
         } catch { toast.error("Error al cargar órdenes"); }
-    };
+    }, [branchId]);
 
-    const fetchSuggestions = async () => {
+    const fetchSuggestions = useCallback(async () => {
         try {
             const res = await fetch(`/api/inventory/production/suggestions?branchId=${branchId}`);
             const data = await res.json();
             if (res.ok) setSuggestions(data.suggestions || []);
         } catch { toast.error("Error al cargar sugerencias"); }
-    };
+    }, [branchId]);
 
-    const fetchRecipes = async () => {
+    const fetchRecipes = useCallback(async () => {
         try {
             const res = await fetch("/api/inventory/recipes");
             const data = await res.json();
             if (res.ok) setRecipes(Array.isArray(data) ? data : data.recipes || []);
         } catch { /* ignore */ }
-    };
+    }, []);
 
     useEffect(() => {
         setLoading(true);
         Promise.all([fetchOrders(), fetchSuggestions(), fetchRecipes()])
             .finally(() => setLoading(false));
-    }, [branchId]);
+    }, [fetchOrders, fetchSuggestions, fetchRecipes]);
+
+    // Consultar vista previa FEFO cuando cambia la receta o la cantidad a registrar
+    useEffect(() => {
+        if (!isRecordOpen || !recordRecipeId || producedQty <= 0) {
+            setFefoPreview([]);
+            return;
+        }
+
+        let cancelled = false;
+        setPreviewLoading(true);
+
+        const fetchPreview = async () => {
+            try {
+                const res = await fetch(
+                    `/api/inventory/production?branchId=${branchId}&preview=true&recipeId=${recordRecipeId}&quantity=${producedQty}`
+                );
+                const data = await res.json();
+                if (!cancelled && res.ok && data.success) {
+                    setFefoPreview(data.preview || []);
+                }
+            } catch (err) {
+                console.error("Error fetching FEFO preview:", err);
+            } finally {
+                if (!cancelled) setPreviewLoading(false);
+            }
+        };
+
+        const timer = setTimeout(fetchPreview, 250);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [isRecordOpen, recordRecipeId, producedQty, branchId]);
 
     const handleCreateOrder = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -132,6 +182,7 @@ export function ProductionClient({ branchId }: { branchId: string }) {
         }
         setSubmitting(true);
         try {
+            const selectedRecipe = recipes.find(r => r.id === recordRecipeId);
             const res = await fetch("/api/inventory/production", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -140,20 +191,28 @@ export function ProductionClient({ branchId }: { branchId: string }) {
                     branchId,
                     recipeId: recordRecipeId,
                     producedQuantity: producedQty,
+                    unit: selectedRecipe?.unit || "PORTION",
                     notes: recordNotes,
-                    ingredients: [],
                 }),
             });
-            if (res.ok) {
-                toast.success("Producción registrada");
+            const data = await res.json();
+            if (res.ok && data.success) {
+                const cost = data.result?.ingredientCost;
+                const costStr = cost ? ` ($${(cost / 100).toFixed(2)})` : "";
+                toast.success(`Producción registrada con éxito por FEFO${costStr}`);
+
+                if (data.result?.shortfalls?.length > 0) {
+                    toast.warning("Algunos insumos tuvieron faltante de lote y se registraron en merma");
+                }
+
                 setIsRecordOpen(false);
                 setRecordRecipeId("");
                 setProducedQty(1);
                 setRecordNotes("");
+                setFefoPreview([]);
                 fetchOrders();
             } else {
-                const err = await res.json();
-                toast.error(err.error || "Error al registrar");
+                toast.error(data.error || "Error al registrar producción");
             }
         } catch { toast.error("Error al registrar producción"); }
         finally { setSubmitting(false); }
@@ -177,8 +236,12 @@ export function ProductionClient({ branchId }: { branchId: string }) {
 
     return (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <TabsList>
+                    <TabsTrigger value="prep-list" className="gap-2">
+                        <ChefHat className="w-4 h-4" />
+                        Prep List Diaria
+                    </TabsTrigger>
                     <TabsTrigger value="plan" className="gap-2">
                         <ClipboardList className="w-4 h-4" />
                         Órdenes
@@ -200,35 +263,103 @@ export function ProductionClient({ branchId }: { branchId: string }) {
                                 Registrar Producción
                             </Button>
                         </DialogTrigger>
-                        <DialogContent>
+                        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle>Registrar Producción</DialogTitle>
+                                <DialogDescription>
+                                    Produce una receta descontando automáticamente los insumos por fecha de caducidad (FEFO).
+                                </DialogDescription>
                             </DialogHeader>
                             <form onSubmit={handleRecordProduction} className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label>Receta *</Label>
+                                    <Label htmlFor="recipe-select">Receta *</Label>
                                     <Select value={recordRecipeId} onValueChange={setRecordRecipeId}>
-                                        <SelectTrigger><SelectValue placeholder="Seleccionar receta" /></SelectTrigger>
+                                        <SelectTrigger id="recipe-select">
+                                            <SelectValue placeholder="Seleccionar receta" />
+                                        </SelectTrigger>
                                         <SelectContent>
                                             {recipes.map(r => (
-                                                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                                <SelectItem key={r.id} value={r.id}>{r.name} ({r.unit})</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Cantidad Producida *</Label>
-                                    <Input type="number" min={1} value={producedQty} onChange={e => setProducedQty(Number(e.target.value))} required />
+                                    <Label htmlFor="quantity-input">Cantidad Producida *</Label>
+                                    <Input
+                                        id="quantity-input"
+                                        type="number"
+                                        min={1}
+                                        value={producedQty}
+                                        onChange={e => setProducedQty(Math.max(1, Number(e.target.value)))}
+                                        required
+                                    />
                                 </div>
+
+                                {/* Vista Previa FEFO de Lotes a Descontar */}
+                                {recordRecipeId && (
+                                    <div className="border rounded-lg p-3 bg-muted/20 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                                                <Layers className="size-3.5 text-primary" />
+                                                Lotes a descontar (Asignación FEFO)
+                                            </span>
+                                            {previewLoading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
+                                        </div>
+
+                                        {previewLoading ? (
+                                            <p className="text-xs text-muted-foreground py-2 text-center">Calculando asignación de lotes...</p>
+                                        ) : fefoPreview.length === 0 ? (
+                                            <p className="text-xs text-muted-foreground py-1">Esta receta no tiene insumos configurados.</p>
+                                        ) : (
+                                            <div className="space-y-2 max-h-48 overflow-y-auto text-xs">
+                                                {fefoPreview.map((item) => (
+                                                    <div key={item.itemId} className="p-2 border rounded bg-card space-y-1">
+                                                        <div className="flex justify-between font-medium">
+                                                            <span>{item.itemName}</span>
+                                                            <span>{item.requiredQuantity.toFixed(2)} {item.unit}</span>
+                                                        </div>
+
+                                                        {item.allocations.length > 0 ? (
+                                                            <div className="space-y-0.5 text-muted-foreground">
+                                                                {item.allocations.map((a, idx) => (
+                                                                    <div key={idx} className="flex justify-between font-mono text-[11px]">
+                                                                        <span>Lote: {a.lotNumber} {a.expirationDate ? `(Vence ${new Date(a.expirationDate).toLocaleDateString()})` : ""}</span>
+                                                                        <span>-{a.quantity.toFixed(2)} {item.unit}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-destructive text-[11px] font-mono">Sin lotes con saldo disponible</p>
+                                                        )}
+
+                                                        {item.shortfall > 0 && (
+                                                            <div className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium pt-0.5">
+                                                                <AlertTriangle className="size-3 shrink-0" />
+                                                                <span>Faltan {item.shortfall.toFixed(2)} {item.unit} (se registrará merma auditada)</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className="space-y-2">
-                                    <Label>Notas</Label>
-                                    <Input value={recordNotes} onChange={e => setRecordNotes(e.target.value)} placeholder="Opcional" />
+                                    <Label htmlFor="notes-input">Notas</Label>
+                                    <Input
+                                        id="notes-input"
+                                        value={recordNotes}
+                                        onChange={e => setRecordNotes(e.target.value)}
+                                        placeholder="Opcional"
+                                    />
                                 </div>
                                 <DialogFooter>
                                     <Button type="button" variant="outline" onClick={() => setIsRecordOpen(false)}>Cancelar</Button>
                                     <Button type="submit" disabled={submitting}>
                                         {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Registrar
+                                        Confirmar y Descontar Lotes
                                     </Button>
                                 </DialogFooter>
                             </form>
@@ -244,6 +375,9 @@ export function ProductionClient({ branchId }: { branchId: string }) {
                         <DialogContent>
                             <DialogHeader>
                                 <DialogTitle>Nueva Orden de Producción</DialogTitle>
+                                <DialogDescription>
+                                    Planifica una orden en la prep list de cocina.
+                                </DialogDescription>
                             </DialogHeader>
                             <form onSubmit={handleCreateOrder} className="space-y-4">
                                 <div className="space-y-2">
@@ -252,7 +386,7 @@ export function ProductionClient({ branchId }: { branchId: string }) {
                                         <SelectTrigger><SelectValue placeholder="Seleccionar receta" /></SelectTrigger>
                                         <SelectContent>
                                             {recipes.map(r => (
-                                                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                                <SelectItem key={r.id} value={r.id}>{r.name} ({r.unit})</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
@@ -283,6 +417,11 @@ export function ProductionClient({ branchId }: { branchId: string }) {
                     </Dialog>
                 </div>
             </div>
+
+            {/* Pestaña Principal: Prep List Diaria con agrupación por estación y lotes FEFO */}
+            <TabsContent value="prep-list" className="space-y-4">
+                <PrepListBoard branchId={branchId} />
+            </TabsContent>
 
             <TabsContent value="plan" className="space-y-4">
                 {loading ? (
@@ -372,12 +511,11 @@ export function ProductionClient({ branchId }: { branchId: string }) {
                 )}
             </TabsContent>
 
-            {/* §6.4 — tiempo de retención: qué hay que tirar ahora mismo. Se
-                monta sólo al abrir la pestaña para no encender su refresco
-                automático de 30 s mientras se planean órdenes. */}
+            {/* §6.4 — tiempo de retención: qué hay que tirar ahora mismo */}
             <TabsContent value="line" className="space-y-4">
                 {activeTab === "line" && <HoldTimeBoard branchId={branchId} />}
             </TabsContent>
         </Tabs>
     );
 }
+

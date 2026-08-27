@@ -15,9 +15,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBatches, type BatchStatus, type InventoryBatch } from "@/hooks/queries/use-lots";
 import { useBranches } from "@/hooks/queries/use-branches";
+import { BatchTraceDialog } from "@/components/inventory/batch-trace-dialog";
+import { QuickBatchWasteDialog } from "@/components/inventory/quick-batch-waste-dialog";
 import {
   CalendarClock,
   Loader2,
@@ -25,7 +34,13 @@ import {
   AlertCircle,
   Search,
   Boxes,
+  MoreVertical,
+  Eye,
+  Trash2,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
+import { toast } from "sonner";
 
 // ── Configuración de estados y fechas ──
 
@@ -87,7 +102,7 @@ function ExpiryBadge({ days }: { days: number | null }) {
 /**
  * Vista operativa de lotes en orden FEFO (primero el que vence primero).
  * El API entrega las filas ya ordenadas por expirationDate ASC; esta página
- * agrega filtros de sucursal/estado/texto y resumen de riesgo de caducidad.
+ * agrega filtros de sucursal/estado/texto, resumen de riesgo y acciones de trazabilidad/merma/cuarentena.
  */
 export default function LotsPage() {
   const branches = useBranches();
@@ -96,6 +111,10 @@ export default function LotsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [hideDepleted, setHideDepleted] = useState(true);
   const [search, setSearch] = useState("");
+
+  // Modales de acciones
+  const [traceBatch, setTraceBatch] = useState<InventoryBatch | null>(null);
+  const [wasteBatch, setWasteBatch] = useState<InventoryBatch | null>(null);
 
   const batches = useBatches({
     branchId: branchFilter !== "ALL" ? branchFilter : undefined,
@@ -134,14 +153,41 @@ export default function LotsPage() {
     return { active, expired, soon, valueCents };
   }, [batches.data, hideDepleted]);
 
+  const handleToggleQuarantine = async (batch: InventoryBatch) => {
+    const nextStatus: BatchStatus = batch.status === "QUARANTINED" ? "AVAILABLE" : "QUARANTINED";
+    try {
+      const res = await fetch("/api/inventory/batches", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batchId: batch.id,
+          status: nextStatus,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(
+          nextStatus === "QUARANTINED"
+            ? `Lote ${batch.lotNumber || ""} puesto en cuarentena (excluido de FEFO)`
+            : `Lote ${batch.lotNumber || ""} liberado a Disponible`
+        );
+        batches.refetch();
+      } else {
+        toast.error(data.error || "Error al actualizar estado del lote");
+      }
+    } catch {
+      toast.error("Error al actualizar estado del lote");
+    }
+  };
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <CalendarClock className="h-7 w-7 text-primary" /> Lotes
+          <CalendarClock className="h-7 w-7 text-primary" /> Lotes y Trazabilidad
         </h1>
         <p className="text-sm text-muted-foreground">
-          Stock por lote en orden FEFO: primero el que vence primero. La tabla ya está ordenada por fecha de vencimiento.
+          Stock por lote en orden FEFO: primero el que vence primero. Consulta trazabilidad, manda a merma o bloquea lotes en cuarentena.
         </p>
       </div>
 
@@ -191,7 +237,7 @@ export default function LotsPage() {
         </div>
       </div>
 
-      {/* Resumen de riesgo (color + texto accesible) */}
+      {/* Resumen de riesgo */}
       {!batches.isLoading && !batches.isError && (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted-foreground">
           <span><span className="font-medium text-foreground tabular-nums">{stats.active}</span> lote(s) con saldo</span>
@@ -231,7 +277,7 @@ export default function LotsPage() {
           <CardHeader>
             <CardTitle className="text-base font-bold">Cola de consumo FEFO</CardTitle>
             <CardDescription className="text-xs">
-              De arriba hacia abajo: lo que debe usarse primero. El saldo restante se muestra contra la cantidad inicial del lote.
+              De arriba hacia abajo: lo que debe usarse primero. Haz clic en las opciones para ver trazabilidad o gestionar mermas.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -246,12 +292,19 @@ export default function LotsPage() {
                     <th scope="col" className="py-2 px-3 font-medium text-right">Saldo</th>
                     <th scope="col" className="py-2 px-3 font-medium text-right">Costo unit.</th>
                     <th scope="col" className="py-2 px-3 font-medium text-right">Valor línea</th>
-                    <th scope="col" className="py-2 pl-3 font-medium">Estado</th>
+                    <th scope="col" className="py-2 px-3 font-medium">Estado</th>
+                    <th scope="col" className="py-2 pl-3 font-medium text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((batch) => (
-                    <LotRow key={batch.id} batch={batch} />
+                    <LotRow
+                      key={batch.id}
+                      batch={batch}
+                      onTrace={() => setTraceBatch(batch)}
+                      onWaste={() => setWasteBatch(batch)}
+                      onToggleQuarantine={() => handleToggleQuarantine(batch)}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -259,11 +312,35 @@ export default function LotsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Modales de Trazabilidad y Merma */}
+      <BatchTraceDialog
+        batch={traceBatch}
+        open={Boolean(traceBatch)}
+        onOpenChange={(open) => !open && setTraceBatch(null)}
+      />
+
+      <QuickBatchWasteDialog
+        batch={wasteBatch}
+        open={Boolean(wasteBatch)}
+        onOpenChange={(open) => !open && setWasteBatch(null)}
+        onSuccess={() => batches.refetch()}
+      />
     </div>
   );
 }
 
-function LotRow({ batch }: { batch: InventoryBatch }) {
+function LotRow({
+  batch,
+  onTrace,
+  onWaste,
+  onToggleQuarantine,
+}: {
+  batch: InventoryBatch;
+  onTrace: () => void;
+  onWaste: () => void;
+  onToggleQuarantine: () => void;
+}) {
   const remainingPct =
     batch.initialQuantity > 0
       ? Math.min(100, Math.max(0, Math.round((batch.currentQuantity / batch.initialQuantity) * 100)))
@@ -274,23 +351,30 @@ function LotRow({ batch }: { batch: InventoryBatch }) {
   const days = daysUntil(batch.expirationDate);
 
   return (
-    <tr className={`border-b last:border-b-0 ${days !== null && days < 0 ? "bg-destructive/5" : ""}`}>
+    <tr className={`border-b last:border-b-0 hover:bg-muted/30 transition-colors ${days !== null && days < 0 ? "bg-destructive/5" : ""}`}>
       <td className="py-3 pr-4 align-top">
         <p className="tabular-nums leading-tight">{formatDate(batch.expirationDate)}</p>
         <div className="mt-1"><ExpiryBadge days={days} /></div>
       </td>
       <td className="py-3 pr-4 align-top">
         {batch.lotNumber ? (
-          <span className="font-mono text-xs">{batch.lotNumber}</span>
+          <button
+            type="button"
+            onClick={onTrace}
+            className="font-mono text-xs text-primary hover:underline font-semibold block text-left"
+            title="Ver trazabilidad del lote"
+          >
+            {batch.lotNumber}
+          </button>
         ) : (
           <span className="text-muted-foreground">—</span>
         )}
       </td>
       <td className="py-3 pr-4 align-top max-w-56">
-        <p className="leading-tight truncate" title={batch.itemName}>{batch.itemName}</p>
+        <p className="leading-tight truncate font-medium" title={batch.itemName}>{batch.itemName}</p>
         {batch.itemSku && <p className="text-xs text-muted-foreground">{batch.itemSku}</p>}
       </td>
-      <td className="py-3 pr-4 align-top">{batch.branchName}</td>
+      <td className="py-3 pr-4 align-top text-muted-foreground">{batch.branchName}</td>
       <td className="py-3 px-3 align-top text-right">
         <span className="tabular-nums font-medium">
           {batch.currentQuantity.toLocaleString("es-MX")}
@@ -300,11 +384,46 @@ function LotRow({ batch }: { batch: InventoryBatch }) {
         </span>
         <Progress value={remainingPct} className="h-1 mt-1" aria-label={`${remainingPct}% restante`} />
       </td>
-      <td className="py-3 px-3 align-top text-right tabular-nums">{formatCurrency(batch.unitCost)}</td>
+      <td className="py-3 px-3 align-top text-right tabular-nums text-muted-foreground">{formatCurrency(batch.unitCost)}</td>
       <td className="py-3 px-3 align-top text-right tabular-nums">{formatCurrency(lineValueCents)}</td>
-      <td className="py-3 pl-3 align-top">
+      <td className="py-3 px-3 align-top">
         <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+      </td>
+      <td className="py-3 pl-3 align-top text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+              <span className="sr-only">Acciones de lote</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onTrace} className="gap-2 cursor-pointer">
+              <Eye className="h-4 w-4 text-primary" />
+              Ver Trazabilidad
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onWaste} className="gap-2 cursor-pointer text-destructive focus:text-destructive">
+              <Trash2 className="h-4 w-4" />
+              Mandar a Merma
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onToggleQuarantine} className="gap-2 cursor-pointer">
+              {batch.status === "QUARANTINED" ? (
+                <>
+                  <ShieldCheck className="h-4 w-4 text-success" />
+                  Liberar a Disponible
+                </>
+              ) : (
+                <>
+                  <ShieldAlert className="h-4 w-4 text-amber-600" />
+                  Poner en Cuarentena
+                </>
+              )}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </td>
     </tr>
   );
 }
+

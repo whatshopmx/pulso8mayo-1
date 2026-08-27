@@ -3,10 +3,11 @@ import { getSession } from "@/lib/auth";
 import { enforceBranchScope } from "@/lib/branch-scope";
 import type { Role } from "@/lib/permissions";
 import { db } from "@/lib/db";
-import { productionOrders, productionResults, productionIngredients, recipes } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { productionOrders, productionResults, productionIngredients, recipes, inventoryItems, inventoryBatches } from "@/lib/db/schema";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { ProductionService } from "@/lib/services/production-service";
+import { expandRecipeLeaves, produceRecipeWithFefo, loadItemInfo, type LeafCache } from "@/lib/services/recipe-production";
 
 const createOrderSchema = z.object({
     recipeId: z.string().min(1),
@@ -25,15 +26,12 @@ const recordProductionSchema = z.object({
     ingredients: z.array(z.object({
         itemId: z.string().min(1),
         batchId: z.string().optional(),
-        // A7b: sin `.int()`. Las columnas son `numeric(12,4)` y una receta real
-        // pide 0.35 kg; el `.int()` era lo único que seguía prohibiendo
-        // capturarlo a mano. `producedQuantity` sí sigue entero: son porciones.
         expectedQuantity: z.number().nonnegative(),
         actualQuantity: z.number().nonnegative(),
         unit: z.string(),
         unitCost: z.number().int().optional(),
         yieldPercent: z.number().int().min(0).max(100).optional(),
-    })),
+    })).optional().default([]),
 });
 
 export async function GET(req: NextRequest) {
@@ -49,6 +47,85 @@ export async function GET(req: NextRequest) {
 
         if (!branchId) {
             return NextResponse.json({ error: "branchId requerido" }, { status: 400 });
+        }
+
+        // Vista previa de asignación FEFO para una receta y cantidad
+        const isPreview = searchParams.get("preview") === "true";
+        const previewRecipeId = searchParams.get("recipeId");
+        if (isPreview && previewRecipeId) {
+            const quantity = parseFloat(searchParams.get("quantity") || "1") || 1;
+            const cache: LeafCache = new Map();
+            const leaves = await expandRecipeLeaves(previewRecipeId, quantity, cache);
+
+            if (leaves.length === 0) {
+                return NextResponse.json({ success: true, preview: [] });
+            }
+
+            const itemIds = [...new Set(leaves.map(l => l.itemId))];
+            const itemInfo = await loadItemInfo(session.user.companyId, itemIds);
+
+            // Obtener nombres de items
+            const itemsData = await db
+                .select({ id: inventoryItems.id, name: inventoryItems.name, sku: inventoryItems.sku })
+                .from(inventoryItems)
+                .where(and(eq(inventoryItems.companyId, session.user.companyId), inArray(inventoryItems.id, itemIds)));
+            const itemNameMap = new Map(itemsData.map(i => [i.id, i.name]));
+
+            const preview = [];
+            for (const leaf of leaves) {
+                const info = itemInfo.get(leaf.itemId);
+                const unit = info?.unit || leaf.unit || "UNIT";
+                const itemName = itemNameMap.get(leaf.itemId) || "Insumo";
+
+                // Consultar lotes disponibles ordenados por FEFO
+                const batches = await db
+                    .select({
+                        id: inventoryBatches.id,
+                        lotNumber: inventoryBatches.lotNumber,
+                        currentQuantity: inventoryBatches.currentQuantity,
+                        expirationDate: inventoryBatches.expirationDate,
+                    })
+                    .from(inventoryBatches)
+                    .where(
+                        and(
+                            eq(inventoryBatches.branchId, branchId),
+                            eq(inventoryBatches.itemId, leaf.itemId),
+                            eq(inventoryBatches.status, "AVAILABLE"),
+                            sql`${inventoryBatches.currentQuantity} > 0`
+                        )
+                    )
+                    .orderBy(inventoryBatches.expirationDate, inventoryBatches.createdAt);
+
+                let remainingNeeded = leaf.quantity;
+                const allocations = [];
+
+                for (const b of batches) {
+                    if (remainingNeeded <= 0) break;
+                    const available = Number(b.currentQuantity);
+                    const take = Math.min(available, remainingNeeded);
+                    if (take <= 0) continue;
+
+                    allocations.push({
+                        batchId: b.id,
+                        lotNumber: b.lotNumber || "Sin folio",
+                        expirationDate: b.expirationDate,
+                        quantity: take,
+                    });
+                    remainingNeeded -= take;
+                }
+
+                preview.push({
+                    itemId: leaf.itemId,
+                    itemName,
+                    requiredQuantity: leaf.quantity,
+                    unit,
+                    allocations,
+                    allocatedQuantity: leaf.quantity - Math.max(0, remainingNeeded),
+                    shortfall: Math.max(0, remainingNeeded),
+                });
+            }
+
+            return NextResponse.json({ success: true, preview });
         }
 
         const orders = await ProductionService.getOrders(session.user.companyId, branchId);
@@ -78,23 +155,70 @@ export async function POST(req: NextRequest) {
         if (action === "record") {
             const validated = recordProductionSchema.parse(body);
 
-            const result = await ProductionService.recordProduction({
-                companyId: session.user.companyId,
-                branchId,
-                ...validated,
-                recordedBy: session.user.id,
+            // Si se envían ingredientes explícitos con lotes manuales, usar el registro directo
+            if (validated.ingredients && validated.ingredients.length > 0) {
+                const result = await ProductionService.recordProduction({
+                    companyId: session.user.companyId,
+                    branchId,
+                    orderId: validated.orderId,
+                    recipeId: validated.recipeId,
+                    producedQuantity: validated.producedQuantity,
+                    unit: validated.unit,
+                    notes: validated.notes,
+                    recordedBy: session.user.id,
+                    ingredients: validated.ingredients,
+                });
+
+                if (!result) {
+                    return NextResponse.json({ error: "La producción ya estaba registrada" }, { status: 409 });
+                }
+
+                return NextResponse.json({ success: true, result });
+            }
+
+            // Si no se envían ingredientes manuales, usar la deducción automática por FEFO
+            const outcome = await db.transaction(async (tx) => {
+                return await produceRecipeWithFefo(tx, {
+                    companyId: session.user.companyId,
+                    branchId,
+                    recipeId: validated.recipeId,
+                    quantity: validated.producedQuantity,
+                    unit: validated.unit,
+                    recordedBy: session.user.id,
+                    orderId: validated.orderId,
+                    notes: validated.notes,
+                });
             });
 
-            // A9: `recordProduction` devuelve null cuando el único parcial dice
-            // que esa producción ya estaba registrada. Por esta ruta no debería
-            // pasar —la captura manual no lleva instancia de workflow y el
-            // índice es parcial sobre ella— pero se responde explícito en vez
-            // de devolver `result: null` como si hubiera funcionado.
-            if (!result) {
+            if (outcome.status === "skipped") {
                 return NextResponse.json({ error: "La producción ya estaba registrada" }, { status: 409 });
             }
 
-            return NextResponse.json({ success: true, result });
+            if (outcome.status === "no-leaves") {
+                // Registrar resultado base cuando la receta no tiene ingredientes hoja
+                const basicResult = await ProductionService.recordProduction({
+                    companyId: session.user.companyId,
+                    branchId,
+                    orderId: validated.orderId,
+                    recipeId: validated.recipeId,
+                    producedQuantity: validated.producedQuantity,
+                    unit: validated.unit,
+                    notes: validated.notes,
+                    recordedBy: session.user.id,
+                    ingredients: [],
+                });
+                return NextResponse.json({ success: true, result: basicResult });
+            }
+
+            return NextResponse.json({
+                success: true,
+                result: {
+                    id: outcome.resultId,
+                    producedQuantity: outcome.producedQuantity,
+                    ingredientCost: outcome.ingredientCost,
+                    shortfalls: outcome.shortfalls,
+                },
+            });
         }
 
         const validated = createOrderSchema.parse(body);
