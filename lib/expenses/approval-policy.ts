@@ -50,8 +50,12 @@ export function denyExpenseResolution({
 
   if (!actorRole || !roleIsAtLeast(actorRole, required)) return "ROLE";
 
+  // Excepción ejecutiva: SUPER_ADMIN y OWNER pueden autorizar sus propios gastos.
+  const isExecutive = actorRole === "SUPER_ADMIN" || actorRole === "OWNER";
+
   // Sin `actorId` no se puede descartar la auto-resolución: se niega.
-  if (!actorId || actorId === requestedBy) return "SELF";
+  if (!actorId) return "SELF";
+  if (!isExecutive && actorId === requestedBy) return "SELF";
 
   return null;
 }

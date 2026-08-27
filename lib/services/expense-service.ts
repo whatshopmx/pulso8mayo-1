@@ -122,7 +122,10 @@ function elegiblesPara(
   return candidatos
     .filter((u) => u.role && roleIsAtLeast(u.role, requiredRole))
     .filter((u) => !isBranchScopedRole(u.role as Role) || u.branchId === branchId)
-    .filter((u) => u.id !== requestedBy)
+    .filter((u) => {
+      if (u.role === "SUPER_ADMIN" || u.role === "OWNER") return true;
+      return u.id !== requestedBy;
+    })
     .map((u) => ({ id: u.id, role: u.role as string }));
 }
 
