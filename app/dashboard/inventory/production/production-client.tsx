@@ -54,7 +54,16 @@ interface FefoAllocationItem {
     shortfall: number;
 }
 
-export function ProductionClient({ branchId }: { branchId: string }) {
+export function ProductionClient({
+    branchId: initialBranchId,
+    branches = [],
+}: {
+    branchId: string;
+    branches?: Array<{ id: string; name: string }>;
+}) {
+    const [selectedBranchId, setSelectedBranchId] = useState(initialBranchId);
+    const branchId = selectedBranchId || initialBranchId;
+
     const [orders, setOrders] = useState<ProductionOrder[]>([]);
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -255,7 +264,21 @@ export function ProductionClient({ branchId }: { branchId: string }) {
                         En línea
                     </TabsTrigger>
                 </TabsList>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                    {branches.length > 1 && (
+                        <Select value={branchId} onValueChange={setSelectedBranchId}>
+                            <SelectTrigger className="h-9 w-44 text-xs bg-card">
+                                <SelectValue placeholder="Sucursal" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {branches.map((b) => (
+                                    <SelectItem key={b.id} value={b.id}>
+                                        {b.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
                     <Dialog open={isRecordOpen} onOpenChange={setIsRecordOpen}>
                         <DialogTrigger asChild>
                             <Button variant="outline" className="gap-2">
