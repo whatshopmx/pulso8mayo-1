@@ -86,6 +86,13 @@ export async function POST(req: NextRequest) {
             await RecipeService.calculateRecipeCost(newRecipe.id, 'LAST_COST');
         }
 
+        // Create initial v1 snapshot (Módulo 1.2.2)
+        await RecipeService.createRecipeVersion(
+            newRecipe.id,
+            session.user.id,
+            "Creación inicial de ficha técnica"
+        );
+
         // Refetch so the response carries the freshly calculated cost
         const [freshRecipe] = await db.select()
             .from(recipes)

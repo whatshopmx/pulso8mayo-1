@@ -35,3 +35,4 @@ export { ExecutiveReportService } from "./executive-report-service";
 export { CostingService } from "./costing-service";
 export { IntelligenceService } from "./intelligence-service";
 export { InsightGeneratorService } from "./insight-generator-service";
+export { SupplierScorecardService } from "./supplier-scorecard-service";

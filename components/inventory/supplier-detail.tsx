@@ -111,6 +111,27 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
     const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
     const [claims, setClaims] = useState<SupplierClaim[]>([]);
     const [metrics, setMetrics] = useState<SupplierMetrics | null>(null);
+    const [scorecard, setScorecard] = useState<{
+        punctualityScore: number;
+        qualityScore: number;
+        nom251ComplianceScore: number;
+        totalScore: number;
+        tier: "EXCELENTE" | "ACEPTABLE" | "EN_RIESGO" | "CRITICO";
+        stats: {
+            totalOrders: number;
+            onTimeDeliveries: number;
+            lateDeliveries: number;
+            punctualityRate: number;
+            totalReceivings: number;
+            flawlessReceivings: number;
+            discrepancyCount: number;
+            qualityRate: number;
+            temperatureLogsCount: number;
+            compliantTempCount: number;
+            tempComplianceRate: number;
+            totalClaimsCount: number;
+        };
+    } | null>(null);
     const [loadingMetrics, setLoadingMetrics] = useState(false);
 
     const fetchSupplierItems = async () => {
@@ -135,17 +156,24 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
         if (!supplier.id) return;
         setLoadingMetrics(true);
         try {
-            const res = await fetch(`/api/inventory/suppliers/${supplier.id}/metrics`);
-            if (res.ok) {
-                const data = await res.json();
+            const [metricsRes, scorecardRes] = await Promise.all([
+                fetch(`/api/inventory/suppliers/${supplier.id}/metrics`),
+                fetch(`/api/inventory/suppliers/${supplier.id}/scorecard`),
+            ]);
+
+            if (metricsRes.ok) {
+                const data = await metricsRes.json();
                 setPurchases(data.purchases || []);
                 setClaims(data.claims || []);
                 setMetrics(data.metrics || null);
-            } else {
-                toast.error("Error al cargar historial y métricas");
+            }
+
+            if (scorecardRes.ok) {
+                const scData = await scorecardRes.json();
+                setScorecard(scData.data || null);
             }
         } catch (err) {
-            console.error("Fetch metrics error:", err);
+            console.error("Fetch metrics/scorecard error:", err);
         } finally {
             setLoadingMetrics(false);
         }
@@ -474,6 +502,91 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                 </div>
                             ) : (
                                 <>
+                                    {/* 3-Pillar Scorecard (NOM-251 / Puntualidad / Calidad) */}
+                                    {scorecard && (
+                                        <div className="border rounded-lg p-5 bg-card/60 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                                                        <Sparkles className="w-4 h-4 text-primary" />
+                                                        Scorecard de Desempeño y NOM-251
+                                                    </h3>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Evaluación integral de 90 días (Puntualidad 35% · Calidad 35% · Cadena Frío 30%)
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono text-2xl font-black">
+                                                        {scorecard.totalScore}
+                                                        <span className="text-xs font-normal text-muted-foreground">/100</span>
+                                                    </span>
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={`text-xs font-bold uppercase ${
+                                                            scorecard.tier === "EXCELENTE"
+                                                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                                                                : scorecard.tier === "ACEPTABLE"
+                                                                ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30"
+                                                                : scorecard.tier === "EN_RIESGO"
+                                                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                                                                : "bg-destructive/10 text-destructive border-destructive/30"
+                                                        }`}
+                                                    >
+                                                        {scorecard.tier}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+
+                                            {/* 3 Pillars Grid */}
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                                                <div className="p-3 border rounded-md bg-background/50 space-y-1">
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-muted-foreground flex items-center gap-1.5">
+                                                            <Clock className="w-3.5 h-3.5 text-blue-500" /> Puntualidad (35%)
+                                                        </span>
+                                                        <span className="font-mono font-bold">{scorecard.punctualityScore}%</span>
+                                                    </div>
+                                                    <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                                                        <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${scorecard.punctualityScore}%` }} />
+                                                    </div>
+                                                    <span className="text-[10px] text-muted-foreground block">
+                                                        {scorecard.stats.onTimeDeliveries} a tiempo de {scorecard.stats.onTimeDeliveries + scorecard.stats.lateDeliveries}
+                                                    </span>
+                                                </div>
+
+                                                <div className="p-3 border rounded-md bg-background/50 space-y-1">
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-muted-foreground flex items-center gap-1.5">
+                                                            <ClipboardCheck className="w-3.5 h-3.5 text-emerald-500" /> Calidad (35%)
+                                                        </span>
+                                                        <span className="font-mono font-bold">{scorecard.qualityScore}%</span>
+                                                    </div>
+                                                    <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                                                        <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${scorecard.qualityScore}%` }} />
+                                                    </div>
+                                                    <span className="text-[10px] text-muted-foreground block">
+                                                        {scorecard.stats.flawlessReceivings} recepciones conformes
+                                                    </span>
+                                                </div>
+
+                                                <div className="p-3 border rounded-md bg-background/50 space-y-1">
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-muted-foreground flex items-center gap-1.5">
+                                                            <ShieldAlert className="w-3.5 h-3.5 text-amber-500" /> Cadena Frío NOM-251 (30%)
+                                                        </span>
+                                                        <span className="font-mono font-bold">{scorecard.nom251ComplianceScore}%</span>
+                                                    </div>
+                                                    <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                                                        <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: `${scorecard.nom251ComplianceScore}%` }} />
+                                                    </div>
+                                                    <span className="text-[10px] text-muted-foreground block">
+                                                        {scorecard.stats.compliantTempCount} de {scorecard.stats.temperatureLogsCount} lecturas dentro de rango
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Dashboard metrics widgets */}
                                     {metrics && (
                                         <div className="border rounded-lg bg-card/40 divide-y divide-border font-sans">

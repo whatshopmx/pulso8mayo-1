@@ -112,6 +112,13 @@ export async function PUT(
         // 4. Calculate cost AFTER the transaction commits (it writes with its own connection)
         await RecipeService.calculateRecipeCost(resolvedParams.id, 'LAST_COST');
 
+        // 5. Inmutable version snapshot for audit & cost tracking (Módulo 1.2.2)
+        await RecipeService.createRecipeVersion(
+            resolvedParams.id,
+            session.user.id,
+            body.changeReason || "Actualización de ficha técnica"
+        );
+
         // Fetch and return the updated recipe details
         const [updatedRecipe] = await db.select()
             .from(recipes)

@@ -1,6 +1,12 @@
 import { db } from "@/lib/db";
 import { salesEntries, recipes } from "@/lib/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
+import {
+  applyWeatherModifier,
+  inferRecipeCategory,
+  type WeatherModifierConfig,
+  type RecipeCategory,
+} from "@/lib/inventory/weather-forecast";
 
 interface ForecastDay {
   date: string;
@@ -11,16 +17,18 @@ interface ForecastDay {
 interface ForecastResult {
   recipeId: string;
   recipeName: string;
+  category: RecipeCategory;
   forecast: ForecastDay[];
   mape?: number;
   daysOfData: number;
+  weatherProfileApplied?: string;
 }
 
 export class ForecastService {
   static async calculate(
     recipeId: string,
     companyId: string,
-    options?: { daysHistory?: number }
+    options?: { daysHistory?: number; weatherConfig?: WeatherModifierConfig }
   ): Promise<ForecastResult> {
     const daysHistory = options?.daysHistory ?? 90;
     const cutoffDate = new Date();
@@ -31,6 +39,8 @@ export class ForecastService {
       .where(and(eq(recipes.id, recipeId), eq(recipes.companyId, companyId)));
 
     if (!recipe) throw new Error("Recipe not found");
+
+    const category = inferRecipeCategory(recipe.name, recipe.tags as string[] | null, recipe.unit);
 
     const entries = await db.select({
       saleDate: salesEntries.saleDate,
@@ -49,18 +59,20 @@ export class ForecastService {
       return {
         recipeId,
         recipeName: recipe.name,
+        category,
         forecast: this.generateEmptyForecast(),
         daysOfData: 0,
+        weatherProfileApplied: options?.weatherConfig?.profile,
       };
     }
 
     const daysOfData = this.countUniqueDays(entries);
 
     if (daysOfData < 30) {
-      return this.simpleAverageForecast(recipeId, recipe.name, entries);
+      return this.simpleAverageForecast(recipeId, recipe.name, category, entries, options?.weatherConfig);
     }
 
-    return this.weightedMovingAverageForecast(recipeId, recipe.name, entries, daysHistory);
+    return this.weightedMovingAverageForecast(recipeId, recipe.name, category, entries, daysHistory, options?.weatherConfig);
   }
 
   static async calculateAll(companyId: string): Promise<ForecastResult[]> {
@@ -85,8 +97,10 @@ export class ForecastService {
   private static weightedMovingAverageForecast(
     recipeId: string,
     recipeName: string,
+    category: RecipeCategory,
     entries: { saleDate: Date; quantitySold: string }[],
-    daysHistory: number
+    daysHistory: number,
+    weatherConfig?: WeatherModifierConfig
   ): ForecastResult {
     const now = new Date();
     const dailyMap = this.aggregateByDate(entries);
@@ -121,7 +135,8 @@ export class ForecastService {
       date.setDate(date.getDate() + i);
       const dayOfWeek = date.getDay();
       const factor = dayOfWeekFactors[dayOfWeek] ?? 1;
-      const predicted = Math.round(baseAvg * factor);
+      const rawPredicted = Math.round(baseAvg * factor);
+      const predicted = applyWeatherModifier(rawPredicted, category, weatherConfig);
       const dataPoints = dates.length;
       const confidenceScore = Math.min(95, Math.round((dataPoints / daysHistory) * 100));
 
@@ -135,16 +150,20 @@ export class ForecastService {
     return {
       recipeId,
       recipeName,
+      category,
       forecast,
       mape: 25,
       daysOfData: dates.length,
+      weatherProfileApplied: weatherConfig?.profile,
     };
   }
 
   private static simpleAverageForecast(
     recipeId: string,
     recipeName: string,
-    entries: { saleDate: Date; quantitySold: string }[]
+    category: RecipeCategory,
+    entries: { saleDate: Date; quantitySold: string }[],
+    weatherConfig?: WeatherModifierConfig
   ): ForecastResult {
     const dailyMap = this.aggregateByDate(entries);
     const values = Object.values(dailyMap);
@@ -157,9 +176,11 @@ export class ForecastService {
     for (let i = 0; i < 7; i++) {
       const date = new Date(now);
       date.setDate(date.getDate() + i);
+      const rawPredicted = Math.round(avg);
+      const predicted = applyWeatherModifier(rawPredicted, category, weatherConfig);
       forecast.push({
         date: date.toISOString().split('T')[0],
-        predictedQuantity: Math.max(0, Math.round(avg)),
+        predictedQuantity: Math.max(0, predicted),
         confidenceScore: Math.min(70, Math.round((values.length / 30) * 100)),
       });
     }
@@ -167,8 +188,10 @@ export class ForecastService {
     return {
       recipeId,
       recipeName,
+      category,
       forecast,
       daysOfData: values.length,
+      weatherProfileApplied: weatherConfig?.profile,
     };
   }
 

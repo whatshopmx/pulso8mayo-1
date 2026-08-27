@@ -2751,6 +2751,34 @@ export const recipeItems = pgTable("recipe_items", {
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Versionado histórico de fichas técnicas de recetas (Módulo 1.2.2)
+export const recipeVersions = pgTable("recipe_versions", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    recipeId: uuid("recipe_id").notNull().references(() => recipes.id, { onDelete: 'cascade' }),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    versionNumber: integer("version_number").notNull(),
+    
+    // Snapshot inmutable de la ficha
+    name: text("name").notNull(),
+    description: text("description"),
+    baseYield: numeric("base_yield", { precision: 10, scale: 2 }).notNull(),
+    unit: text("unit").notNull(),
+    holdTimeMinutes: integer("hold_time_minutes"),
+    calculatedCost: integer("calculated_cost").notNull(), // in cents
+    priceSelling: integer("price_selling").notNull(), // in cents
+    foodCostPercentage: numeric("food_cost_percentage", { precision: 5, scale: 2 }).notNull(),
+    
+    // Array inmutable de ingredientes al momento de la versión
+    itemsSnapshot: jsonb("items_snapshot").notNull(),
+    
+    changeReason: text("change_reason"),
+    changedBy: text("changed_by").references(() => users.id),
+    
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+    recipeVersionsIdx: index("recipe_versions_recipe_idx").on(table.recipeId, table.versionNumber),
+}));
+
 export const salesEntries = pgTable("sales_entries", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
     companyId: uuid("company_id").notNull(),

@@ -1,302 +1,216 @@
-# Implementation Plan: Evidence Gallery Overhaul (`app/dashboard/evidence`)
+# Implementation Plan: QSR Group Management System (Módulos 0 al 8 + NFRs)
 
 ## Overview
 
-Fix the design critique (18/40) of the Galería de Evidencias: restore trust in an audit
-surface (dead controls, racy fetching, wrong fields), make the primary action accessible,
-re-tokenize onto the Pulso OKLCH palette per DESIGN.md, and surface the branch dimension
-for the multi-branch owner persona. Work spans one API route (`app/api/workflows/evidence/route.ts`)
-and one client page (`app/dashboard/evidence/page.tsx`) plus small config/supporting pieces.
-
-## Planning Findings (verified against source)
-
-Beyond the critique, source inspection confirmed:
-
-1. **Dead filters**: the API reads only `dateFrom`, `dateTo`, `search`. The `type` and
-   `verified` params sent by the page are silently ignored — those two selects do nothing.
-2. **Fabricated data**: every row is returned as `type: "PHOTO"` regardless of content;
-   `stepName` is the raw `stepId`, while the frozen `title` column on
-   `workflowInstanceSteps` is ignored. TEXT evidence content lives in the `value` jsonb
-   column, not `url`.
-3. **Image config gap**: `next.config.ts` has no `images.remotePatterns`; R2 presigned
-   URLs (rotating query strings, 10-min TTL) would fail `next/image` optimization anyway.
-   Plain `<img loading="lazy">` is the pragmatic render path.
-4. **No migration needed**: schema columns `title`, `type`, `value`, `definition` already
-   exist on `workflowInstanceSteps`.
-5. **Tokens ready**: `bg-info`, `bg-success`, `bg-warning`, `text-destructive` etc. are
-   mapped in `app/globals.css`; UI primitives exist (`skeleton.tsx`, `empty-state.tsx`,
-   `toggle-group.tsx`, `tooltip.tsx`, `label.tsx`).
-6. **Branches API exists**: `GET /api/branches` (`BranchService.listBranches`) can feed a
-   Sucursal filter dropdown.
-
-## Architecture Decisions
-
-- **Derive media type server-side** from the evidence URL extension (photo/video/audio),
-  falling back to the frozen step `type` column, then PHOTO. No schema change.
-- **Plain `<img>` instead of `next/image`** for evidence photos: presigned URLs rotate
-  their query string each fetch, defeating the optimizer and its cache; also avoids the
-  missing `remotePatterns` config entirely.
-- **Pagination via `page`/`limit` + `total` in the response**, not infinite scroll — keeps
-  the fetch model simple and gives the "N evidencias · filtros activos" count for free.
-- **Debounce (300 ms) + AbortController** in the page's fetch effect; latest response wins.
-- **Stats become an inline summary strip** beside the header (counts computed over the
-  filtered result set, labeled "de N filtradas"), replacing the banned 5-card hero row.
-- **Vertical slices**: each phase leaves the page working; API contract changes land first
-  and stay additive so the old page keeps rendering between tasks.
+Plan de ejecución estructurado y dividido en tareas atómicas y verificables para consolidar y cerrar las brechas identificadas en el sistema integral multitenant para grupos QSR de 3 a 15 sucursales (Área Metropolitana de Monterrey: NOM-251, CFDI 4.0, clima extremo).
 
 ---
 
-## Task 1: Truthful evidence payload — real media type, real step title, TEXT content
+## Architecture & Dependency Graph
 
-**Description:** The API currently fabricates its data: every row claims `type: "PHOTO"`,
-`stepName` is a raw step ID, and TEXT content is unreachable. Select `title`, `type`,
-and `value` from `workflowInstanceSteps` (columns already exist), derive the real media
-type from the URL extension with fallbacks, return human titles, and add a `textContent`
-field sourced from `value` for text evidence.
+```
+[M0 & M1: Catálogos & Recetario con Versionado]
+  │  ├── Scorecard de Proveedores (Puntualidad / Calidad / NOM-251)
+  │  └── Fichas Técnicas & Versionado Histórico (recipe_versions)
+  ▼
+[M2 & M3: Inventario FEFO, Clima MTY & Prep List]
+  │  ├── Ajustador de Clima Extremo en Forecast (+40°C Canícula / Eventos)
+  │  └── Motor FEFO & Registro de Merma con afectación contable
+  ▼
+[M4 & M5: OC/OS, Matriz de Autorización & 3-Way Match]
+  │  ├── Folios Consecutivos Atómicos & Token WhatsApp
+  │  └── Conciliación Triple (OC/OS + Recepción/Firma + CFDI 4.0) & Contratos
+  ▼
+[M6 & M7: Tesorería, Dispersión & Nómina Validadas]
+  │  ├── Lotes de Pago con Doble Firma & Cuentas CLABE verificadas
+  │  └── Checador Biométrico/GPS & Validación Pre-Timbrado Nómina
+  ▼
+[M8: Dashboard Gerencial & P&L Consolidado 15 Sucursales]
+     └── Single Source of Truth (Food Cost %, Labor Cost %, Prime Cost %, EBITDA)
+```
 
+---
+
+## Task Breakdown
+
+### Phase 1: Catálogos y Recetario (Módulo 0 & 1)
+
+#### Task 1: Scorecard de Evaluación de Proveedores
+**Description:** Implementar el cálculo mensual y vista de evaluación de proveedores basada en puntualidad de entrega, calidad de insumos y cumplimiento de temperatura de recepción NOM-251.
 **Acceptance criteria:**
-- [ ] Media type derived from URL extension: `.mp4/.mov/.webm` → VIDEO; `.mp3/.wav/.ogg/.m4a/.aac` → AUDIO; image extensions → PHOTO
-- [ ] Fallback chain when no/unknown extension: frozen `type` column → `"PHOTO"`
-- [ ] `stepName` returns `COALESCE(title, stepId)` — never a bare UUID when a title exists
-- [ ] Response rows include optional `textContent` (from `value` jsonb) populated when type resolves to TEXT
-- [ ] Existing fields unchanged (`data[]` shape stays additive)
-
+- [ ] Servicio de agregación de métricas de proveedor que cruza `receiving_reports`, `temperature_logs` y `supplier_claims`.
+- [ ] Scorecard de 0 a 100 con desglose: Puntualidad (35%), Calidad/Faltantes (35%), Temperatura conforme NOM-251 (30%).
+- [ ] Endpoint `GET /api/inventory/suppliers/[id]/scorecard` con histórico mensual.
 **Verification:**
-- [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check via dev server + curl: seed/demo data shows at least one non-PHOTO type or title fallback working
-
+- [ ] Tests unitarios en `lib/services/__tests__/supplier-scorecard.test.ts`.
+- [ ] `pnpm run build` sin errores.
 **Dependencies:** None
-
 **Files likely touched:**
-- `app/api/workflows/evidence/route.ts`
-- `lib/storage/scoped-evidence.ts` (small pure helper for extension→type, exported for testability)
-
-**Estimated scope:** Small (1–2 files)
+- `lib/services/supplier-scorecard-service.ts`
+- `app/api/inventory/suppliers/[id]/scorecard/route.ts`
+- `components/inventory/supplier-scorecard-card.tsx`
 
 ---
 
-## Task 2: Filter parity + pagination + branch filter + date guard
-
-**Description:** Honor every param the UI already sends (`type`, `verified`) plus new
-`branchId`, `page`, `limit`. Add a `dateFrom ≤ dateTo` guard, replace the hard
-`.limit(200)` with real pagination, and include `total` so the client can show counts.
-
+#### Task 2: Versionado Histórico de Fichas Técnicas de Recetas
+**Description:** Crear la tabla `recipe_versions` y lógica de snapshotting inmutable cada vez que el Chef Ejecutivo o Administrador actualiza ingredientes, factores de rendimiento o tiempos de retención.
 **Acceptance criteria:**
-- [ ] `type` param filters on the derived media type (SQL-level where possible; post-filter acceptable given derived types)
-- [ ] `verified=true/false` filters on `aiAnalysis.passed` (jsonb)
-- [ ] `branchId` param filters by `workflowInstances.branchId`
-- [ ] `dateFrom > dateTo` returns empty result set or 400 — never an inverted silent range
-- [ ] `page`/`limit` params supported (default limit ~24); response includes `total`
-- [ ] Tenant scoping untouched (companyId condition preserved)
-
+- [ ] Tabla `recipe_versions` con `recipeId`, `versionNumber`, `snapshotJson` (ingredientes, cantidades, yield, holdTime), `costCalculatedCents`, `changedBy`, `changeReason`.
+- [ ] Trigger/Servicio en `recipe-service.ts` que crea una versión inmutable antes de aplicar mutaciones a `recipe_items`.
+- [ ] Endpoint `GET /api/recipes/[id]/versions` para auditoría histórica.
 **Verification:**
-- [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check: `?verified=false`, `?type=AUDIO`, `?branchId=…&page=2` each change results; `total` reflects filtered set
-
-**Dependencies:** Task 1 (type derivation)
-
+- [ ] Modificar una receta y verificar que se genera la fila de versión en Postgres con el histórico íntegro.
+- [ ] `pnpm run build` sin errores.
+**Dependencies:** None
 **Files likely touched:**
-- `app/api/workflows/evidence/route.ts`
-
-**Estimated scope:** Small (1 file, but query-logic dense)
-
----
-
-### Checkpoint: Foundation
-
-- [ ] curl against dev server confirms derived types, titles, `total`, `branchId` filtering
-- [ ] Old page still renders (additive contract) — `pnpm run dev` smoke pass
+- `lib/db/schema/core.ts` o `lib/db/schema/index.ts`
+- `lib/services/recipe-service.ts`
+- `app/api/recipes/[id]/versions/route.ts`
 
 ---
 
-## Task 3: Client fetch hardening — debounce, abort, retry, skeleton, count
+### Checkpoint 1: Catálogos y Fichas
+- [ ] Scorecard de proveedores activo y calculando ponderación.
+- [ ] Versionado de recetas auditando cambios de costo histórico.
+- [ ] `pnpm run build` limpio.
 
-**Description:** Search fires one fetch per keystroke with no abort, so stale responses
-can overwrite fresh ones — fatal credibility for a compliance tool. Move fetching into a
-debounced effect with AbortController, show a skeleton grid instead of a layout-jumping
-spinner, add a retry affordance on error, and surface a result count.
+---
 
+### Phase 2: Forecast Clima MTY & Producción Diaria (Módulo 2 & 3)
+
+#### Task 3: Modificador de Clima Extremo Monterrey en Forecast y Prep List
+**Description:** Extender el motor de proyección de ventas para incorporar un multiplicador por temperatura ambiente extrema (>38°C en verano/canícula) y eventos locales sobre categorías sensibles (bebidas, postres fríos vs platillos calientes).
 **Acceptance criteria:**
-- [ ] Search input debounced 300 ms; changing selects/dates fetches immediately
-- [ ] AbortController cancels superseded requests; only the latest response sets state
-- [ ] Loading state renders a skeleton grid/list holding layout position (no spinner swap)
-- [ ] Error state offers "Reintentar" button instead of toast-only failure
-- [ ] Result count shown near gallery header, e.g. "N evidencias · filtros activos", using API `total`
-- [ ] Pagination controls (prev/next + page indicator) wired to `page`/`limit`/`total`
-
+- [ ] Campo opcional `weatherModifier` y `localEvent` en el cálculo de forecast diario (`forecast-service.ts`).
+- [ ] Regla de sensibilidad por categoría: Bebidas/Fríos (+15% a +35%), Sopas/Guisos calientes (-10% a -20%).
+- [ ] Selector rápido en la UI de Prep List: "Día Normal", "Ola de Calor (>40°C)", "Día Lluvioso", "Evento Deportivo MTY".
 **Verification:**
-- [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check: type quickly → single request in network tab after pause; throttle network → retry works
-
-**Dependencies:** Task 2 (`total`, pagination params)
-
+- [ ] Probar cálculo de forecast con modificador climático y validar explosión de ingredientes en `prep-list-service.ts`.
+- [ ] `pnpm run build` sin errores.
+**Dependencies:** Task 2
 **Files likely touched:**
-- `app/dashboard/evidence/page.tsx`
-- possibly `hooks/use-debounced-value.ts` if no equivalent hook exists
-
-**Estimated scope:** Medium (2–3 files)
+- `lib/services/forecast-service.ts`
+- `lib/services/prep-list-service.ts`
+- `components/inventory/prep-list-view.tsx`
 
 ---
 
-## Task 4: Accessibility P0 — keyboard-openable cards, labeled inputs, aria-labels
-
-**Description:** Cards and list rows are `<div onClick>` — keyboard and screen-reader
-users cannot open any evidence. Filter labels aren't associated with inputs; the list Eye
-button is icon-only. Make the primary action accessible.
-
+#### Task 4: Hard Stop NOM-251 y Trazabilidad Instantánea en Recepción
+**Description:** Asegurar que el bloqueo físico por temperatura fuera de rango en recepción (`receiving-temperature.ts`) genere automáticamente un `supplier_claim` y notifique al comprador corporativo en tiempo real.
 **Acceptance criteria:**
-- [ ] Grid cards and list rows render as `<button>` (full-width reset styling) or `role="button"` + `tabIndex=0` + Enter/Space handlers
-- [ ] Visible focus ring on all interactive elements (`focus-visible:` utilities)
-- [ ] Every filter uses `components/ui/label` with matching `htmlFor`/`id`
-- [ ] Eye button gets `aria-label="Ver evidencia"` (or becomes redundant once row is a button — then remove it)
-- [ ] Dialog traps focus correctly (Radix default) and closes on Escape
-
+- [ ] Al detectar temperatura no conforme (>4°C en refrigerado o >-18°C en congelado), se rechaza la línea de recepción de la OC.
+- [ ] Creación automática de fila en `supplier_claims` con tipo `QUALITY` y evidencia de lectura térmica.
+- [ ] Despacho de alerta urgente al Gerente de Operaciones por WhatsApp/In-App.
 **Verification:**
-- [ ] Build succeeds: `pnpm run build`
-- [ ] Manual keyboard-only pass: Tab through filters → open evidence via Enter → close via Escape → switch view mode
-
-**Dependencies:** None strictly; do after Task 3 to avoid same-file churn
-
+- [ ] Simular recepción a 6°C en producto cárnico y verificar rechazo + claim generado.
+- [ ] `pnpm run build` sin errores.
+**Dependencies:** None
 **Files likely touched:**
-- `app/dashboard/evidence/page.tsx`
-
-**Estimated scope:** Small–Medium (1 file)
-
----
-
-### Checkpoint: Hardening
-
-- [ ] Keyboard-only walkthrough passes end-to-end
-- [ ] Rapid typing produces exactly one in-flight request; stale responses discarded
-- [ ] No layout jump during loading
+- `lib/services/receiving-service.ts`
+- `lib/services/receiving-temperature.ts`
+- `lib/services/supplier-claim-service.ts`
 
 ---
 
-## Task 5: Re-tokenize visuals + collapse stat row into summary strip
+### Checkpoint 2: Operaciones y Clima
+- [ ] Ajuste climático de Monterrey afectando el forecast y la hoja de prep list.
+- [ ] Hard stop térmico NOM-251 generando reclamo a proveedor y alerta inmediata.
 
-**Description:** Replace stock Tailwind palette with Pulso OKLCH tokens, delete banned
-card shadows, and demote the five hero-metric stat cards into a compact inline summary
-strip beside the header. Mapping per critique: PHOTO→info, VIDEO→chart/accent token,
-AUDIO→warning, TEXT→muted, verification→success.
+---
 
+### Phase 3: Control Documental OC/OS y Conciliación 3-Way (Módulo 4 & 5)
+
+#### Task 5: Consolidación de Discrepancias en 3-Way Match
+**Description:** Afinar el motor de conciliación triple para que discrepancias de precio o cantidad (>1% o tolerancia del proveedor) pongan la factura en estado `ALERTA_DISCREPANCIA` y bloqueen la inclusión en la corrida de pagos hasta visto bueno.
 **Acceptance criteria:**
-- [ ] Zero stock-palette classes remain (`blue-*`, `purple-*`, `orange-*`, `green-500`, `gray-*` replaced by info/chart/warning/muted/success tokens)
-- [ ] `hover:shadow-lg transition-shadow` removed; hover = border/background tonal shift per Flat-By-Default rule
-- [ ] Five stat cards replaced by one compact strip: total · fotos · videos · audios · verificadas, labeled to reflect they describe the filtered set ("de N filtradas")
-- [ ] View-mode toggle uses lighter control (ToggleGroup or ghost segmented buttons), not two full Buttons
-- [ ] Dark mode remains coherent (tokens handle it)
-
+- [ ] `invoice-matching-service.ts` marca `matchStatus = 'DISCREPANCY'` cuando variación > tolerancia.
+- [ ] Vista en `app/dashboard/finance/payables/page.tsx` con filtro de facturas con discrepancia y comparativo visual (OC vs Recepción vs CFDI).
+- [ ] Botón de autorización de excepción con motivo justificado para auditores/directores.
 **Verification:**
-- [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check against DESIGN.md: no shadows, no hero-metric row, warm palette throughout
-
-**Dependencies:** Task 4 (same file; avoids edit conflicts)
-
+- [ ] Cargar CFDI con precio $105 vs OC $100 (variación 5% > 1%) y verificar estado de discrepancia.
+- [ ] `pnpm run build` limpio.
+**Dependencies:** None
 **Files likely touched:**
-- `app/dashboard/evidence/page.tsx`
-
-**Estimated scope:** Medium (1 file, broad diff)
+- `lib/services/invoice-matching-service.ts`
+- `lib/services/accounts-payable-service.ts`
+- `app/dashboard/finance/payables/page.tsx`
 
 ---
 
-## Task 6: Trust controls — download, Eye wiring, TEXT rendering, fallbacks, score 0
-
-**Description:** Ship the promises the UI makes: "Descargar" actually downloads, TEXT
-evidence shows its content (not the storage URL), broken images degrade gracefully, and
-a failed AI verification (score 0) renders instead of disappearing.
-
+#### Task 6: Contracontraste de Gastos Recurrentes (Renta / CFE / Servicios)
+**Description:** Comparar automáticamente los CFDIs de gastos operativos recurrentes contra los contratos marco en `recurring_contracts` y alertar variaciones >10%.
 **Acceptance criteria:**
-- [ ] Descargar renders as `<a href={url} download>` (presigned URL) — file saves; for legacy http URLs opens in new tab as fallback
-- [ ] List-view Eye either opens the dialog (wired) or is removed in favor of the now-focusable row (Task 4 decision)
-- [ ] TEXT evidence in dialog renders `textContent` (Task 1 field), not `url`
-- [ ] Photo tiles/dialog show fallback UI (icon + "No disponible") on image error
-- [ ] Audio evidence gets a compact player row instead of sitting inside an `aspect-video` muted box
-- [ ] `aiScore` displays whenever present including `0`; unverified badge distinguishes pending vs failed using `aiReason` presence
-
+- [ ] Servicio de validación recurrente que contrasta monto de factura mensual contra `baseAmountCents` del contrato.
+- [ ] Generación de `compliance_alerts` si el recibo excede la tolerancia contractual (+10%).
+- [ ] Visualización en el módulo de control interno y gastos.
 **Verification:**
-- [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check: download a seeded photo; open a TEXT evidence; break one image URL (devtools) → fallback appears
-
-**Dependencies:** Tasks 1 (textContent), 4 (row/button semantics), 5 (token classes)
-
+- [ ] Simular factura de luz con 15% de sobreconsumo y verificar alerta de contracontraste.
+- [ ] `pnpm run build` sin errores.
+**Dependencies:** None
 **Files likely touched:**
-- `app/dashboard/evidence/page.tsx`
-
-**Estimated scope:** Medium (1–2 files)
+- `lib/services/fiscal-buzon-service.ts`
+- `lib/services/cfdi-recibidos-service.ts`
+- `lib/services/expense-service.ts`
 
 ---
 
-## Task 7: Branch dimension — Sucursal filter, card caption, list column
+### Phase 4: Tesorería y Nómina Validada (Módulo 6 & 7)
 
-**Description:** The primary persona (owner of 3–15 branches) asks "which branch is
-behind on evidence?" — answer it. Fetch `/api/branches` for the dropdown (API support
-landed in Task 2), and make branch visible everywhere evidence is listed.
-
+#### Task 7: Orquestador de Dispersión Bancaria y Lotes de Pago con Doble Firma
+**Description:** Consolidar el flujo de corridas de pago semanales/quincenales con bloqueo de dispersión sin doble firma y validación de cuentas bancarias CLABE activas.
 **Acceptance criteria:**
-- [ ] "Sucursal" select in filter bar fed by `GET /api/branches`, scoped to tenant
-- [ ] Branch name shown as caption on grid cards and as a column/segment in list view
-- [ ] Detail dialog already shows sucursal — keep consistent naming
-- [ ] Filter combines correctly with existing filters (AND semantics verified)
-- [ ] Stretch (optional): group-by-sucursal sections in list mode
-
+- [ ] `payment_runs` solo transiciona a `PROCESSING`/`COMPLETED` si `preparedBy` ≠ `approvedBy` (separación de funciones estricta).
+- [ ] Rechazo automático de líneas de pago cuya cuenta CLABE esté en `PENDING_VERIFICATION` o `REJECTED`.
+- [ ] Generación de layout bancario estándar / webhook de dispersión.
 **Verification:**
-- [ ] Build succeeds: `pnpm run build`
-- [ ] Manual check: pick one branch → only its evidence appears; captions match selection
-
-**Dependencies:** Tasks 2 (API branchId), 5 (layout/tokens settled)
-
+- [ ] Intentar aprobar corrida con el mismo usuario preparador y validar error 403 / Forbidden.
+- [ ] `pnpm run build` sin errores.
+**Dependencies:** Task 5
 **Files likely touched:**
-- `app/dashboard/evidence/page.tsx`
-
-**Estimated scope:** Medium (1–2 files)
+- `lib/services/treasury-service.ts`
+- `lib/services/supplier-bank-account-service.ts`
+- `app/dashboard/finance/treasury/page.tsx`
 
 ---
 
-## Task 8: Language & labels polish
-
-**Description:** Close the copy drift: Spanish labels for media types, sane initials,
-self-explanatory AI badge, and the small consistency items from the critique's minor list.
-
+#### Task 8: Bloqueo de Nómina Pre-Timbrado por Validación de Checador
+**Description:** Prohibir el timbrado y generación de CFDIs de nómina para empleados sin asistencia/incidencias validadas por el Gerente de Sucursal (regla cero empleados fantasma).
 **Acceptance criteria:**
-- [ ] Type label map: PHOTO→Foto, VIDEO→Video, AUDIO→Audio, TEXT→Texto (chips + filters + dialog)
-- [ ] Initials take the first two words only ("María De La O" → "MD"; single names don't crash)
-- [ ] Green badge reads "Verificada por IA" (compact variant on cards, tooltip with score)
-- [ ] `h1` gets `tracking-tight` matching sibling pages
-- [ ] Empty state embeds a "Limpiar filtros" button inline
-
+- [ ] `payroll-service.ts` valida que todo colaborador en el período tenga turnos confirmados en `shift_sessions` o incidencias justificadas en `shift_approvals`.
+- [ ] Alerta bloqueante con listado de colaboradores no validados que detiene la ejecución del timbrado.
+- [ ] Cálculo exacto de carga social (35-40%) para costeo real de mano de obra en P&L.
 **Verification:**
-- [ ] Build succeeds: `pnpm run build`; `pnpm run lint` clean
-- [ ] Manual read-through: zero raw enum leaks in UI
-
-**Dependencies:** Tasks 5–7 (final pass over same file)
-
+- [ ] Intentar procesar nómina con empleado sin sesiones y verificar bloqueo preventivo.
+- [ ] `pnpm run build` sin errores.
+**Dependencies:** None
 **Files likely touched:**
-- `app/dashboard/evidence/page.tsx`
-
-**Estimated scope:** Small (1 file)
+- `lib/services/payroll-service.ts`
+- `lib/services/labor-calculator.ts`
+- `lib/services/labor-cost-service.ts`
 
 ---
 
-### Checkpoint: Complete
+### Phase 5: Dashboard Corporativo Consolidado de 15 Sucursales (Módulo 8)
 
-- [ ] All acceptance criteria across tasks met
-- [ ] `pnpm run build` && `pnpm run lint` clean
-- [ ] DESIGN.md review: flat surfaces, OKLCH tokens only, no hero-metric row, Operational Red discipline intact
-- [ ] Critique re-run target: ≥30/40 (from 18/40)
+#### Task 9: Tablero Ejecutivo Consolidado y Semáforos Multidimensionales
+**Description:** Construir la vista ejecutiva de dirección que consolida en tiempo real las 3 a 15 sucursales con métricas clave: Ventas, Food Cost %, Labor Cost %, Prime Cost %, EBITDA y Varianza Presupuestal.
+**Acceptance criteria:**
+- [ ] Tabla matricial con ordenamiento por sucursal y totales consolidados de la cadena.
+- [ ] Semáforos 🟢 🟡 🔴 dinámicos alimentados de `tenantOperatingConfig` (Food cost target 30%, Labor 28%, Margen 45%).
+- [ ] Drill-down con 1-clic a la sucursal para ver desglose de varianza en insumos o partidas de mantenimiento.
+**Verification:**
+- [ ] Verificar renderizado y cálculo de métricas en la página ejecutiva con datos consolidados.
+- [ ] `pnpm run build` y `pnpm run lint` limpios.
+**Dependencies:** Tasks 1, 3, 5, 8
+**Files likely touched:**
+- `app/dashboard/executive/page.tsx`
+- `components/sales/financial-kpi-cards.tsx`
+- `lib/services/cross-branch-service.ts`
+- `lib/services/financial-kpi-service.ts`
 
-## Risks and Mitigations
+---
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Media-type inference misclassifies legacy seed URLs | Low | Fallback chain: extension → frozen `type` column → PHOTO |
-| Presigned URLs expire while user idles (10-min TTL) | Med | Known behavior; document; images refetch on next page load |
-| Pagination changes response shape breaks other consumers | Low | Route consumed only by this page today; verify with grep before merging; keep `data` key intact |
-| `strict: false` hides type regressions | Med | Per-task manual verification + build gate |
-| Scope creep toward bulk actions / sort (heuristic #7) | Med | Explicitly deferred — see Open Questions |
-
-## Open Questions
-
-- Bulk actions and sort controls (critique heuristic #7 scored 1/4): separate follow-up plan, or fold in later?
-- List-mode "group by sucursal": stretch goal inside Task 7, or deferred?
-- Should WhatsApp-originated evidence carry a channel mark? Provenance data doesn't appear
-  to exist yet in `workflowInstanceSteps` — would need upstream work first.
+## Checkpoint Final: Integración Completa
+- [ ] Todas las pruebas automatizadas pasan.
+- [ ] Build de producción compila limpiamente (`pnpm run build`).
+- [ ] Flujo físico y flujo financiero unificados en la base de datos sin fricción.

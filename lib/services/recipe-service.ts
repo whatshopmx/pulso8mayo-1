@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { recipes, recipeItems, inventoryItems } from "@/lib/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { recipes, recipeItems, inventoryItems, recipeVersions, users } from "@/lib/db/schema";
+import { eq, inArray, desc, and, sql } from "drizzle-orm";
 
 /**
  * Thrown when a recipe is reachable from itself through sub-recipe items
@@ -368,4 +368,104 @@ export class RecipeService {
             path.delete(recipeId);
         }
     }
+
+    /**
+     * Crea un snapshot inmutable de la ficha técnica actual de la receta (Módulo 1.2.2).
+     */
+    static async createRecipeVersion(
+        recipeId: string,
+        changedBy?: string,
+        changeReason?: string
+    ) {
+        const [recipe] = await db
+            .select()
+            .from(recipes)
+            .where(eq(recipes.id, recipeId));
+
+        if (!recipe) return null;
+
+        // Fetch current items with rich metadata
+        const items = await db
+            .select({
+                itemId: recipeItems.itemId,
+                quantity: recipeItems.quantity,
+                unit: recipeItems.unit,
+                isSubRecipe: recipeItems.isSubRecipe,
+                yieldPercent: recipeItems.yieldPercent,
+                itemName: inventoryItems.name,
+                itemSku: inventoryItems.sku,
+                lastCost: inventoryItems.lastCost,
+                averageCost: inventoryItems.averageCost,
+            })
+            .from(recipeItems)
+            .leftJoin(inventoryItems, eq(recipeItems.itemId, inventoryItems.id))
+            .where(eq(recipeItems.recipeId, recipeId));
+
+        // Get latest version number
+        const [latestVersion] = await db
+            .select({
+                maxVer: sql<number>`COALESCE(MAX(${recipeVersions.versionNumber}), 0)`,
+            })
+            .from(recipeVersions)
+            .where(eq(recipeVersions.recipeId, recipeId));
+
+        const nextVersionNumber = (latestVersion?.maxVer ?? 0) + 1;
+
+        const [createdVersion] = await db
+            .insert(recipeVersions)
+            .values({
+                recipeId: recipe.id,
+                companyId: recipe.companyId,
+                versionNumber: nextVersionNumber,
+                name: recipe.name,
+                description: recipe.description,
+                baseYield: recipe.baseYield,
+                unit: recipe.unit,
+                holdTimeMinutes: recipe.holdTimeMinutes,
+                calculatedCost: recipe.calculatedCost,
+                priceSelling: recipe.priceSelling,
+                foodCostPercentage: recipe.foodCostPercentage,
+                itemsSnapshot: items,
+                changeReason: changeReason || "Actualización de ficha técnica",
+                changedBy: changedBy || null,
+            })
+            .returning();
+
+        return createdVersion;
+    }
+
+    /**
+     * Lista todas las versiones históricas de una receta con autor.
+     */
+    static async listRecipeVersions(recipeId: string, companyId: string) {
+        return db
+            .select({
+                id: recipeVersions.id,
+                versionNumber: recipeVersions.versionNumber,
+                name: recipeVersions.name,
+                description: recipeVersions.description,
+                baseYield: recipeVersions.baseYield,
+                unit: recipeVersions.unit,
+                holdTimeMinutes: recipeVersions.holdTimeMinutes,
+                calculatedCost: recipeVersions.calculatedCost,
+                priceSelling: recipeVersions.priceSelling,
+                foodCostPercentage: recipeVersions.foodCostPercentage,
+                itemsSnapshot: recipeVersions.itemsSnapshot,
+                changeReason: recipeVersions.changeReason,
+                changedBy: recipeVersions.changedBy,
+                authorName: users.name,
+                authorEmail: users.email,
+                createdAt: recipeVersions.createdAt,
+            })
+            .from(recipeVersions)
+            .leftJoin(users, eq(recipeVersions.changedBy, users.id))
+            .where(
+                and(
+                    eq(recipeVersions.recipeId, recipeId),
+                    eq(recipeVersions.companyId, companyId)
+                )
+            )
+            .orderBy(desc(recipeVersions.versionNumber));
+    }
 }
+

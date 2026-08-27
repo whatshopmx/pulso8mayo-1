@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader, PageContainer } from "@/components/shared";
-import { ChefHat, Plus, Trash2, Edit2, Play, Percent, DollarSign, Calculator, AlertTriangle, Check, Loader2 } from "lucide-react";
+import { ChefHat, Plus, Trash2, Edit2, Play, Percent, DollarSign, Calculator, AlertTriangle, Check, Loader2, History } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -51,11 +51,43 @@ interface SimulationResult {
     simulatedFoodCostPct: string;
 }
 
+interface RecipeVersion {
+    id: string;
+    versionNumber: number;
+    name: string;
+    description?: string;
+    baseYield: string;
+    unit: string;
+    holdTimeMinutes?: number | null;
+    calculatedCost: number;
+    priceSelling: number;
+    foodCostPercentage: string;
+    itemsSnapshot: Array<{
+        itemId: string;
+        itemName?: string;
+        itemSku?: string;
+        quantity: string;
+        unit: string;
+        isSubRecipe: boolean;
+        lastCost?: number;
+    }>;
+    changeReason?: string;
+    authorName?: string;
+    authorEmail?: string;
+    createdAt: string;
+}
+
 export default function RecipesPage() {
     const [recipesList, setRecipesList] = useState<Recipe[]>([]);
     const [dbItems, setDbItems] = useState<InventoryProduct[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("list");
+
+    // Version History State
+    const [versionHistoryRecipe, setVersionHistoryRecipe] = useState<Recipe | null>(null);
+    const [versionsList, setVersionsList] = useState<RecipeVersion[]>([]);
+    const [loadingVersions, setLoadingVersions] = useState(false);
+    const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
 
     // Recipe Form State
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -142,6 +174,26 @@ export default function RecipesPage() {
             toast.error("Error al cargar ingredientes de la receta");
         }
         setIsDialogOpen(true);
+    };
+
+    const handleOpenVersionsDialog = async (recipe: Recipe) => {
+        setVersionHistoryRecipe(recipe);
+        setIsVersionDialogOpen(true);
+        setLoadingVersions(true);
+        try {
+            const res = await fetch(`/api/inventory/recipes/${recipe.id}/versions`);
+            if (res.ok) {
+                const data = await res.json();
+                setVersionsList(data.versions || []);
+            } else {
+                toast.error("Error al cargar historial de versiones");
+            }
+        } catch (err) {
+            console.error("Error fetching recipe versions:", err);
+            toast.error("Error de red al cargar versiones");
+        } finally {
+            setLoadingVersions(false);
+        }
     };
 
     const handleAddIngredient = () => {
@@ -375,6 +427,9 @@ export default function RecipesPage() {
                                             </div>
                                         </CardContent>
                                         <CardFooter className="flex justify-end gap-2 pt-0 border-t py-2">
+                                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500" title="Historial de Versiones" onClick={() => handleOpenVersionsDialog(recipe)}>
+                                                <History className="w-4 h-4" />
+                                            </Button>
                                             <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500" onClick={() => handleOpenEditDialog(recipe)}>
                                                 <Edit2 className="w-4 h-4" />
                                             </Button>
@@ -680,6 +735,99 @@ export default function RecipesPage() {
                         <Button onClick={handleSaveRecipe} disabled={isSubmitting} className="gap-2">
                             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                             {editingRecipe ? "Guardar Cambios" : "Crear Receta"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Recipe Version History Dialog (Módulo 1.2.2) */}
+            <Dialog open={isVersionDialogOpen} onOpenChange={setIsVersionDialogOpen}>
+                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <History className="w-5 h-5 text-primary" />
+                            Historial de Versiones: {versionHistoryRecipe?.name}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Auditoría inmutable de cambios en ingredientes, costos teóricos y modificaciones de ficha técnica.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {loadingVersions ? (
+                        <div className="flex items-center justify-center py-12">
+                            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : versionsList.length === 0 ? (
+                        <div className="text-center py-8 border border-dashed rounded-lg text-sm text-muted-foreground">
+                            No hay versiones históricas registradas aún para esta receta.
+                        </div>
+                    ) : (
+                        <div className="space-y-4 py-2">
+                            {versionsList.map((ver) => (
+                                <div key={ver.id} className="border rounded-lg p-4 space-y-3 bg-card/50">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="outline" className="font-mono font-bold">
+                                                    v{ver.versionNumber}
+                                                </Badge>
+                                                <span className="font-semibold text-sm">{ver.name}</span>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                {ver.changeReason || "Actualización de ficha técnica"}
+                                            </p>
+                                        </div>
+                                        <div className="text-right text-xs text-muted-foreground">
+                                            <span>{new Date(ver.createdAt).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                                            {ver.authorName && (
+                                                <span className="block font-medium text-foreground">{ver.authorName}</span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Cost & Yield summary */}
+                                    <div className="grid grid-cols-3 gap-2 p-2 bg-muted/40 rounded text-xs">
+                                        <div>
+                                            <span className="text-muted-foreground block">Rendimiento:</span>
+                                            <span className="font-medium">{ver.baseYield} {ver.unit}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block">Costo Teórico:</span>
+                                            <span className="font-mono font-bold">${ver.calculatedCost.toFixed(2)}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block">Food Cost:</span>
+                                            <span className="font-bold text-emerald-600">{Number(ver.foodCostPercentage).toFixed(1)}%</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Ingredients Snapshot */}
+                                    {ver.itemsSnapshot && ver.itemsSnapshot.length > 0 && (
+                                        <div className="border rounded divide-y divide-border text-xs">
+                                            <div className="p-2 bg-muted/20 font-semibold text-[11px] text-muted-foreground">
+                                                Ingredientes en esta versión ({ver.itemsSnapshot.length})
+                                            </div>
+                                            {ver.itemsSnapshot.map((item, idx) => (
+                                                <div key={idx} className="flex justify-between items-center p-2">
+                                                    <span className="font-medium">
+                                                        {item.itemName || item.itemId}
+                                                        {item.isSubRecipe && <Badge variant="secondary" className="ml-1 text-[9px] py-0">Sub-receta</Badge>}
+                                                    </span>
+                                                    <span className="font-mono text-muted-foreground">
+                                                        {Number(item.quantity)} {item.unit}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsVersionDialogOpen(false)}>
+                            Cerrar
                         </Button>
                     </DialogFooter>
                 </DialogContent>
