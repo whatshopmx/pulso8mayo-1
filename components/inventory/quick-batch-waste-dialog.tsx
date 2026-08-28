@@ -22,15 +22,11 @@ import {
 import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { InventoryBatch } from "@/hooks/queries/use-lots";
+import { REASON_LABELS, type WasteReason } from "@/lib/inventory/waste-labels";
 
-const WASTE_REASONS = [
-  { value: "EXPIRED", label: "Caducidad / Vencido" },
-  { value: "DAMAGED", label: "Dañado / Golpeado" },
-  { value: "QUALITY", label: "Problema de Calidad / Inocuidad" },
-  { value: "PREPARATION", label: "Error de Preparación" },
-  { value: "TEMPERATURE", label: "Ruptura de Cadena de Frío" },
-  { value: "OTHER", label: "Otro motivo" },
-];
+const WASTE_REASON_OPTIONS: { value: WasteReason; label: string }[] = Object.entries(REASON_LABELS).map(
+  ([value, { label }]) => ({ value: value as WasteReason, label })
+);
 
 export function QuickBatchWasteDialog({
   batch,
@@ -43,7 +39,7 @@ export function QuickBatchWasteDialog({
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
 }) {
-  const [reason, setReason] = useState<string>("EXPIRED");
+  const [reason, setReason] = useState<WasteReason>("EXPIRED");
   const [quantity, setQuantity] = useState<number>(1);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -77,17 +73,25 @@ export function QuickBatchWasteDialog({
         }),
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success(`Merma registrada: ${quantity} ${batch.itemUnit} de ${batch.itemName}`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && (data.success || data.data?.waste)) {
+        toast.success(`Merma registrada: ${quantity} ${batch.itemUnit} de ${batch.itemName}`, {
+          description: `Se actualizó el saldo del lote ${batch.lotNumber || ""} y se registró el movimiento Kardex.`,
+        });
         onOpenChange(false);
         setNotes("");
         onSuccess?.();
       } else {
-        toast.error(data.error || "Error al registrar merma");
+        const errorMsg =
+          typeof data.error === "object" && data.error?.message
+            ? data.error.message
+            : typeof data.error === "string"
+              ? data.error
+              : "Error al registrar merma en el lote";
+        toast.error("No se pudo registrar la merma", { description: errorMsg });
       }
     } catch {
-      toast.error("Error al registrar merma");
+      toast.error("Error de conexión al registrar merma");
     } finally {
       setSubmitting(false);
     }
@@ -100,33 +104,41 @@ export function QuickBatchWasteDialog({
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <Trash2 className="h-5 w-5" /> Mandar Lote a Merma
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs">
             Registra descarte o merma para el lote <strong className="font-mono">{batch.lotNumber || "Sin folio"}</strong> de {batch.itemName}.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="p-3 border rounded-lg bg-muted/30 text-xs space-y-1">
+          <div className="p-3 border rounded-lg bg-muted/30 text-xs space-y-1.5">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Producto:</span>
               <span className="font-medium">{batch.itemName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Saldo disponible en este lote:</span>
-              <span className="font-semibold tabular-nums text-foreground">
+              <span className="text-muted-foreground">Saldo disponible en lote:</span>
+              <span className="font-semibold font-mono text-foreground">
                 {batch.currentQuantity.toLocaleString("es-MX")} {batch.itemUnit}
               </span>
             </div>
+            {batch.expirationDate && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Caducidad registrada:</span>
+                <span className="font-mono text-muted-foreground">
+                  {new Date(batch.expirationDate).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="waste-reason">Motivo de Merma *</Label>
-            <Select value={reason} onValueChange={setReason}>
+            <Select value={reason} onValueChange={(val) => setReason(val as WasteReason)}>
               <SelectTrigger id="waste-reason">
                 <SelectValue placeholder="Seleccionar motivo" />
               </SelectTrigger>
               <SelectContent>
-                {WASTE_REASONS.map((r) => (
+                {WASTE_REASON_OPTIONS.map((r) => (
                   <SelectItem key={r.value} value={r.value}>
                     {r.label}
                   </SelectItem>
@@ -137,26 +149,41 @@ export function QuickBatchWasteDialog({
 
           <div className="space-y-2">
             <Label htmlFor="waste-quantity">Cantidad a Dar de Baja ({batch.itemUnit}) *</Label>
-            <div className="flex items-center gap-2">
+            <div className="space-y-2">
               <Input
                 id="waste-quantity"
                 type="number"
-                step="0.01"
-                min="0.01"
+                step="0.001"
+                min="0.001"
                 max={batch.currentQuantity}
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
+                className="font-mono text-sm"
                 required
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0 text-xs"
-                onClick={() => setQuantity(batch.currentQuantity)}
-              >
-                Todo ({batch.currentQuantity})
-              </Button>
+              <div className="flex flex-wrap gap-1.5">
+                {[0.5, 1, 5].filter(s => s < batch.currentQuantity).map((step) => (
+                  <Button
+                    key={step}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-1.5 text-xs font-mono"
+                    onClick={() => setQuantity((prev) => Math.min(batch.currentQuantity, +(prev + step).toFixed(3)))}
+                  >
+                    +{step}
+                  </Button>
+                ))}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-6 px-2 text-xs font-mono"
+                  onClick={() => setQuantity(batch.currentQuantity)}
+                >
+                  Todo el lote ({batch.currentQuantity})
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -166,7 +193,8 @@ export function QuickBatchWasteDialog({
               id="waste-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ej. Paquete roto / caducado en refrigerador"
+              placeholder="Ej. Caducado / daño en refrigerador"
+              className="text-xs"
             />
           </div>
 

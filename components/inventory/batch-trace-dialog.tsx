@@ -191,7 +191,7 @@ export function BatchTraceDialog({
                     <div key={p.id} className="p-3 flex items-center justify-between text-xs gap-3">
                       <div>
                         <p className="font-semibold">{p.recipeName || "Receta"}</p>
-                        <p className="text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <p className="text-muted-foreground flex items-center gap-1 mt-0.5 font-mono">
                           <Calendar className="h-3 w-3" />
                           {new Date(p.producedAt).toLocaleString("es-MX")}
                         </p>
@@ -200,7 +200,7 @@ export function BatchTraceDialog({
                         <span className="font-mono font-medium text-destructive">
                           -{p.actualQuantity.toFixed(2)} {p.unit}
                         </span>
-                        <span className="text-muted-foreground block text-[11px]">
+                        <span className="text-muted-foreground block text-xs">
                           para {p.producedQuantity} porciones
                         </span>
                       </div>
@@ -222,11 +222,11 @@ export function BatchTraceDialog({
                     <div key={w.id} className="p-3 flex items-center justify-between text-xs gap-3">
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <Badge variant="destructive" className="text-[10px] uppercase">
+                          <Badge variant="destructive" className="text-xs uppercase">
                             {w.reason}
                           </Badge>
                         </div>
-                        <p className="text-muted-foreground flex items-center gap-1 mt-1">
+                        <p className="text-muted-foreground flex items-center gap-1 mt-1 font-mono">
                           <Calendar className="h-3 w-3" />
                           {new Date(w.createdAt).toLocaleString("es-MX")}
                         </p>
@@ -236,7 +236,7 @@ export function BatchTraceDialog({
                           -{w.quantity.toFixed(2)} {w.unit}
                         </span>
                         {w.totalLoss != null && (
-                          <span className="text-muted-foreground block text-[11px]">
+                          <span className="text-muted-foreground block text-xs font-mono">
                             Pérdida: ${(w.totalLoss / 100).toFixed(2)}
                           </span>
                         )}
@@ -258,11 +258,11 @@ export function BatchTraceDialog({
                   {trace.movements.map((m) => (
                     <div key={m.id} className="p-3 flex items-center justify-between text-xs gap-3">
                       <div>
-                        <Badge variant="secondary" className="text-[10px]">
+                        <Badge variant="secondary" className="text-xs">
                           {m.type}
                         </Badge>
                         {m.reason && <p className="text-muted-foreground mt-0.5">{m.reason}</p>}
-                        <p className="text-muted-foreground text-[11px] mt-0.5">
+                        <p className="text-muted-foreground text-xs font-mono mt-0.5">
                           {new Date(m.timestamp).toLocaleString("es-MX")}
                         </p>
                       </div>
