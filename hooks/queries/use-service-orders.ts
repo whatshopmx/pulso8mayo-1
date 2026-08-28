@@ -18,12 +18,16 @@ export interface ServiceOrderListItem {
   scheduledDate: string | null;
   scope: string | null;
   supplierId: string | null;
+  serviceProviderId: string | null;
   costCenterId: string | null;
   createdAt: string;
   updatedAt: string;
   branchName: string | null;
   branchCode: string | null;
   supplierName: string | null;
+  serviceProviderName: string | null;
+  serviceProviderPhone: string | null;
+  serviceProviderEmail: string | null;
   costCenterCode: string | null;
   costCenterName: string | null;
 }

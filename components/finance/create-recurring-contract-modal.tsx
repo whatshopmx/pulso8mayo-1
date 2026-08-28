@@ -155,15 +155,15 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="supplierId">Proveedor / Contraparte</Label>
+              <div className="grid gap-2 min-w-0">
+                <Label htmlFor="supplierId" className="truncate">Proveedor / Contraparte</Label>
                 {loadingSuppliers ? (
                   <div className="flex items-center h-9 text-xs text-muted-foreground">
                     <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Cargando...
                   </div>
                 ) : (
                   <Select value={supplierId} onValueChange={setSupplierId}>
-                    <SelectTrigger id="supplierId" className="text-xs">
+                    <SelectTrigger id="supplierId" className="text-xs w-full min-w-0">
                       <SelectValue placeholder="Selecciona proveedor..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -183,10 +183,10 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
                 )}
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="branchId">Sucursal Asignada</Label>
+              <div className="grid gap-2 min-w-0">
+                <Label htmlFor="branchId" className="truncate">Sucursal Asignada</Label>
                 <Select value={branchId} onValueChange={setBranchId}>
-                  <SelectTrigger id="branchId" className="text-xs">
+                  <SelectTrigger id="branchId" className="text-xs w-full min-w-0">
                     <SelectValue placeholder="Todas las sucursales" />
                   </SelectTrigger>
                   <SelectContent>
@@ -208,10 +208,10 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
             </div>
             
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="contractType">Tipo de Gasto</Label>
+              <div className="grid gap-2 min-w-0">
+                <Label htmlFor="contractType" className="truncate">Tipo de Gasto</Label>
                 <Select value={contractType} onValueChange={setContractType}>
-                  <SelectTrigger id="contractType" className="text-xs">
+                  <SelectTrigger id="contractType" className="text-xs w-full min-w-0">
                     <SelectValue placeholder="Selecciona..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -224,10 +224,10 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
                 </Select>
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="paymentFrequency">Periodicidad de Pago</Label>
+              <div className="grid gap-2 min-w-0">
+                <Label htmlFor="paymentFrequency" className="truncate">Periodicidad de Pago</Label>
                 <Select value={paymentFrequency} onValueChange={setPaymentFrequency}>
-                  <SelectTrigger id="paymentFrequency" className="text-xs">
+                  <SelectTrigger id="paymentFrequency" className="text-xs w-full min-w-0">
                     <SelectValue placeholder="Periodicidad..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -241,8 +241,8 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="baseAmount">Monto Base ({paymentFrequency === "ANNUAL" ? "Anual" : "Mensual"})</Label>
+              <div className="grid gap-2 min-w-0">
+                <Label htmlFor="baseAmount" className="truncate">Monto Base ({paymentFrequency === "ANNUAL" ? "Anual" : "Mensual"})</Label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-2 text-xs text-muted-foreground">$</span>
                   <Input
@@ -259,8 +259,8 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
                 </div>
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="startDate">Fecha Próximo Vencimiento</Label>
+              <div className="grid gap-2 min-w-0">
+                <Label htmlFor="startDate" className="truncate">Fecha Próximo Vencimiento</Label>
                 <Input
                   id="startDate"
                   type="date"

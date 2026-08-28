@@ -35,6 +35,7 @@ interface ComplianceService {
   frequency: string;
   nextServiceDate?: string;
   lastServiceDate?: string;
+  providerId?: string | null;
   providerName?: string;
   branchName?: string;
   isMandatory: boolean;
@@ -86,6 +87,7 @@ export default function EquipmentCompliancePage() {
           if (item.service) {
             return {
               ...item.service,
+              providerId: item.provider?.id || item.service.providerId || null,
               providerName: item.provider?.name || item.service.providerName,
               branchName: item.branch?.name,
             };

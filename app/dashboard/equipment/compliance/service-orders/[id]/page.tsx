@@ -481,7 +481,7 @@ export default function ServiceOrderDetailPage() {
   );
 }
 
-function InfoItem({ label, value }: { label: string; value: string }) {
+function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</dt>
