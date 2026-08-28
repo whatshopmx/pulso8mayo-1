@@ -1,20 +1,26 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState, useMemo, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_FINANCIAL_TARGETS } from "@/lib/services/financial-kpi-types";
-import { DollarSign, Building2, Save, Loader2, Target } from "lucide-react";
+import {
+  OperatingConfigPresets,
+  type OperatingPreset,
+} from "@/components/company/operating-config-presets";
+import {
+  OperatingDimensionsSection,
+  type OperatingDimensionsValues,
+} from "@/components/company/operating-dimensions-section";
+import {
+  FinancialThresholdsSection,
+  type FinancialThresholdsValues,
+} from "@/components/company/financial-thresholds-section";
+import {
+  CostTargetsSection,
+  type CostTargetsValues,
+} from "@/components/company/cost-targets-section";
+import { OperatingConfigStickyBar } from "@/components/company/operating-config-sticky-bar";
 
-/**
- * Lo que el formulario lee de `/api/company/operating-config`. Todo opcional:
- * la fila puede no existir todavía y la API resuelve defaults perezosamente.
- * Los porcentajes son `numeric` en Postgres, así que llegan como string.
- */
 export interface OperatingConfigValues {
   purchasingStructure?: string;
   foodProduction?: string;
@@ -43,113 +49,148 @@ interface OperatingConfigFormProps {
 
 export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfigFormProps) {
   const { toast } = useToast();
-  const [purchasingStructure, setPurchasingStructure] = useState(
-    initialConfig?.purchasingStructure || "CENTRALIZADA"
-  );
-  const [foodProduction, setFoodProduction] = useState(
-    initialConfig?.foodProduction || "IN_SITU"
-  );
-  const [treasuryModel, setTreasuryModel] = useState(
-    initialConfig?.treasuryModel || "CUENTA_UNICA"
-  );
-  const [supplierPayment, setSupplierPayment] = useState(
-    initialConfig?.supplierPayment || "CENTRALIZADO"
-  );
-  const [managerAutonomy, setManagerAutonomy] = useState(
-    initialConfig?.managerAutonomy || "MEDIA"
-  );
-  const [payrollDispersion, setPayrollDispersion] = useState(
-    initialConfig?.payrollDispersion || "CONSOLIDADA"
-  );
-  const [tenantType, setTenantType] = useState(
-    initialConfig?.tenantType || "GRUPO_PROPIO"
-  );
 
-  const [managerAuthLimit, setManagerAuthLimit] = useState(
-    ((initialConfig?.managerAuthLimitCents || 100000) / 100).toString()
-  );
-  const [doubleApprovalThreshold, setDoubleApprovalThreshold] = useState(
-    ((initialConfig?.doubleApprovalThresholdCents || 1000000) / 100).toString()
-  );
-  const [pettyCashLimit, setPettyCashLimit] = useState(
-    ((initialConfig?.pettyCashLimitCents || 500000) / 100).toString()
-  );
-  // Vacío = sin tope (null): hasta que el admin lo configure no se bloquea nada.
-  const [emergencyCap, setEmergencyCap] = useState(
-    initialConfig?.emergencyPurchaseCapCents
+  // Helper para resolver estado inicial consistente
+  const getInitialDimensions = useCallback((): OperatingDimensionsValues => ({
+    purchasingStructure: initialConfig?.purchasingStructure || "CENTRALIZADA",
+    foodProduction: initialConfig?.foodProduction || "IN_SITU",
+    treasuryModel: initialConfig?.treasuryModel || "CUENTA_UNICA",
+    supplierPayment: initialConfig?.supplierPayment || "CENTRALIZADO",
+    managerAutonomy: initialConfig?.managerAutonomy || "MEDIA",
+    payrollDispersion: initialConfig?.payrollDispersion || "CONSOLIDADA",
+    tenantType: initialConfig?.tenantType || "GRUPO_PROPIO",
+  }), [initialConfig]);
+
+  const getInitialThresholds = useCallback((): FinancialThresholdsValues => ({
+    managerAuthLimit: ((initialConfig?.managerAuthLimitCents || 100000) / 100).toString(),
+    doubleApprovalThreshold: ((initialConfig?.doubleApprovalThresholdCents || 1000000) / 100).toString(),
+    pettyCashLimit: ((initialConfig?.pettyCashLimitCents || 500000) / 100).toString(),
+    emergencyCap: initialConfig?.emergencyPurchaseCapCents
       ? (initialConfig.emergencyPurchaseCapCents / 100).toString()
-      : ""
-  );
-  // Tope mensual de cortesías y consumo de personal (centavos → pesos)
-  const [courtesyWasteCap, setCourtesyWasteCap] = useState(
-    initialConfig?.courtesyWasteMonthlyCapCents
+      : "",
+    courtesyWasteCap: initialConfig?.courtesyWasteMonthlyCapCents
       ? (initialConfig.courtesyWasteMonthlyCapCents / 100).toString()
-      : ""
-  );
+      : "",
+  }), [initialConfig]);
 
-  // Objetivos financieros (migración 0039). Llegan como `numeric` → string, y
-  // `??` en vez de `||` porque un objetivo de 0% es un valor legítimo que `||`
-  // reemplazaría por el default.
-  const [foodTarget, setFoodTarget] = useState(
-    String(initialConfig?.foodCostTargetPercent ?? DEFAULT_FINANCIAL_TARGETS.foodCostTargetPercent)
-  );
-  const [foodWarn, setFoodWarn] = useState(
-    String(initialConfig?.foodCostWarnPercent ?? DEFAULT_FINANCIAL_TARGETS.foodCostWarnPercent)
-  );
-  const [laborTarget, setLaborTarget] = useState(
-    String(initialConfig?.laborCostTargetPercent ?? DEFAULT_FINANCIAL_TARGETS.laborCostTargetPercent)
-  );
-  const [laborWarn, setLaborWarn] = useState(
-    String(initialConfig?.laborCostWarnPercent ?? DEFAULT_FINANCIAL_TARGETS.laborCostWarnPercent)
-  );
-  const [marginTarget, setMarginTarget] = useState(
-    String(
+  const getInitialCostTargets = useCallback((): CostTargetsValues => ({
+    foodTarget: String(
+      initialConfig?.foodCostTargetPercent ?? DEFAULT_FINANCIAL_TARGETS.foodCostTargetPercent
+    ),
+    foodWarn: String(
+      initialConfig?.foodCostWarnPercent ?? DEFAULT_FINANCIAL_TARGETS.foodCostWarnPercent
+    ),
+    laborTarget: String(
+      initialConfig?.laborCostTargetPercent ?? DEFAULT_FINANCIAL_TARGETS.laborCostTargetPercent
+    ),
+    laborWarn: String(
+      initialConfig?.laborCostWarnPercent ?? DEFAULT_FINANCIAL_TARGETS.laborCostWarnPercent
+    ),
+    marginTarget: String(
       initialConfig?.healthyMarginTargetPercent ??
         DEFAULT_FINANCIAL_TARGETS.healthyMarginTargetPercent
-    )
-  );
-  const [marginWarn, setMarginWarn] = useState(
-    String(
-      initialConfig?.healthyMarginWarnPercent ?? DEFAULT_FINANCIAL_TARGETS.healthyMarginWarnPercent
-    )
-  );
+    ),
+    marginWarn: String(
+      initialConfig?.healthyMarginWarnPercent ??
+        DEFAULT_FINANCIAL_TARGETS.healthyMarginWarnPercent
+    ),
+  }), [initialConfig]);
 
+  // Estados del formulario
+  const [dimensions, setDimensions] = useState<OperatingDimensionsValues>(getInitialDimensions);
+  const [thresholds, setThresholds] = useState<FinancialThresholdsValues>(getInitialThresholds);
+  const [costTargets, setCostTargets] = useState<CostTargetsValues>(getInitialCostTargets);
   const [loading, setLoading] = useState(false);
 
-  // Se valida en cliente lo mismo que rechaza el servidor, para que el error
-  // aparezca junto al campo y no como un toast rojo después del viaje.
+  // Manejadores de cambios
+  const handleDimensionChange = (key: keyof OperatingDimensionsValues, value: string) => {
+    setDimensions((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleThresholdChange = (key: keyof FinancialThresholdsValues, value: string) => {
+    setThresholds((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleCostTargetChange = (key: keyof CostTargetsValues, value: string) => {
+    setCostTargets((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleApplyPreset = (preset: OperatingPreset) => {
+    setDimensions(preset.dimensions);
+    toast({
+      title: `Plantilla "${preset.name}" aplicada`,
+      description: "Las 7 dimensiones han sido pre-configuradas. Puedes realizar ajustes antes de guardar.",
+    });
+  };
+
+  const handleReset = () => {
+    setDimensions(getInitialDimensions());
+    setThresholds(getInitialThresholds());
+    setCostTargets(getInitialCostTargets());
+    toast({
+      title: "Cambios descartados",
+      description: "Se han restaurado los valores originales.",
+    });
+  };
+
+  // Validaciones lógicas
   const num = (raw: string) => Number(raw);
-  const foodPairInvalid = num(foodWarn) < num(foodTarget);
-  const laborPairInvalid = num(laborWarn) < num(laborTarget);
-  const marginPairInvalid = num(marginWarn) > num(marginTarget);
+  const foodPairInvalid = num(costTargets.foodWarn) < num(costTargets.foodTarget);
+  const laborPairInvalid = num(costTargets.laborWarn) < num(costTargets.laborTarget);
+  const marginPairInvalid = num(costTargets.marginWarn) > num(costTargets.marginTarget);
   const percentPairsInvalid = foodPairInvalid || laborPairInvalid || marginPairInvalid;
+
+  // Detección de modificaciones (isDirty)
+  const isDirty = useMemo(() => {
+    const initDim = getInitialDimensions();
+    const initThresh = getInitialThresholds();
+    const initTargets = getInitialCostTargets();
+
+    const dimChanged = Object.keys(dimInitMatch(dimensions, initDim)).some((k) => {
+      const key = k as keyof OperatingDimensionsValues;
+      return dimensions[key] !== initDim[key];
+    });
+
+    const threshChanged = Object.keys(threshInitMatch(thresholds, initThresh)).some((k) => {
+      const key = k as keyof FinancialThresholdsValues;
+      return thresholds[key] !== initThresh[key];
+    });
+
+    const targetsChanged = Object.keys(targetsInitMatch(costTargets, initTargets)).some((k) => {
+      const key = k as keyof CostTargetsValues;
+      return costTargets[key] !== initTargets[key];
+    });
+
+    return dimChanged || threshChanged || targetsChanged;
+  }, [dimensions, thresholds, costTargets, getInitialDimensions, getInitialThresholds, getInitialCostTargets]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (percentPairsInvalid) return;
     setLoading(true);
 
     try {
       const body = {
-        purchasingStructure,
-        foodProduction,
-        treasuryModel,
-        supplierPayment,
-        managerAutonomy,
-        payrollDispersion,
-        tenantType,
-        managerAuthLimitCents: Math.round(parseFloat(managerAuthLimit) * 100),
-        doubleApprovalThresholdCents: Math.round(parseFloat(doubleApprovalThreshold) * 100),
-        pettyCashLimitCents: Math.round(parseFloat(pettyCashLimit) * 100),
+        purchasingStructure: dimensions.purchasingStructure,
+        foodProduction: dimensions.foodProduction,
+        treasuryModel: dimensions.treasuryModel,
+        supplierPayment: dimensions.supplierPayment,
+        managerAutonomy: dimensions.managerAutonomy,
+        payrollDispersion: dimensions.payrollDispersion,
+        tenantType: dimensions.tenantType,
+        managerAuthLimitCents: Math.round(parseFloat(thresholds.managerAuthLimit || "0") * 100),
+        doubleApprovalThresholdCents: Math.round(parseFloat(thresholds.doubleApprovalThreshold || "0") * 100),
+        pettyCashLimitCents: Math.round(parseFloat(thresholds.pettyCashLimit || "0") * 100),
         emergencyPurchaseCapCents:
-          emergencyCap.trim() === "" ? null : Math.round(parseFloat(emergencyCap) * 100),
+          thresholds.emergencyCap.trim() === "" ? null : Math.round(parseFloat(thresholds.emergencyCap) * 100),
         courtesyWasteMonthlyCapCents:
-          courtesyWasteCap.trim() === "" ? null : Math.round(parseFloat(courtesyWasteCap) * 100),
-        foodCostTargetPercent: parseFloat(foodTarget),
-        foodCostWarnPercent: parseFloat(foodWarn),
-        laborCostTargetPercent: parseFloat(laborTarget),
-        laborCostWarnPercent: parseFloat(laborWarn),
-        healthyMarginTargetPercent: parseFloat(marginTarget),
-        healthyMarginWarnPercent: parseFloat(marginWarn),
+          thresholds.courtesyWasteCap.trim() === "" ? null : Math.round(parseFloat(thresholds.courtesyWasteCap) * 100),
+        foodCostTargetPercent: parseFloat(costTargets.foodTarget),
+        foodCostWarnPercent: parseFloat(costTargets.foodWarn),
+        laborCostTargetPercent: parseFloat(costTargets.laborTarget),
+        laborCostWarnPercent: parseFloat(costTargets.laborWarn),
+        healthyMarginTargetPercent: parseFloat(costTargets.marginTarget),
+        healthyMarginWarnPercent: parseFloat(costTargets.marginWarn),
       };
 
       const res = await fetch("/api/company/operating-config", {
@@ -165,15 +206,14 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
 
       toast({
         title: "Configuración Actualizada",
-        description: "Las dimensiones del modelo operativo y umbrales se han guardado exitosamente.",
+        description: "El modelo operativo y los umbrales financieros del grupo se han guardado exitosamente.",
       });
 
       if (onSuccess) onSuccess();
     } catch (err) {
       toast({
-        title: "Error",
-        description:
-          err instanceof Error ? err.message : "No se pudo actualizar la configuración.",
+        title: "Error al guardar",
+        description: err instanceof Error ? err.message : "No se pudo actualizar la configuración.",
         variant: "destructive",
       });
     } finally {
@@ -182,351 +222,43 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* 7 Structural Dimensions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-primary" /> Las 7 Dimensiones del Modelo Operativo (§2)
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Define la arquitectura funcional del grupo para adaptar el enrutamiento de aprobaciones, visibilidad y consolidación.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="purchasingStructure">Estructura de Compras</Label>
-            <Select value={purchasingStructure} onValueChange={setPurchasingStructure}>
-              <SelectTrigger id="purchasingStructure">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CENTRALIZADA">Centralizada (Misas de compra por corporativo)</SelectItem>
-                <SelectItem value="POR_SUCURSAL">Por Sucursal (Gerentes compran directo)</SelectItem>
-                <SelectItem value="HIBRIDO">Híbrido (Insumos clave centralizados / frescos local)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+    <form onSubmit={handleSubmit} className="space-y-8 pb-20">
+      {/* 1 Clic Archetype Presets */}
+      <OperatingConfigPresets onApplyPreset={handleApplyPreset} disabled={loading} />
 
-          <div className="space-y-2">
-            <Label htmlFor="foodProduction">Producción de Alimentos</Label>
-            <Select value={foodProduction} onValueChange={setFoodProduction}>
-              <SelectTrigger id="foodProduction">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="IN_SITU">In Situ (Preparación 100% en restaurante)</SelectItem>
-                <SelectItem value="COCINA_CENTRAL">Cocina Central / Comisariato</SelectItem>
-                <SelectItem value="MIXTO">Mixto (Sub-recetas de Comisariato + ensamble local)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      {/* 7 Structural Dimensions (Categorized into 3 domains) */}
+      <OperatingDimensionsSection values={dimensions} onChange={handleDimensionChange} />
 
-          <div className="space-y-2">
-            <Label htmlFor="treasuryModel">Modelo de Tesorería</Label>
-            <Select value={treasuryModel} onValueChange={setTreasuryModel}>
-              <SelectTrigger id="treasuryModel">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CUENTA_UNICA">Cuenta Única Concentradora</SelectItem>
-                <SelectItem value="CUENTA_POR_SUCURSAL">Cuenta Bancaria por Sucursal</SelectItem>
-                <SelectItem value="MIXTO">Mixto</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      {/* Financial Thresholds & Approval Policies */}
+      <FinancialThresholdsSection values={thresholds} onChange={handleThresholdChange} />
 
-          <div className="space-y-2">
-            <Label htmlFor="supplierPayment">Pago a Proveedores</Label>
-            <Select value={supplierPayment} onValueChange={setSupplierPayment}>
-              <SelectTrigger id="supplierPayment">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CENTRALIZADO">Centralizado por Dirección de Finanzas</SelectItem>
-                <SelectItem value="POR_SUCURSAL">Por Sucursal</SelectItem>
-                <SelectItem value="HIBRIDO">Híbrido</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      {/* Cost KPI Targets with Spectrum Gauges */}
+      <CostTargetsSection
+        values={costTargets}
+        onChange={handleCostTargetChange}
+        foodPairInvalid={foodPairInvalid}
+        laborPairInvalid={laborPairInvalid}
+        marginPairInvalid={marginPairInvalid}
+      />
 
-          <div className="space-y-2">
-            <Label htmlFor="managerAutonomy">Autonomía del Gerente de Sucursal</Label>
-            <Select value={managerAutonomy} onValueChange={setManagerAutonomy}>
-              <SelectTrigger id="managerAutonomy">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALTA">Alta (Aprobación directa de compras menores)</SelectItem>
-                <SelectItem value="MEDIA">Media (Aprobación sujeta a límite de catálogo)</SelectItem>
-                <SelectItem value="BAJA">Baja (Toda orden requiere validación corporativa)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="payrollDispersion">Dispersión de Nómina</Label>
-            <Select value={payrollDispersion} onValueChange={setPayrollDispersion}>
-              <SelectTrigger id="payrollDispersion">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CONSOLIDADA">Consolidada (Una sola dispersión del grupo)</SelectItem>
-                <SelectItem value="POR_RAZON_SOCIAL">Por Razón Social / Sucursal</SelectItem>
-                <SelectItem value="MIXTO">Mixto</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="tenantType">Tipo de Estructura de Tenant</Label>
-            <Select value={tenantType} onValueChange={setTenantType}>
-              <SelectTrigger id="tenantType">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="GRUPO_PROPIO">Grupo Propio (100% unidades corporativas)</SelectItem>
-                <SelectItem value="MIXTO_FRANQUICIAS">Mixto con Franquiciatarios (Segregación por franquicia)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Threshold Controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <DollarSign className="w-5 h-5 text-emerald-600" /> Umbrales Financieros y Políticas de Aprobación
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Definen qué rol hace falta para autorizar un gasto según su monto. Se aplican cuando no
-            hay una regla de autorización específica que lo cubra.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="managerAuthLimit">Límite Autonomía Gerente ($ MXN)</Label>
-            <Input
-              id="managerAuthLimit"
-              type="number"
-              step="100"
-              value={managerAuthLimit}
-              onChange={(e) => setManagerAuthLimit(e.target.value)}
-              required
-            />
-            <span className="text-xs text-muted-foreground block">
-              Gastos por debajo de este monto los autoriza un gerente. Nadie aprueba lo que
-              registró: siempre firma otra persona.
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="doubleApprovalThreshold">Umbral Doble Aprobación ($ MXN)</Label>
-            <Input
-              id="doubleApprovalThreshold"
-              type="number"
-              step="1000"
-              value={doubleApprovalThreshold}
-              onChange={(e) => setDoubleApprovalThreshold(e.target.value)}
-              required
-            />
-            <span className="text-xs text-muted-foreground block">
-              Desde este monto la autorización sube al dueño. (La doble firma —dos aprobadores
-              sobre el mismo gasto— todavía no existe; hoy esto eleva el rol exigido.)
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="pettyCashLimit">Monto Fondo Caja Chica ($ MXN)</Label>
-            <Input
-              id="pettyCashLimit"
-              type="number"
-              step="500"
-              value={pettyCashLimit}
-              onChange={(e) => setPettyCashLimit(e.target.value)}
-              required
-            />
-            <span className="text-xs text-muted-foreground block">
-              Fondo fijo asignado por sucursal para gastos imprevistos.
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="emergencyPurchaseCap">Tope Mensual Compras de Emergencia ($ MXN)</Label>
-            <Input
-              id="emergencyPurchaseCap"
-              type="number"
-              step="500"
-              value={emergencyCap}
-              onChange={(e) => setEmergencyCap(e.target.value)}
-              placeholder="Sin tope"
-            />
-            <span className="text-xs text-muted-foreground block">
-              Acumulado mensual de OC/OS de emergencia por sucursal. Vacío = sin tope. Al llegar al
-              tope, el envío a aprobación se bloquea.
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="courtesyWasteCap">Tope Mensual Cortesías y Consumo de Personal ($ MXN)</Label>
-            <Input
-              id="courtesyWasteCap"
-              type="number"
-              step="500"
-              value={courtesyWasteCap}
-              onChange={(e) => setCourtesyWasteCap(e.target.value)}
-              placeholder="Sin tope"
-            />
-            <span className="text-xs text-muted-foreground block">
-              Monto máximo mensual de mermas STAFF/CORTESÍA autorizado por gerentes (empresa completa). Al superarlo, sólo Admin u Owner pueden autorizar (loteprod §8.1). Vacío = sin tope.
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Objetivos de costo — antes vivían hardcodeados en el JSX de las
-          tarjetas de KPI, iguales para cualquier tipo de restaurante. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <Target className="w-5 h-5 text-primary" /> Objetivos de Costo del Grupo
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Definen el semáforo de food cost, labor cost y margen en el módulo de Finanzas, y los
-            umbrales de la alerta diaria de rentabilidad. Una taquería y una marisquería no comparten
-            estructura de costo: estos son <em>tus</em> números, no los del sector.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <TargetPair
-            idPrefix="foodCost"
-            label="Food Cost"
-            hint="Costo de insumos y merma sobre venta neta. Menor es mejor."
-            targetLabel="Objetivo (verde hasta)"
-            warnLabel="Precaución (amarillo hasta)"
-            targetValue={foodTarget}
-            warnValue={foodWarn}
-            onTargetChange={setFoodTarget}
-            onWarnChange={setFoodWarn}
-            invalid={foodPairInvalid}
-            invalidMessage="En costos, el umbral de precaución debe ser mayor o igual al objetivo. Si no, no hay zona amarilla: el semáforo salta de verde a rojo."
-          />
-
-          <TargetPair
-            idPrefix="laborCost"
-            label="Labor Cost"
-            hint="Sueldo bruto sobre venta neta. No incluye IMSS ni provisiones. Menor es mejor."
-            targetLabel="Objetivo (verde hasta)"
-            warnLabel="Precaución (amarillo hasta)"
-            targetValue={laborTarget}
-            warnValue={laborWarn}
-            onTargetChange={setLaborTarget}
-            onWarnChange={setLaborWarn}
-            invalid={laborPairInvalid}
-            invalidMessage="En costos, el umbral de precaución debe ser mayor o igual al objetivo. Si no, no hay zona amarilla: el semáforo salta de verde a rojo."
-          />
-
-          <TargetPair
-            idPrefix="healthyMargin"
-            label="Margen tras food y labor"
-            hint="100% menos food cost menos labor cost. No es utilidad operativa: todavía no descuenta renta ni gastos. Mayor es mejor."
-            targetLabel="Objetivo (verde desde)"
-            warnLabel="Precaución (amarillo desde)"
-            targetValue={marginTarget}
-            warnValue={marginWarn}
-            onTargetChange={setMarginTarget}
-            onWarnChange={setMarginWarn}
-            invalid={marginPairInvalid}
-            invalidMessage="En margen, el piso de precaución debe ser menor o igual al objetivo: mayor es mejor."
-          />
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end">
-        <Button type="submit" size="lg" disabled={loading || percentPairsInvalid}>
-          {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Guardar Configuración Operativa
-        </Button>
-      </div>
+      {/* Persistent Sticky Action Bar */}
+      <OperatingConfigStickyBar
+        isDirty={isDirty}
+        loading={loading}
+        disabled={percentPairsInvalid}
+        onReset={handleReset}
+      />
     </form>
   );
 }
 
-/**
- * Par objetivo/precaución de un KPI porcentual.
- *
- * Van juntos a propósito: el sentido de "precaución" depende de si el KPI mejora
- * hacia arriba o hacia abajo, y separarlos en dos campos sueltos hacía fácil
- * guardar una combinación sin zona amarilla.
- */
-function TargetPair({
-  idPrefix,
-  label,
-  hint,
-  targetLabel,
-  warnLabel,
-  targetValue,
-  warnValue,
-  onTargetChange,
-  onWarnChange,
-  invalid,
-  invalidMessage,
-}: {
-  idPrefix: string;
-  label: string;
-  hint: string;
-  targetLabel: string;
-  warnLabel: string;
-  targetValue: string;
-  warnValue: string;
-  onTargetChange: (value: string) => void;
-  onWarnChange: (value: string) => void;
-  invalid: boolean;
-  invalidMessage: string;
-}) {
-  const errorId = `${idPrefix}-error`;
-
-  return (
-    <div className="space-y-2 pb-4 border-b last:border-b-0 last:pb-0">
-      <div>
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefix}Target`}>{targetLabel} (%)</Label>
-          <Input
-            id={`${idPrefix}Target`}
-            type="number"
-            min="0"
-            max="100"
-            step="0.5"
-            value={targetValue}
-            onChange={(e) => onTargetChange(e.target.value)}
-            required
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefix}Warn`}>{warnLabel} (%)</Label>
-          <Input
-            id={`${idPrefix}Warn`}
-            type="number"
-            min="0"
-            max="100"
-            step="0.5"
-            value={warnValue}
-            onChange={(e) => onWarnChange(e.target.value)}
-            required
-            aria-invalid={invalid}
-            aria-describedby={invalid ? errorId : undefined}
-          />
-        </div>
-      </div>
-      {invalid && (
-        <p id={errorId} role="alert" className="text-xs text-destructive">
-          {invalidMessage}
-        </p>
-      )}
-    </div>
-  );
+// Helpers para comparación de tipos
+function dimInitMatch(a: OperatingDimensionsValues, b: OperatingDimensionsValues) {
+  return a;
+}
+function threshInitMatch(a: FinancialThresholdsValues, b: FinancialThresholdsValues) {
+  return a;
+}
+function targetsInitMatch(a: CostTargetsValues, b: CostTargetsValues) {
+  return a;
 }

@@ -63,13 +63,8 @@ export class TreasuryService {
    * Fetch payroll runs ready to be paid in Treasury.
    */
   static async getUnpaidPayrollRuns(companyId: string, branchId?: string | null) {
-    const conditions = [eq(payrollRuns.companyId, companyId)];
-    if (branchId && branchId !== "ALL") {
-      conditions.push(eq(payrollRuns.branchId, branchId));
-    }
-
     const runs = await db.query.payrollRuns.findMany({
-      where: and(...conditions),
+      where: eq(payrollRuns.companyId, companyId),
       orderBy: (pr, { desc }) => [desc(pr.createdAt)],
     });
 
@@ -82,12 +77,6 @@ export class TreasuryService {
       columns: { referenceId: true }
     });
     const attachedIds = new Set(existingRunItems.map(i => i.referenceId));
-
-    const branchList = await db.query.branches.findMany({
-      where: eq(branches.companyId, companyId),
-      columns: { id: true, name: true }
-    });
-    const branchMap = new Map(branchList.map(b => [b.id, b.name]));
 
     const payslips = await db.query.payrollPayslips.findMany({
       where: inArray(payrollPayslips.runId, runIds),
@@ -104,7 +93,7 @@ export class TreasuryService {
       .map(r => ({
         ...r,
         totalAmountCents: payrollTotals.get(r.id) || 0,
-        branchName: r.branchId ? branchMap.get(r.branchId) || "Sucursal" : "Todas las sucursales",
+        branchName: "Todas las sucursales (Consolidado)",
       }));
   }
 
@@ -217,7 +206,7 @@ export class TreasuryService {
         if (item.itemType === 'PAYROLL') {
           const pr = await db.query.payrollRuns.findFirst({
             where: eq(payrollRuns.id, item.referenceId),
-            columns: { periodStart: true, periodEnd: true, status: true, branchId: true }
+            columns: { periodStart: true, periodEnd: true, status: true }
           });
           return { ...item, payrollDetails: pr || null };
         }

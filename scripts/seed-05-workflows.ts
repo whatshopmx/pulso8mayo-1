@@ -273,6 +273,10 @@ export async function main() {
       stepValues.push({
         instanceId: inst.id,
         stepId: step.id,
+        stepOrder: stepIdx,
+        title: (step as any).title || (step as any).label || `Paso ${stepIdx + 1}`,
+        type: step.type,
+        definition: step as unknown as Record<string, unknown>,
         status: stepCompleted ? "COMPLETED" : "PENDING",
         value: value as unknown as Record<string, unknown>,
         aiAnalysis: aiAnalysis as unknown as Record<string, unknown>,

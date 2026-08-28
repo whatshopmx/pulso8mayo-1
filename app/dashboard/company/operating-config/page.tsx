@@ -5,7 +5,8 @@ import {
   OperatingConfigForm,
   type OperatingConfigValues,
 } from "@/components/company/operating-config-form";
-import { Settings2, Loader2 } from "lucide-react";
+import { OperatingConfigSkeleton } from "@/components/company/operating-config-skeleton";
+import { Sliders } from "lucide-react";
 
 export default function OperatingConfigPage() {
   const [config, setConfig] = useState<OperatingConfigValues | null>(null);
@@ -33,17 +34,15 @@ export default function OperatingConfigPage() {
     <div className="container mx-auto py-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Settings2 className="h-7 w-7 text-primary" /> Modelo Operativo del Grupo (Fase 11)
+          <Sliders className="h-6 w-6 text-foreground" /> Modelo Operativo del Grupo
         </h1>
-        <p className="text-sm text-muted-foreground">
-          Configura las 7 dimensiones estructurales de la empresa y los umbrales financieros de autonomía corporativa.
+        <p className="text-sm text-muted-foreground mt-1">
+          Configura la arquitectura funcional entre corporativo y sucursales, los límites de autorización y las metas financieras.
         </p>
       </div>
 
       {loading ? (
-        <div className="py-12 flex justify-center text-muted-foreground">
-          <Loader2 className="w-6 h-6 animate-spin mr-2" /> Cargando configuración operativa...
-        </div>
+        <OperatingConfigSkeleton />
       ) : (
         <OperatingConfigForm initialConfig={config} />
       )}

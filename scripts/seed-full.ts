@@ -50,13 +50,25 @@ async function main() {
   await phase10();
   console.log();
 
+  const { main: phase11 } = await import("./seed-11-control-orders");
+  await phase11();
+  console.log();
+
+  const { main: phase12 } = await import("./seed-12-sales-pos");
+  await phase12();
+  console.log();
+
+  const { main: phase13 } = await import("./seed-13-receiving-matching");
+  await phase13();
+  console.log();
+
   const { main: seedPasswords } = await import("./seed-passwords");
   await seedPasswords();
   console.log();
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`========================================`);
-  console.log(`  All 10 phases completed in ${elapsed}s`);
+  console.log(`  All 13 phases completed in ${elapsed}s`);
   console.log(`========================================`);
 }
 

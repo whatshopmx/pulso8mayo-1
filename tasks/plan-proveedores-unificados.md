@@ -26,14 +26,14 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 **Description:** Agregar handler `PATCH` a `app/api/finance/payees/[id]/route.ts` y función `updatePayee()` en `payee-service.ts`. Solo actualiza campos de contacto, nunca el `name`.
 
 **Acceptance criteria:**
-- [ ] `PATCH /api/finance/payees/:id` con body `{ taxId?, contactName?, email?, phone? }` devuelve payee actualizado
-- [ ] Verifica que el payee pertenezca al tenant antes de actualizar
-- [ ] Registra en `AuditService` con `action: "UPDATE"`, `entityType: "PAYEE"`
-- [ ] Intento a payee ajeno → 404
+- [x] `PATCH /api/finance/payees/:id` con body `{ taxId?, contactName?, email?, phone? }` devuelve payee actualizado
+- [x] Verifica que el payee pertenezca al tenant antes de actualizar
+- [x] Registra en `AuditService` con `action: "UPDATE"`, `entityType: "PAYEE"`
+- [x] Intento a payee ajeno → 404
 
 **Verification:**
-- [ ] `pnpm run build` sin errores
-- [ ] Manual: PATCH con datos válidos → 200; id ajeno → 404
+- [x] `pnpm run build` sin errores
+- [x] Manual: PATCH con datos válidos → 200; id ajeno → 404
 
 **Dependencies:** None
 
@@ -50,14 +50,14 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 **Description:** La pantalla actual solo permite crear (nombre + RFC) y dar de baja. Agregar dialog de edición con `contactName`, `email`, `phone`, `taxId`. El nombre NO es editable.
 
 **Acceptance criteria:**
-- [ ] Botón "Editar" por fila abre dialog pre-rellenado
-- [ ] Permite actualizar `taxId`, `contactName`, `email`, `phone`
-- [ ] Campo `name` visible pero deshabilitado con tooltip explicativo
-- [ ] Al guardar, la tabla se actualiza sin recarga completa
+- [x] Botón "Editar" por fila abre dialog pre-rellenado
+- [x] Permite actualizar `taxId`, `contactName`, `email`, `phone`
+- [x] Campo `name` visible pero deshabilitado con tooltip explicativo
+- [x] Al guardar, la tabla se actualiza sin recarga completa
 
 **Verification:**
-- [ ] Build pasa
-- [ ] Manual: crear → editar teléfono → verificar cambio en tabla
+- [x] Build pasa
+- [x] Manual: crear → editar teléfono → verificar cambio en tabla
 
 **Dependencies:** A1
 
@@ -73,14 +73,14 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 **Description:** En tabla de payees, agregar acción "Ver gastos" que navega a `/dashboard/finance/expenses?payeeId=<id>`. La página de expenses filtra por `payeeId` cuando el parámetro está presente.
 
 **Acceptance criteria:**
-- [ ] Botón/ícono por fila en payees → navega a expenses con filtro
-- [ ] `GET /api/expenses?payeeId=<id>` filtra correctamente (tenant-scoped)
-- [ ] Banner en expenses: "Filtrando por contraparte: [nombre]" con botón para limpiar filtro
-- [ ] `payeeId` inexistente → lista vacía, no error
+- [x] Botón/ícono por fila en payees → navega a expenses con filtro
+- [x] `GET /api/expenses?payeeId=<id>` filtra correctamente (tenant-scoped)
+- [x] Banner en expenses: "Filtrando por contraparte: [nombre]" con botón para limpiar filtro
+- [x] `payeeId` inexistente → lista vacía, no error
 
 **Verification:**
-- [ ] Build pasa
-- [ ] Manual: desde payees → "Ver gastos" → lista filtrada correcta
+- [x] Build pasa
+- [x] Manual: desde payees → "Ver gastos" → lista filtrada correcta
 
 **Dependencies:** None (independiente de A1/A2)
 
@@ -94,9 +94,9 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 ---
 
 ### Checkpoint A — Contrapartes completas
-- [ ] `pnpm run build` sin errores
-- [ ] Flujo: crear → editar contacto → ver gastos filtrados
-- [ ] Revisar con el usuario antes de continuar a Fase B
+- [x] `pnpm run build` sin errores
+- [x] Flujo: crear → editar contacto → ver gastos filtrados
+- [x] Revisar con el usuario antes de continuar a Fase B
 
 ---
 
@@ -107,13 +107,13 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 **Description:** Añadir columna `service_provider_id uuid REFERENCES service_providers(id)` nullable a `service_orders`. Mantener `supplierId` como legacy sin borrar.
 
 **Acceptance criteria:**
-- [ ] Columna `serviceProviderId` nullable en `serviceOrders` schema Drizzle
-- [ ] `pnpm db:generate` produce migración correcta (ADD COLUMN sin DROP)
-- [ ] `service-order-service.ts` expone `serviceProviderId` en `listOrders` y `getOrderDetail`
+- [x] Columna `serviceProviderId` nullable en `serviceOrders` schema Drizzle
+- [x] `pnpm db:generate` produce migración correcta (ADD COLUMN sin DROP)
+- [x] `service-order-service.ts` expone `serviceProviderId` en `listOrders` y `getOrderDetail`
 
 **Verification:**
-- [ ] `pnpm db:generate` sin errores
-- [ ] `pnpm run build` sin errores de tipos
+- [x] `pnpm db:generate` sin errores
+- [x] `pnpm run build` sin errores de tipos
 
 **Dependencies:** None
 
@@ -131,13 +131,13 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 **Description:** Al crear OS con `complianceServiceId`, leer el `providerId` del `branchComplianceService` y asignarlo como `serviceProviderId`. Selector de proveedor editable en el form de OS.
 
 **Acceptance criteria:**
-- [ ] OS creada con `complianceServiceId` hereda `serviceProviderId` del servicio normativo si existe
-- [ ] Selector de proveedor en `CreateOrderDialog` busca en `GET /api/equipment/providers`
-- [ ] Si el servicio no tiene `providerId`, la OS se crea igual con `serviceProviderId = null`
+- [x] OS creada con `complianceServiceId` hereda `serviceProviderId` del servicio normativo si existe
+- [x] Selector de proveedor en `CreateOrderDialog` busca en `GET /api/equipment/providers`
+- [x] Si el servicio no tiene `providerId`, la OS se crea igual con `serviceProviderId = null`
 
 **Verification:**
-- [ ] Build pasa
-- [ ] Manual: compliance → "Generar OS" → proveedor pre-llenado
+- [x] Build pasa
+- [x] Manual: compliance → "Generar OS" → proveedor pre-llenado
 
 **Dependencies:** B1
 
@@ -155,13 +155,13 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 **Description:** Actualizar vistas de OS para mostrar `serviceProviderId → service_providers.name` con link a su perfil. Fallback a `suppliers.name` para registros legacy.
 
 **Acceptance criteria:**
-- [ ] Lista OS: columna "Proveedor" = `service_providers.name` || `suppliers.name` || "—"
-- [ ] Detalle OS: card de proveedor con nombre, teléfono, email y link "Ver perfil"
-- [ ] Link navega a `equipment/providers` (filtrado por nombre)
+- [x] Lista OS: columna "Proveedor" = `service_providers.name` || `suppliers.name` || "—"
+- [x] Detalle OS: card de proveedor con nombre, teléfono, email y link "Ver perfil"
+- [x] Link navega a `equipment/providers` (filtrado por nombre)
 
 **Verification:**
-- [ ] Build pasa
-- [ ] Manual: OS con proveedor asignado → nombre y link correctos
+- [x] Build pasa
+- [x] Manual: OS con proveedor asignado → nombre y link correctos
 
 **Dependencies:** B1, B2
 
@@ -174,9 +174,9 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 ---
 
 ### Checkpoint B — OS trazables a proveedor
-- [ ] Build limpio
-- [ ] Flujo: compliance → OS → proveedor propagado → visible en detalle
-- [ ] Revisar con el usuario antes de Fase C
+- [x] Build limpio
+- [x] Flujo: compliance → OS → proveedor propagado → visible en detalle
+- [x] Revisar con el usuario antes de Fase C
 
 ---
 
@@ -187,12 +187,12 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 **Description:** Añadir `payee_id uuid REFERENCES payees(id)` nullable a `suppliers`. Solo additive — no rompe nada existente.
 
 **Acceptance criteria:**
-- [ ] Columna `payeeId` nullable en `suppliers`
-- [ ] Migración ADD COLUMN limpia
-- [ ] `purchase-order-service.ts` compila sin cambios
+- [x] Columna `payeeId` nullable en `suppliers`
+- [x] Migración ADD COLUMN limpia
+- [x] `purchase-order-service.ts` compila sin cambios
 
 **Verification:**
-- [ ] `pnpm db:generate` correcto; `pnpm run build` sin errores
+- [x] `pnpm db:generate` correcto; `pnpm run build` sin errores
 
 **Dependencies:** None
 
@@ -209,13 +209,13 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 **Description:** En `inventory/suppliers`, agregar campo "Contraparte de pago" para vincular el supplier con un payee. El `PATCH /api/inventory/suppliers/:id` acepta `payeeId`.
 
 **Acceptance criteria:**
-- [ ] Selector de payee en edición de supplier (búsqueda ILIKE, opción "crear nueva")
-- [ ] Al vincular, guarda `payeeId` en el supplier
-- [ ] Lista muestra "Contraparte: [nombre]" o "Sin vincular"
+- [x] Selector de payee en edición de supplier (búsqueda ILIKE, opción "crear nueva")
+- [x] Al vincular, guarda `payeeId` en el supplier
+- [x] Lista muestra "Contraparte: [nombre]" o "Sin vincular"
 
 **Verification:**
-- [ ] Build pasa
-- [ ] Manual: editar proveedor → vincular payee → lista refleja vinculación
+- [x] Build pasa
+- [x] Manual: editar proveedor → vincular payee → lista refleja vinculación
 
 **Dependencies:** C1
 
@@ -233,13 +233,13 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 **Description:** En `accounts-payable-service`, cuando se crea la entrada CxP de una OC, usar `supplier.payeeId` para agrupar por contraparte. Backward-compatible: si no hay `payeeId`, comportamiento actual.
 
 **Acceptance criteria:**
-- [ ] `accounts-payable-service` lee `supplier.payeeId` al generar CxP
-- [ ] CxP de OC muestra nombre del payee vinculado en `finance/payables`
-- [ ] OCs sin `payeeId` en su supplier funcionan igual que hoy
+- [x] `accounts-payable-service` lee `supplier.payeeId` al generar CxP
+- [x] CxP de OC muestra nombre del payee vinculado en `finance/payables`
+- [x] OCs sin `payeeId` en su supplier funcionan igual que hoy
 
 **Verification:**
-- [ ] Build pasa
-- [ ] Manual: OC con supplier vinculado → payables muestra nombre correcto
+- [x] Build pasa
+- [x] Manual: OC con supplier vinculado → payables muestra nombre correcto
 
 **Dependencies:** C1, C2
 
@@ -252,9 +252,9 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 ---
 
 ### Checkpoint C — CxP cerrada para OC
-- [ ] Build limpio
-- [ ] OC pagada → visible en CxP con nombre del proveedor real
-- [ ] Revisar antes de Fase D
+- [x] Build limpio
+- [x] OC pagada → visible en CxP con nombre del proveedor real
+- [x] Revisar antes de Fase D
 
 ---
 
@@ -265,13 +265,13 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 **Description:** En `equipment/compliance`, resaltar servicios con `providerName` pero sin `providerId`. Botón "Vincular" abre selector de `service_providers`.
 
 **Acceptance criteria:**
-- [ ] Badge naranja en filas con `providerId = null && providerName != null`
-- [ ] Botón "Vincular" → selector de catálogo → guarda `providerId`
-- [ ] Al vincular, badge desaparece
+- [x] Badge naranja en filas con `providerId = null && providerName != null`
+- [x] Botón "Vincular" → selector de catálogo → guarda `providerId`
+- [x] Al vincular, badge desaparece
 
 **Verification:**
-- [ ] Build pasa
-- [ ] Manual: servicio sin `providerId` → badge → vincular → badge desaparece
+- [x] Build pasa
+- [x] Manual: servicio sin `providerId` → badge → vincular → badge desaparece
 
 **Dependencies:** None (UI; schema ya tiene `providerId`)
 
@@ -288,13 +288,13 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 **Description:** Al completar OS vinculada a `complianceServiceId`, copiar `serviceProviderId` de la OS a la entrada de `complianceServiceHistory`.
 
 **Acceptance criteria:**
-- [ ] Al cerrar OS con `complianceServiceId`, `complianceServiceHistory.providerId = os.serviceProviderId`
-- [ ] Si OS sin `serviceProviderId`, usa `providerName` como fallback
-- [ ] Historial muestra link "Ver proveedor" cuando tiene `providerId`
+- [x] Al cerrar OS con `complianceServiceId`, `complianceServiceHistory.providerId = os.serviceProviderId`
+- [x] Si OS sin `serviceProviderId`, usa `providerName` como fallback
+- [x] Historial muestra link "Ver proveedor" cuando tiene `providerId`
 
 **Verification:**
-- [ ] Build pasa
-- [ ] Manual: completar OS normativa → historial compliance muestra proveedor vinculado
+- [x] Build pasa
+- [x] Manual: completar OS normativa → historial compliance muestra proveedor vinculado
 
 **Dependencies:** B1, B2
 
@@ -306,9 +306,9 @@ El sistema tiene 4 entidades separadas que modelan "a quién le pagamos" (`suppl
 ---
 
 ### Checkpoint D — Plan completo
-- [ ] Build limpio, tests pasan
-- [ ] Ningún servicio normativo activo sin `providerId` sin indicador
-- [ ] Historial compliance trazable al catálogo
+- [x] Build limpio, tests pasan
+- [x] Ningún servicio normativo activo sin `providerId` sin indicador
+- [x] Historial compliance trazable al catálogo
 
 ---
 

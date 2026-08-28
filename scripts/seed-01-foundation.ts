@@ -1,7 +1,10 @@
 import "dotenv/config";
 import { db } from "@/lib/db";
-import { companies, branches, holidays, users, serviceProviders } from "@/lib/db/schema";
-import { suppliers, storageLocations } from "@/lib/db/schema";
+import {
+  companies, branches, holidays, users, serviceProviders,
+  suppliers, storageLocations, tenantOperatingConfig, payees,
+  supplierBankAccounts,
+} from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import {
   COMPANY_ID,
@@ -17,6 +20,20 @@ import {
   USER_EMPLEADO_3,
   USER_READONLY,
 } from "./seed-constants";
+import { validateClabe, computeClabeCheckDigit } from "@/lib/banking/clabe";
+import { DekService } from "@/lib/security/dek";
+import { encryptColumnWithDek } from "@/lib/security/column-cipher";
+import { createHmac } from "node:crypto";
+
+function fingerprintClabe(clabe: string, dek: Buffer): string {
+  return createHmac("sha256", dek).update(clabe).digest("hex");
+}
+
+function makeValidClabe(bankPrefix: string, accountSeed: string): string {
+  const first17 = `${bankPrefix}${accountSeed}`.padEnd(17, "0").slice(0, 17);
+  const cd = computeClabeCheckDigit(first17);
+  return `${first17}${cd}`;
+}
 
 const USERS = [
   {
@@ -302,25 +319,52 @@ export async function main() {
   console.log("=== Phase 1: Foundation ===");
   console.log("Cleaning up existing data for company...");
 
-  await db.delete(storageLocations).where(eq(storageLocations.companyId, COMPANY_ID));
-  await db.delete(suppliers).where(eq(suppliers.companyId, COMPANY_ID));
-  await db.delete(holidays).where(eq(holidays.companyId, COMPANY_ID));
-  await db.delete(branches).where(eq(branches.companyId, COMPANY_ID));
-  await db.delete(serviceProviders).where(eq(serviceProviders.companyId, COMPANY_ID));
+  await db.execute(sql`DELETE FROM "data_access_logs"`).catch(() => {});
+  await db.delete(supplierBankAccounts).where(eq(supplierBankAccounts.companyId, COMPANY_ID)).catch(() => {});
+  await db.delete(storageLocations).where(eq(storageLocations.companyId, COMPANY_ID)).catch(() => {});
+  await db.delete(suppliers).where(eq(suppliers.companyId, COMPANY_ID)).catch(() => {});
+  await db.delete(serviceProviders).where(eq(serviceProviders.companyId, COMPANY_ID)).catch(() => {});
+  await db.delete(payees).where(eq(payees.companyId, COMPANY_ID)).catch(() => {});
+  await db.delete(tenantOperatingConfig).where(eq(tenantOperatingConfig.companyId, COMPANY_ID)).catch(() => {});
+  await db.delete(holidays).where(eq(holidays.companyId, COMPANY_ID)).catch(() => {});
+  await db.delete(branches).where(eq(branches.companyId, COMPANY_ID)).catch(() => {});
   try {
     await db.execute(sql`DELETE FROM "sessions"`);
     await db.execute(sql`DELETE FROM "session"`);
   } catch (e) {}
-  await db.delete(users).where(eq(users.companyId, COMPANY_ID));
-  await db.delete(companies).where(eq(companies.id, COMPANY_ID));
+  await db.delete(users).where(eq(users.companyId, COMPANY_ID)).catch(() => {});
+  await db.delete(companies).where(eq(companies.id, COMPANY_ID)).catch(() => {});
 
   console.log("Inserting company...");
   await db.insert(companies).values({
     id: COMPANY_ID,
     name: "Pulso HORECA Demo",
     taxId: "PUL-101010-ABC",
-    plan: "PRO",
+    plan: "ENTERPRISE",
     billingStatus: "ACTIVE",
+  });
+
+  console.log("Inserting tenant operating configuration...");
+  await db.insert(tenantOperatingConfig).values({
+    companyId: COMPANY_ID,
+    purchasingStructure: "CENTRALIZADA",
+    foodProduction: "IN_SITU",
+    treasuryModel: "CUENTA_UNICA",
+    supplierPayment: "CENTRALIZADO",
+    managerAutonomy: "MEDIA",
+    payrollDispersion: "CONSOLIDADA",
+    tenantType: "GRUPO_PROPIO",
+    managerAuthLimitCents: 500000,          // $5,000 MXN
+    doubleApprovalThresholdCents: 5000000,  // $50,000 MXN
+    pettyCashLimitCents: 300000,           // $3,000 MXN
+    emergencyPurchaseCapCents: 3000000,     // $30,000 MXN por sucursal
+    foodCostTargetPercent: "28.00",
+    foodCostWarnPercent: "33.00",
+    laborCostTargetPercent: "18.00",
+    laborCostWarnPercent: "22.00",
+    healthyMarginTargetPercent: "50.00",
+    healthyMarginWarnPercent: "40.00",
+    mermaVarianceThresholdPct: "5.00",
   });
 
   console.log("Inserting users...");
@@ -361,6 +405,40 @@ export async function main() {
   }));
   await db.insert(storageLocations).values(storageValues);
 
+  console.log("Inserting payees (contrapartes universales)...");
+  const PAYEE_DEFS = [
+    // Proveedores de Insumos
+    { name: "Distribuidora de Alimentos del Valle", taxId: "DAV-850101-ABC", contactName: "Roberto Díaz", email: "roberto.diaz@valle.mx", phone: "+52 55 2222 0001" },
+    { name: "Carnes Selectas del Norte", taxId: "CSN-920202-DEF", contactName: "Fernanda Ríos", email: "fernanda@carnesnorte.mx", phone: "+52 81 3333 0002" },
+    { name: "Licores y Vinos Finos SA", taxId: "LVF-780303-GHI", contactName: "Alejandro Paz", email: "apaz@licoresfinos.mx", phone: "+52 55 4444 0003" },
+    { name: "Productos Lácteos Santa Clara", taxId: "LSC-650404-JKL", contactName: "Laura Mendoza", email: "laura@santaclara.mx", phone: "+52 55 5555 0004" },
+    { name: "Frutas y Verduras La Huerta", taxId: "FVL-880505-MNO", contactName: "José López", email: "jose@huerta.mx", phone: "+52 55 6666 0005" },
+    { name: "Equipamiento Restaurantero", taxId: "ERX-910606-PQR", contactName: "Patricia Soto", email: "patricia@equiporest.mx", phone: "+52 55 7777 0006" },
+    // Proveedores de Servicios
+    { name: "Fumigaciones Profesionales MX", taxId: "FPM-890707-STU", contactName: "Carlos Fumigador", email: "carlos@fumiprof.mx", phone: "+52 55 8888 0001" },
+    { name: "Seguridad contra Incendios", taxId: "SFS-950808-VWX", contactName: "Miguel Segura", email: "miguel@safetyfire.mx", phone: "+52 55 8888 0002" },
+    { name: "Servicios Eléctricos y Gas", taxId: "EGA-910909-YZA", contactName: "Luisa Watts", email: "luisa@electrogas.mx", phone: "+52 55 8888 0003" },
+    // Gastos Operativos y Servicios Generales
+    { name: "Comisión Federal de Electricidad", taxId: "CFE-370814-QI0", contactName: "Atención Clientes CFE", email: "servicio@cfe.mx", phone: "+52 55 0710 0000" },
+    { name: "Gas Natural México S.A. de C.V.", taxId: "GNM-970601-ABC", contactName: "Ventas Corporativas", email: "contacto@gasnatural.mx", phone: "+52 55 5279 2000" },
+    { name: "Inmobiliaria y Arrendadora Roma S.A.", taxId: "IAR-120505-XYZ", contactName: "Lic. Manuel Arrendador", email: "rentas@inmobiliaroma.mx", phone: "+52 55 5584 1000" },
+    { name: "Totalplay Telecomunicaciones", taxId: "TTE-101010-PQR", contactName: "Soporte Empresas", email: "empresas@totalplay.mx", phone: "+52 55 1579 8000" },
+  ];
+
+  const insertedPayees = await db.insert(payees).values(
+    PAYEE_DEFS.map(p => ({
+      companyId: COMPANY_ID,
+      name: p.name,
+      taxId: p.taxId,
+      contactName: p.contactName,
+      email: p.email,
+      phone: p.phone,
+      active: true,
+    }))
+  ).returning({ id: payees.id, name: payees.name });
+
+  const payeeMap = new Map(insertedPayees.map(p => [p.name, p.id]));
+
   console.log(`Inserting ${SUPPLIERS.length} suppliers...`);
   const supplierValues = SUPPLIERS.map(s => ({
     companyId: COMPANY_ID,
@@ -370,9 +448,10 @@ export async function main() {
     phone: s.phone,
     address: s.address,
     taxId: s.taxId,
+    payeeId: payeeMap.get(s.name) || null,
     active: true,
   }));
-  await db.insert(suppliers).values(supplierValues);
+  const insertedSuppliers = await db.insert(suppliers).values(supplierValues).returning({ id: suppliers.id, name: suppliers.name });
 
   console.log(`Inserting ${SERVICE_PROVIDERS.length} service providers...`);
   const providerValues = SERVICE_PROVIDERS.map(sp => ({
@@ -392,6 +471,48 @@ export async function main() {
     createdBy: USER_SUPER_ADMIN,
   }));
   await db.insert(serviceProviders).values(providerValues);
+
+  console.log("Inserting verified bank accounts (CLABEs) for suppliers...");
+  await DekService.ensureDek(COMPANY_ID);
+  const dek = await DekService.getDek(COMPANY_ID);
+  const BANK_SEEDS = [
+    { prefix: "012180", seed: "0123456789" }, // BBVA
+    { prefix: "072180", seed: "0987654321" }, // Banorte
+    { prefix: "014180", seed: "0555666777" }, // Santander
+    { prefix: "002180", seed: "0111222333" }, // Banamex
+    { prefix: "021180", seed: "0444555666" }, // HSBC
+    { prefix: "044180", seed: "0777888999" }, // Scotiabank
+  ];
+
+  for (let i = 0; i < insertedSuppliers.length; i++) {
+    const s = insertedSuppliers[i];
+    const bDef = BANK_SEEDS[i % BANK_SEEDS.length];
+    const rawClabe = makeValidClabe(bDef.prefix, bDef.seed);
+    const val = validateClabe(rawClabe);
+    if (!val.ok) {
+      console.warn(`CLABE generation mismatch for ${s.name}: ${rawClabe}`);
+      continue;
+    }
+    const fingerprint = fingerprintClabe(val.clabe, dek);
+
+    await db.insert(supplierBankAccounts).values({
+      companyId: COMPANY_ID,
+      supplierId: s.id,
+      clabe: encryptColumnWithDek(val.clabe, dek),
+      clabeLast4: val.last4,
+      clabeFingerprint: fingerprint,
+      bankCode: val.bankCode,
+      bankName: val.bankName,
+      accountHolderName: s.name,
+      status: "VERIFIED",
+      active: true,
+      registeredBy: USER_ADMIN,
+      verifiedBy: USER_SUPER_ADMIN,
+      verifiedAt: new Date(),
+      verificationMethod: "MANUAL_CEP",
+      notes: "Cuenta verificada con acuse CEP de Banxico en fase de onboarding demo.",
+    });
+  }
 
   console.log("Phase 1 complete!");
 }

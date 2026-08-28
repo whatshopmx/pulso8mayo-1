@@ -18,63 +18,21 @@ export async function cleanupAll(): Promise<void> {
   `);
   const allTables = (tablesResult.rows as any[])
     .map((r) => r.table_name as string)
-    .filter((t) => !EXCLUDED_TABLES.has(t));
+    .filter((t) => !EXCLUDED_TABLES.has(t) && !t.startsWith("_"));
 
-  const fksResult = await db.execute(sql`
-    SELECT
-      tc.table_name AS child,
-      ccu.table_name AS parent
-    FROM information_schema.table_constraints tc
-    JOIN information_schema.constraint_column_usage ccu
-      ON tc.constraint_name = ccu.constraint_name
-    WHERE tc.constraint_type = 'FOREIGN KEY'
-      AND tc.table_schema = 'public'
-  `);
-  const fkRows = fksResult.rows as Array<{ child: string; parent: string }>;
-
-  const childrenOf = new Map<string, string[]>();
-  for (const fk of fkRows) {
-    if (!childrenOf.has(fk.parent)) childrenOf.set(fk.parent, []);
-    childrenOf.get(fk.parent)!.push(fk.child);
-  }
-
-  const outDegree = new Map<string, number>();
-  for (const t of allTables) outDegree.set(t, 0);
-  for (const fk of fkRows) {
-    outDegree.set(fk.child, (outDegree.get(fk.child) ?? 0) + 1);
-  }
-
-  const queue: string[] = [];
-  const order: string[] = [];
-
-  for (const [tbl, deg] of outDegree) {
-    if (deg === 0) queue.push(tbl);
-  }
-
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    order.push(node);
-    for (const child of childrenOf.get(node) ?? []) {
-      const d = outDegree.get(child)! - 1;
-      outDegree.set(child, d);
-      if (d === 0) queue.push(child);
-    }
-  }
-
-  order.reverse();
-
-  const raw = (sql as any).raw as (s: string) => any;
-
-  for (const table of order) {
-    if (EXCLUDED_TABLES.has(table)) continue;
+  if (allTables.length > 0) {
+    const raw = (sql as any).raw as (s: string) => any;
+    const tableList = allTables.map((t) => `"${t}"`).join(", ");
     try {
-      const result = await db.execute(raw(`DELETE FROM "${table}"`));
-      const count = (result as any).rowCount ?? 0;
-      if (count > 0) {
-        console.log(`  ${table}: ${count} rows`);
+      await db.execute(raw(`TRUNCATE TABLE ${tableList} CASCADE`));
+      console.log(`  Truncated ${allTables.length} tables with CASCADE.`);
+    } catch (err) {
+      console.warn("  TRUNCATE CASCADE failed, falling back to individual deletes:", err);
+      for (const table of allTables) {
+        try {
+          await db.execute(raw(`DELETE FROM "${table}"`));
+        } catch {}
       }
-    } catch {
-      // skip if table doesn't exist (schema may have changed)
     }
   }
 

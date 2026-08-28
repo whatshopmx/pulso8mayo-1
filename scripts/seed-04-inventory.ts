@@ -5,9 +5,10 @@ import {
   inventoryPriceHistory, inventoryAlerts, inventoryWaste,
   inventoryTransfers, inventoryTransferItems,
   temperatureLogs, costRecords, unitConversions,
-  storageLocations, suppliers,
+  storageLocations, suppliers, recipes, recipeItems,
 } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { RecipeService } from "@/lib/services/recipe-service";
 import {
   COMPANY_ID, BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA,
   USER_ADMIN, USER_GERENTE, USER_SUPERVISOR,
@@ -79,8 +80,8 @@ const ITEMS: ItemDef[] = [
 
 export async function main() {
   console.log("=== Phase 4: Inventory ===");
-  console.log("Cleaning up...");
-
+  await db.delete(recipeItems).where(sql`1=1`);
+  await db.delete(recipes).where(eq(recipes.companyId, COMPANY_ID));
   await db.delete(inventoryWaste).where(eq(inventoryWaste.companyId, COMPANY_ID));
   await db.delete(inventoryAlerts).where(eq(inventoryAlerts.companyId, COMPANY_ID));
   await db.delete(inventoryMovements).where(eq(inventoryMovements.branchId, BRANCH_CONDESA));
@@ -435,5 +436,119 @@ export async function main() {
   }
   await db.insert(costRecords).values(costValues);
 
-  console.log("Phase 4 complete!");
+  console.log("Inserting recipes and sub-recipes...");
+  const RECIPE_DEFS = [
+    {
+      key: "R1", name: "Salsa Roja Base", description: "Sub-receta de salsa roja cocida",
+      baseYield: "1.00", priceSelling: 0,
+      lines: [
+        { itemIdx: 10, quantity: "0.3000", unit: "KG" }, // Tomate
+        { itemIdx: 11, quantity: "0.1000", unit: "KG" }, // Cebolla
+        { itemIdx: 14, quantity: "0.0500", unit: "KG" }, // Limón
+      ],
+    },
+    {
+      key: "R2", name: "Caldo de Pollo Concentrado", description: "Sub-receta de fondo de ave",
+      baseYield: "2.00", priceSelling: 0,
+      lines: [
+        { itemIdx: 0, quantity: "0.4000", unit: "KG" },  // Pollo
+        { itemIdx: 11, quantity: "0.1000", unit: "KG" }, // Cebolla
+        { itemIdx: 15, quantity: "1.0000", unit: "L" },   // Agua
+      ],
+    },
+    {
+      key: "R3", name: "Sopa Azteca Tradicional", description: "Sopa de tortilla con caldo de pollo y queso",
+      baseYield: "1.00", priceSelling: 9500,
+      lines: [
+        { sub: "R2", quantity: "0.5000", unit: "PORTION" },
+        { sub: "R1", quantity: "0.2000", unit: "PORTION" },
+        { itemIdx: 23, quantity: "0.1500", unit: "KG" }, // Tortilla
+        { itemIdx: 7, quantity: "0.0500", unit: "KG" },  // Queso
+        { itemIdx: 12, quantity: "0.0500", unit: "KG" }, // Aguacate
+      ],
+    },
+    {
+      key: "R4", name: "Enchiladas Suizas de Pollo", description: "Orden de 4 enchiladas gratinadas con crema y queso",
+      baseYield: "1.00", priceSelling: 14500,
+      lines: [
+        { itemIdx: 0, quantity: "0.2000", unit: "KG" },  // Pollo
+        { itemIdx: 23, quantity: "0.2000", unit: "KG" }, // Tortilla
+        { sub: "R1", quantity: "0.3000", unit: "PORTION" },
+        { itemIdx: 6, quantity: "0.0500", unit: "KG" },  // Crema
+        { itemIdx: 7, quantity: "0.0800", unit: "KG" },  // Queso
+      ],
+    },
+    {
+      key: "R5", name: "Tacos de Filete y Arrachera", description: "Orden de 3 tacos con aguacate y limón",
+      baseYield: "1.00", priceSelling: 18500,
+      lines: [
+        { itemIdx: 1, quantity: "0.2500", unit: "KG" },  // Filete
+        { itemIdx: 23, quantity: "0.1500", unit: "KG" }, // Tortilla
+        { itemIdx: 11, quantity: "0.0500", unit: "KG" }, // Cebolla
+        { itemIdx: 12, quantity: "0.0800", unit: "KG" }, // Aguacate
+        { itemIdx: 14, quantity: "0.0500", unit: "KG" }, // Limón
+        { sub: "R1", quantity: "0.1000", unit: "PORTION" },
+      ],
+    },
+    {
+      key: "R6", name: "Costillas de Cerdo Glaseadas", description: "Costillas con salsa de la casa y mantequilla",
+      baseYield: "1.00", priceSelling: 22000,
+      lines: [
+        { itemIdx: 2, quantity: "0.4000", unit: "KG" },  // Costilla
+        { sub: "R1", quantity: "0.2000", unit: "PORTION" },
+        { itemIdx: 8, quantity: "0.0400", unit: "KG" },  // Mantequilla
+      ],
+    },
+    {
+      key: "R7", name: "Hamburguesa Clásica con Queso", description: "Carne molida de res, queso manchego y verduras",
+      baseYield: "1.00", priceSelling: 16000,
+      lines: [
+        { itemIdx: 3, quantity: "0.2200", unit: "KG" },  // Carne Molida
+        { itemIdx: 7, quantity: "0.0500", unit: "KG" },  // Queso
+        { itemIdx: 10, quantity: "0.0500", unit: "KG" }, // Tomate
+        { itemIdx: 13, quantity: "1.0000", unit: "UNIT" },// Lechuga
+        { itemIdx: 8, quantity: "0.0200", unit: "KG" },  // Mantequilla
+      ],
+    },
+  ];
+
+  const recipeIdMap = new Map<string, string>();
+  for (const rDef of RECIPE_DEFS) {
+    const [row] = await db.insert(recipes).values({
+      companyId: COMPANY_ID,
+      name: rDef.name,
+      description: rDef.description,
+      baseYield: rDef.baseYield,
+      priceSelling: rDef.priceSelling,
+    }).returning({ id: recipes.id });
+    recipeIdMap.set(rDef.key, row.id);
+  }
+
+  for (const rDef of RECIPE_DEFS) {
+    const rId = recipeIdMap.get(rDef.key)!;
+    for (const line of rDef.lines) {
+      const isSub = "sub" in line;
+      const targetId = isSub ? recipeIdMap.get((line as any).sub)! : itemRows[(line as any).itemIdx].id;
+      await db.insert(recipeItems).values({
+        recipeId: rId,
+        itemId: targetId,
+        quantity: line.quantity,
+        unit: line.unit,
+        isSubRecipe: isSub,
+      });
+    }
+  }
+
+  // Costeo automático de las recetas
+  for (const rDef of RECIPE_DEFS) {
+    const rId = recipeIdMap.get(rDef.key)!;
+    const cost = await RecipeService.calculateRecipeCost(rId, 'LAST_COST');
+    const foodCostPct = rDef.priceSelling > 0 ? ((cost / rDef.priceSelling) * 100).toFixed(2) : "0.00";
+    await db.update(recipes).set({
+      calculatedCost: cost,
+      foodCostPercentage: foodCostPct,
+    }).where(eq(recipes.id, rId));
+  }
+
+  console.log(`Phase 4 complete! Seeded ${itemRows.length} items and ${RECIPE_DEFS.length} recipes.`);
 }

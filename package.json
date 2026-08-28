@@ -25,6 +25,9 @@
     "seed:8": "npx tsx scripts/seed-08-hr-advanced.ts",
     "seed:9": "npx tsx scripts/seed-09-whatsapp.ts",
     "seed:10": "npx tsx scripts/seed-10-final.ts",
+    "seed:11": "npx tsx scripts/seed-11-control-orders.ts",
+    "seed:12": "npx tsx scripts/seed-12-sales-pos.ts",
+    "seed:13": "npx tsx scripts/seed-13-receiving-matching.ts",
     "seed:pass": "npx tsx scripts/seed-passwords.ts",
     "backfill:step-definitions": "npx tsx scripts/backfill-step-definitions.ts"
   },
