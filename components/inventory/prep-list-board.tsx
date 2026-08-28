@@ -29,8 +29,9 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardList, Loader2, Pencil, Plus, TriangleAlert, CloudSun, Flame, CloudRain, Trophy, Sparkles } from "lucide-react";
+import { ClipboardList, Loader2, Pencil, Plus, TriangleAlert, CloudSun, Flame, CloudRain, Trophy, Sparkles, Check, Filter } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { PREP_SHIFT_LABELS, PREP_STATE_LABELS, type PrepLineState } from "@/lib/inventory/prep-list";
 import { PrepListLineDialog } from "./prep-list-line-dialog";
 import type { WeatherProfile } from "@/lib/inventory/weather-forecast";
@@ -131,6 +132,7 @@ export function PrepListBoard({ branchId }: { branchId: string }) {
 
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<PrepLine | null>(null);
+    const [selectedStation, setSelectedStation] = useState<string>("ALL");
 
     const fetchDay = useCallback(async (targetDate: string | null) => {
         setError(null);
@@ -219,6 +221,10 @@ export function PrepListBoard({ branchId }: { branchId: string }) {
     };
 
     const [weatherProfile, setWeatherProfile] = useState<WeatherProfile>("NORMAL");
+
+    const visibleGroups = day?.groups.filter(
+        (g) => selectedStation === "ALL" || g.key === selectedStation
+    ) ?? [];
 
     return (
         <div className="space-y-4">
@@ -311,9 +317,51 @@ export function PrepListBoard({ branchId }: { branchId: string }) {
                             )}
                         </span>
                     </div>
-                    <Badge variant="secondary" className="font-mono text-[10px] uppercase shrink-0">
+                    <Badge variant="secondary" className="font-mono text-xs uppercase shrink-0">
                         Forecast MTY
                     </Badge>
+                </div>
+            )}
+
+            {/* Station Filter Pills */}
+            {day && day.groups.length > 1 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5">
+                    <span className="text-xs text-muted-foreground mr-1 flex items-center gap-1 shrink-0">
+                        <Filter className="size-3.5" />
+                        Estación:
+                    </span>
+                    <Button
+                        type="button"
+                        variant={selectedStation === "ALL" ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 text-xs rounded-full px-3"
+                        onClick={() => setSelectedStation("ALL")}
+                    >
+                        Todas ({day.totals.total})
+                    </Button>
+                    {day.groups.map((group) => (
+                        <Button
+                            key={group.key}
+                            type="button"
+                            variant={selectedStation === group.key ? "default" : "outline"}
+                            size="sm"
+                            className="h-7 text-xs rounded-full px-3 gap-1.5"
+                            onClick={() => setSelectedStation(group.key)}
+                        >
+                            <span>{group.label}</span>
+                            <span className={cn(
+                                "text-xs px-1.5 py-0.5 rounded-full font-mono",
+                                selectedStation === group.key
+                                    ? "bg-primary-foreground/20 text-primary-foreground"
+                                    : "bg-muted text-muted-foreground"
+                            )}>
+                                {group.done}/{group.total}
+                            </span>
+                            {group.overdue > 0 && (
+                                <span className="size-2 rounded-full bg-destructive" title={`${group.overdue} atrasadas`} />
+                            )}
+                        </Button>
+                    ))}
                 </div>
             )}
 
@@ -346,8 +394,17 @@ export function PrepListBoard({ branchId }: { branchId: string }) {
                         </Button>
                     </CardContent>
                 </Card>
+            ) : visibleGroups.length === 0 ? (
+                <Card>
+                    <CardContent className="p-6 text-center text-muted-foreground">
+                        <p className="text-sm">No hay preparaciones registradas para la estación seleccionada.</p>
+                        <Button variant="link" size="sm" onClick={() => setSelectedStation("ALL")} className="mt-2 text-xs">
+                            Ver todas las estaciones
+                        </Button>
+                    </CardContent>
+                </Card>
             ) : (
-                day.groups.map((group) => (
+                visibleGroups.map((group) => (
                     <section key={group.key} aria-labelledby={`prep-station-${group.key || "sin-estacion"}`} className="space-y-2">
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
                             <h3
@@ -366,8 +423,9 @@ export function PrepListBoard({ branchId }: { branchId: string }) {
                             </p>
                         </div>
 
-                        <div className="overflow-x-auto rounded-lg border">
-                            <table className="w-full min-w-[52rem] text-sm">
+                        {/* Vista de Escritorio: Tabla de 9 columnas */}
+                        <div className="hidden lg:block overflow-x-auto rounded-lg border bg-card">
+                            <table className="w-full text-sm">
                                 <caption className="sr-only">
                                     Hoja de producción de la estación {group.label}
                                 </caption>
@@ -392,7 +450,7 @@ export function PrepListBoard({ branchId }: { branchId: string }) {
                                     {group.lines.map((line) => {
                                         const cerrada = line.state === "HECHA" || line.state === "CANCELADA";
                                         return (
-                                            <tr key={line.id} className={cerrada ? "text-muted-foreground" : undefined}>
+                                            <tr key={line.id} className={cerrada ? "text-muted-foreground bg-muted/10" : undefined}>
                                                 <td className="p-3 align-top">
                                                     <Checkbox
                                                         checked={line.state === "HECHA"}
@@ -428,7 +486,7 @@ export function PrepListBoard({ branchId }: { branchId: string }) {
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td className="p-3 align-top whitespace-nowrap tabular-nums">
+                                                <td className="p-3 align-top whitespace-nowrap tabular-nums font-mono text-xs">
                                                     {line.deadlineTime || "—"}
                                                 </td>
                                                 <td className="p-3 align-top">
@@ -451,6 +509,72 @@ export function PrepListBoard({ branchId }: { branchId: string }) {
                                     })}
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* Vista Tablet / Móvil: Tarjetas Táctiles de Estación */}
+                        <div className="block lg:hidden space-y-3">
+                            {group.lines.map((line) => {
+                                const cerrada = line.state === "HECHA" || line.state === "CANCELADA";
+                                return (
+                                    <Card key={line.id} className={cn("transition-colors", cerrada && "opacity-60 bg-muted/20")}>
+                                        <CardContent className="p-4 space-y-3">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div>
+                                                    <h4 className="font-semibold text-base text-foreground leading-snug">{line.recipeName}</h4>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                                        <span className="font-medium text-foreground">{line.plannedQuantity} {line.unit}</span>
+                                                        {line.shift ? ` · ${PREP_SHIFT_LABELS[line.shift] ?? line.shift}` : ""}
+                                                        {line.responsibleName ? ` · ${line.responsibleName}` : ""}
+                                                    </p>
+                                                </div>
+                                                <Badge variant={STATE_VARIANT[line.state]}>
+                                                    {PREP_STATE_LABELS[line.state]}
+                                                </Badge>
+                                            </div>
+
+                                            {line.deadlineTime && (
+                                                <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground bg-muted/40 px-2.5 py-1 rounded">
+                                                    <span className="font-sans font-medium text-foreground">Hora límite:</span>
+                                                    <span>{line.deadlineTime}</span>
+                                                    {line.holdTimeMinutes ? ` (${line.holdTimeMinutes} min retención)` : ""}
+                                                </div>
+                                            )}
+
+                                            {line.fefo.length > 0 && (
+                                                <div className="bg-muted/30 rounded p-2.5 text-xs border border-border/50">
+                                                    <span className="font-medium text-muted-foreground block mb-1.5">Lotes FEFO asignados:</span>
+                                                    <FefoCell fefo={line.fefo} />
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-center gap-2 pt-1 border-t border-border/40">
+                                                {!cerrada ? (
+                                                    <Button
+                                                        className="flex-1 gap-2 h-10 text-xs font-medium"
+                                                        onClick={() => openComplete(line)}
+                                                    >
+                                                        <Check className="size-4" />
+                                                        Completar ({line.plannedQuantity} {line.unit})
+                                                    </Button>
+                                                ) : (
+                                                    <p className="text-xs text-muted-foreground italic flex-1 py-1">
+                                                        Completada{line.completedByName ? ` por ${line.completedByName}` : ""}
+                                                    </p>
+                                                )}
+                                                <Button
+                                                    variant="outline"
+                                                    size="icon"
+                                                    className="h-10 w-10 shrink-0"
+                                                    onClick={() => openEdit(line)}
+                                                    aria-label={`Editar ${line.recipeName}`}
+                                                >
+                                                    <Pencil className="size-4" />
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })}
                         </div>
                     </section>
                 ))
@@ -476,6 +600,20 @@ export function PrepListBoard({ branchId }: { branchId: string }) {
                                 value={producedQty}
                                 onChange={(e) => setProducedQty(Number(e.target.value))}
                             />
+                            <div className="flex gap-1.5 pt-1">
+                                {[-5, -1, 1, 5, 10].map((delta) => (
+                                    <Button
+                                        key={delta}
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs font-mono"
+                                        onClick={() => setProducedQty((q) => Math.max(1, q + delta))}
+                                    >
+                                        {delta > 0 ? `+${delta}` : delta}
+                                    </Button>
+                                ))}
+                            </div>
                         </div>
 
                         {target && target.fefo.length > 0 && (

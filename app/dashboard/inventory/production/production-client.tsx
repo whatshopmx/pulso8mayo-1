@@ -228,10 +228,10 @@ export function ProductionClient({
     };
 
     const statusBadge = (status: string) => {
-        const variants: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
+        const variants: Record<string, "default" | "secondary" | "outline" | "destructive" | "success"> = {
             PLANNED: "secondary",
             IN_PROGRESS: "default",
-            COMPLETED: "outline",
+            COMPLETED: "success",
             CANCELLED: "destructive",
         };
         const labels: Record<string, string> = {
@@ -283,14 +283,14 @@ export function ProductionClient({
                         <DialogTrigger asChild>
                             <Button variant="outline" className="gap-2">
                                 <Package className="w-4 h-4" />
-                                Registrar Producción
+                                Producción Extraordinaria
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
-                                <DialogTitle>Registrar Producción</DialogTitle>
+                                <DialogTitle>Producción Extraordinaria</DialogTitle>
                                 <DialogDescription>
-                                    Produce una receta descontando automáticamente los insumos por fecha de caducidad (FEFO).
+                                    Registra un batch fuera de la prep list programada descontando automáticamente los insumos por fecha de caducidad (FEFO).
                                 </DialogDescription>
                             </DialogHeader>
                             <form onSubmit={handleRecordProduction} className="space-y-4">
@@ -317,6 +317,20 @@ export function ProductionClient({
                                         onChange={e => setProducedQty(Math.max(1, Number(e.target.value)))}
                                         required
                                     />
+                                    <div className="flex gap-1.5 pt-1">
+                                        {[1, 5, 10, 25].map((step) => (
+                                            <Button
+                                                key={step}
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-7 px-2 text-xs font-mono"
+                                                onClick={() => setProducedQty((q) => Math.max(1, q + step))}
+                                            >
+                                                +{step}
+                                            </Button>
+                                        ))}
+                                    </div>
                                 </div>
 
                                 {/* Vista Previa FEFO de Lotes a Descontar */}
@@ -346,18 +360,18 @@ export function ProductionClient({
                                                         {item.allocations.length > 0 ? (
                                                             <div className="space-y-0.5 text-muted-foreground">
                                                                 {item.allocations.map((a, idx) => (
-                                                                    <div key={idx} className="flex justify-between font-mono text-[11px]">
+                                                                    <div key={idx} className="flex justify-between font-mono text-xs">
                                                                         <span>Lote: {a.lotNumber} {a.expirationDate ? `(Vence ${new Date(a.expirationDate).toLocaleDateString()})` : ""}</span>
                                                                         <span>-{a.quantity.toFixed(2)} {item.unit}</span>
                                                                     </div>
                                                                 ))}
                                                             </div>
                                                         ) : (
-                                                            <p className="text-destructive text-[11px] font-mono">Sin lotes con saldo disponible</p>
+                                                            <p className="text-destructive text-xs font-mono">Sin lotes con saldo disponible</p>
                                                         )}
 
                                                         {item.shortfall > 0 && (
-                                                            <div className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium pt-0.5">
+                                                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium pt-0.5">
                                                                 <AlertTriangle className="size-3 shrink-0" />
                                                                 <span>Faltan {item.shortfall.toFixed(2)} {item.unit} (se registrará merma auditada)</span>
                                                             </div>
@@ -418,6 +432,20 @@ export function ProductionClient({
                                     <div className="space-y-2">
                                         <Label>Cantidad *</Label>
                                         <Input type="number" min={1} value={plannedQty} onChange={e => setPlannedQty(Number(e.target.value))} required />
+                                        <div className="flex gap-1 pt-1">
+                                            {[1, 5, 10, 25].map((step) => (
+                                                <Button
+                                                    key={step}
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-6 px-1.5 text-xs font-mono"
+                                                    onClick={() => setPlannedQty((q) => Math.max(1, q + step))}
+                                                >
+                                                    +{step}
+                                                </Button>
+                                            ))}
+                                        </div>
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Fecha *</Label>
@@ -460,6 +488,10 @@ export function ProductionClient({
                             <CookingPot className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                             <h3 className="text-lg font-semibold mb-2">Sin órdenes de producción</h3>
                             <p className="text-muted-foreground mb-4">Crea tu primera orden para planificar la producción batch.</p>
+                            <Button onClick={() => setIsOrderOpen(true)} className="gap-2">
+                                <Plus className="w-4 h-4" />
+                                Nueva Orden
+                            </Button>
                         </CardContent>
                     </Card>
                 ) : (
@@ -476,9 +508,26 @@ export function ProductionClient({
                                     </CardDescription>
                                 </CardHeader>
                                 {order.notes && (
-                                    <CardContent className="pt-0">
-                                        <p className="text-sm text-muted-foreground">{order.notes}</p>
+                                    <CardContent className="pt-0 pb-2">
+                                        <p className="text-xs text-muted-foreground">{order.notes}</p>
                                     </CardContent>
+                                )}
+                                {order.status === "PLANNED" && order.recipe && (
+                                    <div className="p-3 pt-0 border-t mt-2 flex justify-end">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-xs gap-1.5 h-8"
+                                            onClick={() => {
+                                                setRecordRecipeId(order.recipe!.id);
+                                                setProducedQty(order.plannedQuantity);
+                                                setIsRecordOpen(true);
+                                            }}
+                                        >
+                                            <Package className="size-3.5" />
+                                            Producir Batch
+                                        </Button>
+                                    </div>
                                 )}
                             </Card>
                         ))}
@@ -508,26 +557,43 @@ export function ProductionClient({
                 ) : (
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {suggestions.map((s) => (
-                            <Card key={s.recipeId}>
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-lg">{s.recipeName}</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-2 text-sm">
-                                        <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Sugerido:</span>
-                                            <span className="font-medium">{s.suggestedQuantity} {s.unit}</span>
+                            <Card key={s.recipeId} className="flex flex-col justify-between">
+                                <div>
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-lg">{s.recipeName}</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">Sugerido:</span>
+                                                <span className="font-semibold text-primary">{s.suggestedQuantity} {s.unit}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">Ventas diarias promedio:</span>
+                                                <span className="font-mono text-xs">{s.avgDailySales}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">Stock actual:</span>
+                                                <span className="font-mono text-xs">{s.currentStock} {s.unit}</span>
+                                            </div>
                                         </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Ventas diarias promedio:</span>
-                                            <span>{s.avgDailySales}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Stock actual (porciones):</span>
-                                            <span>{s.currentStock}</span>
-                                        </div>
-                                    </div>
-                                </CardContent>
+                                    </CardContent>
+                                </div>
+                                <div className="p-4 pt-0 border-t mt-2 flex justify-end">
+                                    <Button
+                                        variant="default"
+                                        size="sm"
+                                        className="text-xs gap-1.5 w-full mt-3"
+                                        onClick={() => {
+                                            setRecipeId(s.recipeId);
+                                            setPlannedQty(s.suggestedQuantity);
+                                            setIsOrderOpen(true);
+                                        }}
+                                    >
+                                        <Plus className="size-3.5" />
+                                        Crear Orden ({s.suggestedQuantity} {s.unit})
+                                    </Button>
+                                </div>
                             </Card>
                         ))}
                     </div>

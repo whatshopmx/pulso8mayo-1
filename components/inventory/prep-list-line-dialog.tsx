@@ -203,6 +203,20 @@ export function PrepListLineDialog({
                                 onChange={(e) => setQuantity(Number(e.target.value))}
                                 required
                             />
+                            <div className="flex gap-1.5 pt-1">
+                                {[1, 5, 10, 25].map((step) => (
+                                    <Button
+                                        key={step}
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs font-mono"
+                                        onClick={() => setQuantity((q) => Math.max(1, q + step))}
+                                    >
+                                        +{step}
+                                    </Button>
+                                ))}
+                            </div>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="prep-deadline">Hora límite</Label>
