@@ -7,10 +7,13 @@ import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { hasPermission, roleIsAtLeast } from "@/lib/permissions";
 import { isApiError } from "@/lib/api/error";
 
+import { seedStandardQSRCostCenters } from "@/lib/services/cost-center-service";
+
 const createCostCenterSchema = z.object({
-    code: z.string().min(1).max(20),
-    name: z.string().min(1).max(120),
+    code: z.string().min(1).max(20).optional(),
+    name: z.string().min(1).max(120).optional(),
     accountingLine: z.string().max(40).nullable().optional(),
+    seedDefaults: z.boolean().optional(),
 });
 
 /** GET /api/cost-centers — catálogo del tenant (?includeInactive=1 para todo). */
@@ -57,6 +60,19 @@ export async function POST(req: NextRequest) {
         }
 
         const data = createCostCenterSchema.parse(await req.json());
+
+        if (data.seedDefaults) {
+            const list = await seedStandardQSRCostCenters(tenant.id!);
+            return NextResponse.json({ costCenters: list, message: "Catálogo estándar QSR cargado con éxito" }, { status: 200 });
+        }
+
+        if (!data.code || !data.name) {
+            return NextResponse.json(
+                { error: "El código y el nombre son obligatorios" },
+                { status: 400 },
+            );
+        }
+
         const [center] = await db
             .insert(costCenters)
             .values({
