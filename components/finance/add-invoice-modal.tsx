@@ -11,8 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, FileCheck } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -22,6 +21,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { formatCents } from "@/lib/utils";
 
 export function AddInvoiceModal({ 
   runId, 
@@ -33,8 +34,7 @@ export function AddInvoiceModal({
   const [open, setOpen] = useState(false);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const { toast } = useToast();
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   const fetchInvoices = async () => {
     setIsLoading(true);
@@ -42,12 +42,10 @@ export function AddInvoiceModal({
       const res = await fetch("/api/finance/treasury/invoices/unpaid");
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "No se pudieron cargar las facturas");
-      setInvoices(json.data);
+      setInvoices(json.data || []);
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
+      toast.error("Error", {
+        description: error.message || "No se pudieron cargar las facturas pendientes.",
       });
     } finally {
       setIsLoading(false);
@@ -61,15 +59,8 @@ export function AddInvoiceModal({
     }
   };
 
-  const formatCurrency = (cents: number, currency: string = "MXN") => {
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: currency,
-    }).format(cents / 100);
-  };
-
   const addInvoice = async (invoice: any) => {
-    setIsAdding(true);
+    setAddingId(invoice.id);
     try {
       const res = await fetch(`/api/finance/treasury/runs/${runId}/items`, {
         method: "POST",
@@ -78,29 +69,26 @@ export function AddInvoiceModal({
           itemType: "INVOICE",
           referenceId: invoice.id,
           amountCents: invoice.total,
-          notes: `Folio: ${invoice.folio || 'S/F'}`
+          notes: `Folio: ${invoice.folio || 'S/F'} - ${invoice.nombreEmisor || invoice.rfcEmisor || 'Proveedor'}`
         }),
       });
 
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al agregar factura");
+      if (!res.ok) throw new Error(json.error || "Error al agregar factura a la corrida.");
 
-      toast({
-        title: "Factura agregada",
-        description: "La factura se ha agregado a la corrida de pago exitosamente.",
+      toast.success("Factura agregada", {
+        description: `Folio ${invoice.folio || invoice.uuid?.slice(0, 8)} adjuntado exitosamente.`,
       });
       
       // Remove the invoice from the local list
       setInvoices(prev => prev.filter(inv => inv.id !== invoice.id));
       onInvoiceAdded();
     } catch (error: any) {
-      toast({
-        title: "Error",
+      toast.error("Error al agregar", {
         description: error.message,
-        variant: "destructive",
       });
     } finally {
-      setIsAdding(false);
+      setAddingId(null);
     }
   };
 
@@ -113,7 +101,9 @@ export function AddInvoiceModal({
       </DialogTrigger>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Facturas Pendientes (3-Way Matched)</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <FileCheck className="h-5 w-5 text-primary" /> Facturas Pendientes (3-Way Matched)
+          </DialogTitle>
           <DialogDescription>
             Selecciona facturas que ya han sido conciliadas exitosamente contra su orden de compra y reporte de recepción.
           </DialogDescription>
@@ -125,43 +115,58 @@ export function AddInvoiceModal({
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : invoices.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No hay facturas pendientes conciliadas.
+            <div className="text-center py-8 text-muted-foreground bg-muted/20 rounded-lg border border-dashed border-border">
+              <p className="text-sm font-medium text-foreground">No hay facturas pendientes conciliadas</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Todas las facturas recibidas ya están liquidadas o asignadas a otras corridas.
+              </p>
             </div>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="hover:bg-transparent">
                   <TableHead>Fecha</TableHead>
                   <TableHead>Folio</TableHead>
-                  <TableHead>Emisor</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Emisor / Proveedor</TableHead>
+                  <TableHead>Conciliación</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {invoices.map((inv) => (
-                  <TableRow key={inv.id}>
-                    <TableCell>{inv.fecha}</TableCell>
-                    <TableCell>{inv.folio}</TableCell>
-                    <TableCell>{inv.nombreEmisor || inv.rfcEmisor}</TableCell>
+                  <TableRow key={inv.id} className="hover:bg-muted/50 transition-colors">
+                    <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
+                      {inv.fecha ? new Date(inv.fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs font-semibold">{inv.folio || "S/F"}</TableCell>
+                    <TableCell className="text-sm">
+                      <div className="font-medium text-foreground">{inv.nombreEmisor || inv.rfcEmisor}</div>
+                      {inv.nombreEmisor && <div className="text-xs text-muted-foreground font-mono">{inv.rfcEmisor}</div>}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        {inv.matchStatus}
+                      <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-xs font-normal">
+                        {inv.matchStatus === "MATCHED" ? "Conciliada" : inv.matchStatus === "EXCEPTION_APPROVED" ? "Excepción Aprobada" : inv.matchStatus}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(inv.total, inv.currency)}
+                    <TableCell className="text-right font-medium text-sm whitespace-nowrap">
+                      ${formatCents(inv.total)}{" "}
+                      <span className="text-xs text-muted-foreground">{inv.currency || "MXN"}</span>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right whitespace-nowrap">
                       <Button 
                         size="sm" 
-                        variant="ghost" 
-                        disabled={isAdding}
+                        variant="outline"
+                        className="h-7 text-xs gap-1"
+                        disabled={addingId === inv.id}
                         onClick={() => addInvoice(inv)}
                       >
-                        Añadir
+                        {addingId === inv.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Plus className="h-3 w-3" />
+                        )}
+                        Adjuntar
                       </Button>
                     </TableCell>
                   </TableRow>

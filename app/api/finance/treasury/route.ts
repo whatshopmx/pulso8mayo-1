@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.action === "CREATE_RECURRING_CONTRACT") {
-      const { branchId, supplierId, title, contractType, baseAmountCents, startDate } = body.payload;
+      const { branchId, supplierId, title, contractType, baseAmountCents, startDate, paymentFrequency } = body.payload;
       const contract = await TreasuryService.createRecurringContract(
         companyId,
         branchId || null,
@@ -60,7 +60,8 @@ export async function POST(req: NextRequest) {
         contractType,
         baseAmountCents,
         new Date(startDate),
-        userId
+        userId,
+        paymentFrequency || "MONTHLY"
       );
       return ApiHandler.success({ contract });
     }

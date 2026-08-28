@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { formatCents } from "@/lib/utils";
 import {
   Card,
@@ -20,6 +21,19 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Loader2,
@@ -35,8 +49,10 @@ import {
   Building2,
   Clock,
   Download,
-  CheckCheck,
+  ChevronDown,
+  ExternalLink,
 } from "lucide-react";
+import { toast } from "sonner";
 import { CreatePaymentRunModal } from "./create-payment-run-modal";
 import { CreateRecurringContractModal } from "./create-recurring-contract-modal";
 
@@ -44,32 +60,49 @@ const STATUS_CONFIG: Record<
   string,
   { label: string; variant: "default" | "secondary" | "outline" | "destructive"; className?: string }
 > = {
+  DRAFT: {
+    label: "Borrador",
+    variant: "outline",
+    className: "bg-muted text-muted-foreground border-border font-medium",
+  },
+  PENDING_APPROVAL: {
+    label: "Pendiente Aprobación",
+    variant: "outline",
+    className: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20 font-medium",
+  },
+  PENDING: {
+    label: "Pendiente Aprobación",
+    variant: "outline",
+    className: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20 font-medium",
+  },
   APPROVED: {
     label: "Aprobada",
     variant: "default",
     className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-medium",
   },
-  EXECUTED: { label: "Pagada", variant: "secondary" },
-  PAID: { label: "Pagada", variant: "secondary" },
-  PENDING: {
-    label: "Pendiente",
-    variant: "outline",
-    className: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20 font-medium",
-  },
-  DRAFT: { label: "Borrador", variant: "outline" },
   PROCESSING: {
     label: "En Proceso",
     variant: "outline",
     className: "bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/20 font-medium",
   },
+  COMPLETED: {
+    label: "Pagada / Completada",
+    variant: "secondary",
+    className: "bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 border-emerald-600/20 font-medium",
+  },
+  EXECUTED: { label: "Pagada", variant: "secondary" },
+  PAID: { label: "Pagada", variant: "secondary" },
+  CANCELLED: { label: "Cancelada", variant: "destructive" },
   REJECTED: { label: "Rechazada", variant: "destructive" },
 };
 
 const CONTRACT_TYPE_MAP: Record<string, string> = {
-  RENTAL: "Renta de Local",
   RENTA: "Renta de Local",
-  UTILITIES: "Servicios (CFE/Agua)",
-  SERVICIOS: "Servicios (CFE/Agua)",
+  RENTAL: "Renta de Local",
+  SERVICIO_BASICO: "Servicios Básicos (CFE/Agua)",
+  UTILITIES: "Servicios Básicos (CFE/Agua)",
+  SERVICIOS: "Servicios Básicos (CFE/Agua)",
+  MANTENIMIENTO: "Mantenimiento",
   MAINTENANCE: "Mantenimiento",
   SOFTWARE: "Licencias / SaaS",
   OTHER: "Otro / Varios",
@@ -80,6 +113,7 @@ const FREQUENCY_MAP: Record<string, string> = {
   MENSUAL: "Mensual",
   WEEKLY: "Semanal",
   BIWEEKLY: "Quincenal",
+  QUARTERLY: "Trimestral",
   ANNUAL: "Anual",
 };
 
@@ -87,7 +121,6 @@ function getDueDateUrgency(dateStr: string) {
   if (!dateStr) return null;
   const target = new Date(dateStr);
   const now = new Date();
-  // reset hours for calendar day comparison
   target.setHours(0, 0, 0, 0);
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -123,7 +156,7 @@ export function TreasuryDashboard() {
         setError(json.error || "Error al cargar la tesorería");
       }
     } catch (e) {
-      setError("Error de conexión");
+      setError("Error de conexión con el servicio de tesorería");
     } finally {
       setLoading(false);
     }
@@ -143,7 +176,11 @@ export function TreasuryDashboard() {
         !searchQuery ||
         run.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         run.branchName?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === "ALL" || run.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "ALL" ||
+        run.status === statusFilter ||
+        (statusFilter === "PENDING_APPROVAL" && (run.status === "PENDING" || run.status === "PENDING_APPROVAL")) ||
+        (statusFilter === "COMPLETED" && (run.status === "COMPLETED" || run.status === "EXECUTED" || run.status === "PAID"));
       return matchesSearch && matchesStatus;
     });
   }, [rawPaymentRuns, searchQuery, statusFilter]);
@@ -153,12 +190,17 @@ export function TreasuryDashboard() {
       return (
         !searchQuery ||
         contract.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        contract.contractType?.toLowerCase().includes(searchQuery.toLowerCase())
+        contract.contractType?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        contract.vendorName?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     });
   }, [rawRecurringContracts, searchQuery]);
 
-  const downloadLayout = async (runId: string, format: "SPEI_CSV" | "BANORTE_TXT" | "BBVA_TXT" = "SPEI_CSV") => {
+  const downloadLayout = async (
+    runId: string,
+    runTitle: string,
+    format: "SPEI_CSV" | "BANORTE_TXT" | "BBVA_TXT" = "SPEI_CSV"
+  ) => {
     try {
       const res = await fetch(`/api/finance/treasury/runs/${runId}/layout?format=${format}`);
       const json = await res.json();
@@ -167,18 +209,26 @@ export function TreasuryDashboard() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `layout_${json.data.runTitle.replace(/\s+/g, "_")}_${format}.${format === "SPEI_CSV" ? "csv" : "txt"}`;
+        const formatLabel = format === "SPEI_CSV" ? "spei.csv" : format === "BANORTE_TXT" ? "banorte.txt" : "bbva.txt";
+        a.download = `layout_${(json.data.runTitle || runTitle || "corrida").replace(/\s+/g, "_")}_${formatLabel}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        toast.success("Layout bancario descargado", {
+          description: `Formato ${format === "SPEI_CSV" ? "SPEI (CSV)" : format === "BANORTE_TXT" ? "Banorte (TXT)" : "BBVA (TXT)"} listo (${json.data.recordCount || 0} registros).`,
+        });
+      } else {
+        toast.error("Error al descargar layout", {
+          description: json.error || "No se pudo generar el archivo de dispersión.",
+        });
       }
     } catch (e) {
-      console.error("Error downloading bank layout:", e);
+      toast.error("Error de conexión", { description: "No se pudo contactar al servidor bancario." });
     }
   };
 
-  // Executive KPI summary calculations
+  // Executive Financial KPI summary calculations
   const totalScheduledCents = useMemo(() => {
     return rawPaymentRuns.reduce((acc, r) => acc + (r.totalAmountCents || 0), 0);
   }, [rawPaymentRuns]);
@@ -188,7 +238,7 @@ export function TreasuryDashboard() {
   }, [rawRecurringContracts]);
 
   const pendingRunsCount = useMemo(() => {
-    return rawPaymentRuns.filter((r) => r.status === "PENDING" || r.status === "DRAFT").length;
+    return rawPaymentRuns.filter((r) => r.status === "PENDING" || r.status === "PENDING_APPROVAL" || r.status === "DRAFT").length;
   }, [rawPaymentRuns]);
 
   if (loading) {
@@ -215,27 +265,30 @@ export function TreasuryDashboard() {
     <div className="space-y-6">
       {/* Action Toolbar & Search */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 flex-1 max-w-md">
-          <div className="relative w-full">
+        <div className="flex items-center gap-2 flex-1 max-w-lg">
+          <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Buscar por concepto, proveedor o sucursal..."
+              placeholder="Buscar corrida, proveedor o sucursal..."
               className="pl-9 h-9 text-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-3 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="ALL">Todos los estatus</option>
-            <option value="PENDING">Pendientes</option>
-            <option value="APPROVED">Aprobadas</option>
-            <option value="EXECUTED">Pagadas</option>
-          </select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px] h-9 text-xs">
+              <SelectValue placeholder="Todos los estatus" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Todos los estatus</SelectItem>
+              <SelectItem value="DRAFT">Borradores</SelectItem>
+              <SelectItem value="PENDING_APPROVAL">Pendientes Aprobación</SelectItem>
+              <SelectItem value="APPROVED">Aprobadas</SelectItem>
+              <SelectItem value="PROCESSING">En Proceso</SelectItem>
+              <SelectItem value="COMPLETED">Pagadas / Completadas</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex items-center space-x-2 shrink-0">
@@ -346,9 +399,15 @@ export function TreasuryDashboard() {
                       const urgency = getDueDateUrgency(run.runDate);
 
                       return (
-                        <TableRow key={run.id} className="hover:bg-muted/50 transition-colors">
+                        <TableRow key={run.id} className="hover:bg-muted/50 transition-colors group">
                           <TableCell className="font-medium text-sm">
-                            <div>{run.title}</div>
+                            <Link
+                              href={`/dashboard/finance/treasury/runs/${run.id}`}
+                              className="hover:text-primary transition-colors flex items-center gap-1.5 font-semibold"
+                            >
+                              {run.title}
+                              <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
+                            </Link>
                             {run.description && (
                               <div className="text-xs text-muted-foreground line-clamp-1">
                                 {run.description}
@@ -388,15 +447,29 @@ export function TreasuryDashboard() {
                             <span className="text-xs text-muted-foreground">{run.currency || "MXN"}</span>
                           </TableCell>
                           <TableCell className="text-right whitespace-nowrap">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs gap-1 border-primary/30 hover:bg-primary/10"
-                              onClick={() => downloadLayout(run.id, "SPEI_CSV")}
-                              title="Descargar Layout Bancario SPEI (CSV)"
-                            >
-                              <Download className="h-3 w-3" /> Layout SPEI
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs gap-1 border-primary/30 hover:bg-primary/10"
+                                  title="Opciones de descarga de layout bancario"
+                                >
+                                  <Download className="h-3 w-3" /> Layout <ChevronDown className="h-3 w-3 opacity-60" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => downloadLayout(run.id, run.title, "SPEI_CSV")}>
+                                  <Download className="mr-2 h-3.5 w-3.5" /> SPEI Estándar (.csv)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => downloadLayout(run.id, run.title, "BANORTE_TXT")}>
+                                  <Download className="mr-2 h-3.5 w-3.5" /> Banorte Dispersión (.txt)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => downloadLayout(run.id, run.title, "BBVA_TXT")}>
+                                  <Download className="mr-2 h-3.5 w-3.5" /> BBVA Net Cash (.txt)
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       );
@@ -408,9 +481,11 @@ export function TreasuryDashboard() {
                     variant="ghost"
                     size="sm"
                     className="text-xs"
-                    aria-label="Ver calendario completo de corridas"
+                    asChild
                   >
-                    Ver calendario completo <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    <Link href="/dashboard/finance/cash-flow">
+                      Ver calendario completo <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    </Link>
                   </Button>
                 </div>
               </div>
@@ -488,9 +563,11 @@ export function TreasuryDashboard() {
                     variant="ghost"
                     size="sm"
                     className="text-xs"
-                    aria-label="Administrar contratos recurrentes"
+                    asChild
                   >
-                    Administrar contratos <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    <Link href="/dashboard/finance/payees">
+                      Administrar contrapartes <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    </Link>
                   </Button>
                 </div>
               </div>
@@ -501,4 +578,3 @@ export function TreasuryDashboard() {
     </div>
   );
 }
-

@@ -81,6 +81,12 @@ const SECTION_GROUPS = [
         href: "/dashboard/finance/cash-flow",
         icon: Calendar,
       },
+      {
+        title: "Tesorería",
+        description: "Corridas de pago, dispersión SPEI y contratos fijos",
+        href: "/dashboard/finance/treasury",
+        icon: Wallet,
+      },
     ],
   },
   {

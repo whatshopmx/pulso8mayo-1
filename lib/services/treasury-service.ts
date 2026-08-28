@@ -7,7 +7,8 @@ import {
   suppliers,
   supplierBankAccounts,
   paymentRunStatusEnum,
-  paymentRunItemTypeEnum 
+  paymentRunItemTypeEnum,
+  branches
 } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 
@@ -142,17 +143,19 @@ export class TreasuryService {
     contractType: string,
     baseAmountCents: number,
     startDate: Date,
-    userId: string
+    userId: string,
+    paymentFrequency: string = "MONTHLY"
   ) {
     const [contract] = await db.insert(recurringContracts)
       .values({
         companyId,
-        branchId,
+        branchId: branchId && branchId !== "ALL" ? branchId : null,
         supplierId,
         title,
         contractType,
         baseAmountCents,
         startDate,
+        paymentFrequency,
         createdBy: userId,
       })
       .returning();
@@ -166,18 +169,45 @@ export class TreasuryService {
   static async getPaymentRuns(companyId: string) {
     return db.query.paymentRuns.findMany({
       where: eq(paymentRuns.companyId, companyId),
-      orderBy: (paymentRuns, { asc }) => [asc(paymentRuns.runDate)],
+      orderBy: (paymentRuns, { desc }) => [desc(paymentRuns.runDate)],
     });
   }
 
   /**
-   * Fetch all recurring contracts for a company.
+   * Fetch all recurring contracts for a company with vendor and branch enrichment.
    */
   static async getRecurringContracts(companyId: string) {
-    return db.query.recurringContracts.findMany({
+    const contracts = await db.query.recurringContracts.findMany({
       where: eq(recurringContracts.companyId, companyId),
       orderBy: (contracts, { asc }) => [asc(contracts.createdAt)],
     });
+
+    const supplierIds = contracts.map(c => c.supplierId).filter(Boolean);
+    const branchIds = contracts.map(c => c.branchId).filter(Boolean) as string[];
+
+    const supplierMap = new Map<string, string>();
+    if (supplierIds.length > 0) {
+      const suppList = await db.query.suppliers.findMany({
+        where: inArray(suppliers.id, supplierIds),
+        columns: { id: true, name: true }
+      });
+      suppList.forEach(s => supplierMap.set(s.id, s.name));
+    }
+
+    const branchMap = new Map<string, string>();
+    if (branchIds.length > 0) {
+      const branchList = await db.query.branches.findMany({
+        where: inArray(branches.id, branchIds),
+        columns: { id: true, name: true }
+      });
+      branchList.forEach(b => branchMap.set(b.id, b.name));
+    }
+
+    return contracts.map(c => ({
+      ...c,
+      vendorName: supplierMap.get(c.supplierId) || null,
+      branchName: c.branchId ? branchMap.get(c.branchId) || "Sucursal" : "Todas las sucursales",
+    }));
   }
 
   /**

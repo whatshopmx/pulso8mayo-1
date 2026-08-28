@@ -29,7 +29,10 @@ export function CreatePaymentRunModal({ onSuccess, trigger }: CreatePaymentRunMo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !runDate) return;
+    if (!title || !runDate) {
+      toast.error("Campos incompletos", { description: "Por favor proporciona un título y fecha de ejecución." });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -48,7 +51,7 @@ export function CreatePaymentRunModal({ onSuccess, trigger }: CreatePaymentRunMo
       const json = await res.json();
       if (res.ok && json.success) {
         toast.success("Corrida de pago creada", {
-          description: "La corrida se ha creado en estatus borrador.",
+          description: "La corrida se ha creado en estatus borrador. Ya puedes agregar facturas conciliadas.",
         });
         setOpen(false);
         setTitle("");
@@ -78,7 +81,7 @@ export function CreatePaymentRunModal({ onSuccess, trigger }: CreatePaymentRunMo
           <DialogHeader>
             <DialogTitle>Nueva Corrida de Pago</DialogTitle>
             <DialogDescription>
-              Programa una nueva corrida para agrupar facturas y pagos de nómina.
+              Programa una nueva corrida para agrupar facturas conciliadas, nómina y servicios operativos.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -86,14 +89,37 @@ export function CreatePaymentRunModal({ onSuccess, trigger }: CreatePaymentRunMo
               <Label htmlFor="title">Título de la Corrida</Label>
               <Input
                 id="title"
-                placeholder="Ej. Nómina Q1 Agosto"
+                placeholder="Ej. Nómina Q1 Agosto ó Proveedores Cárnicos"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
               />
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <button
+                  type="button"
+                  className="text-xs bg-muted hover:bg-muted/80 text-muted-foreground px-2 py-0.5 rounded border border-border/40 transition-colors"
+                  onClick={() => setTitle("Nómina Quincenal")}
+                >
+                  + Nómina
+                </button>
+                <button
+                  type="button"
+                  className="text-xs bg-muted hover:bg-muted/80 text-muted-foreground px-2 py-0.5 rounded border border-border/40 transition-colors"
+                  onClick={() => setTitle("Proveedores Alimentos & Bebidas")}
+                >
+                  + Proveedores A&B
+                </button>
+                <button
+                  type="button"
+                  className="text-xs bg-muted hover:bg-muted/80 text-muted-foreground px-2 py-0.5 rounded border border-border/40 transition-colors"
+                  onClick={() => setTitle("Servicios & Renta")}
+                >
+                  + Servicios & Renta
+                </button>
+              </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="runDate">Fecha de Ejecución</Label>
+              <Label htmlFor="runDate">Fecha Programada de Dispersión</Label>
               <Input
                 id="runDate"
                 type="date"
@@ -109,7 +135,7 @@ export function CreatePaymentRunModal({ onSuccess, trigger }: CreatePaymentRunMo
             </Button>
             <Button type="submit" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Guardar
+              Guardar Corrida
             </Button>
           </DialogFooter>
         </form>
