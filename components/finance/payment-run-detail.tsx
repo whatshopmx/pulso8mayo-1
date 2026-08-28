@@ -149,7 +149,14 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div>
-            <CardTitle className="text-2xl font-bold tracking-tight">{run.title}</CardTitle>
+            <div className="flex items-center gap-2 mb-1">
+              <CardTitle className="text-2xl font-bold tracking-tight">{run.title}</CardTitle>
+              {run.branchName && (
+                <Badge variant="secondary" className="text-xs">
+                  {run.branchName}
+                </Badge>
+              )}
+            </div>
             <CardDescription>
               Programado para: {format(new Date(run.runDate), "PPP", { locale: es })}
             </CardDescription>
@@ -228,7 +235,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-semibold">Ítems de la Corrida ({items.length})</h3>
               {run.status === "DRAFT" && (
-                <AddInvoiceModal runId={runId} onInvoiceAdded={fetchData} />
+                <AddInvoiceModal runId={runId} branchId={run.branchId} onInvoiceAdded={fetchData} />
               )}
             </div>
 
@@ -237,7 +244,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                 <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                 <p className="text-sm font-medium text-foreground">No hay ítems agregados a esta corrida</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Agrega facturas conciliadas (3-way match) para autorizar su pago en esta corrida.
+                  Agrega facturas conciliadas (3-way match) o corridas de nómina para autorizar su pago.
                 </p>
               </div>
             ) : (
@@ -246,21 +253,33 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                   <TableRow className="hover:bg-transparent">
                     <TableHead>Tipo</TableHead>
                     <TableHead>Referencia</TableHead>
-                    <TableHead>Notas</TableHead>
+                    <TableHead>Notas / Detalle</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {items.map((item: any) => (
                     <TableRow key={item.id} className="hover:bg-muted/50 transition-colors">
-                      <TableCell className="font-medium text-xs">
-                        <Badge variant="outline" className="font-normal">
-                          {item.itemType}
-                        </Badge>
+                      <TableCell className="font-medium text-xs whitespace-nowrap">
+                        {item.itemType === "INVOICE" ? (
+                          <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-normal">
+                            Factura
+                          </Badge>
+                        ) : item.itemType === "PAYROLL" ? (
+                          <Badge variant="outline" className="bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/20 font-normal">
+                            Nómina
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="font-normal">
+                            {item.itemType}
+                          </Badge>
+                        )}
                       </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{item.referenceId}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {item.invoiceDetails?.folio ? `FAC-${item.invoiceDetails.folio}` : item.referenceId.slice(0, 8)}
+                      </TableCell>
                       <TableCell className="text-sm">{item.notes || "-"}</TableCell>
-                      <TableCell className="text-right font-medium text-sm">{formatCurrency(item.amountCents)}</TableCell>
+                      <TableCell className="text-right font-medium text-sm whitespace-nowrap">{formatCurrency(item.amountCents)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

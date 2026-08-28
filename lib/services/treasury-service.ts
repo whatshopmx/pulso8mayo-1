@@ -8,7 +8,9 @@ import {
   supplierBankAccounts,
   paymentRunStatusEnum,
   paymentRunItemTypeEnum,
-  branches
+  branches,
+  payrollRuns,
+  payrollPayslips
 } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 
@@ -20,11 +22,13 @@ export class TreasuryService {
     companyId: string, 
     title: string, 
     runDate: Date, 
-    userId: string
+    userId: string,
+    branchId?: string | null
   ) {
     const [run] = await db.insert(paymentRuns)
       .values({
         companyId,
+        branchId: branchId && branchId !== "ALL" ? branchId : null,
         title,
         runDate,
         preparedBy: userId,
@@ -38,19 +42,74 @@ export class TreasuryService {
   /**
    * Fetch invoices ready to be paid (MATCHED or EXCEPTION_APPROVED, and UNPAID).
    */
-  static async getUnpaidMatchedInvoices(companyId: string) {
+  static async getUnpaidMatchedInvoices(companyId: string, branchId?: string | null) {
+    const conditions = [
+      eq(invoices.companyId, companyId),
+      inArray(invoices.matchStatus, ["MATCHED", "EXCEPTION_APPROVED"]),
+      eq(invoices.paymentStatus, "PENDING")
+    ];
+
+    if (branchId && branchId !== "ALL") {
+      conditions.push(eq(invoices.branchId, branchId));
+    }
+
     return db.query.invoices.findMany({
-      where: and(
-        eq(invoices.companyId, companyId),
-        inArray(invoices.matchStatus, ["MATCHED", "EXCEPTION_APPROVED"]),
-        eq(invoices.paymentStatus, "PENDING")
-      ),
+      where: and(...conditions),
       orderBy: (inv, { asc }) => [asc(inv.fecha)],
     });
   }
 
   /**
-   * Adds an item (e.g. an Invoice) to a payment run with 3-way match & CLABE verification checks (Módulo 6.1).
+   * Fetch payroll runs ready to be paid in Treasury.
+   */
+  static async getUnpaidPayrollRuns(companyId: string, branchId?: string | null) {
+    const conditions = [eq(payrollRuns.companyId, companyId)];
+    if (branchId && branchId !== "ALL") {
+      conditions.push(eq(payrollRuns.branchId, branchId));
+    }
+
+    const runs = await db.query.payrollRuns.findMany({
+      where: and(...conditions),
+      orderBy: (pr, { desc }) => [desc(pr.createdAt)],
+    });
+
+    if (runs.length === 0) return [];
+
+    const runIds = runs.map(r => r.id);
+
+    const existingRunItems = await db.query.paymentRunItems.findMany({
+      where: eq(paymentRunItems.itemType, "PAYROLL"),
+      columns: { referenceId: true }
+    });
+    const attachedIds = new Set(existingRunItems.map(i => i.referenceId));
+
+    const branchList = await db.query.branches.findMany({
+      where: eq(branches.companyId, companyId),
+      columns: { id: true, name: true }
+    });
+    const branchMap = new Map(branchList.map(b => [b.id, b.name]));
+
+    const payslips = await db.query.payrollPayslips.findMany({
+      where: inArray(payrollPayslips.runId, runIds),
+      columns: { runId: true, totalPercepcionesCents: true }
+    });
+
+    const payrollTotals = new Map<string, number>();
+    payslips.forEach(ps => {
+      payrollTotals.set(ps.runId, (payrollTotals.get(ps.runId) || 0) + (ps.totalPercepcionesCents || 0));
+    });
+
+    return runs
+      .filter(r => !attachedIds.has(r.id))
+      .map(r => ({
+        ...r,
+        totalAmountCents: payrollTotals.get(r.id) || 0,
+        branchName: r.branchId ? branchMap.get(r.branchId) || "Sucursal" : "Todas las sucursales",
+      }));
+  }
+
+  /**
+   * Adds an item (e.g. an Invoice or Payroll run) to a payment run with checks (Módulo 6.1).
    */
   static async addItemToRun(
     paymentRunId: string, 
@@ -90,6 +149,14 @@ export class TreasuryService {
       }
     }
 
+    if (itemType === 'PAYROLL') {
+      const payrollRun = await db.query.payrollRuns.findFirst({
+        where: eq(payrollRuns.id, referenceId),
+      });
+
+      if (!payrollRun) throw new Error("Corrida de nómina no encontrada");
+    }
+
     const [item] = await db.insert(paymentRunItems)
       .values({
         paymentRunId,
@@ -125,11 +192,43 @@ export class TreasuryService {
 
     if (!run) throw new Error("Payment run not found");
 
+    let branchName = "Todas las sucursales (Consolidado)";
+    if (run.branchId) {
+      const b = await db.query.branches.findFirst({
+        where: eq(branches.id, run.branchId),
+        columns: { name: true }
+      });
+      if (b) branchName = b.name;
+    }
+
     const items = await db.query.paymentRunItems.findMany({
       where: eq(paymentRunItems.paymentRunId, paymentRunId),
     });
 
-    return { run, items };
+    const enrichedItems = await Promise.all(
+      items.map(async (item) => {
+        if (item.itemType === 'INVOICE') {
+          const inv = await db.query.invoices.findFirst({
+            where: eq(invoices.id, item.referenceId),
+            columns: { folio: true, uuid: true, rfcEmisor: true, nombreEmisor: true, fecha: true }
+          });
+          return { ...item, invoiceDetails: inv || null };
+        }
+        if (item.itemType === 'PAYROLL') {
+          const pr = await db.query.payrollRuns.findFirst({
+            where: eq(payrollRuns.id, item.referenceId),
+            columns: { periodStart: true, periodEnd: true, status: true, branchId: true }
+          });
+          return { ...item, payrollDetails: pr || null };
+        }
+        return item;
+      })
+    );
+
+    return { 
+      run: { ...run, branchName }, 
+      items: enrichedItems 
+    };
   }
 
   /**

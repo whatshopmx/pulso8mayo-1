@@ -40,12 +40,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     if (body.action === "CREATE_PAYMENT_RUN") {
-      const { title, runDate } = body.payload;
+      const { title, runDate, branchId } = body.payload;
       const run = await TreasuryService.createPaymentRun(
         companyId,
         title,
         new Date(runDate),
-        userId
+        userId,
+        branchId || null
       );
       return ApiHandler.success({ run });
     }

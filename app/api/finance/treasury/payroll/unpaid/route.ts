@@ -14,9 +14,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get("branchId");
 
-    const invoices = await TreasuryService.getUnpaidMatchedInvoices(ctx.userCompanyId, branchId);
+    const payrollRuns = await TreasuryService.getUnpaidPayrollRuns(ctx.userCompanyId, branchId);
     
-    return ApiHandler.success(invoices);
+    return ApiHandler.success(payrollRuns);
   } catch (error: any) {
     if (error instanceof ApiError) return ApiHandler.error(error);
     return ApiHandler.error(error);

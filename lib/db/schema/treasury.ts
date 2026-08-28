@@ -48,6 +48,7 @@ export const recurringContracts = pgTable("recurring_contracts", {
 export const paymentRuns = pgTable("payment_runs", {
   id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
   companyId: uuid("company_id").notNull().references(() => companies.id),
+  branchId: uuid("branch_id").references(() => branches.id), // Nullable for corporate/all branches
   
   title: text("title").notNull(), // Ej. "Corrida Quincenal 15 Ago 2026"
   runDate: timestamp("run_date").notNull(), // Fecha en que se ejecutará el pago

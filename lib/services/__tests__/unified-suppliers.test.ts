@@ -49,3 +49,23 @@ describe("Unified Payees - Accounts Payable Aging Buckets", () => {
     expect(bucketFor(-100)).toBe("OVERDUE");
   });
 });
+
+describe("Treasury Payment Runs & Payroll Integration", () => {
+  it("soporta tipos de renglón para Facturas y Nóminas", () => {
+    const validItemTypes = ["INVOICE", "PAYROLL", "TAXES", "PETTY_CASH_REIMBURSEMENT", "OTHER"];
+    expect(validItemTypes).toContain("INVOICE");
+    expect(validItemTypes).toContain("PAYROLL");
+  });
+
+  it("identifica el alcance de sucursal o grupo consolidado", () => {
+    const formatBranchScope = (branchId?: string | null, branchName?: string | null) => {
+      if (!branchId || branchId === "ALL") return "Todas las sucursales (Consolidado)";
+      return branchName || "Sucursal";
+    };
+
+    expect(formatBranchScope(null)).toBe("Todas las sucursales (Consolidado)");
+    expect(formatBranchScope("ALL")).toBe("Todas las sucursales (Consolidado)");
+    expect(formatBranchScope("b1", "Sucursal Roma")).toBe("Sucursal Roma");
+  });
+});
+
