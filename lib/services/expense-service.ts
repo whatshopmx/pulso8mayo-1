@@ -665,13 +665,16 @@ async function consultarGastos(
 export async function getOperatingExpenses(
   companyId: string,
   branchId?: string,
-  opciones?: { limiteHistorial?: number }
+  opciones?: { limiteHistorial?: number; payeeId?: string }
 ) {
   const limiteHistorial = opciones?.limiteHistorial ?? LIMITE_HISTORIAL;
 
   const base = [eq(operatingExpenses.companyId, companyId)];
   if (branchId) {
     base.push(eq(operatingExpenses.branchId, branchId));
+  }
+  if (opciones?.payeeId) {
+    base.push(eq(operatingExpenses.payeeId, opciones.payeeId));
   }
 
   // Se pide uno de más para saber si hubo corte sin un COUNT aparte.

@@ -277,7 +277,25 @@ export default function ServiceOrderDetailPage() {
               <InfoItem label="Monto" value={formatCurrency(order.amount)} />
               <InfoItem label="Sucursal" value={order.branchName ?? "-"} />
               <InfoItem label="Centro de costo" value={order.costCenterName ? `${order.costCenterCode} · ${order.costCenterName}` : "Sin asignar"} />
-              <InfoItem label="Proveedor" value={order.supplierName ?? "-"} />
+              <InfoItem
+                label="Proveedor"
+                value={
+                  order.serviceProviderName ? (
+                    <span className="flex flex-col">
+                      <Link href="/dashboard/equipment/providers" className="font-medium hover:underline text-primary">
+                        {order.serviceProviderName}
+                      </Link>
+                      {(order.serviceProviderPhone || order.serviceProviderEmail) && (
+                        <span className="text-xs text-muted-foreground font-normal">
+                          {[order.serviceProviderPhone, order.serviceProviderEmail].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    order.supplierName ?? "-"
+                  )
+                }
+              />
               <InfoItem label="Fecha programada" value={formatDate(order.scheduledDate)} />
               <InfoItem label="Creada" value={formatDate(order.createdAt)} />
               <InfoItem label="Completada" value={formatDate(order.completedAt)} />

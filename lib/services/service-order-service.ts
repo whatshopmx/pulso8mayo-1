@@ -5,6 +5,8 @@ import {
     branchComplianceServices,
     costCenters,
     suppliers,
+    serviceProviders,
+    complianceServiceHistory,
     serviceOrderEvidence,
     serviceOrderQuotes,
     serviceOrders,
@@ -74,18 +76,21 @@ export async function listOrders(params: ListOrdersParams) {
             scheduledDate: serviceOrders.scheduledDate,
             scope: serviceOrders.scope,
             supplierId: serviceOrders.supplierId,
+            serviceProviderId: serviceOrders.serviceProviderId,
             costCenterId: serviceOrders.costCenterId,
             createdAt: serviceOrders.createdAt,
             updatedAt: serviceOrders.updatedAt,
             branchName: branches.name,
             branchCode: branches.code,
             supplierName: suppliers.name,
+            serviceProviderName: serviceProviders.name,
             costCenterCode: costCenters.code,
             costCenterName: costCenters.name,
         })
         .from(serviceOrders)
         .leftJoin(branches, eq(branches.id, serviceOrders.branchId))
         .leftJoin(suppliers, eq(suppliers.id, serviceOrders.supplierId))
+        .leftJoin(serviceProviders, eq(serviceProviders.id, serviceOrders.serviceProviderId))
         .leftJoin(costCenters, eq(costCenters.id, serviceOrders.costCenterId))
         .where(where)
         .orderBy(desc(serviceOrders.createdAt))
@@ -111,11 +116,15 @@ export async function getOrderDetail(companyId: string, id: string) {
             costCenterCode: costCenters.code,
             costCenterName: costCenters.name,
             supplierName: suppliers.name,
+            serviceProviderName: serviceProviders.name,
+            serviceProviderPhone: serviceProviders.phone,
+            serviceProviderEmail: serviceProviders.email,
         })
         .from(serviceOrders)
         .leftJoin(branches, eq(branches.id, serviceOrders.branchId))
         .leftJoin(costCenters, eq(costCenters.id, serviceOrders.costCenterId))
         .leftJoin(suppliers, eq(suppliers.id, serviceOrders.supplierId))
+        .leftJoin(serviceProviders, eq(serviceProviders.id, serviceOrders.serviceProviderId))
         .where(and(eq(serviceOrders.id, id), eq(serviceOrders.companyId, companyId)))
         .limit(1);
     if (!row) return null;
@@ -126,6 +135,9 @@ export async function getOrderDetail(companyId: string, id: string) {
         costCenterCode: row.costCenterCode,
         costCenterName: row.costCenterName,
         supplierName: row.supplierName,
+        serviceProviderName: row.serviceProviderName,
+        serviceProviderPhone: row.serviceProviderPhone,
+        serviceProviderEmail: row.serviceProviderEmail,
     };
 
     const [quotes, evidence, approvals] = await Promise.all([
@@ -197,13 +209,29 @@ async function assertComplianceServiceInCompany(complianceServiceId: string, com
     if (!row) throw new ApiError("El servicio normativo indicado no pertenece a la empresa", 400);
 }
 
+async function assertServiceProviderInCompany(serviceProviderId: string, companyId: string): Promise<void> {
+    const [row] = await db
+        .select({ id: serviceProviders.id })
+        .from(serviceProviders)
+        .where(and(eq(serviceProviders.id, serviceProviderId), eq(serviceProviders.companyId, companyId)))
+        .limit(1);
+    if (!row) throw new ApiError("El proveedor de servicio indicado no pertenece a la empresa", 400);
+}
+
 /** Valida las FKs opcionales presentes en el payload contra la empresa del tenant. */
 async function validateReferences(
     companyId: string,
-    data: { branchId: string; supplierId?: string | null; costCenterId?: string | null; complianceServiceId?: string | null },
+    data: {
+        branchId: string;
+        supplierId?: string | null;
+        serviceProviderId?: string | null;
+        costCenterId?: string | null;
+        complianceServiceId?: string | null;
+    },
 ): Promise<void> {
     await assertBranchInCompany(data.branchId, companyId);
     if (data.supplierId) await assertSupplierInCompany(data.supplierId, companyId);
+    if (data.serviceProviderId) await assertServiceProviderInCompany(data.serviceProviderId, companyId);
     if (data.costCenterId) await assertCostCenterInCompany(data.costCenterId, companyId);
     if (data.complianceServiceId) await assertComplianceServiceInCompany(data.complianceServiceId, companyId);
 }
@@ -220,6 +248,7 @@ export interface CreateServiceOrderInput {
     justification?: string | null;
     technicalReport?: string | null;
     supplierId?: string | null;
+    serviceProviderId?: string | null;
     amount?: number | null;
     scheduledDate?: Date | null;
     costCenterId?: string | null;
@@ -233,9 +262,22 @@ export async function createDraft(
     await validateReferences(companyId, {
         branchId: input.branchId,
         supplierId: input.supplierId,
+        serviceProviderId: input.serviceProviderId,
         costCenterId: input.costCenterId,
         complianceServiceId: input.complianceServiceId,
     });
+
+    let effectiveServiceProviderId = input.serviceProviderId ?? null;
+    if (!effectiveServiceProviderId && input.complianceServiceId) {
+        const [compService] = await db
+            .select({ providerId: branchComplianceServices.providerId })
+            .from(branchComplianceServices)
+            .where(and(eq(branchComplianceServices.id, input.complianceServiceId), eq(branchComplianceServices.companyId, companyId)))
+            .limit(1);
+        if (compService?.providerId) {
+            effectiveServiceProviderId = compService.providerId;
+        }
+    }
 
     // Folio placeholder DRAFT-*: el folio real se emite en submit para no dejar
     // huecos en la serie cuando un borrador se cancela.
@@ -255,6 +297,7 @@ export async function createDraft(
             justification: input.justification ?? null,
             technicalReport: input.technicalReport ?? null,
             supplierId: input.supplierId ?? null,
+            serviceProviderId: effectiveServiceProviderId,
             amount: input.amount ?? null,
             scheduledDate: input.scheduledDate ?? null,
             costCenterId: input.costCenterId ?? null,
@@ -285,6 +328,7 @@ export async function updateDraft(
     await validateReferences(companyId, {
         branchId: patch.branchId ?? order.branchId,
         supplierId: patch.supplierId !== undefined ? patch.supplierId : order.supplierId,
+        serviceProviderId: patch.serviceProviderId !== undefined ? patch.serviceProviderId : order.serviceProviderId,
         costCenterId: patch.costCenterId !== undefined ? patch.costCenterId : order.costCenterId,
         complianceServiceId: patch.complianceServiceId !== undefined ? patch.complianceServiceId : order.complianceServiceId,
     });
@@ -300,6 +344,7 @@ export async function updateDraft(
         "justification",
         "technicalReport",
         "supplierId",
+        "serviceProviderId",
         "amount",
         "scheduledDate",
         "costCenterId",
@@ -651,5 +696,62 @@ export async function signConformity(
         })
         .where(and(eq(serviceOrders.id, orderId), eq(serviceOrders.companyId, companyId)))
         .returning();
+
+    if (order.complianceServiceId) {
+        try {
+            let providerName: string | null = null;
+            if (order.serviceProviderId) {
+                const [p] = await db
+                    .select({ name: serviceProviders.name })
+                    .from(serviceProviders)
+                    .where(eq(serviceProviders.id, order.serviceProviderId))
+                    .limit(1);
+                providerName = p?.name ?? null;
+            } else if (order.supplierId) {
+                const [s] = await db
+                    .select({ name: suppliers.name })
+                    .from(suppliers)
+                    .where(eq(suppliers.id, order.supplierId))
+                    .limit(1);
+                providerName = s?.name ?? null;
+            }
+
+            const [compConfig] = await db
+                .select({
+                    serviceType: branchComplianceServices.serviceType,
+                    serviceName: branchComplianceServices.serviceName,
+                })
+                .from(branchComplianceServices)
+                .where(eq(branchComplianceServices.id, order.complianceServiceId))
+                .limit(1);
+
+            if (compConfig) {
+                await db.insert(complianceServiceHistory).values({
+                    serviceConfigId: order.complianceServiceId,
+                    companyId,
+                    branchId: order.branchId,
+                    serviceType: compConfig.serviceType,
+                    serviceName: compConfig.serviceName,
+                    scheduledDate: order.scheduledDate ? new Date(order.scheduledDate) : new Date(),
+                    completedDate: new Date(),
+                    providerId: order.serviceProviderId ?? null,
+                    providerName: providerName ?? "No registrado",
+                    description: order.scope ?? `OS ${order.folio}`,
+                    workPerformed: order.technicalReport ?? order.justification ?? null,
+                    cost: order.amount ?? null,
+                    complianceStatus: "COMPLIANT",
+                    createdBy: actor.id,
+                });
+
+                await db
+                    .update(branchComplianceServices)
+                    .set({ lastServiceDate: new Date(), updatedAt: new Date() })
+                    .where(eq(branchComplianceServices.id, order.complianceServiceId));
+            }
+        } catch (err) {
+            console.error("Failed to propagate compliance service history on OS signConformity:", err);
+        }
+    }
+
     return updated;
 }

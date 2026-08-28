@@ -40,6 +40,8 @@ interface Supplier {
     paymentTermsDays?: number;
     /** Forma de pago acordada. null = sin especificar. */
     paymentMethod?: string | null;
+    payeeId?: string | null;
+    payeeName?: string | null;
     createdAt: string;
     updatedAt: string;
 }
@@ -242,6 +244,16 @@ export function SupplierList({ companyId }: SupplierListProps) {
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                     <CalendarClock className="w-3 h-3" />
                                     <span>{paymentConditionsLabel(supplier.paymentTermsDays, supplier.paymentMethod)}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs pt-1">
+                                    <span className="text-muted-foreground">Contraparte:</span>
+                                    {supplier.payeeName ? (
+                                        <Badge variant="outline" className="text-xs border-primary/30 text-primary bg-primary/5">
+                                            {supplier.payeeName}
+                                        </Badge>
+                                    ) : (
+                                        <span className="text-muted-foreground/50 italic">Sin vincular</span>
+                                    )}
                                 </div>
 
                                 {/* Actions */}

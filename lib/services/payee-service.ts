@@ -160,6 +160,72 @@ export async function createPayee(input: CreatePayeeInput) {
   return payee;
 }
 
+export interface UpdatePayeeInput {
+  taxId?: string | null;
+  contactName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  /** Usuario que realiza el cambio; se registra en la auditoría. */
+  performedBy: string;
+  branchId?: string | null;
+}
+
+/**
+ * Actualiza los campos de contacto de una contraparte.
+ *
+ * El `name` NO es editable aquí: es la identidad de la contraparte y el índice
+ * único `(company_id, lower(name))` lo protege. Cambiar el nombre equivale a
+ * crear una contraparte nueva — si CFE cambia razón social, hay que crear la
+ * nueva y migrar los gastos futuros, no editar la existente.
+ */
+export async function updatePayee(
+  companyId: string,
+  payeeId: string,
+  input: UpdatePayeeInput,
+) {
+  const [current] = await db
+    .select({ id: payees.id, name: payees.name })
+    .from(payees)
+    .where(and(eq(payees.id, payeeId), eq(payees.companyId, companyId)))
+    .limit(1);
+
+  // Fail-closed: si no existe o es de otro tenant, 404 (no revela si existe).
+  if (!current) {
+    throw ApiError.notFound("La contraparte no existe en esta empresa.");
+  }
+
+  const [updated] = await db
+    .update(payees)
+    .set({
+      taxId: input.taxId !== undefined ? (input.taxId?.trim() || null) : undefined,
+      contactName: input.contactName !== undefined ? (input.contactName?.trim() || null) : undefined,
+      email: input.email !== undefined ? (input.email?.trim() || null) : undefined,
+      phone: input.phone !== undefined ? (input.phone?.trim() || null) : undefined,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(payees.id, payeeId), eq(payees.companyId, companyId)))
+    .returning();
+
+  await AuditService.logInventoryAction({
+    companyId,
+    branchId: input.branchId ?? "",
+    action: "UPDATE",
+    entityType: "PAYEE",
+    entityId: payeeId,
+    oldValue: { taxId: current },
+    newValue: {
+      taxId: updated.taxId,
+      contactName: updated.contactName,
+      email: updated.email,
+      phone: updated.phone,
+    },
+    performedBy: input.performedBy,
+    reason: "Datos de contacto actualizados",
+  });
+
+  return updated;
+}
+
 /**
  * Baja lógica: `active = false`. Los gastos históricos que la referencian no
  * se tocan — el nombre que congelaron sigue siendo el que se muestra.

@@ -20,6 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -34,10 +42,15 @@ import {
   Calendar,
   Download,
   ExternalLink,
+  ShieldCheck,
+  FileSpreadsheet,
+  ChevronDown,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, PageContainer } from "@/components/shared";
 import { DataTableSkeleton } from "@/components/shared/skeletons";
+import { useBranch } from "@/lib/branch-context";
 import { useBranches } from "@/hooks/queries/use-branches";
 import { AuditDetailDrawer, type AuditRecord } from "./audit-detail-drawer";
 
@@ -90,13 +103,24 @@ const ENTITY_LABELS: Record<string, string> = {
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
 export default function InventoryAuditPage() {
-  const { data: branches = [], isLoading: branchesLoading } = useBranches();
+  const {
+    selectedBranchId,
+    selectedBranch,
+    branches: contextBranches,
+    isBranchScoped,
+    setSelectedBranchId,
+  } = useBranch();
+
+  const { data: fetchedBranches = [], isLoading: branchesLoading } = useBranches();
+  const branches = contextBranches.length > 0 ? contextBranches : fetchedBranches;
 
   const [data, setData] = React.useState<AuditResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   // Filters state
-  const [branchId, setBranchId] = React.useState<string>("ALL");
+  const [branchId, setBranchId] = React.useState<string>(
+    selectedBranchId || "ALL"
+  );
   const [entityType, setEntityType] = React.useState<string>("ALL");
   const [action, setAction] = React.useState<string>("ALL");
   const [searchEntityId, setSearchEntityId] = React.useState<string>("");
@@ -111,8 +135,20 @@ export default function InventoryAuditPage() {
   const [selectedLog, setSelectedLog] = React.useState<AuditRecord | null>(null);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
 
+  // Sincronizar sucursal cuando cambia el selector global de sucursal
+  React.useEffect(() => {
+    if (selectedBranchId) {
+      setBranchId(selectedBranchId);
+      setPage(0);
+    } else if (!isBranchScoped && selectedBranchId === null) {
+      // Si el contexto global pasa a 'ALL' y el usuario no está limitado por rol
+      setBranchId("ALL");
+      setPage(0);
+    }
+  }, [selectedBranchId, isBranchScoped]);
+
   const hasActiveFilters =
-    branchId !== "ALL" ||
+    (branchId !== "ALL" && !isBranchScoped) ||
     entityType !== "ALL" ||
     action !== "ALL" ||
     searchEntityId.trim() !== "" ||
@@ -120,7 +156,10 @@ export default function InventoryAuditPage() {
     dateTo !== "";
 
   const resetFilters = () => {
-    setBranchId("ALL");
+    if (!isBranchScoped) {
+      setBranchId("ALL");
+      setSelectedBranchId(null);
+    }
     setEntityType("ALL");
     setAction("ALL");
     setSearchEntityId("");
@@ -253,10 +292,88 @@ export default function InventoryAuditPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      toast.success("Reporte CSV descargado correctamente");
+      toast.success("Reporte CSV completo descargado");
     } catch (err) {
       console.error("Export error:", err);
       toast.error("Error al generar el archivo CSV");
+    }
+  };
+
+  const handleExportNOM251 = () => {
+    if (!data || data.logs.length === 0) {
+      toast.error("No hay registros para exportar");
+      return;
+    }
+
+    // Filtrar registros relevantes para trazabilidad e higiene sanitaria NOM-251
+    const nomEntities = new Set(["BATCH", "RECEIVING", "WASTE", "TRANSFER", "ADJUSTMENT", "ITEM"]);
+    const nomLogs = data.logs.filter((l) => nomEntities.has(l.entityType));
+
+    if (nomLogs.length === 0) {
+      toast.warning("No hay registros sanitarios (Lotes, Recepción, Mermas) con los filtros actuales");
+      return;
+    }
+
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const branchText =
+        selectedBranch?.name ||
+        (branchId !== "ALL" ? branchMap.get(branchId) : "Todas las Sucursales");
+
+      const headers = [
+        "Folio_Auditoria",
+        "Fecha_Hora_Registro",
+        "Tipo_Control_Sanitario",
+        "Entidad_Afectada",
+        "Identificador_Lote_Insumo",
+        "Sucursal",
+        "Responsable_Operativo",
+        "Motivo_Observacion_Sanitaria",
+        "Detalle_Movimiento_Kardex",
+      ];
+
+      const rows = nomLogs.map((log) => [
+        `"${log.id}"`,
+        `"${new Date(log.performedAt).toLocaleString("es-MX")}"`,
+        `"${
+          log.action === "CREATE"
+            ? "ALTA / RECEPCION"
+            : log.action === "DELETE"
+            ? "MERMA / DESCARTE"
+            : "CONTROL / AJUSTE"
+        }"`,
+        `"${ENTITY_LABELS[log.entityType] || log.entityType}"`,
+        `"${log.entityId || "N/A"}"`,
+        `"${branchMap.get(log.branchId) || log.branchId}"`,
+        `"${log.performedBy}"`,
+        `"${(log.reason || "Conforme a bitácora operativa").replace(/"/g, '""')}"`,
+        `"${JSON.stringify(log.newValue || log.oldValue || {}).replace(/"/g, '""')}"`,
+      ]);
+
+      const metaHeader = [
+        `"BITÁCORA DE CONTROL Y TRAZABILIDAD SANITARIA (NOM-251-SSA1-2009)"`,
+        `"Establecimiento: Pulso HORECA | Sucursal: ${branchText} | Fecha de Emisión: ${today}"`,
+        `"Cadena de Inmutabilidad Electrónica | Verificación de Materias Primas, Almacén y Mermas"`,
+        "",
+      ].join("\r\n");
+
+      const csvContent =
+        "\uFEFF" + metaHeader + [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `bitacora_NOM251_${today}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Bitácora NOM-251 descargada (${nomLogs.length} registros sanitarios)`);
+    } catch (err) {
+      console.error("NOM-251 export error:", err);
+      toast.error("Error al exportar bitácora sanitaria");
     }
   };
 
@@ -271,18 +388,43 @@ export default function InventoryAuditPage() {
         title="Auditoría de Inventario"
         description="Registro inmutable y trazabilidad de todas las operaciones de inventario"
         icon={ClipboardList}
+        branchName={selectedBranch?.name}
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCSV}
-              disabled={!data || data.logs.length === 0}
-              className="h-9 gap-1.5 text-xs"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Exportar CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!data || data.logs.length === 0}
+                  className="h-9 gap-1.5 text-xs"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Exportar
+                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
+                  Formatos de Auditoría
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={handleExportCSV}
+                  className="text-xs gap-2 cursor-pointer"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                  Exportar CSV Completo
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleExportNOM251}
+                  className="text-xs gap-2 cursor-pointer font-medium"
+                >
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  Bitácora NOM-251 (Sanitaria)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         }
       />
@@ -297,20 +439,32 @@ export default function InventoryAuditPage() {
                 <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
                   <Building2 className="h-3.5 w-3.5" />
                   Sucursal
+                  {isBranchScoped && (
+                    <span title="Fijada por rol de usuario">
+                      <Lock className="h-2.5 w-2.5 text-muted-foreground/80 ml-0.5" />
+                    </span>
+                  )}
                 </Label>
                 <Select
                   value={branchId}
                   onValueChange={(val) => {
                     setBranchId(val);
+                    if (!isBranchScoped) {
+                      setSelectedBranchId(val === "ALL" ? null : val);
+                    }
                     setPage(0);
                   }}
-                  disabled={branchesLoading}
+                  disabled={isBranchScoped || branchesLoading}
                 >
                   <SelectTrigger className="h-9 text-xs">
                     <SelectValue placeholder="Todas las sucursales" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Todas las sucursales</SelectItem>
+                    {!isBranchScoped && (
+                      <SelectItem value="ALL" className="text-xs">
+                        Todas las sucursales
+                      </SelectItem>
+                    )}
                     {branches.map((b) => (
                       <SelectItem key={b.id} value={b.id} className="text-xs">
                         {b.name}
@@ -334,7 +488,9 @@ export default function InventoryAuditPage() {
                     <SelectValue placeholder="Todas" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Todas las entidades</SelectItem>
+                    <SelectItem value="ALL" className="text-xs">
+                      Todas las entidades
+                    </SelectItem>
                     {Object.entries(ENTITY_LABELS).map(([key, label]) => (
                       <SelectItem key={key} value={key} className="text-xs">
                         {label}
@@ -358,10 +514,18 @@ export default function InventoryAuditPage() {
                     <SelectValue placeholder="Todas" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Todas las acciones</SelectItem>
-                    <SelectItem value="CREATE">Creación</SelectItem>
-                    <SelectItem value="UPDATE">Actualización</SelectItem>
-                    <SelectItem value="DELETE">Eliminación</SelectItem>
+                    <SelectItem value="ALL" className="text-xs">
+                      Todas las acciones
+                    </SelectItem>
+                    <SelectItem value="CREATE" className="text-xs">
+                      Creación
+                    </SelectItem>
+                    <SelectItem value="UPDATE" className="text-xs">
+                      Actualización
+                    </SelectItem>
+                    <SelectItem value="DELETE" className="text-xs">
+                      Eliminación
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -513,7 +677,10 @@ export default function InventoryAuditPage() {
                                   {getPerformerInitials(log.performedBy)}
                                 </AvatarFallback>
                               </Avatar>
-                              <span className="text-xs font-medium text-foreground truncate max-w-[110px]" title={log.performedBy}>
+                              <span
+                                className="text-xs font-medium text-foreground truncate max-w-[110px]"
+                                title={log.performedBy}
+                              >
                                 {log.performedBy}
                               </span>
                             </div>

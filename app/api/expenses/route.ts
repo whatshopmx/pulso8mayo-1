@@ -83,9 +83,10 @@ export const GET = withRoleAuth([...ROLES_FINANZAS], async (req, { auth }) => {
   }
 
   const effectiveBranchId = alcance.kind === "BRANCH" ? alcance.branchId : null;
+  const payeeId = searchParams.get("payeeId") || undefined;
 
   const [{ items, truncated }, branchName] = await Promise.all([
-    getOperatingExpenses(auth.tenantId, effectiveBranchId ?? undefined),
+    getOperatingExpenses(auth.tenantId, effectiveBranchId ?? undefined, { payeeId }),
     nombreDeSucursal(auth.tenantId, effectiveBranchId),
   ]);
 

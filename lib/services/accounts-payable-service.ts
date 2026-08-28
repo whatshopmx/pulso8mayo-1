@@ -81,6 +81,8 @@ export async function getAccountsPayable(
         dueDate: invoices.dueDate,
         supplierId: invoices.supplierId,
         supplierName: suppliers.name,
+        payeeId: suppliers.payeeId,
+        payeeName: payees.name,
         nombreEmisor: invoices.nombreEmisor,
         rfcEmisor: invoices.rfcEmisor,
         branchId: invoices.branchId,
@@ -91,6 +93,7 @@ export async function getAccountsPayable(
       })
       .from(invoices)
       .leftJoin(suppliers, eq(invoices.supplierId, suppliers.id))
+      .leftJoin(payees, eq(suppliers.payeeId, payees.id))
       .leftJoin(branches, eq(invoices.branchId, branches.id))
       .where(and(...invoiceConditions)),
 
@@ -134,9 +137,9 @@ export async function getAccountsPayable(
       id: row.id,
       source: "INVOICE",
       reference,
-      counterparty: row.supplierName ?? row.nombreEmisor ?? row.rfcEmisor,
+      counterparty: row.payeeName ?? row.supplierName ?? row.nombreEmisor ?? row.rfcEmisor,
       supplierId: row.supplierId,
-      payeeId: null,
+      payeeId: row.payeeId ?? null,
       branchId: row.branchId,
       branchName: row.branchName,
       amountCents: row.total,

@@ -5,7 +5,7 @@ import type { Role } from "@/lib/permissions";
 import { InventoryService } from "@/lib/services/inventory-service";
 import { AuditService } from "@/lib/services/audit-service";
 import { db } from "@/lib/db";
-import { suppliers } from "@/lib/db/schema";
+import { suppliers, payees } from "@/lib/db/schema";
 import { eq, and, sql, or } from "drizzle-orm";
 import { z } from "zod";
 
@@ -23,6 +23,8 @@ const supplierSchema = z.object({
      * De aquí sale el vencimiento de cada factura recibida (accounts-payable).
      */
     paymentTermsDays: z.number().int().min(0).max(180).optional(),
+    /** Contraparte (payee) vinculada para CxP. */
+    payeeId: z.string().uuid().nullable().optional(),
     /** Forma de pago acordada (catálogo c_FormaPago del SAT). Null = sin especificar. */
     paymentMethod: z
         .enum(["TRANSFER", "CASH", "CHECK", "CREDIT_CARD", "DEBIT_CARD", "OTHER"])
@@ -65,14 +67,23 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        const supplierList = await db.select()
+        const supplierList = await db.select({
+            supplier: suppliers,
+            payeeName: payees.name,
+        })
             .from(suppliers)
+            .leftJoin(payees, eq(payees.id, suppliers.payeeId))
             .where(and(...conditions))
             .orderBy(sql`${suppliers.createdAt} DESC`);
 
+        const formatted = supplierList.map((row) => ({
+            ...row.supplier,
+            payeeName: row.payeeName ?? null,
+        }));
+
         return NextResponse.json({
             success: true,
-            suppliers: supplierList,
+            suppliers: formatted,
         });
 
     } catch (error) {

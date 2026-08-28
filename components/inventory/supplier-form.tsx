@@ -30,6 +30,7 @@ interface Supplier {
     paymentTermsDays?: number;
     /** Forma de pago acordada. null/undefined = sin especificar. */
     paymentMethod?: string | null;
+    payeeId?: string | null;
 }
 
 interface SupplierFormProps {
@@ -40,6 +41,7 @@ interface SupplierFormProps {
 
 export function SupplierForm({ supplier, onSuccess, onCancel }: SupplierFormProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [payeesList, setPayeesList] = useState<Array<{ id: string; name: string }>>([]);
     const [formData, setFormData] = useState<Supplier>({
         name: "",
         contactName: "",
@@ -51,7 +53,19 @@ export function SupplierForm({ supplier, onSuccess, onCancel }: SupplierFormProp
         matchTolerancePercent: 5,
         paymentTermsDays: 0,
         paymentMethod: null,
+        payeeId: null,
     });
+
+    useEffect(() => {
+        fetch("/api/finance/payees")
+            .then((r) => r.json())
+            .then((data) => {
+                if (data?.success && Array.isArray(data.data)) {
+                    setPayeesList(data.data);
+                }
+            })
+            .catch(() => {});
+    }, []);
 
     useEffect(() => {
         if (supplier) {
@@ -61,6 +75,7 @@ export function SupplierForm({ supplier, onSuccess, onCancel }: SupplierFormProp
                 matchTolerancePercent: supplier.matchTolerancePercent !== undefined ? supplier.matchTolerancePercent : 5,
                 paymentTermsDays: supplier.paymentTermsDays ?? 0,
                 paymentMethod: supplier.paymentMethod ?? null,
+                payeeId: supplier.payeeId ?? null,
             });
         }
     }, [supplier]);
@@ -224,6 +239,31 @@ export function SupplierForm({ supplier, onSuccess, onCancel }: SupplierFormProp
                     <p className="text-xs text-muted-foreground">
                         Con qué se le paga; los días de crédito dicen cuándo. Los valores
                         corresponden al catálogo de formas de pago del SAT.
+                    </p>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="payeeId">Contraparte de pago (CxP)</Label>
+                    <Select
+                        value={formData.payeeId ?? "UNSET"}
+                        onValueChange={(v) =>
+                            setFormData({ ...formData, payeeId: v === "UNSET" ? null : v })
+                        }
+                    >
+                        <SelectTrigger id="payeeId">
+                            <SelectValue placeholder="Sin vincular" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="UNSET">Sin vincular</SelectItem>
+                            {payeesList.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                    {p.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                        Vincular este proveedor de inventario con su contraparte en Finanzas para agrupar la CxP.
                     </p>
                 </div>
 

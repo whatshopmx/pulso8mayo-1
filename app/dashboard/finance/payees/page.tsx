@@ -43,7 +43,9 @@ import {
   Building2,
   Handshake,
   Loader2,
+  Pencil,
   Plus,
+  Receipt,
   RefreshCw,
   Search,
   Trash2,
@@ -89,6 +91,14 @@ export default function PayeesPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [creating, setCreating] = useState(false);
+
+  // Editar
+  const [editPayee, setEditPayee] = useState<Payee | null>(null);
+  const [editTaxId, setEditTaxId] = useState("");
+  const [editContactName, setEditContactName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editing, setEditing] = useState(false);
 
   // Dar de baja
   const [pendingDeactivation, setPendingDeactivation] = useState<Payee | null>(null);
@@ -183,6 +193,47 @@ export default function PayeesPage() {
       });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const openEdit = (payee: Payee) => {
+    setEditPayee(payee);
+    setEditTaxId(payee.taxId ?? "");
+    setEditContactName(payee.contactName ?? "");
+    setEditEmail(payee.email ?? "");
+    setEditPhone(payee.phone ?? "");
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editPayee) return;
+    setEditing(true);
+    try {
+      const res = await fetch(`/api/finance/payees/${editPayee.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taxId: editTaxId.trim() || null,
+          contactName: editContactName.trim() || null,
+          email: editEmail.trim() || null,
+          phone: editPhone.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(mensajeDeError(data, "No se pudo actualizar la contraparte."));
+      }
+      toast({ title: "Contraparte actualizada", description: `Los datos de "${editPayee.name}" fueron guardados.` });
+      setEditPayee(null);
+      load({ silent: true });
+    } catch (err) {
+      toast({
+        title: "No se pudo actualizar",
+        description: (err as Error).message || "Revisa e inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -367,7 +418,7 @@ export default function PayeesPage() {
                     <TableHead>RFC</TableHead>
                     <TableHead>Contacto</TableHead>
                     <TableHead>Estatus</TableHead>
-                    <TableHead className="text-center">Acción</TableHead>
+                    <TableHead className="text-center">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -395,14 +446,37 @@ export default function PayeesPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         {payee.active ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-destructive"
-                            onClick={() => setPendingDeactivation(payee)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Dar de baja
-                          </Button>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                              asChild
+                              title="Ver gastos registrados para esta contraparte"
+                            >
+                              <Link href={`/dashboard/finance/expenses?payeeId=${payee.id}`}>
+                                <Receipt className="w-3.5 h-3.5" /> Ver gastos
+                              </Link>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                              onClick={() => openEdit(payee)}
+                              title="Editar datos de contacto"
+                            >
+                              <Pencil className="w-3.5 h-3.5" /> Editar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-destructive"
+                              onClick={() => setPendingDeactivation(payee)}
+                              title="Dar de baja esta contraparte"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Dar de baja
+                            </Button>
+                          </div>
                         ) : (
                           <span className="text-muted-foreground/40">—</span>
                         )}
@@ -426,6 +500,74 @@ export default function PayeesPage() {
           La baja es lógica: los gastos históricos conservan el nombre congelado.
         </p>
       </div>
+
+      {/* ── Dialog de edición ── */}
+      <Dialog open={editPayee !== null} onOpenChange={(open) => { if (!open) setEditPayee(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <Pencil className="w-5 h-5 text-primary" /> Editar Contraparte
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              El nombre es la identidad y no puede cambiarse. Actualiza los datos de
+              contacto que quieres corregir.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEdit} className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Nombre (no editable)</Label>
+              <Input value={editPayee?.name ?? ""} disabled className="bg-muted/50 text-muted-foreground" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-taxid">RFC (opcional)</Label>
+              <Input
+                id="edit-taxid"
+                placeholder="ej. XXXX000000XXX"
+                value={editTaxId}
+                onChange={(e) => setEditTaxId(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-contact">Contacto (opcional)</Label>
+              <Input
+                id="edit-contact"
+                placeholder="Nombre de la persona con quien tratas"
+                value={editContactName}
+                onChange={(e) => setEditContactName(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Correo (opcional)</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  placeholder="correo@empresa.mx"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-phone">Teléfono (opcional)</Label>
+                <Input
+                  id="edit-phone"
+                  placeholder="55 0000 0000"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditPayee(null)} disabled={editing}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={editing}>
+                {editing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Guardar cambios
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={pendingDeactivation !== null}

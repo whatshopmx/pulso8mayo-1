@@ -261,7 +261,22 @@ export default function EquipmentCompliancePage() {
                         ? new Date(service.lastServiceDate).toLocaleDateString()
                         : "-"}
                     </TableCell>
-                    <TableCell>{service.providerName || "-"}</TableCell>
+                    <TableCell>
+                      {service.providerId ? (
+                        <span className="font-medium text-foreground">{service.providerName}</span>
+                      ) : service.providerName ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-foreground">{service.providerName}</span>
+                          <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10">
+                            Sin catálogo
+                          </Badge>
+                        </div>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10">
+                          Sin proveedor
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={service.isActive ? "default" : "secondary"}>
                         {service.isActive ? "Activo" : "Inactivo"}

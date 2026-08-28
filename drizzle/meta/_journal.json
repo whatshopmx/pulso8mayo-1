@@ -526,6 +526,20 @@
       "when": 1787802162079,
       "tag": "0075_modern_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1787947204915,
+      "tag": "0076_magenta_tenebrous",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1787947439918,
+      "tag": "0077_tranquil_living_mummy",
+      "breakpoints": true
     }
   ]
 }

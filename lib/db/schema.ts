@@ -804,6 +804,8 @@ export const suppliers = pgTable("suppliers", {
      * este dato no había forma de saber cuándo se debe pagar un CFDI.
      */
     paymentTermsDays: integer("payment_terms_days").default(0).notNull(),
+    /** Contraparte (payee) vinculada para agrupar CxP y cruzar facturas. */
+    payeeId: uuid("payee_id").references(() => payees.id),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });

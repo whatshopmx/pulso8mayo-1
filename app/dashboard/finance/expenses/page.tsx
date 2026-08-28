@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield, ImagePlus, RefreshCw } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield, ImagePlus, RefreshCw, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/hooks/use-session";
 import { denyExpenseResolution } from "@/lib/expenses/approval-policy";
@@ -125,21 +126,12 @@ function ExpensesContent() {
   // "todas" mientras el header seguía anunciando una sucursal concreta.
   const { selectedBranchId } = useBranch();
   const selectedBranch = selectedBranchId ?? "ALL";
-  // `?focus=<id>` llega desde el panel de flujo de efectivo: resalta y desplaza
-  // hacia el gasto que la dueña acaba de ver como vencido.
+  const searchParams = useSearchParams();
+  const payeeId = searchParams.get("payeeId");
   const { focusId, focusProps } = useFocusedRow();
-  // Esto es una cola de autorizaciones, no un libro mayor. Arrancar en "todos"
-  // dejaba una renta pendiente de $80,000 entre un taxi pagado y un recibo
-  // rechazado; lo que la dueña vino a hacer estaba mezclado con el historial.
-  //
-  // Pero un enlace con `?focus=` **nombra un registro**, y el flujo de efectivo
-  // enlaza gastos ya aprobados y sin pagar. Con la cola de pendientes por
-  // omisión, hacer clic en "6 gastos vencidos" aterrizaba en una pantalla que
-  // escondía justo la fila prometida, y el estado vacío contestaba "Sin gastos
-  // pendientes de aprobación" — que se lee como "lo que clicaste no existe".
-  // Quien llega por un enlace ve el libro; quien entra a trabajar, la cola.
+
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(
-    focusId ? "ALL" : "PENDING_APPROVAL"
+    focusId || payeeId ? "ALL" : "PENDING_APPROVAL"
   );
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   /** Alcance **aplicado** por el servidor, no el pedido. */
@@ -172,11 +164,12 @@ function ExpensesContent() {
       if (selectedBranch !== "ALL") {
         url.searchParams.set("branchId", selectedBranch);
       }
+      if (payeeId) {
+        url.searchParams.set("payeeId", payeeId);
+      }
       const res = await fetch(url.toString());
       const data = await res.json();
       if (res.ok && data.success) {
-        // `{ items, scope, truncated }`: la ruta ahora devuelve el alcance que de
-        // verdad aplicó, no el que se pidió.
         setExpenses(data.data?.items || []);
         setScope(data.data?.scope ?? null);
         setTruncated(Boolean(data.data?.truncated));
@@ -194,7 +187,7 @@ function ExpensesContent() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBranch]);
+  }, [selectedBranch, payeeId]);
 
   useEffect(() => {
     fetchExpenses();
@@ -424,9 +417,22 @@ function ExpensesContent() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-bold">Listado de Gastos Operativos</CardTitle>
-          <CardDescription className="text-xs">
-            Gastos registrados y su estado actual en la cadena de autorización.
-          </CardDescription>
+          {payeeId && (
+            <div className="mt-2 bg-primary/10 border border-primary/20 rounded-md p-3 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-primary shrink-0" />
+                <span>
+                  Filtrando por contraparte:{" "}
+                  <strong className="font-semibold text-foreground">
+                    {expenses.find((e) => e.payeeId === payeeId)?.payeeName || "Contraparte seleccionada"}
+                  </strong>
+                </span>
+              </div>
+              <Button variant="ghost" size="sm" className="h-7 text-xs px-2 hover:bg-primary/20" asChild>
+                <Link href="/dashboard/finance/expenses">Limpiar filtro</Link>
+              </Button>
+            </div>
+          )}
 
           {/* El alcance **aplicado**, no el pedido: un GERENTE que pide otra
               sucursal recibe la suya, y rotular la que pidió sería etiquetar

@@ -23,6 +23,8 @@ const supplierSchema = z.object({
      * De aquí sale el vencimiento de cada factura recibida (accounts-payable).
      */
     paymentTermsDays: z.number().int().min(0).max(180).optional(),
+    /** Contraparte (payee) vinculada para CxP. */
+    payeeId: z.string().uuid().nullable().optional(),
     /** Forma de pago acordada (catálogo c_FormaPago del SAT). Null = sin especificar. */
     paymentMethod: z
         .enum(["TRANSFER", "CASH", "CHECK", "CREDIT_CARD", "DEBIT_CARD", "OTHER"])

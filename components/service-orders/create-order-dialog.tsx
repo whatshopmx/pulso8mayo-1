@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +73,20 @@ function DialogRoot({ open, onClose, prefill, onCreated }: Required<Pick<CreateO
   const [justification, setJustification] = useState("");
   const [amountStr, setAmountStr] = useState("");
   const [costCenterId, setCostCenterId] = useState("");
+  const [serviceProviderId, setServiceProviderId] = useState("");
+  const [providers, setProviders] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/equipment/providers")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && Array.isArray(data.data)) {
+          setProviders(data.data);
+        }
+      })
+      .catch(() => {});
+  }, [open]);
 
   const type = typeOverride ?? (prefill?.type && TYPE_LABELS[prefill.type] ? prefill.type : "CORRECTIVO");
   const scope = scopeOverride ?? prefill?.scope ?? "";
@@ -96,6 +110,7 @@ function DialogRoot({ open, onClose, prefill, onCreated }: Required<Pick<CreateO
         justification: justification || undefined,
         amount: cents,
         costCenterId: costCenterId || undefined,
+        serviceProviderId: serviceProviderId || undefined,
         complianceServiceId: prefill?.complianceServiceId || undefined,
       });
       toast.success("Borrador creado");
@@ -180,6 +195,18 @@ function DialogRoot({ open, onClose, prefill, onCreated }: Required<Pick<CreateO
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="so-provider">Proveedor de servicio (opcional)</Label>
+            <Select value={serviceProviderId || undefined} onValueChange={setServiceProviderId}>
+              <SelectTrigger id="so-provider"><SelectValue placeholder="Selecciona un proveedor…" /></SelectTrigger>
+              <SelectContent>
+                {providers.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1.5">

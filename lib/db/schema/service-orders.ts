@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { companies, branches } from "./core";
-import { branchComplianceServices } from "./equipment";
+import { branchComplianceServices, serviceProviders } from "./equipment";
 
 // ── Enums ──
 
@@ -79,6 +79,7 @@ export const serviceOrders = pgTable("service_orders", {
   technicalReport: text("technical_report"),
 
   supplierId: uuid("supplier_id"),
+  serviceProviderId: uuid("service_provider_id").references(() => serviceProviders.id),
   amount: integer("amount"),      // Centavos
 
   scheduledDate: timestamp("scheduled_date"),

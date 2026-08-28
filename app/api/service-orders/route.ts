@@ -18,6 +18,7 @@ const createOrderSchema = z.object({
     justification: z.string().max(8000).nullable().optional(),
     technicalReport: z.string().max(20000).nullable().optional(),
     supplierId: z.string().uuid().nullable().optional(),
+    serviceProviderId: z.string().uuid().nullable().optional(),
     amount: z.number().int().min(0).nullable().optional(), // centavos
     scheduledDate: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
     costCenterId: z.string().uuid().nullable().optional(),

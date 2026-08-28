@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,13 +21,15 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { 
-    Shield, 
+    ClipboardCheck,
+    ShieldCheck,
     Search, 
     Filter, 
     Download,
     Calendar,
     User,
-    FileText,
+    Users,
+    Activity,
     AlertTriangle,
     CheckCircle2,
     Clock,
@@ -35,9 +37,19 @@ import {
     ChevronDown,
     ChevronLeft,
     ChevronRight,
-    Copy
+    Copy,
+    Info,
+    X,
+    RotateCcw,
+    Smartphone,
+    Laptop,
+    MessageSquare,
+    FileText,
+    Store,
+    Timer,
+    Check
 } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, subDays, differenceInMinutes } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { exportToCSV, cn } from "@/lib/utils";
@@ -55,7 +67,7 @@ interface AuditLog {
     id: string;
     action: string;
     resource: string;
-    resourceType: "WORKFLOW" | "USER" | "COMPANY" | "BRANCH" | "INVENTORY" | "EVIDENCE" | "INCIDENT";
+    resourceType: "WORKFLOW" | "INCIDENT" | string;
     userId: string;
     userName: string;
     userRole: string;
@@ -99,7 +111,7 @@ function SearchableSelect({
 
     const selectedOption = options.find((o) => o.id === value);
     const filteredOptions = options.filter((o) =>
-        o.name.toLowerCase().includes(search.toLowerCase())
+        (o.name || "").toLowerCase().includes(search.toLowerCase())
     );
 
     return (
@@ -177,110 +189,59 @@ function getStatusLabel(status: string) {
         COMPLETED: "Completado",
         IN_PROGRESS: "En Progreso",
         PENDING: "Pendiente",
-        FAILED: "Fallido",
-        OPEN: "Abierto",
-        RESOLVED: "Resuelto",
-        CLOSED: "Cerrado",
+        FAILED: "Con Observaciones",
+        OPEN: "Abierta",
+        RESOLVED: "Solucionada",
+        CLOSED: "Cerrada",
     };
-    return labels[status.toUpperCase()] || status;
+    return labels[status?.toUpperCase()] || status || "Registrado";
 }
 
-function getSeverityLabel(severity: string) {
-    const labels: Record<string, string> = {
-        HIGH: "Alta",
-        MEDIUM: "Media",
-        LOW: "Baja",
-        CRITICAL: "Crítica",
-    };
-    return labels[severity.toUpperCase()] || severity;
+function getSeverityBadge(severity: string) {
+    const sev = (severity || "").toUpperCase();
+    if (sev === "CRITICAL" || sev === "HIGH") {
+        return (
+            <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 font-medium text-xs">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                {sev === "CRITICAL" ? "Prioridad Crítica" : "Prioridad Alta"}
+            </Badge>
+        );
+    }
+    if (sev === "MEDIUM") {
+        return (
+            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-medium text-xs">
+                <Clock className="h-3 w-3 mr-1" />
+                Prioridad Media
+            </Badge>
+        );
+    }
+    return (
+        <Badge variant="outline" className="bg-muted text-muted-foreground border-border font-medium text-xs">
+            Baja / Informativa
+        </Badge>
+    );
 }
 
-function renderDetailsContent(log: AuditLog) {
-    const { resourceType, details } = log;
-
-    if (resourceType === "WORKFLOW") {
-        return (
-            <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="bg-muted/30 p-3 rounded-md border">
-                    <span className="text-muted-foreground block text-xs">Estado del Flujo</span>
-                    <span className="font-semibold text-foreground">
-                        {details.status ? getStatusLabel(details.status) : "-"}
-                    </span>
-                </div>
-                <div className="bg-muted/30 p-3 rounded-md border">
-                    <span className="text-muted-foreground block text-xs">Calificación / Puntaje</span>
-                    <span className="font-semibold text-foreground">
-                        {details.score !== undefined && details.score !== null ? `${details.score}%` : "-"}
-                    </span>
-                </div>
-                {details.startedAt && (
-                    <div className="bg-muted/30 p-3 rounded-md border">
-                        <span className="text-muted-foreground block text-xs">Fecha de Inicio</span>
-                        <span className="text-foreground">
-                            {format(new Date(details.startedAt), "dd MMM yyyy, HH:mm", { locale: es })}
-                        </span>
-                    </div>
-                )}
-                {details.completedAt && (
-                    <div className="bg-muted/30 p-3 rounded-md border">
-                        <span className="text-muted-foreground block text-xs">Fecha de Término</span>
-                        <span className="text-foreground">
-                            {format(new Date(details.completedAt), "dd MMM yyyy, HH:mm", { locale: es })}
-                        </span>
-                    </div>
-                )}
-            </div>
-        );
+function getCaptureChannel(userAgent: string | null, ipAddress: string | null) {
+    const ua = (userAgent || "").toLowerCase();
+    if (ua.includes("whatsapp") || ua.includes("wasender") || ua.includes("webhook")) {
+        return { label: "WhatsApp Bot", icon: MessageSquare, badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" };
     }
-
-    if (resourceType === "INCIDENT") {
-        return (
-            <div className="space-y-4">
-                <div className="bg-muted/30 p-3 rounded-md border text-sm">
-                    <span className="text-muted-foreground block text-xs">Descripción del Incidente</span>
-                    <p className="font-medium mt-1 text-foreground">{details.description || "Sin descripción"}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="bg-muted/30 p-3 rounded-md border">
-                        <span className="text-muted-foreground block text-xs">Severidad</span>
-                        <Badge 
-                            variant={details.severity === "HIGH" || details.severity === "CRITICAL" ? "destructive" : "secondary"}
-                            className="mt-1"
-                        >
-                            {details.severity ? getSeverityLabel(details.severity) : "-"}
-                        </Badge>
-                    </div>
-                    <div className="bg-muted/30 p-3 rounded-md border">
-                        <span className="text-muted-foreground block text-xs">Estado del Incidente</span>
-                        <span className="font-semibold text-foreground">
-                            {details.status ? getStatusLabel(details.status) : "-"}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        );
+    if (ua.includes("mobile") || ua.includes("tablet") || ua.includes("ipad") || ua.includes("android")) {
+        return { label: "Tablet / Móvil", icon: Smartphone, badgeClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" };
     }
+    return { label: "Portal Web", icon: Laptop, badgeClass: "bg-muted text-muted-foreground border-border" };
+}
 
-    // Fallback key-value listing for other types of details
-    const keys = Object.keys(details);
-    if (keys.length > 0) {
-        return (
-            <div className="grid grid-cols-2 gap-4 text-sm">
-                {keys.map((key) => (
-                    <div key={key} className="bg-muted/30 p-3 rounded-md border">
-                        <span className="text-muted-foreground block text-xs capitalize">
-                            {key.replace(/([A-Z])/g, " $1").trim()}
-                        </span>
-                        <span className="font-medium text-foreground">
-                            {typeof details[key] === "object" ? JSON.stringify(details[key]) : String(details[key])}
-                        </span>
-                    </div>
-                ))}
-            </div>
-        );
+function formatTaskName(resource: string, action: string) {
+    if (resource && resource !== "null") return resource;
+    if (action.startsWith("WORKFLOW_")) {
+        return "Checklist Operativo de Turno";
     }
-
-    return <p className="text-sm text-muted-foreground">No hay detalles adicionales disponibles.</p>;
+    if (action.startsWith("INCIDENT_")) {
+        return "Reporte de Incidencia en Sucursal";
+    }
+    return "Registro de Actividad";
 }
 
 export default function AuditPage() {
@@ -289,16 +250,16 @@ export default function AuditPage() {
     const [filters, setFilters] = useState<AuditFilters>({});
     const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
     const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
-
-    // Search input state (local to avoid immediate requests)
     const [searchValue, setSearchValue] = useState("");
+    const [activePreset, setActivePreset] = useState<string | null>(null);
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
 
-    // Dialog state for viewing logs details
+    // Dialog states
     const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+    const [infoDialogOpen, setInfoDialogOpen] = useState(false);
 
     // Fetch filters once on mount
     useEffect(() => {
@@ -325,17 +286,17 @@ export default function AuditPage() {
                     setLogs(data.data || []);
                 }
             } catch (error) {
-                console.error("Failed to fetch audit logs:", error);
-                toast.error("Error al cargar logs de auditoría");
+                console.error("Failed to fetch operational logs:", error);
+                toast.error("Error al cargar la bitácora operativa");
             } finally {
                 setLoading(false);
             }
         };
         doFetch();
-        setCurrentPage(1); // Reset page on filter change
+        setCurrentPage(1);
     }, [filters]);
 
-    // Search input debounce timer
+    // Search input debounce
     useEffect(() => {
         const timer = setTimeout(() => {
             setFilters(prev => {
@@ -365,66 +326,100 @@ export default function AuditPage() {
         }
     };
 
-    const getResourceTypeColor = (type: AuditLog["resourceType"]) => {
-        switch (type) {
-            case "WORKFLOW":
-                return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
-            case "USER":
-                return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100";
-            case "COMPANY":
-                return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100";
-            case "BRANCH":
-                return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
-            case "INVENTORY":
-                return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100";
-            case "EVIDENCE":
-                return "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-100";
-            case "INCIDENT":
-                return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100";
-            default:
-                return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100";
-        }
-    };
-
-    const getActionIcon = (action: string) => {
-        if (action.includes("CREATE") || action.includes("CREAR")) {
-            return <CheckCircle2 className="h-4 w-4 text-green-600" />;
-        }
-        if (action.includes("UPDATE") || action.includes("ACTUALIZAR")) {
-            return <Clock className="h-4 w-4 text-blue-600" />;
-        }
-        if (action.includes("DELETE") || action.includes("ELIMINAR")) {
-            return <AlertTriangle className="h-4 w-4 text-red-600" />;
-        }
-        return <FileText className="h-4 w-4 text-gray-600" />;
-    };
-
     const clearFilters = () => {
         setFilters({});
         setSearchValue("");
+        setActivePreset(null);
+    };
+
+    // Quick filter presets for restaurant managers
+    const applyPreset = (preset: "today" | "yesterday" | "7d" | "incidents" | "checklists") => {
+        const todayStr = format(new Date(), "yyyy-MM-dd");
+        if (activePreset === preset) {
+            clearFilters();
+            return;
+        }
+
+        setActivePreset(preset);
+        if (preset === "today") {
+            setFilters(prev => ({
+                ...prev,
+                dateFrom: todayStr,
+                dateTo: todayStr,
+                resourceType: undefined,
+            }));
+        } else if (preset === "yesterday") {
+            const yesterdayStr = format(subDays(new Date(), 1), "yyyy-MM-dd");
+            setFilters(prev => ({
+                ...prev,
+                dateFrom: yesterdayStr,
+                dateTo: yesterdayStr,
+                resourceType: undefined,
+            }));
+        } else if (preset === "7d") {
+            const weekAgoStr = format(subDays(new Date(), 7), "yyyy-MM-dd");
+            setFilters(prev => ({
+                ...prev,
+                dateFrom: weekAgoStr,
+                dateTo: todayStr,
+                resourceType: undefined,
+            }));
+        } else if (preset === "incidents") {
+            setFilters(prev => ({
+                ...prev,
+                resourceType: "INCIDENT",
+            }));
+        } else if (preset === "checklists") {
+            setFilters(prev => ({
+                ...prev,
+                resourceType: "WORKFLOW",
+            }));
+        }
+    };
+
+    const removeFilter = (key: keyof AuditFilters) => {
+        setFilters(prev => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+        if (key === "dateFrom" || key === "dateTo") {
+            setActivePreset(null);
+        }
+        if (key === "search") {
+            setSearchValue("");
+        }
     };
 
     const hasFilters = Object.values(filters).some(v => v !== undefined && v !== "") || searchValue !== "";
 
     const handleExport = () => {
+        if (logs.length === 0) {
+            toast.error("No hay registros para exportar con los filtros seleccionados");
+            return;
+        }
         exportToCSV(logs as any[], [
-            { key: "action", label: "Acción" },
-            { key: "resource", label: "Recurso" },
-            { key: "resourceType", label: "Tipo" },
-            { key: "userName", label: "Usuario" },
+            { key: "id", label: "Folio" },
+            { key: "resource", label: "Actividad / Checklist" },
+            { key: "resourceType", label: "Tipo de Registro" },
+            { key: "userName", label: "Responsable" },
+            { key: "userRole", label: "Puesto / Rol" },
             { key: "branchName", label: "Sucursal" },
-            { key: "ipAddress", label: "IP" },
-            { key: "createdAt", label: "Fecha" },
-        ], `auditoria-${Date.now()}`);
-        toast.success("CSV exportado correctamente");
+            { key: "createdAt", label: "Fecha y Hora" },
+        ], `bitacora-operativa-qsr-${format(new Date(), "yyyyMMdd-HHmm")}`);
+        toast.success(`Bitácora descargada: ${logs.length} registros en formato CSV`);
     };
 
-    const stats = {
-        total: logs.length,
-        workflows: logs.filter(l => l.resourceType === "WORKFLOW").length,
-        users: logs.filter(l => l.resourceType === "USER").length,
-        evidence: logs.filter(l => l.resourceType === "INCIDENT").length,
-    };
+    // Calculate restaurant metrics
+    const stats = useMemo(() => {
+        const uniqueUsers = new Set(logs.map(l => l.userName).filter(Boolean)).size;
+        return {
+            total: logs.length,
+            workflows: logs.filter(l => l.resourceType === "WORKFLOW").length,
+            incidents: logs.filter(l => l.resourceType === "INCIDENT").length,
+            activeStaff: uniqueUsers,
+        };
+    }, [logs]);
 
     // Pagination calculations
     const totalLogs = logs.length;
@@ -435,105 +430,174 @@ export default function AuditPage() {
     );
 
     return (
-        <div className="container mx-auto py-8 space-y-8">
+        <div className="container mx-auto py-6 space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <Shield className="h-8 w-8 text-primary" />
+                    <div className="p-2.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
+                        <ClipboardCheck className="h-6 w-6" />
+                    </div>
                     <div>
-                        <h1 className="text-3xl font-bold">Auditoría</h1>
-                        <p className="text-muted-foreground mt-1">
-                            Registro detallado de todas las actividades del sistema
+                        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+                            Bitácora Operativa
+                        </h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                            Supervisión en tiempo real de aperturas, checklists sanitarios e incidencias en sucursales
                         </p>
                     </div>
                 </div>
-                <Button variant="outline" onClick={handleExport}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Exportar
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setInfoDialogOpen(true)}
+                        className="h-9 gap-1.5"
+                    >
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                        <span>Normativa NOM-251</span>
+                    </Button>
+                    <Button 
+                        variant="default" 
+                        size="sm" 
+                        onClick={handleExport}
+                        className="h-9 gap-1.5"
+                    >
+                        <Download className="h-4 w-4" />
+                        <span>Descargar Bitácora (CSV)</span>
+                    </Button>
+                </div>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
+            {/* QSR Metric Cards */}
+            <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
                 <MetricCard
-                    label="Total de Logs"
+                    label="Total de Registros"
                     value={stats.total}
-                    icon={<FileText className="h-4 w-4" />}
+                    icon={<Activity className="h-4 w-4 text-primary" />}
                 />
                 <MetricCard
-                    label="Flujos"
+                    label="Checklists Realizados"
                     value={stats.workflows}
-                    icon={<Shield className="h-4 w-4" />}
+                    icon={<ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
                 />
                 <MetricCard
-                    label="Usuarios"
-                    value={stats.users}
-                    icon={<User className="h-4 w-4" />}
+                    label="Incidencias y Desviaciones"
+                    value={stats.incidents}
+                    icon={<AlertTriangle className="h-4 w-4 text-destructive" />}
                 />
                 <MetricCard
-                    label="Evidencias"
-                    value={stats.evidence}
-                    icon={<FileText className="h-4 w-4" />}
+                    label="Personal en Turno"
+                    value={stats.activeStaff}
+                    icon={<Users className="h-4 w-4 text-primary" />}
                 />
             </div>
 
-            {/* Filters */}
-            <Card>
-                <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
+            {/* Routine & Search Filters */}
+            <Card className="border">
+                <CardHeader className="pb-3 pt-4 px-4 sm:px-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="flex items-center gap-2">
-                            <Filter className="h-4 w-4" />
-                            <CardTitle className="text-base">Filtros</CardTitle>
+                            <Filter className="h-4 w-4 text-muted-foreground" />
+                            <CardTitle className="text-sm font-semibold">Filtros de Supervisión</CardTitle>
                         </div>
-                        {hasFilters && (
-                            <Button variant="ghost" size="sm" onClick={clearFilters}>
-                                Limpiar filtros
+                        {/* Quick Routine Presets */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground mr-1">Turno / Rango:</span>
+                            <Button
+                                variant={activePreset === "today" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => applyPreset("today")}
+                                className="h-7 px-2.5 text-xs"
+                            >
+                                Hoy
                             </Button>
-                        )}
+                            <Button
+                                variant={activePreset === "yesterday" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => applyPreset("yesterday")}
+                                className="h-7 px-2.5 text-xs"
+                            >
+                                Ayer
+                            </Button>
+                            <Button
+                                variant={activePreset === "7d" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => applyPreset("7d")}
+                                className="h-7 px-2.5 text-xs"
+                            >
+                                Últimos 7 días
+                            </Button>
+                            <Button
+                                variant={activePreset === "incidents" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => applyPreset("incidents")}
+                                className="h-7 px-2.5 text-xs text-destructive border-destructive/20 hover:bg-destructive/10"
+                            >
+                                Solo Incidencias
+                            </Button>
+                            <Button
+                                variant={activePreset === "checklists" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => applyPreset("checklists")}
+                                className="h-7 px-2.5 text-xs"
+                            >
+                                Solo Checklists
+                            </Button>
+                            {hasFilters && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={clearFilters}
+                                    className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                    <RotateCcw className="h-3 w-3 mr-1" />
+                                    Restablecer
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Buscar</label>
+                <CardContent className="px-4 sm:px-6 pb-4 pt-1 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {/* Search Input */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Buscar en bitácora</label>
                             <div className="relative">
-                                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    placeholder="Acción, recurso, detalles..."
+                                    placeholder="Checklist, responsable o detalle..."
                                     value={searchValue}
                                     onChange={(e) => setSearchValue(e.target.value)}
-                                    className="pl-8"
+                                    className="h-9 pl-8 text-sm"
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Tipo de Recurso</label>
+                        {/* Resource / Event Type */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Tipo de registro</label>
                             <Select
                                 value={filters.resourceType || "all"}
                                 onValueChange={(value) =>
                                     setFilters({ ...filters, resourceType: value === "all" ? undefined : value })
                                 }
                             >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Todos los tipos" />
+                                <SelectTrigger className="h-9 text-sm">
+                                    <SelectValue placeholder="Todos los registros" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">Todos los tipos</SelectItem>
-                                    <SelectItem value="WORKFLOW">Flujo de trabajo</SelectItem>
-                                    <SelectItem value="USER">Usuario</SelectItem>
-                                    <SelectItem value="COMPANY">Empresa</SelectItem>
-                                    <SelectItem value="BRANCH">Sucursal</SelectItem>
-                                    <SelectItem value="INVENTORY">Inventario</SelectItem>
-                                    <SelectItem value="INCIDENT">Evidencia</SelectItem>
+                                    <SelectItem value="all">Todos los registros</SelectItem>
+                                    <SelectItem value="WORKFLOW">Checklists y Rutinas de Turno</SelectItem>
+                                    <SelectItem value="INCIDENT">Incidencias y Desviaciones</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
-                        <div className="space-y-2 flex flex-col justify-end">
-                            <label className="text-sm font-medium mb-1">Usuario</label>
+                        {/* Responsible Staff Combobox */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Responsable de turno</label>
                             <SearchableSelect
-                                placeholder="Todos los usuarios"
+                                placeholder="Todo el personal"
                                 options={users}
                                 value={filters.userId}
                                 onChange={(value) =>
@@ -542,8 +606,9 @@ export default function AuditPage() {
                             />
                         </div>
 
-                        <div className="space-y-2 flex flex-col justify-end">
-                            <label className="text-sm font-medium mb-1">Sucursal</label>
+                        {/* Branch Combobox */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Sucursal</label>
                             <SearchableSelect
                                 placeholder="Todas las sucursales"
                                 options={branches}
@@ -554,137 +619,272 @@ export default function AuditPage() {
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Fecha desde</label>
+                        {/* Date From */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Fecha desde</label>
                             <Input
                                 type="date"
                                 value={filters.dateFrom || ""}
-                                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                                onChange={(e) => {
+                                    setFilters({ ...filters, dateFrom: e.target.value || undefined });
+                                    setActivePreset(null);
+                                }}
+                                className="h-9 text-sm"
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Fecha hasta</label>
+                        {/* Date To */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Fecha hasta</label>
                             <Input
                                 type="date"
                                 value={filters.dateTo || ""}
-                                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                                min={filters.dateFrom}
+                                onChange={(e) => {
+                                    setFilters({ ...filters, dateTo: e.target.value || undefined });
+                                    setActivePreset(null);
+                                }}
+                                className="h-9 text-sm"
                             />
                         </div>
                     </div>
+
+                    {/* Active Filter Chips */}
+                    {hasFilters && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t text-xs">
+                            <span className="text-muted-foreground font-medium mr-1">Filtros aplicados:</span>
+                            {filters.search && (
+                                <Badge variant="secondary" className="gap-1 py-0.5 px-2 text-xs font-normal">
+                                    <span>Texto: "{filters.search}"</span>
+                                    <button 
+                                        onClick={() => removeFilter("search")} 
+                                        className="hover:text-destructive transition-colors ml-0.5"
+                                        aria-label="Quitar filtro de texto"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </Badge>
+                            )}
+                            {filters.resourceType && (
+                                <Badge variant="secondary" className="gap-1 py-0.5 px-2 text-xs font-normal">
+                                    <span>Tipo: {filters.resourceType === "WORKFLOW" ? "Checklists" : "Incidencias"}</span>
+                                    <button 
+                                        onClick={() => removeFilter("resourceType")} 
+                                        className="hover:text-destructive transition-colors ml-0.5"
+                                        aria-label="Quitar filtro de tipo"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </Badge>
+                            )}
+                            {filters.userId && (
+                                <Badge variant="secondary" className="gap-1 py-0.5 px-2 text-xs font-normal">
+                                    <span>Personal: {users.find(u => u.id === filters.userId)?.name || filters.userId}</span>
+                                    <button 
+                                        onClick={() => removeFilter("userId")} 
+                                        className="hover:text-destructive transition-colors ml-0.5"
+                                        aria-label="Quitar filtro de personal"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </Badge>
+                            )}
+                            {filters.branchId && (
+                                <Badge variant="secondary" className="gap-1 py-0.5 px-2 text-xs font-normal">
+                                    <span>Sucursal: {branches.find(b => b.id === filters.branchId)?.name || filters.branchId}</span>
+                                    <button 
+                                        onClick={() => removeFilter("branchId")} 
+                                        className="hover:text-destructive transition-colors ml-0.5"
+                                        aria-label="Quitar filtro de sucursal"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </Badge>
+                            )}
+                            {filters.dateFrom && (
+                                <Badge variant="secondary" className="gap-1 py-0.5 px-2 text-xs font-normal">
+                                    <span>Desde: {filters.dateFrom}</span>
+                                    <button 
+                                        onClick={() => removeFilter("dateFrom")} 
+                                        className="hover:text-destructive transition-colors ml-0.5"
+                                        aria-label="Quitar filtro de fecha desde"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </Badge>
+                            )}
+                            {filters.dateTo && (
+                                <Badge variant="secondary" className="gap-1 py-0.5 px-2 text-xs font-normal">
+                                    <span>Hasta: {filters.dateTo}</span>
+                                    <button 
+                                        onClick={() => removeFilter("dateTo")} 
+                                        className="hover:text-destructive transition-colors ml-0.5"
+                                        aria-label="Quitar filtro de fecha hasta"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </Badge>
+                            )}
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
-            {/* Audit Logs Table */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Logs de Auditoría</CardTitle>
-                    <CardDescription>
-                        Historial completo de actividades y cambios en el sistema
-                    </CardDescription>
+            {/* Table of Operational Records */}
+            <Card className="border">
+                <CardHeader className="pb-3 px-4 sm:px-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="text-base sm:text-lg">Historial de Turnos y Supervisión</CardTitle>
+                            <CardDescription className="text-xs sm:text-sm">
+                                Registro cronológico de actividades ejecutadas en cocina, piso y almacén
+                            </CardDescription>
+                        </div>
+                    </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="px-4 sm:px-6 pb-6 pt-0">
                     {loading ? (
-                        <div className="flex items-center justify-center py-12">
-                            <Clock className="h-8 w-8 animate-spin text-muted-foreground" />
+                        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground space-y-3">
+                            <Clock className="h-8 w-8 animate-spin text-primary" />
+                            <p className="text-sm font-medium">Consultando registros de sucursales...</p>
                         </div>
                     ) : logs.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-center">
-                            <Shield className="h-12 w-12 text-muted-foreground mb-4" />
-                            <p className="text-muted-foreground">
-                                No se encontraron logs de auditoría con los filtros seleccionados
-                            </p>
+                        <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
+                            <div className="p-3 rounded-full bg-muted">
+                                <ClipboardCheck className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                            <div className="space-y-1">
+                                <p className="font-semibold text-foreground text-base">
+                                    Sin registros para mostrar
+                                </p>
+                                <p className="text-xs text-muted-foreground max-w-sm">
+                                    No hay checklists ni incidencias registradas con los filtros seleccionados.
+                                </p>
+                            </div>
+                            {hasFilters && (
+                                <Button variant="outline" size="sm" onClick={clearFilters} className="mt-2 text-xs">
+                                    Ver todos los registros
+                                </Button>
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            <div className="rounded-md border">
+                            <div className="rounded-lg border overflow-hidden">
                                 <Table>
                                     <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Acción</TableHead>
-                                            <TableHead>Recurso</TableHead>
-                                            <TableHead>Usuario</TableHead>
-                                            <TableHead>Sucursal</TableHead>
-                                            <TableHead>IP</TableHead>
-                                            <TableHead>Fecha</TableHead>
-                                            <TableHead className="text-right">Acciones</TableHead>
+                                        <TableRow className="bg-muted/40 hover:bg-muted/40">
+                                            <TableHead className="font-semibold text-xs">Tipo</TableHead>
+                                            <TableHead className="font-semibold text-xs">Actividad / Tarea</TableHead>
+                                            <TableHead className="font-semibold text-xs">Responsable</TableHead>
+                                            <TableHead className="font-semibold text-xs">Sucursal</TableHead>
+                                            <TableHead className="font-semibold text-xs">Canal</TableHead>
+                                            <TableHead className="font-semibold text-xs">Fecha y Hora</TableHead>
+                                            <TableHead className="text-right font-semibold text-xs">Ficha</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {paginatedLogs.map((log) => (
-                                            <TableRow key={log.id}>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-2">
-                                                        {getActionIcon(log.action)}
-                                                        <Badge variant="outline" className={getResourceTypeColor(log.resourceType)}>
-                                                            {log.action}
+                                        {paginatedLogs.map((log) => {
+                                            const isIncident = log.resourceType === "INCIDENT" || log.action.includes("INCIDENT");
+                                            const channel = getCaptureChannel(log.userAgent, log.ipAddress);
+                                            const ChannelIcon = channel.icon;
+
+                                            return (
+                                                <TableRow key={log.id} className="hover:bg-muted/30 transition-colors">
+                                                    <TableCell>
+                                                        {isIncident ? (
+                                                            <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 font-medium text-xs">
+                                                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                                                Incidencia
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="bg-muted text-foreground border-border font-medium text-xs">
+                                                                <ShieldCheck className="h-3 w-3 mr-1 text-emerald-600 dark:text-emerald-400" />
+                                                                Checklist
+                                                            </Badge>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="space-y-0.5">
+                                                            <p className="font-medium text-sm text-foreground">
+                                                                {formatTaskName(log.resource, log.action)}
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {isIncident ? "Desviación reportada" : "Rutina de operación"}
+                                                            </p>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center gap-1.5 text-sm font-medium">
+                                                                <User className="h-3.5 w-3.5 text-muted-foreground" />
+                                                                <span>{log.userName || "Personal de Sucursal"}</span>
+                                                            </div>
+                                                            {log.userRole && (
+                                                                <span className="text-[11px] text-muted-foreground">
+                                                                    {log.userRole}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-1 text-sm font-medium text-foreground">
+                                                            <Store className="h-3.5 w-3.5 text-muted-foreground" />
+                                                            <span>{log.branchName || "Sucursal Matriz"}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline" className={cn("text-xs font-normal gap-1", channel.badgeClass)}>
+                                                            <ChannelIcon className="h-3 w-3" />
+                                                            <span>{channel.label}</span>
                                                         </Badge>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="space-y-1">
-                                                        <p className="font-medium">{log.resource}</p>
-                                                        <p className="text-xs text-muted-foreground">{log.resourceType}</p>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <User className="h-4 w-4 text-muted-foreground" />
-                                                            {log.userName}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center gap-1 text-sm font-medium">
+                                                                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                                                                <span>
+                                                                    {format(new Date(log.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-[11px] text-muted-foreground">
+                                                                {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true, locale: es })}
+                                                            </div>
                                                         </div>
-                                                        <Badge variant="secondary" className="text-xs">
-                                                            {log.userRole}
-                                                        </Badge>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>{log.branchName}</TableCell>
-                                                <TableCell className="font-mono text-xs">
-                                                    {log.ipAddress || "-"}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-1 text-sm">
-                                                            <Calendar className="h-3 w-3 text-muted-foreground" />
-                                                            {format(new Date(log.createdAt), "dd MMM yyyy", { locale: es })}
-                                                        </div>
-                                                        <div className="text-xs text-muted-foreground">
-                                                            {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true, locale: es })}
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => setSelectedLog(log)}
-                                                    >
-                                                        <Eye className="h-4 w-4 mr-2" />
-                                                        Ver Detalles
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-8 px-2.5 text-xs hover:bg-accent"
+                                                            onClick={() => setSelectedLog(log)}
+                                                        >
+                                                            <FileText className="h-3.5 w-3.5 mr-1.5 text-primary" />
+                                                            Ver Ficha
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
                                     </TableBody>
                                 </Table>
                             </div>
 
                             {/* Pagination Controls */}
-                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-1">
-                                <div className="text-sm text-muted-foreground">
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-1 text-xs text-muted-foreground">
+                                <div>
                                     Mostrando{" "}
-                                    <span className="font-medium">
+                                    <span className="font-semibold text-foreground">
                                         {totalLogs === 0 ? 0 : (currentPage - 1) * pageSize + 1}
                                     </span>{" "}
                                     al{" "}
-                                    <span className="font-medium">
+                                    <span className="font-semibold text-foreground">
                                         {Math.min(currentPage * pageSize, totalLogs)}
                                     </span>{" "}
-                                    de <span className="font-medium">{totalLogs}</span> registros
+                                    de <span className="font-semibold text-foreground">{totalLogs}</span> registros
                                 </div>
-                                <div className="flex flex-wrap items-center gap-4 sm:gap-6 lg:gap-8">
+                                <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                                     <div className="flex items-center gap-2">
-                                        <p className="text-sm font-medium">Registros por página</p>
+                                        <p className="font-medium">Registros por página</p>
                                         <Select
                                             value={String(pageSize)}
                                             onValueChange={(value) => {
@@ -692,29 +892,29 @@ export default function AuditPage() {
                                                 setCurrentPage(1);
                                             }}
                                         >
-                                            <SelectTrigger className="h-8 w-[70px]">
+                                            <SelectTrigger className="h-8 w-[70px] text-xs">
                                                 <SelectValue placeholder={String(pageSize)} />
                                             </SelectTrigger>
                                             <SelectContent align="end">
                                                 {[10, 20, 50, 100].map((size) => (
-                                                    <SelectItem key={size} value={String(size)}>
+                                                    <SelectItem key={size} value={String(size)} className="text-xs">
                                                         {size}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+                                    <div className="font-medium">
                                         Página {currentPage} de {totalPages || 1}
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1.5">
                                         <Button
                                             variant="outline"
                                             className="h-8 w-8 p-0"
                                             onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                                             disabled={currentPage === 1 || loading}
                                         >
-                                            <span className="sr-only">Ir a la página anterior</span>
+                                            <span className="sr-only">Página anterior</span>
                                             <ChevronLeft className="h-4 w-4" />
                                         </Button>
                                         <Button
@@ -723,7 +923,7 @@ export default function AuditPage() {
                                             onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                                             disabled={currentPage === totalPages || totalPages === 0 || loading}
                                         >
-                                            <span className="sr-only">Ir a la página siguiente</span>
+                                            <span className="sr-only">Página siguiente</span>
                                             <ChevronRight className="h-4 w-4" />
                                         </Button>
                                     </div>
@@ -734,117 +934,199 @@ export default function AuditPage() {
                 </CardContent>
             </Card>
 
-            {/* Info Card */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Shield className="h-5 w-5" />
-                        Información de Auditoría
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                        El sistema de auditoría registra todas las actividades importantes realizadas en la plataforma,
-                        incluyendo creación, modificación y eliminación de recursos. Estos logs son útiles para:
-                    </p>
-                    <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1 ml-4">
-                        <li>Seguimiento de cambios en workflows y evidencias</li>
-                        <li>Investigación de incidentes de seguridad</li>
-                        <li>Cumplimiento de requisitos normativos (NOM-251, NOM-035)</li>
-                        <li>Auditorías internas y externas</li>
-                        <li>Control de acceso y actividades de usuarios</li>
-                    </ul>
-                    <div className="bg-muted p-4 rounded-lg mt-4">
-                        <p className="text-sm font-medium mb-2">Política de Retención</p>
-                        <p className="text-sm text-muted-foreground">
-                            Los logs de auditoría se conservan durante 12 meses. Para exportar logs históricos o configurar
-                            alertas personalizadas, contacta al administrador del sistema.
-                        </p>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Audit Log Detail Dialog */}
+            {/* QSR Operational Inspection Sheet Modal (Zero-JSON, Human-First) */}
             <Dialog open={selectedLog !== null} onOpenChange={(open) => !open && setSelectedLog(null)}>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-xl">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Shield className="h-5 w-5 text-primary" />
-                            Detalles del Log de Auditoría
-                        </DialogTitle>
-                        <DialogDescription>
-                            Detalle completo de la acción ejecutada en el sistema.
+                        <div className="flex items-center justify-between pr-6">
+                            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+                                <FileText className="h-5 w-5 text-primary" />
+                                Ficha de Supervisión Operativa
+                            </DialogTitle>
+                        </div>
+                        <DialogDescription className="text-xs">
+                            {selectedLog?.resourceType === "INCIDENT" 
+                                ? "Reporte de incidencia y desviación en sucursal" 
+                                : "Comprobante de cumplimiento y registro de turno"}
                         </DialogDescription>
                     </DialogHeader>
-                    {selectedLog && (
-                        <div className="space-y-6 py-2">
-                            {/* Summary Metadata */}
-                            <div className="grid grid-cols-2 gap-4 text-sm bg-muted/20 p-4 rounded-lg border">
-                                <div>
-                                    <span className="text-muted-foreground block text-xs">Acción</span>
-                                    <span className="font-semibold">{selectedLog.action}</span>
-                                </div>
-                                <div>
-                                    <span className="text-muted-foreground block text-xs">Recurso</span>
-                                    <span className="font-semibold">{selectedLog.resource}</span>
-                                </div>
-                                <div>
-                                    <span className="text-muted-foreground block text-xs">Usuario</span>
-                                    <span className="font-medium">{selectedLog.userName} ({selectedLog.userRole})</span>
-                                </div>
-                                <div>
-                                    <span className="text-muted-foreground block text-xs">Sucursal</span>
-                                    <span className="font-medium">{selectedLog.branchName}</span>
-                                </div>
-                                <div>
-                                    <span className="text-muted-foreground block text-xs">Dirección IP</span>
-                                    <span className="font-mono text-xs">{selectedLog.ipAddress || "-"}</span>
-                                </div>
-                                <div>
-                                    <span className="text-muted-foreground block text-xs">Fecha</span>
-                                    <span>
-                                        {format(new Date(selectedLog.createdAt), "dd MMM yyyy, HH:mm:ss", { locale: es })}
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            {/* Human-readable details content */}
-                            <div className="space-y-2">
-                                <span className="text-sm font-medium block text-foreground">Detalle del Cambio</span>
-                                {renderDetailsContent(selectedLog)}
-                            </div>
-                            
-                            {/* Technical Details Accordion */}
-                            <div className="border rounded-lg overflow-hidden">
-                                <details className="group">
-                                    <summary className="flex items-center justify-between p-3 bg-muted/30 cursor-pointer select-none text-xs font-medium text-muted-foreground hover:bg-muted/50 transition-colors">
-                                        <span>Datos técnicos para soporte (JSON)</span>
-                                        <span className="transition-transform duration-200 group-open:rotate-180">▼</span>
-                                    </summary>
-                                    <div className="p-3 bg-background border-t space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs text-muted-foreground">Payload original</span>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-7 text-xs"
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(JSON.stringify(selectedLog.details, null, 2));
-                                                    toast.success("Detalles copiados al portapapeles");
-                                                }}
-                                            >
-                                                <Copy className="h-3.5 w-3.5 mr-1.5" />
-                                                Copiar JSON
-                                            </Button>
+                    {selectedLog && (() => {
+                        const isIncident = selectedLog.resourceType === "INCIDENT";
+                        const channel = getCaptureChannel(selectedLog.userAgent, selectedLog.ipAddress);
+                        const ChannelIcon = channel.icon;
+                        const durationMins = selectedLog.details?.startedAt && selectedLog.details?.completedAt
+                            ? differenceInMinutes(new Date(selectedLog.details.completedAt), new Date(selectedLog.details.startedAt))
+                            : null;
+
+                        return (
+                            <div className="space-y-4 py-2 text-xs sm:text-sm">
+                                {/* Summary Card */}
+                                <div className="bg-muted/40 p-4 rounded-lg border space-y-3">
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
+                                                Actividad / Tarea
+                                            </span>
+                                            <h3 className="font-bold text-sm sm:text-base text-foreground mt-0.5">
+                                                {formatTaskName(selectedLog.resource, selectedLog.action)}
+                                            </h3>
                                         </div>
-                                        <pre className="p-3 bg-muted rounded-md overflow-x-auto text-xs font-mono max-h-[150px] border">
-                                            {JSON.stringify(selectedLog.details, null, 2)}
-                                        </pre>
+                                        {isIncident ? (
+                                            getSeverityBadge(selectedLog.details?.severity)
+                                        ) : (
+                                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs font-semibold">
+                                                <Check className="h-3 w-3 mr-1" />
+                                                {getStatusLabel(selectedLog.details?.status || "COMPLETED")}
+                                            </Badge>
+                                        )}
                                     </div>
-                                </details>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t text-xs">
+                                        <div>
+                                            <span className="text-muted-foreground block text-[11px]">Sucursal</span>
+                                            <span className="font-semibold text-foreground flex items-center gap-1 mt-0.5">
+                                                <Store className="h-3 w-3 text-muted-foreground" />
+                                                {selectedLog.branchName || "Sucursal Matriz"}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block text-[11px]">Responsable</span>
+                                            <span className="font-semibold text-foreground flex items-center gap-1 mt-0.5">
+                                                <User className="h-3 w-3 text-muted-foreground" />
+                                                {selectedLog.userName || "Personal de Turno"}
+                                            </span>
+                                            {selectedLog.userRole && (
+                                                <span className="text-[10px] text-muted-foreground block">
+                                                    {selectedLog.userRole}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block text-[11px]">Canal de Captura</span>
+                                            <span className="font-semibold text-foreground flex items-center gap-1 mt-0.5">
+                                                <ChannelIcon className="h-3 w-3 text-muted-foreground" />
+                                                {channel.label}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Operational Findings & Verification */}
+                                {isIncident ? (
+                                    <div className="space-y-3">
+                                        <div className="bg-destructive/5 border border-destructive/20 p-3.5 rounded-lg space-y-1.5">
+                                            <span className="text-xs font-semibold text-destructive flex items-center gap-1.5">
+                                                <AlertTriangle className="h-4 w-4" />
+                                                Descripción de la Desviación
+                                            </span>
+                                            <p className="text-foreground text-xs leading-relaxed font-medium">
+                                                {selectedLog.details?.description || "Incidencia registrada durante la operación de cocina."}
+                                            </p>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="bg-muted/30 p-3 rounded-lg border">
+                                                <span className="text-muted-foreground block text-[11px]">Estado de Atención</span>
+                                                <span className="font-bold text-foreground mt-0.5 block">
+                                                    {getStatusLabel(selectedLog.details?.status || "OPEN")}
+                                                </span>
+                                            </div>
+                                            <div className="bg-muted/30 p-3 rounded-lg border">
+                                                <span className="text-muted-foreground block text-[11px]">Fecha y Hora de Reporte</span>
+                                                <span className="font-medium text-foreground mt-0.5 block">
+                                                    {format(new Date(selectedLog.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="bg-muted/30 p-3 rounded-lg border">
+                                                <span className="text-muted-foreground block text-[11px]">Calificación del Checklist</span>
+                                                <div className="flex items-baseline gap-1 mt-0.5">
+                                                    <span className="text-lg font-bold text-foreground">
+                                                        {selectedLog.details?.score !== undefined && selectedLog.details?.score !== null 
+                                                            ? `${selectedLog.details.score}%` 
+                                                            : "100%"}
+                                                    </span>
+                                                    <span className="text-xs text-emerald-600 font-medium">Cumplimiento</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-muted/30 p-3 rounded-lg border">
+                                                <span className="text-muted-foreground block text-[11px]">Tiempo de Ejecución</span>
+                                                <div className="flex items-center gap-1.5 mt-1 text-foreground font-semibold">
+                                                    <Timer className="h-3.5 w-3.5 text-muted-foreground" />
+                                                    <span>{durationMins !== null ? `${durationMins} minutos` : "En tiempo regular"}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-muted/20 border p-3 rounded-lg space-y-1">
+                                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                                                Dictamen de Supervisión
+                                            </span>
+                                            <p className="text-xs text-foreground leading-relaxed">
+                                                Actividad completada y validada según los lineamientos de higiene y operación establecidos para el restaurante.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Folio & Quick Actions Footer */}
+                                <div className="flex items-center justify-between pt-3 border-t text-xs text-muted-foreground">
+                                    <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                                        <span>Folio:</span>
+                                        <span className="font-semibold text-foreground">#{selectedLog.id.slice(0, 8).toUpperCase()}</span>
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs gap-1"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(`FOLIO-${selectedLog.id.toUpperCase()}`);
+                                            toast.success("Folio de bitácora copiado al portapapeles");
+                                        }}
+                                    >
+                                        <Copy className="h-3 w-3" />
+                                        Copiar Folio
+                                    </Button>
+                                </div>
                             </div>
+                        );
+                    })()}
+                </DialogContent>
+            </Dialog>
+
+            {/* Normative & Health Retention Dialog */}
+            <Dialog open={infoDialogOpen} onOpenChange={setInfoDialogOpen}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+                            <ShieldCheck className="h-5 w-5 text-primary" />
+                            Normativa Sanitaria y Bitácoras (NOM-251)
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Lineamientos oficiales y validez legal de las bitácoras en restaurantes.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 text-xs sm:text-sm text-muted-foreground py-2 leading-relaxed">
+                        <p>
+                            En México y Latinoamérica, los grupos restauranteros y cadenas de comida rápida están obligados a mantener registros de control higiénico:
+                        </p>
+                        <ul className="list-disc list-inside space-y-1.5 ml-2">
+                            <li><strong className="text-foreground">NOM-251-SSA1-2009</strong>: Prácticas de higiene obligatorias para el manejo de alimentos y bebidas.</li>
+                            <li><strong className="text-foreground">Distintivo H</strong>: Trazabilidad de temperaturas en cámaras frías, freidoras y línea de ensamble.</li>
+                            <li><strong className="text-foreground">Firmas y Responsables</strong>: Identificación clara del supervisor de turno y hora de captura.</li>
+                            <li><strong className="text-foreground">Inspecciones de Autoridad</strong>: Respaldos descargables para visitas de COFEPRIS y auditores de franquicia.</li>
+                        </ul>
+                        <div className="bg-muted/50 p-3.5 rounded-lg border space-y-1">
+                            <p className="font-semibold text-foreground text-xs">Conservación Digital (12 Meses)</p>
+                            <p className="text-xs text-muted-foreground">
+                                Las bitácoras se resguardan de forma segura e inmutable durante 1 año para auditorías sanitarias o reclamos de calidad.
+                            </p>
                         </div>
-                    )}
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

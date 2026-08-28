@@ -31,7 +31,7 @@ export default async function CompliancePage() {
 
   return (
     <PageContainer>
-      <CompliancePageClient branches={branchList} />
+      <CompliancePageClient branches={branchList} companyId={companyId} />
     </PageContainer>
   );
 }

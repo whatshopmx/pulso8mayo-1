@@ -15,8 +15,9 @@ export async function GET(request: NextRequest) {
       return ApiHandler.error(new Error("Unauthorized: Company ID required"), 401);
     }
 
-    // Role check: Only ADMIN and SUPERVISOR roles can view corporate status
-    if (user.role !== "ADMIN" && user.role !== "SUPERVISOR") {
+    // Role check: Allow executive and supervisor roles to view corporate status
+    const allowedRoles = ["SUPER_ADMIN", "OWNER", "ADMIN", "SUPERVISOR", "GERENTE", "DIRECTOR"];
+    if (!allowedRoles.includes(user.role)) {
       return ApiHandler.error(new Error("Forbidden: Insufficient permissions"), 403);
     }
 

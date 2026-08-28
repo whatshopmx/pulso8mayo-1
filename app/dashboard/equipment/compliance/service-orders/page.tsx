@@ -152,6 +152,7 @@ export default function ServiceOrdersPage() {
                   <TableHead>Tipo</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
+                  <TableHead>Proveedor</TableHead>
                   <TableHead>Sucursal</TableHead>
                   <TableHead>Centro</TableHead>
                   <TableHead>Creada</TableHead>
@@ -184,6 +185,7 @@ export default function ServiceOrdersPage() {
                         <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{formatCurrency(o.amount)}</TableCell>
+                      <TableCell>{o.serviceProviderName || o.supplierName || <span className="text-muted-foreground/40">—</span>}</TableCell>
                       <TableCell>{o.branchName}</TableCell>
                       <TableCell>{o.costCenterCode ?? "-"}</TableCell>
                       <TableCell className="text-muted-foreground">{formatDate(o.createdAt)}</TableCell>

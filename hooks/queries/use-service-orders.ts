@@ -66,6 +66,8 @@ export interface ServiceOrderDetail {
     justification: string | null;
     technicalReport: string | null;
     costCenterId: string | null;
+    supplierId?: string | null;
+    serviceProviderId?: string | null;
     scheduledDate: string | null;
     completedAt: string | null;
     conformitySignedBy: string | null;
@@ -78,6 +80,9 @@ export interface ServiceOrderDetail {
     costCenterCode?: string | null;
     costCenterName?: string | null;
     supplierName?: string | null;
+    serviceProviderName?: string | null;
+    serviceProviderPhone?: string | null;
+    serviceProviderEmail?: string | null;
   };
   quotes: Array<{
     id: string;
