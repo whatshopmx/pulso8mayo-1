@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { db } from "@/lib/db";
+import { companies } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
@@ -53,6 +56,7 @@ const updateConfigSchema = z
     doubleApprovalThresholdCents: thresholdSchema,
     pettyCashLimitCents: thresholdSchema,
     emergencyPurchaseCapCents: thresholdSchema,
+    courtesyWasteMonthlyCapCents: thresholdSchema,
     foodCostTargetPercent: percentSchema,
     foodCostWarnPercent: percentSchema,
     laborCostTargetPercent: percentSchema,
@@ -116,7 +120,16 @@ export async function GET() {
     }
 
     const config = await getTenantOperatingConfig(tenant.id);
-    return ApiHandler.success(config);
+    const [companyRow] = await db
+      .select({ courtesyWasteMonthlyCapCents: companies.courtesyWasteMonthlyCapCents })
+      .from(companies)
+      .where(eq(companies.id, tenant.id))
+      .limit(1);
+
+    return ApiHandler.success({
+      ...config,
+      courtesyWasteMonthlyCapCents: companyRow?.courtesyWasteMonthlyCapCents ?? null,
+    });
   } catch (error) {
     return ApiHandler.error(error);
   }
@@ -143,6 +156,16 @@ export async function PUT(req: NextRequest) {
       throw ApiError.badRequest("No se enviaron campos para actualizar.");
     }
 
+    if (data.courtesyWasteMonthlyCapCents !== undefined) {
+      await db
+        .update(companies)
+        .set({
+          courtesyWasteMonthlyCapCents: data.courtesyWasteMonthlyCapCents,
+          updatedAt: new Date(),
+        })
+        .where(eq(companies.id, tenant.id));
+    }
+
     // Los porcentajes se separan del resto por nombre: viajan como número y la
     // columna es `numeric(5,2)`, que Drizzle escribe desde string. Se
     // destructuran en vez de borrarse de una copia para que el tipo de
@@ -155,6 +178,7 @@ export async function PUT(req: NextRequest) {
       healthyMarginTargetPercent,
       healthyMarginWarnPercent,
       mermaVarianceThresholdPct,
+      courtesyWasteMonthlyCapCents: _c,
       ...dimensions
     } = data;
 
@@ -178,7 +202,10 @@ export async function PUT(req: NextRequest) {
       ...dimensions,
       ...percents,
     });
-    return ApiHandler.success(updated);
+    return ApiHandler.success({
+      ...updated,
+      courtesyWasteMonthlyCapCents: data.courtesyWasteMonthlyCapCents ?? undefined,
+    });
   } catch (error) {
     return ApiHandler.error(error);
   }

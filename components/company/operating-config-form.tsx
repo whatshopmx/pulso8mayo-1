@@ -27,6 +27,7 @@ export interface OperatingConfigValues {
   doubleApprovalThresholdCents?: number | null;
   pettyCashLimitCents?: number | null;
   emergencyPurchaseCapCents?: number | null;
+  courtesyWasteMonthlyCapCents?: number | null;
   foodCostTargetPercent?: string | null;
   foodCostWarnPercent?: string | null;
   laborCostTargetPercent?: string | null;
@@ -77,6 +78,12 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
   const [emergencyCap, setEmergencyCap] = useState(
     initialConfig?.emergencyPurchaseCapCents
       ? (initialConfig.emergencyPurchaseCapCents / 100).toString()
+      : ""
+  );
+  // Tope mensual de cortesías y consumo de personal (centavos → pesos)
+  const [courtesyWasteCap, setCourtesyWasteCap] = useState(
+    initialConfig?.courtesyWasteMonthlyCapCents
+      ? (initialConfig.courtesyWasteMonthlyCapCents / 100).toString()
       : ""
   );
 
@@ -135,6 +142,8 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
         pettyCashLimitCents: Math.round(parseFloat(pettyCashLimit) * 100),
         emergencyPurchaseCapCents:
           emergencyCap.trim() === "" ? null : Math.round(parseFloat(emergencyCap) * 100),
+        courtesyWasteMonthlyCapCents:
+          courtesyWasteCap.trim() === "" ? null : Math.round(parseFloat(courtesyWasteCap) * 100),
         foodCostTargetPercent: parseFloat(foodTarget),
         foodCostWarnPercent: parseFloat(foodWarn),
         laborCostTargetPercent: parseFloat(laborTarget),
@@ -356,6 +365,21 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
             <span className="text-xs text-muted-foreground block">
               Acumulado mensual de OC/OS de emergencia por sucursal. Vacío = sin tope. Al llegar al
               tope, el envío a aprobación se bloquea.
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="courtesyWasteCap">Tope Mensual Cortesías y Consumo de Personal ($ MXN)</Label>
+            <Input
+              id="courtesyWasteCap"
+              type="number"
+              step="500"
+              value={courtesyWasteCap}
+              onChange={(e) => setCourtesyWasteCap(e.target.value)}
+              placeholder="Sin tope"
+            />
+            <span className="text-xs text-muted-foreground block">
+              Monto máximo mensual de mermas STAFF/CORTESÍA autorizado por gerentes (empresa completa). Al superarlo, sólo Admin u Owner pueden autorizar (loteprod §8.1). Vacío = sin tope.
             </span>
           </div>
         </CardContent>

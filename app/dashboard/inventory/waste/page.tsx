@@ -1,8 +1,7 @@
 import { AlertTriangle } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { headers } from "next/headers";
-import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { companies, inventoryWaste } from "@/lib/db/schema";
@@ -12,35 +11,10 @@ import { BRANCH_COOKIE_NAME } from "@/lib/branch-cookies";
 import type { Role } from "@/lib/permissions";
 import { roleIsAtLeast } from "@/lib/permissions";
 import { PageContainer, PageHeader } from "@/components/shared";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { WasteHistoryClient } from "./waste-history-client";
 import { RegistrarMermaDialog } from "./registrar-merma-dialog";
-
-/**
- * Task 3 (plan-loteprod-gaps §8.1): guardar el tope mensual de mermas
- * STAFF/COURTESY (pesos → centavos). Vacío = sin tope. Sólo ADMIN+.
- */
-async function saveCourtesyWasteCap(formData: FormData) {
-  "use server";
-  const session = await getSession();
-  const role = (session?.user as { role?: Role } | undefined)?.role;
-  if (!session?.user || !roleIsAtLeast(role ?? "", "ADMIN")) return;
-
-  const raw = String(formData.get("capPesos") ?? "").trim();
-  // Vacío quita el tope; valor inválido/negativo se ignora en silencio — el
-  // form es admin-only y el input es number.
-  const capCents = raw === "" ? null : Math.round(Number(raw) * 100);
-  if (capCents !== null && (!Number.isFinite(capCents) || capCents < 0)) return;
-
-  await db
-    .update(companies)
-    .set({ courtesyWasteMonthlyCapCents: capCents, updatedAt: new Date() })
-    .where(eq(companies.id, session.user.companyId ?? ""));
-  revalidatePath("/dashboard/inventory/waste");
-}
 
 interface Props {
   searchParams: Promise<{ item?: string; registrar?: string }>;
@@ -88,13 +62,13 @@ export default async function WastePage({ searchParams }: Props) {
     );
   }
 
-  // Task 3 (§8.1): GERENTE+ resuelve pendientes; ADMIN+ configura el tope.
+  // Task 3 (§8.1): GERENTE+ resuelve pendientes; ADMIN+ configura el tope en operating-config.
   const canApproveWaste = roleIsAtLeast(role, "GERENTE");
   const canConfigureCap = roleIsAtLeast(role, "ADMIN");
 
   let capCents: number | null = null;
   let monthApprovedCents = 0;
-  if (canConfigureCap) {
+  if (canApproveWaste) {
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
@@ -125,8 +99,7 @@ export default async function WastePage({ searchParams }: Props) {
   const formatMXN = (cents: number) =>
     (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 
-  // Historial como contenido default (plan-mermas-historial Task 3); el alta
-  // vive en el dialog del header. El formulario no cambió — mismo WasteForm.
+  // Historial como contenido default; el alta vive en el dialog del header.
   return (
     <PageContainer>
       <PageHeader
@@ -140,39 +113,31 @@ export default async function WastePage({ searchParams }: Props) {
           />
         }
       />
-      {canConfigureCap && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Tope mensual de cortesías y consumo de personal</CardTitle>
-            <CardDescription>
-              Las mermas STAFF/CORTESÍA requieren aprobación de un gerente. Si el acumulado aprobado del mes
-              excede este tope, sólo Admin u Owner puede aprobar (loteprod §8.1).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={saveCourtesyWasteCap} className="flex flex-wrap items-end gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="capPesos" className="text-xs">
-                  Tope mensual (MXN, empresa completa)
-                </Label>
-                <Input
-                  id="capPesos"
-                  name="capPesos"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  defaultValue={capCents !== null ? capCents / 100 : ""}
-                  placeholder="Sin tope"
-                  className="h-8 w-44"
-                />
+      {canApproveWaste && (
+        <Card className="border bg-card">
+          <CardContent className="py-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="h-2 w-2 rounded-full bg-primary shrink-0" aria-hidden="true" />
+              <div className="truncate">
+                <span className="font-semibold text-foreground">Tope de Cortesías y Consumo (STAFF):</span>{" "}
+                <span className="font-mono text-muted-foreground">
+                  {capCents !== null ? `${formatMXN(capCents)} / mes` : "Sin tope (ilimitado)"}
+                </span>{" "}
+                · Aprobado este mes: <span className="font-semibold font-mono text-foreground">{formatMXN(monthApprovedCents)}</span>
+                {capCents !== null && monthApprovedCents >= capCents && (
+                  <span className="ml-2 text-destructive font-semibold">
+                    (Tope alcanzado: nuevas cortesías exigen aprobación de Admin/Owner)
+                  </span>
+                )}
               </div>
-              <Button type="submit" size="sm" className="shadow-none">
-                Guardar tope
+            </div>
+            {canConfigureCap && (
+              <Button asChild variant="outline" size="sm" className="h-7 text-xs shrink-0">
+                <Link href="/dashboard/company/operating-config">
+                  Configurar en Modelo Operativo
+                </Link>
               </Button>
-              <p className="text-xs text-muted-foreground pb-2">
-                Aprobado este mes: <span className="font-medium tabular-nums">{formatMXN(monthApprovedCents)}</span>
-              </p>
-            </form>
+            )}
           </CardContent>
         </Card>
       )}
