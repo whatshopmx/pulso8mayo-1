@@ -102,8 +102,8 @@ export default async function StockCountResultsPage({ params }: PageProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold flex items-center gap-2">
-              <CheckCircle2 className={`h-5 w-5 ${result.adjustmentsStatus === "PENDING" ? "text-amber-500" : "text-green-500"}`} />
+            <div className="text-2xl font-bold font-mono flex items-center gap-2">
+              <CheckCircle2 className={`h-5 w-5 ${result.adjustmentsStatus === "PENDING" ? "text-warning" : "text-success"}`} />
               {result.summary.totalAdjustments}
             </div>
           </CardContent>
@@ -113,7 +113,7 @@ export default async function StockCountResultsPage({ params }: PageProps) {
             <CardDescription>Alertas (&gt;10%)</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold flex items-center gap-2 ${result.summary.alertCount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+            <div className={`text-2xl font-bold font-mono flex items-center gap-2 ${result.summary.alertCount > 0 ? 'text-destructive' : 'text-success'}`}>
               <AlertTriangle className="h-5 w-5" />
               {result.summary.alertCount}
             </div>
@@ -124,47 +124,47 @@ export default async function StockCountResultsPage({ params }: PageProps) {
       <Card>
         <CardHeader>
           <CardTitle>Detalle de Varianzas</CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs">
             Comparación entre stock en sistema y conteo físico
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
+          <div className="rounded-lg border overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/40">
                 <tr>
-                  <th className="text-left p-3 font-medium">Producto</th>
-                  <th className="text-left p-3 font-medium">SKU</th>
-                  <th className="text-right p-3 font-medium">Sistema</th>
-                  <th className="text-right p-3 font-medium">Físico</th>
-                  <th className="text-right p-3 font-medium">Diferencia</th>
-                  <th className="text-right p-3 font-medium">% Varianza</th>
-                  <th className="text-center p-3 font-medium">Estado</th>
+                  <th className="text-left p-3 font-semibold text-foreground">Producto</th>
+                  <th className="text-left p-3 font-semibold text-foreground">SKU</th>
+                  <th className="text-right p-3 font-semibold text-foreground">Sistema</th>
+                  <th className="text-right p-3 font-semibold text-foreground">Físico</th>
+                  <th className="text-right p-3 font-semibold text-foreground">Diferencia</th>
+                  <th className="text-right p-3 font-semibold text-foreground">% Varianza</th>
+                  <th className="text-center p-3 font-semibold text-foreground">Estado</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border">
                 {result.results.map(row => (
-                  <tr key={row.itemId} className={`border-t ${row.isAlert ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>
-                    <td className="p-3 font-medium">{row.itemName}</td>
-                    <td className="p-3 text-muted-foreground">{row.sku}</td>
-                    <td className="text-right p-3">{row.systemQuantity} {row.unit}</td>
-                    <td className="text-right p-3">{row.physicalQuantity} {row.unit}</td>
-                    <td className={`text-right p-3 font-medium ${row.variance > 0 ? 'text-green-600' : row.variance < 0 ? 'text-red-600' : ''}`}>
+                  <tr key={row.itemId} className={row.isAlert ? 'bg-destructive/10' : 'hover:bg-muted/20'}>
+                    <td className="p-3 font-medium text-foreground">{row.itemName}</td>
+                    <td className="p-3 font-mono text-muted-foreground">{row.sku}</td>
+                    <td className="text-right p-3 font-mono">{row.systemQuantity} {row.unit}</td>
+                    <td className="text-right p-3 font-mono">{row.physicalQuantity} {row.unit}</td>
+                    <td className={`text-right p-3 font-mono font-semibold ${row.variance > 0 ? 'text-success' : row.variance < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                       {row.variance > 0 ? '+' : ''}{row.variance} {row.unit}
                     </td>
-                    <td className="text-right p-3">{row.variancePercent}%</td>
+                    <td className="text-right p-3 font-mono">{row.variancePercent}%</td>
                     <td className="text-center p-3">
                       {row.isAlert ? (
-                        <Badge variant="destructive" className="gap-1">
+                        <Badge variant="destructive" className="gap-1 text-xs">
                           <AlertTriangle className="h-3 w-3" /> Alerta
                         </Badge>
                       ) : row.variance === 0 ? (
-                        <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400">
+                        <Badge variant="success" className="text-xs">
                           OK
                         </Badge>
                       ) : (
-                        <Badge variant="secondary">
-                          OK
+                        <Badge variant="secondary" className="text-xs">
+                          Ajuste
                         </Badge>
                       )}
                     </td>

@@ -154,21 +154,21 @@ export default function EmployeeOnboardingPortal() {
               >
                 <CardContent className="p-4 flex items-center gap-4">
                   <div className={`shrink-0 h-10 w-10 rounded-xl flex items-center justify-center ${
-                    step.status === "COMPLETED" ? "bg-green-100 text-green-600" : "bg-primary/10 text-primary"
+                    step.status === "COMPLETED" ? "bg-success/15 text-success" : "bg-primary/10 text-primary"
                   }`}>
                     {step.status === "COMPLETED" ? <CheckCircle2 className="h-6 w-6" /> : <span className="font-bold">{idx + 1}</span>}
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <h3 className={`text-sm font-semibold truncate ${step.status === "COMPLETED" ? "text-slate-500 line-through" : ""}`}>
+                    <h3 className={`text-sm font-semibold truncate ${step.status === "COMPLETED" ? "text-muted-foreground line-through" : ""}`}>
                       {step.stepName}
                     </h3>
                     <div className="flex items-center gap-3 mt-1">
-                      <Badge variant="outline" className="text-xs px-1.5 py-0 h-4 uppercase font-bold text-muted-foreground border-slate-200">
+                      <Badge variant="outline" className="text-xs px-1.5 py-0 h-4 uppercase font-bold text-muted-foreground">
                         {step.stepCategory}
                       </Badge>
                       {step.dueDate && (
-                        <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
                           <Clock className="h-3 w-3" /> 
                           Vence {format(new Date(step.dueDate), "dd MMM", { locale: es })}
                         </span>

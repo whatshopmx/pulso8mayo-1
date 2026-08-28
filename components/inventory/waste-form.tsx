@@ -515,9 +515,39 @@ export function WasteForm({ branchId, onSuccess, onCancel, preselectedItemId }: 
                   />
                 </FormControl>
                 {maxQuantity !== null && (
-                  <FormDescription>
-                    Máximo: {formatQty(maxQuantity)} {selectedProduct?.unit}
-                  </FormDescription>
+                  <div className="space-y-1.5 pt-1">
+                    <FormDescription className="text-xs">
+                      Máximo disponible: {formatQty(maxQuantity)} {selectedProduct?.unit}
+                    </FormDescription>
+                    {maxQuantity > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {[0.5, 1, 5].filter(step => step < maxQuantity).map((step) => (
+                          <Button
+                            key={step}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-1.5 text-xs font-mono"
+                            onClick={() => {
+                              const curr = Number(field.value) || 0;
+                              field.onChange(Math.min(maxQuantity, +(curr + step).toFixed(3)).toString());
+                            }}
+                          >
+                            +{step}
+                          </Button>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="h-6 px-2 text-xs font-mono"
+                          onClick={() => field.onChange(maxQuantity.toString())}
+                        >
+                          Todo el lote ({formatQty(maxQuantity)})
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 )}
                 <FormMessage />
               </FormItem>

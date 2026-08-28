@@ -45,7 +45,8 @@ import {
   MoreHorizontal,
   FileText,
   History,
-  Shield
+  Shield,
+  Loader2
 } from "lucide-react";
 import { EquipmentForm } from "@/components/equipment/equipment-form";
 import { EquipmentStats } from "@/components/equipment/equipment-stats";
@@ -264,7 +265,7 @@ export default function EquipmentPage() {
             <CardContent>
               {isLoading ? (
                 <div className="flex items-center justify-center h-64">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
               ) : filteredEquipment.length === 0 ? (
                 <div className="text-center py-12">

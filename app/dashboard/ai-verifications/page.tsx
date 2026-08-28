@@ -4,7 +4,7 @@ import * as React from "react";
 import { AIVerificationList, AIVerificationListItem, AIVerificationStatus } from "@/components/workflow/ai-verification-status";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Filter, Download, BrainCog } from "lucide-react";
+import { RefreshCw, Filter, Download, BrainCog, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -212,7 +212,7 @@ export default function AIVerificationsPage() {
                         <CardContent>
             {loading ? (
               <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : filteredVerifications.length === 0 ? (
               <div className="text-center py-12">

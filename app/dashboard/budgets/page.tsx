@@ -440,7 +440,7 @@ function ConsumptionHint({
   return (
     <div className="w-full space-y-0.5">
       <Progress value={usedPct} className="h-1" aria-label={`${usedPct}% consumido`} />
-      <p className={`text-[11px] tabular-nums ${high ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
+      <p className={`text-xs font-mono ${high ? "text-warning font-semibold" : "text-muted-foreground"}`}>
         {usedPct}% · {formatCurrency(committed)}
       </p>
     </div>

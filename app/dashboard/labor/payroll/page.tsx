@@ -280,7 +280,7 @@ export default function PayrollPage() {
                         <UserX className="h-3.5 w-3.5" /> Incidencias del Checador / RFC:
                       </p>
                       {validationData.validationErrors.map((err, i) => (
-                        <div key={i} className="bg-destructive/10 p-1.5 rounded border border-destructive/20 text-[11px] leading-tight">
+                        <div key={i} className="bg-destructive/10 p-1.5 rounded border border-destructive/20 text-xs leading-tight">
                           <span className="font-bold">{err.employeeName}:</span> {err.error}
                         </div>
                       ))}

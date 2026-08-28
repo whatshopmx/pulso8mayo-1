@@ -36,6 +36,7 @@ import {
   Plus,
   Trash2,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EquipmentForm } from "@/components/equipment/equipment-form";
@@ -223,7 +224,7 @@ export default function EquipmentDetailPage({ params }: { params: Promise<{ id: 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }

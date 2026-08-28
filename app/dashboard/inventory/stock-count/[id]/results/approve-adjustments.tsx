@@ -23,10 +23,10 @@ export function ApproveAdjustments({
 
   if (adjustmentsStatus === "NONE" || totalAdjustments === 0) {
     return (
-      <Card className="border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/20">
+      <Card className="border-success/30 bg-success/10">
         <CardContent className="py-4 flex items-center gap-3">
-          <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-          <p className="text-sm text-green-900 dark:text-green-200">
+          <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
+          <p className="text-sm font-medium text-foreground">
             El conteo no generó diferencias. No hay ajustes por aplicar.
           </p>
         </CardContent>
@@ -36,10 +36,10 @@ export function ApproveAdjustments({
 
   if (adjustmentsStatus === "APPLIED") {
     return (
-      <Card className="border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/20">
+      <Card className="border-success/30 bg-success/10">
         <CardContent className="py-4 flex items-center gap-3">
-          <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-          <p className="text-sm text-green-900 dark:text-green-200">
+          <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
+          <p className="text-sm font-medium text-foreground">
             Los {totalAdjustments} ajustes de este conteo ya fueron aplicados al inventario.
           </p>
         </CardContent>
@@ -81,15 +81,15 @@ export function ApproveAdjustments({
   }
 
   return (
-    <Card className="border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20">
+    <Card className="border-warning/30 bg-warning/10">
       <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex items-start gap-3 flex-1">
-          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-sm text-amber-900 dark:text-amber-200">
-            <p className="font-medium">
+          <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+          <div className="text-sm text-foreground">
+            <p className="font-semibold">
               {totalAdjustments} {totalAdjustments === 1 ? "ajuste pendiente" : "ajustes pendientes"} de aprobación
             </p>
-            <p className="mt-1">
+            <p className="mt-1 text-muted-foreground">
               El inventario todavía no se modifica. Revisa las varianzas abajo y aprueba
               para actualizar el stock del sistema.
             </p>

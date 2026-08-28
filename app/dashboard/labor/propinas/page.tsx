@@ -131,14 +131,14 @@ export default function PropinasPage() {
                       </TableCell>
                       <TableCell className="font-medium">{item.branchName}</TableCell>
                       <TableCell className="capitalize">{item.shift.toLowerCase()}</TableCell>
-                      <TableCell className="text-right font-bold text-amber-700">
+                      <TableCell className="text-right font-mono font-bold text-foreground">
                         {formatMXN(item.totalPoolCents)}
                       </TableCell>
-                      <TableCell className="text-right font-bold text-emerald-700">
+                      <TableCell className="text-right font-mono font-bold text-success">
                         {formatMXN(item.distributedCents)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 text-[10px]">
+                        <Badge variant="success" className="gap-1 text-xs">
                           <CheckCircle className="w-3 h-3" /> Calculado
                         </Badge>
                       </TableCell>

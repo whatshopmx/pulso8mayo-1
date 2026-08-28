@@ -67,13 +67,13 @@ export function AIVerificationStatus({
             case 'pending':
                 return <Clock className="h-8 w-8 text-muted-foreground" />;
             case 'analyzing':
-                return <RefreshCw className="h-8 w-8 text-blue-500 animate-spin" />;
+                return <RefreshCw className="h-8 w-8 text-primary animate-spin" />;
             case 'success':
-                return <CheckCircle2 className="h-8 w-8 text-green-500" />;
+                return <CheckCircle2 className="h-8 w-8 text-success" />;
             case 'failed':
-                return <XCircle className="h-8 w-8 text-red-500" />;
+                return <XCircle className="h-8 w-8 text-destructive" />;
             case 'escalated':
-                return <AlertTriangle className="h-8 w-8 text-orange-500" />;
+                return <AlertTriangle className="h-8 w-8 text-warning" />;
             default:
                 return <Clock className="h-8 w-8 text-muted-foreground" />;
         }
@@ -84,25 +84,25 @@ export function AIVerificationStatus({
             case 'pending':
                 return 'border-muted-foreground/25';
             case 'analyzing':
-                return 'border-blue-500/50';
+                return 'border-primary/40';
             case 'success':
-                return 'border-green-500/50';
+                return 'border-success/40';
             case 'failed':
-                return 'border-red-500/50';
+                return 'border-destructive/40';
             case 'escalated':
-                return 'border-orange-500/50';
+                return 'border-warning/40';
             default:
                 return 'border-muted-foreground/25';
         }
     };
 
     const getStatusBadge = () => {
-        const variants: Record<string, 'default' | 'destructive' | 'secondary' | 'outline'> = {
+        const variants: Record<string, 'default' | 'destructive' | 'secondary' | 'outline' | 'success' | 'warning'> = {
             pending: 'secondary',
             analyzing: 'default',
-            success: 'default',
+            success: 'success',
             failed: 'destructive',
-            escalated: 'destructive'
+            escalated: 'warning'
         };
 
         const labels: Record<string, string> = {
@@ -153,7 +153,7 @@ export function AIVerificationStatus({
                     </div>
                     {status.confidence !== undefined && status.status !== 'pending' && (
                         <div className="text-right">
-                            <div className="text-2xl font-bold">
+                            <div className="text-2xl font-bold font-mono">
                                 {Math.round(status.confidence * 100)}%
                             </div>
                             <div className="text-xs text-muted-foreground">Confianza</div>
@@ -209,12 +209,12 @@ export function AIVerificationStatus({
                 {/* AI Analysis Result */}
                 {status.reason && status.status !== 'pending' && (
                     <div className={cn(
-                        "rounded-lg p-4 text-sm",
+                        "rounded-lg p-4 text-sm border",
                         status.status === 'success'
-                            ? 'bg-green-50 text-green-900 dark:bg-green-950/20 dark:text-green-100'
+                            ? 'bg-success/10 text-foreground border-success/30'
                             : status.status === 'failed' || status.status === 'escalated'
-                                ? 'bg-red-50 text-red-900 dark:bg-red-950/20 dark:text-red-100'
-                                : 'bg-muted'
+                                ? 'bg-destructive/10 text-foreground border-destructive/30'
+                                : 'bg-muted border-border'
                     )}>
                         <div className="font-semibold mb-1">
                             {status.status === 'success' ? '✓ ' : '✗ '}
@@ -228,7 +228,7 @@ export function AIVerificationStatus({
                 {(status.status === 'failed' || status.status === 'escalated') && onRetry && (
                     <div className="flex items-center justify-between gap-4">
                         {status.retryCount !== undefined && status.maxRetries !== undefined && (
-                            <div className="text-sm text-muted-foreground">
+                            <div className="text-sm font-mono text-muted-foreground">
                                 Intento {status.retryCount}/{status.maxRetries}
                             </div>
                         )}
@@ -246,12 +246,12 @@ export function AIVerificationStatus({
 
                 {/* Escalation Notice */}
                 {status.escalated && (
-                    <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 dark:border-orange-900 dark:bg-orange-950/20">
+                    <div className="rounded-lg border border-warning/30 bg-warning/10 p-4">
                         <div className="flex items-start gap-3">
-                            <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400 mt-0.5" />
-                            <div className="text-sm text-orange-900 dark:text-orange-100">
+                            <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+                            <div className="text-sm text-foreground">
                                 <div className="font-semibold mb-1">Requiere Revisión Manual</div>
-                                <p>
+                                <p className="text-muted-foreground">
                                     La verificación falló después de {status.retryCount || 1} intento(s).
                                     Un supervisor ha sido notificado y revisará tu evidencia.
                                 </p>
@@ -262,12 +262,12 @@ export function AIVerificationStatus({
 
                 {/* Manual Review Notice */}
                 {status.requiresManualReview && !status.escalated && (
-                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+                    <div className="rounded-lg border border-primary/30 bg-primary/10 p-4">
                         <div className="flex items-start gap-3">
-                            <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-                            <div className="text-sm text-blue-900 dark:text-blue-100">
+                            <Clock className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                            <div className="text-sm text-foreground">
                                 <div className="font-semibold mb-1">Revisión Pendiente</div>
-                                <p>
+                                <p className="text-muted-foreground">
                                     Tu evidencia está siendo revisada por un supervisor.
                                     Recibirás una notificación cuando se complete la revisión.
                                 </p>
@@ -278,7 +278,7 @@ export function AIVerificationStatus({
 
                 {/* Timestamp */}
                 {status.timestamp && (
-                    <div className="text-xs text-muted-foreground text-center">
+                    <div className="text-xs text-muted-foreground text-center font-mono">
                         {status.timestamp.toLocaleString('es-MX', {
                             dateStyle: 'medium',
                             timeStyle: 'short'
@@ -327,9 +327,9 @@ export function AIVerificationList({
                     key={verification.id}
                     className={cn(
                         "cursor-pointer transition-colors hover:bg-accent/50",
-                        verification.status.status === 'success' && "border-green-500/50",
-                        verification.status.status === 'failed' && "border-red-500/50",
-                        verification.status.status === 'escalated' && "border-orange-500/50"
+                        verification.status.status === 'success' && "border-success/40",
+                        verification.status.status === 'failed' && "border-destructive/40",
+                        verification.status.status === 'escalated' && "border-warning/40"
                     )}
                     onClick={() => onVerificationClick?.(verification.id)}
                 >
@@ -337,16 +337,16 @@ export function AIVerificationList({
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 {verification.status.status === 'success' && (
-                                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                                    <CheckCircle2 className="h-5 w-5 text-success" />
                                 )}
                                 {verification.status.status === 'failed' && (
-                                    <XCircle className="h-5 w-5 text-red-500" />
+                                    <XCircle className="h-5 w-5 text-destructive" />
                                 )}
                                 {verification.status.status === 'escalated' && (
-                                    <AlertTriangle className="h-5 w-5 text-orange-500" />
+                                    <AlertTriangle className="h-5 w-5 text-warning" />
                                 )}
                                 {verification.status.status === 'analyzing' && (
-                                    <RefreshCw className="h-5 w-5 text-blue-500 animate-spin" />
+                                    <RefreshCw className="h-5 w-5 text-primary animate-spin" />
                                 )}
                                 {verification.status.status === 'pending' && (
                                     <Clock className="h-5 w-5 text-muted-foreground" />
@@ -359,9 +359,9 @@ export function AIVerificationList({
                                 </div>
                             </div>
                             <Badge variant={
-                                verification.status.status === 'success' ? 'default' :
+                                verification.status.status === 'success' ? 'success' :
                                 verification.status.status === 'failed' ? 'destructive' :
-                                verification.status.status === 'escalated' ? 'destructive' :
+                                verification.status.status === 'escalated' ? 'warning' :
                                 'secondary'
                             }>
                                 {verification.status.status === 'success' ? 'Aprobado' :

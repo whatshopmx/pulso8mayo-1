@@ -837,7 +837,7 @@ export default function AuditPage() {
                                                 Copiar JSON
                                             </Button>
                                         </div>
-                                        <pre className="p-3 bg-muted rounded-md overflow-x-auto text-[10px] font-mono max-h-[150px] border">
+                                        <pre className="p-3 bg-muted rounded-md overflow-x-auto text-xs font-mono max-h-[150px] border">
                                             {JSON.stringify(selectedLog.details, null, 2)}
                                         </pre>
                                     </div>

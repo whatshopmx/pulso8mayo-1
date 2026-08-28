@@ -46,38 +46,42 @@ function StockCountConfirmSummary({ steps, onConfirm, value, blindCount }: { ste
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
+      <div className="rounded-lg border overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/40">
             <tr>
-              <th className="text-left p-2 font-medium">Producto</th>
-              {!blindCount && <th className="text-right p-2 font-medium">Sistema</th>}
-              <th className="text-right p-2 font-medium">Físico</th>
-              {!blindCount && <th className="text-right p-2 font-medium">Diferencia</th>}
-              {!blindCount && <th className="text-center p-2 font-medium">Estado</th>}
+              <th className="text-left p-2.5 font-semibold text-foreground">Producto</th>
+              {!blindCount && <th className="text-right p-2.5 font-semibold text-foreground">Sistema</th>}
+              <th className="text-right p-2.5 font-semibold text-foreground">Físico</th>
+              {!blindCount && <th className="text-right p-2.5 font-semibold text-foreground">Diferencia</th>}
+              {!blindCount && <th className="text-center p-2.5 font-semibold text-foreground">Estado</th>}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-border">
             {rows.map(row => (
-              <tr key={row.stepId} className={`border-t ${!blindCount && row.isAlert ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>
-                <td className="p-2">{row.itemName}</td>
-                {!blindCount && <td className="text-right p-2">{row.systemQty}</td>}
-                <td className="text-right p-2">{row.physicalQty}</td>
+              <tr key={row.stepId} className={!blindCount && row.isAlert ? 'bg-destructive/10' : 'hover:bg-muted/20'}>
+                <td className="p-2.5 font-medium">{row.itemName}</td>
+                {!blindCount && <td className="text-right p-2.5 font-mono">{row.systemQty}</td>}
+                <td className="text-right p-2.5 font-mono font-medium">{row.physicalQty}</td>
                 {!blindCount && (
-                  <td className={`text-right p-2 font-medium ${row.variance > 0 ? 'text-green-600' : row.variance < 0 ? 'text-red-600' : ''}`}>
+                  <td className={`text-right p-2.5 font-mono font-semibold ${row.variance > 0 ? 'text-success' : row.variance < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                     {row.variance > 0 ? '+' : ''}{row.variance}
                   </td>
                 )}
                 {!blindCount && (
-                  <td className="text-center p-2">
+                  <td className="text-center p-2.5">
                     {row.isAlert ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                      <Badge variant="destructive" className="text-xs gap-1">
                         <AlertCircle className="h-3 w-3" /> {row.variancePercent}%
-                      </span>
+                      </Badge>
                     ) : row.variance === 0 ? (
-                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">OK</span>
+                      <Badge variant="success" className="text-xs">
+                        OK
+                      </Badge>
                     ) : (
-                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">{row.variancePercent}%</span>
+                      <Badge variant="secondary" className="text-xs font-mono">
+                        {row.variancePercent}%
+                      </Badge>
                     )}
                   </td>
                 )}
@@ -88,8 +92,8 @@ function StockCountConfirmSummary({ steps, onConfirm, value, blindCount }: { ste
       </div>
 
       {!blindCount && rows.some(r => r.isAlert) && (
-        <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg flex gap-2 text-red-600 dark:text-red-400 text-sm">
-          <AlertCircle className="h-5 w-5 shrink-0" />
+        <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg flex items-center gap-2 text-destructive text-xs font-medium">
+          <AlertCircle className="h-4 w-4 shrink-0" />
           <span>Se detectaron varianzas mayores al 10%. Revisa antes de confirmar.</span>
         </div>
       )}
@@ -310,37 +314,74 @@ export function WorkflowExecutor({
           />
         );
 
-      case 'NUMBER':
+      case 'NUMBER': {
+        let sysQty: number | undefined;
+        let unit: string = '';
+        if (!execution.blindCount && step.id.startsWith('count-') && currentStepInstance?.value) {
+          try {
+            const parsed = typeof currentStepInstance.value === 'string' ? JSON.parse(currentStepInstance.value) : currentStepInstance.value;
+            sysQty = (parsed as any)?.systemQuantity;
+            unit = (parsed as any)?.unit || '';
+          } catch {}
+        }
         return (
           <div className="space-y-3">
-            {!execution.blindCount && step.id.startsWith('count-') && currentStepInstance?.value && (() => {
-              try {
-                const parsed = typeof currentStepInstance.value === 'string' ? JSON.parse(currentStepInstance.value) : currentStepInstance.value;
-                const sysQty = (parsed as any)?.systemQuantity;
-                const unit = (parsed as any)?.unit || '';
-                if (sysQty !== undefined) {
-                  return (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border">
-                      <Package className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Stock en sistema:</span>
-                      <span className="text-sm font-semibold">{sysQty} {unit}</span>
-                    </div>
-                  );
-                }
-              } catch {}
-              return null;
-            })()}
-            {/* step="any": sin él el navegador trata 2.5 como inválido y los
-                spinners saltan de 1 en 1 — no se podrían contar 2.5 kg. */}
+            {sysQty !== undefined && (
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Stock en sistema:</span>
+                  <span className="text-xs font-semibold font-mono">{sysQty} {unit}</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-7 text-xs font-mono"
+                  onClick={() => setStepData({ ...stepData, [step.id]: String(sysQty) })}
+                >
+                  Usar {sysQty}
+                </Button>
+              </div>
+            )}
             <Input
               type="number"
               step="any"
               placeholder="0"
+              className="text-base font-mono min-h-[44px]"
               value={stepValue || ''}
               onChange={(e) => setStepData({ ...stepData, [step.id]: e.target.value })}
             />
+            <div className="flex flex-wrap gap-2 pt-1">
+              {[0.5, 1, 5, 10].map((inc) => (
+                <Button
+                  key={inc}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2.5 text-xs font-mono"
+                  onClick={() => {
+                    const current = parseFloat(String(stepValue || 0)) || 0;
+                    const nextVal = Math.round((current + inc) * 1000) / 1000;
+                    setStepData({ ...stepData, [step.id]: String(nextVal) });
+                  }}
+                >
+                  +{inc}
+                </Button>
+              ))}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2.5 text-xs text-muted-foreground"
+                onClick={() => setStepData({ ...stepData, [step.id]: '0' })}
+              >
+                Poner en 0
+              </Button>
+            </div>
           </div>
         );
+      }
 
       case 'SELECT':
       if (step.id === 'confirm-count') {
