@@ -181,6 +181,9 @@ export const PATCH = withTenantAuth(async (req: NextRequest, { auth }) => {
             : null;
     }
     if ("deadlineTime" in body) patch.deadlineTime = readDeadline(body.deadlineTime);
+    if ("status" in body && typeof body.status === "string") {
+        patch.status = body.status as never;
+    }
     if ("notes" in body) {
         patch.notes = typeof body.notes === "string" && body.notes ? body.notes : null;
     }

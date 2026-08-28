@@ -271,6 +271,7 @@ export class PrepListService {
             deadlineTime?: string | null;
             plannedQuantity?: number;
             notes?: string | null;
+            status?: typeof productionOrders.$inferInsert["status"];
         };
     }) {
         const [updated] = await db.update(productionOrders)

@@ -242,3 +242,59 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Error al crear orden" }, { status: 500 });
     }
 }
+
+export async function PATCH(req: NextRequest) {
+    try {
+        const session = await getSession();
+        if (!session?.user?.companyId) {
+            return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+        }
+
+        const body = await req.json();
+        const { orderId, status, notes, plannedQuantity } = body;
+
+        if (!orderId || typeof orderId !== "string") {
+            return NextResponse.json({ error: "orderId es requerido" }, { status: 400 });
+        }
+
+        const updateData: Record<string, unknown> = {
+            updatedAt: new Date(),
+        };
+
+        if (status && ["PLANNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"].includes(status)) {
+            updateData.status = status;
+            if (status === "COMPLETED") {
+                updateData.completedAt = new Date();
+                updateData.completedBy = session.user.id;
+            }
+        }
+
+        if (notes !== undefined) {
+            updateData.notes = notes;
+        }
+
+        if (plannedQuantity !== undefined && Number(plannedQuantity) > 0) {
+            updateData.plannedQuantity = Math.round(Number(plannedQuantity));
+        }
+
+        const [updatedOrder] = await db
+            .update(productionOrders)
+            .set(updateData)
+            .where(
+                and(
+                    eq(productionOrders.id, orderId),
+                    eq(productionOrders.companyId, session.user.companyId)
+                )
+            )
+            .returning();
+
+        if (!updatedOrder) {
+            return NextResponse.json({ error: "Orden no encontrada" }, { status: 404 });
+        }
+
+        return NextResponse.json({ success: true, order: updatedOrder });
+    } catch (error) {
+        console.error("Update production order error:", error);
+        return NextResponse.json({ error: "Error al actualizar orden" }, { status: 500 });
+    }
+}

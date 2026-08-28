@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, CookingPot, Lightbulb, ClipboardList, Package, Timer, ChefHat, AlertTriangle, Layers } from "lucide-react";
+import { Loader2, Plus, CookingPot, Lightbulb, ClipboardList, Package, Timer, ChefHat, AlertTriangle, Layers, Play, XCircle, RotateCcw, Check } from "lucide-react";
 import { PrepListBoard } from "@/components/inventory/prep-list-board";
 import { HoldTimeBoard } from "@/components/inventory/hold-time-board";
 import { toast } from "sonner";
@@ -90,9 +90,41 @@ export function ProductionClient({
         try {
             const res = await fetch(`/api/inventory/production?branchId=${branchId}`);
             const data = await res.json();
-            if (res.ok) setOrders(data.orders || []);
+            if (res.ok) {
+                const rawOrders = data.orders || [];
+                const normalized: ProductionOrder[] = rawOrders.map((item: any) =>
+                    item.order
+                        ? { ...item.order, recipe: item.recipe }
+                        : item
+                );
+                setOrders(normalized);
+            }
         } catch { toast.error("Error al cargar órdenes"); }
     }, [branchId]);
+
+    const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
+        try {
+            const res = await fetch("/api/inventory/production", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ orderId, status: newStatus }),
+            });
+            if (res.ok) {
+                const statusLabels: Record<string, string> = {
+                    PLANNED: "Planeada",
+                    IN_PROGRESS: "En Progreso",
+                    CANCELLED: "Cancelada",
+                    COMPLETED: "Completada",
+                };
+                toast.success(`Orden actualizada a ${statusLabels[newStatus] || newStatus}`);
+                fetchOrders();
+            } else {
+                toast.error("Error al actualizar estado de la orden");
+            }
+        } catch {
+            toast.error("Error de red al actualizar orden");
+        }
+    };
 
     const fetchSuggestions = useCallback(async () => {
         try {
@@ -416,11 +448,18 @@ export function ProductionClient({
                                     Planifica una orden en la prep list de cocina.
                                 </DialogDescription>
                             </DialogHeader>
+
+                            {recipes.length === 0 && (
+                                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded text-xs text-amber-700 dark:text-amber-300">
+                                    No hay recetas configuradas. Ve a <strong>Inventario &gt; Recetas</strong> para registrar preparaciones primero.
+                                </div>
+                            )}
+
                             <form onSubmit={handleCreateOrder} className="space-y-4">
                                 <div className="space-y-2">
                                     <Label>Receta *</Label>
                                     <Select value={recipeId} onValueChange={setRecipeId}>
-                                        <SelectTrigger><SelectValue placeholder="Seleccionar receta" /></SelectTrigger>
+                                        <SelectTrigger><SelectValue placeholder={recipes.length === 0 ? "Sin recetas disponibles" : "Seleccionar receta"} /></SelectTrigger>
                                         <SelectContent>
                                             {recipes.map(r => (
                                                 <SelectItem key={r.id} value={r.id}>{r.name} ({r.unit})</SelectItem>
@@ -448,7 +487,7 @@ export function ProductionClient({
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Fecha *</Label>
+                                        <Label>Fecha Planeada *</Label>
                                         <Input type="date" value={plannedDate} onChange={e => setPlannedDate(e.target.value)} required />
                                     </div>
                                 </div>
@@ -458,7 +497,7 @@ export function ProductionClient({
                                 </div>
                                 <DialogFooter>
                                     <Button type="button" variant="outline" onClick={() => setIsOrderOpen(false)}>Cancelar</Button>
-                                    <Button type="submit" disabled={submitting}>
+                                    <Button type="submit" disabled={submitting || recipes.length === 0}>
                                         {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Crear Orden
                                     </Button>
@@ -497,38 +536,112 @@ export function ProductionClient({
                 ) : (
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {orders.map((order) => (
-                            <Card key={order.id}>
-                                <CardHeader className="pb-2">
-                                    <div className="flex items-start justify-between">
-                                        <CardTitle className="text-lg">{order.recipe?.name || "Receta eliminada"}</CardTitle>
-                                        {statusBadge(order.status)}
-                                    </div>
-                                    <CardDescription>
-                                        {order.plannedQuantity} {order.unit} — {new Date(order.plannedDate).toLocaleDateString()}
-                                    </CardDescription>
-                                </CardHeader>
-                                {order.notes && (
-                                    <CardContent className="pt-0 pb-2">
-                                        <p className="text-xs text-muted-foreground">{order.notes}</p>
-                                    </CardContent>
-                                )}
-                                {order.status === "PLANNED" && order.recipe && (
-                                    <div className="p-3 pt-0 border-t mt-2 flex justify-end">
+                            <Card key={order.id} className="flex flex-col justify-between">
+                                <div>
+                                    <CardHeader className="pb-2">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <CardTitle className="text-base font-semibold">{order.recipe?.name || "Receta eliminada"}</CardTitle>
+                                            {statusBadge(order.status)}
+                                        </div>
+                                        <CardDescription className="text-xs">
+                                            {order.plannedQuantity} {order.unit} — {new Date(order.plannedDate).toLocaleDateString()}
+                                        </CardDescription>
+                                    </CardHeader>
+                                    {order.notes && (
+                                        <CardContent className="pt-0 pb-2">
+                                            <p className="text-xs text-muted-foreground">{order.notes}</p>
+                                        </CardContent>
+                                    )}
+                                </div>
+
+                                <div className="p-3 pt-2 border-t mt-2 flex flex-wrap items-center justify-between gap-2 bg-muted/10">
+                                    {order.status === "PLANNED" && (
+                                        <>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-xs h-7 text-muted-foreground hover:text-destructive"
+                                                onClick={() => handleUpdateOrderStatus(order.id, "CANCELLED")}
+                                            >
+                                                <XCircle className="size-3.5 mr-1" />
+                                                Cancelar
+                                            </Button>
+                                            <div className="flex items-center gap-1.5">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-xs h-7 gap-1"
+                                                    onClick={() => handleUpdateOrderStatus(order.id, "IN_PROGRESS")}
+                                                >
+                                                    <Play className="size-3" />
+                                                    Iniciar
+                                                </Button>
+                                                {order.recipe && (
+                                                    <Button
+                                                        variant="default"
+                                                        size="sm"
+                                                        className="text-xs h-7 gap-1"
+                                                        onClick={() => {
+                                                            setRecordRecipeId(order.recipe!.id);
+                                                            setProducedQty(order.plannedQuantity);
+                                                            setIsRecordOpen(true);
+                                                        }}
+                                                    >
+                                                        <Package className="size-3" />
+                                                        Producir
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {order.status === "IN_PROGRESS" && (
+                                        <>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-xs h-7 text-muted-foreground"
+                                                onClick={() => handleUpdateOrderStatus(order.id, "PLANNED")}
+                                            >
+                                                <RotateCcw className="size-3 mr-1" />
+                                                Pausar
+                                            </Button>
+                                            {order.recipe && (
+                                                <Button
+                                                    variant="default"
+                                                    size="sm"
+                                                    className="text-xs h-7 gap-1"
+                                                    onClick={() => {
+                                                        setRecordRecipeId(order.recipe!.id);
+                                                        setProducedQty(order.plannedQuantity);
+                                                        setIsRecordOpen(true);
+                                                    }}
+                                                >
+                                                    <Check className="size-3" />
+                                                    Completar Lote
+                                                </Button>
+                                            )}
+                                        </>
+                                    )}
+
+                                    {order.status === "CANCELLED" && (
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="text-xs gap-1.5 h-8"
-                                            onClick={() => {
-                                                setRecordRecipeId(order.recipe!.id);
-                                                setProducedQty(order.plannedQuantity);
-                                                setIsRecordOpen(true);
-                                            }}
+                                            className="text-xs h-7 ml-auto gap-1"
+                                            onClick={() => handleUpdateOrderStatus(order.id, "PLANNED")}
                                         >
-                                            <Package className="size-3.5" />
-                                            Producir Batch
+                                            <RotateCcw className="size-3" />
+                                            Reactivar orden
                                         </Button>
-                                    </div>
-                                )}
+                                    )}
+
+                                    {order.status === "COMPLETED" && (
+                                        <span className="text-xs text-muted-foreground font-mono ml-auto">
+                                            ✓ Lote producido y descontado
+                                        </span>
+                                    )}
+                                </div>
                             </Card>
                         ))}
                     </div>

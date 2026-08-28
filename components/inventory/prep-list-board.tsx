@@ -122,7 +122,7 @@ function FefoCell({ fefo }: { fefo: PrepFefoPreview[] }) {
 
 export function PrepListBoard({ branchId }: { branchId: string }) {
     const [day, setDay] = useState<PrepDay | null>(null);
-    const [date, setDate] = useState<string | null>(null);
+    const [date, setDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 

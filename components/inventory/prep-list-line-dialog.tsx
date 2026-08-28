@@ -65,6 +65,7 @@ export function PrepListLineDialog({
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [submitting, setSubmitting] = useState(false);
 
+    const [formDate, setFormDate] = useState(() => date || new Date().toISOString().split("T")[0]);
     const [recipeId, setRecipeId] = useState("");
     const [quantity, setQuantity] = useState(1);
     const [station, setStation] = useState("");
@@ -72,6 +73,7 @@ export function PrepListLineDialog({
     const [responsibleUserId, setResponsibleUserId] = useState(SIN_VALOR);
     const [deadlineTime, setDeadlineTime] = useState("");
     const [notes, setNotes] = useState("");
+    const [status, setStatus] = useState<string>("PLANNED");
 
     // Catálogos: sólo al abrir, y una vez por apertura.
     useEffect(() => {
@@ -95,6 +97,7 @@ export function PrepListLineDialog({
     // Precarga al abrir: la línea a editar, o los valores en blanco del alta.
     useEffect(() => {
         if (!open) return;
+        setFormDate(date || new Date().toISOString().split("T")[0]);
         setRecipeId(line?.recipeId ?? "");
         setQuantity(line?.plannedQuantity ?? 1);
         setStation(line?.station ?? "");
@@ -102,7 +105,8 @@ export function PrepListLineDialog({
         setResponsibleUserId(line?.responsibleUserId ?? SIN_VALOR);
         setDeadlineTime(line?.deadlineTime ?? "");
         setNotes(line?.notes ?? "");
-    }, [open, line]);
+        setStatus(line?.status ?? "PLANNED");
+    }, [open, line, date]);
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -110,10 +114,8 @@ export function PrepListLineDialog({
             toast.error("Selecciona la preparación");
             return;
         }
-        if (!date) {
-            toast.error("Selecciona la fecha de la hoja");
-            return;
-        }
+
+        const effectiveDate = formDate || date || new Date().toISOString().split("T")[0];
 
         setSubmitting(true);
         try {
@@ -125,6 +127,7 @@ export function PrepListLineDialog({
                 deadlineTime: deadlineTime || null,
                 plannedQuantity: quantity,
                 notes: notes || null,
+                status: line ? status : undefined,
             };
 
             const res = await fetch("/api/inventory/production/prep-list", {
@@ -137,7 +140,7 @@ export function PrepListLineDialog({
                             ...payload,
                             recipeId,
                             unit: recipes.find(r => r.id === recipeId)?.unit || "PORTION",
-                            date,
+                            date: effectiveDate,
                         }
                 ),
             });
@@ -165,28 +168,63 @@ export function PrepListLineDialog({
                     <DialogTitle>{line ? "Editar línea" : "Nueva línea de la prep list"}</DialogTitle>
                     <DialogDescription>
                         {line
-                            ? "Corrige la planeación de la línea. No afecta la producción ya registrada."
-                            : `Qué se prepara, en qué estación, quién y a qué hora — para el ${date ?? "día seleccionado"}.`}
+                            ? "Corrige la planeación o cambia el estado de la línea."
+                            : `Qué se prepara, en qué estación, quién y a qué hora para la hoja de cocina.`}
                     </DialogDescription>
                 </DialogHeader>
 
+                {recipes.length === 0 && !line && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded text-xs text-amber-700 dark:text-amber-300">
+                        No hay recetas registradas todavía. Ve a <strong>Inventario &gt; Recetas</strong> para dar de alta tus fórmulas de producción antes de planificar.
+                    </div>
+                )}
+
                 <form onSubmit={submit} className="space-y-4">
+                    {!line && (
+                        <div className="space-y-2">
+                            <Label htmlFor="prep-form-date">Fecha de la hoja *</Label>
+                            <Input
+                                id="prep-form-date"
+                                type="date"
+                                value={formDate}
+                                onChange={(e) => setFormDate(e.target.value)}
+                                required
+                            />
+                        </div>
+                    )}
+
                     {line ? (
                         <div className="space-y-2">
                             <Label>Preparación</Label>
-                            <p className="text-sm font-medium">{line.recipeName}</p>
+                            <p className="text-sm font-semibold text-foreground">{line.recipeName}</p>
                         </div>
                     ) : (
                         <div className="space-y-2">
                             <Label htmlFor="prep-recipe">Preparación *</Label>
                             <Select value={recipeId} onValueChange={setRecipeId}>
                                 <SelectTrigger id="prep-recipe">
-                                    <SelectValue placeholder="Seleccionar receta" />
+                                    <SelectValue placeholder={recipes.length === 0 ? "Sin recetas disponibles" : "Seleccionar receta"} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {recipes.map(r => (
-                                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                        <SelectItem key={r.id} value={r.id}>{r.name} ({r.unit})</SelectItem>
                                     ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    {line && (
+                        <div className="space-y-2">
+                            <Label htmlFor="prep-status">Estado de la línea</Label>
+                            <Select value={status} onValueChange={setStatus}>
+                                <SelectTrigger id="prep-status">
+                                    <SelectValue placeholder="Estado" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="PLANNED">Planeada (Pendiente)</SelectItem>
+                                    <SelectItem value="IN_PROGRESS">En preparación</SelectItem>
+                                    <SelectItem value="CANCELLED">Cancelada</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -292,7 +330,7 @@ export function PrepListLineDialog({
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
                             Cancelar
                         </Button>
-                        <Button type="submit" disabled={submitting}>
+                        <Button type="submit" disabled={submitting || (!line && recipes.length === 0)}>
                             {submitting && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
                             {line ? "Guardar" : "Agregar"}
                         </Button>
