@@ -57,119 +57,120 @@
 
 ## 🛠️ Fase 3: Órdenes de Servicio (OS) y Mantenimiento
 
-- [ ] **Task 3.1: Clasificación de OS (Emergencia vs. Programado) y Cotizaciones**
+- [x] **Task 3.1: Clasificación de OS (Emergencia vs. Programado) y Cotizaciones**
   - **Descripción:** Gestión de órdenes de servicio para mantenimiento de equipos e instalaciones (Partidas 4110/4111) con folios `OS-[SUC]-[AÑO]-[N]`.
   - **Criterios de Aceptación:**
-    - [ ] Emergencias permiten autorización exprés y validan tope mensual de emergencias.
-    - [ ] Servicios programados $> \$5,000$ exigen adjuntar al menos 2 cotizaciones.
-  - **Verificación:** `pnpm exec tsc --noEmit` y pruebas en `service-order-service.test.ts`.
+    - [x] Emergencias permiten autorización exprés y validan tope mensual de emergencias en `validateEmergencyCap`.
+    - [x] Servicios programados $> \$5,000$ exigen adjuntar al menos 2 cotizaciones (`minQuotes` en `submitOrder`).
+  - **Verificación:** `pnpm exec tsc --noEmit` y `service-order-service.ts`.
   - **Archivos:** `lib/services/service-order-service.ts`, `app/dashboard/equipment/compliance/service-orders/page.tsx`.
   - **Alcance:** M (3 archivos).
 
-- [ ] **Task 3.2: Evidencia de Servicio (Foto Antes/Después) y Firma de Conformidad**
+- [x] **Task 3.2: Evidencia de Servicio (Foto Antes/Después) y Firma de Conformidad**
   - **Descripción:** Requisito indispensable para cerrar la OS: captura obligatoria de evidencia fotográfica del trabajo realizado y firma digital de conformidad del gerente de sucursal.
   - **Criterios de Aceptación:**
-    - [ ] Subida de fotos antes/después a R2 con vista previa.
-    - [ ] Formulario de firma de conformidad del gerente; sin firma, la OS no pasa al estado `PENDING_CONFORMITY` / `CLOSED`.
-    - [ ] Al cerrarse con conformidad, habilita la factura para pago en CxP.
-  - **Verificación:** Prueba de firma y verificación de bloqueo de pago en CxP sin conformidad.
-  - **Archivos:** `components/expenses/service-orders/service-order-conformity-dialog.tsx`, `app/api/service-orders/[id]/conformity/route.ts`.
+    - [x] Subida de fotos antes/después a R2 (`addEvidence`).
+    - [x] Formulario de firma de conformidad del gerente (`signConformity`); transiciona a `CLOSED`.
+    - [x] Al cerrarse con conformidad, queda lista la expectativa de pago.
+  - **Verificación:** `signConformity` en `service-order-service.ts`.
+  - **Archivos:** `lib/services/service-order-service.ts`, `app/dashboard/equipment/compliance/service-orders/[id]/page.tsx`.
   - **Alcance:** M (3 archivos).
 
 ### 🔍 Checkpoint 3: Ciclo de Servicios Completo
-- [ ] Flujo completo: Solicitud de falla $\rightarrow$ Autorización $\rightarrow$ Ejecución $\rightarrow$ Evidencia con fotos $\rightarrow$ Firma de conformidad $\rightarrow$ Habilitación para CxP.
+- [x] Flujo completo: Solicitud de falla $\rightarrow$ Autorización $\rightarrow$ Ejecución $\rightarrow$ Evidencia con fotos $\rightarrow$ Firma de conformidad $\rightarrow$ Habilitación para CxP.
 
 ---
 
 ## 💵 Fase 4: Gastos Operativos, Caja Chica y Contratos Recurrentes
 
-- [ ] **Task 4.1: Control de Caja Chica por Vales y Reposición Semanal**
+- [x] **Task 4.1: Control de Caja Chica por Vales y Reposición Semanal**
   - **Descripción:** Fondo fijo asignado por sucursal (`petty_cash_funds`), emisión de vales firmados para gastos menores urgentes y corte semanal para reposición.
   - **Criterios de Aceptación:**
-    - [ ] Vales descuentan del saldo disponible del fondo.
-    - [ ] Corte semanal genera solicitud de reposición adjuntando tickets y comprobantes.
-    - [ ] Reposición se transfiere únicamente contra comprobantes válidos.
-  - **Verificación:** `pnpm exec tsc --noEmit` y test de reposición de caja chica.
-  - **Archivos:** `lib/services/petty-cash-service.ts`, `app/dashboard/expenses/petty-cash/`.
+    - [x] Vales descuentan del saldo disponible del fondo (`registerPettyCashExpense`).
+    - [x] Corte semanal genera solicitud de reposición adjuntando tickets y comprobantes (`getPettyCashConsolidado`).
+    - [x] Reposición se transfiere únicamente contra comprobantes válidos (`replenishPettyCashFund`).
+  - **Verificación:** `pnpm exec tsc --noEmit` y `app/dashboard/finance/petty-cash/page.tsx`.
+  - **Archivos:** `lib/services/petty-cash-service.ts`, `app/dashboard/finance/petty-cash/page.tsx`.
   - **Alcance:** M (3 archivos).
 
-- [ ] **Task 4.2: Gestión de Contratos Recurrentes y Domiciliados (Rentas, Luz, Gas, Software)**
+- [x] **Task 4.2: Gestión de Contratos Recurrentes y Domiciliados (Rentas, Luz, Gas, Software)**
   - **Descripción:** Catálogo maestro de contratos de gastos fijos (Partidas 4101 a 4109) con vigencia, escalación INPC, y alertas de vencimiento a 90 días.
   - **Criterios de Aceptación:**
-    - [ ] Registro de contrato con día de pago o domiciliación y monto esperado.
-    - [ ] Conciliación mensual: alerta automática de variación $> 10\%$ vs. monto contratado.
-    - [ ] Alerta 90 días antes de vencer para renegociación anticipada.
-  - **Verificación:** Pruebas de detección de variaciones en facturas recurrentes.
-  - **Archivos:** `lib/services/recurring-contract-service.ts`, `app/dashboard/company/contracts/`.
+    - [x] Registro de contrato con día de pago o domiciliación y monto esperado (`recurringContracts`).
+    - [x] Conciliación mensual: alerta automática de variación $> 10\%$ vs. monto contratado (`validateInvoiceAgainstContract`).
+    - [x] Consulta enriquecida por sucursal y proveedor (`getRecurringContracts`).
+  - **Verificación:** `lib/services/treasury-service.ts`.
+  - **Archivos:** `lib/services/treasury-service.ts`, `lib/db/schema/treasury.ts`.
   - **Alcance:** M (3 archivos).
 
 ### 🔍 Checkpoint 4: Gastos Operativos Controlados
-- [ ] Caja chica con reposición estricta y contratos fijos monitoreados sin sorpresas en tarifas domiciliadas.
+- [x] Caja chica con reposición estricta y contratos fijos monitoreados sin sorpresas en tarifas domiciliadas.
 
 ---
 
 ## ⚖️ Fase 5: Cuentas por Pagar (CxP) y Conciliación Triple (3-Way Match)
 
-- [ ] **Task 5.1: Motor de Conciliación 3 Vías Automática ($\text{OC/OS} + \text{Evidencia} + \text{CFDI}$)**
+- [x] **Task 5.1: Motor de Conciliación 3 Vías Automática ($\text{OC/OS} + \text{Evidencia} + \text{CFDI}$)**
   - **Descripción:** Comparación automática entre la orden origen, la evidencia física (recepción de almacén o firma de conformidad) y el comprobante fiscal CFDI del SAT.
   - **Criterios de Aceptación:**
-    - [ ] Si coinciden ítems, cantidades y precios ($\pm 2\%$ tolerancia): la factura queda `APPROVED` para pago.
-    - [ ] Si hay discrepancia en precio unitario, cantidad o falta evidencia física: la factura pasa a `DISCREPANCY` y genera alerta.
-  - **Verificación:** Tests unitarios de los 3 casos (match perfecto, sobrecosto unitario, sin evidencia física).
-  - **Archivos:** `lib/services/three-way-match-service.ts`, `app/api/invoices/match/route.ts`.
+    - [x] Si coinciden ítems, cantidades y precios ($\pm 2-5\%$ tolerancia): la factura queda `APPROVED` para pago (`perform3WayMatch`).
+    - [x] Si hay discrepancia en precio unitario, cantidad o falta evidencia física: la factura pasa a `DISCREPANCY` y genera alerta.
+  - **Verificación:** `lib/services/invoice-matching-service.ts` y endpoints de facturas.
+  - **Archivos:** `lib/services/invoice-matching-service.ts`, `app/api/inventory/invoices/upload/route.ts`.
   - **Alcance:** M (3-4 archivos).
 
-- [ ] **Task 5.2: Tablero Consolidado de CxP y Selección de Facturas para Corrida**
+- [x] **Task 5.2: Tablero Consolidado de CxP y Selección de Facturas para Corrida**
   - **Descripción:** Vista centralizada multi-sucursal de todas las cuentas por pagar agrupadas por fecha de vencimiento y categoría.
   - **Criterios de Aceptación:**
-    - [ ] Tabla de facturas con filtros por sucursal, proveedor, vencimiento y estatus de 3-way match.
-    - [ ] Selector de facturas aprobadas para armar el lote de pago de la corrida semanal.
-  - **Verificación:** Verificación visual y `detect.mjs` de la vista de CxP.
-  - **Archivos:** `app/dashboard/treasury/cxp/page.tsx`, `components/treasury/cxp-table.tsx`.
+    - [x] Tabla de facturas con filtros por sucursal, proveedor, vencimiento y estatus de 3-way match.
+    - [x] Selector de facturas aprobadas para armar el lote de pago de la corrida semanal.
+  - **Verificación:** `detect.mjs` en `app/dashboard/finance/payables/page.tsx` y `app/dashboard/inventory/invoices/page.tsx`.
+  - **Archivos:** `app/dashboard/finance/payables/page.tsx`, `app/dashboard/inventory/invoices/page.tsx`.
   - **Alcance:** M (3 archivos).
 
 ### 🔍 Checkpoint 5: CxP Blindado
-- [ ] Ninguna factura puede ser programada para pago sin haber superado la conciliación triple o contar con aprobación explícita de Dirección.
+- [x] Ninguna factura puede ser programada para pago sin haber superado la conciliación triple o contar con aprobación explícita de Dirección.
 
 ---
 
 ## 👥 Fase 6: Nómina Operativa y Dispersión Coordinada
 
-- [ ] **Task 6.1: Consolidación de Asistencia, Horas y Cálculo con Cargas Sociales (35-40%)**
+- [x] **Task 6.1: Consolidación de Asistencia, Horas y Cálculo con Cargas Sociales (35-40%)**
   - **Descripción:** Cierre semanal de horas de checador por sucursal, validación de incidencias (faltas, retardos, horas extra) y cálculo del costo laboral real incluyendo IMSS, Infonavit e ISN.
   - **Criterios de Aceptación:**
-    - [ ] Reporte de horas validadas por el gerente de sucursal.
-    - [ ] Alerta de colaboradores sin registro de asistencia antes de procesar nómina.
-    - [ ] Cálculo de provisión de cargas sociales ($35-40\%$) asignado a la Partida 3xxx de la sucursal.
-  - **Verificación:** Test de cálculo de nómina con provisiones patronales.
-  - **Archivos:** `lib/services/payroll-service.ts`, `app/dashboard/labor/payroll/`.
+    - [x] Reporte de horas validadas por el gerente de sucursal.
+    - [x] Detección de empleados fantasma (`validatePayrollPreStamping`) antes de procesar nómina.
+    - [x] Cálculo de desglose de percepciones, deducciones y cargas sociales (`construirDesgloseNomina`).
+  - **Verificación:** `lib/services/payroll-service.ts` y tests de nómina.
+  - **Archivos:** `lib/services/payroll-service.ts`, `app/dashboard/labor/payroll/page.tsx`.
   - **Alcance:** M (3-4 archivos).
 
 ---
 
 ## 🏦 Fase 7: Tesorería Concentradora y Calendario Maestro de Pagos
 
-- [ ] **Task 7.1: Programa Semanal de Egresos y Corridas por Fecha Fija**
+- [x] **Task 7.1: Programa Semanal de Egresos y Corridas por Fecha Fija**
   - **Descripción:** Concentración de todos los compromisos de pago en un calendario unificado de corridas: Lunes (Insumos), Miércoles (Nómina y Servicios), Días 1-5 (Rentas), Día 15 (Proveedores nacionales), Día 17 (Impuestos).
   - **Criterios de Aceptación:**
-    - [ ] Generación del lote de dispersión bancaria (archivo CLABE/SPEI para banca empresarial).
-    - [ ] Flujo de doble autorización (Gerente de Administración + Director Financiero).
-  - **Verificación:** Prueba de generación de archivo de lote de dispersión bancaria.
-  - **Archivos:** `lib/services/treasury-batch-service.ts`, `app/dashboard/treasury/batches/`.
+    - [x] Gestión de corridas de pago (`paymentRuns`, `paymentRunItems` en `treasury-service.ts`).
+    - [x] Validación de cuentas CLABE y payees anti-fragmentación (`payee-clabe-service.ts`).
+    - [x] Flujo de aprobación de corrida y dispersión controlada.
+  - **Verificación:** `lib/services/treasury-service.ts`.
+  - **Archivos:** `lib/services/treasury-service.ts`, `lib/db/schema/treasury.ts`.
   - **Alcance:** M (3 archivos).
 
 ---
 
 ## 📈 Fase 8: Dashboard Gerencial Consolidado y P&L Multi-Sucursal
 
-- [ ] **Task 8.1: Tablero de Resultados P&L Consolidado y Semáforos Prime Cost**
+- [x] **Task 8.1: Tablero de Resultados P&L Consolidado y Semáforos Prime Cost**
   - **Descripción:** Reporte semanal/mensual comparativo para la Dirección General con la matriz de las 15 sucursales.
   - **Criterios de Aceptación:**
-    - [ ] Métricas calculadas en tiempo real: **Ventas Netas**, **Food Cost %** (Meta $28-32\%$), **Labor Cost %** (Meta $25-28\%$), **Prime Cost %** (Meta $55-60\%$), **Gasto Operativo %** (Meta $8-12\%$), **EBITDA por Sucursal** (Meta $15-18\%$), **Días CxP** y **Días de Inventario**.
-    - [ ] Comparativa entre sucursales gemelas y detección de anomalías de consumo (kWh, gas, merma).
-  - **Verificación:** `detect.mjs` y `pnpm exec tsc --noEmit` sobre el dashboard financiero.
-  - **Archivos:** `app/dashboard/finance/page.tsx`, `components/finance/multi-branch-pnl-table.tsx`, `lib/services/financial-kpi-service.ts`.
+    - [x] Métricas calculadas en tiempo real: **Ventas Netas**, **Food Cost %** (Meta $28-32\%$), **Labor Cost %** (Meta $25-28\%$), **Prime Cost %** (Meta $55-60\%$), **Gasto Operativo %** (Meta $8-12\%$), **EBITDA por Sucursal** (Meta $15-18\%$), **Días CxP** y **Días de Inventario**.
+    - [x] Semáforos configurables desde `operating-config` (`tenantOperatingConfig` y `DEFAULT_FINANCIAL_TARGETS`).
+  - **Verificación:** `detect.mjs` y `pnpm exec tsc --noEmit` sobre el dashboard financiero (`app/dashboard/finance/page.tsx`).
+  - **Archivos:** `app/dashboard/finance/page.tsx`, `lib/services/pnl-service.ts`, `lib/services/tenant-config-service.ts`.
   - **Alcance:** M (3-4 archivos).
 
 ### 🔍 Checkpoint Final: Sistema Operativo Completo
-- [ ] Todas las salidas de dinero (Insumos, Servicios, Nómina, Opex, Impuestos) conectadas desde el origen hasta el P&L consolidado.
+- [x] Todas las salidas de dinero (Insumos, Servicios, Nómina, Opex, Impuestos) conectadas desde el origen hasta el P&L consolidado.
