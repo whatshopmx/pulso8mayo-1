@@ -4,20 +4,68 @@ import * as React from "react"
 import { format, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
 import { BarChart, Bar, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
-import { Clock, Users, TrendingUp, CheckCircle, Calendar, RefreshCw, Building2 } from "lucide-react"
+import { Clock, TrendingUp, CheckCircle, Calendar, RefreshCw, Building2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AttendanceReport } from "./attendance-report"
 import { AttendanceRecord } from "@/app/api/reports/attendance/route"
 
+interface AttendanceSummary {
+    totalRecords?: number;
+    totalWorkMinutes?: number;
+    totalBreakMinutes?: number;
+    totalOvertimeMinutes?: number;
+    completedShifts?: number;
+    activeShifts?: number;
+    uniqueEmployees?: number;
+}
+
 interface AttendanceDashboardProps {
     initialData?: {
         data: AttendanceRecord[]
-        summary: any
+        summary: AttendanceSummary
     }
+}
+
+interface DailyTrendItem {
+    date: string;
+    workMinutes: number;
+    breakMinutes: number;
+    overtimeMinutes: number;
+    shifts: number;
+    employees: Set<string>;
+    workHours?: number;
+    avgHours?: number;
+    employeeCount?: number;
+}
+
+interface EmployeeSummaryItem {
+    userId: string;
+    name: string;
+    role: string;
+    branch: string;
+    totalWorkMinutes: number;
+    totalBreakMinutes: number;
+    totalOvertimeMinutes: number;
+    shifts: number;
+    totalHours?: number;
+    avgHoursPerShift?: number;
+    overtimeHours?: number;
+}
+
+interface BranchSummaryItem {
+    branchId: string;
+    branchName: string;
+    totalWorkMinutes: number;
+    totalOvertimeMinutes: number;
+    shifts: number;
+    employees: Set<string>;
+    totalHours?: number;
+    overtimeHours?: number;
+    employeeCount?: number;
+    avgHoursPerEmployee?: number;
 }
 
 // System tokens for data visualization (OKLCH aligned)
@@ -32,7 +80,7 @@ const CHART_COLORS = [
 
 export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
     const [records, setRecords] = React.useState<AttendanceRecord[]>(initialData?.data || [])
-    const [summary, setSummary] = React.useState<any>(initialData?.summary || {})
+    const [summary, setSummary] = React.useState<AttendanceSummary>(initialData?.summary || {})
     const [timeRange, setTimeRange] = React.useState<"7d" | "30d" | "90d">("30d")
     const [selectedBranch, setSelectedBranch] = React.useState<string>("all")
     const [branches, setBranches] = React.useState<Array<{ id: string; name: string }>>([])
@@ -89,7 +137,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
 
     // Calculate daily trends
     const dailyTrends = React.useMemo(() => {
-        const grouped: Record<string, any> = {}
+        const grouped: Record<string, DailyTrendItem> = {}
 
         records.forEach(record => {
             const date = record.date
@@ -125,7 +173,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
 
     // Calculate employee summary
     const employeeSummary = React.useMemo(() => {
-        const grouped: Record<string, any> = {}
+        const grouped: Record<string, EmployeeSummaryItem> = {}
 
         records.forEach(record => {
             if (!record.userId) return
@@ -154,7 +202,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                 avgHoursPerShift: Number(((e.totalWorkMinutes || 0) / (e.shifts || 1) / 60).toFixed(1)),
                 overtimeHours: Number(((e.totalOvertimeMinutes || 0) / 60).toFixed(1))
             }))
-            .sort((a, b) => b.totalWorkMinutes - a.totalWorkMinutes)
+            .sort((a, b) => (b.totalWorkMinutes || 0) - (a.totalWorkMinutes || 0))
             .slice(0, 10)
     }, [records])
 
@@ -180,7 +228,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
 
     // Calculate branch summary
     const branchSummary = React.useMemo(() => {
-        const grouped: Record<string, any> = {}
+        const grouped: Record<string, BranchSummaryItem> = {}
 
         records.forEach(record => {
             const bId = record.branchId || "general"
@@ -202,13 +250,15 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
             }
         })
 
-        return Object.values(grouped).map(b => ({
-            ...b,
-            totalHours: Number(((b.totalWorkMinutes || 0) / 60).toFixed(1)),
-            overtimeHours: Number(((b.totalOvertimeMinutes || 0) / 60).toFixed(1)),
-            employeeCount: b.employees.size,
-            avgHoursPerEmployee: Number(((b.totalWorkMinutes || 0) / (b.employees.size || 1) / 60).toFixed(1))
-        }))
+        return Object.values(grouped)
+            .map(b => ({
+                ...b,
+                totalHours: Number(((b.totalWorkMinutes || 0) / 60).toFixed(1)),
+                overtimeHours: Number(((b.totalOvertimeMinutes || 0) / 60).toFixed(1)),
+                employeeCount: b.employees.size,
+                avgHoursPerEmployee: Number(((b.totalWorkMinutes || 0) / (b.employees.size || 1) / 60).toFixed(1))
+            }))
+            .sort((a, b) => (b.totalWorkMinutes || 0) - (a.totalWorkMinutes || 0))
     }, [records])
 
     const formatMinutes = (minutes: number) => {
@@ -245,7 +295,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                         </Select>
                     </div>
 
-                    <Tabs value={timeRange} onValueChange={(v) => setTimeRange(v as any)} className="w-auto">
+                    <Tabs value={timeRange} onValueChange={(v) => setTimeRange(v as "7d" | "30d" | "90d")} className="w-auto">
                         <TabsList className="h-8">
                             <TabsTrigger value="7d" className="text-xs px-2.5">7d</TabsTrigger>
                             <TabsTrigger value="30d" className="text-xs px-2.5">30d</TabsTrigger>
@@ -305,7 +355,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                             {formatMinutes(summary.totalOvertimeMinutes || 0)}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                            {summary.totalOvertimeMinutes > 0 ? "⚠️ Horas a liquidar" : "✓ Sin horas extra"}
+                            {(summary.totalOvertimeMinutes || 0) > 0 ? "⚠️ Horas a liquidar" : "✓ Sin horas extra"}
                         </p>
                     </CardContent>
                 </Card>
@@ -319,8 +369,8 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                     </CardHeader>
                     <CardContent className="p-3.5 pt-0">
                         <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 font-mono">
-                            {summary.totalRecords > 0
-                                ? Math.round(((summary.completedShifts || 0) / summary.totalRecords) * 100)
+                            {(summary.totalRecords || 0) > 0
+                                ? Math.round(((summary.completedShifts || 0) / (summary.totalRecords || 1)) * 100)
                                 : 0}%
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
@@ -363,12 +413,12 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                                 />
                                 <YAxis tick={{ fontSize: 12 }} />
                                 <Tooltip
-                                    formatter={(value: any) => [`${value}h`, "Horas Trabajadas"]}
+                                    formatter={(value: unknown) => [`${value}h`, "Horas Trabajadas"]}
                                     labelFormatter={(label) => {
                                         try {
-                                            return format(parseISO(label), "dd/MMM", { locale: es })
+                                            return format(parseISO(String(label)), "dd/MMM", { locale: es })
                                         } catch {
-                                            return label
+                                            return String(label)
                                         }
                                     }}
                                 />

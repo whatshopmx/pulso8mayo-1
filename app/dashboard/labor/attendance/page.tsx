@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { AttendanceDashboard } from "@/components/labor/attendance-dashboard";
 import { useRequireRole } from "@/hooks/use-session";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, ArrowLeft } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 

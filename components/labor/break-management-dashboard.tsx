@@ -19,7 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Coffee, Clock, AlertTriangle, CheckCircle, XCircle, MessageCircle, RefreshCw, Send, Sparkles } from 'lucide-react';
+import { Coffee, AlertTriangle, CheckCircle, XCircle, MessageCircle, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -49,7 +49,7 @@ interface BreakManagementDashboardProps {
     userBranchId?: string;
 }
 
-export function BreakManagementDashboard({ companyId, userRole, userBranchId }: BreakManagementDashboardProps) {
+export function BreakManagementDashboard({ userBranchId }: BreakManagementDashboardProps) {
     const [employees, setEmployees] = useState<EmployeeBreakStatus[]>([]);
     const [loading, setLoading] = useState(true);
     const [sendingBulk, setSendingBulk] = useState(false);
@@ -133,8 +133,9 @@ export function BreakManagementDashboard({ companyId, userRole, userBranchId }: 
             } else {
                 throw new Error(data.error || 'Error al enviar recordatorios');
             }
-        } catch (err: any) {
-            toast.error(err.message || 'Error al enviar recordatorios masivos');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Error al enviar recordatorios masivos';
+            toast.error(message);
         } finally {
             setSendingBulk(false);
         }

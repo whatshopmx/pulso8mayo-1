@@ -24,11 +24,9 @@ import {
   FileCheck2,
   Building2,
   Receipt,
-  FileText,
-  Calendar,
-  Sparkles
+  FileText
 } from "lucide-react";
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { format, endOfMonth, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { formatCents } from "@/lib/utils";
@@ -201,10 +199,11 @@ export default function PayrollPage() {
       } else {
         throw new Error(data.error?.message || "Error al validar nómina");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error al validar nómina";
       toast({
         title: "Error de Validación",
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -233,7 +232,7 @@ export default function PayrollPage() {
         throw new Error(data.error?.message || "Error ejecutando nómina");
       }
       
-      const hasErrors = data.data.results?.some((r: any) => !r.success);
+      const hasErrors = data.data.results?.some((r: { success?: boolean }) => !r.success);
       
       if (hasErrors) {
         toast({
@@ -250,10 +249,11 @@ export default function PayrollPage() {
       
       fetchRuns();
       setValidationData(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error ejecutando nómina";
       toast({
         title: "Bloqueo de Ejecución",
-        description: err.message,
+        description: message,
         variant: "destructive"
       });
     } finally {
