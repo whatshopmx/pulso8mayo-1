@@ -134,7 +134,7 @@ export function AIVerificationStatus({
     };
 
     return (
-        <Card className={cn("border-2 transition-colors", getStatusColor(), className)}>
+        <Card className={cn("transition-colors", className)}>
             <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">

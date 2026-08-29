@@ -5,8 +5,33 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
     FileText,
     Download,
@@ -14,8 +39,19 @@ import {
     Loader2,
     BarChart3,
     Shield,
+    MoreVertical,
+    Trash2,
+    Play,
+    Search,
 } from "lucide-react";
-import { format } from "date-fns";
+import {
+    format,
+    startOfMonth,
+    endOfMonth,
+    subMonths,
+    subDays,
+    startOfYear,
+} from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { PageHeader, PageContainer, EmptyState, ErrorState } from "@/components/shared";
@@ -30,6 +66,48 @@ interface ReporteProgramado {
     nextRunAt?: string | null;
     lastRunAt?: string | null;
     lastRunStatus?: string | null;
+}
+
+type PresetPeriodo = "THIS_MONTH" | "LAST_MONTH" | "LAST_30_DAYS" | "THIS_YEAR" | "ALL_TIME" | "CUSTOM";
+
+const ETIQUETA_PRESET: Record<PresetPeriodo, string> = {
+    THIS_MONTH: "Este mes",
+    LAST_MONTH: "Mes anterior",
+    LAST_30_DAYS: "Últimos 30 días",
+    THIS_YEAR: "Año en curso",
+    ALL_TIME: "Todo el historial",
+    CUSTOM: "Personalizado",
+};
+
+function calcularRango(preset: PresetPeriodo): { from: string; to: string } {
+    const hoy = new Date();
+    switch (preset) {
+        case "THIS_MONTH":
+            return {
+                from: format(startOfMonth(hoy), "yyyy-MM-dd"),
+                to: format(hoy, "yyyy-MM-dd"),
+            };
+        case "LAST_MONTH": {
+            const mesAnt = subMonths(hoy, 1);
+            return {
+                from: format(startOfMonth(mesAnt), "yyyy-MM-dd"),
+                to: format(endOfMonth(mesAnt), "yyyy-MM-dd"),
+            };
+        }
+        case "LAST_30_DAYS":
+            return {
+                from: format(subDays(hoy, 30), "yyyy-MM-dd"),
+                to: format(hoy, "yyyy-MM-dd"),
+            };
+        case "THIS_YEAR":
+            return {
+                from: format(startOfYear(hoy), "yyyy-MM-dd"),
+                to: format(hoy, "yyyy-MM-dd"),
+            };
+        case "ALL_TIME":
+        case "CUSTOM":
+            return { from: "", to: "" };
+    }
 }
 
 const ETIQUETA_FRECUENCIA: Record<string, string> = {
@@ -53,6 +131,32 @@ export default function ReportsPage() {
     const [cargandoProgramados, setCargandoProgramados] = useState(true);
     const [errorProgramados, setErrorProgramados] = useState<string | null>(null);
     const [categoria, setCategoria] = useState("ALL");
+    const [busqueda, setBusqueda] = useState("");
+
+    // Gestión de eliminación de reportes programados
+    const [reporteAEliminar, setReporteAEliminar] = useState<ReporteProgramado | null>(null);
+    const [eliminando, setEliminando] = useState(false);
+
+    // Período de descarga
+    const [presetPeriodo, setPresetPeriodo] = useState<PresetPeriodo>("THIS_MONTH");
+    const [rangoFechas, setRangoFechas] = useState<{ from: string; to: string }>(() =>
+        calcularRango("THIS_MONTH")
+    );
+
+    const handlePresetChange = (nuevoPreset: PresetPeriodo) => {
+        setPresetPeriodo(nuevoPreset);
+        if (nuevoPreset !== "CUSTOM") {
+            setRangoFechas(calcularRango(nuevoPreset));
+        } else {
+            const hoy = format(new Date(), "yyyy-MM-dd");
+            const haceTreinta = format(subDays(new Date(), 30), "yyyy-MM-dd");
+            setRangoFechas({ from: haceTreinta, to: hoy });
+        }
+    };
+
+    const etiquetaPeriodo = useMemo(() => {
+        return ETIQUETA_PRESET[presetPeriodo];
+    }, [presetPeriodo]);
 
     const sucursalActiva = useMemo(() => {
         if (!selectedBranchId) return "Todas las sucursales";
@@ -64,9 +168,6 @@ export default function ReportsPage() {
         setErrorProgramados(null);
         try {
             const res = await fetch("/api/reports/scheduled");
-            // `res.ok` explícito: antes un 500 se resolvía a `null`, se guardaba
-            // como lista vacía y la pantalla decía "No hay reportes programados"
-            // a alguien cuyo envío semanal lleva medio año corriendo.
             if (!res.ok) throw new Error("No se pudieron cargar los reportes programados");
             const json = await res.json();
             setProgramados(Array.isArray(json) ? json : json?.reports ?? []);
@@ -82,6 +183,24 @@ export default function ReportsPage() {
         cargarProgramados();
     }, [cargarProgramados]);
 
+    const eliminarProgramacion = async () => {
+        if (!reporteAEliminar) return;
+        setEliminando(true);
+        try {
+            const res = await fetch(`/api/reports/scheduled/${reporteAEliminar.id}`, {
+                method: "DELETE",
+            });
+            if (!res.ok) throw new Error("No se pudo eliminar el reporte programado");
+            setProgramados((prev) => prev.filter((p) => p.id !== reporteAEliminar.id));
+            toast.success(`"${reporteAEliminar.name || "Reporte"}" eliminado de la programación`);
+            setReporteAEliminar(null);
+        } catch (error: any) {
+            toast.error(error?.message || "Error al eliminar reporte");
+        } finally {
+            setEliminando(false);
+        }
+    };
+
     const generar = async (reporteId: string, nombre: string, formato: FormatoReporte) => {
         setGenerando(`${reporteId}:${formato}`);
         try {
@@ -92,6 +211,8 @@ export default function ReportsPage() {
                     reportId: reporteId,
                     format: formato,
                     branchId: selectedBranchId,
+                    dateFrom: rangoFechas.from || undefined,
+                    dateTo: rangoFechas.to || undefined,
                 }),
             });
 
@@ -105,9 +226,6 @@ export default function ReportsPage() {
                 throw new Error(mensaje);
             }
 
-            // Un archivo se reconoce por lo que el servidor dice que es. Adivinar
-            // la extensión en el cliente fue lo que hacía que un JSON de error
-            // terminara guardado como .pdf y anunciado como éxito.
             const tipo = res.headers.get("Content-Type") ?? "";
             if (tipo.includes("application/json")) {
                 throw new Error("El servidor no devolvió un archivo. Vuelve a intentar.");
@@ -125,7 +243,11 @@ export default function ReportsPage() {
             a.download = propuesto || respaldo;
             a.click();
             window.URL.revokeObjectURL(url);
-            toast.success(`${nombre} descargado en ${formato}`);
+            
+            const detallePeriodo = presetPeriodo === "ALL_TIME"
+                ? "todo el historial"
+                : `${etiquetaPeriodo.toLowerCase()}`;
+            toast.success(`${nombre} descargado en ${formato} (${detallePeriodo})`);
         } catch (error: any) {
             toast.error(error?.message || "No se pudo generar el reporte");
         } finally {
@@ -133,9 +255,15 @@ export default function ReportsPage() {
         }
     };
 
-    const visibles = REPORTES.filter(
-        (r) => categoria === "ALL" || GRUPOS_CATEGORIA[categoria]?.includes(r.category)
-    );
+    const visibles = useMemo(() => {
+        return REPORTES.filter((r) => {
+            const coincideCat = categoria === "ALL" || GRUPOS_CATEGORIA[categoria]?.includes(r.category);
+            if (!coincideCat) return false;
+            if (!busqueda.trim()) return true;
+            const q = busqueda.toLowerCase();
+            return r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q);
+        });
+    }, [categoria, busqueda]);
 
     return (
         <PageContainer>
@@ -153,20 +281,64 @@ export default function ReportsPage() {
                 }
             />
 
-            {/* El alcance vive en el encabezado del dashboard. Esta pantalla tenía
-                su propio selector de sucursal y su propio rango de fechas, y era
-                el suyo el que mandaba: el encabezado podía decir "Reforma"
-                mientras la descarga traía toda la cadena. */}
-            <p className="text-sm text-muted-foreground">
-                Los reportes se generan para{" "}
-                <span className="font-medium text-foreground">{sucursalActiva}</span>. Cámbialo
-                desde el selector de sucursal del encabezado.
-            </p>
+            {/* Barra de alcance y selector de período */}
+            <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+                        <Calendar className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">
+                            Período de descarga:{" "}
+                            <span className="font-semibold text-primary">{etiquetaPeriodo}</span>
+                            {" · "}
+                            <span className="font-normal text-muted-foreground">{sucursalActiva}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            {rangoFechas.from && rangoFechas.to
+                                ? `${format(new Date(rangoFechas.from + "T00:00:00"), "d 'de' MMMM", { locale: es })} al ${format(new Date(rangoFechas.to + "T00:00:00"), "d 'de' MMMM yyyy", { locale: es })}`
+                                : "Sin filtro de fecha: incluye todo el historial"}
+                        </p>
+                    </div>
+                </div>
 
-            {/* Cada reporte del catálogo entrega una sucursal o todas fundidas en
-                un total. La pregunta que llega el dueño de ocho sucursales —cuál
-                de todas va atrasada— la contesta la comparativa, que ya existe y
-                que esta pantalla nunca mencionaba. */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <Select value={presetPeriodo} onValueChange={(val: PresetPeriodo) => handlePresetChange(val)}>
+                        <SelectTrigger className="h-10 w-44 text-xs font-medium" aria-label="Seleccionar período de reporte">
+                            <SelectValue placeholder="Elegir período" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="THIS_MONTH">Este mes</SelectItem>
+                            <SelectItem value="LAST_MONTH">Mes anterior</SelectItem>
+                            <SelectItem value="LAST_30_DAYS">Últimos 30 días</SelectItem>
+                            <SelectItem value="THIS_YEAR">Año en curso</SelectItem>
+                            <SelectItem value="ALL_TIME">Todo el historial</SelectItem>
+                            <SelectItem value="CUSTOM">Rango personalizado</SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    {presetPeriodo === "CUSTOM" && (
+                        <div className="flex items-center gap-1.5">
+                            <Input
+                                type="date"
+                                className="h-10 w-36 text-xs"
+                                value={rangoFechas.from}
+                                onChange={(e) => setRangoFechas((prev) => ({ ...prev, from: e.target.value }))}
+                                aria-label="Fecha inicial de reporte"
+                            />
+                            <span className="text-xs text-muted-foreground">a</span>
+                            <Input
+                                type="date"
+                                className="h-10 w-36 text-xs"
+                                value={rangoFechas.to}
+                                onChange={(e) => setRangoFechas((prev) => ({ ...prev, to: e.target.value }))}
+                                aria-label="Fecha final de reporte"
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {!selectedBranchId && (
                 <Card>
                     <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
@@ -190,17 +362,38 @@ export default function ReportsPage() {
                 </Card>
             )}
 
-            <Tabs value={categoria} onValueChange={setCategoria}>
-                {/* `grid-cols-5` fijo cortaba "Cumplimiento" en iPad vertical. */}
-                <TabsList className="flex w-full flex-wrap justify-start gap-1 sm:grid sm:grid-cols-5">
-                    {CATEGORIAS.map((cat) => (
-                        <TabsTrigger key={cat.id} value={cat.id}>
-                            {cat.label}
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
+            <div className="space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <Tabs value={categoria} onValueChange={setCategoria} className="w-full sm:w-auto">
+                        <TabsList className="flex w-full flex-wrap justify-start gap-1 sm:w-auto">
+                            {CATEGORIAS.map((cat) => (
+                                <TabsTrigger key={cat.id} value={cat.id}>
+                                    {cat.label}
+                                </TabsTrigger>
+                            ))}
+                        </TabsList>
+                    </Tabs>
 
-                <TabsContent value={categoria} className="mt-6">
+                    <div className="relative w-full sm:w-64">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                        <Input
+                            type="search"
+                            placeholder="Buscar reporte…"
+                            className="h-10 pl-9 text-xs"
+                            value={busqueda}
+                            onChange={(e) => setBusqueda(e.target.value)}
+                            aria-label="Buscar en catálogo de reportes"
+                        />
+                    </div>
+                </div>
+
+                {visibles.length === 0 ? (
+                    <EmptyState
+                        icon={FileText}
+                        title="No se encontraron reportes"
+                        description="Intenta buscar con otros términos o cambia la categoría seleccionada."
+                    />
+                ) : (
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {visibles.map((reporte) => {
                             const proximamente = Boolean(reporte.comingSoon);
@@ -259,14 +452,10 @@ export default function ReportsPage() {
                                                                 />
                                                             )}
                                                             <span aria-hidden="true">{formato}</span>
-                                                            {/* El nombre del reporte va en el
-                                                                nombre accesible: 27 botones que
-                                                                sólo dicen "PDF" son inservibles
-                                                                con lector de pantalla. */}
                                                             <span className="sr-only">
                                                                 {estaGenerando
-                                                                    ? `Generando ${reporte.name} en ${formato}`
-                                                                    : `Descargar ${reporte.name} en ${formato}`}
+                                                                    ? `Generando ${reporte.name} en ${formato} para ${etiquetaPeriodo}`
+                                                                    : `Descargar ${reporte.name} en ${formato} para ${etiquetaPeriodo}`}
                                                             </span>
                                                         </Button>
                                                     );
@@ -278,8 +467,8 @@ export default function ReportsPage() {
                             );
                         })}
                     </div>
-                </TabsContent>
-            </Tabs>
+                )}
+            </div>
 
             <Card>
                 <CardHeader>
@@ -322,19 +511,28 @@ export default function ReportsPage() {
                                 const ultimo = fechaCorta(reporte.lastRunAt);
                                 const siguiente = fechaCorta(reporte.nextRunAt);
                                 const fallo = reporte.lastRunStatus === "FAILED";
+                                const formatoSched = (sched.format === "Excel" || sched.format === "EXCEL" ? "Excel" : "PDF") as FormatoReporte;
 
                                 return (
                                     <li
                                         key={reporte.id}
                                         className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
                                     >
-                                        <div className="min-w-0">
-                                            <p className="font-medium text-pretty">
-                                                {reporte.name || "Reporte programado"}
-                                            </p>
-                                            {/* Sólo lo que el registro dice de verdad. Los
-                                                respaldos "07:00" y "PDF" afirmaban una
-                                                configuración que nadie había capturado. */}
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-medium text-pretty">
+                                                    {reporte.name || "Reporte programado"}
+                                                </p>
+                                                {fallo ? (
+                                                    <Badge variant="destructive" className="shrink-0 text-xs">
+                                                        Falló el último envío
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="shrink-0 text-xs">
+                                                        Activo
+                                                    </Badge>
+                                                )}
+                                            </div>
                                             <p className="text-sm text-muted-foreground">
                                                 {[frecuencia, sched.time, sched.format]
                                                     .filter(Boolean)
@@ -345,15 +543,56 @@ export default function ReportsPage() {
                                                 {siguiente ? ` · Siguiente: ${siguiente}` : ""}
                                             </p>
                                         </div>
-                                        {fallo ? (
-                                            <Badge variant="destructive" className="shrink-0">
-                                                Falló el último envío
-                                            </Badge>
-                                        ) : (
-                                            <Badge variant="outline" className="shrink-0">
-                                                Activo
-                                            </Badge>
-                                        )}
+
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-9"
+                                                onClick={() =>
+                                                    generar(
+                                                        reporte.dataSource || "workflow-summary",
+                                                        reporte.name || "Reporte",
+                                                        formatoSched
+                                                    )
+                                                }
+                                                disabled={Boolean(generando)}
+                                            >
+                                                <Play className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+                                                Descargar ahora
+                                            </Button>
+
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-9 w-9">
+                                                        <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                                                        <span className="sr-only">Opciones de {reporte.name}</span>
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem
+                                                        onClick={() =>
+                                                            generar(
+                                                                reporte.dataSource || "workflow-summary",
+                                                                reporte.name || "Reporte",
+                                                                formatoSched
+                                                            )
+                                                        }
+                                                    >
+                                                        <Download className="h-4 w-4 mr-2" />
+                                                        Generar archivo ahora
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem
+                                                        className="text-destructive focus:text-destructive"
+                                                        onClick={() => setReporteAEliminar(reporte)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4 mr-2" />
+                                                        Eliminar programación
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
                                     </li>
                                 );
                             })}
@@ -368,6 +607,28 @@ export default function ReportsPage() {
                     </Button>
                 </CardContent>
             </Card>
+
+            {/* Confirmación para eliminar reporte programado */}
+            <AlertDialog open={Boolean(reporteAEliminar)} onOpenChange={(open) => !open && setReporteAEliminar(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar reporte programado?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Se cancelarán los envíos periódicos de &quot;{reporteAEliminar?.name}&quot;. Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={eliminando}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={eliminarProgramacion}
+                            disabled={eliminando}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            {eliminando ? "Eliminando…" : "Eliminar programación"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </PageContainer>
     );
 }

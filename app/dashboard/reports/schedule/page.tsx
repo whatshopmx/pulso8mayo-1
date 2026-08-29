@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -14,14 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar, ArrowLeft, Loader2 } from "lucide-react";
+import { Calendar, ArrowLeft, Loader2, X, Mail, Plus } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { PageHeader, PageContainer } from "@/components/shared";
 // Catálogo compartido: la copia local de esta pantalla ya se había quedado
 // sin NOM-035 respecto a la del catálogo principal.
 import { REPORTES_PROGRAMABLES } from "../report-catalog";
-
 
 const FREQUENCIES = [
   { value: "DAILY", label: "Diaria" },
@@ -50,10 +50,16 @@ const DELIVERY_METHODS = [
   { value: "BOTH", label: "Correo y descarga" },
 ];
 
+const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
 export default function ScheduleReportPage() {
   const router = useRouter();
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  const [emailList, setEmailList] = useState<string[]>([]);
+  const [emailInput, setEmailInput] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -66,7 +72,6 @@ export default function ScheduleReportPage() {
     time: "08:00",
     format: "PDF",
     deliveryMethod: "EMAIL",
-    deliveryEmails: "",
   });
 
   useEffect(() => {
@@ -83,11 +88,57 @@ export default function ScheduleReportPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const addEmailsFromInput = () => {
+    if (!emailInput.trim()) return;
+    const parts = emailInput.split(/[\s,]+/).filter(Boolean);
+    const validos: string[] = [];
+    let invalidFound = false;
+
+    for (const part of parts) {
+      const clean = part.trim().toLowerCase();
+      if (isValidEmail(clean)) {
+        if (!emailList.includes(clean) && !validos.includes(clean)) {
+          validos.push(clean);
+        }
+      } else {
+        invalidFound = true;
+      }
+    }
+
+    if (invalidFound) {
+      setEmailError("Verifica el formato del correo (ej: direccion@empresa.com)");
+    } else {
+      setEmailError(null);
+    }
+
+    if (validos.length > 0) {
+      setEmailList((prev) => [...prev, ...validos]);
+      setEmailInput("");
+    }
+  };
+
+  const removeEmail = (emailToRemove: string) => {
+    setEmailList((prev) => prev.filter((e) => e !== emailToRemove));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!form.name || !form.dataSource) {
       toast.error("Completa los campos obligatorios");
+      return;
+    }
+
+    const finalEmails = [...emailList];
+    if (emailInput.trim() && isValidEmail(emailInput.trim())) {
+      const clean = emailInput.trim().toLowerCase();
+      if (!finalEmails.includes(clean)) {
+        finalEmails.push(clean);
+      }
+    }
+
+    if ((form.deliveryMethod === "EMAIL" || form.deliveryMethod === "BOTH") && finalEmails.length === 0) {
+      toast.error("Agrega al menos un correo de entrega válido");
       return;
     }
 
@@ -116,9 +167,7 @@ export default function ScheduleReportPage() {
           fields: { format: form.format },
           schedule,
           deliveryMethod: form.deliveryMethod,
-          deliveryEmails: form.deliveryEmails
-            ? form.deliveryEmails.split(",").map((e: string) => e.trim())
-            : [],
+          deliveryEmails: finalEmails,
           branchId: form.branchId === "all" ? null : form.branchId,
         }),
       });
@@ -356,17 +405,74 @@ export default function ScheduleReportPage() {
             {(form.deliveryMethod === "EMAIL" ||
               form.deliveryMethod === "BOTH") && (
               <div className="space-y-2">
-                <Label htmlFor="deliveryEmails">
-                  Correos electrónicos (separados por coma)
+                <Label htmlFor="emailInput">
+                  Destinatarios por correo
                 </Label>
-                <Input
-                  id="deliveryEmails"
-                className="h-11"
-                  type="text"
-                  placeholder="correo@ejemplo.com, otro@ejemplo.com"
-                  value={form.deliveryEmails}
-                  onChange={(e) => updateField("deliveryEmails", e.target.value)}
-                />
+                <div className="flex flex-wrap gap-2 mb-2 min-h-6">
+                  {emailList.map((email) => (
+                    <Badge
+                      key={email}
+                      variant="secondary"
+                      className="flex items-center gap-1.5 py-1 px-2.5 text-xs font-normal"
+                    >
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                      <span>{email}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeEmail(email)}
+                        className="rounded-full p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground"
+                        aria-label={`Eliminar correo ${email}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                  {emailList.length === 0 && (
+                    <p className="text-xs text-muted-foreground py-1">
+                      Agrega los correos de las personas que deben recibir este reporte.
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                    <Input
+                      id="emailInput"
+                      className="h-11 pl-9 text-xs sm:text-sm"
+                      type="email"
+                      placeholder="ejemplo@restaurante.com"
+                      value={emailInput}
+                      onChange={(e) => {
+                        setEmailInput(e.target.value);
+                        if (emailError) setEmailError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === "," || e.key === " ") {
+                          e.preventDefault();
+                          addEmailsFromInput();
+                        }
+                      }}
+                      onBlur={() => addEmailsFromInput()}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 px-4"
+                    onClick={() => addEmailsFromInput()}
+                    disabled={!emailInput.trim()}
+                  >
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    Agregar
+                  </Button>
+                </div>
+                {emailError && (
+                  <p className="text-xs text-destructive mt-1">{emailError}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Presiona Enter, coma o espacio para agregar múltiples correos.
+                </p>
               </div>
             )}
           </CardContent>

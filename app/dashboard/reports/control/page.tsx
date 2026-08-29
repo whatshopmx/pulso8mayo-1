@@ -1,12 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader, PageContainer, EmptyState, ErrorState } from "@/components/shared";
 import { useControlReport } from "@/hooks/queries/use-control-report";
 import { useBranch } from "@/lib/branch-context";
 import type {
@@ -23,13 +24,12 @@ import type {
   SemaphoreStatus,
 } from "@/lib/services/control-kpi-types";
 import {
-  AlertCircle,
   AlertTriangle,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Gauge,
   Loader2,
-  RefreshCw,
   Siren,
   Store,
   Tags,
@@ -158,58 +158,56 @@ export default function ControlReportPage() {
   const operatingExpense = report.data?.operatingExpense;
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Gauge className="h-7 w-7 text-primary" /> Control gerencial
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Ejecución presupuestal y disciplina de compra del mes, sobre OC/OS que comprometen
-            presupuesto.
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5" role="group" aria-label="Selector de mes">
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Mes anterior"
-            onClick={() => setMonth(shiftMonth(month, -1))}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Input
-            type="month"
-            value={month}
-            onChange={(e) => e.target.value && setMonth(e.target.value)}
-            aria-label="Mes del reporte"
-            className="w-44"
-          />
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Mes siguiente"
-            onClick={() => setMonth(shiftMonth(month, 1))}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Control gerencial"
+        description="Ejecución presupuestal y disciplina de compra del mes, sobre OC/OS que comprometen presupuesto."
+        icon={Gauge}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/dashboard/reports">
+                <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
+                Catálogo de reportes
+              </Link>
+            </Button>
+            <div className="flex items-center gap-1.5" role="group" aria-label="Selector de mes">
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Mes anterior"
+                onClick={() => setMonth(shiftMonth(month, -1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Input
+                type="month"
+                value={month}
+                onChange={(e) => e.target.value && setMonth(e.target.value)}
+                aria-label="Mes del reporte"
+                className="w-44 h-10 text-xs"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Mes siguiente"
+                onClick={() => setMonth(shiftMonth(month, 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        }
+      />
 
       {report.isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando KPIs de {monthLabel(month)}…
         </div>
       ) : report.isError ? (
-        <EmptyState
-          icon={AlertCircle}
-          title="No se pudieron cargar los KPIs"
-          description={report.error instanceof Error ? report.error.message : "Intenta de nuevo."}
-          action={
-            <Button variant="outline" size="sm" onClick={() => report.refetch()}>
-              <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
-            </Button>
-          }
+        <ErrorState
+          message={report.error instanceof Error ? report.error.message : "No se pudieron cargar los KPIs"}
+          onRetry={() => report.refetch()}
         />
       ) : (
         <>
@@ -432,7 +430,6 @@ export default function ControlReportPage() {
               {activeRows.length === 0 ? (
                 <EmptyState
                   icon={Wallet}
-                  bare
                   title="Sin movimiento presupuestal en el mes"
                   description="No hay presupuesto capturado ni OC/OS aprobadas que comprometan partidas en este período."
                 />
@@ -507,14 +504,12 @@ export default function ControlReportPage() {
               {branchCount < 2 ? (
                 <EmptyState
                   icon={Store}
-                  bare
                   title="El comparativo necesita al menos dos sucursales"
                   description="El alcance actual es de una sola sucursal. Quita el filtro de sucursal para comparar precios entre ellas."
                 />
               ) : priceComparison.length === 0 ? (
                 <EmptyState
                   icon={Tags}
-                  bare
                   title="Sin insumos comparables este mes"
                   description="Ningún insumo se compró en más de una sucursal con órdenes que comprometan presupuesto."
                 />
@@ -590,7 +585,6 @@ export default function ControlReportPage() {
               {supplierRanking.length === 0 ? (
                 <EmptyState
                   icon={Truck}
-                  bare
                   title="Sin gasto atribuido a proveedores este mes"
                   description="No hay OC ni OS con proveedor asignado en estados que comprometan presupuesto."
                 />
@@ -635,6 +629,6 @@ export default function ControlReportPage() {
           </Card>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }
