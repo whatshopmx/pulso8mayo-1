@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
         }
 
         const searchParams = request.nextUrl.searchParams;
+        const branchId = searchParams.get("branchId");
         const dateFrom = searchParams.get("dateFrom");
         const dateTo = searchParams.get("dateTo");
         const search = searchParams.get("search");
@@ -28,17 +29,21 @@ export async function GET(request: NextRequest) {
             eq(workflowInstanceSteps.instanceId, workflowInstances.id),
         ];
 
-if (dateFrom) {
-  conditions.push(gte(workflowInstances.createdAt, new Date(dateFrom)));
-}
+        if (branchId && branchId !== "all") {
+            conditions.push(eq(workflowInstances.branchId, branchId));
+        }
 
-if (dateTo) {
-  conditions.push(lte(workflowInstances.createdAt, new Date(dateTo)));
-}
+        if (dateFrom) {
+            conditions.push(gte(workflowInstances.createdAt, new Date(dateFrom)));
+        }
+
+        if (dateTo) {
+            conditions.push(lte(workflowInstances.createdAt, new Date(dateTo)));
+        }
 
         if (search) {
             conditions.push(
-                sql`(${workflowTemplates.name} ILIKE ${`%${search}%`})`
+                sql`(${workflowTemplates.name} ILIKE ${`%${search}%`} OR ${workflowInstanceSteps.stepId} ILIKE ${`%${search}%`} OR ${branches.name} ILIKE ${`%${search}%`} OR ${users.name} ILIKE ${`%${search}%`})`
             );
         }
 
@@ -88,6 +93,7 @@ if (dateTo) {
                 stepName: evidence.stepId,
                 assigneeName: evidence.assigneeName || "Sin asignar",
                 branchName: evidence.branchName || "Sin sucursal",
+                branchId: evidence.branchId || undefined,
                 createdAt: evidence.createdAt,
                 aiVerified: aiVerified,
                 aiScore: aiAnalysis?.confidence ? Math.round(aiAnalysis.confidence * 100) : undefined,
