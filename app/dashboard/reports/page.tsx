@@ -210,7 +210,7 @@ export default function ReportsPage() {
                 body: JSON.stringify({
                     reportId: reporteId,
                     format: formato,
-                    branchId: selectedBranchId,
+                    branchId: selectedBranchId || undefined,
                     dateFrom: rangoFechas.from || undefined,
                     dateTo: rangoFechas.to || undefined,
                 }),
@@ -219,7 +219,8 @@ export default function ReportsPage() {
             if (!res.ok) {
                 let mensaje = "No se pudo generar el reporte";
                 try {
-                    mensaje = (await res.json())?.error || mensaje;
+                    const data = await res.json();
+                    mensaje = data?.error || mensaje;
                 } catch {
                     /* respuesta sin cuerpo JSON */
                 }
@@ -228,7 +229,14 @@ export default function ReportsPage() {
 
             const tipo = res.headers.get("Content-Type") ?? "";
             if (tipo.includes("application/json")) {
-                throw new Error("El servidor no devolvió un archivo. Vuelve a intentar.");
+                let mensaje = "El servidor no devolvió un archivo.";
+                try {
+                    const data = await res.json();
+                    mensaje = data?.error || mensaje;
+                } catch {
+                    /* respuesta sin cuerpo JSON */
+                }
+                throw new Error(mensaje);
             }
 
             const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -241,15 +249,18 @@ export default function ReportsPage() {
             const a = document.createElement("a");
             a.href = url;
             a.download = propuesto || respaldo;
+            document.body.appendChild(a);
             a.click();
+            document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
             
             const detallePeriodo = presetPeriodo === "ALL_TIME"
                 ? "todo el historial"
                 : `${etiquetaPeriodo.toLowerCase()}`;
             toast.success(`${nombre} descargado en ${formato} (${detallePeriodo})`);
-        } catch (error: any) {
-            toast.error(error?.message || "No se pudo generar el reporte");
+        } catch (error: unknown) {
+            const mensaje = error instanceof Error ? error.message : "No se pudo generar el reporte";
+            toast.error(mensaje);
         } finally {
             setGenerando(null);
         }
@@ -435,14 +446,14 @@ export default function ReportsPage() {
                                                             key={formato}
                                                             variant="outline"
                                                             className="h-11 flex-1"
-                                                            disabled={Boolean(generando)}
+                                                            disabled={estaGenerando}
                                                             onClick={() =>
                                                                 generar(reporte.id, reporte.name, formato)
                                                             }
                                                         >
                                                             {estaGenerando ? (
                                                                 <Loader2
-                                                                    className="h-4 w-4 animate-spin"
+                                                                    className="h-4 w-4 animate-spin mr-1"
                                                                     aria-hidden="true"
                                                                 />
                                                             ) : (
@@ -556,9 +567,13 @@ export default function ReportsPage() {
                                                         formatoSched
                                                     )
                                                 }
-                                                disabled={Boolean(generando)}
+                                                disabled={generando === `${reporte.dataSource || "workflow-summary"}:${formatoSched}`}
                                             >
-                                                <Play className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+                                                {generando === `${reporte.dataSource || "workflow-summary"}:${formatoSched}` ? (
+                                                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" aria-hidden="true" />
+                                                ) : (
+                                                    <Play className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+                                                )}
                                                 Descargar ahora
                                             </Button>
 
