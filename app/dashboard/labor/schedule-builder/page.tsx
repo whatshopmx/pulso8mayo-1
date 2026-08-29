@@ -2,6 +2,7 @@
 
 import { UnifiedShiftScheduler } from "@/components/labor/unified-shift-scheduler";
 import { useRequireRole } from "@/hooks/use-session";
+import { CalendarDays } from "lucide-react";
 
 export default function ScheduleBuilderPage() {
   const { loading } = useRequireRole(['SUPER_ADMIN', 'ADMIN', 'GERENTE', 'SUPERVISOR']);
@@ -11,11 +12,14 @@ export default function ScheduleBuilderPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Schedule Builder</h1>
-        <p className="text-muted-foreground">
-          Gestión unificada de turnos, horarios y descansos.
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+          <CalendarDays className="h-6 w-6 text-primary" />
+          Constructor de Horarios y Turnos
+        </h1>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Planificación semanal de turnos, descansos obligatorios y verificación de límites de jornada (LFT)
         </p>
       </div>
       <UnifiedShiftScheduler />

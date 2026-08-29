@@ -1,13 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { format, parseISO, startOfDay, endOfDay } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
-import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
-import { Clock, Users, TrendingUp, AlertCircle, CheckCircle, Calendar } from "lucide-react"
+import { BarChart, Bar, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
+import { Clock, Users, TrendingUp, CheckCircle, Calendar, RefreshCw, Building2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AttendanceReport } from "./attendance-report"
 import { AttendanceRecord } from "@/app/api/reports/attendance/route"
 
@@ -18,19 +20,72 @@ interface AttendanceDashboardProps {
     }
 }
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D"]
+// System tokens for data visualization (OKLCH aligned)
+const CHART_COLORS = [
+    "hsl(var(--primary))",
+    "hsl(var(--chart-2, 160 60% 45%))",
+    "hsl(var(--chart-3, 30 80% 55%))",
+    "hsl(var(--chart-4, 280 65% 60%))",
+    "hsl(var(--chart-5, 340 75% 55%))",
+    "hsl(var(--chart-1, 220 70% 50%))",
+]
 
 export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
     const [records, setRecords] = React.useState<AttendanceRecord[]>(initialData?.data || [])
-    const [summary, setSummary] = React.useState(initialData?.summary || {})
+    const [summary, setSummary] = React.useState<any>(initialData?.summary || {})
     const [timeRange, setTimeRange] = React.useState<"7d" | "30d" | "90d">("30d")
+    const [selectedBranch, setSelectedBranch] = React.useState<string>("all")
+    const [branches, setBranches] = React.useState<Array<{ id: string; name: string }>>([])
+    const [loading, setLoading] = React.useState(false)
+
+    const fetchBranches = React.useCallback(async () => {
+        try {
+            const res = await fetch("/api/branches")
+            if (res.ok) {
+                const data = await res.json()
+                setBranches(data.data || data.branches || data || [])
+            }
+        } catch (err) {
+            console.error("Error fetching branches:", err)
+        }
+    }, [])
+
+    const fetchAttendance = React.useCallback(async () => {
+        try {
+            setLoading(true)
+            const end = new Date()
+            const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90
+            const start = new Date()
+            start.setDate(start.getDate() - days)
+
+            const startDate = start.toISOString().split("T")[0]
+            const endDate = end.toISOString().split("T")[0]
+
+            const params = new URLSearchParams({ startDate, endDate })
+            if (selectedBranch !== "all") {
+                params.set("branchId", selectedBranch)
+            }
+
+            const res = await fetch(`/api/reports/attendance?${params}`)
+            if (res.ok) {
+                const data = await res.json()
+                setRecords(data.data || [])
+                setSummary(data.summary || {})
+            }
+        } catch (err) {
+            console.error("Error fetching attendance report:", err)
+        } finally {
+            setLoading(false)
+        }
+    }, [timeRange, selectedBranch])
 
     React.useEffect(() => {
-        if (initialData) {
-            setRecords(initialData.data)
-            setSummary(initialData.summary)
-        }
-    }, [initialData])
+        fetchBranches()
+    }, [fetchBranches])
+
+    React.useEffect(() => {
+        fetchAttendance()
+    }, [fetchAttendance])
 
     // Calculate daily trends
     const dailyTrends = React.useMemo(() => {
@@ -48,18 +103,20 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                     employees: new Set<string>()
                 }
             }
-            grouped[date].workMinutes += record.totalWorkMinutes
-            grouped[date].breakMinutes += record.breakMinutes
-            grouped[date].overtimeMinutes += record.overtimeMinutes
+            grouped[date].workMinutes += record.totalWorkMinutes || 0
+            grouped[date].breakMinutes += record.breakMinutes || 0
+            grouped[date].overtimeMinutes += record.overtimeMinutes || 0
             grouped[date].shifts += 1
-            grouped[date].employees.add(record.userId)
+            if (record.userId) {
+                grouped[date].employees.add(record.userId)
+            }
         })
 
         return Object.values(grouped)
             .map(d => ({
                 ...d,
-                workHours: (d.workMinutes / 60).toFixed(1),
-                avgHours: (d.workMinutes / d.employees.size / 60).toFixed(1),
+                workHours: Number(((d.workMinutes || 0) / 60).toFixed(1)),
+                avgHours: Number(((d.workMinutes || 0) / (d.employees.size || 1) / 60).toFixed(1)),
                 employeeCount: d.employees.size
             }))
             .sort((a, b) => a.date.localeCompare(b.date))
@@ -71,6 +128,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
         const grouped: Record<string, any> = {}
 
         records.forEach(record => {
+            if (!record.userId) return
             if (!grouped[record.userId]) {
                 grouped[record.userId] = {
                     userId: record.userId,
@@ -81,21 +139,20 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                     totalBreakMinutes: 0,
                     totalOvertimeMinutes: 0,
                     shifts: 0,
-                    lateArrivals: 0 // Could be calculated if we have scheduled times
                 }
             }
-            grouped[record.userId].totalWorkMinutes += record.totalWorkMinutes
-            grouped[record.userId].totalBreakMinutes += record.breakMinutes
-            grouped[record.userId].totalOvertimeMinutes += record.overtimeMinutes
+            grouped[record.userId].totalWorkMinutes += record.totalWorkMinutes || 0
+            grouped[record.userId].totalBreakMinutes += record.breakMinutes || 0
+            grouped[record.userId].totalOvertimeMinutes += record.overtimeMinutes || 0
             grouped[record.userId].shifts += 1
         })
 
         return Object.values(grouped)
             .map(e => ({
                 ...e,
-                totalHours: (e.totalWorkMinutes / 60).toFixed(1),
-                avgHoursPerShift: (e.totalWorkMinutes / e.shifts / 60).toFixed(1),
-                overtimeHours: (e.totalOvertimeMinutes / 60).toFixed(1)
+                totalHours: Number(((e.totalWorkMinutes || 0) / 60).toFixed(1)),
+                avgHoursPerShift: Number(((e.totalWorkMinutes || 0) / (e.shifts || 1) / 60).toFixed(1)),
+                overtimeHours: Number(((e.totalOvertimeMinutes || 0) / 60).toFixed(1))
             }))
             .sort((a, b) => b.totalWorkMinutes - a.totalWorkMinutes)
             .slice(0, 10)
@@ -110,11 +167,13 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
         }
 
         records.forEach(record => {
-            statusCounts[record.status] = (statusCounts[record.status] || 0) + 1
+            if (record.status) {
+                statusCounts[record.status] = (statusCounts[record.status] || 0) + 1
+            }
         })
 
         return Object.entries(statusCounts).map(([name, value]) => ({
-            name: name === "COMPLETED" ? "Completado" : name === "ACTIVE" ? "Activo" : "No presentado",
+            name: name === "COMPLETED" ? "Completado" : name === "ACTIVE" ? "En Turno" : "No presentado",
             value
         }))
     }, [records])
@@ -124,28 +183,31 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
         const grouped: Record<string, any> = {}
 
         records.forEach(record => {
-            if (!grouped[record.branchId]) {
-                grouped[record.branchId] = {
-                    branchId: record.branchId,
-                    branchName: record.branchName,
+            const bId = record.branchId || "general"
+            if (!grouped[bId]) {
+                grouped[bId] = {
+                    branchId: bId,
+                    branchName: record.branchName || "General",
                     totalWorkMinutes: 0,
                     totalOvertimeMinutes: 0,
                     shifts: 0,
                     employees: new Set<string>()
                 }
             }
-            grouped[record.branchId].totalWorkMinutes += record.totalWorkMinutes
-            grouped[record.branchId].totalOvertimeMinutes += record.overtimeMinutes
-            grouped[record.branchId].shifts += 1
-            grouped[record.branchId].employees.add(record.userId)
+            grouped[bId].totalWorkMinutes += record.totalWorkMinutes || 0
+            grouped[bId].totalOvertimeMinutes += record.overtimeMinutes || 0
+            grouped[bId].shifts += 1
+            if (record.userId) {
+                grouped[bId].employees.add(record.userId)
+            }
         })
 
         return Object.values(grouped).map(b => ({
             ...b,
-            totalHours: (b.totalWorkMinutes / 60).toFixed(1),
-            overtimeHours: (b.totalOvertimeMinutes / 60).toFixed(1),
+            totalHours: Number(((b.totalWorkMinutes || 0) / 60).toFixed(1)),
+            overtimeHours: Number(((b.totalOvertimeMinutes || 0) / 60).toFixed(1)),
             employeeCount: b.employees.size,
-            avgHoursPerEmployee: (b.totalWorkMinutes / b.employees.size / 60).toFixed(1)
+            avgHoursPerEmployee: Number(((b.totalWorkMinutes || 0) / (b.employees.size || 1) / 60).toFixed(1))
         }))
     }, [records])
 
@@ -157,119 +219,164 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+            {/* Header with Branch & TimeRange Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Dashboard de Asistencia</h1>
-                    <p className="text-muted-foreground">
-                        Análisis y métricas de asistencia de empleados
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">Auditoría de Asistencia y Turnos</h1>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                        Métricas de horas trabajadas, puntualidad y cumplimiento de jornada laboral
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Tabs value={timeRange} onValueChange={(v) => setTimeRange(v as any)} className="w-[400px]">
-                        <TabsList className="grid w-full grid-cols-3">
-                            <TabsTrigger value="7d">7 días</TabsTrigger>
-                            <TabsTrigger value="30d">30 días</TabsTrigger>
-                            <TabsTrigger value="90d">90 días</TabsTrigger>
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className="w-48">
+                        <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                            <SelectTrigger className="h-8 text-xs">
+                                <Building2 className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                                <SelectValue placeholder="Todas las sucursales" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todas las sucursales</SelectItem>
+                                {branches.map(b => (
+                                    <SelectItem key={b.id} value={b.id}>
+                                        {b.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <Tabs value={timeRange} onValueChange={(v) => setTimeRange(v as any)} className="w-auto">
+                        <TabsList className="h-8">
+                            <TabsTrigger value="7d" className="text-xs px-2.5">7d</TabsTrigger>
+                            <TabsTrigger value="30d" className="text-xs px-2.5">30d</TabsTrigger>
+                            <TabsTrigger value="90d" className="text-xs px-2.5">90d</TabsTrigger>
                         </TabsList>
                     </Tabs>
+
+                    <Button onClick={fetchAttendance} variant="outline" size="icon" className="h-8 w-8" title="Actualizar">
+                        <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                    </Button>
                 </div>
             </div>
 
             {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Turnos</CardTitle>
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card className="border border-border bg-card">
+                    <CardHeader className="p-3.5 pb-1">
+                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                            Total Turnos
+                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{summary.totalRecords || 0}</div>
-                        <p className="text-xs text-muted-foreground">
-                            en el período seleccionado
+                    <CardContent className="p-3.5 pt-0">
+                        <div className="text-2xl font-bold tracking-tight text-foreground font-mono">{summary.totalRecords || 0}</div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            en el periodo seleccionado
                         </p>
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Horas Totales</CardTitle>
-                        <Clock className="h-4 w-4 text-muted-foreground" />
+
+                <Card className="border border-border bg-card">
+                    <CardHeader className="p-3.5 pb-1">
+                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                            Horas Totales
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
+                    <CardContent className="p-3.5 pt-0">
+                        <div className="text-2xl font-bold tracking-tight text-foreground font-mono">
                             {formatMinutes(summary.totalWorkMinutes || 0)}
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                            {formatMinutes((summary.totalWorkMinutes || 0) / (summary.totalRecords || 1))} promedio/turno
+                        <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                            {formatMinutes((summary.totalWorkMinutes || 0) / (summary.totalRecords || 1))} prom/turno
                         </p>
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Overtime Total</CardTitle>
-                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
+
+                <Card className="border border-border bg-card">
+                    <CardHeader className="p-3.5 pb-1">
+                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                            Horas Extra (Overtime)
+                            <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
+                    <CardContent className="p-3.5 pt-0">
+                        <div className="text-2xl font-bold tracking-tight font-mono text-amber-600 dark:text-amber-400">
                             {formatMinutes(summary.totalOvertimeMinutes || 0)}
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                            {summary.totalOvertimeMinutes > 0 ? "⚠️ Revisar" : "✓ Sin overtime"}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            {summary.totalOvertimeMinutes > 0 ? "⚠️ Horas a liquidar" : "✓ Sin horas extra"}
                         </p>
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Tasa de Completado</CardTitle>
-                        <CheckCircle className="h-4 w-4 text-muted-foreground" />
+
+                <Card className="border border-border bg-card">
+                    <CardHeader className="p-3.5 pb-1">
+                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                            Turnos Completados
+                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
+                    <CardContent className="p-3.5 pt-0">
+                        <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 font-mono">
                             {summary.totalRecords > 0
                                 ? Math.round(((summary.completedShifts || 0) / summary.totalRecords) * 100)
                                 : 0}%
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                            {summary.completedShifts || 0} de {summary.totalRecords || 0} turnos completados
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            {summary.completedShifts || 0} de {summary.totalRecords || 0} turnos
                         </p>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Charts */}
+            {/* Visual Analytics */}
             <div className="grid gap-4 md:grid-cols-2">
                 {/* Daily Trend */}
-                <Card className="col-span-2">
-                    <CardHeader>
-                        <CardTitle>Tendencia Diaria de Horas Trabajadas</CardTitle>
-                        <CardDescription>
-                            Horas trabajadas promedio por día
+                <Card className="col-span-2 border border-border bg-card">
+                    <CardHeader className="p-4 border-b border-border">
+                        <CardTitle className="text-sm font-bold text-foreground">Tendencia de Horas Trabajadas</CardTitle>
+                        <CardDescription className="text-xs text-muted-foreground">
+                            Evolución de horas totales y promedio por colaborador
                         </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <ResponsiveContainer width="100%" height={300}>
+                    <CardContent className="p-4">
+                        <ResponsiveContainer width="100%" height={260}>
                             <AreaChart data={dailyTrends}>
                                 <defs>
                                     <linearGradient id="colorWorkHours" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
-                                        <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
+                                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" />
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                                 <XAxis
                                     dataKey="date"
-                                    tickFormatter={(value) => format(parseISO(value), "dd/MM")}
+                                    tick={{ fontSize: 12 }}
+                                    tickFormatter={(value) => {
+                                        try {
+                                            return format(parseISO(value), "dd/MM")
+                                        } catch {
+                                            return value
+                                        }
+                                    }}
                                 />
-                                <YAxis />
+                                <YAxis tick={{ fontSize: 12 }} />
                                 <Tooltip
                                     formatter={(value: any) => [`${value}h`, "Horas Trabajadas"]}
-                                    labelFormatter={(label) => format(parseISO(label), "dd/MMM", { locale: es })}
+                                    labelFormatter={(label) => {
+                                        try {
+                                            return format(parseISO(label), "dd/MMM", { locale: es })
+                                        } catch {
+                                            return label
+                                        }
+                                    }}
                                 />
-                                <Legend />
+                                <Legend wrapperStyle={{ fontSize: '12px' }} />
                                 <Area
                                     type="monotone"
                                     dataKey="workHours"
-                                    stroke="#8884d8"
+                                    stroke="hsl(var(--primary))"
                                     fillOpacity={1}
                                     fill="url(#colorWorkHours)"
                                     name="Horas Totales"
@@ -277,7 +384,7 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                                 <Line
                                     type="monotone"
                                     dataKey="avgHours"
-                                    stroke="#82ca9d"
+                                    stroke="hsl(var(--chart-2, 160 60% 45%))"
                                     name="Promedio por Empleado"
                                 />
                             </AreaChart>
@@ -286,15 +393,15 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                 </Card>
 
                 {/* Status Distribution */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Distribución de Estados</CardTitle>
-                        <CardDescription>
-                            Turnos por estado
+                <Card className="border border-border bg-card">
+                    <CardHeader className="p-4 border-b border-border">
+                        <CardTitle className="text-sm font-bold text-foreground">Distribución de Turnos</CardTitle>
+                        <CardDescription className="text-xs text-muted-foreground">
+                            Proporción de turnos completados, activos y ausencias
                         </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <ResponsiveContainer width="100%" height={250}>
+                    <CardContent className="p-4 flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height={220}>
                             <PieChart>
                                 <Pie
                                     data={statusDistribution}
@@ -302,14 +409,13 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                                     cy="50%"
                                     labelLine={false}
                                     label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                    outerRadius={80}
-                                    fill="#8884d8"
+                                    outerRadius={75}
                                     dataKey="value"
                                 >
                                     {statusDistribution.map((entry, index) => (
                                         <Cell
                                             key={`cell-${index}`}
-                                            fill={COLORS[index % COLORS.length]}
+                                            fill={CHART_COLORS[index % CHART_COLORS.length]}
                                         />
                                     ))}
                                 </Pie>
@@ -320,51 +426,51 @@ export function AttendanceDashboard({ initialData }: AttendanceDashboardProps) {
                 </Card>
 
                 {/* Top Employees */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Top 10 Empleados</CardTitle>
-                        <CardDescription>
-                            Por horas trabajadas
+                <Card className="border border-border bg-card">
+                    <CardHeader className="p-4 border-b border-border">
+                        <CardTitle className="text-sm font-bold text-foreground">Top Colaboradores por Horas</CardTitle>
+                        <CardDescription className="text-xs text-muted-foreground">
+                            Colaboradores con mayor tiempo acumulado en turno
                         </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <ResponsiveContainer width="100%" height={250}>
+                    <CardContent className="p-4">
+                        <ResponsiveContainer width="100%" height={220}>
                             <BarChart data={employeeSummary}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                                <YAxis />
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                                <YAxis tick={{ fontSize: 12 }} />
                                 <Tooltip />
-                                <Bar dataKey="totalHours" fill="#8884d8" name="Horas Trabajadas" />
+                                <Bar dataKey="totalHours" fill="hsl(var(--primary))" name="Horas Trabajadas" />
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
                 </Card>
 
                 {/* Branch Summary */}
-                <Card className="col-span-2">
-                    <CardHeader>
-                        <CardTitle>Resumen por Sucursal</CardTitle>
-                        <CardDescription>
-                            Métricas de asistencia por sucursal
+                <Card className="col-span-2 border border-border bg-card">
+                    <CardHeader className="p-4 border-b border-border">
+                        <CardTitle className="text-sm font-bold text-foreground">Comparativa por Sucursal</CardTitle>
+                        <CardDescription className="text-xs text-muted-foreground">
+                            Horas ordinarias y extraordinarias por ubicación
                         </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <ResponsiveContainer width="100%" height={250}>
+                    <CardContent className="p-4">
+                        <ResponsiveContainer width="100%" height={220}>
                             <BarChart data={branchSummary}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="branchName" />
-                                <YAxis />
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                                <XAxis dataKey="branchName" tick={{ fontSize: 12 }} />
+                                <YAxis tick={{ fontSize: 12 }} />
                                 <Tooltip />
-                                <Legend />
-                                <Bar dataKey="totalHours" fill="#8884d8" name="Horas Totales" />
-                                <Bar dataKey="overtimeHours" fill="#ff8042" name="Horas Extra" />
+                                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                                <Bar dataKey="totalHours" fill="hsl(var(--primary))" name="Horas Ordinarias" />
+                                <Bar dataKey="overtimeHours" fill="hsl(var(--chart-3, 30 80% 55%))" name="Horas Extra" />
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Detailed Report */}
+            {/* Detailed Table Report */}
             <AttendanceReport initialData={initialData} />
         </div>
     )
