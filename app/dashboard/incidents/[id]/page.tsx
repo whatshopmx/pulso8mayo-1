@@ -36,9 +36,9 @@ import {
     User,
     Calendar,
     Clock,
-    FileText,
+    Timer,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
 const SEVERITY_LABELS: Record<string, string> = {
@@ -117,6 +117,21 @@ export default function IncidentDetailPage() {
     const [recommended, setRecommended] = useState<RecommendedAction | null>(null);
     const [actionsRefreshToken, setActionsRefreshToken] = useState(0);
 
+    // ── Draft persistence key (Task 7) ──────────────────────────────
+    const draftKey = incidentId ? `resolve-note-${incidentId}` : null;
+
+    const openResolveDialog = () => {
+        if (draftKey) {
+            const saved = sessionStorage.getItem(draftKey);
+            if (saved) setResolutionNote(saved);
+        }
+        setShowResolveDialog(true);
+    };
+
+    const clearDraft = () => {
+        if (draftKey) sessionStorage.removeItem(draftKey);
+    };
+
     const SeverityIcon = incident ? severityIcons[incident.severity] || AlertCircle : AlertCircle;
 
     const fetchIncident = useCallback(async () => {
@@ -161,6 +176,7 @@ export default function IncidentDetailPage() {
             });
             if (!res.ok) throw new Error(`Error ${res.status}`);
             toast.success(`Incidente resuelto: ${incident.title}`);
+            clearDraft();
             setShowResolveDialog(false);
             setResolutionNote("");
             fetchIncident();
@@ -273,7 +289,7 @@ export default function IncidentDetailPage() {
                 </div>
 
                 {!isResolved && (
-                    <Button onClick={() => setShowResolveDialog(true)}>
+                    <Button onClick={openResolveDialog}>
                         <CheckCircle2 className="h-4 w-4 mr-2" />
                         Resolver incidente
                     </Button>
@@ -334,13 +350,14 @@ export default function IncidentDetailPage() {
                 ) : (
                     <Card>
                         <CardHeader className="flex flex-row items-center gap-2 pb-2">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-                            <CardTitle className="text-sm font-medium">Workflow</CardTitle>
+                            <Timer className="h-4 w-4 text-muted-foreground" />
+                            <CardTitle className="text-sm font-medium">Tiempo activo</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-sm font-mono text-xs truncate" title={incident.instanceId}>
-                                {incident.instanceId.slice(0, 12)}…
+                            <p className="text-sm">
+                                {formatDistanceToNow(new Date(incident.createdAt), { addSuffix: false, locale: es })}
                             </p>
+                            <p className="text-xs text-muted-foreground">desde la detección</p>
                         </CardContent>
                     </Card>
                 )}
@@ -417,6 +434,25 @@ export default function IncidentDetailPage() {
                 </Card>
             )}
 
+            {/* Technical details — collapsed by default */}
+            <details className="group">
+                <summary className="cursor-pointer text-xs text-muted-foreground/60 hover:text-muted-foreground select-none list-none flex items-center gap-1">
+                    <span className="group-open:hidden">▶</span>
+                    <span className="hidden group-open:inline">▼</span>
+                    Detalles técnicos
+                </summary>
+                <div className="mt-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+                    <div className="flex gap-2">
+                        <span className="font-medium">Instance ID:</span>
+                        <span className="font-mono break-all">{incident.instanceId}</span>
+                    </div>
+                    <div className="flex gap-2">
+                        <span className="font-medium">Step ID:</span>
+                        <span className="font-mono break-all">{incident.stepId}</span>
+                    </div>
+                </div>
+            </details>
+
             {/* ── Resolve confirmation dialog ────────────────────────── */}
             <AlertDialog open={showResolveDialog} onOpenChange={setShowResolveDialog}>
                 <AlertDialogContent>
@@ -428,13 +464,24 @@ export default function IncidentDetailPage() {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 
+                    <label htmlFor="resolve-note-detail" className="sr-only">
+                        Nota de resolución del incidente
+                    </label>
                     <Textarea
+                        id="resolve-note-detail"
                         placeholder="Describe la resolución del incidente..."
                         value={resolutionNote}
-                        onChange={(e) => setResolutionNote(e.target.value)}
+                        onChange={(e) => {
+                            setResolutionNote(e.target.value);
+                            if (draftKey) sessionStorage.setItem(draftKey, e.target.value);
+                        }}
                         rows={3}
                         className="mt-2"
+                        minLength={20}
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                        {resolutionNote.trim().length} / 20 caracteres mínimo
+                    </p>
 
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={isResolving}>Cancelar</AlertDialogCancel>

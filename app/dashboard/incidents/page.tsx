@@ -210,58 +210,88 @@ export default async function IncidentsPage(props: { searchParams: Promise<{ pag
         </div>
       )}
 
-      {/* Inline summary strip */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-          <AlertCircle className="h-3.5 w-3.5" />
-          <span className="font-medium text-foreground">{stats.total}</span> totales
-        </span>
-
-        <span className="text-border">·</span>
-
-        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-          <span className="font-medium text-foreground">{stats.active}</span> activos
-        </span>
-
-        <span className="text-border">·</span>
-
-        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-          <XCircle className="h-3.5 w-3.5 text-destructive" />
-          <span className={`font-medium ${stats.critical > 0 ? 'text-destructive' : 'text-foreground'}`}>
-            {stats.critical}
-          </span> críticos
-        </span>
-
-        <span className="text-border">·</span>
-
-        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-          <span className="font-medium text-foreground">{stats.resolved}</span> resueltos
-        </span>
-
-        {stats.requiresAction > 0 && (
-          <>
-            <span className="text-border">·</span>
+      {/* Zero-incidents empty state */}
+      {stats.total === 0 && !sinSucursal ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+          <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+          <h2 className="text-lg font-semibold">Operaciones limpias</h2>
+          <p className="text-sm text-muted-foreground max-w-xs">
+            No hay incidentes activos. Todo en orden.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Inline summary strip — icons are decorative (text labels them), so aria-hidden */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
             <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-              <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
-              <span className="font-medium text-amber-700 dark:text-amber-400">
-                {stats.requiresAction}
-              </span> requieren acción
+              <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="font-medium text-foreground">{stats.total}</span> totales
             </span>
-          </>
-        )}
-      </div>
 
-      {/* Incidents table */}
-      <Suspense fallback={<IncidentListSkeleton />}>
-        <IncidentList
-          incidents={allIncidents}
-          totalCount={totalCount}
-          page={page}
-          totalPages={totalPages}
-        />
-      </Suspense>
+            <span className="text-border">·</span>
+
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+              <span className="font-medium text-foreground">{stats.active}</span> activos
+            </span>
+
+            <span className="text-border">·</span>
+
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <XCircle className="h-3.5 w-3.5 text-destructive" aria-hidden="true" />
+              <span className={`font-medium ${stats.critical > 0 ? 'text-destructive' : 'text-foreground'}`}>
+                {stats.critical}
+              </span> críticos
+            </span>
+
+            <span className="text-border">·</span>
+
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" />
+              <span className="font-medium text-foreground">{stats.resolved}</span> resueltos
+            </span>
+
+            <span className="text-border">·</span>
+
+            {/* title on the span provides the tooltip; icon is decorative */}
+            <span
+              className={`inline-flex items-center gap-1.5 ${
+                stats.requiresAction > 0
+                  ? 'text-muted-foreground'
+                  : 'text-muted-foreground/50'
+              }`}
+              title="Incidentes con acciones de remediación pendientes de agendar."
+            >
+              <ShieldAlert
+                className={`h-3.5 w-3.5 ${
+                  stats.requiresAction > 0 ? 'text-amber-600' : 'text-muted-foreground/40'
+                }`}
+                aria-hidden="true"
+              />
+              <span
+                className={`font-medium ${
+                  stats.requiresAction > 0
+                    ? 'text-amber-700 dark:text-amber-400'
+                    : 'text-muted-foreground/50'
+                }`}
+              >
+                {stats.requiresAction}
+              </span>{' '}
+              requieren acción
+            </span>
+          </div>
+
+          {/* Incidents table */}
+          <Suspense fallback={<IncidentListSkeleton />}>
+            <IncidentList
+              incidents={allIncidents}
+              totalCount={totalCount}
+              page={page}
+              totalPages={totalPages}
+            />
+          </Suspense>
+        </>
+      )}
     </div>
   );
 }

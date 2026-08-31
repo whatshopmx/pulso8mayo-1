@@ -1,50 +1,87 @@
-# Task List: Rediseño Integral de Configuración del Modelo Operativo
+﻿# TODO: Incidents UX — Critique Fixes
 
-## Phase 1: Header, Skeleton Loader & Presets Engine
-- [x] **Task 1: Limpieza de Header, Skeleton Loader y Selector de Arquetipos Preconfigurados**
-  - [x] Limpiar título y subtítulo en `page.tsx` eliminando `(Fase 11)` y jerga interna.
-  - [x] Crear `components/company/operating-config-skeleton.tsx` para una carga fluida.
-  - [x] Crear `components/company/operating-config-presets.tsx` con 3 arquetipos HORECA.
-  - [x] Verificar estado de carga y renderizado de presets.
+## Phase 1 — Signal Clarity
 
-## Phase 2: Estructura Operativa y Umbrales Financieros
-- [x] **Task 2: Rediseño de las 7 Dimensiones en Tarjetas Segmentadas por Dominio**
-  - [x] Crear `components/company/operating-dimensions-section.tsx`.
-  - [x] Agrupar dimensiones en: *Operación & Cocina*, *Tesorería & Finanzas*, y *Gobernanza*.
-  - [x] Convertir los 7 dropdowns en tarjetas segmentadas con badges de impacto operativo.
-  - [x] Corregir typo "Misas de compra" por "Mesas de compra".
-  - [x] Asegurar navegación completa por teclado y accesibilidad.
-- [x] **Task 3: Rediseño de Umbrales Financieros con Formato de Moneda y Redacción Limpia**
-  - [x] Crear `components/company/financial-thresholds-section.tsx`.
-  - [x] Reestructurar a cuadrícula de 2 columnas balanceada.
-  - [x] Formatear inputs con prefijo `$`, sufijo `MXN` y separadores de miles.
-  - [x] Limpiar textos de ayuda (remover `loteprod §8.1` y reformular disculpas de doble firma).
-  - [x] Reemplazar clases como `text-emerald-600` por tokens OKLCH del sistema.
+- [x] **Task 1** · `components/incidents/incident-list.tsx`
+  Add `bg-destructive/5` row tint for CRITICAL/FATAL rows using a `data-severity` attribute on `<TableRow>`. Increase badge border opacity for CRITICAL: `border-destructive/40` (up from `/20`). FATAL: `border-destructive/50`.
+  **AC:** CRITICAL and FATAL rows have a visible background tint; WARNING rows do not. Badge borders are heavier for the two highest severities.
+  **Scope:** S (1 file)
 
-## Checkpoint 1: Dimensiones y Umbrales
-- [x] Compilación limpia con `pnpm run build`.
-- [x] Interacción fluida de selección y edición de umbrales.
+- [x] **Task 2** · `components/incidents/incident-list.tsx`
+  Reorder severity Select options to FATAL → CRITICAL → HIGH → WARNING. Change default sort to `severity` (asc) with `createdAt` as secondary sort applied in the filter pipeline.
+  **AC:** Select shows FATAL first. Default page load shows most critical incidents first.
+  **Scope:** XS (1 file, ~15 lines)
 
-## Phase 3: Semáforos de Costos y Barra de Acciones
-- [x] **Task 4: Medidores de Espectro Cromático en Tiempo Real para Objetivos de Costo**
-  - [x] Crear `components/company/cost-targets-section.tsx` con medidor visual de espectro cromático en `TargetPair`.
-  - [x] Implementar visualización en tiempo real de zonas verde/amarilla/roja para Food Cost y Labor Cost.
-  - [x] Implementar visualización de zonas para Margen Saludable (lógica invertida: mayor es mejor).
-  - [x] Reflejar alertas visuales cuando las combinaciones sean inválidas.
-- [x] **Task 5: Barra de Guardado Sticky con Detección de Cambios (*Dirty State*) y Descartar**
-  - [x] Crear `components/company/operating-config-sticky-bar.tsx`.
-  - [x] Implementar comparador de estado inicial vs. actual para calcular `isDirty`.
-  - [x] Agregar botón "Descartar cambios" que restaura el estado original.
-  - [x] Agregar botón "Guardar configuración" con estados de guardado y feedback por toast.
-  - [x] Conectar todo el flujo en `OperatingConfigForm`.
+---
+### Checkpoint: Phase 1
+- [x] CRITICAL/FATAL rows visually distinct from WARNING at a glance
+- [x] Severity filter select ordered by weight
+- [x] `pnpm run build` clean
 
-## Phase 4: Auditoría y Verificación de Calidad
-- [x] **Task 6: Auditoría de Tokens OKLCH, Accesibilidad y Verificación Final**
-  - [x] Ejecutar `node .agents/skills/impeccable/scripts/detect.mjs --json app/dashboard/company/operating-config components/company/`.
-  - [x] Ejecutar `pnpm run build` para validar cero errores de tipado.
-  - [x] Enforzar la regla `The Label-Floor Rule` (text-xs / 12px) en todos los componentes.
+---
 
-## Checkpoint 2: Final Review
-- [x] Todos los criterios de aceptación completados.
-- [x] Contrato de API verificado y sin regresiones.
-- [x] Archivos listos para producción.
+## Phase 2 — Accessibility & Labels
+
+- [x] **Task 3** · `app/dashboard/incidents/page.tsx`
+  Add `aria-label` props to `AlertCircle`, `AlertTriangle`, `XCircle`, `CheckCircle2`, and `ShieldAlert` icons in the summary strip. Use descriptive labels: `"Icono: total de incidentes"`, `"Icono: incidentes activos"`, etc.
+  **AC:** Each icon in the strip has an `aria-label`. Screen reader announces the icon purpose before the count.
+  **Scope:** XS (1 file, ~10 lines)
+
+- [x] **Task 4** · `app/dashboard/incidents/page.tsx`
+  Remove the conditional `&&` guard around the `requiresAction` strip item. When `stats.requiresAction === 0`, render the item with `text-muted-foreground` for both the count and label (instead of hiding). Add a `title` tooltip on `ShieldAlert`: `"Incidentes con acciones de remediación pendientes de agendar."`.
+  **AC:** `requiresAction` item always renders in the strip. When 0, it renders muted. ShieldAlert has a tooltip.
+  **Scope:** XS (1 file, ~20 lines)
+
+- [x] **Task 5** · `components/incidents/incident-list.tsx` + `app/dashboard/incidents/[id]/page.tsx`
+  Wrap the resolve Textarea with a visually hidden `<label>` (`sr-only`) associated via `htmlFor`/`id`. Both the list resolve dialog and the detail page resolve dialog need this fix.
+  **AC:** Textarea has an associated `<label>`. Screen reader announces the field label on focus.
+  **Scope:** S (2 files, ~8 lines each)
+
+---
+### Checkpoint: Phase 2
+- [x] Screen reader describes every summary strip icon
+- [x] `requiresAction` count always visible (muted at 0)
+- [x] Both resolve Textareas have associated `<label>` elements
+- [x] `pnpm run build` clean
+
+---
+
+## Phase 3 — Detail Page Cleanup
+
+- [x] **Task 6** · `app/dashboard/incidents/[id]/page.tsx`
+  Replace the 4th metadata card (Workflow/instanceId when not resolved) with a "Tiempo activo" card showing `formatDistanceToNow(new Date(incident.createdAt))`. Move `instanceId` to a collapsed `<details>` element at the bottom of the page (inside a "Detalles técnicos" section).
+  **AC:** 4th card shows "Tiempo activo" with a human-readable duration. `instanceId` is still accessible (for support/dev) in a collapsed details section. No card uses truncated UUID as primary content.
+  **Scope:** S (1 file, ~30 lines changed)
+
+- [x] **Task 7** · `app/dashboard/incidents/[id]/page.tsx`
+  Persist the resolve dialog draft note in `sessionStorage` with key `resolve-note-${incidentId}`. Restore on dialog open. Clear on successful resolve. Add a minimum-length hint below the Textarea: `"Mínimo 20 caracteres"` (shown with count, e.g. "12 / 20").
+  **AC:** Typing a note, closing dialog, reopening restores the note. Successful resolve clears the draft. A character count hint is visible below the Textarea.
+  **Scope:** S (1 file, ~40 lines)
+
+---
+### Checkpoint: Phase 3
+- [x] Detail page 4th card shows "Tiempo activo", not a UUID
+- [x] instanceId accessible in collapsed section
+- [x] Resolve note persists on dialog close/reopen for the same incident
+- [x] Character count hint visible in resolve dialog
+- [x] `pnpm run build` clean
+
+---
+
+## Phase 4 — Empty State
+
+- [x] **Task 8** · `app/dashboard/incidents/page.tsx`
+  When `stats.total === 0` AND `!sinSucursal`, render an affirming empty state instead of the summary strip + list. Use a CheckCircle2 icon in emerald, headline "Operaciones limpias", subtext "No hay incidentes activos. Todo en orden." No card, no hero block — a simple centered section within the existing `space-y-6` flow.
+  **AC:** Zero-incident state shows the affirming view. Non-zero state shows the strip + list as before. `sinSucursal` state takes priority and still shows the amber warning.
+  **Scope:** XS (1 file, ~25 lines)
+
+---
+### Checkpoint: Complete
+- [x] All 8 tasks done
+- [x] CRITICAL rows tinted; filter ordered; aria-labels present; requiresAction always visible; Textareas labeled; instanceId replaced; draft persists; zero state affirming
+- [x] `pnpm run build` passes with 0 TypeScript errors
+- [x] Manual verification:
+  - [x] Visit `/dashboard/incidents` — CRITICAL rows have background tint
+  - [x] Filter to "Crítico" — only CRITICAL rows shown
+  - [x] Open a resolve dialog, type a note, press Escape, reopen — note is restored
+  - [x] Force `stats.total = 0` in dev — affirming empty state visible

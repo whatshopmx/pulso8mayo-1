@@ -70,10 +70,16 @@ const severityIcons: Record<string, typeof XCircle> = {
 };
 
 const severityVariants: Record<string, string> = {
-    CRITICAL: 'bg-destructive/10 text-destructive border-destructive/20',
+    CRITICAL: 'bg-destructive/10 text-destructive border-destructive/40',
     HIGH: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
     WARNING: 'bg-warning/10 text-warning-foreground border-warning/20',
-    FATAL: 'bg-destructive/15 text-destructive border-destructive/30',
+    FATAL: 'bg-destructive/15 text-destructive border-destructive/50',
+};
+
+/** Row background tint for the two highest severities. */
+const severityRowTint: Record<string, string> = {
+    CRITICAL: 'bg-destructive/[0.04] dark:bg-destructive/[0.08]',
+    FATAL:    'bg-destructive/[0.06] dark:bg-destructive/[0.10]',
 };
 
 const statusVariants: Record<string, string> = {
@@ -122,9 +128,9 @@ export function IncidentList({ incidents, totalCount, page = 1, totalPages = 1 }
     const [searchQuery, setSearchQuery] = useState('');
     const [requiresActionOnly, setRequiresActionOnly] = useState(false);
 
-    // Sort
-    const [sortField, setSortField] = useState<SortField>('createdAt');
-    const [sortDir, setSortDir] = useState<SortDir>('desc');
+    // Sort — default: worst incidents first
+    const [sortField, setSortField] = useState<SortField>('severity');
+    const [sortDir, setSortDir] = useState<SortDir>('asc');
 
     // Resolve dialog
     const [resolveTarget, setResolveTarget] = useState<Incident | null>(null);
@@ -244,9 +250,9 @@ export function IncidentList({ incidents, totalCount, page = 1, totalPages = 1 }
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Todas las severidades</SelectItem>
-                            <SelectItem value="HIGH">Alto</SelectItem>
                             <SelectItem value="FATAL">Fatal</SelectItem>
                             <SelectItem value="CRITICAL">Crítico</SelectItem>
+                            <SelectItem value="HIGH">Alto</SelectItem>
                             <SelectItem value="WARNING">Advertencia</SelectItem>
                         </SelectContent>
                     </Select>
@@ -339,7 +345,10 @@ export function IncidentList({ incidents, totalCount, page = 1, totalPages = 1 }
                                     const SeverityIcon = severityIcons[incident.severity] || AlertCircle;
                                     const createdDate = new Date(incident.createdAt);
                                     return (
-                                        <TableRow key={incident.id} className="group">
+                                        <TableRow
+                                key={incident.id}
+                                className={`group ${severityRowTint[incident.severity] ?? ''}`}
+                            >
                                             <TableCell>
                                                 <Badge
                                                     variant="outline"
@@ -474,7 +483,11 @@ export function IncidentList({ incidents, totalCount, page = 1, totalPages = 1 }
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 
+                    <label htmlFor="resolve-note-list" className="sr-only">
+                        Nota de resolución del incidente
+                    </label>
                     <Textarea
+                        id="resolve-note-list"
                         placeholder="Describe la resolución del incidente..."
                         value={resolutionNote}
                         onChange={(e) => setResolutionNote(e.target.value)}
