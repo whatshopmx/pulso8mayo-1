@@ -2127,3 +2127,104 @@ export async function deactivatePettyCashFund(
     WHERE company_id = ${companyId} AND branch_id = ${branchId}
   `;
 }
+
+// --- Verificación de CLABE y desbloqueo de tesorería (F1) --------------------
+
+/**
+ * Proveedor de prueba **sin ninguna cuenta bancaria**.
+ *
+ * No se reutiliza un proveedor sembrado porque el seed les deja a todos una
+ * cuenta ya VERIFIED, que es justo la condición que el spec necesita que no
+ * exista al empezar.
+ */
+export async function seedTestSupplier(companyId: string, label: string): Promise<string> {
+  const rows = await sql`
+    INSERT INTO suppliers (company_id, name, active, payment_terms_days)
+    VALUES (${companyId}, ${`${E2E_TAG} ${label}`}, true, 30)
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Factura conciliada y sin pagar: lista para tesorería salvo por la CLABE. */
+export async function seedMatchedInvoice(opts: {
+  companyId: string;
+  branchId: string;
+  supplierId: string;
+  totalCents: number;
+}): Promise<string> {
+  // El `uuid` del CFDI es único en la tabla; se marca con el tag para que la
+  // limpieza lo encuentre sin depender de la descripción.
+  const cfdiUuid = `${E2E_TAG}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const rows = await sql`
+    INSERT INTO invoices (
+      company_id, branch_id, supplier_id, uuid, fecha,
+      subtotal, tax_amount, total,
+      rfc_emisor, rfc_receptor, nombre_emisor,
+      match_status, payment_status
+    )
+    VALUES (
+      ${opts.companyId}, ${opts.branchId}, ${opts.supplierId}, ${cfdiUuid}, ${today()},
+      ${opts.totalCents}, 0, ${opts.totalCents},
+      'XAXX010101000', 'XAXX010101000', ${`${E2E_TAG} emisor`},
+      'MATCHED', 'PENDING'
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Corrida de pago en borrador donde el spec intenta meter la factura. */
+export async function seedPaymentRun(opts: {
+  companyId: string;
+  branchId: string;
+  createdBy: string;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO payment_runs (company_id, branch_id, title, run_date, status, prepared_by)
+    VALUES (
+      ${opts.companyId}, ${opts.branchId},
+      ${`${E2E_TAG} corrida de verificación CLABE`},
+      now(), 'DRAFT', ${opts.createdBy}
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Renglones ya cargados a una corrida. */
+export async function findPaymentRunItems(
+  paymentRunId: string
+): Promise<Array<{ itemType: string; referenceId: string; amountCents: number }>> {
+  const rows = await sql`
+    SELECT item_type, reference_id, amount_cents
+    FROM payment_run_items
+    WHERE payment_run_id = ${paymentRunId}
+  `;
+  return rows.map((r: any) => ({
+    itemType: r.item_type as string,
+    referenceId: r.reference_id as string,
+    amountCents: Number(r.amount_cents),
+  }));
+}
+
+/**
+ * Borra en orden de FK: renglones → corridas → cuentas → facturas → proveedores.
+ * Las cuentas bancarias no llevan tag propio, así que se limpian por proveedor.
+ */
+export async function cleanupClabeVerificationFixture(): Promise<void> {
+  await sql`
+    DELETE FROM payment_run_items
+    WHERE payment_run_id IN (SELECT id FROM payment_runs WHERE title LIKE ${`${E2E_TAG}%`})
+  `;
+  await sql`DELETE FROM payment_runs WHERE title LIKE ${`${E2E_TAG}%`}`;
+  await sql`
+    DELETE FROM supplier_bank_accounts
+    WHERE supplier_id IN (SELECT id FROM suppliers WHERE name LIKE ${`${E2E_TAG}%`})
+  `;
+  await sql`
+    DELETE FROM invoices
+    WHERE supplier_id IN (SELECT id FROM suppliers WHERE name LIKE ${`${E2E_TAG}%`})
+  `;
+  await sql`DELETE FROM suppliers WHERE name LIKE ${`${E2E_TAG}%`}`;
+}
