@@ -211,7 +211,7 @@ export class RemediationService {
                         .set({
                             status: 'RESOLVED',
                             resolvedAt: new Date(),
-                            resolution: 'Resolved through remediation protocol',
+                            resolution: 'Remediación completada por protocolo',
                             metadata: {
                                 ...metadata,
                                 remediationCompletedAt: new Date().toISOString(),
@@ -222,13 +222,13 @@ export class RemediationService {
 
                     console.log('[RemediationService] Remediation completed successfully');
 
-                    // Cancel escalations
-                    const { EscalationService } = await import('./escalation-service');
-                    await EscalationService.cancelEscalation(incidentId);
+                    // Post-resolution cleanup: cancel escalations and unblock workflow
+                    const { IncidentEngine } = await import('./incident-engine');
+                    await IncidentEngine.afterResolution(incidentId, incident.instanceId);
 
                     return {
                         completed: true,
-                        message: 'Remediation completed successfully',
+                        message: 'Remediación completada exitosamente',
                     };
                 } else {
                     // Move to next step
@@ -305,7 +305,7 @@ export class RemediationService {
                     return {
                         completed: false,
                         failed: true,
-                        message: 'Remediation failed after maximum attempts',
+                        message: 'Remediación fallida: se agotaron los intentos',
                     };
                 } else {
                     // Retry same step

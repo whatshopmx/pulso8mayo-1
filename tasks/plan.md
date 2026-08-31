@@ -1,73 +1,66 @@
-﻿# Implementation Plan: Incidents UX — Critique Fixes
+﻿# Implementation Plan: Incident Resolution — System Action Gaps
 
 ## Overview
 
-Five targeted improvements derived from the `/impeccable critique` of `app/dashboard/incidents` (score: 23/40). Changes are concentrated in three files: `components/incidents/incident-list.tsx`, `app/dashboard/incidents/page.tsx`, and `app/dashboard/incidents/[id]/page.tsx`. No schema or API changes are required.
+After tracing the full resolution flow (Camino A: manual, Camino B: protocol, Camino C: recommendation), three structural gaps were found where resolutions don't properly trigger downstream system actions. This plan fixes them in dependency order: service layer first, UI layer last.
 
-## Discovery Notes (post-critique)
+## Architecture Context
 
-After reading the full source, two critique findings need adjustment:
-
-- **Filter/search already exists** in `IncidentList` as client-side state (search input + severity select + status select + "Requieren acción" toggle). What is **missing**: default sort is `createdAt DESC` only (no severity-first default), and the severity order in the filter select is wrong (`HIGH` appears before `FATAL`/`CRITICAL`).
-- **`requiresAction` label** is conditionally shown as "requieren acción" text in the strip. The `ShieldAlert` icon has no `aria-label`. Fixing means making the item always visible (muted at 0).
-
-All other critique findings are confirmed by source review.
+- `IncidentEngine.resolveIncident()` — manual resolution. Calls `cancelEscalation` + `unblockInstanceIfClear` (which calls `recalculateProgress`).
+- `RemediationService.trackRemediationAttempt()` — protocol auto-resolution. Calls `cancelEscalation` but **does NOT** call `unblockInstanceIfClear`. Workflow stays BLOCKED.
+- `resolveRecommendedAction()` — pure function, no side effects. Returns `kind: 'RESOLVE_MANUAL'` as fallback.
+- `IncidentActionPanel` — renders recommended action. Has no CTA branch for `RESOLVE_MANUAL`.
 
 ## Architecture Decisions
 
-- No server-side filter params — the existing client-side filter in `IncidentList` is correct; we improve it, not replace it.
-- Draft persistence for the resolve note uses `sessionStorage` keyed by `incidentId`. `[id]/page.tsx` is already `"use client"` — no SSR risk.
-- Row severity tinting uses a `data-[severity]` pattern on `<TableRow>` to avoid class collision with existing hover styles.
-- The Workflow instanceId card is replaced by "Tiempo activo" (time since detection) for unresolved incidents.
+- **Consolidate post-resolution side effects into a shared method.** Instead of duplicating `cancelEscalation` + `unblockInstanceIfClear` in both services, add a public static `IncidentEngine.afterResolution(incidentId, instanceId)` that owns both calls. This prevents future drift.
+- **`RESOLVE_MANUAL` CTA goes via a callback prop**, not a router push. The panel doesn't know how to open the detail page's dialog — it fires `onResolveManual?.()` and the parent (`[id]/page.tsx`) handles it.
+- **English resolution strings in Camino B are a data fix**, not an architectural change. One-line swap.
 
 ## Task List
 
-### Phase 1: Signal Clarity
+### Phase 1: Service Layer — Shared Post-Resolution Method
 
-- [ ] Task 1: Severity row tinting + CRITICAL/FATAL badge border weight in `incident-list.tsx`
-- [ ] Task 2: Fix severity filter select order (FATAL → CRITICAL → HIGH → WARNING) + default sort to severity-first
+- [ ] Task 1: Add `IncidentEngine.afterResolution(incidentId, instanceId)` public static method
+- [ ] Task 2: Update `RemediationService.trackRemediationAttempt` to call `afterResolution` instead of its inline `cancelEscalation` (+ add the missing `unblockInstanceIfClear` call)
+- [ ] Task 3: Update `IncidentEngine.resolveIncident` to call `afterResolution` instead of its inline side effects
 
 ### Checkpoint: Phase 1
-- [ ] CRITICAL rows visually distinct from WARNING at a glance
-- [ ] Filter select shows FATAL and CRITICAL before HIGH and WARNING
+- [ ] Both resolution paths call the same shared cleanup
+- [ ] `pnpm run build` passes
 
-### Phase 2: Accessibility & Labels
+### Phase 2: Data Consistency — Spanish Resolution Strings
 
-- [ ] Task 3: `aria-label` on all icon-only summary strip elements in `page.tsx`
-- [ ] Task 4: `requiresAction` strip item always visible (muted when 0) + ShieldAlert tooltip
-- [ ] Task 5: Associate `<label>` with resolve Textarea in both `incident-list.tsx` and `[id]/page.tsx`
+- [ ] Task 4: Change the hardcoded English `resolution` string in `trackRemediationAttempt` to `'Remediación completada por protocolo'`
+- [ ] Task 5: Change the English `message` in `trackRemediationAttempt` return values to Spanish
 
 ### Checkpoint: Phase 2
-- [ ] Screen reader describes every icon in summary strip
-- [ ] `requiresAction` count visible even at 0
-- [ ] Textarea has associated label
+- [ ] All user-visible resolution strings are in Spanish
+- [ ] `pnpm run build` passes
 
-### Phase 3: Detail Page Cleanup
+### Phase 3: UI — RESOLVE_MANUAL CTA in IncidentActionPanel
 
-- [ ] Task 6: Replace Workflow instanceId card with "Tiempo activo" card in `[id]/page.tsx`
-- [ ] Task 7: Add draft persistence to resolve dialog in `[id]/page.tsx` (`sessionStorage` keyed on `incidentId`)
+- [ ] Task 6: Add `onResolveManual?: () => void` prop to `IncidentActionPanelProps`
+- [ ] Task 7: Add a CTA Button branch for `RESOLVE_MANUAL` kind that calls `onResolveManual`
+- [ ] Task 8: Wire `onResolveManual` in `[id]/page.tsx` to call `openResolveDialog()`
 
 ### Checkpoint: Phase 3
-- [ ] Detail page 4-card grid is fully operational (no developer noise)
-- [ ] Resolve note survives dialog close/reopen on the same incident
-
-### Phase 4: Empty State
-
-- [ ] Task 8: Affirming zero-incidents empty state on `page.tsx` when `stats.total === 0`
+- [ ] RESOLVE_MANUAL panel shows "Resolver manualmente" button that opens the resolve dialog
+- [ ] `pnpm run build` passes
 
 ### Checkpoint: Complete
-- [ ] All 5 critique P1/P2 findings addressed
-- [ ] `pnpm run build` passes without TypeScript errors
-- [ ] Manual: CRITICAL row tinting visible; note persists on dialog reopen
+- [ ] All 3 gaps closed
+- [ ] Manual verify: complete a remediation protocol in dev → workflow unblocks
+- [ ] Manual verify: incident without protocol shows "Resolver manualmente" CTA that opens dialog
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Row tinting class conflicts with hover styles | Low | Use `data-[severity]` attribute pattern |
-| instanceId card replacement breaks downstream code | None | No code reads DOM card content |
-| sessionStorage unavailable | None | `[id]/page.tsx` is already client-only |
+| `unblockInstanceIfClear` is private | Low | We add `afterResolution` as the public surface; keep `unblockInstanceIfClear` private |
+| `afterResolution` called with wrong `instanceId` | Medium | `trackRemediationAttempt` already has the incident row in scope; read `instanceId` from it directly |
+| `resolveIncident` return value changes | None | No callsites depend on the return value of the side-effect calls |
 
 ## Open Questions
 
-None — all decisions can be resolved from the source without human input.
+None — all decisions resolved from source.

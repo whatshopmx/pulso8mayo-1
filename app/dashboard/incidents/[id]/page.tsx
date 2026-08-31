@@ -372,6 +372,7 @@ export default function IncidentDetailPage() {
                     refreshToken={actionsRefreshToken}
                     onRecommendationChange={setRecommended}
                     onActionConfirmed={fetchIncident}
+                    onResolveManual={openResolveDialog}
                 />
             )}
 

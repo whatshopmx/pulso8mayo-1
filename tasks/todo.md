@@ -1,87 +1,96 @@
-﻿# TODO: Incidents UX — Critique Fixes
+﻿# TODO: Incident Resolution — System Action Gaps
 
-## Phase 1 — Signal Clarity
+## Phase 1 — Service Layer (shared post-resolution cleanup)
 
-- [x] **Task 1** · `components/incidents/incident-list.tsx`
-  Add `bg-destructive/5` row tint for CRITICAL/FATAL rows using a `data-severity` attribute on `<TableRow>`. Increase badge border opacity for CRITICAL: `border-destructive/40` (up from `/20`). FATAL: `border-destructive/50`.
-  **AC:** CRITICAL and FATAL rows have a visible background tint; WARNING rows do not. Badge borders are heavier for the two highest severities.
-  **Scope:** S (1 file)
+- [ ] **Task 1** · `lib/services/incident-engine.ts`
+  Add `static async afterResolution(incidentId: string, instanceId: string): Promise<void>` as a PUBLIC static method.
+  Body: `await EscalationService.cancelEscalation(incidentId)` + `await this.unblockInstanceIfClear(instanceId)`.
+  This is the single place both paths call after writing RESOLVED to the DB.
+  **AC:** Method exists and is public. Calling it cancels any active escalation and triggers workflow recalculation if the instance is BLOCKED with no remaining open incidents.
+  **Scope:** XS (1 file, ~10 lines)
 
-- [x] **Task 2** · `components/incidents/incident-list.tsx`
-  Reorder severity Select options to FATAL → CRITICAL → HIGH → WARNING. Change default sort to `severity` (asc) with `createdAt` as secondary sort applied in the filter pipeline.
-  **AC:** Select shows FATAL first. Default page load shows most critical incidents first.
-  **Scope:** XS (1 file, ~15 lines)
+- [ ] **Task 2** · `lib/services/remediation-service.ts`
+  In `trackRemediationAttempt`, in the "Remediation complete" branch (around line 207):
+  1. Remove the inline `EscalationService.cancelEscalation(incidentId)` call.
+  2. After the `db.update`, call `await IncidentEngine.afterResolution(incidentId, incident.instanceId)`.
+  3. Add `IncidentEngine` to the imports at the top of the file (or use a dynamic import to avoid circular deps — check if circular first).
+  **AC:** Auto-resolution via protocol calls `afterResolution`. If the workflow was BLOCKED and this was the last open incident, it transitions out of BLOCKED.
+  **Scope:** S (1 file, ~15 lines)
+
+- [ ] **Task 3** · `lib/services/incident-engine.ts`
+  In `resolveIncident` (line 907), replace the inline side-effect calls:
+  ```ts
+  // Before:
+  await EscalationService.cancelEscalation(incidentId);
+  await this.unblockInstanceIfClear(incident.instanceId);
+  // After:
+  await IncidentEngine.afterResolution(incidentId, incident.instanceId);
+  ```
+  **AC:** `resolveIncident` delegates to `afterResolution`. Behaviour unchanged for Camino A.
+  **Scope:** XS (1 file, ~5 lines changed)
 
 ---
 ### Checkpoint: Phase 1
-- [x] CRITICAL/FATAL rows visually distinct from WARNING at a glance
-- [x] Severity filter select ordered by weight
-- [x] `pnpm run build` clean
+- [ ] `IncidentEngine.afterResolution` exists as public static
+- [ ] Both `resolveIncident` and `trackRemediationAttempt` call it
+- [ ] `pnpm run build` clean
 
 ---
 
-## Phase 2 — Accessibility & Labels
+## Phase 2 — Data Consistency (Spanish strings)
 
-- [x] **Task 3** · `app/dashboard/incidents/page.tsx`
-  Add `aria-label` props to `AlertCircle`, `AlertTriangle`, `XCircle`, `CheckCircle2`, and `ShieldAlert` icons in the summary strip. Use descriptive labels: `"Icono: total de incidentes"`, `"Icono: incidentes activos"`, etc.
-  **AC:** Each icon in the strip has an `aria-label`. Screen reader announces the icon purpose before the count.
-  **Scope:** XS (1 file, ~10 lines)
+- [ ] **Task 4** · `lib/services/remediation-service.ts`
+  Line 214: Change `resolution: 'Resolved through remediation protocol'`
+  to `resolution: 'Remediación completada por protocolo'`.
+  **AC:** Auto-resolved incidents show a Spanish resolution string in the DB and in the detail page.
+  **Scope:** XS (1 file, 1 line)
 
-- [x] **Task 4** · `app/dashboard/incidents/page.tsx`
-  Remove the conditional `&&` guard around the `requiresAction` strip item. When `stats.requiresAction === 0`, render the item with `text-muted-foreground` for both the count and label (instead of hiding). Add a `title` tooltip on `ShieldAlert`: `"Incidentes con acciones de remediación pendientes de agendar."`.
-  **AC:** `requiresAction` item always renders in the strip. When 0, it renders muted. ShieldAlert has a tooltip.
-  **Scope:** XS (1 file, ~20 lines)
-
-- [x] **Task 5** · `components/incidents/incident-list.tsx` + `app/dashboard/incidents/[id]/page.tsx`
-  Wrap the resolve Textarea with a visually hidden `<label>` (`sr-only`) associated via `htmlFor`/`id`. Both the list resolve dialog and the detail page resolve dialog need this fix.
-  **AC:** Textarea has an associated `<label>`. Screen reader announces the field label on focus.
-  **Scope:** S (2 files, ~8 lines each)
+- [ ] **Task 5** · `lib/services/remediation-service.ts`
+  Lines 231, 308: Change English `message` return values to Spanish:
+  - `'Remediation completed successfully'` → `'Remediación completada exitosamente'`
+  - `'Remediation failed after maximum attempts'` → `'Remediación fallida: se agotaron los intentos'`
+  **AC:** All user-visible strings returned by `trackRemediationAttempt` are in Spanish.
+  **Scope:** XS (1 file, 2 lines)
 
 ---
 ### Checkpoint: Phase 2
-- [x] Screen reader describes every summary strip icon
-- [x] `requiresAction` count always visible (muted at 0)
-- [x] Both resolve Textareas have associated `<label>` elements
-- [x] `pnpm run build` clean
+- [ ] Resolution strings in DB are in Spanish
+- [ ] `pnpm run build` clean
 
 ---
 
-## Phase 3 — Detail Page Cleanup
+## Phase 3 — UI (RESOLVE_MANUAL CTA connects to resolve dialog)
 
-- [x] **Task 6** · `app/dashboard/incidents/[id]/page.tsx`
-  Replace the 4th metadata card (Workflow/instanceId when not resolved) with a "Tiempo activo" card showing `formatDistanceToNow(new Date(incident.createdAt))`. Move `instanceId` to a collapsed `<details>` element at the bottom of the page (inside a "Detalles técnicos" section).
-  **AC:** 4th card shows "Tiempo activo" with a human-readable duration. `instanceId` is still accessible (for support/dev) in a collapsed details section. No card uses truncated UUID as primary content.
-  **Scope:** S (1 file, ~30 lines changed)
+- [ ] **Task 6** · `components/incidents/incident-action-panel.tsx`
+  Add `onResolveManual?: () => void` to `IncidentActionPanelProps`.
+  Thread it through to the render function.
+  **AC:** Prop exists and TypeScript is happy.
+  **Scope:** XS (1 file, ~3 lines)
 
-- [x] **Task 7** · `app/dashboard/incidents/[id]/page.tsx`
-  Persist the resolve dialog draft note in `sessionStorage` with key `resolve-note-${incidentId}`. Restore on dialog open. Clear on successful resolve. Add a minimum-length hint below the Textarea: `"Mínimo 20 caracteres"` (shown with count, e.g. "12 / 20").
-  **AC:** Typing a note, closing dialog, reopening restores the note. Successful resolve clears the draft. A character count hint is visible below the Textarea.
-  **Scope:** S (1 file, ~40 lines)
+- [ ] **Task 7** · `components/incidents/incident-action-panel.tsx`
+  In the CTA section (around line 291), add a branch for `RESOLVE_MANUAL`:
+  ```tsx
+  {recommended.kind === 'RESOLVE_MANUAL' && onResolveManual && (
+    <Button size="sm" variant="outline" onClick={onResolveManual} className="gap-1.5 text-xs font-semibold w-full sm:w-auto">
+      Resolver manualmente
+      <ArrowRight className="w-3.5 h-3.5" />
+    </Button>
+  )}
+  ```
+  **AC:** When `kind === 'RESOLVE_MANUAL'` and the prop is provided, a "Resolver manualmente" button appears in the panel CTA area. Clicking it fires `onResolveManual`.
+  **Scope:** XS (1 file, ~8 lines)
 
----
-### Checkpoint: Phase 3
-- [x] Detail page 4th card shows "Tiempo activo", not a UUID
-- [x] instanceId accessible in collapsed section
-- [x] Resolve note persists on dialog close/reopen for the same incident
-- [x] Character count hint visible in resolve dialog
-- [x] `pnpm run build` clean
-
----
-
-## Phase 4 — Empty State
-
-- [x] **Task 8** · `app/dashboard/incidents/page.tsx`
-  When `stats.total === 0` AND `!sinSucursal`, render an affirming empty state instead of the summary strip + list. Use a CheckCircle2 icon in emerald, headline "Operaciones limpias", subtext "No hay incidentes activos. Todo en orden." No card, no hero block — a simple centered section within the existing `space-y-6` flow.
-  **AC:** Zero-incident state shows the affirming view. Non-zero state shows the strip + list as before. `sinSucursal` state takes priority and still shows the amber warning.
-  **Scope:** XS (1 file, ~25 lines)
+- [ ] **Task 8** · `app/dashboard/incidents/[id]/page.tsx`
+  Pass `onResolveManual={openResolveDialog}` to `<IncidentActionPanel>`.
+  `openResolveDialog` already exists (added in the previous critique-fix plan); it reads the draft from sessionStorage and opens the dialog.
+  **AC:** When the panel shows RESOLVE_MANUAL and user clicks the button, the resolve dialog opens. Draft restoration works normally.
+  **Scope:** XS (1 file, 1 line)
 
 ---
 ### Checkpoint: Complete
-- [x] All 8 tasks done
-- [x] CRITICAL rows tinted; filter ordered; aria-labels present; requiresAction always visible; Textareas labeled; instanceId replaced; draft persists; zero state affirming
-- [x] `pnpm run build` passes with 0 TypeScript errors
-- [x] Manual verification:
-  - [x] Visit `/dashboard/incidents` — CRITICAL rows have background tint
-  - [x] Filter to "Crítico" — only CRITICAL rows shown
-  - [x] Open a resolve dialog, type a note, press Escape, reopen — note is restored
-  - [x] Force `stats.total = 0` in dev — affirming empty state visible
+- [ ] All 8 tasks done
+- [ ] `pnpm run build` passes with 0 errors
+- [ ] Manual verify:
+  - [ ] Trigger a remediation protocol to completion in dev → confirm workflow is no longer BLOCKED
+  - [ ] Create an incident without a `remediationProtocol` → panel shows RESOLVE_MANUAL → click button → dialog opens
+  - [ ] Check DB: `resolution` column shows Spanish text after protocol auto-resolve

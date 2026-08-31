@@ -69,6 +69,8 @@ interface IncidentActionPanelProps {
   onRecommendationChange?: (recommended: RecommendedAction | null) => void;
   /** Se dispara tras confirmar una visita, para que el detalle recargue el incidente. */
   onActionConfirmed?: () => void;
+  /** Abrir el diálogo de resolución manual cuando se muestra RESOLVE_MANUAL. */
+  onResolveManual?: () => void;
 }
 
 /**
@@ -144,6 +146,7 @@ export function IncidentActionPanel({
   refreshToken = 0,
   onRecommendationChange,
   onActionConfirmed,
+  onResolveManual,
 }: IncidentActionPanelProps) {
   const [recommended, setRecommended] = useState<RecommendedAction | null>(null);
   const [actions, setActions] = useState<RemediationActionRow[]>([]);
@@ -330,6 +333,18 @@ export function IncidentActionPanel({
                   Configurar proveedor
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
+              </Button>
+            )}
+
+            {recommended.kind === "RESOLVE_MANUAL" && onResolveManual && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onResolveManual}
+                className="gap-1.5 text-xs font-semibold w-full sm:w-auto"
+              >
+                Resolver manualmente
+                <ArrowRight className="w-3.5 h-3.5" />
               </Button>
             )}
           </div>

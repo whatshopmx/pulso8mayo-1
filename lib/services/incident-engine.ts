@@ -922,12 +922,20 @@ export class IncidentEngine {
 
         // Cancel any pending escalations
         if (incident) {
-            const { EscalationService } = await import('./escalation-service');
-            await EscalationService.cancelEscalation(incidentId);
-            await this.unblockInstanceIfClear(incident.instanceId);
+            await IncidentEngine.afterResolution(incidentId, incident.instanceId);
         }
 
         return incident;
+    }
+
+    /**
+     * Post-resolution cleanup shared by both manual and protocol resolution paths.
+     * Cancels escalations and unblocks the workflow instance if no open incidents remain.
+     */
+    static async afterResolution(incidentId: string, instanceId: string): Promise<void> {
+        const { EscalationService } = await import('./escalation-service');
+        await EscalationService.cancelEscalation(incidentId);
+        await this.unblockInstanceIfClear(instanceId);
     }
 
     /**
