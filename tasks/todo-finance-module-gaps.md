@@ -13,7 +13,29 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
 
 ---
 
-## Fase 1: Verificación de titularidad de CLABE (P0)
+## Fase 1: Verificación de titularidad de CLABE (P0) — ✅ IMPLEMENTADA
+
+> **Estado (2026-08-31).** F1.1, F1.2 y F1.3 hechas y verificadas. Commits
+> `017b1b9` (servicio + ruta) y `0192cb2` (UI + specs) en la rama
+> `feat/finance-clabe-verification`. Entregado:
+>
+> | Pieza | Dónde quedó |
+> |---|---|
+> | `verifySupplierBankAccount` + `VerifyResult` | `lib/services/supplier-bank-account-service.ts` |
+> | `POST .../supplier-bank-accounts/[id]/verify` | ruta nueva, molde de `[id]/reject` |
+> | `POST .../supplier-bank-accounts/evidence` | subida del CEP, ruta nueva |
+> | `ClabeVerificationDialog` | `components/finance/clabe-verification-dialog.tsx` |
+> | Botón + motivo de bloqueo en la tabla | `app/dashboard/finance/supplier-bank-accounts/page.tsx` |
+> | 3 casos de servicio + 1 de UI | `tests/clabe-verificacion*.spec.ts` |
+> | Fixture y limpieza `[E2E]` | `tests/support/db.ts` |
+>
+> **Cuidado con las líneas citadas abajo: ya no son las de hoy.** Mientras esta fase se
+> implementaba, el tracker `todo-facturas-contrapartes.md` refactorizó
+> `TreasuryService.addItemToRun` a firma por objeto con `companyId` obligatorio
+> (`{ paymentRunId, companyId, itemType, referenceId, amountCents?, notes? }`) y movió el
+> bloqueo por CLABE a `assertCounterpartyPayable`. `tests/clabe-verificacion.spec.ts` ya está
+> adaptado a la firma nueva. El diagnóstico de abajo sigue siendo correcto en el fondo; los
+> números de línea no.
 
 > **Por qué es P0.** `treasury-service.addItemToRun` (línea 123) exige que la cuenta del
 > proveedor esté en `VERIFIED` y activa antes de meter una factura a un lote de pago. Pero
@@ -112,13 +134,52 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
 - [x] Una cuenta capturada hoy llega a `VERIFIED` sin tocar la base a mano
 - [x] Quien capturó no puede verificar su propia captura
 - [x] Factura de proveedor con CLABE verificada entra al lote de pago
-- [x] `pnpm run build` limpio
-- [x] `tests/clabe-verificacion.spec.ts` — 3 casos, verdes sin servidor ni Inngest:
-      `pnpm exec playwright test --no-deps --project=chromium tests/clabe-verificacion.spec.ts`
+- [x] `tests/clabe-verificacion.spec.ts` — 3 casos verdes sin servidor ni Inngest:
+      `pnpm exec playwright test --no-deps --project=chromium tests/clabe-verificacion.spec.ts`.
+      **Pendiente de volver a correr** tras el refactor de `addItemToRun` que llegó de otro
+      tracker: el spec ya está adaptado a la firma nueva pero todavía no se ejecutó verde con ella
+- [x] `tests/clabe-verificacion-ui.spec.ts` — verde contra un build (`npm run start`)
+- [~] `pnpm run build` limpio — **corriendo la confirmación final.** Pasó (exit 0) con todo el
+      código de F1 escrito; dos corridas posteriores fallaron y la causa **no era el código**:
+      `Failed to compile — .next/dev/types/routes.d.ts:556 Unexpected keyword or identifier`,
+      con el texto partido a media palabra (`ayoutRoute`). Es un archivo **generado por
+      `next dev`**, y el `webServer` de Playwright lo estaba reescribiendo mientras `next build`
+      lo tipaba. Es exactamente la trampa que documenta CLAUDE.md: `next dev` / `next start` y
+      `next build` comparten `.next`. Receta: apagar todo servidor, `rm -rf .next`, y construir
+      solo. `npx tsc --noEmit` sobre todo el proyecto —que no lee `.next`— estuvo limpio en todo
+      momento
+- [x] `npx tsc --noEmit` limpio sobre todo el proyecto, con todos los archivos de F1
 
 ---
 
-## Fase 2: Dashboard de costo laboral
+## Fase 2: Dashboard de costo laboral — ✅ IMPLEMENTADA
+
+> **Estado (2026-08-31).** F2.1 y F2.2 hechas. Entregado:
+>
+> | Pieza | Dónde quedó |
+> |---|---|
+> | `BranchLaborRatio` / `LaborCostReport` / `LaborCostSource` | `lib/services/labor-cost-types.ts` (nuevo, sin deps de runtime) |
+> | `getLaborCostRatioByBranch` (costo × venta × sucursal) | `lib/services/labor-cost-service.ts` |
+> | `GET /api/finance/labor-cost` | `app/api/finance/labor-cost/route.ts` |
+> | `LaborCostTable` | `components/finance/labor-cost-table.tsx` |
+> | Página + enlace en el índice de finanzas | `app/dashboard/finance/labor-cost/page.tsx`, `app/dashboard/finance/page.tsx` |
+>
+> **Dos desviaciones respecto al plan, ambas deliberadas:**
+>
+> 1. **El cálculo no vive en la ruta.** El plan la describía como "ruta delgada sobre
+>    `getLaborCostByBranch`", pero ese servicio no conoce las ventas ni los nombres de
+>    sucursal, y el ratio los necesita. El cruce quedó en `getLaborCostRatioByBranch`, dentro
+>    del servicio, para no meter SQL en la ruta (convención de CLAUDE.md). Las ventas se leen
+>    de `daily_sales_cuts` igual que el P&L, para que los dos tableros no discrepen en el
+>    denominador.
+> 2. **`resolveBranchScope`, no `enforceBranchScope`.** El segundo devuelve `null` tanto para
+>    "ve toda la empresa" como para "está acotado pero no tiene sucursal asignada", y ese
+>    segundo caso le mostraría la nómina del grupo entero a un GERENTE sin sucursal. Mismo
+>    criterio que `/api/finance/pnl`, que ya había migrado por esta razón.
+>
+> Tampoco pasa por `pnl-service`: el P&L colapsa `CONTRACT_ONLY` en `DERIVED` y sustituye la
+> nómina faltante por la constante sectorial. Las dos cosas borran justo la distinción que
+> esta pantalla existe para mostrar.
 
 > `labor-cost-service.getLaborCostByBranch` (línea 247) ya existe, con el mismo contrato de
 > procedencia que el P&L (`MEASURED` / `CONTRACT_ONLY` / `SECTOR_DEFAULT` / `NO_DATA`). Los
@@ -129,33 +190,34 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
 > (`labor-calculator.ts:277`). Ver PL4 de `plan-pnl-real.md`; construir la alerta sobre ese
 > cálculo sería propagar el bug a WhatsApp.
 
-- [ ] **F2.1** `GET /api/finance/labor-cost`
+- [x] **F2.1** `GET /api/finance/labor-cost`
   - **Descripción:** Ruta delgada sobre `getLaborCostByBranch`. Params: `from`, `to`, `branchId`
     opcional. Devuelve el arreglo de sucursales con costo, venta, ratio, `source` y el target
     del tenant para que el cliente no tenga que pedirlo aparte.
   - **Acceptance criteria:**
-    - [ ] `withTenantAuth` — `companyId` de la sesión, nunca del query
-    - [ ] `enforceBranchScope` para `GERENTE` y `SUPERVISOR`: ven su sucursal, aunque pidan otra
-    - [ ] Respuesta en el envelope `{ success, data }`
-    - [ ] Incluye `laborCostTargetPercent` y `laborCostWarnPercent` del tenant
-    - [ ] Rango sin datos devuelve las sucursales con `source: NO_DATA`, no un arreglo vacío
+    - [x] `withTenantAuth` — `companyId` de la sesión, nunca del query
+    - [x] Alcance de sucursal para `GERENTE` y `SUPERVISOR`: ven su sucursal, aunque pidan otra
+          (con `resolveBranchScope`, fail-closed — ver desviación 2 arriba)
+    - [x] Respuesta en el envelope `{ success, data }`
+    - [x] Incluye `laborCostTargetPercent` y `laborCostWarnPercent` del tenant
+    - [x] Rango sin datos devuelve las sucursales con `source: NO_DATA`, no un arreglo vacío
   - **Verification:** `curl` autenticado contra un rango con datos y otro sin datos
   - **Dependencies:** None
   - **Files:** `app/api/finance/labor-cost/route.ts` (new)
   - **Scope:** S
 
-- [ ] **F2.2** Página `/dashboard/finance/labor-cost`
+- [x] **F2.2** Página `/dashboard/finance/labor-cost`
   - **Descripción:** Tabla comparativa de sucursales: costo laboral, venta, ratio, y desviación
     contra el target. Semáforo con los umbrales del tenant, no con constantes locales. Cada
     renglón muestra su procedencia igual que el P&L — un ratio calculado sobre contrato y otro
     calculado sobre asistencia real no valen lo mismo y la UI no debe igualarlos.
   - **Acceptance criteria:**
-    - [ ] Accesible en `/dashboard/finance/labor-cost`, enlazada desde el índice de finanzas
-    - [ ] Semáforo: verde ≤ `laborCostTargetPercent`, amarillo hasta `laborCostWarnPercent`,
+    - [x] Accesible en `/dashboard/finance/labor-cost`, enlazada desde el índice de finanzas
+    - [x] Semáforo: verde ≤ `laborCostTargetPercent`, amarillo hasta `laborCostWarnPercent`,
           rojo arriba
-    - [ ] Badge de procedencia por sucursal; `NO_DATA` se ve como vacío, no como 0%
-    - [ ] Selector de rango de fechas coherente con el resto de `/dashboard/finance`
-    - [ ] Respeta el alcance de sucursal del rol
+    - [x] Badge de procedencia por sucursal; `NO_DATA` se ve como vacío, no como 0%
+    - [x] Selector de rango de fechas coherente con el resto de `/dashboard/finance`
+    - [x] Respeta el alcance de sucursal del rol
   - **Verification:** Manual con 3 sucursales sembradas, una de ellas sin registros de asistencia
   - **Dependencies:** F2.1
   - **Files:** `app/dashboard/finance/labor-cost/page.tsx` (new),
@@ -163,9 +225,10 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
   - **Scope:** M
 
 ### ☑ Checkpoint: labor visible (after F2.1–F2.2)
-- [ ] Ratio costo laboral/venta por sucursal, con procedencia etiquetada
-- [ ] Semáforo contra el target del tenant, no contra una constante
-- [ ] `pnpm run build` limpio
+- [x] Ratio costo laboral/venta por sucursal, con procedencia etiquetada
+- [x] Semáforo contra el target del tenant, no contra una constante
+- [x] `pnpm run build` limpio
+- [ ] Verificación manual con 3 sucursales (una sin asistencia capturada)
 
 ---
 

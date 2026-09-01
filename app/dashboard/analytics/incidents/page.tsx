@@ -85,7 +85,7 @@ export default function IncidentAnalyticsPage() {
       <PageHeader
         title="Analytics de Incidentes"
         description="Métricas, tendencias y distribución de incidentes por período."
-        icon={<BarChart3 className="h-5 w-5" />}
+        icon={BarChart3}
       />
 
       <div className="flex flex-wrap items-center gap-3 mb-6">

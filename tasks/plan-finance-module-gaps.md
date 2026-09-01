@@ -75,7 +75,9 @@ Lo que **ya existe** y no hay que construir — verificado archivo por archivo:
 Las fases 1–3 son independientes entre sí y se pueden hacer en paralelo. Las fases 4 y 5 están
 **bloqueadas** hasta cerrar su decisión de datos correspondiente.
 
-### Fase 1 — Verificación de titularidad de CLABE (P0, desbloquea tesorería)
+### Fase 1 — Verificación de titularidad de CLABE (P0, desbloquea tesorería) — ✅ IMPLEMENTADA
+
+Commits `017b1b9` y `0192cb2` en `feat/finance-clabe-verification`.
 
 - [x] **F1.1** `verifySupplierBankAccount` en el servicio + ruta `[id]/verify`
 - [x] **F1.2** Diálogo de verificación con carga de CEP en la UI de proveedores
@@ -85,6 +87,32 @@ Las fases 1–3 son independientes entre sí y se pueden hacer en paralelo. Las 
 - [x] Una cuenta capturada hoy puede llegar a `VERIFIED` sin tocar la base a mano
 - [x] Quien capturó no puede verificar su propia captura
 - [x] Factura de proveedor con CLABE verificada aparece en el lote de pago
+- [~] `pnpm run build` limpio — confirmación final en curso. Dos fallos intermedios fueron
+      `.next` corrupto por un `next dev` de Playwright escribiendo mientras el build tipaba,
+      no código de esta fase (ver el checkpoint del todo)
+
+**Tres cosas que el plan no había previsto y sí hubo que resolver:**
+
+1. **Verificar desplaza.** El índice único parcial `supplier_bank_accounts_one_verified_active`
+   no admite dos cuentas verificadas activas por proveedor, así que la verificación da de baja
+   a la vigente **en la misma transacción**. Sin esto, la primera verificación de un *cambio* de
+   CLABE —el caso que la regla 4 del servicio considera EL evento de fraude— moría con un error
+   de constraint. La baja es lógica y conserva `VERIFIED`: la cuenta anterior era legítima y su
+   historial de pagos tiene que seguir explicándose.
+2. **La evidencia se guarda como llave, no como URL.** `generatePresignedUrl` expira en una
+   hora; el CEP tiene que seguir ahí cuando alguien audite el pago meses después. En
+   `verification_evidence_url` va la llave durable de R2 (o el `local://` del fallback de dev).
+   El resto del repo guarda la presignada en sus columnas `evidence_url` — aquí no, a propósito.
+3. **El nombre del CEP vive en `notes`.** No hay columna para él y la fase decidió no migrar, así
+   que la verificación agrega un renglón a la nota con el titular leído y el declarado. Es lo que
+   permite reconstruir después por qué alguien dio la titularidad por buena. Si esto se vuelve
+   consultable, ahí sí hace falta columna.
+
+**Un criterio del plan resultó falso contra el código.** F1.3 pedía que
+`getUnpaidMatchedInvoices` dejara de devolver la factura de un proveedor sin CLABE verificada.
+No lo hace —filtra por `match_status` y `payment_status`— y no debería: esconderle al tesorero
+una factura legítima le quita el aviso que lo manda a verificar la cuenta. El bloqueo vive donde
+siempre vivió, en el camino de escritura de tesorería, y ahí es donde el spec lo afirma.
 
 ### Fase 2 — Dashboard de costo laboral
 

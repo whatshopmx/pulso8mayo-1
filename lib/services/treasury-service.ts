@@ -10,9 +10,11 @@ import {
   paymentRunItemTypeEnum,
   branches,
   payrollRuns,
-  payrollPayslips
+  payrollPayslips,
+  pettyCashFunds
 } from "@/lib/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
+import { ApiError } from "@/lib/api/error";
 
 export class TreasuryService {
   /**
@@ -98,77 +100,242 @@ export class TreasuryService {
   }
 
   /**
-   * Adds an item (e.g. an Invoice or Payroll run) to a payment run with checks (Módulo 6.1).
+   * Resuelve la contraparte de una partida de pago y afirma que es cobrable.
+   *
+   * G1.1 de `tasks/plan-facturas-contrapartes.md`. Antes, la regla "la
+   * contraparte tiene CLABE verificada" vivía inline dentro de
+   * `if (itemType === 'INVOICE')` y, adentro, dentro de `if (invoice.supplierId)`.
+   * Los otros cuatro valores del enum entraban al lote **sin validar nada** —
+   * ni siquiera que el `referenceId` existiera o fuera del tenant. Toda la
+   * máquina antifraude de la Fase 1 de CLABE se rodeaba cambiando una cadena
+   * en el body del POST.
+   *
+   * El `switch` es exhaustivo a propósito: el `default` asigna a `never`, así
+   * que **agregar un valor al enum sin declarar su regla no compila**. Ese es
+   * el punto de la función — no cubrir los cinco tipos de hoy, sino que el
+   * sexto reviente en build en vez de abrir un hueco callado.
+   *
+   * Devuelve el monto autoritativo: para los tipos con documento se lee del
+   * documento y **se ignora el del body**. Un monto que viene del cliente en
+   * un lote de pago es dinero declarado por quien cobra.
    */
-  static async addItemToRun(
-    paymentRunId: string, 
-    itemType: typeof paymentRunItemTypeEnum.enumValues[number], 
-    referenceId: string,
-    amountCents: number,
-    notes?: string
-  ) {
-    // 1. If invoice, strictly enforce 3-Way Match & verified CLABE account checks
-    if (itemType === 'INVOICE') {
-      const invoice = await db.query.invoices.findFirst({
-        where: eq(invoices.id, referenceId),
-      });
+  static async assertCounterpartyPayable(input: {
+    companyId: string;
+    itemType: typeof paymentRunItemTypeEnum.enumValues[number];
+    referenceId: string;
+    /** Solo se usa en los tipos que no tienen documento con monto propio. */
+    amountCents?: number;
+    notes?: string;
+  }): Promise<{ amountCents: number; counterparty: string }> {
+    const { companyId, itemType, referenceId, notes } = input;
 
-      if (!invoice) throw new Error("Factura no encontrada");
-      
-      if (invoice.matchStatus === 'DISCREPANCY') {
-        throw new Error("Factura bloqueada por discrepancia en 3-Way Match sin autorización de excepción");
-      }
+    switch (itemType) {
+      // Mercancía: contraparte = proveedor de la factura, con CLABE verificada.
+      case "INVOICE": {
+        const invoice = await db.query.invoices.findFirst({
+          where: and(eq(invoices.id, referenceId), eq(invoices.companyId, companyId)),
+        });
 
-      if (invoice.supplierId) {
+        // Mismo 404 para "no existe" y "es de otra empresa": distinguirlos
+        // filtra la existencia de documentos ajenos.
+        if (!invoice) throw ApiError.notFound("Factura no encontrada");
+
+        if (invoice.matchStatus === "DISCREPANCY") {
+          throw ApiError.badRequest(
+            "Factura bloqueada por discrepancia en 3-Way Match sin autorización de excepción"
+          );
+        }
+
+        // Antes esto era `if (invoice.supplierId)`: una factura sin proveedor
+        // se saltaba la verificación de CLABE entera. No hay a quién
+        // transferirle, así que no es pagable.
+        if (!invoice.supplierId) {
+          throw ApiError.badRequest(
+            "La factura no tiene proveedor asignado. Asigna la contraparte antes de programarla para pago."
+          );
+        }
+
         const verifiedAccount = await db.query.supplierBankAccounts.findFirst({
           where: and(
             eq(supplierBankAccounts.supplierId, invoice.supplierId),
-            eq(supplierBankAccounts.status, 'VERIFIED'),
+            eq(supplierBankAccounts.status, "VERIFIED"),
             eq(supplierBankAccounts.active, true)
           ),
         });
 
+        const supplier = await db.query.suppliers.findFirst({
+          where: eq(suppliers.id, invoice.supplierId),
+        });
+        const suppName = supplier?.name || "del proveedor";
+
         if (!verifiedAccount) {
-          const supplier = await db.query.suppliers.findFirst({
-            where: eq(suppliers.id, invoice.supplierId),
-          });
-          const suppName = supplier?.name || "del proveedor";
-          throw new Error(`El proveedor "${suppName}" no tiene una cuenta bancaria CLABE verificada. Se requiere validación previa contra fraude (Módulo 6.1).`);
+          throw ApiError.badRequest(
+            `El proveedor "${suppName}" no tiene una cuenta bancaria CLABE verificada. Se requiere validación previa contra fraude (Módulo 6.1).`
+          );
         }
+
+        return { amountCents: invoice.total, counterparty: suppName };
+      }
+
+      // Nómina: se paga por layout de dispersión contra las CLABEs de los
+      // empleados, no contra una cuenta de contraparte. **Se declara** que no
+      // requiere contraparte bancaria; no cae por omisión.
+      case "PAYROLL": {
+        const payrollRun = await db.query.payrollRuns.findFirst({
+          where: and(eq(payrollRuns.id, referenceId), eq(payrollRuns.companyId, companyId)),
+        });
+
+        if (!payrollRun) throw ApiError.notFound("Corrida de nómina no encontrada");
+
+        const payslips = await db.query.payrollPayslips.findMany({
+          where: eq(payrollPayslips.runId, payrollRun.id),
+          columns: { totalPercepcionesCents: true },
+        });
+
+        const totalCents = payslips.reduce(
+          (sum, ps) => sum + (ps.totalPercepcionesCents || 0),
+          0
+        );
+
+        if (totalCents <= 0) {
+          throw ApiError.badRequest(
+            "Esta corrida de nómina no tiene percepciones calculadas; no hay monto que programar."
+          );
+        }
+
+        return { amountCents: totalCents, counterparty: "Nómina (dispersión a empleados)" };
+      }
+
+      // Impuestos: se pagan por línea de captura al SAT/IMSS, no por SPEI a una
+      // contraparte. No hay tabla de declaraciones en el repo contra la cual
+      // verificar el `referenceId`, así que la nota es obligatoria: es lo único
+      // que deja rastro de qué se está pagando.
+      case "TAXES": {
+        const amountCents = input.amountCents ?? 0;
+        if (amountCents <= 0) {
+          throw ApiError.badRequest("El monto del pago de impuestos debe ser mayor a cero.");
+        }
+        if (!notes || notes.trim().length === 0) {
+          throw ApiError.badRequest(
+            "Un pago de impuestos requiere nota con la línea de captura y el concepto: no hay documento contra el cual verificarlo."
+          );
+        }
+        return { amountCents, counterparty: "Autoridad fiscal (línea de captura)" };
+      }
+
+      // Caja chica: la reposición es efectivo que entra al fondo de una
+      // sucursal, no una transferencia a un tercero — `petty_cash_transactions`
+      // no tiene contraparte y el fondo se identifica por sucursal. Se declara
+      // que no requiere CLABE, y el `referenceId` apunta al fondo.
+      //
+      // El monto se acota al faltante del fondo: se admite una reposición
+      // parcial, pero no se puede meter a la sucursal más efectivo del que el
+      // fondo está autorizado a tener.
+      case "PETTY_CASH_REIMBURSEMENT": {
+        const fund = await db.query.pettyCashFunds.findFirst({
+          where: and(
+            eq(pettyCashFunds.id, referenceId),
+            eq(pettyCashFunds.companyId, companyId)
+          ),
+        });
+
+        if (!fund) throw ApiError.notFound("Fondo de caja chica no encontrado");
+        if (!fund.active) {
+          throw ApiError.badRequest("El fondo de caja chica está cerrado; no admite reposición.");
+        }
+
+        const faltanteCents = fund.fundAmount - fund.currentBalance;
+        if (faltanteCents <= 0) {
+          throw ApiError.badRequest(
+            "El fondo de caja chica está completo; no requiere reposición."
+          );
+        }
+
+        const solicitado = input.amountCents ?? faltanteCents;
+        if (solicitado <= 0) {
+          throw ApiError.badRequest("El monto de la reposición debe ser mayor a cero.");
+        }
+        if (solicitado > faltanteCents) {
+          throw ApiError.badRequest(
+            `La reposición excede el faltante del fondo ($${(faltanteCents / 100).toFixed(2)} MXN).`
+          );
+        }
+
+        return { amountCents: solicitado, counterparty: "Fondo de caja chica de la sucursal" };
+      }
+
+      // Un cajón de sastre en un lote de pago **es** el bypass: monto libre,
+      // referencia libre, sin contraparte que verificar. Si aparece un caso de
+      // uso real, se le declara su propio tipo con su propia regla.
+      case "OTHER": {
+        throw ApiError.badRequest(
+          "El tipo de partida OTHER no está permitido en una corrida de pago: no tiene contraparte que verificar. Usa el tipo que corresponda al documento."
+        );
+      }
+
+      default: {
+        // Exhaustividad: si el enum crece, esta asignación deja de compilar.
+        const tipoSinRegla: never = itemType;
+        throw ApiError.badRequest(
+          `Tipo de partida sin regla de contraparte declarada: ${String(tipoSinRegla)}`
+        );
       }
     }
+  }
 
-    if (itemType === 'PAYROLL') {
-      const payrollRun = await db.query.payrollRuns.findFirst({
-        where: eq(payrollRuns.id, referenceId),
-      });
+  /**
+   * Agrega una partida a una corrida de pago (Módulo 6.1).
+   *
+   * `companyId` viene de la sesión, nunca del body: sin él, una factura de otra
+   * empresa con su `id` conocido entraba al lote (G1.2).
+   */
+  static async addItemToRun(input: {
+    paymentRunId: string;
+    companyId: string;
+    itemType: typeof paymentRunItemTypeEnum.enumValues[number];
+    referenceId: string;
+    /** Ignorado en los tipos con documento; el monto se lee del documento. */
+    amountCents?: number;
+    notes?: string;
+  }) {
+    const { paymentRunId, companyId, itemType, referenceId, notes } = input;
 
-      if (!payrollRun) throw new Error("Corrida de nómina no encontrada");
-    }
-
-    const [item] = await db.insert(paymentRunItems)
-      .values({
-        paymentRunId,
-        itemType,
-        referenceId,
-        amountCents,
-        notes
-      })
-      .returning();
-
-    // Update the total amount of the payment run
     const run = await db.query.paymentRuns.findFirst({
-      where: eq(paymentRuns.id, paymentRunId),
-      columns: { totalAmountCents: true }
+      where: and(eq(paymentRuns.id, paymentRunId), eq(paymentRuns.companyId, companyId)),
+      columns: { id: true, status: true },
     });
 
-    if (run) {
-      await db.update(paymentRuns)
-        .set({ totalAmountCents: run.totalAmountCents + amountCents })
-        .where(eq(paymentRuns.id, paymentRunId));
+    if (!run) throw ApiError.notFound("Corrida de pago no encontrada");
+    if (run.status !== "DRAFT") {
+      throw ApiError.badRequest("Solo puedes agregar ítems a una corrida en estado DRAFT.");
     }
 
-    return item;
+    const { amountCents } = await TreasuryService.assertCounterpartyPayable({
+      companyId,
+      itemType,
+      referenceId,
+      amountCents: input.amountCents,
+      notes,
+    });
+
+    // La partida y el total de la corrida se escriben juntos: antes eran dos
+    // escrituras sueltas y un fallo entre ellas dejaba la corrida cuadrando mal.
+    return db.transaction(async (tx) => {
+      const [item] = await tx
+        .insert(paymentRunItems)
+        .values({ paymentRunId, itemType, referenceId, amountCents, notes })
+        .returning();
+
+      await tx
+        .update(paymentRuns)
+        .set({
+          totalAmountCents: sql`${paymentRuns.totalAmountCents} + ${amountCents}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(paymentRuns.id, paymentRunId));
+
+      return item;
+    });
   }
 
   /**

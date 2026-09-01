@@ -78,7 +78,12 @@ test.describe("F1 — verificación de CLABE y desbloqueo de tesorería", () => 
 
     // 1. Sin ninguna cuenta: la factura no es pagable.
     await expect(
-      TreasuryService.addItemToRun(runId, "INVOICE", invoiceId, 250_00),
+      TreasuryService.addItemToRun({
+        paymentRunId: runId,
+        companyId: COMPANY_ID,
+        itemType: "INVOICE",
+        referenceId: invoiceId,
+      }),
     ).rejects.toThrow(MENSAJE_BLOQUEO);
 
     // 2. Capturada pero sin verificar: sigue sin ser pagable. Capturar no paga.
@@ -92,7 +97,12 @@ test.describe("F1 — verificación de CLABE y desbloqueo de tesorería", () => 
     expect(account.status).toBe("PENDING_VERIFICATION");
 
     await expect(
-      TreasuryService.addItemToRun(runId, "INVOICE", invoiceId, 250_00),
+      TreasuryService.addItemToRun({
+        paymentRunId: runId,
+        companyId: COMPANY_ID,
+        itemType: "INVOICE",
+        referenceId: invoiceId,
+      }),
     ).rejects.toThrow(MENSAJE_BLOQUEO);
 
     // 3. Quien capturó no puede verificar su propia captura.
@@ -133,7 +143,12 @@ test.describe("F1 — verificación de CLABE y desbloqueo de tesorería", () => 
     expect(verificada.account).not.toHaveProperty("clabe");
 
     // 6. Ahora sí: la factura entra al lote.
-    await TreasuryService.addItemToRun(runId, "INVOICE", invoiceId, 250_00);
+    await TreasuryService.addItemToRun({
+        paymentRunId: runId,
+        companyId: COMPANY_ID,
+        itemType: "INVOICE",
+        referenceId: invoiceId,
+      });
     const items = await findPaymentRunItems(runId);
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
@@ -177,7 +192,12 @@ test.describe("F1 — verificación de CLABE y desbloqueo de tesorería", () => 
 
     // Rechazada y dada de baja: no paga...
     await expect(
-      TreasuryService.addItemToRun(runId, "INVOICE", invoiceId, 500_00),
+      TreasuryService.addItemToRun({
+        paymentRunId: runId,
+        companyId: COMPANY_ID,
+        itemType: "INVOICE",
+        referenceId: invoiceId,
+      }),
     ).rejects.toThrow(MENSAJE_BLOQUEO);
 
     // ...y tampoco se puede resucitar verificándola.
