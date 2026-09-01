@@ -66,6 +66,8 @@ export interface SafeSupplierBankAccount {
   verifiedAt: Date | null;
   verifiedBy: string | null;
   verificationMethod: string | null;
+  /** Llave del CEP en R2. No es la CLABE: se puede mostrar y se debe auditar. */
+  verificationEvidenceUrl: string | null;
   registeredBy: string;
   replacesAccountId: string | null;
   rejectionReason: string | null;
@@ -86,6 +88,7 @@ const SAFE_COLUMNS = {
   verifiedAt: supplierBankAccounts.verifiedAt,
   verifiedBy: supplierBankAccounts.verifiedBy,
   verificationMethod: supplierBankAccounts.verificationMethod,
+  verificationEvidenceUrl: supplierBankAccounts.verificationEvidenceUrl,
   registeredBy: supplierBankAccounts.registeredBy,
   replacesAccountId: supplierBankAccounts.replacesAccountId,
   rejectionReason: supplierBankAccounts.rejectionReason,
@@ -332,6 +335,202 @@ export async function rejectSupplierBankAccount(input: {
   }
 
   return rejected;
+}
+
+export interface VerifyResult {
+  account: SafeSupplierBankAccount;
+  /** Cuenta que dejó de ser pagable por esta verificación, si había una. */
+  supersededAccountId: string | null;
+  supersededLast4: string | null;
+}
+
+/**
+ * Marca una cuenta como VERIFIED tras la prueba del centavo — paso 3.
+ *
+ * En México no existe un servicio que devuelva el titular a partir de una
+ * CLABE. El único mecanismo real es transferir una cantidad simbólica, bajar el
+ * CEP de Banxico —que sí trae el nombre del titular de la cuenta destino— y
+ * contrastarlo contra la razón social que declaró el proveedor.
+ *
+ * Tres decisiones que no son de conveniencia:
+ *
+ *   1. **La comparación de nombres es asistida, no automática.** El servicio
+ *      conserva el nombre que la persona leyó en el CEP, pero no aprueba ni
+ *      rechaza por parecido. Un fuzzy match que apruebe solo se engaña con
+ *      "Servicios Gastronómicos SA" contra "Servicios Gastronomicos SAPI", que
+ *      es exactamente el ataque que este paso existe para detener.
+ *   2. **Capturar ≠ verificar.** `registered_by` está en el esquema justamente
+ *      para poder rechazar aquí. Sin esta regla, quien logra capturar una CLABE
+ *      logra también volverla pagable, y los pasos 2 y 3 serían el mismo paso.
+ *   3. **Verificar sí desplaza.** La cuenta verificada vigente del proveedor se
+ *      da de baja en la misma transacción: el índice único parcial
+ *      `supplier_bank_accounts_one_verified_active` no admite dos, y hacerlo en
+ *      dos escrituras dejaría una ventana sin cuenta pagable.
+ *
+ * En `evidenceUrl` se espera la **llave durable** de R2, no una URL presignada:
+ * la presignada expira en una hora y el CEP tiene que seguir ahí cuando alguien
+ * audite el pago meses después.
+ */
+export async function verifySupplierBankAccount(input: {
+  companyId: string;
+  accountId: string;
+  verifiedBy: string;
+  /** El titular tal como aparece en el CEP, no el declarado por el proveedor. */
+  holderNameFromCep: string;
+  /** Llave (o referencia local en dev) del CEP. Sin evidencia no hay verificación. */
+  evidenceUrl: string;
+}): Promise<VerifyResult> {
+  const holderNameFromCep = input.holderNameFromCep?.trim();
+  if (!holderNameFromCep) {
+    throw ApiError.badRequest(
+      "Captura el nombre del titular tal como aparece en el CEP: es lo único " +
+        "que prueba que la cuenta es del proveedor y no de un tercero.",
+    );
+  }
+
+  const evidenceUrl = input.evidenceUrl?.trim();
+  if (!evidenceUrl) {
+    throw ApiError.badRequest(
+      "El CEP de Banxico es obligatorio: sin el comprobante, la verificación " +
+        "es la palabra de una persona y no queda nada que auditar.",
+    );
+  }
+
+  const [account] = await db
+    .select({
+      id: supplierBankAccounts.id,
+      supplierId: supplierBankAccounts.supplierId,
+      status: supplierBankAccounts.status,
+      active: supplierBankAccounts.active,
+      registeredBy: supplierBankAccounts.registeredBy,
+      accountHolderName: supplierBankAccounts.accountHolderName,
+      notes: supplierBankAccounts.notes,
+    })
+    .from(supplierBankAccounts)
+    .where(
+      and(
+        eq(supplierBankAccounts.id, input.accountId),
+        eq(supplierBankAccounts.companyId, input.companyId),
+      ),
+    )
+    .limit(1);
+
+  if (!account) {
+    throw ApiError.notFound("La cuenta no existe en esta empresa.");
+  }
+
+  if (!account.active) {
+    throw ApiError.badRequest(
+      "La cuenta está dada de baja. Si sigue siendo la correcta, hay que " +
+        "capturarla de nuevo y verificar esa captura.",
+    );
+  }
+
+  if (account.status !== "PENDING_VERIFICATION") {
+    throw ApiError.badRequest(
+      account.status === "VERIFIED"
+        ? "Esta cuenta ya está verificada."
+        : "Esta cuenta fue rechazada; una cuenta rechazada no se verifica.",
+      { status: account.status },
+    );
+  }
+
+  // Segregación de funciones. El mensaje explica la regla en vez de solo
+  // negarla: en un grupo de tres personas lo que hay que saber es a quién
+  // pedirle que verifique, no que "no se puede".
+  if (account.registeredBy === input.verifiedBy) {
+    throw ApiError.forbidden(
+      "Tú capturaste esta cuenta, así que no puedes verificarla. La " +
+        "verificación la tiene que hacer otra persona con permiso de " +
+        "configuración: es lo que impide que una sola persona redirija un pago.",
+      { registeredBy: account.registeredBy },
+    );
+  }
+
+  // El nombre del CEP se conserva en la nota porque el esquema no tiene columna
+  // propia y esta fase no agrega migración. Es el dato que permite reconstruir
+  // después por qué alguien dio la titularidad por buena.
+  const verificationNote =
+    `Verificación por CEP (${new Date().toISOString().slice(0, 10)}): ` +
+    `titular en el CEP "${holderNameFromCep}"; declarado "${account.accountHolderName}".`;
+  const notes = account.notes ? `${account.notes}\n${verificationNote}` : verificationNote;
+
+  try {
+    return await db.transaction(async (tx) => {
+      // La vigente se busca por proveedor y no por `replaces_account_id`: la
+      // cuenta que ésta pretendía sustituir pudo haberse rechazado mientras
+      // tanto, y la que hay que desplazar es la que hoy es pagable.
+      const [current] = await tx
+        .select({
+          id: supplierBankAccounts.id,
+          clabeLast4: supplierBankAccounts.clabeLast4,
+        })
+        .from(supplierBankAccounts)
+        .where(
+          and(
+            eq(supplierBankAccounts.supplierId, account.supplierId),
+            eq(supplierBankAccounts.status, "VERIFIED"),
+            eq(supplierBankAccounts.active, true),
+          ),
+        )
+        .limit(1);
+
+      if (current) {
+        // Baja lógica, no rechazo: la cuenta anterior era legítima y su
+        // historial de pagos tiene que seguir explicándose.
+        await tx
+          .update(supplierBankAccounts)
+          .set({ active: false, updatedAt: new Date() })
+          .where(eq(supplierBankAccounts.id, current.id));
+      }
+
+      const [verified] = await tx
+        .update(supplierBankAccounts)
+        .set({
+          status: "VERIFIED",
+          verifiedAt: new Date(),
+          verifiedBy: input.verifiedBy,
+          verificationMethod: "MANUAL_CEP",
+          verificationEvidenceUrl: evidenceUrl,
+          notes,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(supplierBankAccounts.id, input.accountId),
+            eq(supplierBankAccounts.companyId, input.companyId),
+            // Las condiciones de estado se repiten dentro de la transacción:
+            // entre la lectura de arriba y este UPDATE cabe un rechazo.
+            eq(supplierBankAccounts.status, "PENDING_VERIFICATION"),
+            eq(supplierBankAccounts.active, true),
+          ),
+        )
+        .returning(SAFE_COLUMNS);
+
+      if (!verified) {
+        throw ApiError.badRequest(
+          "La cuenta cambió de estado mientras se verificaba. Vuelve a cargar " +
+            "la lista antes de intentarlo de nuevo.",
+        );
+      }
+
+      return {
+        account: verified,
+        supersededAccountId: current?.id ?? null,
+        supersededLast4: current?.clabeLast4 ?? null,
+      };
+    });
+  } catch (error) {
+    // Dos verificaciones simultáneas sobre el mismo proveedor: el índice único
+    // parcial deja pasar una sola. Vale más un mensaje que un 500.
+    if ((error as { code?: string })?.code === "23505") {
+      throw ApiError.badRequest(
+        "Otra cuenta de este proveedor se verificó al mismo tiempo. Vuelve a " +
+          "cargar la lista para ver cuál quedó vigente.",
+      );
+    }
+    throw error;
+  }
 }
 
 /**

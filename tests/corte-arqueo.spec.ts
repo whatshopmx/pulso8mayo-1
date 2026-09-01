@@ -88,7 +88,9 @@ test.describe("Fase 2 · arqueo de cierre de turno", () => {
       },
     ]);
 
-    // Dashboard: la columna "Arqueo/Dif." muestra el faltante de $20.
+    // Dashboard: la columna "Arqueo efectivo" muestra el faltante de $20.
+    // (Se llamaba "Arqueo/Dif." hasta que la Fase 4 le puso al lado la columna
+    // de terminal y hubo que decir cuál de las dos diferencias es cuál.)
     await page.goto("/dashboard/sales");
     // La tabla de cortes vive en la segunda pestaña.
     await page.getByRole("tab", { name: /Registro de Cortes/i }).click();

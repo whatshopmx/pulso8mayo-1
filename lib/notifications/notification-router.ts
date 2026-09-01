@@ -206,6 +206,29 @@ const routingRules: Record<NotificationEventType, RoutingRule> = {
     retryDelayMs: 3000,
     businessHoursOnly: false
   },
+  recurring_shortage_detected: {
+    eventType: "recurring_shortage_detected",
+    // `high` y no `critical`: a diferencia del faltante del día, el patrón no
+    // se investiga a las 11 de la noche. Sí sale fuera de horario porque se
+    // detecta al cerrar el corte, y retenerlo hasta mañana lo despega del
+    // hecho que lo disparó.
+    priority: "high",
+    channels: ["whatsapp", "in-app"],
+    retryAttempts: 2,
+    retryDelayMs: 3000,
+    businessHoursOnly: false
+  },
+  budget_threshold_reached: {
+    eventType: "budget_threshold_reached",
+    // `high` y no `critical`: es dinero que ya se gastó, no una fuga en curso.
+    // `businessHoursOnly` en false porque el gasto se captura a cualquier hora y
+    // retener el aviso hasta la mañana lo desconecta de la captura que lo causó.
+    priority: "high",
+    channels: ["whatsapp", "in-app"],
+    retryAttempts: 2,
+    retryDelayMs: 3000,
+    businessHoursOnly: false
+  },
   morning_brief: {
     eventType: "morning_brief",
     priority: "normal",

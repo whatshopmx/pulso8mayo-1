@@ -17,19 +17,26 @@
  *                      indirecta o sesgada (p. ej. food cost desde compras en
  *                      lugar de consumo, o nómina desde plantilla contratada en
  *                      lugar de asistencia real).
+ * - `ESTIMATED`      — dato del cliente multiplicado por un parámetro que él
+ *                      configuró pero que el sistema no midió (la tarifa de
+ *                      comisión por canal). Es más débil que `DERIVED` —el
+ *                      insumo clave no se observó en ningún lado— y más fuerte
+ *                      que `SECTOR_DEFAULT`, porque la tasa es la suya y no una
+ *                      constante de la industria.
  * - `SECTOR_DEFAULT` — constante sectorial aplicada sobre ventas. NO son datos
  *                      del cliente. Siempre debe ir marcado en la UI.
  * - `NO_DATA`        — no hay insumos para calcularlo. La UI muestra guion,
  *                      **nunca cero** (un cero se lee como "no gastamos nada").
  */
-export type LineSource = "MEASURED" | "DERIVED" | "SECTOR_DEFAULT" | "NO_DATA";
+export type LineSource = "MEASURED" | "DERIVED" | "ESTIMATED" | "SECTOR_DEFAULT" | "NO_DATA";
 
 /** Orden de confianza, de mejor a peor. Se usa para calcular `weakestLine`. */
 const SOURCE_RANK: Record<LineSource, number> = {
   MEASURED: 0,
   DERIVED: 1,
-  SECTOR_DEFAULT: 2,
-  NO_DATA: 3,
+  ESTIMATED: 2,
+  SECTOR_DEFAULT: 3,
+  NO_DATA: 4,
 };
 
 /** Devuelve la procedencia menos confiable del conjunto. */
@@ -71,12 +78,34 @@ export interface BranchPnL {
   waste: PnLLine;
   labor: PnLLine;
   operatingExpenses: PnLLine;
+  /**
+   * Comisiones de canal (Fase 4): TPV y agregadores.
+   *
+   * Opcional en el tipo, no por descuido: `pnl_snapshots.lines` guarda un
+   * `BranchPnL` serializado, y los snapshots congelados antes de esta fase no
+   * tienen el renglón. Marcarlo obligatorio haría que releer el histórico
+   * mintiera sobre lo que ese período sabía de sí mismo.
+   */
+  commissions?: PnLLine;
+  /** Desglose del renglón anterior. Ausente en snapshots anteriores a Fase 4. */
+  commissionsByChannel?: CommissionBreakdownItem[];
   operatingProfit: PnLLine;
   /**
    * El renglón más débil del P&L. Si no es `MEASURED`, el margen operativo
    * NO es confiable y la UI debe marcarlo como aproximado.
    */
   weakestLine: LineSource;
+}
+
+/** Una línea del desglose de comisiones por canal, para el tooltip de la tabla. */
+export interface CommissionBreakdownItem {
+  /** Llave del canal (`tpv`, `rappi`, …). La etiqueta la resuelve `commission-types`. */
+  channel: string;
+  cents: number;
+  /** Tarifa aplicada en bps, o `null` si el rango abarcó varias vigencias. */
+  rateBps: number | null;
+  /** `true` si el importe salió de la comisión conciliada y no de la tarifa. */
+  measured: boolean;
 }
 
 /** Constantes sectoriales HORECA. Solo se usan como último recurso, etiquetadas. */

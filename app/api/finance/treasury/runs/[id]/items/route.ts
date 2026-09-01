@@ -1,15 +1,21 @@
 import { NextRequest } from "next/server";
 import { requirePermissionApi } from "@/lib/rbac/abac";
 import { ApiHandler } from "@/lib/api/response";
-import { ApiError } from "@/lib/api/error";
+import { ApiError, isApiError } from "@/lib/api/error";
 import { TreasuryService } from "@/lib/services/treasury-service";
 import { paymentRunItemTypeEnum } from "@/lib/db/schema";
 import { z } from "zod";
 
+/**
+ * `amountCents` sigue siendo opcional y **solo lo usan los tipos sin documento**
+ * (impuestos, reposición de caja chica). Para facturas y nómina el servicio lee
+ * el monto del documento e ignora éste: un monto declarado por quien cobra no
+ * puede ser el que sale del banco (G1.2).
+ */
 const addItemSchema = z.object({
   itemType: z.enum(paymentRunItemTypeEnum.enumValues),
   referenceId: z.string().uuid(),
-  amountCents: z.number().int().positive(),
+  amountCents: z.number().int().positive().optional(),
   notes: z.string().optional(),
 });
 
@@ -27,16 +33,6 @@ export async function POST(
       audit: { action: "UPDATE", req },
     });
 
-    const runDetails = await TreasuryService.getPaymentRunDetails(paymentRunId);
-
-    if (runDetails.run.companyId !== ctx.userCompanyId) {
-      return ApiHandler.error(ApiError.forbidden("No tienes acceso a esta corrida de pago."));
-    }
-    
-    if (runDetails.run.status !== "DRAFT") {
-      return ApiHandler.error(ApiError.badRequest("Solo puedes agregar ítems a una corrida en estado DRAFT."));
-    }
-
     const body = await req.json();
     const parsed = addItemSchema.safeParse(body);
     if (!parsed.success) {
@@ -45,20 +41,22 @@ export async function POST(
 
     const { itemType, referenceId, amountCents, notes } = parsed.data;
 
-    const item = await TreasuryService.addItemToRun(
+    // La pertenencia al tenant y el estado DRAFT los afirma el servicio, con el
+    // `companyId` de la sesión: la regla vive donde se escribe, no en la ruta.
+    const item = await TreasuryService.addItemToRun({
       paymentRunId,
+      companyId: ctx.userCompanyId,
       itemType,
       referenceId,
       amountCents,
-      notes
-    );
+      notes,
+    });
 
     return ApiHandler.success(item);
   } catch (error: any) {
-    if (error.message === "Payment run not found") {
-      return ApiHandler.error(ApiError.notFound("Corrida de pago no encontrada."));
-    }
-    if (error instanceof ApiError) return ApiHandler.error(error);
+    // El status va explícito: `ApiHandler.error` mapea por `instanceof`, que
+    // falla cuando Turbopack duplica el módulo de `ApiError` entre chunks.
+    if (isApiError(error)) return ApiHandler.error(error, error.statusCode);
     return ApiHandler.error(error);
   }
 }

@@ -12,6 +12,10 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { roleIsAtLeast } from "@/lib/permissions";
+import {
+  getRecurringShortageFindings,
+  shiftLabel,
+} from "@/lib/services/cash-variance-alert-service";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,9 +36,16 @@ export interface AuditLogEntry {
 
 export interface Violation {
   id: string;
-  type: "SELF_APPROVAL" | "OVERDUE_APPROVAL" | "ROLE_MISMATCH" | "CONTRACT_VARIANCE_EXCEEDED";
+  type:
+    | "SELF_APPROVAL"
+    | "OVERDUE_APPROVAL"
+    | "ROLE_MISMATCH"
+    | "CONTRACT_VARIANCE_EXCEEDED"
+    /** Faltantes repetidos en el mismo turno de una sucursal (F3.4). */
+    | "RECURRING_SHORTAGE";
   severity: "LOW" | "MEDIUM" | "HIGH";
-  expenseId: string;
+  /** `null` en las excepciones que no nacen de un gasto — el patrón de faltantes. */
+  expenseId: string | null;
   branchName: string;
   category: string;
   amountCents: number;
@@ -344,6 +355,41 @@ export async function detectViolations(
         });
       }
     }
+  }
+
+  // 5. RECURRING_SHORTAGE: faltantes repetidos en el mismo turno de una sucursal.
+  //
+  // Es el único tipo que no sale de un gasto: se deriva del ledger de eventos
+  // (`cash-variance-alert-service`), igual de recalculado que los otros cuatro
+  // y sin tabla propia. Si falla, el panel muestra las excepciones de gasto en
+  // vez de no mostrar nada: una consulta caída no debe borrar el resto del
+  // análisis de control interno.
+  try {
+    const patrones = await getRecurringShortageFindings(companyId, branchId);
+    for (const p of patrones) {
+      violations.push({
+        id: `shortage-${p.branchId}-${p.shift}`,
+        type: "RECURRING_SHORTAGE",
+        // A partir de 5 faltantes en la ventana ya no es un turno flojo: es
+        // dinero que sale con regularidad por el mismo lugar.
+        severity: p.shortageCount >= 5 ? "HIGH" : "MEDIUM",
+        expenseId: null,
+        branchName: p.branchName,
+        category: `Turno ${shiftLabel(p.shift)}`,
+        amountCents: p.totalShortageCents,
+        description: "Faltantes recurrentes en arqueo de caja",
+        detail:
+          `${p.shortageCount} faltantes en los últimos ${p.windowCuts} cortes del turno ` +
+          `${shiftLabel(p.shift)}, por $${(p.totalShortageCents / 100).toFixed(2)} MXN acumulados. ` +
+          `El más reciente es del ${p.lastCutDate}. El patrón es por sucursal y turno: el corte no ` +
+          `registra quién manejó la caja.`,
+        // La fecha del hallazgo es la del corte que lo mantiene vivo, para que
+        // ordene junto a las excepciones de esos días y no siempre hasta arriba.
+        createdAt: new Date(`${p.lastCutDate}T12:00:00Z`),
+      });
+    }
+  } catch (err) {
+    console.error("[ControlInterno] No se pudieron derivar los faltantes recurrentes:", err);
   }
 
   // Sort by severity (HIGH first) then by date

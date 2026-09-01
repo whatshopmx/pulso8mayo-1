@@ -33,6 +33,8 @@ export type DomainEventType =
   | 'PAYMENT_EXECUTED'
   /** Arqueo de caja fuera de tolerancia (faltante o sobrante de efectivo). */
   | 'CashVarianceDetected'
+  /** Patrón de faltantes repetidos en el mismo (sucursal, turno). */
+  | 'RecurringShortageDetected'
   // Compliance
   | 'COMPLIANCE_SCORE_CHANGED'
   | 'DOCUMENT_EXPIRING'

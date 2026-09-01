@@ -1,7 +1,7 @@
 // M16 / T40: P&L Service (Estado de Resultados Operativo por Sucursal)
 //
 // Utilidad Operativa = Ventas − Food Cost − Merma − Nómina − Gastos Operativos
-// (neto, sin IVA).
+// − Comisiones de canal (neto, sin IVA).
 //
 // Reescrito según docs/plan-pnl-real.md. Lo que cambió y por qué:
 //
@@ -19,12 +19,18 @@
 //  - Agregación por company con GROUP BY branch_id (Fase 4): ~6 consultas en
 //    total, no ~5 por sucursal. Para 15 sucursales eso es la diferencia entre
 //    ~75 consultas secuenciales y 6.
+//  - Comisiones de canal como renglón propio (Fase 4 de finance-module-gaps).
+//    Antes NO existían en el P&L: lo que Rappi se queda de cada pedido, que en
+//    delivery es la diferencia entre ganar y perder, simplemente no aparecía en
+//    la utilidad operativa. El renglón es `ESTIMATED` porque se calcula con la
+//    tarifa negociada; el sistema no tiene ningún monto neto que medir.
 
 import { db } from "@/lib/db";
 import { dailySalesCuts, operatingExpenses, branches } from "@/lib/db/schema";
 import { eq, and, gte, lte, ne, sql } from "drizzle-orm";
 import { getFoodCostByBranch } from "@/lib/services/food-cost-service";
 import { getLaborCostByBranch } from "@/lib/services/labor-cost-service";
+import { getCommissionsByBranch } from "@/lib/services/commission-service";
 import {
   SECTOR_FOOD_COST_PERCENT,
   SECTOR_LABOR_COST_PERCENT,
@@ -32,7 +38,12 @@ import {
   noDataLine,
   weakestOf,
 } from "@/lib/services/pnl-types";
-import type { BranchPnL, LineSource, PnLLine } from "@/lib/services/pnl-types";
+import type {
+  BranchPnL,
+  CommissionBreakdownItem,
+  LineSource,
+  PnLLine,
+} from "@/lib/services/pnl-types";
 
 export type { BranchPnL, LineSource, PnLLine } from "@/lib/services/pnl-types";
 export { weakestOf, isFirm } from "@/lib/services/pnl-types";
@@ -86,7 +97,7 @@ export async function getPnLByBranch(
 
   // 4 consultas en paralelo, todas agregadas por company. Ninguna escala con
   // el número de sucursales.
-  const [salesRows, expenseRows, foodCosts, laborCosts] = await Promise.all([
+  const [salesRows, expenseRows, foodCosts, laborCosts, commissions] = await Promise.all([
     db
       .select({
         branchId: dailySalesCuts.branchId,
@@ -124,12 +135,14 @@ export async function getPnLByBranch(
 
     getFoodCostByBranch(companyId, startDay, endDay),
     getLaborCostByBranch(companyId, startDay, endDay),
+    getCommissionsByBranch(companyId, startDay, endDay),
   ]);
 
   const salesByBranch = new Map(salesRows.map((r) => [r.branchId, r]));
   const expenseByBranch = new Map(expenseRows.map((r) => [r.branchId, r]));
   const foodByBranch = new Map(foodCosts.map((f) => [f.branchId, f]));
   const laborByBranch = new Map(laborCosts.map((l) => [l.branchId, l]));
+  const commissionByBranch = new Map(commissions.map((c) => [c.branchId, c]));
 
   return branchList.map((branch) => {
     const salesRow = salesByBranch.get(branch.id);
@@ -240,19 +253,58 @@ export async function getPnLByBranch(
               "administración no aparecen aquí si no se registran.",
           );
 
+    // --- Comisiones de canal ----------------------------------------------
+    // `MEASURED` sólo cuando TODO el importe salió de comisiones conciliadas
+    // contra el depósito de la terminal. En cuanto una parte se calcula con la
+    // tarifa, el renglón entero es `ESTIMATED`: es lo más fuerte que se puede
+    // afirmar de una suma con un sumando calculado.
+    const commission = commissionByBranch.get(branch.id);
+    const commissionsLine: PnLLine =
+      !commission || commission.source === "NO_DATA"
+        ? noDataLine(
+            commission?.note ??
+              "Sin ventas capturadas en el período: no hay comisiones que calcular.",
+          )
+        : line(
+            commission.totalCommissionCents,
+            totalSalesCents,
+            commission.source === "MEASURED" ? "MEASURED" : "ESTIMATED",
+            commission.coveragePercent,
+            commission.note,
+          );
+
+    const commissionsByChannel: CommissionBreakdownItem[] | undefined = commission
+      ? commission.channels.map((c) => ({
+          channel: c.channel,
+          cents: c.commissionCents,
+          rateBps: c.rateBps,
+          measured: c.source === "MEASURED",
+        }))
+      : undefined;
+
     // --- Utilidad operativa -----------------------------------------------
+    // Las comisiones entran en `weakestLine` (criterio F4.4). Consecuencia
+    // buscada: un tenant con venta con tarjeta y sin tarifas configuradas deja
+    // de verse "medido" — porque no lo está, le falta un costo real del renglón
+    // de ingresos. La merma sigue fuera, como estaba: se explica dentro del
+    // food cost y no es un insumo independiente del margen.
     const weakestLine = weakestOf(
       sales.source,
       foodCost.source,
       laborLine.source,
       operatingExpensesLine.source,
+      commissionsLine.source,
     );
 
     // Un renglón NO_DATA vale 0 en la suma, pero el `weakestLine` avisa que el
     // margen está incompleto. Nunca se presenta como un número firme si algún
     // insumo no es MEASURED (regla §3.2 del plan).
     const totalCostCents =
-      foodCost.cents + waste.cents + laborLine.cents + operatingExpensesLine.cents;
+      foodCost.cents +
+      waste.cents +
+      laborLine.cents +
+      operatingExpensesLine.cents +
+      commissionsLine.cents;
     const operatingProfitCents = totalSalesCents - totalCostCents;
 
     const operatingProfit: PnLLine =
@@ -268,8 +320,16 @@ export async function getPnLByBranch(
               laborLine.coveragePercent,
             ),
             weakestLine === "MEASURED"
-              ? "Calculado con datos capturados en los cuatro renglones."
-              : `Aproximado: el renglón más débil del P&L es ${weakestLine === "SECTOR_DEFAULT" ? "una estimación sectorial" : weakestLine === "NO_DATA" ? "un renglón sin datos" : "un cálculo indirecto"}.`,
+              ? "Calculado con datos capturados en los cinco renglones."
+              : `Aproximado: el renglón más débil del P&L es ${
+                  weakestLine === "SECTOR_DEFAULT"
+                    ? "una estimación sectorial"
+                    : weakestLine === "NO_DATA"
+                      ? "un renglón sin datos"
+                      : weakestLine === "ESTIMATED"
+                        ? "un cálculo con una tarifa configurada, no medida"
+                        : "un cálculo indirecto"
+                }.`,
           );
 
     return {
@@ -280,6 +340,8 @@ export async function getPnLByBranch(
       waste,
       labor: laborLine,
       operatingExpenses: operatingExpensesLine,
+      commissions: commissionsLine,
+      commissionsByChannel,
       operatingProfit,
       weakestLine,
     };

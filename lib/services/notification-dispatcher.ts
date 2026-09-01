@@ -36,6 +36,8 @@ export type NotificationEventType =
   | "sales_cut_missing"
   | "financial_kpi_deviation"
   | "cash_variance_detected"
+  | "recurring_shortage_detected"
+  | "budget_threshold_reached"
   | "morning_brief"
   | "supplier_bank_account_changed"
   | "workflow_unassigned";
@@ -352,6 +354,59 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
       "varianceAmount",
       "variancePercent",
       "direction",
+    ]
+  },
+  // Patrón, no incidente: el aviso de arriba habla de un corte y éste habla de
+  // una racha. Reusar `cash_variance_detected` habría mandado "Diferencia en
+  // Arqueo" con los campos de un solo corte, que es justo lo que aquí no importa.
+  "recurring_shortage_detected": {
+    id: "recurring_shortage_detected",
+    name: "Faltantes Recurrentes en Caja",
+    eventType: "recurring_shortage_detected",
+    channels: ["whatsapp", "in-app"],
+    whatsappTemplate:
+      "🔁 *Faltantes recurrentes en caja*\n\n{branchName} · turno {shiftLabel}\n\n" +
+      "{shortageCount} faltantes en los últimos {windowCuts} cortes de ese turno, " +
+      "por ${totalShortageAmount} MXN acumulados.\nÚltimo: {lastCutDate}.\n\n" +
+      "Un faltante suelto es ruido; este ya es un patrón. Revisa quién opera la caja en ese turno.",
+    inAppTitle: "Faltantes recurrentes: {branchName} ({shiftLabel})",
+    inAppMessage:
+      "{shortageCount} faltantes en los últimos {windowCuts} cortes del turno {shiftLabel} " +
+      "por ${totalShortageAmount} MXN. Último: {lastCutDate}.",
+    variables: [
+      "branchName",
+      "shiftLabel",
+      "shortageCount",
+      "windowCuts",
+      "totalShortageAmount",
+      "lastCutDate",
+    ]
+  },
+  "budget_threshold_reached": {
+    id: "budget_threshold_reached",
+    name: "Consumo de Presupuesto",
+    eventType: "budget_threshold_reached",
+    // Sin correo: no hay plantilla de email para esto y `sendEmailNotification`
+    // despacha por un switch de eventType, así que declararlo aquí sólo
+    // produciría un no-op silencioso.
+    channels: ["whatsapp", "in-app"],
+    whatsappTemplate:
+      "📊 *Presupuesto {nivel}*\n\n{branchName} · {costCenterName} · {month}\n\n" +
+      "Presupuesto: {budgetAmount}\nConsumido: {consumedAmount} ({consumedPercent}%)\n" +
+      "{detalle}\n\nÚltimo gasto: {concepto} por {expenseAmount}.",
+    inAppTitle: "Presupuesto {nivel}: {costCenterName}",
+    inAppMessage: "{branchName} · {month}: {consumedAmount} de {budgetAmount} ({consumedPercent}%). {detalle}",
+    variables: [
+      "nivel",
+      "branchName",
+      "costCenterName",
+      "month",
+      "budgetAmount",
+      "consumedAmount",
+      "consumedPercent",
+      "detalle",
+      "concepto",
+      "expenseAmount",
     ]
   },
   "morning_brief": {

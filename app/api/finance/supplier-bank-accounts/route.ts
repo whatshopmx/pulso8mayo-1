@@ -16,12 +16,13 @@ import {
  * NO GERENTE. Es una decisión deliberada y más restrictiva que el modelo general
  * de "el gerente prepara, el dueño autoriza":
  *
- * mientras la verificación de titularidad (paso 3) no exista, una cuenta
- * capturada es una cuenta que en algún momento alguien podría verificar, y este
- * es el único dato del sistema cuyo cambio silencioso redirige dinero. La
+ * una cuenta capturada es una cuenta que alguien va a poder verificar, y este es
+ * el único dato del sistema cuyo cambio silencioso redirige dinero. La
  * separación de funciones que importa aquí no es preparar/autorizar sino
  * **capturar ≠ verificar**, y esa se conserva con `registered_by` sin necesidad
- * de abrirle la captura al gerente.
+ * de abrirle la captura al gerente. Con el paso 3 ya implementado
+ * (`[id]/verify`), abrirle la captura al gerente sin más solo movería el
+ * problema: seguirían siendo dos personas del mismo grupo chico.
  *
  * Si más adelante compras necesita capturar cuentas, el lugar de arreglarlo es
  * la matriz de permisos —o un recurso propio—, no relajar la clasificación.

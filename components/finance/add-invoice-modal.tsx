@@ -93,7 +93,7 @@ export function AddInvoiceModal({
         body: JSON.stringify({
           itemType: "INVOICE",
           referenceId: invoice.id,
-          amountCents: invoice.total,
+          // Sin `amountCents`: el monto lo lee el servidor de la factura (G1.2).
           notes: `Folio: ${invoice.folio || 'S/F'} - ${invoice.nombreEmisor || invoice.rfcEmisor || 'Proveedor'}`
         }),
       });
@@ -131,7 +131,7 @@ export function AddInvoiceModal({
         body: JSON.stringify({
           itemType: "PAYROLL",
           referenceId: payroll.id,
-          amountCents,
+          // Sin `amountCents`: el servidor lo suma de los recibos de la corrida.
           notes: `Nómina (${payroll.branchName || 'Sucursal'}) - Período ${payroll.periodStart} al ${payroll.periodEnd}`
         }),
       });

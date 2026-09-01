@@ -28,6 +28,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { statusBadgeClasses } from "@/lib/utils";
 import { validateClabe, normalizeClabe } from "@/lib/banking/clabe";
 import { mensajeDeError } from "@/lib/api/client-error";
+import { useSession } from "@/hooks/use-session";
+import {
+  ClabeVerificationDialog,
+  type VerifiableAccount,
+} from "@/components/finance/clabe-verification-dialog";
 import {
   AlertCircle,
   ArrowRight,
@@ -77,6 +82,7 @@ interface BankAccount {
   active: boolean;
   verifiedAt: string | null;
   verificationMethod: string | null;
+  verificationEvidenceUrl: string | null;
   registeredBy: string;
   replacesAccountId: string | null;
   rejectionReason: string | null;
@@ -87,6 +93,22 @@ interface BankAccount {
 interface Supplier {
   id: string;
   name: string;
+}
+
+/**
+ * Por qué el botón de verificar puede estar deshabilitado. Se resuelve en la
+ * pantalla y no después del error del servidor: el servicio también lo rechaza,
+ * pero enterarte de que no puedes verificar *después* de conseguir el CEP y
+ * llenar el formulario es la peor forma de aprender la regla.
+ */
+function motivoParaNoVerificar(
+  account: BankAccount,
+  currentUserId: string | undefined,
+): string | null {
+  if (account.registeredBy && account.registeredBy === currentUserId) {
+    return "Tú capturaste esta cuenta. La verificación la tiene que hacer otra persona.";
+  }
+  return null;
 }
 
 const STATUS_LABEL: Record<AccountStatus, string> = {
@@ -120,6 +142,12 @@ export default function SupplierBankAccountsPage() {
   const [rejectReason, setRejectReason] = useState("");
 
   const [suppliersError, setSuppliersError] = useState<string | null>(null);
+
+  // Verificación de titularidad (paso 3)
+  const { session } = useSession();
+  const currentUserId = session?.user?.id;
+  const [verifying, setVerifying] = useState<VerifiableAccount | null>(null);
+  const [verifySuccess, setVerifySuccess] = useState<string | null>(null);
 
   const supplierName = useCallback(
     (id: string) => {
@@ -478,6 +506,13 @@ export default function SupplierBankAccountsPage() {
         </CardContent>
       </Card>
 
+      {verifySuccess && (
+        <div className="flex items-start gap-2 rounded-md border border-success/40 bg-success/5 p-3 text-xs">
+          <BadgeCheck className="w-4 h-4 text-success shrink-0 mt-px" />
+          <span>{verifySuccess}</span>
+        </div>
+      )}
+
       {/* Listado */}
       <Card>
         <CardHeader className="pb-3">
@@ -564,6 +599,16 @@ export default function SupplierBankAccountsPage() {
                               No se le puede pagar
                             </span>
                           )}
+                          {account.status === "VERIFIED" && account.verifiedAt && (
+                            <span className="text-xs text-muted-foreground">
+                              {account.verificationMethod === "MANUAL_CEP"
+                                ? "CEP de Banxico"
+                                : account.verificationMethod || "Verificada"}
+                              {" · "}
+                              {new Date(account.verifiedAt).toLocaleDateString("es-MX")}
+                              {account.verificationEvidenceUrl ? " · con evidencia" : ""}
+                            </span>
+                          )}
                           {account.status === "REJECTED" && account.rejectionReason && (
                             <span className="text-xs text-muted-foreground">
                               {account.rejectionReason}
@@ -606,16 +651,51 @@ export default function SupplierBankAccountsPage() {
                               </div>
                             </div>
                           ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setRejectingId(account.id);
-                                setRejectReason("");
-                              }}
-                            >
-                              <Ban className="w-3.5 h-3.5 mr-1.5" /> Rechazar
-                            </Button>
+                            <div className="flex flex-col items-end gap-1.5">
+                              {account.status === "PENDING_VERIFICATION" &&
+                                (() => {
+                                  const motivo = motivoParaNoVerificar(account, currentUserId);
+                                  return (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        disabled={!!motivo}
+                                        title={motivo ?? undefined}
+                                        onClick={() =>
+                                          setVerifying({
+                                            id: account.id,
+                                            supplierName: supplierName(account.supplierId),
+                                            bankName: account.bankName,
+                                            clabeLast4: account.clabeLast4,
+                                            accountHolderName: account.accountHolderName,
+                                          })
+                                        }
+                                      >
+                                        <ShieldCheck className="w-3.5 h-3.5 mr-1.5" /> Verificar
+                                        titularidad
+                                      </Button>
+                                      {motivo && (
+                                        // `block`, no `span` en línea: en línea el
+                                        // ancho máximo no aplica y el texto se
+                                        // desborda encima de la columna Estado.
+                                        <span className="block w-52 text-xs text-muted-foreground text-right whitespace-normal">
+                                          {motivo}
+                                        </span>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setRejectingId(account.id);
+                                  setRejectReason("");
+                                }}
+                              >
+                                <Ban className="w-3.5 h-3.5 mr-1.5" /> Rechazar
+                              </Button>
+                            </div>
                           )
                         ) : (
                           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
@@ -632,19 +712,38 @@ export default function SupplierBankAccountsPage() {
         </CardContent>
       </Card>
 
-      {/* Lo que todavía no existe, dicho explícitamente. */}
+      {/* Cómo se verifica, dicho antes de que alguien busque el botón. */}
       <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs">
         <Badge variant="outline" className="text-xs shrink-0">
           Paso 3
         </Badge>
         <span>
-          <span className="font-semibold">Verificar titularidad todavía no se puede.</span> En
-          México no existe un servicio que devuelva el nombre del titular a partir de una CLABE; el
-          único mecanismo real es la transferencia de prueba y el CEP de Banxico como evidencia. Esa
-          pantalla es el siguiente paso del plan, y hasta que exista ninguna cuenta va a pasar de
-          &quot;sin verificar&quot;.
+          <span className="font-semibold">Verificar titularidad es la prueba del centavo.</span> En
+          México no existe un servicio que devuelva el nombre del titular a partir de una CLABE: se
+          transfiere $0.01, se descarga el CEP de Banxico —que sí trae el titular de la cuenta
+          destino— y se contrasta contra la razón social declarada. El sistema muestra los dos
+          nombres y su parecido, pero no aprueba solo: la decisión es de quien verifica, y no puede
+          ser quien capturó la cuenta.
         </span>
       </div>
+
+      <ClabeVerificationDialog
+        account={verifying}
+        open={!!verifying}
+        onOpenChange={(open) => {
+          if (!open) setVerifying(null);
+        }}
+        onVerified={async (mensaje) => {
+          setVerifySuccess(mensaje);
+          setVerifying(null);
+          await load(true);
+        }}
+        onRequestReject={(accountId) => {
+          setVerifying(null);
+          setRejectingId(accountId);
+          setRejectReason("");
+        }}
+      />
 
       <div>
         <Button variant="ghost" size="sm" asChild>

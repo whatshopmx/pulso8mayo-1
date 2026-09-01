@@ -11,6 +11,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TrendingUp, Loader2, AlertTriangle, AlertCircle, Download } from "lucide-react";
 import { formatCents } from "@/lib/utils";
+import { commissionChannelLabel, formatRateBps } from "@/lib/services/commission-types";
+import { noDataLine } from "@/lib/services/pnl-types";
 import type { BranchPnL, LineSource, PnLLine } from "@/lib/services/pnl-types";
 
 export type BranchPnLItem = BranchPnL;
@@ -20,12 +22,15 @@ export type BranchPnLItem = BranchPnL;
  *
  *  - MEASURED       → se muestra normal.
  *  - DERIVED        → marcado con † y la nota del método.
+ *  - ESTIMATED      → marcado con ‡ : es tu dato por una tarifa que configuraste,
+ *                     no un importe que el sistema haya visto.
  *  - SECTOR_DEFAULT → marcado con * : NO son datos del cliente.
  *  - NO_DATA        → guion, NUNCA cero. Un cero se lee como "no gastamos nada".
  */
 const MARKER: Record<LineSource, string> = {
   MEASURED: "",
   DERIVED: "†",
+  ESTIMATED: "‡",
   SECTOR_DEFAULT: "*",
   NO_DATA: "",
 };
@@ -33,6 +38,7 @@ const MARKER: Record<LineSource, string> = {
 const SOURCE_CLASS: Record<LineSource, string> = {
   MEASURED: "",
   DERIVED: "text-warning-text",
+  ESTIMATED: "text-warning-text",
   SECTOR_DEFAULT: "text-warning-text italic",
   NO_DATA: "text-muted-foreground",
 };
@@ -193,6 +199,73 @@ function SortableHead({
   );
 }
 
+/**
+ * Renglón de comisiones de una sucursal, tolerante a snapshots viejos.
+ *
+ * `BranchPnL.commissions` es opcional porque los P&L congelados antes de la
+ * Fase 4 no lo traen. Un `?? { cents: 0 }` habría hecho que esos períodos
+ * afirmaran no haber pagado comisiones; devolver `NO_DATA` los deja diciendo
+ * lo único cierto: que en su momento nadie las calculó.
+ */
+function commissionsOf(b: BranchPnLItem): PnLLine {
+  return (
+    b.commissions ??
+    noDataLine(
+      "Este P&L se calculó antes de que existiera el renglón de comisiones, así que el período " +
+        "no lo tiene. No significa que no se hayan pagado.",
+    )
+  );
+}
+
+/** Celda de comisiones con el desglose por canal en el tooltip. */
+function CommissionCell({ item }: { item: BranchPnLItem }) {
+  const value = commissionsOf(item);
+  const breakdown = item.commissionsByChannel ?? [];
+
+  if (value.source === "NO_DATA") {
+    return (
+      <TableCell className="text-right text-muted-foreground">
+        <NoteTip note={value.note}>
+          <span aria-label="Sin datos">—</span>
+        </NoteTip>
+      </TableCell>
+    );
+  }
+
+  // El desglose es el punto del renglón: "me cuestan $40,000 de comisiones" no
+  // sirve para decidir nada; "Rappi $31,000 al 27.5% y la terminal $9,000"
+  // responde la pregunta de si conviene el agregador.
+  const detalle =
+    breakdown.length > 0
+      ? breakdown
+          .map(
+            (c) =>
+              `${commissionChannelLabel(c.channel)}: ${formatCents(c.cents)}` +
+              (c.measured
+                ? " (conciliada)"
+                : c.rateBps !== null
+                  ? ` (${formatRateBps(c.rateBps)})`
+                  : " (varias tarifas en el período)"),
+          )
+          .join(" · ")
+      : null;
+
+  return (
+    <TableCell className={`text-right ${SOURCE_CLASS[value.source]}`}>
+      <NoteTip note={[detalle, value.note].filter(Boolean).join(" — ")}>
+        <span>
+          {formatCents(value.cents)}
+          {MARKER[value.source] && (
+            <sup className="ml-0.5 font-semibold" aria-hidden="true">
+              {MARKER[value.source]}
+            </sup>
+          )}
+        </span>
+      </NoteTip>
+    </TableCell>
+  );
+}
+
 function PrimeCostCell({
   foodCost,
   labor,
@@ -275,6 +348,7 @@ export function PnlBranchTable() {
     const SOURCE_CSV_LABEL: Record<LineSource, string> = {
       MEASURED: "Medido",
       DERIVED: "Derivado",
+      ESTIMATED: "Estimado con tarifa",
       SECTOR_DEFAULT: "Estimación sectorial",
       NO_DATA: "Sin datos",
     };
@@ -296,6 +370,7 @@ export function PnlBranchTable() {
         "Merma (MXN)",
         "Nómina %",
         "Gastos Operativos (MXN)",
+        "Comisiones de Canal (MXN)",
         "Utilidad Operativa (MXN)",
         "Margen %",
         "Procedencia del margen",
@@ -308,6 +383,7 @@ export function PnlBranchTable() {
           money(b.waste),
           pctOf(b.labor),
           money(b.operatingExpenses),
+          money(commissionsOf(b)),
           money(b.operatingProfit),
           pctOf(b.operatingProfit),
           SOURCE_CSV_LABEL[b.weakestLine],
@@ -329,6 +405,7 @@ export function PnlBranchTable() {
             : ""
           : "",
         totals.lineHasData.operatingExpenses ? pesos(totals.operatingExpenses) : "",
+        totals.lineHasData.commissions ? pesos(totals.commissions) : "",
         totals.salesHasData ? pesos(totals.operatingProfit) : "",
         totals.sales > 0 ? Number(((totals.operatingProfit / totals.sales) * 100).toFixed(1)) : "",
         approximateCount > 0 ? "Aproximado en alguna sucursal" : "Completo",
@@ -387,6 +464,7 @@ export function PnlBranchTable() {
       waste: 0,
       labor: 0,
       operatingExpenses: 0,
+      commissions: 0,
       operatingProfit: 0,
       salesHasData: false,
       incompleteLines: 0,
@@ -396,16 +474,24 @@ export function PnlBranchTable() {
       waste: false,
       labor: false,
       operatingExpenses: false,
+      commissions: false,
     };
     for (const b of pnlData) {
       if (b.sales.source !== "NO_DATA") {
         acc.sales += b.sales.cents;
         acc.salesHasData = true;
       }
-      for (const key of ["foodCost", "waste", "labor", "operatingExpenses"] as const) {
-        if (b[key].source === "NO_DATA") acc.incompleteLines += 1;
+      const lines = { ...b, commissions: commissionsOf(b) };
+      for (const key of [
+        "foodCost",
+        "waste",
+        "labor",
+        "operatingExpenses",
+        "commissions",
+      ] as const) {
+        if (lines[key].source === "NO_DATA") acc.incompleteLines += 1;
         else {
-          acc[key] += b[key].cents;
+          acc[key] += lines[key].cents;
           lineHasData[key] = true;
         }
       }
@@ -429,7 +515,14 @@ export function PnlBranchTable() {
   /** Notas al pie: solo los métodos que realmente aparecen en la tabla. */
   const footnotes = useMemo(() => {
     const lines: string[] = [];
-    const all = pnlData.flatMap((b) => [b.sales, b.foodCost, b.waste, b.labor, b.operatingExpenses]);
+    const all = pnlData.flatMap((b) => [
+      b.sales,
+      b.foodCost,
+      b.waste,
+      b.labor,
+      b.operatingExpenses,
+      commissionsOf(b),
+    ]);
     if (all.some((l) => l.source === "SECTOR_DEFAULT")) {
       lines.push(
         "* Estimación sectorial HORECA: ese renglón NO se calcula con tus datos todavía. " +
@@ -440,6 +533,12 @@ export function PnlBranchTable() {
       lines.push(
         "† Calculado con tus datos pero por vía indirecta (compras en lugar de consumo, " +
           "o plantilla contratada en lugar de asistencia real). Pasa el cursor sobre la celda para ver el método.",
+      );
+    }
+    if (all.some((l) => l.source === "ESTIMATED")) {
+      lines.push(
+        "‡ Calculado con una tarifa que tú configuraste, no con un importe medido. La comisión " +
+          "real la confirma la liquidación del agregador o el estado de cuenta de la terminal.",
       );
     }
     if (all.some((l) => l.source === "NO_DATA")) {
@@ -488,8 +587,9 @@ export function PnlBranchTable() {
             <TrendingUp className="w-5 h-5 text-primary" /> P&L Operativo por Sucursal (Neto sin IVA)
           </CardTitle>
           <CardDescription className="text-xs mt-0.5 max-w-[70ch]">
-            Utilidad Operativa = Ventas − Alimentos − Merma − Nómina − Gastos Operativos. La merma
-            del período está en el tooltip de Food Cost.
+            Utilidad Operativa = Ventas − Alimentos − Merma − Nómina − Gastos Operativos −
+            Comisiones de canal. La merma del período está en el tooltip de Food Cost; el desglose
+            de comisiones por canal, en el de Comisiones.
             {period && (
               <>
                 {" "}
@@ -592,6 +692,7 @@ export function PnlBranchTable() {
                     <TableHead className="text-right">Nómina %</TableHead>
                     <TableHead className="text-right">Prime Cost %</TableHead>
                     <TableHead className="text-right">Gastos Operativos</TableHead>
+                    <TableHead className="text-right">Comisiones</TableHead>
                     <SortableHead
                       label="Utilidad ($ y %)"
                       active={sort?.key === "profit"}
@@ -659,6 +760,9 @@ export function PnlBranchTable() {
                         ? formatCents(totals.operatingExpenses)
                         : "—"}
                     </TableCell>
+                    <TableCell className="text-right font-bold">
+                      {totals.lineHasData.commissions ? formatCents(totals.commissions) : "—"}
+                    </TableCell>
                     <TableCell
                       className={`text-right font-bold ${
                         totals.operatingProfit >= 0
@@ -719,6 +823,7 @@ export function PnlBranchTable() {
                           mode="money"
                           className="font-medium"
                         />
+                        <CommissionCell item={item} />
                         <ProfitCell value={item.operatingProfit} approximate={approximate} />
                         <TableCell className="text-center">
                           <ConfidenceDot
@@ -737,7 +842,7 @@ export function PnlBranchTable() {
 
                   {paginated.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-6 text-xs text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-6 text-xs text-muted-foreground">
                         No se encontraron sucursales con el filtro actual.
                       </TableCell>
                     </TableRow>
@@ -752,6 +857,7 @@ export function PnlBranchTable() {
               <span className="font-medium text-foreground">Procedencia:</span>
               <span>Sin marca = medido con tus datos</span>
               <span>† = vía indirecta</span>
+              <span>‡ = tarifa configurada</span>
               <span>* = estimación sectorial</span>
               <span>— = sin datos (no es cero)</span>
             </div>
