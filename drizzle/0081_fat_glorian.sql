@@ -1,0 +1,1 @@
+ALTER TABLE "recurring_contracts" ADD COLUMN "variance_tolerance_below_percent" integer;

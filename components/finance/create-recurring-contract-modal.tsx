@@ -24,6 +24,33 @@ import { Loader2, Plus, Building2, Store, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useBranch } from "@/lib/branch-context";
 
+/**
+ * Porcentaje escrito por el usuario → entero, o `null` si el campo está vacío.
+ *
+ * `null` NO es lo mismo que 0: vacío significa "no alertes por este lado" y un
+ * cero escrito significa "alértame ante cualquier desviación". `parseInt` de
+ * una cadena vacía da `NaN`, que enviado como JSON se vuelve `null` por
+ * accidente en vez de por decisión — de ahí el guard explícito.
+ */
+function parseTolerancia(raw: string): number | null {
+  const limpio = raw.trim().replace(/[%\s]/g, "");
+  if (limpio === "") return null;
+  if (!/^\d{1,4}$/.test(limpio)) return null;
+  return Number(limpio);
+}
+
+/**
+ * Qué tolerancia tiene sentido según lo que se está contratando. Es una pista en
+ * el texto, no un valor que se imponga: quien captura conoce su recibo.
+ */
+const SUGERENCIA_TOLERANCIA: Record<string, string> = {
+  RENTA: "Una renta es fija: 5% arriba basta y no necesita alerta por debajo.",
+  SERVICIO_BASICO:
+    "Luz y agua varían por temporada: suele ir 30-40% arriba y 30% abajo, o la alerta se vuelve ruido.",
+  MANTENIMIENTO: "El mantenimiento varía con lo que se rompa: considera 25% o más.",
+  SOFTWARE: "Una licencia es fija salvo cambio de plan: 5% arriba.",
+};
+
 interface CreateRecurringContractModalProps {
   onSuccess?: () => void;
   trigger?: React.ReactNode;
@@ -50,6 +77,10 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
   const [supplierId, setSupplierId] = useState<string>("");
   const [branchId, setBranchId] = useState<string>(selectedBranchId || "ALL");
   const [paymentFrequency, setPaymentFrequency] = useState<string>("MONTHLY");
+  // Tolerancias de desviación. Se capturan como texto para poder distinguir
+  // "sin alerta por debajo" (vacío) de "alerta al 0%" (un cero escrito).
+  const [tolAbove, setTolAbove] = useState<string>("10");
+  const [tolBelow, setTolBelow] = useState<string>("");
 
   // Sub-modal: Quick Supplier Creation
   const [showQuickSupplier, setShowQuickSupplier] = useState(false);
@@ -191,6 +222,10 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
             supplierId: supplierId || suppliers[0]?.id,
             branchId: branchId === "ALL" ? null : branchId,
             paymentFrequency,
+            varianceTolerancePercent: parseTolerancia(tolAbove) ?? 10,
+            // `null` explícito y no `undefined`: significa "no alertes por
+            // debajo", que es distinto de "usa el valor por omisión".
+            varianceToleranceBelowPercent: parseTolerancia(tolBelow),
           },
         }),
       });
@@ -206,6 +241,8 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
         setStartDate("");
         setContractType("RENTA");
         setPaymentFrequency("MONTHLY");
+        setTolAbove("10");
+        setTolBelow("");
         if (onSuccess) onSuccess();
       } else {
         toast.error("Error al registrar", { description: json.error || "Ocurrió un error inesperado." });
@@ -371,6 +408,61 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
                     required
                   />
                 </div>
+              </div>
+
+              {/* Tolerancias de desviación.
+                  Hasta ahora no se podían capturar: la columna existía pero el
+                  alta no la recibía, así que todo contrato quedaba en 10% y un
+                  recibo de CFE de temporada alta salía como excepción de control
+                  interno mes con mes. Son dos campos y no uno porque las dos
+                  desviaciones no significan lo mismo: en agua un consumo
+                  disparado es una fuga; en luz un recibo muy bajo suele ser
+                  lectura estimada, y el ajuste llega al doble después. */}
+              <div className="grid gap-2 rounded-md border bg-muted/30 p-3">
+                <Label className="text-sm">Tolerancia de desviación</Label>
+                <p className="text-xs text-muted-foreground">
+                  Cuánto puede alejarse el recibo del monto base antes de que Control Interno lo
+                  marque como excepción. {SUGERENCIA_TOLERANCIA[contractType] ?? ""}
+                </p>
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div className="grid gap-1.5 min-w-0">
+                    <Label htmlFor="tolAbove" className="text-xs truncate">
+                      Alerta si sube más de (%)
+                    </Label>
+                    <Input
+                      id="tolAbove"
+                      type="number"
+                      min="0"
+                      max="1000"
+                      step="1"
+                      placeholder="10"
+                      className="text-sm"
+                      value={tolAbove}
+                      onChange={(e) => setTolAbove(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-1.5 min-w-0">
+                    <Label htmlFor="tolBelow" className="text-xs truncate">
+                      Alerta si baja más de (%)
+                    </Label>
+                    <Input
+                      id="tolBelow"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      placeholder="sin alerta"
+                      className="text-sm"
+                      value={tolBelow}
+                      onChange={(e) => setTolBelow(e.target.value)}
+                      aria-describedby="tolBelow-help"
+                    />
+                  </div>
+                </div>
+                <p id="tolBelow-help" className="text-xs text-muted-foreground">
+                  Déjalo vacío para no alertar nunca por debajo — es lo correcto en una renta, que
+                  no baja sola.
+                </p>
               </div>
             </div>
             <DialogFooter>

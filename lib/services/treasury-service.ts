@@ -390,28 +390,61 @@ export class TreasuryService {
   /**
    * Create a recurring contract (Gasto Operativo Recurrente)
    */
-  static async createRecurringContract(
-    companyId: string,
-    branchId: string | null,
-    supplierId: string,
-    title: string,
-    contractType: string,
-    baseAmountCents: number,
-    startDate: Date,
-    userId: string,
-    paymentFrequency: string = "MONTHLY"
-  ) {
+  /**
+   * Alta de un contrato recurrente.
+   *
+   * Firma por objeto y no posicional (mismo criterio que `addItemToRun`): con
+   * las tolerancias eran once parámetros en fila, y `createRecurringContract(a,
+   * b, c, d, e, 250000, f, g, 10, 30)` no se puede leer ni revisar.
+   *
+   * `varianceTolerancePercent` era inalcanzable desde la aplicación: la columna
+   * admitía cualquier valor pero esta función no lo recibía, así que TODO
+   * contrato quedaba con el 10% por omisión. Para un servicio de monto variable
+   * —luz, agua— ese 10% sobre un monto fijo se rebasa cada temporada, y la
+   * excepción resultante se vuelve ruido que la gente aprende a ignorar.
+   */
+  static async createRecurringContract(input: {
+    companyId: string;
+    branchId: string | null;
+    supplierId: string;
+    title: string;
+    contractType: string;
+    baseAmountCents: number;
+    startDate: Date;
+    userId: string;
+    paymentFrequency?: string;
+    /** Tolerancia por arriba, en %. Por omisión 10. */
+    varianceTolerancePercent?: number;
+    /** Tolerancia por abajo, en %. `null`/omitido = no alertar por debajo. */
+    varianceToleranceBelowPercent?: number | null;
+  }) {
+    const arriba = input.varianceTolerancePercent ?? 10;
+    const abajo = input.varianceToleranceBelowPercent ?? null;
+
+    // Se validan aquí y no sólo en la ruta: el servicio es la frontera que
+    // también cruzan los seeds y cualquier script.
+    if (!Number.isInteger(arriba) || arriba < 0 || arriba > 1000) {
+      throw new Error("La tolerancia superior debe ser un entero entre 0 y 1000 por ciento.");
+    }
+    if (abajo !== null && (!Number.isInteger(abajo) || abajo < 0 || abajo > 100)) {
+      // El tope de abajo es 100: una desviación del -100% es un recibo en cero,
+      // y no hay nada por debajo de eso que un porcentaje pueda describir.
+      throw new Error("La tolerancia inferior debe ser un entero entre 0 y 100 por ciento.");
+    }
+
     const [contract] = await db.insert(recurringContracts)
       .values({
-        companyId,
-        branchId: branchId && branchId !== "ALL" ? branchId : null,
-        supplierId,
-        title,
-        contractType,
-        baseAmountCents,
-        startDate,
-        paymentFrequency,
-        createdBy: userId,
+        companyId: input.companyId,
+        branchId: input.branchId && input.branchId !== "ALL" ? input.branchId : null,
+        supplierId: input.supplierId,
+        title: input.title,
+        contractType: input.contractType,
+        baseAmountCents: input.baseAmountCents,
+        startDate: input.startDate,
+        paymentFrequency: input.paymentFrequency ?? "MONTHLY",
+        varianceTolerancePercent: arriba,
+        varianceToleranceBelowPercent: abajo,
+        createdBy: input.userId,
       })
       .returning();
 

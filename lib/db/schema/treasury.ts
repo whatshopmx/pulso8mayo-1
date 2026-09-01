@@ -31,8 +31,22 @@ export const recurringContracts = pgTable("recurring_contracts", {
   baseAmountCents: integer("base_amount_cents").notNull(),
   currency: text("currency").default("MXN").notNull(),
   
-  // % de tolerancia para alertas si la factura llega más alta (ej. 10 para 10%)
+  // % de tolerancia para alertas si la factura llega más ALTA (ej. 10 para 10%).
   varianceTolerancePercent: integer("variance_tolerance_percent").default(10).notNull(),
+
+  /**
+   * % de tolerancia por DEBAJO del monto base. NULLABLE, y `null` significa
+   * "no alertes por debajo" — que es el comportamiento que tenían todos los
+   * contratos antes de esta columna.
+   *
+   * Existe porque un servicio de monto variable se desvía en los dos sentidos y
+   * no significan lo mismo. En agua, un consumo disparado es una fuga; en luz,
+   * un recibo muy por debajo suele ser lectura estimada de CFE, y el ajuste
+   * llega al doble el período siguiente. La renta, en cambio, no tiene por qué
+   * alertar hacia abajo nunca: por eso el límite inferior se configura aparte y
+   * no se deriva del superior.
+   */
+  varianceToleranceBelowPercent: integer("variance_tolerance_below_percent"),
   
   paymentFrequency: text("payment_frequency").default("MONTHLY").notNull(), // MONTHLY, QUARTERLY, ANNUAL
   paymentMethod: text("payment_method").default("TRANSFER").notNull(), // DOMICILIADO, TRANSFER
