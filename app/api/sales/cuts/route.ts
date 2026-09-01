@@ -66,6 +66,11 @@ const createCutSchema = z.object({
   cashCountedCents: z.number().int().nonnegative().nullable().optional(), // Fase 2
   depositedCents: z.number().int().nonnegative().nullable().optional(), // Fase 2
   aggregatorSales: z.record(z.string(), z.number().int().nonnegative()).nullable().optional(), // Fase 3
+  // Fase 4: conciliación de terminal. Ambos opcionales — el depósito de la
+  // terminal casi nunca se conoce el mismo día del corte, así que exigirlo
+  // aquí habría bloqueado la captura del corte por un dato que llega después.
+  commissionCents: z.number().int().nonnegative().nullable().optional(),
+  tpvDepositCents: z.number().int().nonnegative().nullable().optional(),
 });
 
 export const GET = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
@@ -119,6 +124,8 @@ export const GET = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
         cashCountedCents: dailySalesCuts.cashCountedCents,
         depositedCents: dailySalesCuts.depositedCents,
         aggregatorSales: dailySalesCuts.aggregatorSales,
+        commissionCents: dailySalesCuts.commissionCents,
+        tpvDepositCents: dailySalesCuts.tpvDepositCents,
         ticketCount: dailySalesCuts.ticketCount,
         avgTicket: dailySalesCuts.avgTicket,
         source: dailySalesCuts.source,
@@ -229,6 +236,19 @@ export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
       );
     }
 
+    // Fase 4: un depósito de terminal sin venta con tarjeta declarada no tiene
+    // contra qué conciliarse. Se rechaza en la captura y no en la lectura: la
+    // pantalla de diferencias no puede explicar una varianza contra la nada.
+    if (
+      data.tpvDepositCents != null &&
+      (data.cardSales == null || data.cardSales === 0)
+    ) {
+      throw new ApiError(
+        "Capturaste el depósito de la terminal pero no la venta con tarjeta. Sin ella no hay conciliación que hacer.",
+        400
+      );
+    }
+
     // `onConflictDoNothing` en vez de confiar en el pre-SELECT (A15): dos envíos
     // simultáneos —un doble clic basta— lo pasaban los dos, y el segundo chocaba
     // contra `daily_sales_cut_unique` como un 500 crudo de Postgres. El índice
@@ -256,6 +276,11 @@ export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
         cashCountedCents: data.cashCountedCents ?? null,
         depositedCents: data.depositedCents ?? null,
         aggregatorSales: data.aggregatorSales ?? null,
+        // `??` por la misma razón que arriba (AD-A7): una comisión capturada en
+        // cero —una terminal sin costo por transacción— no es lo mismo que una
+        // comisión sin capturar, y `||` borraba la diferencia.
+        commissionCents: data.commissionCents ?? null,
+        tpvDepositCents: data.tpvDepositCents ?? null,
         ticketCount: data.ticketCount ?? null,
         avgTicket:
           data.ticketCount && data.ticketCount > 0

@@ -98,6 +98,7 @@ function StatusBadge({ status, label }: { status: SemaphoreStatus | null; label?
 const SOURCE_LABEL: Record<KpiMetric["source"], string> = {
   MEASURED: "Medido",
   DERIVED: "Derivado",
+  ESTIMATED: "Estimado con tarifa",
   SECTOR_DEFAULT: "Estimación sectorial",
   NO_DATA: "Sin dato",
 };

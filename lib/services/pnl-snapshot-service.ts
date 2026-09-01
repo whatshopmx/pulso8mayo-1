@@ -56,6 +56,12 @@ export async function freezePnLPeriod(
     wasteCents: b.waste.cents,
     laborCostCents: b.labor.cents,
     operatingExpensesCents: b.operatingExpenses.cents,
+    // `null` y no `0` cuando el renglón no se pudo calcular: un cero afirmaría
+    // que ese período no pagó comisiones, y lo que pasó fue que no había
+    // tarifas configuradas. Es la misma regla de `NO_DATA` en la UI, llevada a
+    // la columna.
+    commissionCents:
+      b.commissions && b.commissions.source !== "NO_DATA" ? b.commissions.cents : null,
     operatingProfitCents: b.operatingProfit.cents,
     weakestLine: b.weakestLine,
     lines: b as unknown as Record<string, unknown>,
@@ -73,6 +79,7 @@ export async function freezePnLPeriod(
         wasteCents: sqlExcluded("waste_cents"),
         laborCostCents: sqlExcluded("labor_cost_cents"),
         operatingExpensesCents: sqlExcluded("operating_expenses_cents"),
+        commissionCents: sqlExcluded("commission_cents"),
         operatingProfitCents: sqlExcluded("operating_profit_cents"),
         weakestLine: sqlExcluded("weakest_line"),
         lines: sqlExcluded("lines"),
@@ -103,6 +110,12 @@ export interface PnLSnapshotRow {
   wasteCents: number;
   laborCostCents: number;
   operatingExpensesCents: number;
+  /**
+   * `null` en dos casos distintos que la UI debe leer igual (guion, no cero):
+   * un snapshot congelado antes de que existiera el renglón, y uno cuyo período
+   * no tenía tarifas configuradas.
+   */
+  commissionCents: number | null;
   operatingProfitCents: number;
   weakestLine: string;
   frozenAt: Date;
@@ -140,6 +153,7 @@ export async function getPnLSnapshots(
     wasteCents: r.wasteCents,
     laborCostCents: r.laborCostCents,
     operatingExpensesCents: r.operatingExpensesCents,
+    commissionCents: r.commissionCents,
     operatingProfitCents: r.operatingProfitCents,
     weakestLine: r.weakestLine,
     frozenAt: r.frozenAt,

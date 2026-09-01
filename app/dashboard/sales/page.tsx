@@ -23,7 +23,12 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { statusBadgeClasses, formatCents } from "@/lib/utils";
-import { computeCashVariance, cashVarianceToneClass } from "@/lib/sales/cash-variance";
+import {
+  computeCashVariance,
+  cashVarianceToneClass,
+  computeTpvVariance,
+  tpvVarianceNote,
+} from "@/lib/sales/cash-variance";
 import { useBranches } from "@/hooks/queries/use-branches";
 import { useBranch } from "@/lib/branch-context";
 import Link from "next/link";
@@ -54,6 +59,9 @@ interface SalesCut {
   cashCountedCents: number | null;
   depositedCents: number | null;
   aggregatorSales: Record<string, number> | null;
+  /** Fase 4: comisión cobrada por la terminal y depósito recibido. `null` = sin conciliar. */
+  commissionCents: number | null;
+  tpvDepositCents: number | null;
   ticketCount: number | null;
   avgTicket: number | null;
   source: "UPLOAD" | "WHATSAPP" | "MANUAL_FORM";
@@ -254,7 +262,11 @@ function SalesDashboardPageContent() {
         <TabsContent value="cuts" className="space-y-6">
           <SalesCutUpload branches={branches} onUploadSuccess={fetchCuts} />
 
-          {/* Fase 2: alerta de cortes con diferencia (arqueo vs efectivo declarado) */}
+          {/* Fase 2: alerta de cortes con diferencia (arqueo vs efectivo declarado).
+              Fase 4: la diferencia de terminal va en su PROPIO banner, no sumada
+              a ésta. Un solo contador que mezclara las dos dejaría que un
+              faltante de caja —dinero que alguien se llevó— se escondiera tras
+              una comisión bancaria, que es justo lo que el arqueo debe delatar. */}
           {(() => {
             // Misma fuente de verdad que la celda de la tabla, para que el
             // conteo del banner no pueda discrepar de las filas en rojo.
@@ -278,6 +290,67 @@ function SalesDashboardPageContent() {
                   {/* El banner nombraba las sucursales y no llevaba a ninguna: la
                       última pantalla que ve una gerente a las 11pm era una
                       acusación sin camino. Ahora cada nombre acota el alcance. */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">Ir a la sucursal:</span>
+                    {Array.from(byBranch.entries()).map(([name, { id, count }]) => (
+                      <Button
+                        key={id}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => setSelectedBranchId(id)}
+                      >
+                        {name} ({count})
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Fase 4: diferencias de terminal, en su propio banner. Tono de
+              advertencia y no de error: las terminales liquidan con 1-2 días de
+              rezago, así que un faltante de tarjeta casi nunca significa que
+              falte dinero — significa que el depósito todavía no llega. Tratarlo
+              como el faltante de caja entrenaría a la gerencia a ignorar los dos. */}
+          {(() => {
+            const tpvCuts = cuts
+              .map((c) => ({ cut: c, tpv: computeTpvVariance(c) }))
+              .filter((x) => x.tpv !== null && x.tpv.direction !== "cuadrado");
+            if (tpvCuts.length === 0) return null;
+
+            const sinComision = tpvCuts.filter((x) => !x.tpv!.commissionCaptured).length;
+            const totalCents = tpvCuts.reduce((acc, x) => acc + x.tpv!.varianceCents, 0);
+            const byBranch = new Map<string, { id: string; count: number }>();
+            for (const { cut } of tpvCuts) {
+              const prev = byBranch.get(cut.branchName);
+              byBranch.set(cut.branchName, { id: cut.branchId, count: (prev?.count ?? 0) + 1 });
+            }
+            return (
+              <div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/5 p-4 text-sm">
+                <AlertCircle className="h-5 w-5 text-warning-text shrink-0 mt-0.5" />
+                <div className="space-y-2">
+                  <p className="font-semibold text-warning-text">
+                    {tpvCuts.length} corte{tpvCuts.length !== 1 ? "s" : ""} con diferencia entre la
+                    venta con tarjeta y el depósito de la terminal{" "}
+                    <span className="font-normal">
+                      ({totalCents > 0 ? "+" : ""}
+                      {formatCents(totalCents)} en total)
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-[80ch]">
+                    Es una diferencia distinta a la de caja y no se suma con ella. Las terminales
+                    liquidan con 1 o 2 días de rezago: revisa primero la fecha del depósito antes de
+                    buscar un faltante.
+                    {sinComision > 0 && (
+                      <>
+                        {" "}
+                        {sinComision} de {tpvCuts.length} no {sinComision === 1 ? "tiene" : "tienen"}{" "}
+                        la comisión capturada, así que su diferencia todavía la incluye.
+                      </>
+                    )}
+                  </p>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-muted-foreground">Ir a la sucursal:</span>
                     {Array.from(byBranch.entries()).map(([name, { id, count }]) => (
@@ -355,8 +428,8 @@ function SalesDashboardPageContent() {
                   <Table>
                     <TableCaption className="sr-only">
                       Cortes de ventas registrados: fecha, sucursal, turno, canal, venta total,
-                      formas de pago, tickets, arqueo de caja, origen del dato, estatus de
-                      validación y quién lo recibió.
+                      formas de pago, tickets, arqueo de caja, conciliación de terminal, origen del
+                      dato, estatus de validación y quién lo recibió.
                     </TableCaption>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
@@ -367,7 +440,12 @@ function SalesDashboardPageContent() {
                         <TableHead className="text-right">Venta Total</TableHead>
                         <TableHead>Formas de Pago</TableHead>
                         <TableHead className="text-center">Tickets</TableHead>
-                        <TableHead>Arqueo/Dif.</TableHead>
+                        <TableHead>Arqueo efectivo</TableHead>
+                        {/* Fase 4: columna propia y no un renglón más del arqueo.
+                            La diferencia de tarjeta y la de efectivo se investigan
+                            distinto (una es el banco, la otra es la caja), así que
+                            comparten fila pero no celda. */}
+                        <TableHead>Terminal (TPV)</TableHead>
                         <TableHead>Origen</TableHead>
                         <TableHead>Estatus</TableHead>
                         <TableHead>Recibido por</TableHead>
@@ -385,6 +463,10 @@ function SalesDashboardPageContent() {
                         // en ese caso hay conteo que mostrar pero no diferencia.
                         const countedCents = cut.cashCountedCents;
                         const arqueo = computeCashVariance(cut);
+                        // Fase 4: `null` = sin conciliar, que no es lo mismo que
+                        // cuadrado en cero. Sin depósito capturado la celda dice
+                        // "sin conciliar", no "$0.00".
+                        const tpv = computeTpvVariance(cut);
 
                         return (
                           <TableRow key={cut.id} className="hover:bg-muted/40 transition">
@@ -450,6 +532,48 @@ function SalesDashboardPageContent() {
                                     </span>
                                   )}
                                 </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {cut.tpvDepositCents !== null ? (
+                                <div className="flex flex-col text-xs">
+                                  <span className="text-muted-foreground">
+                                    Depósito: {formatCents(cut.tpvDepositCents)}
+                                  </span>
+                                  {cut.commissionCents !== null && (
+                                    <span className="text-muted-foreground">
+                                      Comisión: {formatCents(cut.commissionCents)}
+                                    </span>
+                                  )}
+                                  {tpv === null ? (
+                                    <span className="text-muted-foreground/60">
+                                      Diferencia: — (sin venta con tarjeta)
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={`font-semibold ${
+                                        tpv.direction === "cuadrado" ? "text-success" : "text-warning-text"
+                                      }`}
+                                      title={tpvVarianceNote(tpv)}
+                                    >
+                                      Diferencia:{" "}
+                                      {tpv.direction === "cuadrado"
+                                        ? "conciliada"
+                                        : `${tpv.varianceCents > 0 ? "+" : ""}${formatCents(tpv.varianceCents)} (${tpv.direction})`}
+                                      {tpv.direction !== "cuadrado" && !tpv.commissionCaptured && (
+                                        <span className="block font-normal text-muted-foreground">
+                                          incluye la comisión, sin capturar
+                                        </span>
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : cut.cardSales !== null && cut.cardSales > 0 ? (
+                                <span className="text-xs text-muted-foreground/60">
+                                  Sin conciliar
+                                </span>
                               ) : (
                                 <span className="text-xs text-muted-foreground/60">—</span>
                               )}

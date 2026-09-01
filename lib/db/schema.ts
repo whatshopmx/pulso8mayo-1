@@ -2824,6 +2824,13 @@ export const dailySalesCuts = pgTable("daily_sales_cuts", {
     // Fase 3 (capa dinero): desglose de ventas por agregador (rappi/uber/didi/…)
     // en JSONB aditivo; otherPayments se mantiene como suma para compatibilidad.
     aggregatorSales: jsonb("aggregator_sales"),
+    // Fase 4 (comisiones y TPV): la comisión efectivamente cobrada por la
+    // terminal y el depósito que llegó al banco. Ambas NULLABLE a propósito:
+    // `null` significa "no conciliado", que es distinto de un cero capturado.
+    // `tpvVariance` sólo se calcula cuando existe el depósito — sin él no hay
+    // comparación que hacer, y pintar $0.00 afirmaría que la terminal no depositó.
+    commissionCents: integer("commission_cents"),
+    tpvDepositCents: integer("tpv_deposit_cents"),
     avgTicket: integer("avg_ticket"),
 
     ticketCount: integer("ticket_count"),
@@ -3427,6 +3434,15 @@ export const pnlSnapshots = pgTable("pnl_snapshots", {
     /** `BranchPnL` completo, con `source`, `coveragePercent` y `note` por renglón. */
     lines: jsonb("lines").notNull(),
 
+    /**
+     * Comisiones por canal (Fase 4). NULLABLE, a diferencia de los otros
+     * renglones: los snapshots congelados antes de que existiera esta columna
+     * no tenían la línea, y escribirles un cero afirmaría que ese período no
+     * pagó comisiones. `null` se lee como "este snapshot es anterior al
+     * renglón", que es la verdad.
+     */
+    commissionCents: integer("commission_cents"),
+
     /** Método de costeo vigente al congelar, para poder explicar el número después. */
     costingMethod: text("costing_method"),
 
@@ -3442,6 +3458,66 @@ export const pnlSnapshots = pgTable("pnl_snapshots", {
     pnlSnapshotCompanyPeriodIdx: index("pnl_snapshots_company_period_idx").on(
         table.companyId,
         table.periodEnd
+    ),
+}));
+
+
+// ---------------------------------------------------------------------------
+// Fase 4 — Tarifas de comisión por canal (decisión D1, opción (a)).
+//
+// El sistema no tiene ningún monto NETO de venta: `daily_sales_cuts.aggregator_sales`
+// es un mapa canal→centavos BRUTOS, y `card_sales` es lo que el POS declaró, no
+// lo que la terminal depositó. Así que la comisión no se puede medir; se calcula
+// con la tarifa negociada, y el renglón del P&L se etiqueta `ESTIMATED`.
+//
+// Dos decisiones que parecen detalles y no lo son:
+//
+//  - **Puntos base, no porcentaje flotante.** Las tarifas se negocian en bps
+//    ("Rappi nos quedó en 27.50%") y un `numeric` con redondeo distinto por
+//    motor mueve el total del mes cuando se multiplica por el volumen.
+//  - **Versionado por `effective_from`, no un solo renglón editable.** Un corte
+//    se valúa con la tarifa vigente en SU `business_date`. Editar la tarifa en
+//    su lugar recalcularía meses ya cerrados con la tasa nueva, que es
+//    exactamente el histórico-que-se-mueve-solo que `pnl-snapshot-service`
+//    documenta para el food cost.
+// ---------------------------------------------------------------------------
+export const channelCommissionRates = pgTable("channel_commission_rates", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+
+    /**
+     * Clave del canal: `tpv`, `mostrador` o la llave de agregador que produce
+     * `matchAggregatorLabel` (`rappi`, `uber`, `didi`, …). Texto y no enum
+     * porque la lista de agregadores la manda `pos-column-aliases.ts` y crece
+     * con el mercado; un enum obligaría a una migración por cada repartidor
+     * nuevo. La lista canónica vive en `lib/services/commission-types.ts`.
+     */
+    channel: text("channel").notNull(),
+
+    /** Tarifa en puntos base: 2750 = 27.50%. */
+    rateBps: integer("rate_bps").notNull(),
+
+    /** Primer día de negocio al que aplica esta tarifa (inclusive). */
+    effectiveFrom: date("effective_from").notNull(),
+
+    /** Contexto de la negociación: "renegociado tras el volumen de diciembre". */
+    notes: text("notes"),
+
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    // Una sola tarifa por canal y fecha de vigencia: re-capturar la misma
+    // vigencia corrige la tasa en vez de crear una segunda verdad para el
+    // mismo día.
+    // Un solo índice: el único ya sirve la resolución por (company, canal,
+    // fecha), que es la ÚNICA consulta que hace `commission-service`. Un
+    // segundo índice sobre las mismas tres columnas se mantiene en cada
+    // escritura sin ganar una sola lectura.
+    channelCommissionRateUnique: uniqueIndex("channel_commission_rate_unique").on(
+        table.companyId,
+        table.channel,
+        table.effectiveFrom
     ),
 }));
 

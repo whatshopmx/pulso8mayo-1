@@ -9,7 +9,8 @@ Convenciones del repo:
 - Copy de usuario en español; `messages/es.json` es la fuente.
 
 **Orden recomendado:** Fase 1 primero (desbloquea tesorería). Fases 2 y 3 en paralelo después.
-Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
+Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan. **D1 quedó cerrada** con la opción
+(a) al implementar la Fase 4; D2 sigue abierta y sigue bloqueando la Fase 5.
 
 ---
 
@@ -414,56 +415,73 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
 
 ---
 
-## Fase 4: Comisiones por canal y conciliación TPV
+## Fase 4: Comisiones por canal y conciliación TPV — ✅ IMPLEMENTADA
 
-> ⛔ **Bloqueada por la decisión D1 del plan.** La versión 1 de estas tareas asumía derivar la
-> comisión de `daily_sales_cuts.aggregator_sales` restando neto menos bruto. Ese dato no existe:
-> `aggregator_sales` es `Record<string, number>`, un mapa plano canal→centavos **brutos**
-> (`app/api/sales/cuts/route.ts:68`, `sales-ingestion-service.ts:483`). No hay ningún monto neto
-> en el sistema. Antes de empezar hay que elegir entre tarifa versionada (a), cambiar la forma
-> del JSONB (b), o captura manual de la liquidación (c). Las tareas de abajo están escritas para
-> la opción **(a)**, la recomendada; con (b) o (c) cambian F4.2 y su alcance.
+> **D1 resuelta con la opción (a): tarifa versionada por canal.** Es la recomendación del plan y
+> la que ya asumían las tareas de abajo. Se descartó (b) —cambiar `aggregator_sales` a
+> `{ gross, net }`— porque toca ingesta de POS, smart link, UI del corte y desglose de ventas, y
+> depende de que el cliente suba la liquidación del agregador, que es un documento distinto del
+> corte del POS. (c) sigue disponible después si el cliente la pide: el esquema ya admite la
+> comisión medida por corte (`commission_cents`), que es la mitad del camino.
+>
+> **Estado (2026-09-01).** F4.1–F4.4 hechas y verificadas. Entregado:
+>
+> | Pieza | Dónde quedó |
+> |---|---|
+> | `commission_cents` y `tpv_deposit_cents` en el corte | `lib/db/schema.ts`, `drizzle/0080_naive_siren.sql` |
+> | Tabla `channel_commission_rates` (versionada por `effective_from`) | misma migración |
+> | `commission_cents` en `pnl_snapshots` (nullable) | misma migración |
+> | `getCommissionsByBranch`, `resolveRateBps`, alta/baja de tarifas | `lib/services/commission-service.ts` |
+> | Contrato y etiquetas sin dependencias de runtime | `lib/services/commission-types.ts` |
+> | `computeTpvVariance` + `tpvVarianceNote` | `lib/sales/cash-variance.ts` |
+> | Renglón `commissions` + desglose en el P&L | `lib/services/pnl-service.ts`, `pnl-types.ts` |
+> | `GET/POST/DELETE /api/finance/commission-rates` | ruta nueva |
+> | `GET /api/finance/commissions` | ruta nueva |
+> | Pantalla de comisiones y panel de tarifas | `/dashboard/finance/commissions` |
+> | Captura de depósito y comisión en el corte | `components/sales/sales-cut-upload.tsx` |
+> | Banner y columna de varianza TPV, separados del efectivo | `app/dashboard/sales/page.tsx` |
+> | 30 checks de servicio + 6 casos de Playwright | `scripts/verify-comisiones-tpv.ts`, `tests/comisiones-canal.spec.ts` |
 
-- [ ] **F4.1** Migración: columnas de comisión y depósito de terminal
+- [x] **F4.1** Migración: columnas de comisión y depósito de terminal
   - **Descripción:** `commission_cents integer` y `tpv_deposit_cents integer` en
     `daily_sales_cuts`, ambos nullable — null significa "no conciliado", que es distinto de cero.
   - **Acceptance criteria:**
-    - [ ] Migración aditiva, sin drops
-    - [ ] Las columnas quedan tras `pnpm db:migrate`
-    - [ ] `pnpm run build` limpio
+    - [x] Migración aditiva, sin drops
+    - [x] Las columnas quedan tras `pnpm db:migrate`
+    - [x] `pnpm run build` limpio
   - **Dependencies:** D1 resuelta
   - **Files:** `lib/db/schema.ts` (`dailySalesCuts`, línea 2806), `drizzle/`
   - **Scope:** S
 
-- [ ] **F4.2** Tarifas de comisión por canal y su cálculo
+- [x] **F4.2** Tarifas de comisión por canal y su cálculo
   - **Descripción:** Configuración versionada `{ canal, tasaBps, vigenteDesde }` — bps y no
     porcentaje flotante porque las tarifas se negocian en puntos base y el redondeo importa
     cuando se multiplica por el volumen de un mes. Un corte se valúa con la tarifa vigente en su
     `businessDate`, no con la de hoy: recalcular meses pasados con la tarifa nueva mueve el
     histórico solo, que es el mismo problema que `pnl-snapshot-service` documenta para el food cost.
   - **Acceptance criteria:**
-    - [ ] `getCommissionsByBranch(companyId, from, to)` → `{ canal, totalCommissionCents, tasaBps }[]`
-    - [ ] Canales separados: mostrador, Rappi, Uber Eats, DiDi, TPV
-    - [ ] Un canal sin tarifa configurada se omite — no se inventa una tasa de mercado
-    - [ ] La tarifa se resuelve por la fecha del corte, no por la fecha de consulta
-    - [ ] El resultado se marca `ESTIMATED`, nunca `MEASURED`: es un cálculo, no una medición
+    - [x] `getCommissionsByBranch(companyId, from, to)` → `{ canal, totalCommissionCents, tasaBps }[]`
+    - [x] Canales separados: mostrador, Rappi, Uber Eats, DiDi, TPV
+    - [x] Un canal sin tarifa configurada se omite — no se inventa una tasa de mercado
+    - [x] La tarifa se resuelve por la fecha del corte, no por la fecha de consulta
+    - [x] El resultado se marca `ESTIMATED`, nunca `MEASURED`: es un cálculo, no una medición
   - **Verification:** Script tsx con un corte de Rappi y tarifa conocida; el total se verifica a mano
   - **Dependencies:** F4.1
   - **Files:** `lib/services/commission-service.ts` (new), configuración de tarifas
   - **Scope:** M
 
-- [ ] **F4.3** Conciliación TPV
+- [x] **F4.3** Conciliación TPV
   - **Descripción:** Cuando el corte tiene `cardSales > 0`, se puede capturar el depósito real de
     la terminal. `tpvVariance = cardSales − tpvDepositCents − commissionCents`. Una varianza
     positiva pequeña es normal (comisión no contemplada); una negativa es alerta, pero no error:
     las terminales depositan con 1–2 días de rezago y el corte del día no cierra con el estado
     de cuenta del mismo día.
   - **Acceptance criteria:**
-    - [ ] El formulario de corte captura el depósito de terminal
-    - [ ] El banner de diferencias muestra la varianza TPV **separada** de la de efectivo —
+    - [x] El formulario de corte captura el depósito de terminal
+    - [x] El banner de diferencias muestra la varianza TPV **separada** de la de efectivo —
           mezclarlas hace que un faltante de caja se esconda tras una comisión
-    - [ ] Varianza negativa se marca como alerta con nota sobre el rezago típico
-    - [ ] Corte sin depósito de terminal capturado no muestra varianza TPV (null ≠ 0)
+    - [x] Varianza negativa se marca como alerta con nota sobre el rezago típico
+    - [x] Corte sin depósito de terminal capturado no muestra varianza TPV (null ≠ 0)
   - **Verification:** Corte con $10,000 de tarjeta, $9,700 de depósito, $300 de comisión →
     varianza 0. Con $9,500 de depósito → varianza negativa visible como alerta.
   - **Dependencies:** F4.1, F4.2
@@ -471,19 +489,19 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
     `lib/sales/cash-variance.ts`
   - **Scope:** M
 
-- [ ] **F4.4** Renglón de comisiones en el P&L
+- [x] **F4.4** Renglón de comisiones en el P&L
   - **Descripción:** `BranchPnL` (`pnl-types.ts:65`) hoy tiene sales, foodCost, waste, labor,
     operatingExpenses y operatingProfit. **No hay renglón de comisiones** — la versión 1 de este
     todo decía que existía como fallback sectorial y era falso. Es un renglón nuevo, y como
     `pnl_snapshots` guarda columnas fijas (`pnl-snapshot-service.ts:50-60`), también necesita
     columna en esa tabla o los períodos congelados quedarán sin la línea.
   - **Acceptance criteria:**
-    - [ ] `BranchPnL.commissions: PnLLine`, restando en el margen operativo
-    - [ ] Columna `commission_cents` en `pnl_snapshots` + migración
-    - [ ] Desglose por canal accesible desde la tabla (sub-fila o tooltip)
-    - [ ] `source: ESTIMATED` con tarifa configurada, `NO_DATA` sin ella
-    - [ ] `weakestLine` considera el renglón nuevo
-    - [ ] Los snapshots ya congelados siguen leyéndose sin la columna (null, no cero)
+    - [x] `BranchPnL.commissions: PnLLine`, restando en el margen operativo
+    - [x] Columna `commission_cents` en `pnl_snapshots` + migración
+    - [x] Desglose por canal accesible desde la tabla (sub-fila o tooltip)
+    - [x] `source: ESTIMATED` con tarifa configurada, `NO_DATA` sin ella
+    - [x] `weakestLine` considera el renglón nuevo
+    - [x] Los snapshots ya congelados siguen leyéndose sin la columna (null, no cero)
   - **Verification:** P&L de una sucursal con tarifas configuradas muestra la línea con desglose;
     sin tarifas muestra `NO_DATA`. Congelar un período y releerlo conserva el valor.
   - **Dependencies:** F4.2
@@ -493,10 +511,94 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
   - **Scope:** M
 
 ### ☑ Checkpoint: ingresos completos (after F4.1–F4.4)
-- [ ] Comisiones como renglón explícito del P&L, etiquetado `ESTIMATED`
-- [ ] Varianza TPV separada de la de efectivo
-- [ ] Margen por canal responde "¿me conviene Rappi?"
-- [ ] `pnpm run build` limpio
+- [x] Comisiones como renglón explícito del P&L, etiquetado `ESTIMATED`
+- [x] Varianza TPV separada de la de efectivo
+- [x] Margen por canal responde "¿me conviene Rappi?"
+- [x] `pnpm run build` limpio
+
+> **Verificación (2026-09-01).** 30 checks contra la DB de desarrollo llamando a los servicios
+> directo (`npx tsx scripts/verify-comisiones-tpv.ts`) más 6 casos de Playwright sin servidor
+> (`pnpm exec playwright test --no-deps --project=chromium tests/comisiones-canal.spec.ts`).
+> Todo lo sembrado va marcado `[E2E]` y se borra al final; la DB quedó con sus 93 cortes, 0
+> tarifas y 0 snapshots de prueba.
+>
+> Las fechas de negocio de ambas suites van en 2027/2029 a propósito: el seed ocupa julio y
+> agosto de 2026, y un caso que sume sus cortes a los sembrados sólo pasa contra una base recién
+> sembrada — verifica el estado de la base, no el código. Los primeros cuatro fallos del script
+> fueron exactamente eso.
+>
+> | Escenario | Resultado |
+> |---|---|
+> | Rappi $10,000 al 27.50% | $2,750 |
+> | TPV $10,000 al 3.00% | $300 |
+> | Uber sin tarifa | omitido del desglose; sus $4,000 cuentan como venta sin cubrir |
+> | Mostrador sin tarifa | **no** cuenta como sin cubrir — el efectivo no cobra comisión |
+> | Corte anterior a la vigencia | `NO_DATA`; **no** se valúa con la tarifa de hoy |
+> | Re-capturar la misma (canal, fecha) | corrige la tasa, no duplica la vigencia |
+> | Tarjeta $10,000, depósito $9,700, comisión $300 | varianza 0 |
+> | Mismo caso con depósito de $9,500 | −$200, `faltante`, visible como alerta |
+> | Corte sin depósito capturado | sin varianza (`null`), **no** $0.00 |
+> | Corte sin comisión capturada | `commissionCaptured: false`; la nota lo dice en vez de acusar |
+> | Comisión conciliada de $270 contra tarifa de $300 | gana la conciliada; el renglón pasa a `MEASURED` |
+> | P&L con tarifas configuradas | renglón `ESTIMATED` con desglose por canal |
+> | P&L sin tarifas configuradas | `NO_DATA` y `percentOfSales` en `null`, **no** 0% |
+> | Congelar y releer el período | conserva importe, desglose y procedencia |
+> | Snapshot con `commission_cents` en NULL | se relee como `null`, **no** como cero |
+
+### Estado de implementación (Fase 4)
+
+**Desviaciones deliberadas del plan, y por qué:**
+
+1. **`LineSource` gana un valor nuevo, `ESTIMATED`.** El plan pide etiquetar el renglón así, pero
+   `pnl-types.ts` sólo tenía `MEASURED | DERIVED | SECTOR_DEFAULT | NO_DATA`. Reusar `DERIVED`
+   habría dicho "tu dato por vía indirecta" de un número cuyo insumo clave —la tasa— no se observó
+   en ningún lado; reusar `SECTOR_DEFAULT` habría dicho "constante de la industria" de la tarifa
+   que el cliente negoció. Va entre los dos en el orden de confianza, con marca `‡` propia en la
+   tabla, en el CSV, en la leyenda y en los KPIs financieros.
+2. **La comisión conciliada desplaza a la estimada.** `daily_sales_cuts.commission_cents` existe
+   por F4.1 para la conciliación TPV; ignorarla en el P&L habría significado estimar un importe que
+   ya estaba medido al lado. Un canal que mezcla los dos orígenes se reporta `ESTIMATED`, que es lo
+   más fuerte que se puede afirmar de una suma con un sumando calculado.
+3. **`mostrador` no cuenta como venta sin cubrir.** El efectivo no paga comisión, así que tratar su
+   falta de tarifa como un hueco de información habría dejado a todo tenant en `NO_DATA` para
+   siempre y vaciado de sentido la señal.
+4. **El signo de la varianza TPV es el inverso del que enuncia el plan.** El plan escribe
+   `cardSales − depósito − comisión`, pero su propio caso de verificación ($9,500 de depósito →
+   "varianza negativa") sólo es cierto con el signo contrario. Se implementó como
+   `(depósito + comisión) − tarjeta`, que además es la convención que ya usa `computeCashVariance`
+   en la misma pantalla: **negativo = falta dinero**. Dos arqueos lado a lado con signos opuestos
+   habrían sido peor que cualquiera de los dos.
+5. **`getCommissionsByBranch` devuelve el desglose agrupado por sucursal.** El plan enuncia el
+   retorno como `{ canal, totalCommissionCents, tasaBps }[]`, sin sucursal, pero el nombre de la
+   función y el consumidor real (el P&L, que es por sucursal) la necesitan. Cada renglón de canal
+   conserva los tres campos del plan más el desglose medido/estimado.
+6. **`baseSalesCents` de un canal es sólo la venta que se pudo valuar**, no toda la del canal. Así
+   `comisión ≈ base × tarifa` se verifica a mano desde la pantalla, que es el punto de publicar la
+   tarifa junto al importe. El resto se acumula en `uncoveredSalesCents` de la sucursal.
+7. **Hay pantalla propia, `/dashboard/finance/commissions`.** El plan sólo pedía el renglón del
+   P&L, pero un importe único no responde "¿me conviene Rappi?": esa pregunta es una comparación
+   entre canales. La configuración de tarifas vive ahí y no en Objetivos de Costo porque la tarifa
+   no es una meta, es el insumo que hace existir el cálculo; ponerla en otra pantalla dejaría este
+   tablero vacío sin decir qué falta para llenarlo. Escritura restringida a ADMIN/SUPER_ADMIN: la
+   tasa multiplica el volumen del mes de todas las sucursales.
+
+**Consecuencia buscada que conviene anticipar:** las comisiones entran en `weakestLine`, así que un
+tenant con venta con tarjeta y sin tarifas configuradas deja de verse "medido" en el P&L. Es
+correcto —le falta un costo real del renglón de ingresos— y la pantalla de comisiones dice
+exactamente qué capturar para cerrarlo. Un tenant sólo de mostrador no se ve afectado.
+
+**Archivos tocados:** `lib/db/schema.ts`, `drizzle/0080_naive_siren.sql` (aditiva, aplicada),
+`lib/services/commission-service.ts` (new), `lib/services/commission-types.ts` (new),
+`lib/sales/cash-variance.ts`, `lib/services/pnl-types.ts`, `lib/services/pnl-service.ts`,
+`lib/services/pnl-snapshot-service.ts`, `app/api/finance/commissions/route.ts` (new),
+`app/api/finance/commission-rates/route.ts` (new), `app/api/sales/cuts/route.ts`,
+`app/dashboard/finance/commissions/page.tsx` (new), `app/dashboard/finance/page.tsx`,
+`app/dashboard/sales/page.tsx`, `app/dashboard/reports/control/page.tsx`,
+`components/finance/commissions-by-channel-table.tsx` (new),
+`components/finance/commission-rates-panel.tsx` (new), `components/finance/pnl-branch-table.tsx`,
+`components/sales/sales-cut-upload.tsx`, `components/sales/financial-kpi-cards.tsx`,
+`scripts/verify-comisiones-tpv.ts` (new), `tests/comisiones-canal.spec.ts` (new),
+`tests/support/db.ts`, `tests/corte-arqueo.spec.ts`.
 
 ---
 

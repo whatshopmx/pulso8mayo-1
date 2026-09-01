@@ -8,7 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { formatCents } from "@/lib/utils";
-import { computeCashVariance, cashVarianceToneClass } from "@/lib/sales/cash-variance";
+import {
+  computeCashVariance,
+  cashVarianceToneClass,
+  computeTpvVariance,
+  tpvVarianceNote,
+} from "@/lib/sales/cash-variance";
 import { Loader2, Upload, Plus, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 /**
@@ -46,6 +51,10 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
   const [cardSales, setCardSales] = useState<string>("");
   const [otherPayments, setOtherPayments] = useState<string>("");
   const [cashCounted, setCashCounted] = useState<string>("");
+  // Fase 4: conciliación de terminal. Se capturan aquí porque el corte es el
+  // único lugar donde ya está la venta con tarjeta contra la que comparan.
+  const [tpvDeposit, setTpvDeposit] = useState<string>("");
+  const [commission, setCommission] = useState<string>("");
   const [ticketCount, setTicketCount] = useState<string>("");
 
   const resetForm = () => {
@@ -58,6 +67,8 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
     setCardSales("");
     setOtherPayments("");
     setCashCounted("");
+    setTpvDeposit("");
+    setCommission("");
     setTicketCount("");
   };
 
@@ -70,6 +81,8 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
   const cardCents = pesosToCents(cardSales);
   const otherCents = pesosToCents(otherPayments);
   const countedCents = pesosToCents(cashCounted);
+  const tpvDepositCents = pesosToCents(tpvDeposit);
+  const commissionCents = pesosToCents(commission);
 
   const anyPaymentEntered = cashCents !== null || cardCents !== null || otherCents !== null;
   const paymentsSum = (cashCents ?? 0) + (cardCents ?? 0) + (otherCents ?? 0);
@@ -84,6 +97,16 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
   // El servidor rechaza un corte con efectivo declarado y sin arqueo; avisarlo
   // aquí evita que el 400 llegue después de escribir todo el formulario.
   const arqueoMissing = cashCents !== null && cashCents > 0 && countedCents === null;
+
+  // Conciliación de terminal, en vivo y separada del arqueo de efectivo.
+  const tpv = computeTpvVariance({
+    cardSales: cardCents,
+    tpvDepositCents,
+    commissionCents,
+  });
+  // El servidor rechaza un depósito sin venta con tarjeta; avisarlo aquí evita
+  // que el 400 llegue después de escribir todo el formulario.
+  const tpvSinTarjeta = tpvDepositCents !== null && (cardCents === null || cardCents === 0);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -123,6 +146,17 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
           return;
         }
 
+        if (tpvSinTarjeta) {
+          toast({
+            title: "Falta la venta con tarjeta",
+            description:
+              "Capturaste el depósito de la terminal pero no la venta con tarjeta. Sin ella no hay conciliación que hacer.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+
         const ticketsVal = ticketCount ? parseInt(ticketCount, 10) : null;
 
         const body = {
@@ -135,6 +169,8 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
           cardSales: cardCents,
           otherPayments: otherCents,
           cashCountedCents: countedCents,
+          tpvDepositCents,
+          commissionCents,
           ticketCount: ticketsVal && !isNaN(ticketsVal) ? ticketsVal : null,
         };
 
@@ -417,6 +453,69 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
                       : `${arqueo.direction === "faltante" ? "Faltan" : "Sobran"} ${formatCents(
                           Math.abs(arqueo.varianceCents)
                         )} respecto al efectivo declarado.`}
+                  </p>
+                )}
+              </div>
+
+              {/* Conciliación de terminal (Fase 4). Va aparte del arqueo de
+                  efectivo a propósito: mezclar las dos diferencias deja que un
+                  faltante de caja se esconda tras una comisión bancaria. */}
+              <div className="space-y-1 pt-1 border-t">
+                <Label className="text-sm">Conciliación de terminal (opcional)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Las terminales liquidan con 1 o 2 días de rezago. Deja estos campos vacíos hoy y
+                  captúralos cuando llegue el depósito: vacío significa &quot;sin conciliar&quot;, no cero.
+                </p>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="space-y-1">
+                    <Label htmlFor="tpvDeposit" className="text-xs">
+                      Depósito de terminal (MXN)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      id="tpvDeposit"
+                      placeholder="0.00"
+                      value={tpvDeposit}
+                      onChange={(e) => setTpvDeposit(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="commission" className="text-xs">
+                      Comisión cobrada (MXN)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      id="commission"
+                      placeholder="0.00"
+                      value={commission}
+                      onChange={(e) => setCommission(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {tpvSinTarjeta && (
+                  <p className="flex items-start gap-1.5 text-xs text-destructive">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                    Captura la venta con tarjeta: sin ella el depósito no tiene contra qué conciliarse.
+                  </p>
+                )}
+                {tpv && (
+                  <p
+                    className={`text-xs ${
+                      tpv.direction === "cuadrado" ? "text-success" : "text-warning-text"
+                    }`}
+                  >
+                    <span className="font-semibold">
+                      {tpv.direction === "cuadrado"
+                        ? "Terminal conciliada."
+                        : `${tpv.direction === "faltante" ? "Faltan" : "Sobran"} ${formatCents(
+                            Math.abs(tpv.varianceCents)
+                          )} respecto a la venta con tarjeta.`}
+                    </span>{" "}
+                    <span className="font-normal">{tpvVarianceNote(tpv)}</span>
                   </p>
                 )}
               </div>

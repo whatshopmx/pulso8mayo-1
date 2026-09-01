@@ -2228,3 +2228,77 @@ export async function cleanupClabeVerificationFixture(): Promise<void> {
   `;
   await sql`DELETE FROM suppliers WHERE name LIKE ${`${E2E_TAG}%`}`;
 }
+
+// ---------------------------------------------------------------------------
+// Fase 4 — Comisiones por canal y conciliación TPV
+// ---------------------------------------------------------------------------
+
+/** Nota con la que se marcan las tarifas sembradas por los tests. */
+export const E2E_COMMISSION_RATE_NOTE = `${E2E_TAG} tarifa de prueba`;
+
+/**
+ * Siembra un corte con desglose por canal y, opcionalmente, la conciliación de
+ * terminal. Devuelve el id.
+ *
+ * `commissionCents`/`tpvDepositCents` se pasan como `null` explícito y no se
+ * omiten: la diferencia entre "sin conciliar" y "conciliado en cero" es
+ * justamente lo que estos specs verifican, y dejarlos fuera del INSERT haría
+ * que el default los volviera indistinguibles.
+ */
+export async function seedCutConCanales(opts: {
+  companyId: string;
+  branchId: string;
+  businessDate: string;
+  shift?: "MATUTINO" | "VESPERTINO" | "COMPLETO";
+  cashSales?: number | null;
+  cardSales?: number | null;
+  aggregatorSales?: Record<string, number> | null;
+  commissionCents?: number | null;
+  tpvDepositCents?: number | null;
+}): Promise<string> {
+  const agg = opts.aggregatorSales ?? null;
+  const total =
+    (opts.cashSales ?? 0) +
+    (opts.cardSales ?? 0) +
+    Object.values(agg ?? {}).reduce((s, n) => s + n, 0);
+
+  const rows = await sql`
+    INSERT INTO daily_sales_cuts (
+      company_id, branch_id, business_date, shift, channel,
+      total_sales, cash_sales, card_sales, aggregator_sales,
+      commission_cents, tpv_deposit_cents,
+      source, status, validation_notes
+    )
+    VALUES (
+      ${opts.companyId}, ${opts.branchId}, ${opts.businessDate}::date,
+      ${opts.shift ?? "COMPLETO"}, 'TOTAL',
+      ${total}, ${opts.cashSales ?? null}, ${opts.cardSales ?? null},
+      ${agg ? JSON.stringify(agg) : null}::jsonb,
+      ${opts.commissionCents ?? null}, ${opts.tpvDepositCents ?? null},
+      'MANUAL_FORM', 'VALIDATED', ${E2E_SALES_CUT_NOTE}
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Siembra una vigencia de tarifa de comisión. */
+export async function seedCommissionRate(opts: {
+  companyId: string;
+  channel: string;
+  rateBps: number;
+  effectiveFrom: string;
+}): Promise<void> {
+  await sql`
+    INSERT INTO channel_commission_rates (company_id, channel, rate_bps, effective_from, notes)
+    VALUES (${opts.companyId}, ${opts.channel}, ${opts.rateBps}, ${opts.effectiveFrom}::date,
+            ${E2E_COMMISSION_RATE_NOTE})
+    ON CONFLICT (company_id, channel, effective_from)
+    DO UPDATE SET rate_bps = EXCLUDED.rate_bps, notes = EXCLUDED.notes
+  `;
+}
+
+/** Borra las tarifas de comisión sembradas por los tests. */
+export async function deleteTestCommissionRates(): Promise<void> {
+  await sql`DELETE FROM channel_commission_rates WHERE notes = ${E2E_COMMISSION_RATE_NOTE}`;
+}

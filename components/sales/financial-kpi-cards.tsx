@@ -36,6 +36,10 @@ const SOURCE_MARKER: Record<LineSource, { mark: string; hint: string } | null> =
     mark: "†",
     hint: "Calculado con tus datos pero por vía indirecta (compras en lugar de consumo, o plantilla contratada en lugar de asistencia real).",
   },
+  ESTIMATED: {
+    mark: "‡",
+    hint: "Calculado con una tarifa que tú configuraste, no con un importe que el sistema haya medido.",
+  },
   SECTOR_DEFAULT: {
     mark: "*",
     hint: "Estimación sectorial HORECA: este renglón NO se calcula con tus datos todavía.",
