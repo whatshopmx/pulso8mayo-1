@@ -23,6 +23,19 @@ interface Payee {
 /** Valor centinela del Select para "sin contraparte" (el gasto casual). */
 const NO_PAYEE = "__none__";
 
+/**
+ * Centinela para "sin centro de costo". Radix no admite un `SelectItem` con
+ * valor vacío, y dejar el campo sin elegir tiene que ser una opción explícita:
+ * un gasto casual no tiene partida y forzarla haría que se escoja cualquiera.
+ */
+const NO_COST_CENTER = "__none__";
+
+interface CostCenter {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -40,6 +53,11 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
   const [payees, setPayees] = useState<Payee[]>([]);
   const [payeeId, setPayeeId] = useState<string>(NO_PAYEE);
   const [payeesLoading, setPayeesLoading] = useState(false);
+
+  // Centro de costo (F3.1). Opcional: es lo que conecta el gasto con el
+  // presupuesto de la sucursal, pero un gasto sin partida sigue siendo válido.
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
+  const [costCenterId, setCostCenterId] = useState<string>(NO_COST_CENTER);
   // Creación al vuelo: un mini-form dentro del mismo diálogo, no otra página.
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [newPayeeName, setNewPayeeName] = useState("");
@@ -62,8 +80,20 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
     }
   };
 
+  const loadCostCenters = async () => {
+    try {
+      const res = await fetch("/api/cost-centers");
+      const data = await res.json();
+      if (res.ok) setCostCenters(data.costCenters || []);
+      // Sin toast, igual que el catálogo de contrapartes: es apoyo a la captura.
+    } catch (err) {
+      console.error("Error fetching cost centers:", err);
+    }
+  };
+
   useEffect(() => {
     loadPayees();
+    loadCostCenters();
   }, []);
 
   const handleCreatePayee = async (e: React.FormEvent) => {
@@ -153,6 +183,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
           dueDate: dueDate || undefined,
           evidenceUrl: evidenceUrl || undefined,
           payeeId: payeeId !== NO_PAYEE ? payeeId : undefined,
+          costCenterId: costCenterId !== NO_COST_CENTER ? costCenterId : undefined,
         }),
       });
 
@@ -188,6 +219,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
 
   const resetPayeeState = () => {
     setPayeeId(NO_PAYEE);
+    setCostCenterId(NO_COST_CENTER);
     setShowQuickCreate(false);
     setNewPayeeName("");
     setNewPayeeTaxId("");
@@ -254,6 +286,35 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
                 <SelectItem value="OTROS">Otros Gastos</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="expense-cc">Centro de costo (opcional)</Label>
+            <Select
+              value={costCenterId}
+              onValueChange={(v) => {
+                // Mismo cuidado que en el select de contraparte: Radix sintetiza
+                // un onChange("") que no corresponde a ninguna opción real.
+                if (v === "") return;
+                setCostCenterId(v);
+              }}
+            >
+              <SelectTrigger id="expense-cc">
+                <SelectValue placeholder="Sin centro de costo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_COST_CENTER}>Sin centro de costo</SelectItem>
+                {costCenters.map((cc) => (
+                  <SelectItem key={cc.id} value={cc.id}>
+                    {cc.code} · {cc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Es la partida contra la que corre el presupuesto de la sucursal. Un gasto sin
+              centro de costo no consume presupuesto y aparece como &quot;sin clasificar&quot;.
+            </p>
           </div>
 
           <div className="space-y-2">

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExpenseForm } from "@/components/finance/expense-form";
+import { BudgetConsumptionBar } from "@/components/finance/budget-consumption-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useFocusedRow } from "@/hooks/use-focused-row";
 import {
@@ -44,6 +45,14 @@ import { localDateString } from "@/lib/workflows/today";
 // lo vuelve a exigir del lado del servidor. Una tercera copia de la lista sólo
 // añadía un lugar más donde quedar desincronizada.
 
+/**
+ * Centinela del filtro "sin clasificar". Tiene que ser un valor propio: un
+ * `costCenterId` vacío significa "no filtres", no "los que no tienen partida",
+ * y son justo esos los que hay que poder aislar para ver si la cobertura del
+ * presupuesto se está volviendo ficción.
+ */
+const SIN_CENTRO = "SIN_CENTRO";
+
 /** Estatus que puede filtrarse en la cola de autorizaciones. */
 type StatusFilter = "ALL" | ExpenseItem["status"];
 
@@ -79,6 +88,9 @@ interface ExpenseItem {
   evidenceUrl?: string | null;
   payeeId?: string | null;
   payeeName?: string | null;
+  costCenterId?: string | null;
+  costCenterCode?: string | null;
+  costCenterName?: string | null;
   status: "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | "PAID";
   requestedBy?: string | null;
   /** Pendiente que nadie puede resolver. Lo calcula el servidor al leer. */
@@ -128,11 +140,25 @@ function ExpensesContent() {
   const selectedBranch = selectedBranchId ?? "ALL";
   const searchParams = useSearchParams();
   const payeeId = searchParams.get("payeeId");
+  // La notificación de presupuesto manda a `?costCenterId=…`: si el filtro no
+  // arrancara en esa partida, el aviso llevaría al listado completo y quien lo
+  // abrió tendría que volver a buscar la partida de la que le avisaron.
+  const costCenterParam = searchParams.get("costCenterId");
   const { focusId, focusProps } = useFocusedRow();
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(
-    focusId || payeeId ? "ALL" : "PENDING_APPROVAL"
+    focusId || payeeId || costCenterParam ? "ALL" : "PENDING_APPROVAL"
   );
+  /** Filtro por partida presupuestal: "ALL", el centinela `SIN_CENTRO`, o un id. */
+  const [costCenterFilter, setCostCenterFilter] = useState<string>(costCenterParam || "ALL");
+  /**
+   * Se incrementa al capturar un gasto para recargar la barra de consumo. La
+   * tabla y la barra leen de endpoints distintos, y sin esto el gasto recién
+   * capturado aparecía en el listado mientras la barra seguía en el número
+   * anterior — justo el número que dice si ese gasto rebasó el presupuesto.
+   */
+  const [budgetReloadToken, setBudgetReloadToken] = useState(0);
+  const [costCenters, setCostCenters] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   /** Alcance **aplicado** por el servidor, no el pedido. */
   const [scope, setScope] = useState<{
@@ -167,6 +193,9 @@ function ExpensesContent() {
       if (payeeId) {
         url.searchParams.set("payeeId", payeeId);
       }
+      if (costCenterFilter !== "ALL") {
+        url.searchParams.set("costCenterId", costCenterFilter);
+      }
       const res = await fetch(url.toString());
       const data = await res.json();
       if (res.ok && data.success) {
@@ -187,11 +216,32 @@ function ExpensesContent() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBranch, payeeId]);
+  }, [selectedBranch, payeeId, costCenterFilter]);
 
   useEffect(() => {
     fetchExpenses();
   }, [fetchExpenses]);
+
+  /** Tras capturar un gasto se recargan las dos vistas: listado y consumo. */
+  const handleExpenseCreated = useCallback(() => {
+    fetchExpenses();
+    setBudgetReloadToken((t) => t + 1);
+  }, [fetchExpenses]);
+
+  // Catálogo de partidas para el filtro. Falla en silencio: sin él el filtro se
+  // queda en "todas", que es el comportamiento anterior, no una pantalla rota.
+  useEffect(() => {
+    let cancelado = false;
+    fetch("/api/cost-centers")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelado && data?.costCenters) setCostCenters(data.costCenters);
+      })
+      .catch((err) => console.error("Error fetching cost centers:", err));
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   const openAction = (type: "approve" | "reject", item: ExpenseItem) => {
     setActionNotes("");
@@ -395,6 +445,23 @@ function ExpensesContent() {
           {/* La sucursal la fija el encabezado; lo que faltaba aquí era poder
               aislar la cola de pendientes sin cazar insignias ámbar entre todo
               el historial. */}
+          <div className="w-full sm:w-56">
+            <Select value={costCenterFilter} onValueChange={setCostCenterFilter}>
+              <SelectTrigger aria-label="Filtrar por centro de costo" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos los centros de costo</SelectItem>
+                <SelectItem value={SIN_CENTRO}>Sin clasificar</SelectItem>
+                {costCenters.map((cc) => (
+                  <SelectItem key={cc.id} value={cc.id}>
+                    {cc.code} · {cc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="w-full sm:w-52">
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
               <SelectTrigger aria-label="Filtrar por estatus" className="w-full">
@@ -410,9 +477,21 @@ function ExpensesContent() {
             </Select>
           </div>
 
-          <ExpenseForm branches={branches} onSuccess={fetchExpenses} />
+          <ExpenseForm branches={branches} onSuccess={handleExpenseCreated} />
         </div>
       </div>
+
+      {/* Va antes del listado: el consumo del mes es el contexto con el que se
+          lee cada renglón, no un resumen al que se llega después de recorrer
+          la tabla. Un clic en una partida filtra el listado de abajo. */}
+      <BudgetConsumptionBar
+        branchId={selectedBranch}
+        reloadToken={budgetReloadToken}
+        selectedCostCenterId={costCenterFilter}
+        onSelectCostCenter={(id) =>
+          setCostCenterFilter((actual) => (actual === id ? "ALL" : id))
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -521,12 +600,30 @@ function ExpensesContent() {
               title="Tu usuario no tiene una sucursal asignada"
               description="Los gastos se consultan por sucursal y tu rol está acotado a una, pero no tienes ninguna. Pídele a un administrador que te asigne la tuya."
             />
+          ) : expenses.length === 0 && costCenterFilter !== "ALL" ? (
+            /* El filtro de partida se aplica en el servidor, así que vacío aquí
+               no significa "esta empresa no registra gastos": invitar a capturar
+               el primero sería mentir sobre lo que la pantalla está mirando. */
+            <EmptyState
+              icon={Receipt}
+              title={
+                costCenterFilter === SIN_CENTRO
+                  ? "No hay gastos sin clasificar"
+                  : "No hay gastos en este centro de costo"
+              }
+              description="Ningún gasto de la sucursal en foco corre contra esta partida."
+              action={
+                <Button variant="outline" size="sm" onClick={() => setCostCenterFilter("ALL")}>
+                  Ver todos los centros de costo
+                </Button>
+              }
+            />
           ) : expenses.length === 0 ? (
             <EmptyState
               icon={Receipt}
               title="Sin gastos operativos registrados"
               description="Registra tu primer gasto operativo (renta, luz, gas, mantenimiento) para iniciar la cadena de autorización."
-              action={<ExpenseForm branches={branches} onSuccess={fetchExpenses} />}
+              action={<ExpenseForm branches={branches} onSuccess={handleExpenseCreated} />}
             />
           ) : visibleExpenses.length === 0 ? (
             <EmptyState
@@ -543,7 +640,7 @@ function ExpensesContent() {
             <div className="border rounded-md overflow-x-auto">
               <Table>
                 <TableCaption className="sr-only">
-                  Gastos operativos: fecha, sucursal, categoría, contraparte, descripción,
+                  Gastos operativos: fecha, sucursal, categoría y centro de costo, contraparte, descripción,
                   evidencia, monto, quién lo solicitó, estatus de autorización y acción
                   disponible.
                 </TableCaption>
@@ -595,6 +692,16 @@ function ExpensesContent() {
                         <Badge variant="outline" className="text-xs font-normal">
                           {item.category}
                         </Badge>
+                        {/* La partida va debajo de la categoría y no en columna
+                            propia: la tabla ya tiene diez y en un teléfono la
+                            undécima empuja la acción fuera de la pantalla. */}
+                        <span className="block text-xs mt-0.5 text-muted-foreground">
+                          {item.costCenterCode ? (
+                            <span title={item.costCenterName ?? undefined}>{item.costCenterCode}</span>
+                          ) : (
+                            <span className="text-warning-text">Sin clasificar</span>
+                          )}
+                        </span>
                       </TableCell>
                       {/* Los gastos históricos sin contraparte muestran "—": no se
                           inventa un beneficiario retroactivo. Los gastos con payee

@@ -8,8 +8,9 @@ import {
   users,
   branches,
   payees,
+  costCenters,
 } from "@/lib/db/schema";
-import { eq, ne, and, desc, lte, gte, or, isNull } from "drizzle-orm";
+import { eq, ne, and, desc, lte, gte, or, isNull, inArray, type SQL } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { roleIsAtLeast, type Role } from "@/lib/permissions";
 import { getPayeeForCompany } from "./payee-service";
@@ -17,6 +18,8 @@ import { ApiError } from "@/lib/api/error";
 import { isBranchScopedRole, type BranchScope } from "@/lib/branch-scope";
 import { denyExpenseResolution, rolExigidoPorMonto } from "@/lib/expenses/approval-policy";
 import { getTenantOperatingConfig } from "./tenant-config-service";
+import { checkBudgetAvailability } from "./budget-service";
+import { emitDomainEvent } from "./domain-event-service";
 
 /**
  * ¿Puede este alcance resolver un gasto de esta sucursal?
@@ -45,6 +48,13 @@ function assertScopeCoversBranch(scope: BranchScope, expenseBranchId: string | n
   }
 }
 
+/**
+ * Valor del filtro "sin centro de costo" en el listado. Es un centinela y no un
+ * uuid a propósito: `costCenterId=` vacío en el query string no distingue "no
+ * filtres" de "los que no tienen".
+ */
+export const SIN_CENTRO_DE_COSTO = "SIN_CENTRO";
+
 export interface CreateExpenseInput {
   companyId: string;
   branchId: string;
@@ -57,6 +67,11 @@ export interface CreateExpenseInput {
   evidenceUrl?: string;
   /** Contraparte (payee) a la que se le paga. Opcional: los gastos casuales no la tienen. */
   payeeId?: string;
+  /**
+   * Partida presupuestal. Opcional por la misma razón que `payeeId`; un gasto
+   * sin ella no consume presupuesto y no dispara aviso (F3.1/F3.2).
+   */
+  costCenterId?: string;
   requestedBy: string;
 }
 
@@ -185,6 +200,28 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
     }
   }
 
+  // El centro de costo también es un dato de la empresa: uno de otro tenant no
+  // existe aquí, y aceptarlo sin comprobar dejaría el gasto consumiendo un
+  // presupuesto ajeno. Mismo criterio que la contraparte, arriba.
+  if (input.costCenterId) {
+    const [cc] = await db
+      .select({ id: costCenters.id })
+      .from(costCenters)
+      .where(
+        and(
+          eq(costCenters.id, input.costCenterId),
+          eq(costCenters.companyId, input.companyId),
+          eq(costCenters.active, true)
+        )
+      )
+      .limit(1);
+    if (!cc) {
+      throw ApiError.badRequest(
+        "El centro de costo seleccionado no existe o está inactivo para esta empresa. Recarga el catálogo e inténtalo de nuevo.",
+      );
+    }
+  }
+
   const { rol: requiredApproverRole } = await resolverRolExigido(
     input.companyId,
     input.amountCents
@@ -210,6 +247,7 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
       invoiceId: input.invoiceId || null,
       evidenceUrl: input.evidenceUrl || null,
       payeeId: input.payeeId || null,
+      costCenterId: input.costCenterId || null,
       status: initialStatus,
       requestedBy: input.requestedBy,
       dueDate: input.dueDate || null,
@@ -269,7 +307,205 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
     console.warn("[Expense Service] Approval notification warning:", err);
   }
 
+  // Consumo de presupuesto (F3.2). Fire-and-forget: avisa, no bloquea.
+  checkExpenseBudgetAndAlertSafe({
+    id: expense.id,
+    companyId: expense.companyId,
+    branchId: expense.branchId,
+    costCenterId: expense.costCenterId,
+    amountCents: expense.amount,
+    description: expense.description,
+    createdAt: expense.createdAt,
+  });
+
   return expense;
+}
+
+// ---------------------------------------------------------------------------
+// F3.2 — Consumo de presupuesto al registrar un gasto
+// ---------------------------------------------------------------------------
+
+/** Umbral de aviso temprano: 80% del presupuesto del mes consumido. */
+const BUDGET_WARN_RATIO = 0.8;
+
+/** Roles que reciben el aviso a nivel grupo. */
+const BUDGET_GROUP_ROLES = ["SUPER_ADMIN", "OWNER", "ADMIN"] as const;
+/** Rol que lo recibe acotado a la sucursal del gasto. */
+const BUDGET_BRANCH_ROLES = ["GERENTE"] as const;
+
+export type BudgetAlertLevel = "WARNING" | "ALERT";
+
+export interface BudgetAlertResult {
+  alerted: boolean;
+  level?: BudgetAlertLevel;
+  reason?:
+    | "sin-centro-de-costo"
+    | "sin-presupuesto"
+    | "sin-cruce-de-umbral";
+  consumedPercent?: number;
+  notified?: number;
+}
+
+/** Mes contable del gasto, en la MISMA base que `budget-service`. */
+function mesDelGasto(createdAt: Date): string {
+  // `to_char(created_at, 'YYYY-MM')` sobre un `timestamp` sin zona devuelve el
+  // mes tal como se guardó; `toISOString()` lee ese mismo instante en UTC. Es
+  // la expresión que ya usa `service-order-service.monthOf` — reinventarla aquí
+  // sería tener dos definiciones de "el mes" sobre el mismo presupuesto.
+  return createdAt.toISOString().slice(0, 7);
+}
+
+const pesosDe = (cents: number) => `$${(cents / 100).toLocaleString("es-MX", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})} MXN`;
+
+/**
+ * Evalúa el consumo del presupuesto del mes tras registrar un gasto y avisa
+ * cuando cruza un umbral.
+ *
+ * **No bloquea nada.** El gasto ya ocurrió —la luz se consumió, el plomero
+ * vino— y negarlo sólo lo sacaría del sistema, que es exactamente el resultado
+ * que este módulo existe para evitar. Se avisa, no se impide.
+ *
+ * **Sólo al cruzar.** Se notifica cuando *este* gasto es el que empuja el
+ * consumo por encima del 80% (WARNING) o del 100% (ALERT); los siguientes del
+ * mismo mes ya no repiten el aviso. Sin esta condición, el vigésimo gasto de un
+ * mes apretado mandaría el vigésimo correo idéntico y la gente aprendería a
+ * ignorarlos. No hace falta estado extra: el consumo previo es el actual menos
+ * el monto del gasto recién insertado.
+ */
+export async function checkExpenseBudgetAndAlert(gasto: {
+  id: string;
+  companyId: string;
+  branchId: string;
+  costCenterId: string | null;
+  amountCents: number;
+  description: string;
+  createdAt: Date;
+}): Promise<BudgetAlertResult> {
+  // Un gasto sin partida no consume presupuesto: se cuenta aparte, en el
+  // renglón "sin clasificar" del tablero.
+  if (!gasto.costCenterId) return { alerted: false, reason: "sin-centro-de-costo" };
+
+  const month = mesDelGasto(gasto.createdAt);
+
+  // La MISMA función que valida OC y OS, para que el presupuesto signifique lo
+  // mismo en los tres flujos. Se pide con `0`: el gasto ya está insertado y por
+  // tanto ya viene dentro de `committed`; preguntar por su propio monto lo
+  // contaría dos veces.
+  const estado = await checkBudgetAvailability(gasto.branchId, gasto.costCenterId, month, 0);
+
+  // Sin partida presupuestada para (sucursal, centro, mes) no hay contra qué
+  // medir. Inventar una alerta aquí enseñaría a desconfiar de todas.
+  if (estado.budgeted <= 0) return { alerted: false, reason: "sin-presupuesto" };
+
+  const consumidoDespues = estado.committed;
+  const consumidoAntes = Math.max(0, consumidoDespues - gasto.amountCents);
+  const razonDespues = consumidoDespues / estado.budgeted;
+  const razonAntes = consumidoAntes / estado.budgeted;
+
+  let level: BudgetAlertLevel | null = null;
+  if (razonDespues >= 1 && razonAntes < 1) level = "ALERT";
+  else if (razonDespues >= BUDGET_WARN_RATIO && razonAntes < BUDGET_WARN_RATIO) level = "WARNING";
+
+  const consumedPercent = Math.round(razonDespues * 1000) / 10;
+
+  if (!level) return { alerted: false, reason: "sin-cruce-de-umbral", consumedPercent };
+
+  const excedente = Math.max(0, consumidoDespues - estado.budgeted);
+
+  const [contexto] = await db
+    .select({ branchName: branches.name, costCenterName: costCenters.name, costCenterCode: costCenters.code })
+    .from(branches)
+    .leftJoin(costCenters, eq(costCenters.id, gasto.costCenterId))
+    .where(eq(branches.id, gasto.branchId))
+    .limit(1);
+
+  const branchName = contexto?.branchName ?? "la sucursal";
+  const costCenterName = contexto?.costCenterCode
+    ? `${contexto.costCenterCode} · ${contexto.costCenterName}`
+    : "la partida";
+
+  // Rastro en el ledger antes que el aviso: aunque la notificación se caiga, el
+  // sobregiro queda registrado y disponible para el cierre y el twin.
+  if (level === "ALERT") {
+    try {
+      await emitDomainEvent({
+        companyId: gasto.companyId,
+        branchId: gasto.branchId,
+        eventType: "BUDGET_EXCEEDED",
+        payload: {
+          expenseId: gasto.id,
+          costCenterId: gasto.costCenterId,
+          month,
+          budgetedCents: estado.budgeted,
+          consumedCents: consumidoDespues,
+          overByCents: excedente,
+          consumedPercent,
+        },
+      });
+    } catch (err) {
+      console.warn(`[Expense Service] No se pudo emitir BUDGET_EXCEEDED del gasto ${gasto.id}:`, err);
+    }
+  }
+
+  const destinatarios = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      and(
+        eq(users.companyId, gasto.companyId),
+        eq(users.active, true),
+        isNull(users.deletedAt),
+        or(
+          inArray(users.role, [...BUDGET_GROUP_ROLES]),
+          and(inArray(users.role, [...BUDGET_BRANCH_ROLES]), eq(users.branchId, gasto.branchId)),
+        ),
+      ),
+    );
+
+  const detalle =
+    level === "ALERT"
+      ? `Excedido por ${pesosDe(excedente)}.`
+      : "Todavía cabe, pero queda poco margen para el resto del mes.";
+
+  await NotificationDispatcher.sendBatchNotifications(
+    destinatarios.map((d) => ({
+      userId: d.id,
+      title: level === "ALERT" ? "📊 Presupuesto excedido" : "📊 Presupuesto cerca del límite",
+      message: `${branchName} · ${costCenterName} · ${month}: ${consumedPercent}% consumido.`,
+      type: level === "ALERT" ? ("error" as const) : ("warning" as const),
+      eventType: "budget_threshold_reached" as const,
+      metadata: {
+        nivel: level === "ALERT" ? "excedido" : "cerca del límite",
+        branchName,
+        costCenterName,
+        month,
+        budgetAmount: pesosDe(estado.budgeted),
+        consumedAmount: pesosDe(consumidoDespues),
+        consumedPercent,
+        detalle,
+        concepto: gasto.description,
+        expenseAmount: pesosDe(gasto.amountCents),
+      },
+      actionUrl: `/dashboard/finance/expenses?costCenterId=${gasto.costCenterId}`,
+      actionLabel: "Ver gastos de la partida",
+    })),
+  );
+
+  return { alerted: true, level, consumedPercent, notified: destinatarios.length };
+}
+
+/**
+ * Envoltura fire-and-forget para la creación del gasto: el mismo patrón que
+ * `checkCashVarianceAndAlertSafe`. Que el aviso de presupuesto falle no puede
+ * tumbar el alta del gasto, que es el dato primario.
+ */
+export function checkExpenseBudgetAndAlertSafe(gasto: Parameters<typeof checkExpenseBudgetAndAlert>[0]): void {
+  void checkExpenseBudgetAndAlert(gasto).catch((err) => {
+    console.error(`[Expense Service] Error al evaluar el presupuesto del gasto ${gasto.id}:`, err);
+  });
 }
 
 export async function approveOperatingExpense(
@@ -612,7 +848,7 @@ const LIMITE_HISTORIAL = 200;
 
 /** Consulta base. Se ejecuta dos veces con condiciones y cota distintas. */
 async function consultarGastos(
-  condiciones: ReturnType<typeof eq>[],
+  condiciones: SQL[],
   limite?: number
 ) {
   const requestedUser = db.select({ id: users.id, name: users.name }).from(users).as("reqUser");
@@ -630,6 +866,9 @@ async function consultarGastos(
       evidenceUrl: operatingExpenses.evidenceUrl,
       payeeId: operatingExpenses.payeeId,
       payeeName: payees.name,
+      costCenterId: operatingExpenses.costCenterId,
+      costCenterCode: costCenters.code,
+      costCenterName: costCenters.name,
       status: operatingExpenses.status,
       requestedBy: operatingExpenses.requestedBy,
       requestedByName: requestedUser.name,
@@ -644,6 +883,7 @@ async function consultarGastos(
     .leftJoin(requestedUser, eq(operatingExpenses.requestedBy, requestedUser.id))
     .leftJoin(approvedUser, eq(operatingExpenses.approvedBy, approvedUser.id))
     .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
+    .leftJoin(costCenters, eq(operatingExpenses.costCenterId, costCenters.id))
     .where(and(...condiciones))
     .orderBy(desc(operatingExpenses.createdAt));
 
@@ -665,16 +905,24 @@ async function consultarGastos(
 export async function getOperatingExpenses(
   companyId: string,
   branchId?: string,
-  opciones?: { limiteHistorial?: number; payeeId?: string }
+  opciones?: { limiteHistorial?: number; payeeId?: string; costCenterId?: string }
 ) {
   const limiteHistorial = opciones?.limiteHistorial ?? LIMITE_HISTORIAL;
 
-  const base = [eq(operatingExpenses.companyId, companyId)];
+  const base: SQL[] = [eq(operatingExpenses.companyId, companyId)];
   if (branchId) {
     base.push(eq(operatingExpenses.branchId, branchId));
   }
   if (opciones?.payeeId) {
     base.push(eq(operatingExpenses.payeeId, opciones.payeeId));
+  }
+  // `SIN_CENTRO` es el filtro que importa para la cobertura del presupuesto:
+  // sin él, los gastos que nadie clasificó sólo se pueden encontrar leyendo la
+  // lista completa a ojo.
+  if (opciones?.costCenterId === SIN_CENTRO_DE_COSTO) {
+    base.push(isNull(operatingExpenses.costCenterId));
+  } else if (opciones?.costCenterId) {
+    base.push(eq(operatingExpenses.costCenterId, opciones.costCenterId));
   }
 
   // Se pide uno de más para saber si hubo corte sin un COUNT aparte.

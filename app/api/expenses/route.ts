@@ -37,6 +37,7 @@ const createExpenseSchema = z.object({
   dueDate: z.string().optional().nullable(),
   evidenceUrl: z.string().optional().nullable(),
   payeeId: z.string().uuid("La contraparte es inválida.").optional().nullable(),
+  costCenterId: z.string().uuid("El centro de costo es inválido.").optional().nullable(),
 });
 
 /** Nombre de la sucursal en foco, para poder rotular el alcance sin adivinarlo. */
@@ -84,9 +85,15 @@ export const GET = withRoleAuth([...ROLES_FINANZAS], async (req, { auth }) => {
 
   const effectiveBranchId = alcance.kind === "BRANCH" ? alcance.branchId : null;
   const payeeId = searchParams.get("payeeId") || undefined;
+  // El centinela viaja tal cual: `SIN_CENTRO` no es un uuid y el servicio lo
+  // traduce a "los que no tienen partida".
+  const costCenterId = searchParams.get("costCenterId") || undefined;
 
   const [{ items, truncated }, branchName] = await Promise.all([
-    getOperatingExpenses(auth.tenantId, effectiveBranchId ?? undefined, { payeeId }),
+    getOperatingExpenses(auth.tenantId, effectiveBranchId ?? undefined, {
+      payeeId,
+      costCenterId,
+    }),
     nombreDeSucursal(auth.tenantId, effectiveBranchId),
   ]);
 
@@ -127,6 +134,7 @@ export const POST = withRoleAuth([...ROLES_FINANZAS], async (req, { auth }) => {
     dueDate: data.dueDate || undefined,
     evidenceUrl: data.evidenceUrl || undefined,
     payeeId: data.payeeId || undefined,
+    costCenterId: data.costCenterId || undefined,
     requestedBy: auth.user.id,
   });
 

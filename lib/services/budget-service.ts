@@ -2,6 +2,8 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
     branchBudgets,
+    costCenters,
+    operatingExpenses,
     purchaseOrders,
     serviceOrders,
     tenantOperatingConfig,
@@ -17,6 +19,12 @@ import {
  * - "Comprometido" = OC/OS ya aprobadas o más adelante en su ciclo. Borradores
  *   y pendientes de aprobar NO comprometen presupuesto; rechazadas/canceladas
  *   tampoco.
+ * - Los **gastos operativos** también comprometen, y con otra regla: cuentan
+ *   desde que se capturan (F3.2). Una OC pendiente de aprobar todavía se puede
+ *   negar; un gasto ya ocurrió —la luz se consumió, el plomero vino— y el
+ *   dinero ya salió aunque nadie haya firmado. Sólo los rechazados quedan
+ *   fuera. Sin esto, el presupuesto significaría una cosa en órdenes y otra en
+ *   gastos, que es justo lo que esta fase venía a cerrar.
  * - El tope de emergencias vive en `tenantOperatingConfig.emergencyPurchaseCapCents`
  *   (NULL = sin tope) y se edita desde la UI existente del operating-config.
  */
@@ -35,6 +43,13 @@ export const OC_COMMITTING_STATUSES = [
     "SENT",
     "PARTIALLY_RECEIVED",
     "CLOSED",
+] as const;
+
+/** Gastos que consumen presupuesto: todos menos el rechazado. */
+export const EXPENSE_COMMITTING_STATUSES = [
+    "PENDING_APPROVAL",
+    "APPROVED",
+    "PAID",
 ] as const;
 
 // ── Funciones puras (cubiertas por budget-service.test.ts) ──
@@ -114,8 +129,9 @@ export async function getBudget(
 }
 
 /**
- * Comprometido del mes para sucursal+centro, sumando OS y OC en estados que
- * comprometen. Documentos sin centro de costo asignado no se atribuyen aquí.
+ * Comprometido del mes para sucursal+centro, sumando OS, OC y gastos operativos
+ * en estados que comprometen. Documentos sin centro de costo asignado no se
+ * atribuyen aquí.
  */
 export async function getCommitted(
     branchId: string,
@@ -146,9 +162,22 @@ export async function getCommitted(
             ),
         );
 
+    const gastoRows = await db
+        .select({ total: operatingExpenses.amount })
+        .from(operatingExpenses)
+        .where(
+            and(
+                eq(operatingExpenses.branchId, branchId),
+                eq(operatingExpenses.costCenterId, costCenterId),
+                inArray(operatingExpenses.status, [...EXPENSE_COMMITTING_STATUSES]),
+                sql`${monthExpr} = ${month}`,
+            ),
+        );
+
     return (
         osRows.reduce((s, r) => s + (r.total ?? 0), 0) +
-        ocRows.reduce((s, r) => s + (r.total ?? 0), 0)
+        ocRows.reduce((s, r) => s + (r.total ?? 0), 0) +
+        gastoRows.reduce((s, r) => s + (r.total ?? 0), 0)
     );
 }
 
@@ -283,7 +312,152 @@ export async function getCommittedByPair(
         .groupBy(purchaseOrders.branchId, purchaseOrders.costCenterId);
     accumulate(ocRows);
 
+    const gastoRows = await db
+        .select({
+            branchId: operatingExpenses.branchId,
+            costCenterId: operatingExpenses.costCenterId,
+            total: sql<number>`coalesce(sum(${operatingExpenses.amount}), 0)::int`,
+        })
+        .from(operatingExpenses)
+        .where(
+            and(
+                inArray(operatingExpenses.branchId, branchIds),
+                inArray(operatingExpenses.status, [...EXPENSE_COMMITTING_STATUSES]),
+                sql`${monthExpr} = ${month}`,
+            ),
+        )
+        .groupBy(operatingExpenses.branchId, operatingExpenses.costCenterId);
+    accumulate(gastoRows);
+
     return totals;
+}
+
+// ── Consumo del mes por centro de costo (F3.3) ──
+
+export interface CostCenterConsumption {
+    costCenterId: string;
+    code: string;
+    name: string;
+    /** `null` = no hay partida capturada para ese mes; NO es un presupuesto de 0. */
+    budgetedCents: number | null;
+    consumedCents: number;
+    /** `null` cuando no hay presupuesto: sin denominador no hay porcentaje. */
+    percent: number | null;
+}
+
+export interface BudgetConsumptionReport {
+    month: string;
+    rows: CostCenterConsumption[];
+    /**
+     * Gasto del mes que nadie clasificó. Si este renglón crece, la cobertura del
+     * presupuesto se vuelve ficción: el resto de la tabla puede verse en verde
+     * mientras el dinero sale por un lado que no mira ninguna barra.
+     */
+    unclassified: { amountCents: number; percentOfTotal: number };
+    /** Gasto operativo total del mes en el alcance, clasificado o no. */
+    totalExpensesCents: number;
+}
+
+/**
+ * Presupuesto, consumido y % del mes por centro de costo, para el alcance de
+ * sucursales que reciba.
+ *
+ * "Consumido" es lo mismo que evalúa `checkBudgetAvailability` —gastos, OC y
+ * OS—, no sólo los gastos: una barra que ignorara las órdenes mostraría verde
+ * un presupuesto ya comprometido, y contradiría al aviso que sí las cuenta.
+ *
+ * Se listan las partidas con presupuesto capturado **o** con consumo. El
+ * catálogo QSR estándar trae ~30 centros; pintarlos todos en cero convertiría
+ * el tablero en una lista que nadie recorre.
+ */
+export async function getBudgetConsumption(
+    companyId: string,
+    branchIds: string[],
+    month: string,
+): Promise<BudgetConsumptionReport> {
+    const vacio: BudgetConsumptionReport = {
+        month,
+        rows: [],
+        unclassified: { amountCents: 0, percentOfTotal: 0 },
+        totalExpensesCents: 0,
+    };
+    if (branchIds.length === 0) return vacio;
+
+    const [centros, budgetRows, committedByPair, gastoRows] = await Promise.all([
+        db
+            .select({ id: costCenters.id, code: costCenters.code, name: costCenters.name })
+            .from(costCenters)
+            .where(and(eq(costCenters.companyId, companyId), eq(costCenters.active, true))),
+        db
+            .select({ costCenterId: branchBudgets.costCenterId, amount: branchBudgets.amount })
+            .from(branchBudgets)
+            .where(and(inArray(branchBudgets.branchId, branchIds), eq(branchBudgets.month, month))),
+        getCommittedByPair(branchIds, month),
+        db
+            .select({
+                costCenterId: operatingExpenses.costCenterId,
+                total: sql<number>`coalesce(sum(${operatingExpenses.amount}), 0)::int`,
+            })
+            .from(operatingExpenses)
+            .where(
+                and(
+                    inArray(operatingExpenses.branchId, branchIds),
+                    inArray(operatingExpenses.status, [...EXPENSE_COMMITTING_STATUSES]),
+                    sql`${monthExpr} = ${month}`,
+                ),
+            )
+            .groupBy(operatingExpenses.costCenterId),
+    ]);
+
+    // Presupuesto del alcance: la suma de las sucursales que se están mirando.
+    const presupuestoPorCentro = new Map<string, number>();
+    for (const r of budgetRows) {
+        presupuestoPorCentro.set(r.costCenterId, (presupuestoPorCentro.get(r.costCenterId) ?? 0) + r.amount);
+    }
+
+    // `getCommittedByPair` viene por `sucursal:centro`; aquí se colapsa a centro.
+    const consumidoPorCentro = new Map<string, number>();
+    for (const [key, total] of committedByPair) {
+        const costCenterId = key.split(":")[1];
+        consumidoPorCentro.set(costCenterId, (consumidoPorCentro.get(costCenterId) ?? 0) + total);
+    }
+
+    const totalExpensesCents = gastoRows.reduce((s, r) => s + (r.total ?? 0), 0);
+    const sinClasificar = gastoRows.find((r) => r.costCenterId === null)?.total ?? 0;
+
+    const rows = centros
+        .map((cc) => {
+            const budgetedCents = presupuestoPorCentro.has(cc.id)
+                ? (presupuestoPorCentro.get(cc.id) as number)
+                : null;
+            const consumedCents = consumidoPorCentro.get(cc.id) ?? 0;
+            return {
+                costCenterId: cc.id,
+                code: cc.code,
+                name: cc.name,
+                budgetedCents,
+                consumedCents,
+                percent:
+                    budgetedCents && budgetedCents > 0
+                        ? Math.round((consumedCents / budgetedCents) * 1000) / 10
+                        : null,
+            };
+        })
+        .filter((r) => r.budgetedCents !== null || r.consumedCents > 0)
+        .sort((a, b) => a.code.localeCompare(b.code));
+
+    return {
+        month,
+        rows,
+        unclassified: {
+            amountCents: sinClasificar,
+            percentOfTotal:
+                totalExpensesCents > 0
+                    ? Math.round((sinClasificar / totalExpensesCents) * 1000) / 10
+                    : 0,
+        },
+        totalExpensesCents,
+    };
 }
 
 export interface EmergencyCheckResult extends EmergencyCapDecision {

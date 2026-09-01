@@ -228,7 +228,25 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
 - [x] Ratio costo laboral/venta por sucursal, con procedencia etiquetada
 - [x] Semáforo contra el target del tenant, no contra una constante
 - [x] `pnpm run build` limpio
-- [ ] Verificación manual con 3 sucursales (una sin asistencia capturada)
+- [x] Verificación manual con 3 sucursales (una sin asistencia capturada) — 14/14 checks
+
+> **Verificación (2026-08-31).** Ejercitada contra la DB de desarrollo llamando a
+> `getLaborCostRatioByBranch` directo (sin servidor ni Inngest). Las tres ramas de la escalera
+> salen de cambiar sólo el rango de fechas: los 103 `shift_sessions` COMPLETED del seed están
+> todos el 2026-08-28, así que cualquier otro rango con contratos vigentes ejercita
+> `CONTRACT_ONLY` sin tocar los datos.
+>
+> | Escenario | Rango | Resultado |
+> |---|---|---|
+> | `MEASURED` | 2026-08-28 | Condesa 9.1%, Polanco 6.8%, Roma 8.9% — badge *Medido* |
+> | `CONTRACT_ONLY` | 2026-08-01 → 08-20 | las 3 con badge *Plantilla*, cobertura 0%, horas extra 0 |
+> | Sin cortes de venta | 2026-06-01 → 06-15 | venta y ratio en `null` → guion, **no 0%** |
+> | `NO_DATA` | sucursal `[E2E]` sin contratos | badge *Sin datos*, ratio `null`, headcount 0, **presente en el arreglo** |
+>
+> El semáforo se pintó contra 18/22 (los valores reales de `tenant_operating_config` de la
+> empresa demo), no contra el 28/32 por defecto: confirma que el objetivo sale del tenant.
+>
+> La sucursal `[E2E]` se creó y se borró; la DB quedó con las 3 sucursales originales.
 
 ---
 
@@ -242,38 +260,38 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
 > (`schema/service-orders.ts:201`) y `operating_expenses` solo tiene `category`
 > (`schema.ts:3307`). Sin resolver eso no hay "presupuesto por categoría" posible.
 
-- [ ] **F3.1** `cost_center_id` en `operating_expenses`
+- [x] **F3.1** `cost_center_id` en `operating_expenses`
   - **Descripción:** Columna nullable con FK a `cost_centers`, más el selector en el formulario
     de gasto. Nullable a propósito: los gastos casuales que ya son nullable en `payee_id` por la
     misma razón (taxi, hielo, plomero) tampoco tienen centro de costo, y forzarlo haría que la
     gente elija cualquiera con tal de guardar. Un gasto sin centro de costo no consume
     presupuesto y se cuenta aparte.
   - **Acceptance criteria:**
-    - [ ] Migración aditiva con `pnpm db:generate` — sin drops, gastos existentes intactos
-    - [ ] Selector de centro de costo en el formulario, opcional y con opción de dejarlo vacío
-    - [ ] El listado de gastos permite filtrar por centro de costo
-    - [ ] `pnpm run build` limpio
+    - [x] Migración aditiva con `pnpm db:generate` — sin drops, gastos existentes intactos
+    - [x] Selector de centro de costo en el formulario, opcional y con opción de dejarlo vacío
+    - [x] El listado de gastos permite filtrar por centro de costo
+    - [x] `pnpm run build` limpio
   - **Verification:** Revisar el SQL generado; crear un gasto con y otro sin centro de costo
   - **Dependencies:** None
   - **Files:** `lib/db/schema.ts` (`operatingExpenses`, línea 3295), `drizzle/` (migración),
     `components/finance/expense-form.tsx`, `app/api/expenses/route.ts`
   - **Scope:** S
 
-- [ ] **F3.2** Consumo de presupuesto al crear o aprobar un gasto
+- [x] **F3.2** Consumo de presupuesto al crear o aprobar un gasto
   - **Descripción:** Reutilizar `checkBudgetAvailability(branchId, costCenterId, month, amount)`
     — la misma función que ya usan OC y OS, para que el presupuesto signifique lo mismo en los
     tres flujos. Al crear un gasto con centro de costo, se calcula el consumo del mes: ≥80%
     notifica WARNING, ≥100% notifica ALERT con el monto excedido. **No bloquea** — el gasto ya
     ocurrió, negarlo solo lo saca del sistema.
   - **Acceptance criteria:**
-    - [ ] Usa `checkBudgetAvailability` existente, no una segunda implementación
-    - [ ] ≥80% → notificación WARNING a ADMIN/GERENTE de esa sucursal
-    - [ ] ≥100% → notificación ALERT con el excedente en pesos
-    - [ ] Sin `branch_budgets` para ese (sucursal, centro de costo, mes): no notifica nada
-    - [ ] Gasto sin `cost_center_id`: no notifica, no rompe
-    - [ ] La notificación falla en silencio sin tumbar la creación del gasto (patrón de
+    - [x] Usa `checkBudgetAvailability` existente, no una segunda implementación
+    - [x] ≥80% → notificación WARNING a ADMIN/GERENTE de esa sucursal
+    - [x] ≥100% → notificación ALERT con el excedente en pesos
+    - [x] Sin `branch_budgets` para ese (sucursal, centro de costo, mes): no notifica nada
+    - [x] Gasto sin `cost_center_id`: no notifica, no rompe
+    - [x] La notificación falla en silencio sin tumbar la creación del gasto (patrón de
           `checkCashVarianceAndAlertSafe`)
-    - [ ] El mes se deriva con la misma expresión que `budget-service` — no reinventar el
+    - [x] El mes se deriva con la misma expresión que `budget-service` — no reinventar el
           `YYYY-MM` (ver `service-order-service.ts:373`)
   - **Verification:** Sembrar presupuesto de $50,000 en un centro de costo de Condesa. Gastos por
     $42,000 → WARNING al 84%. Otro por $10,000 → ALERT al 104%.
@@ -281,23 +299,23 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
   - **Files:** `lib/services/expense-service.ts`, `lib/services/budget-service.ts` (solo lectura)
   - **Scope:** M
 
-- [ ] **F3.3** Barra de consumo por centro de costo en el dashboard de gastos
+- [x] **F3.3** Barra de consumo por centro de costo en el dashboard de gastos
   - **Descripción:** Indicador visual del consumo del mes por centro de costo, con la misma
     escala de color que la notificación. Incluye un renglón "sin clasificar" con el total de
     gastos sin centro de costo — si ese renglón crece, la cobertura del presupuesto se está
     volviendo ficción y hay que verlo.
   - **Acceptance criteria:**
-    - [ ] Barra por centro de costo con presupuesto, consumido y % 
-    - [ ] Renglón "sin clasificar" con monto y % del gasto total del mes
-    - [ ] Centros de costo sin presupuesto configurado se listan como "sin presupuesto", no como 0%
-    - [ ] Respeta el alcance de sucursal del rol
+    - [x] Barra por centro de costo con presupuesto, consumido y % 
+    - [x] Renglón "sin clasificar" con monto y % del gasto total del mes
+    - [x] Centros de costo sin presupuesto configurado se listan como "sin presupuesto", no como 0%
+    - [x] Respeta el alcance de sucursal del rol
   - **Verification:** Manual con presupuestos sembrados y algunos gastos sin clasificar
   - **Dependencies:** F3.2
   - **Files:** `app/dashboard/finance/expenses/page.tsx`,
     `components/finance/budget-consumption-bar.tsx` (new)
   - **Scope:** M
 
-- [ ] **F3.4** Detección de faltantes recurrentes
+- [x] **F3.4** Detección de faltantes recurrentes
   - **Descripción:** Un faltante de $80 en un turno es ruido; el mismo turno de la misma sucursal
     con faltantes chicos una y otra vez es un patrón. `checkCashVarianceAndAlert` ya emite
     `CashVarianceDetected` al ledger de eventos de dominio con monto, dirección y turno
@@ -309,13 +327,13 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
     quien manejó la caja. El patrón se detecta por **sucursal + turno**. Atribuirlo a una persona
     requiere agregar un campo de cajero al corte, que es una tarea aparte y no está aquí.
   - **Acceptance criteria:**
-    - [ ] Consulta eventos `CashVarianceDetected` con `direction` de faltante
-    - [ ] Ventana de los últimos 30 cortes de esa (sucursal, turno) — no 30 días naturales
-    - [ ] Umbral: ≥3 faltantes en la ventana
-    - [ ] El hallazgo incluye sucursal, turno, cantidad de faltantes, monto acumulado y la fecha
+    - [x] Consulta eventos `CashVarianceDetected` con `direction` de faltante
+    - [x] Ventana de los últimos 30 cortes de esa (sucursal, turno) — no 30 días naturales
+    - [x] Umbral: ≥3 faltantes en la ventana
+    - [x] El hallazgo incluye sucursal, turno, cantidad de faltantes, monto acumulado y la fecha
           del corte más reciente
-    - [ ] No se duplica un hallazgo abierto idéntico (dedupe por sucursal + turno)
-    - [ ] Corre después de emitir el evento, sin bloquear el cierre del corte
+    - [x] No se duplica un hallazgo abierto idéntico (dedupe por sucursal + turno)
+    - [x] Corre después de emitir el evento, sin bloquear el cierre del corte
   - **Verification:** Sembrar 4 cortes con faltante en el mismo turno de una sucursal → hallazgo.
     Con 2 → nada. Correr dos veces → un solo hallazgo.
   - **Dependencies:** None
@@ -330,11 +348,69 @@ Fases 4 y 5 **no se empiezan** hasta cerrar D1 y D2 del plan.
   - **Scope:** M
 
 ### ☑ Checkpoint: gastos con política (after F3.1–F3.4)
-- [ ] Gasto con centro de costo consume presupuesto y avisa al 80%
-- [ ] Sin presupuestos configurados el sistema no inventa alertas
-- [ ] El gasto sin clasificar es visible, no invisible
-- [ ] Faltantes recurrentes detectados por sucursal+turno, sin duplicar
-- [ ] `pnpm run build` limpio
+- [x] Gasto con centro de costo consume presupuesto y avisa al 80%
+- [x] Sin presupuestos configurados el sistema no inventa alertas
+- [x] El gasto sin clasificar es visible, no invisible
+- [x] Faltantes recurrentes detectados por sucursal+turno, sin duplicar
+- [x] `pnpm run build` limpio
+
+> **Verificación (2026-09-01).** 15/15 checks contra la DB de desarrollo llamando a los
+> servicios directo (sin servidor ni Inngest), con todo lo sembrado marcado `[E2E]` y borrado al
+> final — la DB quedó con sus 3 sucursales y sin gastos, partidas ni cortes de prueba.
+>
+> | Escenario | Resultado |
+> |---|---|
+> | $42,000 sobre presupuesto de $50,000 | WARNING al 84% |
+> | +$10,000 sobre lo anterior | ALERT al 104%, excedente $2,000 |
+> | Otro gasto en la misma partida ya excedida | `sin-cruce-de-umbral` — **no repite el aviso** |
+> | Partida sin `branch_budgets` del mes | `sin-presupuesto`, ninguna alerta inventada |
+> | Gasto sin `cost_center_id` | `sin-centro-de-costo`, no notifica y no rompe |
+> | Tablero: partida sin presupuesto | `budgetedCents`/`percent` en `null`, **no 0%** |
+> | Tablero: sin clasificar | $1,500 = 2.6% del gasto del mes, con su renglón propio |
+> | 4 cortes con faltante, mismo turno | 1 hallazgo: 4 faltantes, $800 acumulados, último 2026-08-28 |
+> | 2 faltantes en otro turno | sin hallazgo (umbral 3) |
+> | Los 4 cortes con faltante | **un solo** evento `RecurringShortageDetected` |
+> | Volver a correr la detección | `duplicate`, no un segundo hallazgo |
+> | `detectViolations` dos veces | un solo `RECURRING_SHORTAGE` |
+> | 30 cortes cuadrados posteriores | el hallazgo se cierra solo — **la ventana es de cortes, no de días** |
+
+### Estado de implementación (Fase 3)
+
+**Desviaciones deliberadas del plan, y por qué:**
+
+1. **Los gastos operativos ahora cuentan como presupuesto comprometido.** `getCommitted` sólo
+   sumaba órdenes de compra y de servicio, así que cablear los gastos a `checkBudgetAvailability`
+   tal cual habría dado siempre 0% de consumo por gastos. Se extendió `getCommitted` y
+   `getCommittedByPair` con `EXPENSE_COMMITTING_STATUSES` (todo menos `REJECTED`: un gasto
+   capturado ya ocurrió). Efecto lateral querido: el tope de OC y OS ahora ve también el gasto
+   operativo, que es lo que pide el plan cuando dice que el presupuesto debe significar lo mismo
+   en los tres flujos.
+2. **El aviso se dispara al *cruzar* el umbral, no cada vez que se está arriba.** Se compara el
+   consumo antes y después del gasto (el "antes" es el "después" menos el monto de este gasto, sin
+   estado extra). Sin esto, el cuarto gasto del mes en una partida al 90% mandaría el mismo
+   WhatsApp que el primero, y la gente dejaría de leerlos.
+3. **Dos tipos de notificación nuevos** — `budget_threshold_reached` y
+   `recurring_shortage_detected` — con su plantilla y su regla de ruteo. Reusar
+   `cash_variance_detected` para el patrón habría mandado "Diferencia en Arqueo" con los campos de
+   un corte suelto, que es justo lo que en un patrón no importa.
+4. **El hallazgo de faltantes es derivado, no persistido** (la decisión que el plan dejaba
+   abierta): quinto tipo de `Violation` en `control-interno-service`, recalculado en cada consulta.
+   Persistirlo permitiría marcarlo como atendido y hace falta el día que tenga ciclo de vida, pero
+   eso es una tabla nueva que esta tarea no presupuesta. Mientras tanto el hallazgo se cierra solo
+   cuando los faltantes salen de la ventana de 30 cortes. El dedupe del aviso no necesita tabla:
+   un hallazgo sigue abierto mientras el corte que lo disparó siga dentro de la ventana.
+5. **`Violation.expenseId` pasó a `string | null`.** El patrón de faltantes es la única excepción
+   que no nace de un gasto; ponerle el id de un corte en un campo llamado `expenseId` habría sido
+   mentir en el tipo. El panel no renderizaba ese campo.
+
+**Archivos tocados:** `lib/db/schema.ts`, `drizzle/0079_remarkable_la_nuit.sql` (aditiva, aplicada),
+`lib/services/expense-service.ts`, `lib/services/budget-service.ts`,
+`lib/services/cash-variance-alert-service.ts`, `lib/services/control-interno-service.ts`,
+`lib/services/domain-event-service.ts`, `lib/services/notification-dispatcher.ts`,
+`lib/notifications/notification-router.ts`, `app/api/expenses/route.ts`,
+`app/api/expenses/budget-consumption/route.ts` (new), `components/finance/expense-form.tsx`,
+`components/finance/budget-consumption-bar.tsx` (new), `components/finance/excepciones-panel.tsx`,
+`app/dashboard/finance/expenses/page.tsx`.
 
 ---
 

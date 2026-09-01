@@ -13,7 +13,7 @@ import { account, users, session, sessions, verifications, magicLinks, roleEnum 
 // Import core tables for foreign key references
 import { companies, branches } from './schema/core';
 import { branchComplianceServices } from './schema/equipment';
-import { purchaseTypeEnum } from './schema/service-orders';
+import { purchaseTypeEnum, costCenters } from './schema/service-orders';
 
 // Re-export modular schema
 export * from './schema/index';
@@ -3303,6 +3303,15 @@ export const operatingExpenses = pgTable("operating_expenses", {
      * en Fase 2, el flujo de CLABE/lote (`tasks/plan-payees-contrapartes.md`).
      */
     payeeId: uuid("payee_id").references(() => payees.id),
+
+    /**
+     * Partida presupuestal contra la que corre el gasto (F3.1). NULLABLE por la
+     * misma razón que `payee_id`: el taxi, el hielo y el plomero de hoy no
+     * tienen centro de costo, y obligarlo haría que la gente eligiera cualquiera
+     * con tal de guardar. Un gasto sin centro de costo NO consume presupuesto y
+     * se cuenta aparte, en el renglón "sin clasificar" del tablero.
+     */
+    costCenterId: uuid("cost_center_id").references(() => costCenters.id),
 
     category: operatingExpenseCategoryEnum("category").notNull(),
     amount: integer("amount").notNull(), // in cents
