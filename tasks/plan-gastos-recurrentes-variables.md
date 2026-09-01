@@ -21,10 +21,11 @@ presenta como fijos produce dos daños concretos:
 
 ## Estado actual (2026-09-01)
 
-**Fases 1 y 2 implementadas** en la rama `fix/deteccion-contratos-recurrentes`. Cubren los
-puntos 1, 2 y 4 de "Lo que falta": la detección está acotada por contrato, período y sucursal; la
-referencia de un servicio medido sale de su propio historial; y la regla dejó de estar duplicada.
-Queda el punto 3 (flujo de efectivo), con su decisión ya resuelta — ver "Decisiones" abajo.
+**Fases 1, 2 y 3 implementadas** en la rama `fix/deteccion-contratos-recurrentes`. Cubren los
+cuatro puntos de "Lo que falta": la detección está acotada por contrato, período y sucursal; la
+referencia de un servicio medido sale de su propio historial; el flujo de efectivo a 30 días ya
+ve la renta y los servicios; y la regla dejó de estar duplicada. Lo único pendiente a propósito
+es la estacionalidad contra el año anterior (D2).
 
 Lo barato se había arreglado antes en la rama `fix/gastos-recurrentes-variables`:
 
@@ -39,6 +40,7 @@ Lo barato se había arreglado antes en la rama `fix/gastos-recurrentes-variables
 | Una sola implementación de la regla (se borró `validateInvoiceAgainstContract`) | `treasury-service.ts` |
 | Mediana móvil de 6 recibos como referencia de `SERVICIO_BASICO`, con procedencia declarada | `recurring-contract-variance.ts` |
 | Hallazgo `CONTRACT_TREND_RISING` para la subida sostenida | `control-interno-service.ts`, `excepciones-panel.tsx` |
+| Recurrentes proyectados en el flujo a 30 días, apagables y sin doble conteo | `recurring-contract-projection.ts`, `cash-flow-service.ts`, `cash-flow-calendar.tsx` |
 
 Este plan cubre lo que quedó pendiente.
 
@@ -91,15 +93,25 @@ sin hallazgo es mejor que con hallazgo falso. La ventana es de 90 días acotada 
 (CFE factura bimestral; con 30 días podía no haber un solo recibo de luz), y el hallazgo se
 atribuye a la sucursal *de la factura*, no a la del contrato.
 
-### 3. El flujo de efectivo ignora los contratos recurrentes
+### 3. El flujo de efectivo ignora los contratos recurrentes — ✅ RESUELTO (Fase 3)
 
-Las salidas del proyector a 30 días vienen sólo de `OPERATING_EXPENSE`,
-`PURCHASE_ORDER` y `PROCUREMENT_INVOICE` (`cash-flow-service.ts:78`). La nómina
-**sí** se proyecta desde contratos; la luz, el agua y la renta no.
+Las salidas del proyector a 30 días venían sólo de `OPERATING_EXPENSE`,
+`PURCHASE_ORDER` y `PROCUREMENT_INVOICE`. La nómina **sí** se proyectaba desde
+contratos; la luz, el agua y la renta no.
 
-Así, la obligación recurrente es invisible para "¿me alcanza?" hasta que alguien
-captura el recibo — que en un servicio de monto variable es justo cuando ya no
-se puede hacer nada al respecto.
+Así, la obligación recurrente era invisible para "¿me alcanza?" hasta que
+alguien capturaba el recibo — que en un servicio de monto variable es justo
+cuando ya no se puede hacer nada al respecto.
+
+**Cómo quedó.** `recurring-contract-projection.ts` genera las fechas de pago desde
+`start_date` y la periodicidad, y `cash-flow-service` las emite con `source: RECURRING_CONTRACT`
+y `isEstimated`. Entran en el total —dejarlas fuera devolvería la pantalla al problema— pero se
+pintan aparte, con borde punteado y el monto estimado declarado.
+
+El doble conteo se evita en el origen: un período que ya tiene factura o gasto capturado no se
+proyecta, y se cuenta como suprimido para que la pantalla distinga "ya se capturó" de "no toca
+este mes". Y el conjunto se puede apagar (`?recurring=0`), con un aviso cuando lo está: una
+proyección a la que le falta la renta no debe verse igual que una en la que la renta no toca.
 
 ### 4. `validateInvoiceAgainstContract` es código muerto — ✅ RESUELTO (Fase 1)
 

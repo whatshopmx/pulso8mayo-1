@@ -99,7 +99,7 @@ export const TREND_RISE_PERCENT = 20;
  * se rompa, no con un consumo que el recibo anterior permita anticipar. Una
  * mediana de reparaciones no predice la siguiente reparación.
  */
-function esServicioMedido(contractType: string): boolean {
+export function esServicioMedido(contractType: string): boolean {
   return contractType === "SERVICIO_BASICO";
 }
 
@@ -529,6 +529,70 @@ export async function getRecurringContractFindings(
   }
 
   return { variance, trend };
+}
+
+/**
+ * Cuánto cuesta un período de cada contrato **medido**, para proyectarlo en el
+ * flujo de efectivo (Fase 3).
+ *
+ * No es la misma pregunta que la referencia de una factura, y por eso no es el
+ * mismo cálculo. `rollingReference` juzga UN recibo, así que compara contra la
+ * mediana de recibos sueltos. Aquí se proyecta el egreso de UN período, y en un
+ * contrato corporativo un período son varios recibos —uno por sucursal— que
+ * salen de la cuenta juntos. Por eso se suma por período primero y se saca la
+ * mediana de esos totales después: con un solo recibo por período las dos
+ * cuentas coinciden, y con varios la de aquí es la única que no subestima.
+ *
+ * Devuelve sólo los contratos con historia suficiente. Los que faltan se
+ * proyectan con su `base_amount_cents`, que es lo que hay.
+ */
+export async function getMeteredPeriodReferences(
+  companyId: string,
+  branchId?: string
+): Promise<Map<string, { referenceCents: number; periodCount: number }>> {
+  const referencias = new Map<string, { referenceCents: number; periodCount: number }>();
+  const hoy = localDateString(new Date(), null);
+  const desdeHistoria = addCalendarDays(hoy, -HISTORY_LOOKBACK_DAYS);
+
+  const contratos = await db.query.recurringContracts.findMany({
+    where: and(
+      eq(recurringContracts.companyId, companyId),
+      eq(recurringContracts.active, true),
+      ...(branchId
+        ? [or(eq(recurringContracts.branchId, branchId), isNull(recurringContracts.branchId))]
+        : [])
+    ),
+  });
+
+  const medidos = contratos.filter((c) => esServicioMedido(c.contractType));
+  if (medidos.length === 0) return referencias;
+
+  const facturas = await leerFacturas(companyId, branchId, desdeHistoria, hoy, medidos);
+
+  // (contrato, YYYY-MM) → suma del período
+  const porPeriodo = new Map<string, Map<string, number>>();
+  for (const f of facturas) {
+    const match = resolveContract(f, contratos);
+    if (!match) continue;
+    const periodo = f.periodDate.slice(0, 7);
+    const delContrato = porPeriodo.get(match.contract.id) ?? new Map<string, number>();
+    delContrato.set(periodo, (delContrato.get(periodo) ?? 0) + f.total);
+    porPeriodo.set(match.contract.id, delContrato);
+  }
+
+  for (const [contractId, periodos] of porPeriodo) {
+    const totales = [...periodos.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-ROLLING_REFERENCE_RECEIPTS)
+      .map(([, total]) => total);
+    if (totales.length < MIN_ROLLING_RECEIPTS) continue;
+    referencias.set(contractId, {
+      referenceCents: medianaCentavos(totales),
+      periodCount: totales.length,
+    });
+  }
+
+  return referencias;
 }
 
 /** Facturas de la empresa que pueden pertenecer a alguno de esos contratos. */

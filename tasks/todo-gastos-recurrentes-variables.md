@@ -9,8 +9,8 @@ Convenciones del repo:
   julio-agosto de 2026, que es lo que ocupa el seed.
 - Copy de usuario en español.
 
-**Orden recomendado:** Fases 0, 1 y 2 hechas. Queda la 3, cuya decisión (D3) ya está cerrada en
-el plan: el recurrente entra al flujo de efectivo con `source` propio y apagable.
+**Estado:** las cuatro fases están implementadas. Lo único que quedó fuera a propósito es V2.2
+(estacionalidad contra el año anterior), por D2 — ver su entrada.
 
 ---
 
@@ -217,25 +217,61 @@ el plan: el recurrente entra al flujo de efectivo con `source` propio y apagable
 
 ---
 
-## Fase 3: recurrentes en el flujo de efectivo
+## Fase 3: recurrentes en el flujo de efectivo — ✅ IMPLEMENTADA
 
-> D3 está resuelta en el plan (2026-09-01): `source` propio, apagable, y suprimido en cuanto
-> existe factura o gasto capturado del período.
+> **Estado (2026-09-01).** Rama `fix/deteccion-contratos-recurrentes`. La nómina **sí** se
+> proyectaba desde contratos; la renta, la luz y el agua no. La obligación recurrente era
+> invisible para "¿me alcanza?" hasta que alguien capturaba el recibo — que en un servicio de
+> monto variable es justo cuando ya no se puede hacer nada al respecto.
+>
+> El cálculo vive en `lib/services/recurring-contract-projection.ts`; `cash-flow-service` sólo lo
+> consume, igual que `control-interno-service` consume la detección de desviaciones.
 
-- [ ] **V3.1** Proyectar los contratos recurrentes como egreso etiquetado
-  - **Descripción:** Hoy `cash-flow-service` no los mira: sus salidas son `OPERATING_EXPENSE`,
-    `PURCHASE_ORDER` y `PROCUREMENT_INVOICE`. La nómina sí se proyecta desde contratos; la renta,
-    la luz y el agua no. La obligación es invisible para "¿me alcanza?" hasta que llega el recibo.
+- [x] **V3.1** Proyectar los contratos recurrentes como egreso etiquetado
   - **Acceptance criteria:**
-    - [ ] `OutflowItem.source` gana un valor propio para el recurrente proyectado
-    - [ ] Se distingue en la UI de un egreso comprometido real — no se suman como si fueran lo mismo
-    - [ ] Un contrato de monto variable se proyecta con su referencia (Fase 2) y se marca estimado
-    - [ ] Se apaga en cuanto existe factura o gasto capturado de ese período: proyectar y cobrar
-          el mismo recibo dos veces miente al alza, que es la dirección peligrosa
-  - **Dependencies:** D3
+    - [x] `OutflowItem.source` gana `RECURRING_CONTRACT`, con `isEstimated` al lado
+    - [x] Se distingue en la UI: badge propia de borde punteado —es la única fuente que no salió
+          de un documento capturado—, etiqueta "Recurrente est." cuando el monto es estimación, y
+          una badge en "Fuentes de egresos" que dice cuánto del total es estimado. Sí entra en el
+          total proyectado: dejarlo fuera devolvería la pantalla al problema original
+    - [x] Un contrato de monto variable se proyecta con su referencia y se marca estimado. Un
+          servicio medido se marca estimado **aunque** el importe salga de la base capturada:
+          nadie pactó cuánta luz se va a consumir
+    - [x] Se apaga en cuanto existe factura o gasto capturado de ese período, y el período
+          suprimido se cuenta y se declara — que la renta no aparezca tiene dos causas distintas
+          (ya se capturó, o no toca este mes) y la pantalla debe poder decir cuál
+    - [x] Apagable entero desde la pantalla (`?recurring=0`, estado en la URL como el horizonte)
+  - **Nota sobre el importe de un período.** La proyección **no** reusa `rollingReference` de la
+    Fase 2. Esa función juzga UN recibo y compara contra la mediana de recibos sueltos; aquí se
+    proyecta el egreso de UN período, y en un contrato corporativo un período son varios recibos
+    —uno por sucursal— que salen de la cuenta juntos. `getMeteredPeriodReferences` suma por
+    período primero y saca la mediana después: con un recibo por período las dos cuentas
+    coinciden, y con varios la de aquí es la única que no subestima.
+  - **Nota sobre el apagado por gasto.** No hay columna que ligue un gasto operativo a un
+    contrato, así que se cruza por la contraparte del proveedor (`suppliers.payee_id`). Un
+    proveedor sin contraparte capturada no puede apagar nada: se prefiere proyectar de más a
+    apagar el recurrente equivocado.
+  - **Files:** `lib/services/recurring-contract-projection.ts`, `lib/services/cash-flow-service.ts`,
+    `app/api/finance/cash-flow/route.ts`, `app/dashboard/finance/cash-flow/page.tsx`,
+    `components/finance/cash-flow-calendar.tsx`
   - **Scope:** L
 
 ### ☑ Checkpoint: la obligación recurrente se ve antes de llegar
-- [ ] El calendario a 30 días incluye renta y servicios
-- [ ] Ningún período cuenta el mismo recibo dos veces
-- [ ] `pnpm run build` limpio
+- [x] El calendario a 30 días incluye renta y servicios
+- [x] Ningún período cuenta el mismo recibo dos veces
+- [x] `pnpm run build` limpio
+
+> **Verificación.** `npx tsx scripts/verify-recurrentes-flujo-efectivo.ts` — 27 checks, seis de
+> ellos sobre `occurrencesBetween` sin tocar la base de datos.
+>
+> | Escenario | Resultado |
+> |---|---|
+> | Renta mensual con vencimiento en la ventana | partida `RECURRING_CONTRACT`, monto pactado, **no** estimada |
+> | Servicio medido con 3 períodos de historia | se proyecta con la mediana de los totales por período, marcado estimado |
+> | Servicio medido sin historia | base capturada, marcado estimado igualmente |
+> | Ya existe la factura del período | no se proyecta; el período cuenta como suprimido |
+> | Ya existe el gasto operativo del período | tampoco se proyecta |
+> | Contrato corporativo con dos sucursales | proyecta la suma del período ($50k), no la mediana de recibos ($25k) |
+> | Vencimiento del 31 de enero, mes siguiente | se recorta al 28, no desborda a marzo |
+> | Contrato terminado o vencimiento fuera de la ventana | ninguna ocurrencia |
+> | Apagados | ninguna partida recurrente, el resto de los egresos idéntico al centavo |

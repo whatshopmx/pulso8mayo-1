@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users, branches, cashFlowAssumptions, payees } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, inArray, asc, isNull } from "drizzle-orm";
 import { addCalendarDays, localDateString } from "@/lib/workflows/today";
+import { projectRecurringContracts } from "@/lib/services/recurring-contract-projection";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -74,8 +75,21 @@ export interface OutflowItem {
   category: string;
   status: string;
   isPayroll: boolean;
-  /** Fuente del egreso para distinguir origen en el UI */
-  source: "OPERATING_EXPENSE" | "PURCHASE_ORDER" | "PROCUREMENT_INVOICE";
+  /**
+   * Fuente del egreso para distinguir origen en el UI.
+   *
+   * `RECURRING_CONTRACT` no es un compromiso capturado como los otros tres: es
+   * una obligación que se sabe que viene —la renta, la luz— proyectada desde el
+   * contrato. Tiene valor propio porque sin ella "¿me alcanza?" ignora el gasto
+   * más previsible del mes, pero no vale lo mismo que una factura recibida y la
+   * pantalla no debe sumarlas sin decirlo.
+   */
+  source: "OPERATING_EXPENSE" | "PURCHASE_ORDER" | "PROCUREMENT_INVOICE" | "RECURRING_CONTRACT";
+  /**
+   * `true` cuando el importe es una estimación y no un pactado — un servicio
+   * medido. Sólo lo llevan los recurrentes proyectados.
+   */
+  isEstimated?: boolean;
   /** Nombre del proveedor (solo para PO y procurement invoices) */
   supplierName?: string;
   /** Sucursal de la partida, para distinguirlas cuando el alcance es el grupo */
@@ -163,6 +177,28 @@ export interface CashFlowProjection {
       invoicesCount: number;
       invoicesTotalCents: number;
     };
+  };
+  /**
+   * Contratos recurrentes proyectados en la ventana (renta, luz, agua).
+   *
+   * Va aparte del total de egresos a propósito: sirve para que la pantalla
+   * pueda decir cuánto de lo proyectado es obligación estimada y no compromiso
+   * capturado. `included: false` cuando quien mira los apagó.
+   */
+  recurringProjection: {
+    included: boolean;
+    itemCount: number;
+    totalCents: number;
+    /** De los anteriores, los de monto estimado (servicios medidos). */
+    estimatedCount: number;
+    estimatedTotalCents: number;
+    /**
+     * Períodos que NO se proyectaron porque ya existe factura o gasto
+     * capturado. Se declara para distinguir "ya se capturó" de "no toca este
+     * mes": proyectar y cobrar el mismo recibo miente al alza.
+     */
+    suppressedCount: number;
+    suppressedTotalCents: number;
   };
   /** Nómina real estimada desde contratos activos */
   payroll: {
@@ -336,8 +372,18 @@ export async function saveCashFlowAssumption(opts: {
 export async function getCashFlowProjection(
   companyId: string,
   days = 30,
-  branchId?: string
+  branchId?: string,
+  opts: {
+    /**
+     * Incluir los contratos recurrentes proyectados. Por omisión sí: que la
+     * renta y la luz no aparezcan hasta que llegue el recibo es justo el
+     * problema que esto viene a resolver. Se puede apagar desde la pantalla
+     * para ver sólo lo capturado.
+     */
+    includeRecurringContracts?: boolean;
+  } = {}
 ): Promise<CashFlowProjection> {
+  const incluirRecurrentes = opts.includeRecurringContracts !== false;
   // Qué día es "hoy" se decide con el reloj de la sucursal, no con el del
   // servidor. `toISOString()` calcula en UTC: en UTC-6, después de las 6pm local
   // —la hora a la que una dueña revisa el dinero— la ventana se recorría un día
@@ -743,6 +789,49 @@ export async function getCashFlowProjection(
     }
   }
 
+  // 6d. Contratos recurrentes proyectados
+  //
+  // Se agregan aquí, después de gastos, OC y facturas, porque la supresión por
+  // período ya se resolvió contra la base de datos dentro del proyector: un
+  // recurrente cuyo recibo ya se capturó no llega hasta este punto.
+  const recurrentes = incluirRecurrentes
+    ? await projectRecurringContracts({
+        companyId,
+        branchId,
+        startDate: startDateStr,
+        endDate: endDateStr,
+      })
+    : { items: [], suppressed: { count: 0, totalCents: 0 } };
+
+  let recurrentesTotal = 0;
+  let recurrentesEstimados = 0;
+  let recurrentesEstimadosTotal = 0;
+  for (const r of recurrentes.items) {
+    addItem({
+      // El id lleva la fecha: un contrato mensual produce varias partidas en
+      // una ventana de 30 días y `key={item.id}` en React las colapsaría.
+      id: `recurring-${r.contractId}-${r.date}`,
+      date: r.date,
+      description: r.supplierName
+        ? `${r.contractTitle} — ${r.supplierName}`
+        : r.contractTitle,
+      amountCents: r.amountCents,
+      category: r.contractType,
+      status: r.isEstimated ? "ESTIMADO" : "PROGRAMADO",
+      isPayroll: false,
+      source: "RECURRING_CONTRACT",
+      isEstimated: r.isEstimated,
+      supplierName: r.supplierName || undefined,
+      branchId: r.branchId,
+      branchName: nombreSucursal(r.branchId),
+    });
+    recurrentesTotal += r.amountCents;
+    if (r.isEstimated) {
+      recurrentesEstimados += 1;
+      recurrentesEstimadosTotal += r.amountCents;
+    }
+  }
+
   // ── 7. Overdue items (OpEx vencidos) ──────────────────────────
   const overdueItems: OutflowItem[] = overdueOpEx.map((exp) => ({
     id: exp.id,
@@ -949,6 +1038,15 @@ export async function getCashFlowProjection(
     procurementCommitments: {
       ...admitido,
       outsideWindow: fueraDeVentana,
+    },
+    recurringProjection: {
+      included: incluirRecurrentes,
+      itemCount: recurrentes.items.length,
+      totalCents: recurrentesTotal,
+      estimatedCount: recurrentesEstimados,
+      estimatedTotalCents: recurrentesEstimadosTotal,
+      suppressedCount: recurrentes.suppressed.count,
+      suppressedTotalCents: recurrentes.suppressed.totalCents,
     },
     payroll: payrollData,
   };

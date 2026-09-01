@@ -69,7 +69,13 @@ interface OutflowItem {
   category: string;
   status: string;
   isPayroll: boolean;
-  source?: "OPERATING_EXPENSE" | "PURCHASE_ORDER" | "PROCUREMENT_INVOICE";
+  source?:
+    | "OPERATING_EXPENSE"
+    | "PURCHASE_ORDER"
+    | "PROCUREMENT_INVOICE"
+    | "RECURRING_CONTRACT";
+  /** `true` cuando el importe es estimado y no pactado (servicios medidos). */
+  isEstimated?: boolean;
   supplierName?: string;
   /** Sucursal de la partida; se rotula sólo en alcance de grupo. */
   branchId?: string | null;
@@ -113,6 +119,20 @@ export interface CashFlowProjection {
     isStale: boolean;
   };
   inflow?: InflowEstimate;
+  /**
+   * Contratos recurrentes proyectados (renta, luz, agua). Aparte del total de
+   * egresos: sirve para decir cuánto de lo proyectado es obligación estimada y
+   * no compromiso capturado.
+   */
+  recurringProjection?: {
+    included: boolean;
+    itemCount: number;
+    totalCents: number;
+    estimatedCount: number;
+    estimatedTotalCents: number;
+    suppressedCount: number;
+    suppressedTotalCents: number;
+  };
   /** Alcance realmente aplicado — puede diferir del solicitado (`enforceBranchScope`). */
   scope?: {
     branchId: string | null;
@@ -230,12 +250,16 @@ const SOURCE_LABELS: Record<string, string> = {
   OPERATING_EXPENSE: "Gasto",
   PURCHASE_ORDER: "OC",
   PROCUREMENT_INVOICE: "Factura",
+  RECURRING_CONTRACT: "Recurrente",
 };
 
 const SOURCE_COLORS: Record<string, string> = {
   OPERATING_EXPENSE: "bg-muted text-muted-foreground border-muted",
   PURCHASE_ORDER: "bg-info/10 text-info border-info/20",
   PROCUREMENT_INVOICE: "bg-chart-4/10 text-chart-4 border-chart-4/20",
+  // Discontinuo a propósito: es la única fuente que no salió de un documento
+  // capturado, y el borde punteado lo dice sin necesidad de leer la etiqueta.
+  RECURRING_CONTRACT: "bg-chart-2/10 text-chart-2 border-chart-2/40 border-dashed",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -278,8 +302,23 @@ function hrefParaPartida(item: OutflowItem): string | null {
   // La nómina se sintetiza en el servicio (`payroll-<fecha>`): no hay registro
   // que abrir, así que esa fila no enlaza a ninguna parte.
   if (item.isPayroll) return null;
+  // Un recurrente proyectado tampoco tiene documento capturado que enfocar,
+  // pero sí tiene contrato: se enlaza al listado de tesorería, que es donde se
+  // corrige el monto base o la periodicidad. Sin `focus`, porque esa pantalla
+  // no lo lee y un parámetro que no hace nada promete algo que no ocurre.
+  if (item.source === "RECURRING_CONTRACT") return "/dashboard/finance/treasury";
   const base = item.source ? SOURCE_ROUTES[item.source] : null;
   return base ? `${base}?focus=${encodeURIComponent(item.id)}` : null;
+}
+
+/**
+ * Texto de la badge de fuente. Un recurrente de monto estimado se marca como
+ * tal: sumarlo junto a una factura recibida sin distinguirlos es exactamente lo
+ * que hace que un total deje de merecer confianza.
+ */
+function etiquetaFuente(item: OutflowItem): string {
+  const base = item.source ? SOURCE_LABELS[item.source] || item.source : "";
+  return item.isEstimated ? `${base} est.` : base;
 }
 
 /**
@@ -827,7 +866,7 @@ export function CashFlowCalendar({
                           variant="outline"
                           className={`shrink-0 text-xs px-1 py-0 ${SOURCE_COLORS[item.source] || ""}`}
                         >
-                          {SOURCE_LABELS[item.source] || item.source}
+                          {etiquetaFuente(item)}
                         </Badge>
                       )}
                     </div>
@@ -1037,9 +1076,10 @@ export function CashFlowCalendar({
       {/* Fuentes de egresos. `flex-wrap`: era `flex` con badges `shrink-0`, así
           que en un teléfono de 320px la tira se salía por la derecha sin
           contenedor con scroll — el contenido quedaba fuera de la pantalla. */}
-      {data.procurementCommitments &&
+      {((data.procurementCommitments &&
         (data.procurementCommitments.purchaseOrdersCount > 0 ||
-          data.procurementCommitments.invoicesCount > 0) && (
+          data.procurementCommitments.invoicesCount > 0)) ||
+        (data.recurringProjection?.itemCount ?? 0) > 0) && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
             <span className="font-medium text-foreground">Fuentes de egresos:</span>
             {data.procurementCommitments.purchaseOrdersCount > 0 && (
@@ -1052,6 +1092,18 @@ export function CashFlowCalendar({
               <Badge variant="outline" className={`text-xs ${SOURCE_COLORS.PROCUREMENT_INVOICE}`}>
                 {data.procurementCommitments.invoicesCount} Facturas (
                 {formatCents(data.procurementCommitments.invoicesTotalCents)})
+              </Badge>
+            )}
+            {/* Los recurrentes van en su propia badge y no dentro de "gastos
+                operativos": son la única fuente proyectada desde un contrato en
+                vez de leída de un documento, y quien mira el total tiene
+                derecho a saber qué parte de él es una estimación. */}
+            {(data.recurringProjection?.itemCount ?? 0) > 0 && (
+              <Badge variant="outline" className={`text-xs ${SOURCE_COLORS.RECURRING_CONTRACT}`}>
+                {data.recurringProjection!.itemCount} Recurrentes (
+                {formatCents(data.recurringProjection!.totalCents)})
+                {data.recurringProjection!.estimatedCount > 0 &&
+                  `, ${formatCents(data.recurringProjection!.estimatedTotalCents)} estimado`}
               </Badge>
             )}
             {/* La nómina no es una alarma: es el gasto más previsible del mes.
@@ -1091,6 +1143,31 @@ export function CashFlowCalendar({
             </>
           )}
           . No se incluyen en las cifras de arriba.
+        </p>
+      )}
+
+      {/* Recurrentes que NO se proyectaron porque su recibo ya llegó. Se dice
+          en vez de callarlo: que la renta no aparezca en el calendario tiene
+          dos causas muy distintas —ya se capturó, o el contrato no toca este
+          mes— y sin esta línea no hay forma de saber cuál. */}
+      {(data.recurringProjection?.suppressedCount ?? 0) > 0 && (
+        <p className="text-xs text-muted-foreground px-3">
+          {data.recurringProjection!.suppressedCount}{" "}
+          {data.recurringProjection!.suppressedCount === 1
+            ? "período recurrente no se proyecta"
+            : "períodos recurrentes no se proyectan"}{" "}
+          porque su factura o gasto ya está capturado, y ya cuenta arriba como
+          compromiso real. Proyectarlo además sumaría el mismo recibo dos veces.
+        </p>
+      )}
+
+      {/* Los recurrentes apagados. Una proyección a la que le falta la renta no
+          debe verse igual que una en la que la renta no toca. */}
+      {data.recurringProjection && !data.recurringProjection.included && (
+        <p className="text-xs text-muted-foreground px-3">
+          Los contratos recurrentes están ocultos: esta proyección sólo incluye
+          lo capturado. La renta, la luz y el agua no aparecen aunque se paguen
+          dentro de la ventana.
         </p>
       )}
 
@@ -1188,7 +1265,7 @@ export function CashFlowCalendar({
                               variant="outline"
                               className={`shrink-0 text-xs px-1 py-0 ${SOURCE_COLORS[item.source] || ""}`}
                             >
-                              {SOURCE_LABELS[item.source] || item.source}
+                              {etiquetaFuente(item)}
                             </Badge>
                           )}
                         </div>
