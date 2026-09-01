@@ -14,6 +14,7 @@ import { account, users, session, sessions, verifications, magicLinks, roleEnum 
 import { companies, branches } from './schema/core';
 import { branchComplianceServices } from './schema/equipment';
 import { purchaseTypeEnum, costCenters } from './schema/service-orders';
+import { recurringContracts } from './schema/treasury';
 
 // Re-export modular schema
 export * from './schema/index';
@@ -2900,7 +2901,21 @@ export const invoices = pgTable("invoices", {
     supplierId: uuid("supplier_id").references(() => suppliers.id),
     purchaseOrderId: uuid("purchase_order_id").references(() => purchaseOrders.id),
     receivingReportId: uuid("receiving_report_id").references(() => receivingReports.id),
-    
+
+    /**
+     * Contrato recurrente al que pertenece este CFDI (V1.1).
+     *
+     * `supplier_id` no basta como llave: un proveedor puede tener varios
+     * contratos —un arrendador que además cobra mantenimiento, CFE con dos
+     * medidores— y comparar la factura contra todos ellos hacía que cada
+     * recibo disparara sobrecosto contra el de base menor.
+     *
+     * Nullable porque las facturas ya capturadas no tienen con qué llenarlo.
+     * Cuando falta, la detección infiere por (proveedor, sucursal) y sólo
+     * compara si el candidato es único; ante ambigüedad no compara nada.
+     */
+    recurringContractId: uuid("recurring_contract_id").references(() => recurringContracts.id, { onDelete: "set null" }),
+
     uuid: text("uuid").unique().notNull(),
     folio: text("folio"),
     serie: text("serie"),

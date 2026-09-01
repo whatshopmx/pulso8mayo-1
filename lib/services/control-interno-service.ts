@@ -5,8 +5,6 @@ import { db } from "@/lib/db";
 import {
   operatingExpenses,
   expenseAuthorizationRules,
-  recurringContracts,
-  invoices,
   users,
   branches,
 } from "@/lib/db/schema";
@@ -16,6 +14,7 @@ import {
   getRecurringShortageFindings,
   shiftLabel,
 } from "@/lib/services/cash-variance-alert-service";
+import { getRecurringContractFindings } from "@/lib/services/recurring-contract-variance";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,6 +51,15 @@ export interface Violation {
      * pasó.
      */
     | "CONTRACT_VARIANCE_BELOW"
+    /**
+     * Consumo de un servicio medido que subió y se quedó arriba (V2.3).
+     *
+     * No nace de una factura sino de la pendiente de varias. Existe porque es
+     * el riesgo que introduce la base móvil: si el consumo sube y se sostiene,
+     * la mediana lo absorbe y la fuga se vuelve la nueva normalidad sin que
+     * ningún recibo suelto rebase su tolerancia.
+     */
+    | "CONTRACT_TREND_RISING"
     /** Faltantes repetidos en el mismo turno de una sucursal (F3.4). */
     | "RECURRING_SHORTAGE";
   severity: "LOW" | "MEDIUM" | "HIGH";
@@ -325,72 +333,107 @@ export async function detectViolations(
     }
   }
 
-  // 4. CONTRACT_VARIANCE_EXCEEDED: Facturas de servicios recurrentes (Renta/CFE) que exceden la tolerancia base (Módulo 4.2 & 5.1)
-  const contracts = await db.query.recurringContracts.findMany({
-    where: and(
-      eq(recurringContracts.companyId, companyId),
-      eq(recurringContracts.active, true),
-      ...(branchId ? [eq(recurringContracts.branchId, branchId)] : [])
-    ),
-  });
+  // 4. CONTRACT_VARIANCE_* y CONTRACT_TREND_RISING: facturas de contratos
+  // recurrentes (renta, CFE, agua) fuera de su referencia, y consumos medidos
+  // que subieron y se quedaron arriba.
+  //
+  // La regla y el emparejamiento viven en `recurring-contract-variance`; aquí
+  // sólo se redacta la excepción. Antes esta función cruzaba cada contrato
+  // contra las últimas 5 facturas del PROVEEDOR, sin acotar por contrato ni por
+  // período: con dos contratos del mismo arrendador toda factura disparaba
+  // sobrecosto contra el de base menor, y un recibo de hace ocho meses seguía
+  // apareciendo como excepción abierta para siempre.
+  //
+  // Se aísla igual que los faltantes recurrentes: si la consulta falla, el
+  // panel muestra las excepciones de gasto en vez de no mostrar nada.
+  try {
+    const { variance, trend } = await getRecurringContractFindings(companyId, branchId);
 
-  for (const contract of contracts) {
-    const recentInvoices = await db.query.invoices.findMany({
-      where: and(
-        eq(invoices.companyId, companyId),
-        eq(invoices.supplierId, contract.supplierId),
-        ...(contract.branchId ? [eq(invoices.branchId, contract.branchId)] : [])
-      ),
-      limit: 5,
-      orderBy: (inv, { desc }) => [desc(inv.createdAt)],
-    });
+    for (const d of variance) {
+      const facturado = `$${(d.invoiceTotalCents / 100).toFixed(2)} MXN`;
+      const referencia = `$${(d.referenceCents / 100).toFixed(2)} MXN`;
+      // De dónde salió el umbral. Se dice siempre: un número que el sistema
+      // calculó solo y uno que el dueño capturó no valen lo mismo, y quien
+      // investiga la excepción necesita saber cuál está discutiendo.
+      const origen =
+        d.referenceBasis === "ROLLING_MEDIAN"
+          ? `mediana de sus ${d.referenceSampleSize} recibos anteriores`
+          : "monto base capturado en el contrato";
+      // Una desviación medida contra un contrato deducido no vale lo mismo que
+      // una contra el contrato que la factura declara. Se dice, no se esconde.
+      const procedencia =
+        d.matchBasis === "INFERRED"
+          ? " Contrato deducido por proveedor y sucursal: captúralo en la factura para confirmarlo."
+          : "";
 
-    for (const inv of recentInvoices) {
-      const varianceCents = inv.total - contract.baseAmountCents;
-      const variancePercent = contract.baseAmountCents > 0
-        ? Math.round((varianceCents / contract.baseAmountCents) * 1000) / 10
-        : 0;
-
-      const folio = inv.folio || inv.uuid.slice(0, 8);
-      const sucursal = contract.branchId ? "Sucursal asignada" : "Corporativo / Cadena";
-
-      if (variancePercent > contract.varianceTolerancePercent) {
+      if (d.kind === "ABOVE") {
         violations.push({
-          id: `contract-${inv.id}`,
+          id: `contract-${d.invoiceId}`,
           type: "CONTRACT_VARIANCE_EXCEEDED",
-          severity: variancePercent > 25 ? "HIGH" : "MEDIUM",
-          expenseId: inv.id,
-          branchName: sucursal,
-          category: contract.contractType,
-          amountCents: inv.total,
-          description: `Sobrecosto en contrato recurrente: ${contract.title}`,
-          detail: `Factura ${folio} por $${(inv.total / 100).toFixed(2)} MXN supera el monto contratado de $${(contract.baseAmountCents / 100).toFixed(2)} MXN (+${variancePercent}% vs tolerancia +${contract.varianceTolerancePercent}%).`,
-          createdAt: inv.createdAt,
+          severity: d.variancePercent > 25 ? "HIGH" : "MEDIUM",
+          expenseId: d.invoiceId,
+          branchName: d.branchName,
+          category: d.contractType,
+          amountCents: d.invoiceTotalCents,
+          description: `Sobrecosto en contrato recurrente: ${d.contractTitle}`,
+          detail:
+            `Factura ${d.invoiceFolio} del ${d.periodDate} por ${facturado} supera su referencia ` +
+            `de ${referencia} (${origen}) en +${d.variancePercent}%, con tolerancia ` +
+            `+${d.toleranceAbovePercent}%.${procedencia}`,
+          createdAt: d.createdAt,
         });
-      } else if (
-        // `null` = el contrato no pidió alerta por debajo, que es lo correcto
-        // en una renta. Sólo se evalúa cuando alguien la configuró a propósito.
-        contract.varianceToleranceBelowPercent !== null &&
-        variancePercent < -contract.varianceToleranceBelowPercent
-      ) {
-        const caida = Math.abs(variancePercent);
+      } else {
+        const caida = Math.abs(d.variancePercent);
         violations.push({
-          id: `contract-below-${inv.id}`,
+          id: `contract-below-${d.invoiceId}`,
           type: "CONTRACT_VARIANCE_BELOW",
           // Severidad más baja que un sobrecosto del mismo tamaño: no es dinero
           // que ya se fue, es dinero que probablemente llegue después. Se
           // reporta para que nadie tome el mes bueno como la nueva normalidad.
           severity: caida > 50 ? "MEDIUM" : "LOW",
-          expenseId: inv.id,
-          branchName: sucursal,
-          category: contract.contractType,
-          amountCents: inv.total,
-          description: `Recibo anormalmente bajo: ${contract.title}`,
-          detail: `Factura ${folio} por $${(inv.total / 100).toFixed(2)} MXN queda ${caida}% por debajo del monto base de $${(contract.baseAmountCents / 100).toFixed(2)} MXN (tolerancia -${contract.varianceToleranceBelowPercent}%). En servicios medidos suele ser lectura estimada: verifica el recibo, porque el ajuste llega en el período siguiente.`,
-          createdAt: inv.createdAt,
+          expenseId: d.invoiceId,
+          branchName: d.branchName,
+          category: d.contractType,
+          amountCents: d.invoiceTotalCents,
+          description: `Recibo anormalmente bajo: ${d.contractTitle}`,
+          detail:
+            `Factura ${d.invoiceFolio} del ${d.periodDate} por ${facturado} queda ${caida}% por ` +
+            `debajo de su referencia de ${referencia} (${origen}), con tolerancia ` +
+            `-${d.toleranceBelowPercent}%. En servicios medidos suele ser lectura estimada: ` +
+            `verifica el recibo, porque el ajuste llega en el período siguiente.${procedencia}`,
+          createdAt: d.createdAt,
         });
       }
     }
+
+    for (const t of trend) {
+      const antes = `$${(t.previousMedianCents / 100).toFixed(2)} MXN`;
+      const ahora = `$${(t.recentMedianCents / 100).toFixed(2)} MXN`;
+      violations.push({
+        // Por sucursal y no por nombre de sucursal: renombrar un local no
+        // debe cambiar la identidad de la excepción.
+        id: `contract-trend-${t.contractId}-${t.branchId ?? "sin-sucursal"}`,
+        type: "CONTRACT_TREND_RISING",
+        // Alta a partir de la mitad: una subida sostenida de ese tamaño en un
+        // servicio medido ya no es temporada, es una fuga o un equipo fallando.
+        severity: t.risePercent > 50 ? "HIGH" : "MEDIUM",
+        expenseId: null,
+        branchName: t.branchName,
+        category: t.contractType,
+        amountCents: t.recentMedianCents,
+        description: `Consumo al alza sostenida: ${t.contractTitle}`,
+        detail:
+          `Los últimos ${t.blockSize} recibos promedian ${ahora} contra ${antes} de los ` +
+          `${t.blockSize} anteriores: +${t.risePercent}%, y los ${t.blockSize} están por encima ` +
+          `del nivel previo. Ningún recibo suelto rebasó su tolerancia, así que la desviación ` +
+          `por factura no lo ve: la referencia móvil absorbe lo que sube y se queda. El último ` +
+          `es del ${t.latestPeriodDate}. Revisa fugas, equipo encendido fuera de horario o ` +
+          `cambio de tarifa.`,
+        createdAt: t.createdAt,
+      });
+    }
+  } catch (err) {
+    console.error("[ControlInterno] No se pudieron evaluar los contratos recurrentes:", err);
   }
 
   // 5. RECURRING_SHORTAGE: faltantes repetidos en el mismo turno de una sucursal.

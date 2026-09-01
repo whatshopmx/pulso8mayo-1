@@ -49,10 +49,19 @@ export async function GET(req: NextRequest) {
 
     const effectiveBranchId = alcance.kind === "BRANCH" ? alcance.branchId : null;
 
+    // Los contratos recurrentes proyectados se pueden apagar: son obligación
+    // que se sabe que viene, no compromiso capturado, y quien quiera ver sólo
+    // lo segundo debe poder hacerlo. Por omisión van incluidos — que la renta y
+    // la luz sean invisibles hasta que llegue el recibo es el problema, no la
+    // preferencia.
+    const recurringParam = searchParams.get("recurring");
+    const includeRecurringContracts = recurringParam !== "0" && recurringParam !== "false";
+
     const projection = await getCashFlowProjection(
       ctx.userCompanyId,
       days,
-      effectiveBranchId ?? undefined
+      effectiveBranchId ?? undefined,
+      { includeRecurringContracts }
     );
     return ApiHandler.success(maskSensitive(projection, decision));
   } catch (error) {

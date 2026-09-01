@@ -46,7 +46,7 @@ function parseTolerancia(raw: string): number | null {
 const SUGERENCIA_TOLERANCIA: Record<string, string> = {
   RENTA: "Una renta es fija: 5% arriba basta y no necesita alerta por debajo.",
   SERVICIO_BASICO:
-    "Luz y agua varían por temporada: suele ir 30-40% arriba y 30% abajo, o la alerta se vuelve ruido.",
+    "Luz y agua varían por temporada: suele ir 30-40% arriba y 30% abajo, o la alerta se vuelve ruido. La subida sostenida se detecta aparte, así que no hace falta apretarla para cazar fugas.",
   MANTENIMIENTO: "El mantenimiento varía con lo que se rompa: considera 25% o más.",
   SOFTWARE: "Una licencia es fija salvo cambio de plan: 5% arriba.",
 };
@@ -396,6 +396,18 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
                       required
                     />
                   </div>
+                  {/* En un servicio medido el monto base es el arranque, no la
+                      verdad: en cuanto hay tres recibos la referencia pasa a
+                      ser la mediana de los anteriores. Se dice aquí, donde se
+                      captura, y no sólo en la excepción, para que nadie se
+                      esfuerce en afinar un número que el sistema va a
+                      reemplazar. */}
+                  {contractType === "SERVICIO_BASICO" && (
+                    <p className="text-xs text-muted-foreground">
+                      Sirve de arranque: con tres recibos o más, la referencia pasa a ser la
+                      mediana de los anteriores de esta sucursal.
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid gap-2 min-w-0">
@@ -421,8 +433,8 @@ export function CreateRecurringContractModal({ onSuccess, trigger }: CreateRecur
               <div className="grid gap-2 rounded-md border bg-muted/30 p-3">
                 <Label className="text-sm">Tolerancia de desviación</Label>
                 <p className="text-xs text-muted-foreground">
-                  Cuánto puede alejarse el recibo del monto base antes de que Control Interno lo
-                  marque como excepción. {SUGERENCIA_TOLERANCIA[contractType] ?? ""}
+                  Cuánto puede alejarse el recibo de su referencia antes de que Control Interno
+                  lo marque como excepción. {SUGERENCIA_TOLERANCIA[contractType] ?? ""}
                 </p>
                 <div className="grid grid-cols-2 gap-4 pt-1">
                   <div className="grid gap-1.5 min-w-0">

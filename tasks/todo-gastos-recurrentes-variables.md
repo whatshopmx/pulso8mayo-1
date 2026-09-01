@@ -9,9 +9,8 @@ Convenciones del repo:
   julio-agosto de 2026, que es lo que ocupa el seed.
 - Copy de usuario en español.
 
-**Orden recomendado:** Fase 0 ya está hecha. La Fase 1 (acotar la consulta) va primero porque
-hoy produce hallazgos falsos, y sin ella cualquier medición de las fases siguientes queda
-contaminada. Las fases 2 y 3 son independientes entre sí.
+**Estado:** las cuatro fases están implementadas. Lo único que quedó fuera a propósito es V2.2
+(estacionalidad contra el año anterior), por D2 — ver su entrada.
 
 ---
 
@@ -55,118 +54,224 @@ contaminada. Las fases 2 y 3 son independientes entre sí.
 
 ---
 
-## Fase 1: acotar la detección (P0 — hoy produce hallazgos falsos)
+## Fase 1: acotar la detección — ✅ IMPLEMENTADA
 
-> **Por qué es P0.** `control-interno-service.ts:329` cruza cada contrato contra las últimas 5
-> facturas del proveedor. No acota por contrato, ni por período, ni por sucursal cuando el
-> contrato es corporativo. Con dos contratos del mismo arrendador —una renta y un servicio— toda
-> factura dispara sobrecosto contra el de base menor. No es teórico: apareció al verificar la
-> Fase 0, y `scripts/verify-tolerancia-recurrentes.ts` tiene que acotar sus aserciones por título
-> de contrato para no medir este defecto por accidente.
+> **Estado (2026-09-01).** Rama `fix/deteccion-contratos-recurrentes`. Era P0 porque
+> `control-interno-service.ts:329` cruzaba cada contrato contra las últimas 5 facturas del
+> proveedor: sin acotar por contrato, ni por período, ni por sucursal cuando el contrato era
+> corporativo. Con dos contratos del mismo arrendador —una renta y un servicio— toda factura
+> disparaba sobrecosto contra el de base menor. No era teórico: apareció al verificar la Fase 0,
+> y `scripts/verify-tolerancia-recurrentes.ts` tenía que acotar sus aserciones por título de
+> contrato para no medir este defecto por accidente.
+>
+> La regla y el emparejamiento viven ahora en `lib/services/recurring-contract-variance.ts`;
+> `control-interno-service` sólo redacta la excepción, igual que hace con los faltantes
+> recurrentes de `cash-variance-alert-service`.
 
-- [ ] **V1.1** Ligar la factura al contrato, no al proveedor
-  - **Descripción:** Un proveedor puede tener varios contratos. Hoy la única llave es
-    `supplier_id`, y eso no basta. Hace falta decidir cómo se resuelve: columna
-    `recurring_contract_id` en `invoices` (explícita, pide captura o inferencia al conciliar), o
-    resolución por `(supplier_id, branch_id, contractType)` cuando sea única.
+- [x] **V1.1** Ligar la factura al contrato, no al proveedor
+  - **Decisión:** columna `invoices.recurring_contract_id` (migración 0082), nullable y con
+    `ON DELETE SET NULL` — borrar un contrato no puede borrar un CFDI. Se llena al capturar la
+    factura (`app/api/inventory/invoices/upload/route.ts`) y no en tiempo de consulta: es el
+    único momento en que la deducción se puede congelar. Si mañana el grupo firma un segundo
+    contrato con el mismo arrendador, la factura ya sabe cuál era el suyo.
   - **Acceptance criteria:**
-    - [ ] Una factura se compara contra **un** contrato, no contra todos los del proveedor
-    - [ ] Dos contratos del mismo proveedor con bases distintas no se contaminan entre sí
-    - [ ] Un contrato corporativo (`branchId` null) no mezcla recibos de sucursales distintas
-    - [ ] Las aserciones de `verify-tolerancia-recurrentes.ts` dejan de necesitar el acotado por
-          título, y el comentario que lo explica se retira
-  - **Dependencies:** None
-  - **Files:** `lib/services/control-interno-service.ts`, posiblemente `lib/db/schema.ts`
+    - [x] Una factura se compara contra **un** contrato, no contra todos los del proveedor
+    - [x] Dos contratos del mismo proveedor con bases distintas no se contaminan entre sí —
+          `resolveContract` no elige ante empate: sin hallazgo es mejor que con hallazgo falso
+    - [x] Un contrato corporativo (`branchId` null) no mezcla recibos de sucursales distintas:
+          se evalúa por factura y el hallazgo nombra la sucursal **de la factura**. De paso, el
+          corporativo ahora sí aparece con alcance de sucursal — antes quedaba fuera del filtro
+          y un gerente nunca veía la desviación de su propio recibo de luz
+    - [x] Las aserciones de `verify-tolerancia-recurrentes.ts` dejan de necesitar el acotado por
+          título, y el comentario que lo explica se retiró
+  - **Files:** `drizzle/0082_factura-contrato-recurrente.sql`, `lib/db/schema.ts`,
+    `lib/services/recurring-contract-variance.ts`, `app/api/inventory/invoices/upload/route.ts`
   - **Scope:** M
 
-- [ ] **V1.2** Acotar por período y dejar de re-reportar lo viejo
-  - **Descripción:** `limit: 5` ordenado por `createdAt`, sin filtro de fecha: un recibo de hace
-    ocho meses sigue apareciendo como excepción abierta para siempre.
+- [x] **V1.2** Acotar por período y dejar de re-reportar lo viejo
+  - **Decisión:** `CONTRACT_VARIANCE_WINDOW_DAYS = 90`, acotada por los dos lados. 90 y no 30
+    porque CFE factura bimestral: una ventana de un mes puede no contener un solo recibo de luz.
+    El techo existe porque una factura con fecha futura es un error de captura, y sin él se
+    reportaría para siempre — el mismo defecto que la ventana viene a quitar.
   - **Acceptance criteria:**
-    - [ ] La detección mira una ventana explícita, no "las últimas 5"
-    - [ ] Un hallazgo sale de la lista cuando su factura sale de la ventana (mismo criterio que
-          `RECURRING_SHORTAGE`, que se cierra solo al salir de sus 30 cortes)
-    - [ ] La ventana se declara en la UI: quien lee las excepciones debe saber qué período cubren
-  - **Dependencies:** None
+    - [x] La detección mira una ventana explícita, no "las últimas 5"
+    - [x] Un hallazgo sale de la lista cuando su factura sale de la ventana (mismo criterio que
+          `RECURRING_SHORTAGE`)
+    - [x] La ventana se declara en la UI — viaja en la respuesta de
+          `/api/finance/control-interno/excepciones` y la pinta `excepciones-panel.tsx`, también
+          en el estado vacío: "sin excepciones" no dice nada sin el período que lo respalda
+  - **Nota:** la factura se ubica por `invoices.fecha` (la del CFDI, que es cuándo ocurrió el
+    consumo), con caída a `created_at` cuando el texto no es una fecha reconocible — así ninguna
+    factura queda fuera de toda ventana en silencio.
   - **Scope:** S
 
-- [ ] **V1.3** Borrar `validateInvoiceAgainstContract`
-  - **Descripción:** Código muerto: nadie la llama, y duplica la regla que sí corre en
-    `control-interno-service` con otro criterio de severidad.
+- [x] **V1.3** Borrar `validateInvoiceAgainstContract`
   - **Acceptance criteria:**
-    - [ ] La función se elimina, o se convierte en la única implementación y `control-interno`
-          la consume — pero no las dos versiones a la vez
-    - [ ] `pnpm run build` limpio
-  - **Dependencies:** V1.1 (si se decide unificar en vez de borrar)
+    - [x] Se eliminó de `treasury-service.ts`, dejando en su lugar un comentario que dice dónde
+          vive la regla. La única implementación es `evaluateContractVariance`, pura y sin I/O,
+          y `control-interno-service` la consume vía `getContractVarianceFindings`
+    - [x] `pnpm run build` limpio
+  - **Hallazgo de paso:** la función muerta elegía contrato con
+    `contracts.find(...) || contracts[0]` — con dos contratos del mismo proveedor tomaba el
+    primero que devolviera la base de datos. Si alguien la hubiera conectado, habría comparado
+    contra un contrato arbitrario.
   - **Scope:** S
 
 ### ☑ Checkpoint: la detección dice la verdad
-- [ ] Un contrato sólo se compara contra sus propias facturas
-- [ ] Ningún hallazgo sobrevive a su propia ventana
-- [ ] Una sola implementación de la regla
+- [x] Un contrato sólo se compara contra sus propias facturas
+- [x] Ningún hallazgo sobrevive a su propia ventana
+- [x] Una sola implementación de la regla
+
+> **Verificación.** `npx tsx scripts/verify-tolerancia-recurrentes.ts` — los 12 checks de la
+> Fase 0 más 9 de la Fase 1. Las fechas se calculan contra hoy y no se escriben a mano: la
+> ventana es relativa al día en que corre el script, así que una constante literal deja de estar
+> dentro con sólo esperar unos meses.
+>
+> | Escenario | Resultado |
+> |---|---|
+> | Factura de $14,000 con tres contratos del mismo proveedor | **un** hallazgo, contra el suyo (antes: uno por contrato) |
+> | Hallazgo de una factura ligada | nombra el contrato correcto y declara el período |
+> | Factura de hace 120 días fuera de tolerancia | sin hallazgo (antes: excepción abierta para siempre) |
+> | Factura sin contrato capturado, proveedor con un solo contrato | se deduce, se compara, y el detalle dice "deducido" |
+> | Factura sin contrato capturado, proveedor con tres | sin hallazgo — no se adivina |
+> | Contrato corporativo contra el recibo de una sucursal | hallazgo atribuido a esa sucursal (antes: "Corporativo / Cadena") |
 
 ---
 
-## Fase 2: base móvil para servicios medidos
+## Fase 2: base móvil para servicios medidos — ✅ IMPLEMENTADA
 
-> Depende de **D1** y **D2** del plan. No empezar sin resolverlas: la ventana y el criterio de
-> estacionalidad cambian el alcance de V2.1 por completo.
+> **Estado (2026-09-01).** Rama `fix/deteccion-contratos-recurrentes`, junto con la Fase 1. Un
+> solo `base_amount_cents` no puede describir el consumo eléctrico de un restaurante: con
+> tolerancias configurables el problema se mitiga —se puede poner ±35%— pero una banda tan ancha
+> ya no detecta nada. Una fuga de agua que sube el consumo 30% queda dentro de la tolerancia que
+> hizo falta para callar el verano. Por eso la referencia pasa a salir del historial, y la
+> pendiente se mira aparte del recibo suelto.
+>
+> D1 y D2 se resolvieron antes de empezar: ventana en **recibos** (no meses), umbral de 3, y sin
+> estacionalidad — V2.2 queda fuera de alcance.
 
-- [ ] **V2.1** Referencia por historial para `SERVICIO_BASICO`
-  - **Descripción:** La mediana de los últimos N recibos de esa sucursal con ese proveedor, en
-    lugar del punto capturado. Mediana y no promedio: un recibo de ajuste al doble arrastra el
-    promedio y deja de detectar el siguiente.
+- [x] **V2.1** Referencia por historial para `SERVICIO_BASICO`
+  - **Decisión:** mediana de hasta `ROLLING_REFERENCE_RECEIPTS = 6` recibos previos, con
+    `MIN_ROLLING_RECEIPTS = 3` para que sustituya a la base. Seis recibos son un año de luz o
+    medio de agua. Historia leída: 730 días, para que un cambio de tarifa viejo no pese hoy.
   - **Acceptance criteria:**
-    - [ ] Con menos de N recibos se usa `base_amount_cents` y se **declara** que es el capturado
-    - [ ] Con N o más, mediana móvil, también declarada
-    - [ ] La referencia usada se congela en el hallazgo — releerlo un mes después no puede
-          devolver otro número (mismo problema que `pnl-snapshot-service` documenta)
-    - [ ] Un contrato pactado (RENTA, SOFTWARE) **no** usa base móvil: su importe sí está pactado
-  - **Dependencies:** D1, V1.1
+    - [x] Con menos de 3 recibos se usa `base_amount_cents` y el detalle dice "monto base
+          capturado en el contrato"
+    - [x] Con 3 o más, mediana móvil, declarada como "mediana de sus N recibos anteriores"
+    - [x] La referencia se congela: **sólo entran recibos anteriores** al que se juzga, así que
+          releer el hallazgo un mes después devuelve el mismo número. Eso también evita que un
+          pico eleve su propia referencia y se absuelva solo
+    - [x] Un contrato pactado (RENTA, SOFTWARE) **no** usa base móvil
+  - **Nota sobre `MANTENIMIENTO`:** el tablero de tesorería lo agrupa con `SERVICIO_BASICO` como
+    "monto variable", pero **no** entra en la base móvil: varía con lo que se rompa, no con un
+    consumo que el recibo anterior permita anticipar. Una mediana de reparaciones no predice la
+    siguiente reparación.
+  - **Nota sobre sucursales:** el historial se agrupa por (contrato, sucursal de la factura). La
+    mediana de un contrato corporativo que mezclara locales de tamaños distintos no describiría
+    ninguno — es el mismo defecto de V1.1, que aquí sí corrompería el número y no sólo el rótulo.
+  - **Files:** `lib/services/recurring-contract-variance.ts`, `lib/services/control-interno-service.ts`,
+    `components/finance/create-recurring-contract-modal.tsx`, `components/finance/excepciones-panel.tsx`
   - **Scope:** L
 
-- [ ] **V2.2** Estacionalidad contra el mismo período del año anterior
-  - **Acceptance criteria:**
-    - [ ] Se usa sólo cuando existe historia del año anterior; si no, mediana móvil
-    - [ ] Nunca se mezclan las dos referencias en el mismo número
-    - [ ] La UI dice cuál se usó
-  - **Dependencies:** D2, V2.1
+- [ ] **V2.2** Estacionalidad contra el mismo período del año anterior — ⏭️ FUERA DE ALCANCE (D2)
+  - **Por qué no se hizo:** necesita un año de historia que casi ningún tenant tiene, y un solo
+    recibo raro del año pasado contamina la referencia de este. La mediana móvil de V2.1 ya
+    absorbe buena parte de la estacionalidad al deslizarse con los recibos.
+  - **Cuándo retomarlo:** cuando haya tenants con doce meses de CFDI capturados. El diseño de
+    V2.1 lo deja preparado — `VarianceReferenceBasis` es un tipo abierto y el hallazgo ya declara
+    su procedencia, así que añadir `SAME_PERIOD_LAST_YEAR` no obliga a tocar la UI.
   - **Scope:** M
 
-- [ ] **V2.3** Alerta de tendencia, no sólo de recibo
-  - **Descripción:** El riesgo que la base móvil introduce: si el consumo sube y se queda arriba,
-    la mediana lo absorbe y la fuga se vuelve la nueva normalidad. Hace falta mirar la pendiente
-    además del recibo suelto.
+- [x] **V2.3** Alerta de tendencia, no sólo de recibo
+  - **Decisión:** hallazgo `CONTRACT_TREND_RISING`, tipo propio y sin factura asociada
+    (`expenseId: null`, como `RECURRING_SHORTAGE`): no nace de un recibo sino de la pendiente de
+    varios. Compara la mediana de los últimos 3 recibos contra la de los 3 anteriores y dispara
+    por encima de `TREND_RISE_PERCENT = 20`.
   - **Acceptance criteria:**
-    - [ ] Una subida sostenida a lo largo de N períodos genera hallazgo aunque cada recibo
-          individual caiga dentro de la tolerancia
-  - **Dependencies:** V2.1
+    - [x] Una subida sostenida genera hallazgo aunque cada recibo caiga dentro de la tolerancia
+  - **Además de la subida se exige que los 3 recibos recientes estén por encima de la mediana
+    previa.** Si sólo uno la rebasa es un pico, y de eso ya se encarga la desviación por factura;
+    lo que esta alerta busca es el escalón que la mediana móvil va a absorber si nadie lo mira.
+  - **Se cierra solo,** como los demás: si el recibo más reciente sale de la ventana de 90 días,
+    el hallazgo desaparece — dejó de describir lo que está pasando.
   - **Scope:** M
 
 ### ☑ Checkpoint: la referencia es del propio historial
-- [ ] Un verano normal no genera excepción; una fuga sí
-- [ ] Cada hallazgo declara contra qué se comparó y con qué procedencia
+- [x] Un verano normal no genera excepción; una fuga sí
+- [x] Cada hallazgo declara contra qué se comparó y con qué procedencia
+
+> **Verificación.** `npx tsx scripts/verify-base-movil-recurrentes.ts` — 19 checks, con proveedor
+> propio por contrato para que ninguna deducción cruce contratos.
+>
+> | Escenario | Resultado |
+> |---|---|
+> | Recibo al doble de la base capturada, normal para su historial | **sin** excepción (antes: excepción segura) |
+> | Recibo +30% sobre su mediana, tolerancia 20% | excepción, declarando "mediana de sus N recibos anteriores" |
+> | Renta con recibos históricos al doble | se sigue midiendo contra el monto pactado |
+> | Servicio medido con sólo 2 recibos previos | base capturada, declarada como tal |
+> | Historial [10k, 10k, 40k] | referencia $10,000 — la mediana aguanta el recibo de ajuste; el promedio ($20,000) no |
+> | Llega un recibo posterior descomunal | el hallazgo anterior no cambia de referencia |
+> | Contrato corporativo, local chico vs local grande | cada sucursal contra su propia mediana |
+> | Subida sostenida +30% con tolerancia 100% | `CONTRACT_TREND_RISING`, sin una sola excepción por factura |
+> | Un solo recibo alto en el bloque reciente | sin tendencia — es un pico, no un escalón |
 
 ---
 
-## Fase 3: recurrentes en el flujo de efectivo
+## Fase 3: recurrentes en el flujo de efectivo — ✅ IMPLEMENTADA
 
-> Depende de **D3** del plan.
+> **Estado (2026-09-01).** Rama `fix/deteccion-contratos-recurrentes`. La nómina **sí** se
+> proyectaba desde contratos; la renta, la luz y el agua no. La obligación recurrente era
+> invisible para "¿me alcanza?" hasta que alguien capturaba el recibo — que en un servicio de
+> monto variable es justo cuando ya no se puede hacer nada al respecto.
+>
+> El cálculo vive en `lib/services/recurring-contract-projection.ts`; `cash-flow-service` sólo lo
+> consume, igual que `control-interno-service` consume la detección de desviaciones.
 
-- [ ] **V3.1** Proyectar los contratos recurrentes como egreso etiquetado
-  - **Descripción:** Hoy `cash-flow-service` no los mira: sus salidas son `OPERATING_EXPENSE`,
-    `PURCHASE_ORDER` y `PROCUREMENT_INVOICE`. La nómina sí se proyecta desde contratos; la renta,
-    la luz y el agua no. La obligación es invisible para "¿me alcanza?" hasta que llega el recibo.
+- [x] **V3.1** Proyectar los contratos recurrentes como egreso etiquetado
   - **Acceptance criteria:**
-    - [ ] `OutflowItem.source` gana un valor propio para el recurrente proyectado
-    - [ ] Se distingue en la UI de un egreso comprometido real — no se suman como si fueran lo mismo
-    - [ ] Un contrato de monto variable se proyecta con su referencia (Fase 2) y se marca estimado
-    - [ ] Se apaga en cuanto existe factura o gasto capturado de ese período: proyectar y cobrar
-          el mismo recibo dos veces miente al alza, que es la dirección peligrosa
-  - **Dependencies:** D3
+    - [x] `OutflowItem.source` gana `RECURRING_CONTRACT`, con `isEstimated` al lado
+    - [x] Se distingue en la UI: badge propia de borde punteado —es la única fuente que no salió
+          de un documento capturado—, etiqueta "Recurrente est." cuando el monto es estimación, y
+          una badge en "Fuentes de egresos" que dice cuánto del total es estimado. Sí entra en el
+          total proyectado: dejarlo fuera devolvería la pantalla al problema original
+    - [x] Un contrato de monto variable se proyecta con su referencia y se marca estimado. Un
+          servicio medido se marca estimado **aunque** el importe salga de la base capturada:
+          nadie pactó cuánta luz se va a consumir
+    - [x] Se apaga en cuanto existe factura o gasto capturado de ese período, y el período
+          suprimido se cuenta y se declara — que la renta no aparezca tiene dos causas distintas
+          (ya se capturó, o no toca este mes) y la pantalla debe poder decir cuál
+    - [x] Apagable entero desde la pantalla (`?recurring=0`, estado en la URL como el horizonte)
+  - **Nota sobre el importe de un período.** La proyección **no** reusa `rollingReference` de la
+    Fase 2. Esa función juzga UN recibo y compara contra la mediana de recibos sueltos; aquí se
+    proyecta el egreso de UN período, y en un contrato corporativo un período son varios recibos
+    —uno por sucursal— que salen de la cuenta juntos. `getMeteredPeriodReferences` suma por
+    período primero y saca la mediana después: con un recibo por período las dos cuentas
+    coinciden, y con varios la de aquí es la única que no subestima.
+  - **Nota sobre el apagado por gasto.** No hay columna que ligue un gasto operativo a un
+    contrato, así que se cruza por la contraparte del proveedor (`suppliers.payee_id`). Un
+    proveedor sin contraparte capturada no puede apagar nada: se prefiere proyectar de más a
+    apagar el recurrente equivocado.
+  - **Files:** `lib/services/recurring-contract-projection.ts`, `lib/services/cash-flow-service.ts`,
+    `app/api/finance/cash-flow/route.ts`, `app/dashboard/finance/cash-flow/page.tsx`,
+    `components/finance/cash-flow-calendar.tsx`
   - **Scope:** L
 
 ### ☑ Checkpoint: la obligación recurrente se ve antes de llegar
-- [ ] El calendario a 30 días incluye renta y servicios
-- [ ] Ningún período cuenta el mismo recibo dos veces
-- [ ] `pnpm run build` limpio
+- [x] El calendario a 30 días incluye renta y servicios
+- [x] Ningún período cuenta el mismo recibo dos veces
+- [x] `pnpm run build` limpio
+
+> **Verificación.** `npx tsx scripts/verify-recurrentes-flujo-efectivo.ts` — 27 checks, seis de
+> ellos sobre `occurrencesBetween` sin tocar la base de datos.
+>
+> | Escenario | Resultado |
+> |---|---|
+> | Renta mensual con vencimiento en la ventana | partida `RECURRING_CONTRACT`, monto pactado, **no** estimada |
+> | Servicio medido con 3 períodos de historia | se proyecta con la mediana de los totales por período, marcado estimado |
+> | Servicio medido sin historia | base capturada, marcado estimado igualmente |
+> | Ya existe la factura del período | no se proyecta; el período cuenta como suprimido |
+> | Ya existe el gasto operativo del período | tampoco se proyecta |
+> | Contrato corporativo con dos sucursales | proyecta la suma del período ($50k), no la mediana de recibos ($25k) |
+> | Vencimiento del 31 de enero, mes siguiente | se recorta al 28, no desborda a marzo |
+> | Contrato terminado o vencimiento fuera de la ventana | ninguna ocurrencia |
+> | Apagados | ninguna partida recurrente, el resto de los egresos idéntico al centavo |
