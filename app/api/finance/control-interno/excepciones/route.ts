@@ -4,6 +4,7 @@ import { maskSensitiveList } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
 import { resolveBranchScope } from "@/lib/branch-scope";
 import { detectViolations } from "@/lib/services/control-interno-service";
+import { CONTRACT_VARIANCE_WINDOW_DAYS } from "@/lib/services/recurring-contract-variance";
 
 /**
  * GET /api/finance/control-interno/excepciones
@@ -48,6 +49,16 @@ export async function GET(req: NextRequest) {
       highSeverity: violations.filter((v) => v.severity === "HIGH").length,
       mediumSeverity: violations.filter((v) => v.severity === "MEDIUM").length,
       lowSeverity: violations.filter((v) => v.severity === "LOW").length,
+      /**
+       * Ventana que cubre la detección de desviaciones de contrato, en días.
+       *
+       * Va en la respuesta y no como constante del cliente porque es una
+       * decisión del servicio: quien lee "sin excepciones" tiene que saber
+       * sobre qué período se afirma. Antes no había ventana —la detección
+       * miraba las últimas 5 facturas del proveedor, de cualquier fecha— y la
+       * pantalla no podía declarar nada.
+       */
+      contractVarianceWindowDays: CONTRACT_VARIANCE_WINDOW_DAYS,
     };
     return ApiHandler.success(payload);
   } catch (error) {

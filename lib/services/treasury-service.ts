@@ -499,63 +499,17 @@ export class TreasuryService {
   }
 
   /**
-   * Valida un CFDI/Gasto recibido contra el contrato recurrente base (Renta/CFE/Servicios)
-   * detectando sobrecostos > tolerancia (default +10%) (Módulo 4.2 & 5.1).
+   * La validación de una factura contra su contrato recurrente vive en
+   * `lib/services/recurring-contract-variance.ts`.
+   *
+   * Aquí existía `validateInvoiceAgainstContract`, que nadie llamaba y que
+   * duplicaba con otro criterio de severidad la regla que sí corre en
+   * `control-interno-service`. Además elegía contrato con
+   * `contracts.find(...) || contracts[0]`: con dos contratos del mismo
+   * proveedor tomaba el primero que devolviera la base de datos. Dos
+   * implementaciones de una regla de dinero, una sin ejecutar, es una
+   * invitación a arreglar la equivocada.
    */
-  static async validateInvoiceAgainstContract(
-    companyId: string,
-    supplierId: string,
-    invoicedAmountCents: number,
-    branchId?: string | null
-  ) {
-    const contracts = await db.query.recurringContracts.findMany({
-      where: and(
-        eq(recurringContracts.companyId, companyId),
-        eq(recurringContracts.supplierId, supplierId),
-        eq(recurringContracts.active, true)
-      ),
-    });
-
-    // Match branch-specific contract first, fallback to corporate contract
-    const contract = (branchId ? contracts.find(c => c.branchId === branchId) : null) || contracts[0];
-
-    if (!contract) {
-      return {
-        hasContract: false,
-        invoicedAmountCents,
-        varianceCents: 0,
-        variancePercent: 0,
-        isCompliant: true,
-      };
-    }
-
-    const varianceCents = invoicedAmountCents - contract.baseAmountCents;
-    const variancePercent = contract.baseAmountCents > 0
-      ? Math.round((varianceCents / contract.baseAmountCents) * 1000) / 10
-      : 0;
-
-    // Variance exceeds tolerance (e.g. +10%)
-    const isCompliant = variancePercent <= contract.varianceTolerancePercent;
-    const alertMessage = !isCompliant
-      ? `Desviación en contrato recurrente "${contract.title}": Facturado $${(invoicedAmountCents / 100).toFixed(2)} vs Base $${(contract.baseAmountCents / 100).toFixed(2)} (+${variancePercent}% vs tolerancia +${contract.varianceTolerancePercent}%)`
-      : undefined;
-
-    return {
-      hasContract: true,
-      contract: {
-        id: contract.id,
-        title: contract.title,
-        contractType: contract.contractType,
-        baseAmountCents: contract.baseAmountCents,
-        varianceTolerancePercent: contract.varianceTolerancePercent,
-      },
-      invoicedAmountCents,
-      varianceCents,
-      variancePercent,
-      isCompliant,
-      alertMessage,
-    };
-  }
 
   /**
    * Transition the status of a payment run with dual-signature segregation of duties (Módulo 6.2).

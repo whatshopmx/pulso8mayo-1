@@ -10,6 +10,7 @@ import {
   FileWarning,
   Repeat,
   TrendingDown,
+  TrendingUp,
 } from "lucide-react";
 
 export interface Violation {
@@ -20,6 +21,7 @@ export interface Violation {
     | "ROLE_MISMATCH"
     | "CONTRACT_VARIANCE_EXCEEDED"
     | "CONTRACT_VARIANCE_BELOW"
+    | "CONTRACT_TREND_RISING"
     | "RECURRING_SHORTAGE";
   severity: "LOW" | "MEDIUM" | "HIGH";
   /** `null` cuando la excepcion no nace de un gasto (faltantes recurrentes). */
@@ -35,6 +37,14 @@ export interface Violation {
 interface ExcepcionesPanelProps {
   violations: Violation[];
   loading: boolean;
+  /**
+   * Días que cubre la detección de desviaciones de contrato recurrente.
+   *
+   * Se declara en pantalla porque sin ella "sin excepciones" no dice nada:
+   * quien lee esta lista tiene que saber qué período se analizó. `null`
+   * mientras la respuesta no lo traiga.
+   */
+  contractWindowDays?: number | null;
 }
 
 const VIOLATION_ICONS: Record<string, React.ReactNode> = {
@@ -43,6 +53,7 @@ const VIOLATION_ICONS: Record<string, React.ReactNode> = {
   ROLE_MISMATCH: <ShieldAlert className="w-4 h-4" />,
   CONTRACT_VARIANCE_EXCEEDED: <FileWarning className="w-4 h-4 text-warning-text" />,
   CONTRACT_VARIANCE_BELOW: <TrendingDown className="w-4 h-4 text-muted-foreground" />,
+  CONTRACT_TREND_RISING: <TrendingUp className="w-4 h-4 text-warning-text" />,
   RECURRING_SHORTAGE: <Repeat className="w-4 h-4 text-destructive" />,
 };
 
@@ -52,6 +63,7 @@ const VIOLATION_TITLES: Record<string, string> = {
   ROLE_MISMATCH: "Rol insuficiente",
   CONTRACT_VARIANCE_EXCEEDED: "Sobrecosto vs Contrato",
   CONTRACT_VARIANCE_BELOW: "Recibo bajo vs Contrato",
+  CONTRACT_TREND_RISING: "Consumo al alza",
   RECURRING_SHORTAGE: "Faltantes recurrentes",
 };
 
@@ -70,7 +82,21 @@ const SEVERITY_SURFACES: Record<string, string> = {
   LOW: "border-info/30 bg-info/5",
 };
 
-export function ExcepcionesPanel({ violations, loading }: ExcepcionesPanelProps) {
+export function ExcepcionesPanel({
+  violations,
+  loading,
+  contractWindowDays,
+}: ExcepcionesPanelProps) {
+  const ventana =
+    typeof contractWindowDays === "number" ? (
+      <p className="text-xs text-muted-foreground">
+        Las desviaciones de contrato recurrente se miden sobre las facturas de los últimos{" "}
+        {contractWindowDays} días. Una factura que sale de esa ventana deja de aparecer aquí. En
+        servicios medidos (luz, agua) la referencia es la mediana de los recibos anteriores de esa
+        sucursal; el detalle de cada excepción dice cuál se usó.
+      </p>
+    ) : null;
+
   if (loading) {
     return (
       <div className="py-8 text-center text-xs text-muted-foreground">
@@ -91,6 +117,7 @@ export function ExcepcionesPanel({ violations, loading }: ExcepcionesPanelProps)
         <p className="text-xs text-muted-foreground mt-1">
           Todos los gastos analizados cumplen con las políticas de control interno.
         </p>
+        {ventana ? <div className="mt-3">{ventana}</div> : null}
       </div>
     );
   }
@@ -132,6 +159,7 @@ export function ExcepcionesPanel({ violations, loading }: ExcepcionesPanelProps)
           </div>
         </div>
       ))}
+      {ventana ? <div className="pt-3 border-t">{ventana}</div> : null}
     </div>
   );
 }

@@ -30,6 +30,10 @@ export default function ControlInternoPage() {
   const [violations, setViolations] = useState<Violation[]>([]);
   const [violationsLoading, setViolationsLoading] = useState(true);
   const [violationsError, setViolationsError] = useState<string | null>(null);
+  // Ventana de la detección de contratos recurrentes, tal como la declara el
+  // servicio. No se fija en el cliente: si el servicio la cambia, la pantalla
+  // no puede quedarse afirmando la anterior.
+  const [contractWindowDays, setContractWindowDays] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("audit");
 
   // Bandeja OC/OS: el conteo alimenta el badge del tab; el contenido lo renderiza
@@ -84,6 +88,11 @@ export default function ControlInternoPage() {
       const json = await res.json();
       if (res.ok && json.success) {
         setViolations(json.data?.violations || []);
+        setContractWindowDays(
+          typeof json.data?.contractVarianceWindowDays === "number"
+            ? json.data.contractVarianceWindowDays
+            : null
+        );
       } else {
         // Sin esto, una conexión caída se rendía como "Sin excepciones detectadas /
         // Todos los gastos cumplen": una afirmación de cumplimiento inventada.
@@ -224,7 +233,7 @@ export default function ControlInternoPage() {
                 Excepciones Detectadas
               </CardTitle>
               <CardDescription className="text-xs">
-                Anomalías en la cadena de autorización: auto-aprobaciones, gastos sin aprobar por más de 48h, y aprobadores sin el rol requerido.
+                Anomalías en la cadena de autorización —auto-aprobaciones, gastos sin aprobar por más de 48h, aprobadores sin el rol requerido— más las desviaciones de facturas contra sus contratos recurrentes y los faltantes repetidos de arqueo.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -240,7 +249,11 @@ export default function ControlInternoPage() {
                   }
                 />
               ) : (
-                <ExcepcionesPanel violations={violations} loading={violationsLoading} />
+                <ExcepcionesPanel
+                  violations={violations}
+                  loading={violationsLoading}
+                  contractWindowDays={contractWindowDays}
+                />
               )}
             </CardContent>
           </Card>

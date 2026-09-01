@@ -21,7 +21,12 @@ presenta como fijos produce dos daños concretos:
 
 ## Estado actual (2026-09-01)
 
-Lo barato ya se arregló en la rama `fix/gastos-recurrentes-variables`:
+**Fases 1 y 2 implementadas** en la rama `fix/deteccion-contratos-recurrentes`. Cubren los
+puntos 1, 2 y 4 de "Lo que falta": la detección está acotada por contrato, período y sucursal; la
+referencia de un servicio medido sale de su propio historial; y la regla dejó de estar duplicada.
+Queda el punto 3 (flujo de efectivo), con su decisión ya resuelta — ver "Decisiones" abajo.
+
+Lo barato se había arreglado antes en la rama `fix/gastos-recurrentes-variables`:
 
 | Arreglado | Dónde |
 |---|---|
@@ -29,24 +34,43 @@ Lo barato ya se arregló en la rama `fix/gastos-recurrentes-variables`:
 | Tolerancia inferior, nullable (`null` = no alertar por debajo) | migración 0081 |
 | Hallazgo `CONTRACT_VARIANCE_BELOW`, con su propio tipo y severidad | `control-interno-service.ts` |
 | KPI prorrateado por frecuencia y renombrado a "Compromiso Recurrente" | `treasury-dashboard.tsx` |
+| Factura ligada a **su** contrato (`invoices.recurring_contract_id`, migración 0082) | esquema, captura de CFDI |
+| Ventana de 90 días en la detección, declarada en la UI | `recurring-contract-variance.ts`, ruta y panel |
+| Una sola implementación de la regla (se borró `validateInvoiceAgainstContract`) | `treasury-service.ts` |
+| Mediana móvil de 6 recibos como referencia de `SERVICIO_BASICO`, con procedencia declarada | `recurring-contract-variance.ts` |
+| Hallazgo `CONTRACT_TREND_RISING` para la subida sostenida | `control-interno-service.ts`, `excepciones-panel.tsx` |
 
 Este plan cubre lo que quedó pendiente.
 
 ## Lo que falta, y por qué
 
-### 1. La base es un punto, no una banda, y no tiene estacionalidad
+### 1. La base es un punto, no una banda, y no tiene estacionalidad — ✅ RESUELTO (Fase 2)
 
-Un solo `base_amount_cents` no puede describir el consumo eléctrico de un
-restaurante. Con tolerancias configurables el problema se mitiga —se puede poner
-±35%— pero una banda tan ancha ya no detecta nada: una fuga de agua que sube el
-consumo 30% queda dentro de la tolerancia que hizo falta para callar el verano.
+Un solo `base_amount_cents` no podía describir el consumo eléctrico de un
+restaurante. Con tolerancias configurables el problema se mitigaba —se puede
+poner ±35%— pero una banda tan ancha ya no detecta nada: una fuga de agua que
+sube el consumo 30% queda dentro de la tolerancia que hizo falta para callar el
+verano.
 
 **La comparación correcta para un servicio medido no es contra un número
 capturado, es contra su propio historial.** El sistema ya tiene los recibos.
 
-### 2. La consulta de facturas no está acotada
+**Cómo quedó.** `rollingReference` en `recurring-contract-variance.ts`: mediana de hasta 6
+recibos previos de ese contrato **en esa sucursal**, con un mínimo de 3 para sustituir a la base
+capturada. Sólo para `SERVICIO_BASICO` — un contrato pactado se sigue midiendo contra lo pactado,
+y `MANTENIMIENTO`, aunque sea de monto variable, no es medido: una mediana de reparaciones no
+predice la siguiente reparación. La procedencia se declara en cada hallazgo.
 
-`control-interno-service.ts:329` toma las últimas 5 facturas del proveedor:
+La estacionalidad contra el año anterior **no** se implementó (D2): necesita un año de historia
+que casi ningún tenant tiene. La mediana móvil absorbe buena parte de ella al deslizarse.
+
+Y el riesgo que la base móvil introduce —si el consumo sube y se queda, la mediana lo vuelve
+normal— tiene su propia alerta: `CONTRACT_TREND_RISING` compara la mediana de los últimos 3
+recibos contra la de los 3 anteriores y dispara aunque ninguno rebase su tolerancia.
+
+### 2. La consulta de facturas no está acotada — ✅ RESUELTO (Fase 1)
+
+`control-interno-service.ts:329` tomaba las últimas 5 facturas del proveedor:
 
 - sin filtro de fecha, así que un recibo viejo se re-reporta indefinidamente;
 - si el contrato es corporativo (`branchId` null) tampoco filtra por sucursal, y
@@ -56,9 +80,16 @@ capturado, es contra su propio historial.** El sistema ya tiene los recibos.
   renta y un servicio con el mismo arrendador— toda factura dispara sobrecosto
   contra el de base menor.
 
-Este último punto no es teórico: apareció al verificar el trabajo de arriba, y
-`scripts/verify-tolerancia-recurrentes.ts` tiene que acotar sus aserciones por
+Este último punto no era teórico: apareció al verificar el trabajo de arriba, y
+`scripts/verify-tolerancia-recurrentes.ts` tenía que acotar sus aserciones por
 título de contrato para no medirlo por accidente.
+
+**Cómo quedó.** La detección vive ahora en `lib/services/recurring-contract-variance.ts`:
+`invoices.recurring_contract_id` da la liga explícita, y cuando falta se deduce por
+(proveedor, sucursal) **sólo si el candidato es único** — ante empate no se compara nada, porque
+sin hallazgo es mejor que con hallazgo falso. La ventana es de 90 días acotada por los dos lados
+(CFE factura bimestral; con 30 días podía no haber un solo recibo de luz), y el hallazgo se
+atribuye a la sucursal *de la factura*, no a la del contrato.
 
 ### 3. El flujo de efectivo ignora los contratos recurrentes
 
@@ -70,11 +101,16 @@ Así, la obligación recurrente es invisible para "¿me alcanza?" hasta que algu
 captura el recibo — que en un servicio de monto variable es justo cuando ya no
 se puede hacer nada al respecto.
 
-### 4. `validateInvoiceAgainstContract` es código muerto
+### 4. `validateInvoiceAgainstContract` es código muerto — ✅ RESUELTO (Fase 1)
 
-Nadie la llama. La misma regla vive duplicada en `control-interno-service` con
+Nadie la llamaba. La misma regla vivía duplicada en `control-interno-service` con
 distinto criterio de severidad. Dos implementaciones de una regla de dinero, una
 sin ejecutar, es una invitación a arreglar la equivocada.
+
+**Cómo quedó.** Se borró. La regla es `evaluateContractVariance` en
+`recurring-contract-variance.ts`, pura y sin I/O, y es la única que corre. De paso se fue un
+defecto que nadie había visto: elegía contrato con `contracts.find(...) || contracts[0]`, es
+decir, el primero que devolviera la base de datos.
 
 ## Enfoque propuesto
 
@@ -96,7 +132,20 @@ el P&L declara `MEASURED` / `ESTIMATED` renglón por renglón. Un umbral que el
 sistema calculó solo y uno que el dueño capturó no valen lo mismo, y la pantalla
 tiene que decir cuál está usando.
 
-## Decisiones pendientes
+## Decisiones
+
+> **Resueltas el 2026-09-01.** D1 y D2 no se implementaron todavía (son la Fase 2), pero quedan
+> cerradas para que quien la tome no vuelva a abrirlas. D3 es la Fase 3.
+>
+> - **D1:** ventana medida en **recibos, no en meses** — CFE factura bimestral y el agua
+>   mensual, y una ventana en meses da muestras de tamaño distinto según el servicio. Por debajo
+>   de 3 recibos se usa el `base_amount_cents` capturado y se declara como tal.
+> - **D2:** **mediana móvil, sin estacionalidad por ahora.** La comparación contra el año
+>   anterior queda fuera de alcance: un solo recibo raro del año pasado contamina la referencia
+>   de este, y hace falta un año de historia que casi ningún tenant tiene.
+> - **D3:** el recurrente proyectado entra con **`source` propio y apagable**, se pinta aparte
+>   del comprometido real, se marca estimado cuando el monto es variable, y se suprime en cuanto
+>   existe factura o gasto capturado de ese período.
 
 **D1 — ¿Cuántos recibos hacen una base móvil creíble, y qué se hace mientras no
 los haya?**

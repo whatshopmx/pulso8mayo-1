@@ -5,8 +5,9 @@ import type { Role } from "@/lib/permissions";
 import { CFDIParserService } from "@/lib/services/cfdi-parser";
 import { InvoiceMatchingService } from "@/lib/services/invoice-matching-service";
 import { db } from "@/lib/db";
-import { suppliers, inventoryItems, purchaseOrders, invoices, invoiceLines, receivingReports } from "@/lib/db/schema";
+import { suppliers, inventoryItems, purchaseOrders, invoices, invoiceLines, receivingReports, recurringContracts } from "@/lib/db/schema";
 import { eq, and, or, ilike, sql, inArray } from "drizzle-orm";
+import { resolveContract } from "@/lib/services/recurring-contract-variance";
 
 export async function POST(req: NextRequest) {
     try {
@@ -166,6 +167,40 @@ export async function POST(req: NextRequest) {
             });
         }
 
+        // 3.5 Contrato recurrente (V1.1)
+        //
+        // Se liga aquí, al capturar, y no al detectar desviaciones: es el único
+        // momento en que la deducción se puede congelar. Si mañana el grupo
+        // firma un segundo contrato con el mismo arrendador, esta factura ya
+        // sabe cuál era el suyo, mientras que una deducción hecha en tiempo de
+        // consulta se volvería ambigua y dejaría de compararse.
+        //
+        // Sólo se liga cuando el candidato es único; ante empate se deja en
+        // null y nadie adivina. `resolveContract` es la misma función que usa
+        // la detección, para que las dos entiendan lo mismo por "su contrato".
+        let recurringContractId: string | null = null;
+        if (matchedSupplier) {
+            const contratos = await db
+                .select({
+                    id: recurringContracts.id,
+                    supplierId: recurringContracts.supplierId,
+                    branchId: recurringContracts.branchId,
+                })
+                .from(recurringContracts)
+                .where(
+                    and(
+                        eq(recurringContracts.companyId, session.user.companyId || ""),
+                        eq(recurringContracts.supplierId, matchedSupplier.id),
+                        eq(recurringContracts.active, true)
+                    )
+                );
+            recurringContractId =
+                resolveContract(
+                    { supplierId: matchedSupplier.id, branchId: branchId ?? null, recurringContractId: null },
+                    contratos
+                )?.contract.id ?? null;
+        }
+
         // 4. Save Invoice and Lines in DB
         const invoiceRecord = await db.transaction(async (tx) => {
             const [inv] = await tx.insert(invoices).values({
@@ -173,6 +208,7 @@ export async function POST(req: NextRequest) {
                 branchId: branchId ?? null,
                 supplierId: matchedSupplier ? matchedSupplier.id : null,
                 purchaseOrderId: (matchingPOs.length > 0) ? matchingPOs[0].id : null,
+                recurringContractId,
                 uuid: parsedCFDI.uuid!,
                 folio: parsedCFDI.folio || null,
                 serie: parsedCFDI.serie || null,
