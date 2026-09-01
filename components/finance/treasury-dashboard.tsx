@@ -233,9 +233,55 @@ export function TreasuryDashboard() {
     return rawPaymentRuns.reduce((acc, r) => acc + (r.totalAmountCents || 0), 0);
   }, [rawPaymentRuns]);
 
-  const monthlyContractsCents = useMemo(() => {
-    return rawRecurringContracts.reduce((acc, c) => acc + (c.baseAmountCents || 0), 0);
+  /**
+   * Compromiso recurrente equivalente a un mes.
+   *
+   * Antes esto sumaba `baseAmountCents` de TODOS los contratos y rotulaba el
+   * total como "MXN/mes": una licencia anual de $120,000 entraba completa como
+   * si se pagara cada mes, y el número que el dueño usa para saber cuánto tiene
+   * comprometido salía inflado por un factor de doce.
+   *
+   * Un contrato de frecuencia desconocida se cuenta como mensual —es la
+   * omisión de la columna— pero se cuenta aparte para poder decirlo.
+   */
+  const { monthlyContractsCents, contratosSinFrecuencia } = useMemo(() => {
+    // Divisor: cuántos períodos de ese contrato caben en un mes.
+    const MESES_POR_PERIODO: Record<string, number> = {
+      WEEKLY: 1 / (52 / 12), // 52 semanas al año, no 4 al mes
+      SEMANAL: 1 / (52 / 12),
+      BIWEEKLY: 0.5,
+      QUINCENAL: 0.5,
+      MONTHLY: 1,
+      MENSUAL: 1,
+      QUARTERLY: 3,
+      TRIMESTRAL: 3,
+      ANNUAL: 12,
+      ANUAL: 12,
+    };
+
+    let cents = 0;
+    let desconocidas = 0;
+    for (const c of rawRecurringContracts) {
+      const base = c.baseAmountCents || 0;
+      const meses = MESES_POR_PERIODO[(c.paymentFrequency || "").toUpperCase()];
+      if (meses === undefined) desconocidas += 1;
+      cents += Math.round(base / (meses ?? 1));
+    }
+    return { monthlyContractsCents: cents, contratosSinFrecuencia: desconocidas };
   }, [rawRecurringContracts]);
+
+  /**
+   * `true` si algún contrato es de monto variable (luz, agua, mantenimiento).
+   * El KPI no puede presentarse como una cifra firme cuando parte de lo que
+   * suma es un monto BASE esperado y no un importe pactado.
+   */
+  const hayMontosVariables = useMemo(
+    () =>
+      rawRecurringContracts.some(
+        (c) => c.contractType === "SERVICIO_BASICO" || c.contractType === "MANTENIMIENTO",
+      ),
+    [rawRecurringContracts],
+  );
 
   const pendingRunsCount = useMemo(() => {
     return rawPaymentRuns.filter((r) => r.status === "PENDING" || r.status === "PENDING_APPROVAL" || r.status === "DRAFT").length;
@@ -324,12 +370,31 @@ export function TreasuryDashboard() {
 
         <Card className="p-4 flex items-center justify-between space-y-0">
           <div>
-            <p className="text-xs font-medium text-muted-foreground">Gastos Fijos Recurrentes</p>
+            {/* "Fijos" era falso justo donde más importa: la luz y el agua
+                son recurrentes pero no fijos, y llamarlos fijos invita a
+                presupuestar con un número que no se va a cumplir. */}
+            <p className="text-xs font-medium text-muted-foreground">Compromiso Recurrente</p>
             <p className="text-2xl font-bold tracking-tight text-foreground mt-1">
-              ${formatCents(monthlyContractsCents)} <span className="text-xs font-normal text-muted-foreground">MXN/mes</span>
+              ${formatCents(monthlyContractsCents)}{" "}
+              <span className="text-xs font-normal text-muted-foreground">MXN/mes</span>
+              {hayMontosVariables && (
+                <span className="text-xs font-normal text-muted-foreground" title="Incluye servicios de monto variable: la cifra es el monto base esperado, no un importe pactado.">
+                  {" "}≈
+                </span>
+              )}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {rawRecurringContracts.length} {rawRecurringContracts.length === 1 ? "contrato registrado" : "contratos registrados"}
+              {rawRecurringContracts.length}{" "}
+              {rawRecurringContracts.length === 1 ? "contrato registrado" : "contratos registrados"}
+              {/* Trimestral y anual se prorratean para que la suma sea de
+                  verdad mensual; decirlo evita que alguien la contraste contra
+                  el estado de cuenta y crea que falta dinero. */}
+              , prorrateados a un mes
+              {contratosSinFrecuencia > 0 && (
+                <>
+                  {" "}· {contratosSinFrecuencia} sin periodicidad, contado{contratosSinFrecuencia === 1 ? "" : "s"} como mensual
+                </>
+              )}
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">

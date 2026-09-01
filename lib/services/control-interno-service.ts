@@ -41,6 +41,17 @@ export interface Violation {
     | "OVERDUE_APPROVAL"
     | "ROLE_MISMATCH"
     | "CONTRACT_VARIANCE_EXCEEDED"
+    /**
+     * Recibo muy por DEBAJO del monto base de un contrato recurrente.
+     *
+     * Tipo aparte y no un `CONTRACT_VARIANCE_EXCEEDED` con signo: se investiga
+     * distinto. Un sobrecosto es una negociación o un error de facturación; un
+     * recibo anormalmente bajo en luz suele ser lectura estimada de CFE, y lo
+     * que importa es que el ajuste llega al doble el período siguiente. Que
+     * compartan tipo obligaría a leer el monto para saber cuál de las dos cosas
+     * pasó.
+     */
+    | "CONTRACT_VARIANCE_BELOW"
     /** Faltantes repetidos en el mismo turno de una sucursal (F3.4). */
     | "RECURRING_SHORTAGE";
   severity: "LOW" | "MEDIUM" | "HIGH";
@@ -340,17 +351,42 @@ export async function detectViolations(
         ? Math.round((varianceCents / contract.baseAmountCents) * 1000) / 10
         : 0;
 
+      const folio = inv.folio || inv.uuid.slice(0, 8);
+      const sucursal = contract.branchId ? "Sucursal asignada" : "Corporativo / Cadena";
+
       if (variancePercent > contract.varianceTolerancePercent) {
         violations.push({
           id: `contract-${inv.id}`,
           type: "CONTRACT_VARIANCE_EXCEEDED",
           severity: variancePercent > 25 ? "HIGH" : "MEDIUM",
           expenseId: inv.id,
-          branchName: contract.branchId ? "Sucursal asignada" : "Corporativo / Cadena",
+          branchName: sucursal,
           category: contract.contractType,
           amountCents: inv.total,
           description: `Sobrecosto en contrato recurrente: ${contract.title}`,
-          detail: `Factura ${inv.folio || inv.uuid.slice(0, 8)} por $${(inv.total / 100).toFixed(2)} MXN supera el monto contratado de $${(contract.baseAmountCents / 100).toFixed(2)} MXN (+${variancePercent}% vs tolerancia +${contract.varianceTolerancePercent}%).`,
+          detail: `Factura ${folio} por $${(inv.total / 100).toFixed(2)} MXN supera el monto contratado de $${(contract.baseAmountCents / 100).toFixed(2)} MXN (+${variancePercent}% vs tolerancia +${contract.varianceTolerancePercent}%).`,
+          createdAt: inv.createdAt,
+        });
+      } else if (
+        // `null` = el contrato no pidió alerta por debajo, que es lo correcto
+        // en una renta. Sólo se evalúa cuando alguien la configuró a propósito.
+        contract.varianceToleranceBelowPercent !== null &&
+        variancePercent < -contract.varianceToleranceBelowPercent
+      ) {
+        const caida = Math.abs(variancePercent);
+        violations.push({
+          id: `contract-below-${inv.id}`,
+          type: "CONTRACT_VARIANCE_BELOW",
+          // Severidad más baja que un sobrecosto del mismo tamaño: no es dinero
+          // que ya se fue, es dinero que probablemente llegue después. Se
+          // reporta para que nadie tome el mes bueno como la nueva normalidad.
+          severity: caida > 50 ? "MEDIUM" : "LOW",
+          expenseId: inv.id,
+          branchName: sucursal,
+          category: contract.contractType,
+          amountCents: inv.total,
+          description: `Recibo anormalmente bajo: ${contract.title}`,
+          detail: `Factura ${folio} por $${(inv.total / 100).toFixed(2)} MXN queda ${caida}% por debajo del monto base de $${(contract.baseAmountCents / 100).toFixed(2)} MXN (tolerancia -${contract.varianceToleranceBelowPercent}%). En servicios medidos suele ser lectura estimada: verifica el recibo, porque el ajuste llega en el período siguiente.`,
           createdAt: inv.createdAt,
         });
       }

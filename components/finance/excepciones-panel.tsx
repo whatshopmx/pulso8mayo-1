@@ -2,7 +2,15 @@
 
 import { Badge } from "@/components/ui/badge";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
-import { CheckCircle2, Clock, UserCheck, ShieldAlert, FileWarning, Repeat } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  UserCheck,
+  ShieldAlert,
+  FileWarning,
+  Repeat,
+  TrendingDown,
+} from "lucide-react";
 
 export interface Violation {
   id: string;
@@ -11,6 +19,7 @@ export interface Violation {
     | "OVERDUE_APPROVAL"
     | "ROLE_MISMATCH"
     | "CONTRACT_VARIANCE_EXCEEDED"
+    | "CONTRACT_VARIANCE_BELOW"
     | "RECURRING_SHORTAGE";
   severity: "LOW" | "MEDIUM" | "HIGH";
   /** `null` cuando la excepcion no nace de un gasto (faltantes recurrentes). */
@@ -33,6 +42,7 @@ const VIOLATION_ICONS: Record<string, React.ReactNode> = {
   OVERDUE_APPROVAL: <Clock className="w-4 h-4" />,
   ROLE_MISMATCH: <ShieldAlert className="w-4 h-4" />,
   CONTRACT_VARIANCE_EXCEEDED: <FileWarning className="w-4 h-4 text-warning-text" />,
+  CONTRACT_VARIANCE_BELOW: <TrendingDown className="w-4 h-4 text-muted-foreground" />,
   RECURRING_SHORTAGE: <Repeat className="w-4 h-4 text-destructive" />,
 };
 
@@ -41,6 +51,7 @@ const VIOLATION_TITLES: Record<string, string> = {
   OVERDUE_APPROVAL: "Pendiente >48h",
   ROLE_MISMATCH: "Rol insuficiente",
   CONTRACT_VARIANCE_EXCEEDED: "Sobrecosto vs Contrato",
+  CONTRACT_VARIANCE_BELOW: "Recibo bajo vs Contrato",
   RECURRING_SHORTAGE: "Faltantes recurrentes",
 };
 

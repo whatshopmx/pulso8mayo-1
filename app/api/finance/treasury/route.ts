@@ -52,18 +52,35 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.action === "CREATE_RECURRING_CONTRACT") {
-      const { branchId, supplierId, title, contractType, baseAmountCents, startDate, paymentFrequency } = body.payload;
-      const contract = await TreasuryService.createRecurringContract(
-        companyId,
-        branchId || null,
+      const {
+        branchId,
         supplierId,
         title,
         contractType,
         baseAmountCents,
-        new Date(startDate),
+        startDate,
+        paymentFrequency,
+        varianceTolerancePercent,
+        varianceToleranceBelowPercent,
+      } = body.payload;
+
+      // Las tolerancias viajan desde el formulario. Antes no existían en el
+      // payload y la columna quedaba siempre en su 10% por omisión, así que un
+      // recibo de CFE de temporada alta se reportaba como excepción de control
+      // interno mes con mes sin que nadie pudiera ajustar el umbral.
+      const contract = await TreasuryService.createRecurringContract({
+        companyId,
+        branchId: branchId || null,
+        supplierId,
+        title,
+        contractType,
+        baseAmountCents,
+        startDate: new Date(startDate),
         userId,
-        paymentFrequency || "MONTHLY"
-      );
+        paymentFrequency: paymentFrequency || "MONTHLY",
+        varianceTolerancePercent,
+        varianceToleranceBelowPercent,
+      });
       return ApiHandler.success({ contract });
     }
 
