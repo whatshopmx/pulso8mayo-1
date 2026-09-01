@@ -27,6 +27,7 @@
 import { db } from "@/lib/db";
 import {
   branches,
+  dailySalesCuts,
   employeeContracts,
   holidays,
   salaryHistory,
@@ -34,22 +35,17 @@ import {
   users,
 } from "@/lib/db/schema";
 import { and, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import type {
+  BranchLaborCost,
+  BranchLaborRatio,
+} from "@/lib/services/labor-cost-types";
 
-export type LaborCostSource = "MEASURED" | "CONTRACT_ONLY" | "SECTOR_DEFAULT" | "NO_DATA";
-
-export interface BranchLaborCost {
-  branchId: string;
-  /** Días trabajados × sueldo diario vigente. */
-  baseCostCents: number;
-  /** Horas extra (LFT art. 68/69) + prima de día festivo (art. 75). */
-  overtimeCostCents: number;
-  totalCostCents: number;
-  headcount: number;
-  source: LaborCostSource;
-  /** % de días-empleado esperados del período que tienen sesión COMPLETED. */
-  coveragePercent: number;
-  note: string;
-}
+export type {
+  BranchLaborCost,
+  BranchLaborRatio,
+  LaborCostReport,
+  LaborCostSource,
+} from "@/lib/services/labor-cost-types";
 
 // --- Constantes LFT / IMSS -------------------------------------------------
 
@@ -514,6 +510,105 @@ export async function getLaborCostByBranch(
         `Plantilla contratada, no asistencia real: ${headcount} empleados × ${expectedTotal} ` +
         `días-empleado laborables. Sin turnos capturados en el período, así que no incluye ` +
         `faltas ni horas extra.${hoursNote}${grossNote}`,
+    };
+  });
+}
+// --- Costo laboral contra venta -------------------------------------------
+
+/**
+ * Cruza el costo laboral con la venta capturada del período, por sucursal.
+ *
+ * Vive aquí y no en la ruta porque necesita dos consultas más (nombres de
+ * sucursal y cortes de venta) y la convención del repo es que las rutas sean
+ * delgadas. Reusa `getLaborCostByBranch` tal cual: la escalera de cálculo y su
+ * declaración de procedencia no se tocan.
+ *
+ * **No pasa por `pnl-service` a propósito.** El P&L colapsa `CONTRACT_ONLY` en
+ * `DERIVED` y sustituye la nómina faltante por la constante sectorial cuando
+ * hay ventas. Para la pantalla de costo laboral las dos cosas son pérdida de
+ * información: el dueño necesita saber si el ratio salió de asistencia real o
+ * de plantilla contratada, y un `NO_DATA` tiene que verse como sucursal sin
+ * contratos, no como un 26.2% inventado.
+ *
+ * Las ventas se leen igual que en el P&L (`daily_sales_cuts`, neto sin IVA)
+ * para que los dos tableros no discrepen en el denominador.
+ */
+export async function getLaborCostRatioByBranch(
+  companyId: string,
+  startDate: string,
+  endDate: string,
+): Promise<BranchLaborRatio[]> {
+  const startDay = toDayString(startDate);
+  const endDay = toDayString(endDate);
+
+  const [branchRows, salesRows, laborCosts] = await Promise.all([
+    db
+      .select({ id: branches.id, name: branches.name })
+      .from(branches)
+      .where(eq(branches.companyId, companyId)),
+
+    db
+      .select({
+        branchId: dailySalesCuts.branchId,
+        totalSales: sql<number>`COALESCE(SUM(${dailySalesCuts.totalSales}), 0)`,
+        cutsCount: sql<number>`COUNT(${dailySalesCuts.id})`,
+        daysCovered: sql<number>`COUNT(DISTINCT ${dailySalesCuts.businessDate})`,
+      })
+      .from(dailySalesCuts)
+      .where(
+        and(
+          eq(dailySalesCuts.companyId, companyId),
+          gte(dailySalesCuts.businessDate, startDay),
+          lte(dailySalesCuts.businessDate, endDay),
+        ),
+      )
+      .groupBy(dailySalesCuts.branchId),
+
+    getLaborCostByBranch(companyId, startDay, endDay),
+  ]);
+
+  const salesByBranch = new Map(salesRows.map((r) => [r.branchId, r]));
+  const laborByBranch = new Map(laborCosts.map((l) => [l.branchId, l]));
+
+  return branchRows.map((branch) => {
+    const labor =
+      laborByBranch.get(branch.id) ??
+      ({
+        branchId: branch.id,
+        baseCostCents: 0,
+        overtimeCostCents: 0,
+        totalCostCents: 0,
+        headcount: 0,
+        source: "NO_DATA",
+        coveragePercent: 0,
+        note: "Sin contratos vigentes en el período: la nómina no se puede calcular con tus datos",
+      } satisfies BranchLaborCost);
+
+    const salesRow = salesByBranch.get(branch.id);
+    const cutsCount = Number(salesRow?.cutsCount ?? 0);
+    // Sin cortes capturados la venta es desconocida, no cero: dividir entre
+    // cero fabricaría un ratio infinito y poner cero fabricaría un 0%.
+    const salesCents = cutsCount > 0 ? Number(salesRow?.totalSales ?? 0) : null;
+
+    const hasLabor = labor.source !== "NO_DATA";
+    const ratioPercent =
+      hasLabor && salesCents !== null && salesCents > 0
+        ? Number(((labor.totalCostCents / salesCents) * 100).toFixed(1))
+        : null;
+
+    return {
+      branchId: branch.id,
+      branchName: branch.name,
+      laborCostCents: labor.totalCostCents,
+      baseCostCents: labor.baseCostCents,
+      overtimeCostCents: labor.overtimeCostCents,
+      headcount: labor.headcount,
+      salesCents,
+      ratioPercent,
+      source: labor.source,
+      coveragePercent: labor.coveragePercent,
+      note: labor.note,
+      salesDaysCovered: Number(salesRow?.daysCovered ?? 0),
     };
   });
 }

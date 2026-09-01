@@ -16,6 +16,7 @@ import {
   Receipt,
   Shield,
   Target,
+  Users,
   Wallet,
 } from "lucide-react";
 
@@ -57,6 +58,12 @@ const SECTION_GROUPS = [
         description: "Fondo por sucursal y reposiciones",
         href: "/dashboard/finance/petty-cash",
         icon: Wallet,
+      },
+      {
+        title: "Costo Laboral",
+        description: "Nómina sobre venta por sucursal, contra el objetivo",
+        href: "/dashboard/finance/labor-cost",
+        icon: Users,
       },
     ],
   },
