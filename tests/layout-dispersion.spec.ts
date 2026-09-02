@@ -448,7 +448,9 @@ test.describe("Fase 2 · ruta: quién puede bajar las CLABEs del grupo", () => {
     const res = await request.get(`/api/finance/treasury/runs/${runId}/layout`);
     expect(res.status()).toBe(400);
     const json = await res.json();
-    expect(String(json.error)).toMatch(/autorizad/i);
+    // El sobre de `ApiHandler.error` es `{ success, error: { message, details } }`:
+    // `error` es un objeto, no una cadena.
+    expect(String(json.error?.message ?? json.error)).toMatch(/autorizad/i);
   });
 
   test("la descarga de un ADMIN queda en data_access_logs", async ({ request }) => {
