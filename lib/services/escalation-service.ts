@@ -126,7 +126,7 @@ export class EscalationService {
                 await this.notifyRoles(
                     incident.branchId,
                     level.notifyRoles,
-                    this.formatMessage(level.message, incident),
+                    await this.buildLevelMessage(level, incident),
                     level.channel || 'whatsapp'
                 );
             }
@@ -249,6 +249,41 @@ export class EscalationService {
     /**
      * Formats an escalation message with incident context
      */
+    /**
+     * Texto del aviso de un nivel de escalacion.
+     *
+     * `formatMessage` asume un `template` string y hace `template.replace`; los
+     * niveles sin `message` en la cadena de escalacion llegaban con `undefined`
+     * y reventaban la escalacion entera dentro del `catch` de arriba, que la
+     * tragaba en silencio: nadie recibia el aviso y nada lo delataba salvo un
+     * log. Cuando el nivel no trae texto propio se usa la plantilla de
+     * escalacion, que es justamente para lo que se escribio.
+     */
+    private static async buildLevelMessage(
+        level: EscalationLevel,
+        incident: IncidentData
+    ): Promise<string> {
+        if (level.message) {
+            return this.formatMessage(level.message, incident);
+        }
+
+        const { renderIncidentTemplate } = await import(
+            '@/lib/whatsapp/templates/incident-templates'
+        );
+        const { IncidentEngine } = await import('./incident-engine');
+
+        const vars = await IncidentEngine.buildTemplateVars({
+            title: incident.title,
+            severity: incident.severity ?? 'WARNING',
+            branchId: incident.branchId as string,
+            createdAt: (incident.createdAt as Date) ?? new Date(),
+            resolution: null,
+            resolvedAt: null,
+        } as any);
+
+        return renderIncidentTemplate('escalation', vars).whatsapp;
+    }
+
     private static formatMessage(template: string, incident: IncidentData): string {
         let message = template;
 

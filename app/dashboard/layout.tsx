@@ -3,6 +3,7 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { ModeToggle } from "@/components/mode-toggle"
 import { BranchScopeControl } from "@/components/shared/branch-scope-control"
+import { NotificationBell } from "@/components/notifications/notification-bell"
 import { DashboardSessionProvider } from "@/components/dashboard-session-provider"
 import { BranchProvider } from "@/lib/branch-context"
 import { BreadcrumbDynamic } from "@/components/shared/breadcrumb-dynamic"
@@ -108,6 +109,7 @@ export default async function DashboardLayout({
                         </div>
                             <div className="flex items-center gap-2">
                                 <BranchScopeControl />
+                                <NotificationBell />
                                 <ModeToggle />
                             </div>
                         </div>

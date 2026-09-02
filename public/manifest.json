@@ -1,0 +1,50 @@
+{
+  "name": "Pulso — Gestión HORECA",
+  "short_name": "Pulso",
+  "description": "Operación, cumplimiento e incidentes para restaurantes, hoteles y cafeterías.",
+  "lang": "es-MX",
+  "dir": "ltr",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#b63132",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Incidentes",
+      "short_name": "Incidentes",
+      "description": "Incidentes abiertos y su remediación",
+      "url": "/dashboard/incidents",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Notificaciones",
+      "short_name": "Avisos",
+      "description": "Avisos y escalaciones pendientes",
+      "url": "/dashboard/notifications",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

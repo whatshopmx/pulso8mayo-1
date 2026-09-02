@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { incidents, branches } from "@/lib/db/schema";
 import { eq, and, sql, gte, lte, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { NextResponse } from "next/server";
 
 function getDateRange(period: string) {
@@ -56,10 +57,30 @@ export async function GET(req: Request) {
 
     const companyBranchIds = companyBranches.map((b) => b.id);
 
+    /**
+     * El `branchId` del query no decide solo.
+     *
+     * Comprobar únicamente que la sucursal sea de la empresa deja que un
+     * GERENTE pida `?branchId=<otra sucursal>` —o `all`— y vea métricas fuera
+     * de su alcance. La lista de incidentes ya pasa por `resolveBranchScope`
+     * (`app/dashboard/incidents/page.tsx`); este endpoint se le había quedado
+     * atrás y contradecía a la propia pantalla que lo consume.
+     *
+     * `NONE` (rol acotado sin sucursal asignada) cae en la rama de arreglo
+     * vacío de abajo y responde en ceros, que es el fail-closed correcto.
+     */
+    const alcance = resolveBranchScope(
+      (session.user as any).role,
+      (session.user as any).branchId ?? null,
+      branchId && branchId !== "all" ? branchId : null
+    );
+
     const targetBranchIds =
-      branchId && branchId !== "all" && companyBranchIds.includes(branchId)
-        ? [branchId]
-        : companyBranchIds;
+      alcance.kind === "NONE"
+        ? []
+        : alcance.kind === "BRANCH"
+          ? companyBranchIds.filter((id) => id === alcance.branchId)
+          : companyBranchIds;
 
     if (targetBranchIds.length === 0) {
       return NextResponse.json({

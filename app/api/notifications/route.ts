@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { notifications } from "@/lib/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, count } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { NotificationQueue } from "@/lib/notifications/notification-queue";
 
@@ -34,9 +34,25 @@ export async function GET(req: NextRequest) {
             limit
         });
 
+        /**
+         * El contador no puede salir de la página que se acaba de traer.
+         *
+         * Contar los no leídos dentro de `userNotifications` los cuenta sobre
+         * el `limit` (20 desde el bell), así que a partir de la nota 21 el
+         * badge se queda clavado en 20 aunque haya 300 pendientes. El conteo
+         * es una consulta aparte, sin `limit`.
+         */
+        const [{ value: unreadCount }] = await db
+            .select({ value: count() })
+            .from(notifications)
+            .where(and(
+                eq(notifications.userId, session.user.id),
+                eq(notifications.read, false)
+            ));
+
         return NextResponse.json({
             data: userNotifications,
-            unreadCount: userNotifications.filter(n => !n.read).length
+            unreadCount
         });
     } catch (error) {
         console.error("Error fetching notifications:", error);
@@ -83,10 +99,15 @@ export async function PATCH(req: NextRequest) {
             );
         }
 
-        // Mark specific notification as read
+        // Marcar una nota concreta. El `userId` va en el WHERE, no sólo el id:
+        // sin él cualquier sesión podía marcar leída la notificación de otro
+        // usuario —de otro tenant incluso— con sólo adivinar el uuid.
         await db.update(notifications)
             .set({ read: true, readAt: new Date() })
-            .where(eq(notifications.id, notificationId));
+            .where(and(
+                eq(notifications.id, notificationId),
+                eq(notifications.userId, session.user.id)
+            ));
 
         return NextResponse.json({
             success: true,

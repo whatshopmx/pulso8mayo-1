@@ -17,7 +17,12 @@ interface Notification {
 
 const POLL_INTERVAL = 30_000;
 
-export function useNotifications() {
+interface UseNotificationsOptions {
+  /** Cuántas notificaciones traer. El bell muestra 10; la página lista más. */
+  limit?: number;
+}
+
+export function useNotifications({ limit = 20 }: UseNotificationsOptions = {}) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -25,7 +30,7 @@ export function useNotifications() {
 
   const fetchNotifications = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/notifications?limit=20", {
+      const res = await fetch(`/api/notifications?limit=${limit}`, {
         credentials: "include",
         signal,
       });
@@ -38,7 +43,7 @@ export function useNotifications() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [limit]);
 
   const markAsRead = useCallback(async (id: string) => {
     try {

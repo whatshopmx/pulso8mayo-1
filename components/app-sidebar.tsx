@@ -23,6 +23,7 @@ import {
   Landmark,
   PiggyBank,
   Gauge,
+  AlertTriangle,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -69,6 +70,11 @@ const navMain = [
         title: "Tendencias",
         url: "/dashboard/analytics/trends",
         icon: TrendingUp,
+      },
+      {
+        title: "Analítica de Incidentes",
+        url: "/dashboard/analytics/incidents",
+        icon: AlertTriangle,
       },
     ],
   },

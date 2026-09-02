@@ -19,6 +19,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { IncidentTimeline } from "@/components/incidents/incident-timeline";
+import { EvidenceGallery } from "@/components/incidents/evidence-gallery";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RemediationWizard } from "@/components/incidents/remediation-wizard";
 import {
     IncidentActionPanel,
@@ -205,7 +207,14 @@ export default function IncidentDetailPage() {
             await fetchIncident();
             // El paso en curso pudo cambiar, así que la recomendación también.
             setActionsRefreshToken((t) => t + 1);
-            return { success: Boolean(data.success), message: data.message };
+            // `aiResult` viaja hasta el wizard para que muestre el score: el
+            // rechazo por confianza baja y el rechazo por criterio se leían
+            // igual, y el empleado repetía el intento sin saber cuál era.
+            return {
+                success: Boolean(data.success),
+                message: data.message,
+                aiResult: data.aiResult ?? null,
+            };
         } catch {
             return { success: false, message: "Error al enviar evidencia" };
         }
@@ -379,16 +388,42 @@ export default function IncidentDetailPage() {
             {/* Timeline + Resolution */}
             <div className="grid gap-6 lg:grid-cols-2">
                 <Card>
-                    <CardHeader>
-                        <CardTitle className="text-base">Línea de tiempo</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <IncidentTimeline
-                            status={incident.status}
-                            createdAt={incident.createdAt}
-                            resolvedAt={incident.resolvedAt}
-                            resolution={incident.resolution}
-                        />
+                    <CardContent className="pt-6">
+                        {/*
+                          * Tiempo y evidencia son dos lecturas del mismo hecho:
+                          * cuando pasó y con qué se probó. Van en pestañas del
+                          * mismo panel para que auditar un incidente no obligue
+                          * a saltar de pantalla, que es justo lo que pide una
+                          * revisión NOM-251 cuando cuestionan un cierre.
+                          */}
+                        <Tabs defaultValue="timeline">
+                            <TabsList className="mb-4">
+                                <TabsTrigger value="timeline">Línea de tiempo</TabsTrigger>
+                                <TabsTrigger value="evidence">Evidencia</TabsTrigger>
+                            </TabsList>
+
+                            <TabsContent value="timeline">
+                                <IncidentTimeline
+                                    status={incident.status}
+                                    createdAt={incident.createdAt}
+                                    resolvedAt={incident.resolvedAt}
+                                    resolution={incident.resolution}
+                                />
+                            </TabsContent>
+
+                            <TabsContent value="evidence">
+                                {/*
+                                  * `key` con el token de refresco: la galería
+                                  * carga en el montaje, y sin remontarla el paso
+                                  * de remediación recién enviado no aparecía
+                                  * hasta recargar la página entera.
+                                  */}
+                                <EvidenceGallery
+                                    key={actionsRefreshToken}
+                                    incidentId={incident.id}
+                                />
+                            </TabsContent>
+                        </Tabs>
                     </CardContent>
                 </Card>
 

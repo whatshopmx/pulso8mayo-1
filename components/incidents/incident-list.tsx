@@ -37,7 +37,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, AlertTriangle, XCircle, CheckCircle2, Eye, ArrowUpDown, Search, Loader2, ShieldAlert } from 'lucide-react';
+import { AlertCircle, AlertTriangle, XCircle, CheckCircle2, Eye, ArrowUpDown, Search, Loader2, ShieldAlert, Building2 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -100,6 +100,8 @@ interface Incident {
     status: 'DETECTED' | 'IN_REMEDIATION' | 'AWAITING_EXTERNAL' | 'CONFIRMED' | 'RESOLVED' | 'ESCALATED';
     createdAt: Date;
     instanceId: string;
+    /** Nombre de la sucursal. Solo llega en la vista consolidada. */
+    branchName?: string;
     /** Acciones de remediación externa esperando que gerencia agende la visita. */
     pendingActionCount?: number;
 }
@@ -361,6 +363,21 @@ export function IncidentList({ incidents, totalCount, page = 1, totalPages = 1 }
                                             <TableCell className="font-medium max-w-[300px]">
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     <span className="truncate">{incident.title}</span>
+                                                    {/*
+                                                      * Solo en la vista consolidada: cuando la lista
+                                                      * ya esta filtrada a una sucursal, repetir su
+                                                      * nombre en cada fila es ruido —el encabezado
+                                                      * de la pagina ya lo dice.
+                                                      */}
+                                                    {incident.branchName && (
+                                                        <Badge
+                                                            variant="secondary"
+                                                            className="shrink-0 gap-1 font-normal"
+                                                        >
+                                                            <Building2 className="h-3 w-3" />
+                                                            {incident.branchName}
+                                                        </Badge>
+                                                    )}
                                                     {(incident.pendingActionCount ?? 0) > 0 && (
                                                         // Clicable: la acción se ejecuta en el detalle,
                                                         // así que el badge es el atajo hasta ella.

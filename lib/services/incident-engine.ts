@@ -1,6 +1,10 @@
 import { db } from '@/lib/db';
 import { incidents, workflowInstanceSteps, workflowInstances, workflowTemplates, branches, equipmentAlerts } from '@/lib/db/schema';
 import { eq, and, notInArray, sql } from 'drizzle-orm';
+import {
+    renderIncidentTemplate,
+    type IncidentTemplateVars,
+} from '@/lib/whatsapp/templates/incident-templates';
 
 export interface LogicRule {
     id?: string;
@@ -609,11 +613,56 @@ export class IncidentEngine {
         const roles = rule.notifyRoles
             ?? (action === 'NOTIFY' ? ['GERENTE'] : ['ADMIN']);
 
+        /**
+         * El aviso sale de la plantilla, no de una interpolacion suelta.
+         *
+         * `incident-templates.ts` existia desde el plan de incidentes V2 pero
+         * nadie lo importaba: el mensaje real se seguia armando aqui a mano,
+         * sin sucursal ni fecha, y el archivo era codigo muerto. La rama
+         * anonima se queda como estaba porque NOM-035 pide omitir el dato
+         * capturado y a quien reporto, y esa decision no es de la plantilla.
+         */
         const message = isAnonymous
             ? `🔒 Reporte anónimo (${incident.severity}): ${incident.title}`
-            : `🚨 ${incident.severity}: ${incident.title}\n\n${incident.description ?? ''}`;
+            : renderIncidentTemplate('detected', await this.buildTemplateVars(incident)).whatsapp;
 
         await EscalationService.notifyRoles(incident.branchId, roles, message, 'whatsapp');
+    }
+
+    /**
+     * Variables de plantilla para un incidente.
+     *
+     * La sucursal se resuelve aqui y no dentro de la plantilla para que el
+     * modulo de plantillas siga siendo puro (sin `db`) y se pueda probar sin
+     * base de datos.
+     */
+    static async buildTemplateVars(
+        incident: Pick<
+            typeof incidents.$inferSelect,
+            'title' | 'severity' | 'branchId' | 'createdAt' | 'resolution' | 'resolvedAt'
+        >
+    ): Promise<IncidentTemplateVars> {
+        const [branch] = await db
+            .select({ name: branches.name })
+            .from(branches)
+            .where(eq(branches.id, incident.branchId))
+            .limit(1);
+
+        const detectedAt = incident.createdAt ?? new Date();
+
+        return {
+            title: incident.title,
+            severity: incident.severity,
+            branch: branch?.name ?? 'Sucursal sin nombre',
+            detectedAt: detectedAt.toLocaleString('es-MX', {
+                dateStyle: 'short',
+                timeStyle: 'short',
+            }),
+            resolution: incident.resolution ?? undefined,
+            resolutionTime: incident.resolvedAt
+                ? formatearDuracion(detectedAt, incident.resolvedAt)
+                : undefined,
+        };
     }
 
     /**
@@ -962,4 +1011,17 @@ export class IncidentEngine {
         const { WorkflowExecutionService } = await import('./workflow-execution-service');
         await WorkflowExecutionService.recalculateProgress(instanceId);
     }
+}
+
+/**
+ * Duracion legible entre deteccion y resolucion, para las plantillas.
+ */
+function formatearDuracion(desde: Date, hasta: Date): string {
+    const minutos = Math.max(0, Math.round((hasta.getTime() - desde.getTime()) / 60000));
+    if (minutos < 60) return `${minutos} min`;
+    const horas = Math.floor(minutos / 60);
+    const resto = minutos % 60;
+    if (horas < 24) return resto ? `${horas} h ${resto} min` : `${horas} h`;
+    const dias = Math.floor(horas / 24);
+    return `${dias} d ${horas % 24} h`;
 }

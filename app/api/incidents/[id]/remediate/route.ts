@@ -103,6 +103,18 @@ export const POST = withTenantAuth(async (
             aiResult
         );
 
+        // El historial se escribe ANTES del tracking: `trackRemediationAttempt`
+        // relee el incidente y hace spread de `metadata`, asi que al reves el
+        // contador de intentos pisaria la entrada recien guardada.
+        await RemediationService.recordEvidence(id, {
+            stepIndex,
+            value: parsed.value,
+            evidenceUrl: parsed.evidenceUrl,
+            aiResult: aiResult ?? null,
+            passed: validation.passed,
+            submittedBy: auth.user.id,
+        });
+
         const progress = await RemediationService.trackRemediationAttempt(
             id,
             stepIndex,
@@ -115,6 +127,9 @@ export const POST = withTenantAuth(async (
                 ? (progress?.message ?? 'Paso de remediación completado')
                 : validation.reason,
             reason: validation.reason,
+            // El wizard muestra el score; sin esto tenia que adivinar si la IA
+            // habia opinado o si el paso simplemente no requeria foto.
+            aiResult: aiResult ?? null,
             progress,
         });
     } catch (error) {

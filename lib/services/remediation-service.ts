@@ -172,6 +172,72 @@ export class RemediationService {
      * @param success - Whether the attempt was successful
      * @returns Next step or completion status
      */
+    /**
+     * Guarda una entrada del historial de evidencia del incidente.
+     *
+     * La evidencia no se persistia en ningun lado: `trackRemediationAttempt`
+     * solo lleva el contador de intentos, asi que la foto que el empleado
+     * subio y el veredicto de la IA se perdian en cuanto respondia la ruta.
+     * Sin historial no hay forma de auditar por que se cerro un incidente, que
+     * es justo lo que pide NOM-251 cuando la corrective action se cuestiona.
+     *
+     * Va en `metadata.evidenceHistory` y no en una tabla nueva a proposito: es
+     * un anexo de solo-lectura del incidente, no una entidad con vida propia, y
+     * evita una migracion en una tabla caliente.
+     *
+     * Ojo al orden: quien llame a esto debe hacerlo **antes** de
+     * `trackRemediationAttempt`, que vuelve a leer el incidente y hace spread
+     * de `metadata`. Al reves, el contador de intentos pisa el historial.
+     */
+    static async recordEvidence(
+        incidentId: string,
+        entry: {
+            stepIndex: number;
+            value?: unknown;
+            evidenceUrl?: string;
+            aiResult?: Record<string, unknown> | null;
+            passed: boolean;
+            submittedBy?: string | null;
+        }
+    ): Promise<void> {
+        const [incident] = await db
+            .select({ metadata: incidents.metadata })
+            .from(incidents)
+            .where(eq(incidents.id, incidentId))
+            .limit(1);
+
+        if (!incident) return;
+
+        const metadata = (incident.metadata as any) ?? {};
+        const history = Array.isArray(metadata.evidenceHistory)
+            ? metadata.evidenceHistory
+            : [];
+
+        const ai = entry.aiResult as any;
+        const confianza =
+            typeof ai?.details?.confidence === 'number'
+                ? ai.details.confidence
+                : typeof ai?.confidence === 'number'
+                    ? ai.confidence
+                    : null;
+
+        history.push({
+            stepIndex: entry.stepIndex,
+            type: entry.evidenceUrl ? 'photo' : 'text',
+            content: entry.evidenceUrl ?? (entry.value == null ? '' : String(entry.value)),
+            passed: entry.passed,
+            aiReason: ai?.reason ?? null,
+            aiConfidence: confianza,
+            submittedBy: entry.submittedBy ?? null,
+            createdAt: new Date().toISOString(),
+        });
+
+        await db
+            .update(incidents)
+            .set({ metadata: { ...metadata, evidenceHistory: history } })
+            .where(eq(incidents.id, incidentId));
+    }
+
     static async trackRemediationAttempt(
         incidentId: string,
         stepIndex: number,

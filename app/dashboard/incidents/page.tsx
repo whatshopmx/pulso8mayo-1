@@ -10,7 +10,11 @@ import { IncidentList, IncidentListSkeleton } from '@/components/incidents/incid
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, AlertTriangle, XCircle, CheckCircle2, Building2, ShieldAlert } from 'lucide-react';
 import { BRANCH_COOKIE_NAME } from '@/lib/tenant-context';
-import { resolveBranchScope } from '@/lib/branch-scope';
+import Link from 'next/link';
+import { resolveBranchScope, canAccessAllBranches } from '@/lib/branch-scope';
+import { getBranchIncidentStats } from '@/lib/services/branch-incident-stats';
+import { BranchIncidentSummary } from '@/components/dashboard/branch-incident-summary';
+import { BranchRanking } from '@/components/dashboard/branch-ranking';
 import type { Role } from '@/lib/permissions';
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -27,6 +31,8 @@ interface IncidentRow {
   createdAt: Date;
   instanceId: string;
   branchId: string;
+  /** Nombre de la sucursal, para la vista consolidada. */
+  branchName?: string;
   /** Acciones de remediación externa esperando que gerencia agende la visita. */
   pendingActionCount: number;
 }
@@ -78,9 +84,11 @@ async function getIncidentsPage(companyId: string, branchId: string | undefined,
       createdAt: incidents.createdAt,
       instanceId: incidents.instanceId,
       branchId: incidents.branchId,
+      branchName: branches.name,
       pendingActionCount: sql<number>`count(${remediationActions.id})`,
     })
     .from(incidents)
+    .innerJoin(branches, eq(branches.id, incidents.branchId))
     .leftJoin(
       remediationActions,
       and(
@@ -89,7 +97,7 @@ async function getIncidentsPage(companyId: string, branchId: string | undefined,
       )
     )
     .where(and(...conditions))
-    .groupBy(incidents.id)
+    .groupBy(incidents.id, branches.name)
     .orderBy(desc(incidents.createdAt))
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE);
@@ -141,7 +149,9 @@ async function getBranchName(branchId: string) {
 
 // ── Page ────────────────────────────────────────────────────────────
 
-export default async function IncidentsPage(props: { searchParams: Promise<{ page?: string }> }) {
+export default async function IncidentsPage(
+  props: { searchParams: Promise<{ page?: string; branchId?: string }> }
+) {
   const searchParams = await props.searchParams;
   const page = Math.max(1, parseInt(searchParams.page ?? '1'));
 
@@ -154,7 +164,18 @@ export default async function IncidentsPage(props: { searchParams: Promise<{ pag
   }
 
   const cookieStore = await cookies();
-  const selectedBranchId = cookieStore.get(BRANCH_COOKIE_NAME)?.value;
+  /**
+   * La URL puede pedir sucursal; el rol decide si se le concede.
+   *
+   * `?branchId=` es lo que enlazan las cards del resumen y el ranking, y hace
+   * que el filtro se pueda compartir y abrir en otra pestaña —cosa que la
+   * cookie global no permite. Entra como *peticion* y baja por el mismo
+   * `resolveBranchScope` que la cookie: un GERENTE que edite la barra de
+   * direcciones sigue viendo solo la suya.
+   */
+  const branchIdPedida = searchParams.branchId;
+  const selectedBranchId =
+    branchIdPedida ?? cookieStore.get(BRANCH_COOKIE_NAME)?.value;
 
   const companyId = session.user.companyId;
   if (!companyId) {
@@ -172,13 +193,29 @@ export default async function IncidentsPage(props: { searchParams: Promise<{ pag
   const sinSucursal = alcance.kind === 'NONE';
   const effectiveBranchId = alcance.kind === 'BRANCH' ? alcance.branchId : undefined;
 
-  const [allIncidents, totalCount, stats, branchName] = sinSucursal
-    ? [[] as IncidentRow[], 0, { total: 0, active: 0, critical: 0, resolved: 0, requiresAction: 0 }, null]
+  /**
+   * El desglose por sucursal solo se calcula para quien puede ver mas de una.
+   *
+   * La pregunta es del **rol**, no del alcance ya resuelto: un ADMIN que filtra
+   * a una sucursal tiene `alcance.kind === 'BRANCH'`, y mirarlo ahi le habria
+   * escondido el resumen justo cuando lo usa para saltar de sucursal. Un
+   * GERENTE esta fijado a la suya: un ranking de una fila no le dice nada y le
+   * cuesta una consulta extra en cada carga de la lista.
+   */
+  const puedeVerVariasSucursales = canAccessAllBranches(
+    ((session.user as any).role || 'EMPLEADO') as Role
+  );
+
+  const [allIncidents, totalCount, stats, branchName, branchStats] = sinSucursal
+    ? [[] as IncidentRow[], 0, { total: 0, active: 0, critical: 0, resolved: 0, requiresAction: 0 }, null, []]
     : await Promise.all([
         getIncidentsPage(companyId, effectiveBranchId, page),
         getTotalCount(companyId, effectiveBranchId),
         getStats(companyId, effectiveBranchId),
         effectiveBranchId ? getBranchName(effectiveBranchId) : Promise.resolve(null),
+        puedeVerVariasSucursales
+          ? getBranchIncidentStats(companyId)
+          : Promise.resolve([]),
       ]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -194,10 +231,26 @@ export default async function IncidentsPage(props: { searchParams: Promise<{ pag
           </p>
         </div>
         {branchName && (
-          <Badge variant="outline" className="gap-1">
-            <Building2 className="h-3 w-3" />
-            {branchName}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="gap-1">
+              <Building2 className="h-3 w-3" />
+              {branchName}
+            </Badge>
+            {/*
+              * La salida del filtro solo aparece cuando lo puso la URL. Con la
+              * cookie global el badge es informativo —lo cambia el control del
+              * header— y un "ver todas" aqui dejaria dos mandos peleandose por
+              * el mismo estado.
+              */}
+            {branchIdPedida && puedeVerVariasSucursales && (
+              <Link
+                href="/dashboard/incidents"
+                className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+              >
+                Ver todas las sucursales
+              </Link>
+            )}
+          </div>
         )}
       </div>
 
@@ -281,10 +334,33 @@ export default async function IncidentsPage(props: { searchParams: Promise<{ pag
             </span>
           </div>
 
+          {/*
+            * Vista consolidada: solo para quien ve mas de una sucursal, y solo
+            * cuando hay mas de una que comparar. Con una sola sucursal el
+            * ranking es una lista de un elemento y el resumen repite lo que ya
+            * dice la tira de estadisticas de arriba.
+            */}
+          {puedeVerVariasSucursales && branchStats.length > 1 && (
+            <div className="space-y-6">
+              <BranchIncidentSummary
+                branches={branchStats}
+                selectedBranchId={effectiveBranchId}
+              />
+              <BranchRanking branches={branchStats} />
+            </div>
+          )}
+
           {/* Incidents table */}
           <Suspense fallback={<IncidentListSkeleton />}>
             <IncidentList
-              incidents={allIncidents}
+              // El nombre de sucursal solo viaja en la vista consolidada: con
+              // la lista ya filtrada, un badge idéntico en cada fila repite lo
+              // que el encabezado dice una vez.
+              incidents={
+                effectiveBranchId
+                  ? allIncidents.map(({ branchName: _omitido, ...resto }) => resto)
+                  : allIncidents
+              }
               totalCount={totalCount}
               page={page}
               totalPages={totalPages}
