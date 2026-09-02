@@ -803,6 +803,17 @@ export function PnlBranchTable() {
                         : `Merma del período: ${formatCents(item.waste.cents)}${
                             MARKER[item.waste.source] || ""
                           }.`;
+                    // A4.2 — la caja chica va en el tooltip de gastos
+                    // operativos, por el mismo criterio que pone la merma en el
+                    // de food cost: es su par natural (las dos son salidas de
+                    // gasto) y no gasta una columna de una tabla que ya tiene
+                    // ocho. **Se resta de la utilidad aunque no tenga columna
+                    // propia**, así que esconderla del todo dejaría un margen
+                    // que no cuadra con los renglones visibles.
+                    const cajaChicaNote =
+                      !item.pettyCash || item.pettyCash.source === "NO_DATA"
+                        ? "Caja chica del período: sin salidas capturadas. Si la sucursal usó el fondo y no lo registró, la utilidad de abajo está sobreestimada."
+                        : `Caja chica del período: ${formatCents(item.pettyCash.cents)}. Ya está restada de la utilidad; no pasa por la cola de autorización de gastos.`;
                     return (
                       <TableRow key={item.branchId} className="hover:bg-muted/40 focus-within:bg-muted/40 transition text-xs">
                         <TableCell className="font-medium">
@@ -822,6 +833,7 @@ export function PnlBranchTable() {
                           value={item.operatingExpenses}
                           mode="money"
                           className="font-medium"
+                          extraNote={cajaChicaNote}
                         />
                         <CommissionCell item={item} />
                         <ProfitCell value={item.operatingProfit} approximate={approximate} />

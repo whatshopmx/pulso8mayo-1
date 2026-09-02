@@ -3,7 +3,10 @@ import { requirePermissionApi } from "@/lib/rbac/abac";
 import { maskSensitiveList } from "@/lib/rbac/masking";
 import { ApiHandler } from "@/lib/api/response";
 import { resolveBranchScope } from "@/lib/branch-scope";
-import { detectViolations } from "@/lib/services/control-interno-service";
+import {
+  VENTANA_EXCEPCIONES_DIAS,
+  detectViolations,
+} from "@/lib/services/control-interno-service";
 import { CONTRACT_VARIANCE_WINDOW_DAYS } from "@/lib/services/recurring-contract-variance";
 
 /**
@@ -17,11 +20,25 @@ import { CONTRACT_VARIANCE_WINDOW_DAYS } from "@/lib/services/recurring-contract
  * Query params:
  *   - branchId (optional) — se pasa como `targetBranchId` para que ABAC pueda
  *     403 a un rol acotado a sucursal que solicite una ajena.
+ *   - sinceDays (optional) — ventana de detección. Por omisión 90 días (A5.1):
+ *     antes el detector traía **todos** los gastos históricos de la empresa a
+ *     memoria y los recorría en JavaScript, y a 15 sucursales con un año de
+ *     operación son decenas de miles de filas en cada carga de la pantalla.
+ *     La ventana viaja en la respuesta para que la UI pueda declararla: quien
+ *     lee "sin excepciones" tiene derecho a saber sobre qué período se afirma.
  */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get("branchId") || undefined;
+
+    // Cota superior de un año: pedir "todo el histórico" por query devolvería
+    // el problema que A5.1 cerró.
+    const pedidos = Number(searchParams.get("sinceDays"));
+    const sinceDays =
+      Number.isFinite(pedidos) && pedidos > 0
+        ? Math.min(Math.round(pedidos), 365)
+        : VENTANA_EXCEPCIONES_DIAS;
 
     const { ctx, decision } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
@@ -41,7 +58,8 @@ export async function GET(req: NextRequest) {
         ? []
         : await detectViolations(
             ctx.userCompanyId,
-            alcance.kind === "BRANCH" ? alcance.branchId : undefined
+            alcance.kind === "BRANCH" ? alcance.branchId : undefined,
+            { sinceDays }
           );
     const payload = {
       violations: maskSensitiveList(violations, decision),
@@ -59,6 +77,8 @@ export async function GET(req: NextRequest) {
        * pantalla no podía declarar nada.
        */
       contractVarianceWindowDays: CONTRACT_VARIANCE_WINDOW_DAYS,
+      /** Ventana de la detección de excepciones de gasto, en días (A5.1). */
+      windowDays: sinceDays,
     };
     return ApiHandler.success(payload);
   } catch (error) {

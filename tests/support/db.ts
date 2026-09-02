@@ -416,6 +416,20 @@ export async function deleteTestCuts(branchId: string, businessDate: string): Pr
   `;
 }
 
+/** Estado actual de un gasto sembrado, leído fuera de la app. */
+export async function getExpenseStatus(expenseId: string): Promise<string | null> {
+  const rows = await sql`SELECT status FROM operating_expenses WHERE id = ${expenseId} LIMIT 1`;
+  return (rows[0]?.status as string) ?? null;
+}
+
+/** Fecha de vencimiento actual de un gasto sembrado (YYYY-MM-DD). */
+export async function getExpenseDueDate(expenseId: string): Promise<string | null> {
+  const rows = await sql`
+    SELECT to_char(due_date, 'YYYY-MM-DD') AS d FROM operating_expenses WHERE id = ${expenseId} LIMIT 1
+  `;
+  return (rows[0]?.d as string) ?? null;
+}
+
 /** Borra los gastos operativos creados por los tests. */
 export async function deleteTestExpenses(): Promise<void> {
   await sql`DELETE FROM operating_expenses WHERE description LIKE ${`${E2E_TAG}%`}`;
@@ -2174,24 +2188,6 @@ export async function seedMatchedInvoice(opts: {
   return rows[0].id as string;
 }
 
-/** Corrida de pago en borrador donde el spec intenta meter la factura. */
-export async function seedPaymentRun(opts: {
-  companyId: string;
-  branchId: string;
-  createdBy: string;
-}): Promise<string> {
-  const rows = await sql`
-    INSERT INTO payment_runs (company_id, branch_id, title, run_date, status, prepared_by)
-    VALUES (
-      ${opts.companyId}, ${opts.branchId},
-      ${`${E2E_TAG} corrida de verificación CLABE`},
-      now(), 'DRAFT', ${opts.createdBy}
-    )
-    RETURNING id
-  `;
-  return rows[0].id as string;
-}
-
 /** Renglones ya cargados a una corrida. */
 export async function findPaymentRunItems(
   paymentRunId: string
@@ -2301,4 +2297,329 @@ export async function seedCommissionRate(opts: {
 /** Borra las tarifas de comisión sembradas por los tests. */
 export async function deleteTestCommissionRates(): Promise<void> {
   await sql`DELETE FROM channel_commission_rates WHERE notes = ${E2E_COMMISSION_RATE_NOTE}`;
+}
+
+// ── Tesorería: corridas de pago (A0.2, A0.3) ──────────────────────────────────
+
+/**
+ * Título con el que se marcan las corridas de los specs, para poder limpiarlas
+ * sin tocar lo sembrado por `pnpm seed`. `payment_runs` no tiene columna de
+ * notas, así que la marca va en el título —que además es lo que se ve si una
+ * corrida de prueba se queda huérfana en la pantalla de Tesorería.
+ */
+export const E2E_PAYMENT_RUN_TAG = `${E2E_TAG} corrida`;
+
+/** Crea una corrida de pago directamente, sin pasar por el servicio. */
+export async function seedPaymentRun(opts: {
+  companyId: string;
+  branchId?: string | null;
+  status: string;
+  preparedBy: string;
+  approvedBy?: string | null;
+  etiqueta?: string;
+  totalAmountCents?: number;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO payment_runs (
+      company_id, branch_id, title, run_date, status,
+      total_amount_cents, source_account, prepared_by, approved_by
+    )
+    VALUES (
+      ${opts.companyId},
+      ${opts.branchId ?? null},
+      ${`${E2E_PAYMENT_RUN_TAG} ${opts.etiqueta ?? opts.status} ${Date.now()}${Math.random()}`},
+      now(),
+      ${opts.status}::payment_run_status,
+      ${opts.totalAmountCents ?? 0},
+      ${"0123456789"},
+      ${opts.preparedBy},
+      ${opts.approvedBy ?? null}
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Estado actual de una corrida sembrada. */
+export async function getPaymentRunStatus(runId: string): Promise<string | null> {
+  const rows = await sql`SELECT status FROM payment_runs WHERE id = ${runId} LIMIT 1`;
+  return (rows[0]?.status as string) ?? null;
+}
+
+/** Agrega una partida a una corrida sembrada, sin pasar por el servicio. */
+export async function seedPaymentRunItem(opts: {
+  paymentRunId: string;
+  itemType: string;
+  referenceId: string;
+  amountCents: number;
+  notes?: string;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO payment_run_items (payment_run_id, item_type, reference_id, amount_cents, notes)
+    VALUES (
+      ${opts.paymentRunId},
+      ${opts.itemType}::payment_run_item_type,
+      ${opts.referenceId},
+      ${opts.amountCents},
+      ${opts.notes ?? E2E_TAG}
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/**
+ * Cuántas descargas del layout de una corrida quedaron en `data_access_logs`.
+ *
+ * Es la prueba de A2.2: el archivo de dispersión lleva las CLABEs en claro de
+ * todos los proveedores del grupo, así que quién lo bajó y cuándo tiene que
+ * quedar escrito.
+ */
+export async function contarDescargasDeLayout(runId: string): Promise<number> {
+  const rows = await sql`
+    SELECT COUNT(*)::int AS n
+    FROM data_access_logs
+    WHERE resource = 'payment_runs.bank_layout'
+      AND resource_id = ${runId}
+      AND action = 'EXPORT'
+  `;
+  return rows[0]?.n ?? 0;
+}
+
+/** Borra las corridas sembradas por los tests (las partidas caen por cascada). */
+export async function deleteTestPaymentRuns(): Promise<void> {
+  await sql`DELETE FROM payment_runs WHERE title LIKE ${`${E2E_PAYMENT_RUN_TAG}%`}`;
+}
+
+// ── Fases 3-5 del cierre de la auditoría de Finanzas ─────────────────────────
+
+/**
+ * Un corte de venta con IVA desglosado.
+ *
+ * `seedSalesCutHistory` no captura impuesto, y la distinción entre "el POS no
+ * lo exportó" (`null`) y "lo exportó" es justamente lo que decide si los
+ * porcentajes del módulo salen sobre base neta medida o estimada (A3.1/A3.2).
+ */
+export async function seedSalesCutConIva(opts: {
+  companyId: string;
+  branchId: string;
+  businessDate: string;
+  totalCents: number;
+  /** `null` = el POS no exportó la columna de impuesto. */
+  taxCents: number | null;
+  shift?: "MATUTINO" | "VESPERTINO" | "COMPLETO";
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO daily_sales_cuts (
+      company_id, branch_id, business_date, shift, channel,
+      total_sales, tax_amount, source, status, validation_notes
+    )
+    VALUES (
+      ${opts.companyId}, ${opts.branchId}, ${opts.businessDate}::date,
+      ${opts.shift ?? "COMPLETO"}, 'TOTAL',
+      ${opts.totalCents}, ${opts.taxCents},
+      'MANUAL_FORM', 'VALIDATED', ${E2E_SALES_CUT_NOTE}
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Configura la tasa de IVA y el factor de carga patronal del inquilino. */
+export async function setTenantFinanceConfig(
+  companyId: string,
+  opts: {
+    vatRatePercent?: string | null;
+    laborBurdenFactorPercent?: string | null;
+    payrollStateTaxPercent?: string | null;
+  }
+): Promise<void> {
+  await sql`
+    INSERT INTO tenant_operating_config (company_id)
+    VALUES (${companyId})
+    ON CONFLICT (company_id) DO NOTHING
+  `;
+  if (opts.vatRatePercent !== undefined) {
+    await sql`
+      UPDATE tenant_operating_config SET vat_rate_percent = ${opts.vatRatePercent}
+      WHERE company_id = ${companyId}
+    `;
+  }
+  if (opts.laborBurdenFactorPercent !== undefined) {
+    await sql`
+      UPDATE tenant_operating_config SET labor_burden_factor_percent = ${opts.laborBurdenFactorPercent}
+      WHERE company_id = ${companyId}
+    `;
+  }
+  if (opts.payrollStateTaxPercent !== undefined) {
+    await sql`
+      UPDATE tenant_operating_config SET payroll_state_tax_percent = ${opts.payrollStateTaxPercent}
+      WHERE company_id = ${companyId}
+    `;
+  }
+}
+
+/** Lee la configuración financiera del inquilino, para poder restaurarla. */
+export async function getTenantFinanceConfig(companyId: string): Promise<{
+  vatRatePercent: string | null;
+  laborBurdenFactorPercent: string | null;
+  payrollStateTaxPercent: string | null;
+} | null> {
+  const rows = await sql`
+    SELECT vat_rate_percent, labor_burden_factor_percent, payroll_state_tax_percent
+    FROM tenant_operating_config WHERE company_id = ${companyId} LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  return {
+    vatRatePercent: rows[0].vat_rate_percent ?? null,
+    laborBurdenFactorPercent: rows[0].labor_burden_factor_percent ?? null,
+    payrollStateTaxPercent: rows[0].payroll_state_tax_percent ?? null,
+  };
+}
+
+/** Contraparte de prueba. */
+export async function seedTestPayee(companyId: string, label: string): Promise<string> {
+  const rows = await sql`
+    INSERT INTO payees (company_id, name, active)
+    VALUES (${companyId}, ${`${E2E_TAG} ${label} ${Date.now()}${Math.random()}`}, true)
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Centro de costo de prueba. */
+export async function seedTestCostCenter(companyId: string, label: string): Promise<string> {
+  const codigo = `E2E${String(Date.now()).slice(-6)}${Math.floor(Math.random() * 100)}`;
+  const rows = await sql`
+    INSERT INTO cost_centers (company_id, code, name, active)
+    VALUES (${companyId}, ${codigo}, ${`${E2E_TAG} ${label}`}, true)
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Borra los centros de costo sembrados por los tests. */
+export async function deleteTestCostCenters(): Promise<void> {
+  await sql`DELETE FROM cost_centers WHERE name LIKE ${`${E2E_TAG}%`}`;
+}
+
+/**
+ * Gasto con todos los campos que las reglas de Control Interno miran:
+ * contraparte, centro de costo, forma de pago y fecha de pago.
+ */
+export async function seedExpenseDetallado(opts: {
+  companyId: string;
+  branchId: string;
+  requestedBy: string;
+  approvedBy?: string | null;
+  paidBy?: string | null;
+  payeeId?: string | null;
+  costCenterId?: string | null;
+  amountCents: number;
+  description: string;
+  status: string;
+  paymentMethod?: string | null;
+  paidAt?: string | null;
+  createdAt?: string | null;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO operating_expenses (
+      company_id, branch_id, category, amount, description, status,
+      requested_by, approved_by, paid_by, payee_id, cost_center_id,
+      payment_method, paid_at, created_at
+    )
+    VALUES (
+      ${opts.companyId}, ${opts.branchId}, 'OTROS'::operating_expense_category,
+      ${opts.amountCents}, ${opts.description},
+      ${opts.status}::operating_expense_status,
+      ${opts.requestedBy}, ${opts.approvedBy ?? null}, ${opts.paidBy ?? null},
+      ${opts.payeeId ?? null}, ${opts.costCenterId ?? null},
+      ${opts.paymentMethod ?? null}::expense_payment_method,
+      ${opts.paidAt ?? null}::timestamp,
+      COALESCE(${opts.createdAt ?? null}::timestamp, now())
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Fondo de caja chica de una sucursal, sembrado directo. */
+export async function seedPettyCashFund(opts: {
+  companyId: string;
+  branchId: string;
+  fundAmountCents: number;
+  currentBalanceCents?: number;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO petty_cash_funds (company_id, branch_id, fund_amount, current_balance, low_threshold)
+    VALUES (
+      ${opts.companyId}, ${opts.branchId}, ${opts.fundAmountCents},
+      ${opts.currentBalanceCents ?? opts.fundAmountCents},
+      ${Math.round(opts.fundAmountCents * 0.2)}
+    )
+    ON CONFLICT (company_id, branch_id) DO UPDATE
+      SET fund_amount = EXCLUDED.fund_amount, current_balance = EXCLUDED.current_balance
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Salida de caja chica, sembrada directo. */
+export async function seedPettyCashOutflow(opts: {
+  fundId: string;
+  amountCents: number;
+  concept: string;
+  registeredBy: string;
+  costCenterId?: string | null;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO petty_cash_transactions (
+      fund_id, type, amount, concept, category, cost_center_id, registered_by, approved_by
+    )
+    VALUES (
+      ${opts.fundId}, 'OUT', ${opts.amountCents},
+      ${`${E2E_TAG} ${opts.concept}`}, 'OTROS'::operating_expense_category,
+      ${opts.costCenterId ?? null}, ${opts.registeredBy}, ${opts.registeredBy}
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Borra los movimientos de caja chica sembrados por los tests. */
+export async function deleteTestPettyCash(): Promise<void> {
+  await sql`DELETE FROM petty_cash_transactions WHERE concept LIKE ${`${E2E_TAG}%`}`;
+}
+
+/**
+ * Escalón de autorización de gasto.
+ *
+ * Lo usa el spec de fraccionamiento: la escalera es lo que alguien fracciona
+ * para evadir, y la empresa sembrada no trae ninguna regla capturada — que es,
+ * a su vez, el estado de todo inquilino nuevo.
+ *
+ * `branch_id` se usa como marca de limpieza: las reglas de prueba se atan a la
+ * sucursal desechable del spec, así que borrarla las lleva consigo.
+ */
+export async function seedAuthorizationRule(opts: {
+  companyId: string;
+  branchId: string;
+  minAmountCents: number;
+  maxAmountCents?: number | null;
+  approverRole?: string;
+}): Promise<string> {
+  const rows = await sql`
+    INSERT INTO expense_authorization_rules (company_id, branch_id, min_amount, max_amount, approver_role)
+    VALUES (
+      ${opts.companyId}, ${opts.branchId}, ${opts.minAmountCents},
+      ${opts.maxAmountCents ?? null}, ${opts.approverRole ?? "ADMIN"}
+    )
+    RETURNING id
+  `;
+  return rows[0].id as string;
+}
+
+/** Borra los escalones de autorización sembrados para una sucursal de prueba. */
+export async function deleteAuthorizationRulesForBranch(branchId: string): Promise<void> {
+  await sql`DELETE FROM expense_authorization_rules WHERE branch_id = ${branchId}`;
 }

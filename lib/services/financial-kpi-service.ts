@@ -32,6 +32,9 @@ import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getFoodCostByBranch } from "@/lib/services/food-cost-service";
 import { getLaborCostByBranch } from "@/lib/services/labor-cost-service";
 import { getFinancialTargets } from "@/lib/services/tenant-config-service";
+import { getVatRatePercent, resolveSalesBase } from "@/lib/services/sales-base";
+import type { SalesBase } from "@/lib/services/sales-base";
+import { getLaborBurden } from "@/lib/services/labor-burden";
 import { weakestOf } from "@/lib/services/pnl-types";
 import { costStatus, marginStatus } from "@/lib/services/financial-kpi-types";
 import type { LineSource } from "@/lib/services/pnl-types";
@@ -109,10 +112,26 @@ function laborSourceToLineSource(source: string): LineSource {
   }
 }
 
+/**
+ * La procedencia de un porcentaje no puede ser más fuerte que su divisor.
+ *
+ * Un food cost medido al centavo, dividido entre una venta neta *estimada* con
+ * la tasa de IVA configurada, ya no es una medición: es un cálculo derivado. Es
+ * el mismo criterio de `weakestOf` en `pnl-types`, aplicado al denominador —que
+ * hasta A3.2 nadie miraba porque se daba por hecho que era neto.
+ */
+function degradarPorBase(source: LineSource, kind: SalesBase["kind"]): LineSource {
+  if (source === "NO_DATA") return source;
+  return kind === "NET_MEASURED" ? source : weakestOf(source, "DERIVED");
+}
+
 // --- Agregación de un período ----------------------------------------------
 
 interface PeriodTotals {
+  /** Venta CON IVA: lo que entró a la caja. */
   totalSalesCents: number;
+  /** Base sobre la que se calculan los porcentajes (A3.2). */
+  salesBase: SalesBase;
   cutsCount: number;
   foodCostCents: number;
   foodSource: LineSource;
@@ -136,16 +155,21 @@ async function aggregatePeriod(
   ];
   if (branchId) salesConditions.push(eq(dailySalesCuts.branchId, branchId));
 
-  const [salesRows, foodCosts, laborCosts] = await Promise.all([
+  const [salesRows, foodCosts, laborCosts, vatRatePercent] = await Promise.all([
     db
       .select({
         totalSales: sql<number>`COALESCE(SUM(${dailySalesCuts.totalSales}), 0)`,
+        // A3.2 — el IVA viaja en la misma consulta agregada; la base neta no
+        // debe costar un viaje más.
+        taxSum: sql<number>`COALESCE(SUM(${dailySalesCuts.taxAmount}), 0)`,
+        cutsWithTax: sql<number>`COUNT(${dailySalesCuts.taxAmount})`,
         cutsCount: sql<number>`COUNT(${dailySalesCuts.id})`,
       })
       .from(dailySalesCuts)
       .where(and(...salesConditions)),
     getFoodCostByBranch(companyId, startDay, endDay),
     getLaborCostByBranch(companyId, startDay, endDay),
+    getVatRatePercent(companyId),
   ]);
 
   // Ambos servicios devuelven todas las sucursales de la company; el filtro por
@@ -171,8 +195,17 @@ async function aggregatePeriod(
       ? "NO_DATA"
       : weakestOf(...laborWithData.map((l) => laborSourceToLineSource(l.source)));
 
+  const grossCents = Number(salesRows[0]?.totalSales ?? 0);
+
   return {
-    totalSalesCents: Number(salesRows[0]?.totalSales ?? 0),
+    totalSalesCents: grossCents,
+    salesBase: resolveSalesBase({
+      grossCents,
+      taxCents: Number(salesRows[0]?.taxSum ?? 0),
+      cutsWithTax: Number(salesRows[0]?.cutsWithTax ?? 0),
+      cutsCount: Number(salesRows[0]?.cutsCount ?? 0),
+      vatRatePercent,
+    }),
     cutsCount: Number(salesRows[0]?.cutsCount ?? 0),
     // El food cost del KPI incluye la merma: la pregunta "¿cuánto de mi venta se
     // fue en insumos?" no distingue si el insumo se sirvió o se tiró. El P&L sí
@@ -204,8 +237,9 @@ export async function calculateFinancialKPIs(
   const prevEndDay = shiftDay(startDay, -1);
   const prevStartDay = shiftDay(prevEndDay, -(periodDays - 1));
 
-  const [targets, current, previous] = await Promise.all([
+  const [targets, burden, current, previous] = await Promise.all([
     getFinancialTargets(filter.companyId),
+    getLaborBurden(filter.companyId),
     aggregatePeriod(filter.companyId, filter.branchId, startDay, endDay),
     aggregatePeriod(filter.companyId, filter.branchId, prevStartDay, prevEndDay),
   ]);
@@ -213,16 +247,44 @@ export async function calculateFinancialKPIs(
   const sales = current.totalSalesCents;
   const prevSales = previous.totalSalesCents;
 
+  /**
+   * A3.2 — el divisor de todos los porcentajes es la base, no la venta bruta.
+   *
+   * `sales` sigue siendo la venta con IVA porque es la cifra de ingresos que la
+   * dueña reconoce; lo que cambia es contra qué se dividen los costos. Antes se
+   * dividía entre la bruta y un food cost real del 34.8% se presentaba como
+   * 30%, del lado verde del semáforo.
+   */
+  const base = current.salesBase.baseCents;
+  const prevBase = previous.salesBase.baseCents;
+
+  /**
+   * A3.3 — nómina cargada cuando el grupo capturó el factor.
+   *
+   * El objetivo `laborCostTargetPercent` trae default 28.00, que es un número
+   * de industria *cargado*. Comparar contra él un bruto medido pinta verde lo
+   * que no lo está. Sin factor capturado el semáforo se apaga (`status: null`)
+   * en vez de mentir con un color.
+   */
+  const cargar = (cents: number): number =>
+    burden.totalPercent === null
+      ? cents
+      : Math.round(cents * (1 + burden.totalPercent / 100));
+
   /** % sobre ventas, o `null` si no hay base contra la cual dividir. */
   const pctOfSales = (cents: number, base: number, source: LineSource): number | null => {
     if (source === "NO_DATA" || base <= 0) return null;
     return Number(((cents / base) * 100).toFixed(1));
   };
 
-  const foodPercent = pctOfSales(current.foodCostCents, sales, current.foodSource);
-  const laborPercent = pctOfSales(current.laborCostCents, sales, current.laborSource);
-  const prevFoodPercent = pctOfSales(previous.foodCostCents, prevSales, previous.foodSource);
-  const prevLaborPercent = pctOfSales(previous.laborCostCents, prevSales, previous.laborSource);
+  const foodPercent = pctOfSales(current.foodCostCents, base, current.foodSource);
+  const laborPercent = pctOfSales(cargar(current.laborCostCents), base, current.laborSource);
+  const prevFoodPercent = pctOfSales(previous.foodCostCents, prevBase, previous.foodSource);
+  const prevLaborPercent = pctOfSales(
+    cargar(previous.laborCostCents),
+    prevBase,
+    previous.laborSource,
+  );
 
   const deltaPoints = (now: number | null, before: number | null): number | null =>
     now === null || before === null ? null : Number((now - before).toFixed(1));
@@ -230,6 +292,8 @@ export async function calculateFinancialKPIs(
   const branchLabel = filter.branchId
     ? "la sucursal"
     : `${current.branchCount} sucursal(es) del grupo`;
+
+  const baseNota = current.salesBase.note;
 
   const foodNote =
     current.foodSource === "NO_DATA"
@@ -243,11 +307,13 @@ export async function calculateFinancialKPIs(
   const laborNote =
     current.laborSource === "NO_DATA"
       ? "Sin contratos ni sesiones de turno en el período. No es un 0%: es un dato que falta."
-      : current.laborSource === "MEASURED"
-        ? `Sueldo bruto sobre asistencia real de ${branchLabel}. No incluye IMSS ni provisiones.`
-        : current.laborSource === "SECTOR_DEFAULT"
-          ? "Estimación sectorial HORECA. NO se calcula con tus datos."
-          : `Plantilla contratada en lugar de asistencia real en al menos una de ${branchLabel}. No incluye IMSS ni provisiones.`;
+      : `${
+          current.laborSource === "MEASURED"
+            ? `Sueldo sobre asistencia real de ${branchLabel}.`
+            : current.laborSource === "SECTOR_DEFAULT"
+              ? "Estimación sectorial HORECA. NO se calcula con tus datos."
+              : `Plantilla contratada en lugar de asistencia real en al menos una de ${branchLabel}.`
+        } ${burden.nota}`;
 
   const foodCost: KpiMetric = {
     cents: current.foodCostCents,
@@ -256,20 +322,30 @@ export async function calculateFinancialKPIs(
       foodPercent === null
         ? null
         : costStatus(foodPercent, targets.foodCostTargetPercent, targets.foodCostWarnPercent),
-    source: current.foodSource,
-    note: foodNote,
+    // La base estimada degrada la procedencia: un porcentaje calculado sobre un
+    // IVA supuesto no es una medición, por muy medido que esté el numerador.
+    source: degradarPorBase(current.foodSource, current.salesBase.kind),
+    note: `${foodNote} ${baseNota}`,
     deltaPoints: deltaPoints(foodPercent, prevFoodPercent),
   };
 
   const laborCost: KpiMetric = {
-    cents: current.laborCostCents,
+    // El importe es el cargado cuando hay factor: es el que se compara contra
+    // el objetivo, y mostrar uno y comparar el otro sería peor que no cargarlo.
+    cents: cargar(current.laborCostCents),
     percent: laborPercent,
     status:
-      laborPercent === null
+      // Sin factor de carga el semáforo NO pinta: el objetivo por default (28%)
+      // es un número cargado y el medido es bruto. Un color sobre esa
+      // comparación afirma una salud que nadie calculó.
+      laborPercent === null || burden.totalPercent === null
         ? null
         : costStatus(laborPercent, targets.laborCostTargetPercent, targets.laborCostWarnPercent),
-    source: current.laborSource,
-    note: laborNote,
+    source:
+      burden.totalPercent === null
+        ? degradarPorBase(current.laborSource, current.salesBase.kind)
+        : weakestOf(degradarPorBase(current.laborSource, current.salesBase.kind), "DERIVED"),
+    note: `${laborNote} ${baseNota}`,
     deltaPoints: deltaPoints(laborPercent, prevLaborPercent),
   };
 

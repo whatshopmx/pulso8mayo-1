@@ -3,7 +3,7 @@ import { z } from "zod";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { branchBudgets, branches, costCenters } from "@/lib/db/schema";
-import { requireAuth, requireTenant } from "@/lib/tenant-context";
+import { requireTenantAuth } from "@/lib/api/with-auth";
 import { hasPermission, roleIsAtLeast } from "@/lib/permissions";
 import { isApiError } from "@/lib/api/error";
 import {
@@ -48,8 +48,14 @@ async function assertOwnership(
  */
 export async function GET(req: NextRequest) {
     try {
-        const tenant = await requireTenant();
-        const { user } = await requireAuth();
+        // A5.6 — `requireTenantAuth` en lugar del `requireAuth`/`requireTenant`
+        // de `lib/tenant-context`: el tenant sale **siempre** de la sesión, no
+        // de un header ni de una selección. Se usa la forma imperativa y no el
+        // envoltorio `withTenantAuth` porque esta ruta responde con
+        // `NextResponse.json` crudo, sin el sobre `{ success, data }`, y
+        // cambiar la forma de la respuesta rompería a la pantalla que la
+        // consume — ése es otro trabajo.
+        const { user, tenantId, branchId: sessionBranchId } = await requireTenantAuth();
 
         if (!hasPermission(user.role, "inventory", "read")) {
             return NextResponse.json({ error: "No tienes permisos" }, { status: 403 });
@@ -63,9 +69,9 @@ export async function GET(req: NextRequest) {
 
         // Alcance de sucursal del tenant manda; si no hay, filtro opcional o toda la empresa.
         const requestedBranch = searchParams.get("branchId");
-        const branchFilter = tenant.branchId ?? requestedBranch ?? null;
+        const branchFilter = sessionBranchId ?? requestedBranch ?? null;
 
-        const branchConditions = [eq(branches.companyId, tenant.id!), eq(branches.active, true)];
+        const branchConditions = [eq(branches.companyId, tenantId), eq(branches.active, true)];
         if (branchFilter) branchConditions.push(eq(branches.id, branchFilter));
         const [branchRows, ccRows] = await Promise.all([
             db
@@ -76,7 +82,7 @@ export async function GET(req: NextRequest) {
             db
                 .select()
                 .from(costCenters)
-                .where(and(eq(costCenters.companyId, tenant.id!), eq(costCenters.active, true)))
+                .where(and(eq(costCenters.companyId, tenantId), eq(costCenters.active, true)))
                 .orderBy(asc(costCenters.code)),
         ]);
         if (branchRows.length === 0 || ccRows.length === 0) {
@@ -133,8 +139,7 @@ export async function GET(req: NextRequest) {
 /** PUT /api/budgets — captura/upsert de presupuesto por sucursal×centro×mes (ADMIN+). */
 export async function PUT(req: NextRequest) {
     try {
-        const tenant = await requireTenant();
-        const { user } = await requireAuth();
+        const { user, tenantId } = await requireTenantAuth();
 
         if (!roleIsAtLeast(user.role, "ADMIN")) {
             return NextResponse.json(
@@ -144,7 +149,7 @@ export async function PUT(req: NextRequest) {
         }
 
         const data = putSchema.parse(await req.json());
-        await assertOwnership(tenant.id!, data.branchId, data.costCenterId);
+        await assertOwnership(tenantId, data.branchId, data.costCenterId);
 
         const [row] = await db
             .insert(branchBudgets)

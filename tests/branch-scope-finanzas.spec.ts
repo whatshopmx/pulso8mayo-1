@@ -11,6 +11,7 @@ import {
 } from "./support/constants";
 import {
   deleteTestExpenses,
+  getExpenseStatus,
   seedOperatingExpense,
   setUserBranchId,
 } from "./support/db";
@@ -41,8 +42,28 @@ const PAYABLES = "/api/finance/payables";
 const AUDIT_LOG = "/api/finance/control-interno/audit-log";
 const EXCEPCIONES = "/api/finance/control-interno/excepciones";
 
-/** Las cinco rutas ABAC que este plan reclama (AD-A3). */
+/** Las cinco rutas ABAC originales (AD-A3). */
 const RUTAS = [KPIS, PNL, PAYABLES, AUDIT_LOG, EXCEPCIONES];
+
+/**
+ * A5.5 — las superficies que la red **no** cubría.
+ *
+ * `RUTAS` sólo listaba las cinco que ya habían pasado por la corrección de
+ * alcance. Fuera quedaban tesorería, cuentas bancarias de proveedores, flujo de
+ * efectivo, comisiones, costo laboral, caja chica y las mutaciones de gasto —
+ * **exactamente donde vivían F4 y F10**. Una suite que sólo prueba lo que ya se
+ * arregló no es una red de regresión: es un acta.
+ *
+ * Se separan de `RUTAS` porque no todas contestan lo mismo: unas devuelven la
+ * sucursal del GERENTE, otras 403. Lo que se afirma aquí es lo único común y lo
+ * que importa: **omitir `branchId` nunca puede significar "todo el grupo"**.
+ */
+const CAJA_CHICA = "/api/petty-cash/consolidado";
+const FLUJO = "/api/finance/cash-flow";
+const COMISIONES = "/api/finance/commissions";
+const COSTO_LABORAL = "/api/finance/labor-cost";
+
+const RUTAS_NUEVAS = [CAJA_CHICA, FLUJO, COMISIONES, COSTO_LABORAL];
 
 /** Sesión del GERENTE, capturada una vez: better-auth limita los inicios de sesión. */
 let estadoGerente: Awaited<ReturnType<BrowserContext["storageState"]>>;
@@ -187,6 +208,143 @@ test.describe("A5 · el alcance de sucursal sale de la sesión", () => {
   });
 
   // ── El caso que el helper existe para no perder ────────────────────────────
+
+  // ── A0.1 · las mutaciones también, no sólo las lecturas ────────────────────
+
+  /**
+   * Hasta A0.1 esta red sólo probaba lecturas, y por eso F4 vivió aquí sin que
+   * nadie lo viera: `pay` y `reschedule` se acotaban por `companyId` y nada
+   * más. Un GERENTE de Condesa no *veía* el gasto de Polanco en la lista, pero
+   * con el id en la mano lo pagaba por API —el filtro de sucursal estaba en la
+   * lectura y no en la escritura, que es donde se decide el dinero.
+   */
+  test("un GERENTE no puede pagar ni reprogramar un gasto de otra sucursal", async ({
+    browser,
+  }) => {
+    const ajeno = await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: BRANCH_POLANCO,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: new Date().toISOString().slice(0, 10),
+      amountCents: 3_100_00,
+      // APPROVED a propósito: si el gasto estuviera pendiente, un 400 por
+      // estado se confundiría con el 403 por alcance y el caso no probaría nada.
+      status: "APPROVED",
+      description: `${E2E_TAG} ajeno Polanco ${Date.now()}`,
+    });
+
+    const ctx = await contextoGerente(browser);
+    try {
+      const pago = await ctx.request.post(`/api/expenses/${ajeno}/pay`, { data: {} });
+      expect(pago.status(), "un GERENTE pagó un gasto de otra sucursal").toBe(403);
+
+      const manana = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+      const repro = await ctx.request.post(`/api/expenses/${ajeno}/reschedule`, {
+        data: { dueDate: manana },
+      });
+      expect(repro.status(), "un GERENTE reprogramó un gasto de otra sucursal").toBe(403);
+
+      // Y no lo tocó: el 403 tiene que ser un rechazo, no un error después de
+      // escribir.
+      expect(await getExpenseStatus(ajeno)).toBe("APPROVED");
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("un GERENTE sí puede pagar un gasto de su propia sucursal", async ({ browser }) => {
+    // El contraejemplo importa tanto como el 403: sin él, A0.1 pasaría también
+    // si hubiera cerrado la ruta para todos los GERENTE.
+    const propio = await seedOperatingExpense({
+      companyId: COMPANY_ID,
+      branchId: GERENTE_BRANCH,
+      requestedBy: USER_SUPER_ADMIN,
+      dueDate: new Date().toISOString().slice(0, 10),
+      amountCents: 1_200_00,
+      status: "APPROVED",
+      description: `${E2E_TAG} propio Condesa ${Date.now()}`,
+    });
+
+    const ctx = await contextoGerente(browser);
+    try {
+      const pago = await ctx.request.post(`/api/expenses/${propio}/pay`, { data: {} });
+      expect(
+        pago.status(),
+        "A0.1 cerró de más: el GERENTE ya no puede pagar lo suyo"
+      ).toBe(200);
+      expect(await getExpenseStatus(propio)).toBe("PAID");
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  // ── A5.5 · las superficies que la red no cubría ────────────────────────────
+
+  for (const ruta of RUTAS_NUEVAS) {
+    test(`omitir branchId no entrega el grupo — ${ruta}`, async ({ browser }) => {
+      const ctx = await contextoGerente(browser);
+      try {
+        const sinParametro = await ctx.request.get(ruta);
+        const conSuSucursal = await ctx.request.get(`${ruta}?branchId=${GERENTE_BRANCH}`);
+
+        // Una ruta puede negarle el acceso a un GERENTE por completo, y eso es
+        // una respuesta válida; lo que no puede es contestar el grupo cuando no
+        // se le pide sucursal. Si las dos respuestas son 200, tienen que decir
+        // lo mismo.
+        expect(
+          sinParametro.status(),
+          `${ruta} respondió ${sinParametro.status()} sin branchId`
+        ).toBe(conSuSucursal.status());
+
+        if (sinParametro.status() !== 200) return;
+
+        expect(
+          JSON.stringify(await sinParametro.json()),
+          `${ruta} le dio el grupo a un GERENTE por no pasar branchId`
+        ).toBe(JSON.stringify(await conSuSucursal.json()));
+      } finally {
+        await ctx.close();
+      }
+    });
+  }
+
+  test("un GERENTE no puede generar el layout de dispersión (F10)", async ({ browser }) => {
+    // El archivo lleva las CLABEs en claro de todos los proveedores del grupo.
+    // La ruta se autorizaba con `reports:read`, que un GERENTE tiene.
+    const ctx = await contextoGerente(browser);
+    try {
+      const res = await ctx.request.get(
+        "/api/finance/treasury/runs/00000000-0000-4000-8000-000000000000/layout"
+      );
+      expect(
+        res.status(),
+        "la ruta del layout sigue abierta a un rol de sucursal"
+      ).toBe(403);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("un GERENTE no lee las cuentas bancarias de proveedores de otra sucursal", async ({
+    browser,
+  }) => {
+    const ctx = await contextoGerente(browser);
+    try {
+      const res = await ctx.request.get(
+        `/api/finance/supplier-bank-accounts?branchId=${BRANCH_POLANCO}`
+      );
+      // 403 o su propia sucursal; lo que no puede es contestar Polanco.
+      expect([200, 403, 404]).toContain(res.status());
+      if (res.status() !== 200) return;
+
+      const propio = await ctx.request.get(
+        `/api/finance/supplier-bank-accounts?branchId=${GERENTE_BRANCH}`
+      );
+      expect(JSON.stringify(await res.json())).toBe(JSON.stringify(await propio.json()));
+    } finally {
+      await ctx.close();
+    }
+  });
 
   test("un rol de sucursal sin sucursal asignada recibe vacío, no el grupo", async ({
     browser,

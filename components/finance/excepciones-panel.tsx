@@ -7,8 +7,12 @@ import {
   Clock,
   UserCheck,
   ShieldAlert,
+  Banknote,
+  Copy,
   FileWarning,
+  FileX,
   Repeat,
+  Scissors,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -22,7 +26,11 @@ export interface Violation {
     | "CONTRACT_VARIANCE_EXCEEDED"
     | "CONTRACT_VARIANCE_BELOW"
     | "CONTRACT_TREND_RISING"
-    | "RECURRING_SHORTAGE";
+    | "RECURRING_SHORTAGE"
+    | "SPLIT_PURCHASE"
+    | "DUPLICATE_PAYMENT"
+    | "NON_DEDUCTIBLE_CASH"
+    | "CFDI_CANCELADO";
   severity: "LOW" | "MEDIUM" | "HIGH";
   /** `null` cuando la excepcion no nace de un gasto (faltantes recurrentes). */
   expenseId: string | null;
@@ -45,6 +53,15 @@ interface ExcepcionesPanelProps {
    * mientras la respuesta no lo traiga.
    */
   contractWindowDays?: number | null;
+  /**
+   * Días que cubre la detección de excepciones de **gasto** (A5.1).
+   *
+   * Es una ventana distinta de la de contratos y se declara por la misma razón:
+   * antes el detector traía el histórico completo de la empresa a memoria en
+   * cada carga, y ahora mira 90 días por omisión. Quien lee "sin excepciones"
+   * tiene derecho a saber sobre qué período se afirma.
+   */
+  windowDays?: number | null;
 }
 
 const VIOLATION_ICONS: Record<string, React.ReactNode> = {
@@ -55,6 +72,10 @@ const VIOLATION_ICONS: Record<string, React.ReactNode> = {
   CONTRACT_VARIANCE_BELOW: <TrendingDown className="w-4 h-4 text-muted-foreground" />,
   CONTRACT_TREND_RISING: <TrendingUp className="w-4 h-4 text-warning-text" />,
   RECURRING_SHORTAGE: <Repeat className="w-4 h-4 text-destructive" />,
+  SPLIT_PURCHASE: <Scissors className="w-4 h-4 text-warning-text" />,
+  DUPLICATE_PAYMENT: <Copy className="w-4 h-4 text-destructive" />,
+  NON_DEDUCTIBLE_CASH: <Banknote className="w-4 h-4 text-warning-text" />,
+  CFDI_CANCELADO: <FileX className="w-4 h-4 text-destructive" />,
 };
 
 const VIOLATION_TITLES: Record<string, string> = {
@@ -65,6 +86,12 @@ const VIOLATION_TITLES: Record<string, string> = {
   CONTRACT_VARIANCE_BELOW: "Recibo bajo vs Contrato",
   CONTRACT_TREND_RISING: "Consumo al alza",
   RECURRING_SHORTAGE: "Faltantes recurrentes",
+  // Los títulos son cortos porque van en un badge; el "por qué importa" vive en
+  // `detail`, que es donde alguien lo lee cuando decide investigar.
+  SPLIT_PURCHASE: "Posible fraccionamiento",
+  DUPLICATE_PAYMENT: "Posible pago duplicado",
+  NON_DEDUCTIBLE_CASH: "Efectivo no deducible",
+  CFDI_CANCELADO: "CFDI cancelado",
 };
 
 // Tonos del sistema en vez de paleta cruda: `bg-red-50` no tiene contraparte
@@ -86,16 +113,30 @@ export function ExcepcionesPanel({
   violations,
   loading,
   contractWindowDays,
+  windowDays,
 }: ExcepcionesPanelProps) {
+  // `null` cuando ninguna de las dos ventanas llegó: los dos sitios donde se
+  // pinta hacen `ventana ? <div…> : null`, y un fragmento vacío sí es truthy —
+  // dejaría un separador con margen sobre nada.
   const ventana =
-    typeof contractWindowDays === "number" ? (
-      <p className="text-xs text-muted-foreground">
-        Las desviaciones de contrato recurrente se miden sobre las facturas de los últimos{" "}
-        {contractWindowDays} días. Una factura que sale de esa ventana deja de aparecer aquí. En
-        servicios medidos (luz, agua) la referencia es la mediana de los recibos anteriores de esa
-        sucursal; el detalle de cada excepción dice cuál se usó.
-      </p>
-    ) : null;
+    typeof windowDays !== "number" && typeof contractWindowDays !== "number" ? null : (
+    <>
+      {typeof windowDays === "number" ? (
+        <p className="text-xs text-muted-foreground">
+          Las excepciones de gasto se buscan sobre los últimos {windowDays} días. Un gasto anterior
+          a esa ventana deja de aparecer aquí, aunque siga sin resolverse.
+        </p>
+      ) : null}
+      {typeof contractWindowDays === "number" ? (
+        <p className="text-xs text-muted-foreground">
+          Las desviaciones de contrato recurrente se miden sobre las facturas de los últimos{" "}
+          {contractWindowDays} días. Una factura que sale de esa ventana deja de aparecer aquí. En
+          servicios medidos (luz, agua) la referencia es la mediana de los recibos anteriores de esa
+          sucursal; el detalle de cada excepción dice cuál se usó.
+        </p>
+      ) : null}
+    </>
+  );
 
   if (loading) {
     return (

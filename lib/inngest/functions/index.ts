@@ -17,6 +17,8 @@ export { cronBreakReminders } from "./cron-break-reminders";
 export { cronPerformanceReminders } from "./cron-performance-reminders";
 export { imssAlerts } from "./imss-alerts";
 export { cronSalesCutReminder } from "./cron-sales-cut-reminder";
+// A6.3 — revalidación mensual de CFDI ya conciliados contra el SAT.
+export { cronCfdiRevalidation } from "./cron-cfdi-revalidation";
 export { checkFinancialAlerts } from "./check-financial-alerts";
 export { cronKpiSnapshotsDaily, cronKpiSnapshotsWeekly, cronKpiSnapshotsMonthly } from "./cron-kpi-snapshots";
 

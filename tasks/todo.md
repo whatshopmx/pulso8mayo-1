@@ -1,96 +1,59 @@
-﻿# TODO: Incident Resolution — System Action Gaps
+# TODO activo: cierre de la auditoría de Finanzas
 
-## Phase 1 — Service Layer (shared post-resolution cleanup)
+> **Puntero.** El detalle por tarea —aceptación, verificación, archivos, tamaño y el porqué de
+> cada una— vive en `tasks/todo-cierre-auditoria-finanzas.md`. Plan: `tasks/plan.md` →
+> `tasks/plan-cierre-auditoria-finanzas.md`.
 
-- [ ] **Task 1** · `lib/services/incident-engine.ts`
-  Add `static async afterResolution(incidentId: string, instanceId: string): Promise<void>` as a PUBLIC static method.
-  Body: `await EscalationService.cancelEscalation(incidentId)` + `await this.unblockInstanceIfClear(instanceId)`.
-  This is the single place both paths call after writing RESOLVED to the DB.
-  **AC:** Method exists and is public. Calling it cancels any active escalation and triggers workflow recalculation if the instance is BLOCKED with no remaining open incidents.
-  **Scope:** XS (1 file, ~10 lines)
+**Estado (2026-09-01): fases 0–5 cerradas, más A6.1 y A6.3.** D1 se resolvió con tasa de IVA
+configurable por inquilino, D2 con factor de carga patronal nullable, y D3 dejando sólo el
+formato SPEI genérico. Siguen abiertas A6.2 (🔒 D4), A6.4 (diferida por alcance) y A6.5 (🔒 D5).
+Lo verificado, las migraciones aplicadas y las dos desviaciones declaradas están al final de
+`tasks/todo-cierre-auditoria-finanzas.md`.
 
-- [ ] **Task 2** · `lib/services/remediation-service.ts`
-  In `trackRemediationAttempt`, in the "Remediation complete" branch (around line 207):
-  1. Remove the inline `EscalationService.cancelEscalation(incidentId)` call.
-  2. After the `db.update`, call `await IncidentEngine.afterResolution(incidentId, incident.instanceId)`.
-  3. Add `IncidentEngine` to the imports at the top of the file (or use a dynamic import to avoid circular deps — check if circular first).
-  **AC:** Auto-resolution via protocol calls `afterResolution`. If the workflow was BLOCKED and this was the last open incident, it transitions out of BLOCKED.
-  **Scope:** S (1 file, ~15 lines)
+Convenciones: dinero en centavos · `companyId`/`branchId` siempre desde la sesión ·
+`pnpm run build` limpio antes de cada commit · specs con datos `[E2E]` fuera de julio–agosto de
+2026 · copy en español · `pnpm db:generate`, nunca `db:push`.
 
-- [ ] **Task 3** · `lib/services/incident-engine.ts`
-  In `resolveIncident` (line 907), replace the inline side-effect calls:
-  ```ts
-  // Before:
-  await EscalationService.cancelEscalation(incidentId);
-  await this.unblockInstanceIfClear(incident.instanceId);
-  // After:
-  await IncidentEngine.afterResolution(incidentId, incident.instanceId);
-  ```
-  **AC:** `resolveIncident` delegates to `afterResolution`. Behaviour unchanged for Camino A.
-  **Scope:** XS (1 file, ~5 lines changed)
+## Fase 0 — Los dos huecos de control · P0
+- [x] **A0.1** `BranchScope` en `markPaid` y `reschedule` de gastos — S
+- [x] **A0.2** Máquina de estados en `updatePaymentRunStatus` — S
+- [x] **A0.3** Specs de alcance y de transición — S
 
----
-### Checkpoint: Phase 1
-- [ ] `IncidentEngine.afterResolution` exists as public static
-- [ ] Both `resolveIncident` and `trackRemediationAttempt` call it
-- [ ] `pnpm run build` clean
+## Fase 1 — Encender el flujo de efectivo · P0
+- [x] **A1.1** Ventana de historial propia, separada de la proyectada — S
+- [x] **A1.2** Estimación estacional por día de la semana (quitar `inflowBasis = "NONE"`) — M
+- [x] **A1.3** Spec de las tres bases de procedencia — S
 
----
+## Fase 2 — Tesorería que opera · P0
+- [x] **A2.1** Congelar la cuenta bancaria en la partida (migración) — S
+- [x] **A2.2** Autorización y auditoría del layout — S · **antes que A2.3**
+- [x] **A2.3** CLABE en claro, escape de CSV, referencia única — M
+- [x] **A2.4** Emitir `PAYROLL`; declarar lo no dispersable con su motivo — M
+      (`PETTY_CASH_REIMBURSEMENT` y `OTHER` **no** se emiten: no hay cuenta destino en el esquema)
+- [x] **A2.5** Quitar el N+1 del generador — S
+- [x] **A2.6** Un solo formato honesto — D3 → sólo el SPEI genérico
 
-## Phase 2 — Data Consistency (Spanish strings)
+## Fase 3 — La base de los números
+- [x] **A3.1** Persistir `tax_amount` en `daily_sales_cuts` (migración) — S
+- [x] **A3.2** Porcentajes sobre venta neta, con procedencia — D1 → opción (c)
+- [x] **A3.3** Factor de carga patronal + ISN estatal — D2 → opción (a)
 
-- [ ] **Task 4** · `lib/services/remediation-service.ts`
-  Line 214: Change `resolution: 'Resolved through remediation protocol'`
-  to `resolution: 'Remediación completada por protocolo'`.
-  **AC:** Auto-resolved incidents show a Spanish resolution string in the DB and in the detail page.
-  **Scope:** XS (1 file, 1 line)
+## Fase 4 — Cerrar el circuito del gasto
+- [x] **A4.1** `payment_method`, `tax_amount`, `paid_by` en `operating_expenses` (migración) — M
+- [x] **A4.2** Caja chica al P&L y al presupuesto — M
+- [x] **A4.3** Regla de deducibilidad: efectivo > $2,000 MXN — S
 
-- [ ] **Task 5** · `lib/services/remediation-service.ts`
-  Lines 231, 308: Change English `message` return values to Spanish:
-  - `'Remediation completed successfully'` → `'Remediación completada exitosamente'`
-  - `'Remediation failed after maximum attempts'` → `'Remediación fallida: se agotaron los intentos'`
-  **AC:** All user-visible strings returned by `trackRemediationAttempt` are in Spanish.
-  **Scope:** XS (1 file, 2 lines)
+## Fase 5 — Control interno que detecta
+- [x] **A5.1** Filtro de período y cota en `detectViolations` — S
+- [x] **A5.2** Quitar el carve-out `minAmount > 0` de `SELF_APPROVAL` — XS
+- [x] **A5.3** Regla de fraccionamiento — M
+- [x] **A5.4** Regla de pago duplicado — S
+- [x] **A5.5** Extender `branch-scope-finanzas.spec.ts` a las 7 superficies fuera de la red — S
+- [x] **A5.6** Migrar las 7 rutas del `requireAuth` legacy — M
 
----
-### Checkpoint: Phase 2
-- [ ] Resolution strings in DB are in Spanish
-- [ ] `pnpm run build` clean
-
----
-
-## Phase 3 — UI (RESOLVE_MANUAL CTA connects to resolve dialog)
-
-- [ ] **Task 6** · `components/incidents/incident-action-panel.tsx`
-  Add `onResolveManual?: () => void` to `IncidentActionPanelProps`.
-  Thread it through to the render function.
-  **AC:** Prop exists and TypeScript is happy.
-  **Scope:** XS (1 file, ~3 lines)
-
-- [ ] **Task 7** · `components/incidents/incident-action-panel.tsx`
-  In the CTA section (around line 291), add a branch for `RESOLVE_MANUAL`:
-  ```tsx
-  {recommended.kind === 'RESOLVE_MANUAL' && onResolveManual && (
-    <Button size="sm" variant="outline" onClick={onResolveManual} className="gap-1.5 text-xs font-semibold w-full sm:w-auto">
-      Resolver manualmente
-      <ArrowRight className="w-3.5 h-3.5" />
-    </Button>
-  )}
-  ```
-  **AC:** When `kind === 'RESOLVE_MANUAL'` and the prop is provided, a "Resolver manualmente" button appears in the panel CTA area. Clicking it fires `onResolveManual`.
-  **Scope:** XS (1 file, ~8 lines)
-
-- [ ] **Task 8** · `app/dashboard/incidents/[id]/page.tsx`
-  Pass `onResolveManual={openResolveDialog}` to `<IncidentActionPanel>`.
-  `openResolveDialog` already exists (added in the previous critique-fix plan); it reads the draft from sessionStorage and opens the dialog.
-  **AC:** When the panel shows RESOLVE_MANUAL and user clicks the button, the resolve dialog opens. Draft restoration works normally.
-  **Scope:** XS (1 file, 1 line)
-
----
-### Checkpoint: Complete
-- [ ] All 8 tasks done
-- [ ] `pnpm run build` passes with 0 errors
-- [ ] Manual verify:
-  - [ ] Trigger a remediation protocol to completion in dev → confirm workflow is no longer BLOCKED
-  - [ ] Create an incident without a `remediationProtocol` → panel shows RESOLVE_MANUAL → click button → dialog opens
-  - [ ] Check DB: `resolution` column shows Spanish text after protocol auto-resolve
+## Fase 6 — Producto
+- [x] **A6.1** Comisiones: IVA sobre la comisión y tarifa por sucursal — M
+- [ ] **A6.2** Promociones financiadas por el restaurante — 🔒 D4
+- [x] **A6.3** Revalidar vigencia de CFDI ya conciliados — M
+- [ ] **A6.4** Pago parcial de factura — M · diferida por decisión de alcance
+- [ ] **A6.5** Complemento de pago (REP) y DIOT — 🔒 D5

@@ -1,7 +1,5 @@
-import { NextRequest } from "next/server";
-import { requireAuth, requireTenant } from "@/lib/tenant-context";
+import { withTenantAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
-import { ApiError } from "@/lib/api/error";
 import { resolveBranchScope } from "@/lib/branch-scope";
 import {
   getPettyCashConsolidado,
@@ -25,35 +23,21 @@ import {
  * qué está hablando si no sabe qué alcance le tocó — es el mismo criterio de
  * A10 en Gastos.
  */
-export async function GET(req: NextRequest) {
-  try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-    const { user } = await requireAuth();
+export const GET = withTenantAuth(async (req, { auth }) => {
+  const { searchParams } = new URL(req.url);
+  const pedida = searchParams.get("branchId") || undefined;
 
-    const { searchParams } = new URL(req.url);
-    const pedida = searchParams.get("branchId") || undefined;
+  const scope = resolveBranchScope(auth.user.role, auth.user.branchId, pedida);
 
-    const scope = resolveBranchScope(
-      (user.role || "EMPLEADO") as never,
-      user.branchId,
-      pedida
-    );
+  const limitParam = Number(searchParams.get("movimientosLimit"));
+  const movimientosLimit =
+    Number.isInteger(limitParam) && limitParam > 0 && limitParam <= 500
+      ? limitParam
+      : PETTY_CASH_MOVIMIENTOS_LIMIT;
 
-    const limitParam = Number(searchParams.get("movimientosLimit"));
-    const movimientosLimit =
-      Number.isInteger(limitParam) && limitParam > 0 && limitParam <= 500
-        ? limitParam
-        : PETTY_CASH_MOVIMIENTOS_LIMIT;
+  const data = await getPettyCashConsolidado(auth.tenantId, scope, {
+    movimientosLimit,
+  });
 
-    const data = await getPettyCashConsolidado(tenant.id, scope, {
-      movimientosLimit,
-    });
-
-    return ApiHandler.success({ ...data, scope });
-  } catch (error) {
-    return ApiHandler.error(error);
-  }
-}
+  return ApiHandler.success({ ...data, scope });
+});

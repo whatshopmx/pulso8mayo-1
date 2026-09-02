@@ -16,6 +16,20 @@ import { roleIsAtLeast, type Role } from "@/lib/permissions";
 import { getPayeeForCompany } from "./payee-service";
 import { ApiError } from "@/lib/api/error";
 import { isBranchScopedRole, type BranchScope } from "@/lib/branch-scope";
+import type { expensePaymentMethodEnum } from "@/lib/db/schema";
+
+/** Formas de pago que admite un gasto operativo (A4.1). */
+export type ExpensePaymentMethod = typeof expensePaymentMethodEnum.enumValues[number];
+
+/**
+ * Umbral de deducibilidad del pago en efectivo (LISR art. 27-III).
+ *
+ * El artículo condiciona la deducción de un pago mayor a $2,000 MXN a que se
+ * haga por transferencia, cheque nominativo, tarjeta o monedero electrónico.
+ * Es configurable en el sentido de que vive aquí y no repartido por el código:
+ * si la cifra cambia en una reforma, se cambia en un lugar.
+ */
+export const UMBRAL_EFECTIVO_DEDUCIBLE_CENTS = 200_000;
 import { denyExpenseResolution, rolExigidoPorMonto } from "@/lib/expenses/approval-policy";
 import { getTenantOperatingConfig } from "./tenant-config-service";
 import { checkBudgetAvailability } from "./budget-service";
@@ -718,7 +732,11 @@ export async function rejectOperatingExpense(
 export async function markPaidOperatingExpense(
   expenseId: string,
   companyId: string,
-  actorName: string,
+  scope: BranchScope,
+  /** Quién paga. Sale de la sesión y se escribe en `paid_by` (A4.1). */
+  actorId: string,
+  /** Con qué se pagó. `null` cuando quien paga no lo declara. */
+  paymentMethod: ExpensePaymentMethod | null,
   paidAt?: Date
 ) {
   const [expense] = await db
@@ -733,8 +751,14 @@ export async function markPaidOperatingExpense(
     .limit(1);
 
   if (!expense) {
-    throw new Error("El gasto especificado no fue encontrado.");
+    throw ApiError.notFound("El gasto especificado no fue encontrado.");
   }
+
+  // Antes que el estado, igual que en `approveOperatingExpense`: de un gasto
+  // fuera de tu alcance no se responde ni siquiera si ya está pagado. Pagar es
+  // mover dinero, así que el alcance pesa aquí tanto como al aprobar —A0.1
+  // cierra la mitad de la puerta que A16 había dejado abierta.
+  assertScopeCoversBranch(scope, expense.branchId);
 
   // Idempotente: volver a marcar un gasto ya pagado no es un error del usuario
   // —dos clics, o dos personas a la vez— pero tampoco debe reescribir la fecha
@@ -744,7 +768,7 @@ export async function markPaidOperatingExpense(
   }
 
   if (expense.status !== "APPROVED") {
-    throw new Error(
+    throw ApiError.badRequest(
       `Sólo se puede pagar un gasto aprobado. Este está en estado "${expense.status}".`
     );
   }
@@ -754,11 +778,18 @@ export async function markPaidOperatingExpense(
     .set({
       status: "PAID",
       paidAt: paidAt ?? new Date(),
-      // Misma bitácora que approve/reject: quién y qué, en el mismo campo que
-      // lee Control Interno. No se toca `approvedBy` — sobrescribirlo borraría
-      // quién autorizó el gasto, que es justo lo que la bitácora existe para
-      // conservar. `operating_expenses` no tiene columna `paid_by`.
-      approvalNotes: `${expense.approvalNotes ? `${expense.approvalNotes} · ` : ""}Pagado por ${actorName}`,
+      // A4.1 — quién pagó sale de una llave foránea, no de texto concatenado en
+      // `approvalNotes`. Antes se escribía `"… · Pagado por Fulano"` porque la
+      // columna no existía, y Control Interno tenía que leer un nombre de una
+      // cadena libre para saber quién movió el dinero: un nombre en una nota no
+      // se puede unir, no sobrevive a un cambio de nombre y no distingue a dos
+      // homónimos.
+      //
+      // No se toca `approvedBy`: sobrescribirlo borraría quién autorizó el
+      // gasto, y la distinción entre quien autoriza y quien paga **es** la
+      // segregación de funciones.
+      paidBy: actorId,
+      ...(paymentMethod ? { paymentMethod } : {}),
       updatedAt: new Date(),
     })
     .where(
@@ -767,7 +798,13 @@ export async function markPaidOperatingExpense(
         eq(operatingExpenses.companyId, companyId),
         // Cerrojo optimista: si otra sesión lo pagó entre la lectura y esta
         // escritura, el UPDATE no toca ninguna fila en vez de pisar su fecha.
-        eq(operatingExpenses.status, "APPROVED")
+        eq(operatingExpenses.status, "APPROVED"),
+        // El alcance se repite en el `WHERE` por la misma razón que en
+        // `approveOperatingExpense`: entre el SELECT y el UPDATE hay una
+        // ventana, y ésta es la única guarda que no la tiene.
+        ...(scope.kind === "BRANCH"
+          ? [eq(operatingExpenses.branchId, scope.branchId)]
+          : [])
       )
     )
     .returning();
@@ -786,16 +823,17 @@ export async function markPaidOperatingExpense(
 export async function rescheduleOperatingExpense(
   expenseId: string,
   companyId: string,
+  scope: BranchScope,
   actorName: string,
   newDueDate: string,
   today: string
 ) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(newDueDate)) {
-    throw new Error("La fecha debe venir como YYYY-MM-DD.");
+    throw ApiError.badRequest("La fecha debe venir como YYYY-MM-DD.");
   }
 
   if (newDueDate < today) {
-    throw new Error("La nueva fecha no puede ser anterior a hoy.");
+    throw ApiError.badRequest("La nueva fecha no puede ser anterior a hoy.");
   }
 
   const [expense] = await db
@@ -810,15 +848,19 @@ export async function rescheduleOperatingExpense(
     .limit(1);
 
   if (!expense) {
-    throw new Error("El gasto especificado no fue encontrado.");
+    throw ApiError.notFound("El gasto especificado no fue encontrado.");
   }
 
+  // Antes que el estado: reprogramar corre el vencimiento de un gasto ajeno y
+  // lo saca de la lista de vencidos de otra sucursal.
+  assertScopeCoversBranch(scope, expense.branchId);
+
   if (expense.status === "PAID") {
-    throw new Error("Un gasto ya pagado no se puede reprogramar.");
+    throw ApiError.badRequest("Un gasto ya pagado no se puede reprogramar.");
   }
 
   if (expense.status === "REJECTED") {
-    throw new Error("Un gasto rechazado no se puede reprogramar.");
+    throw ApiError.badRequest("Un gasto rechazado no se puede reprogramar.");
   }
 
   const [updated] = await db
@@ -831,7 +873,10 @@ export async function rescheduleOperatingExpense(
     .where(
       and(
         eq(operatingExpenses.id, expenseId),
-        eq(operatingExpenses.companyId, companyId)
+        eq(operatingExpenses.companyId, companyId),
+        ...(scope.kind === "BRANCH"
+          ? [eq(operatingExpenses.branchId, scope.branchId)]
+          : [])
       )
     )
     .returning();

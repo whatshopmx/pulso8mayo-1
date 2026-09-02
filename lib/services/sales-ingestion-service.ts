@@ -787,6 +787,21 @@ export function buildSalesCut(
         Object.keys(agg.aggregatorSales).length > 0 ? { ...agg.aggregatorSales } : null,
     };
 
+    /**
+     * IVA del canal, repartido en la misma proporción que la venta (A3.1).
+     *
+     * `base` se copia tal cual a los dos canales, así que copiar también
+     * `taxAmount` cobraría el impuesto del corte completo dos veces: la suma de
+     * SALON + DELIVERY declararía el doble de IVA del que trae el archivo, y la
+     * venta neta del P&L saldría por debajo de la real. El archivo del POS trae
+     * un solo total de impuesto, no uno por canal, así que repartirlo por peso
+     * de venta es lo más cerca que se puede estar sin inventar un dato.
+     */
+    const ivaDe = (parte: number): number | null =>
+      base.taxAmount === null || base.taxAmount === undefined || totalSales === 0
+        ? null
+        : Math.round((base.taxAmount * parte) / totalSales);
+
     if (delivery !== null && delivery > 0 && totalSales - delivery > 0) {
       const salonTotal = totalSales - delivery;
       let salonTickets: number | null = ticketCount;
@@ -804,6 +819,7 @@ export function buildSalesCut(
         data: {
           ...base,
           totalSales: salonTotal,
+          taxAmount: ivaDe(salonTotal),
           otherPayments: other,
           ticketCount: salonTickets,
           // Fase 3: el desglose por agregador pertenece al canal DELIVERY.
@@ -815,6 +831,12 @@ export function buildSalesCut(
         data: {
           ...base,
           totalSales: delivery,
+          // El resto, no otra proporción: así SALON + DELIVERY suma exactamente
+          // el IVA del archivo aunque el redondeo caiga en medio centavo.
+          taxAmount:
+            base.taxAmount === null || base.taxAmount === undefined
+              ? null
+              : base.taxAmount - (ivaDe(salonTotal) ?? 0),
           cashSales: null,
           cardSales: null,
           otherPayments: delivery,
@@ -952,6 +974,11 @@ export async function ingestSalesCut(params: {
         cardSales: cut.data.cardSales,
         otherPayments: cut.data.otherPayments,
         aggregatorSales: cut.data.aggregatorSales ?? null,
+        // A3.1 — el IVA ya se leía del archivo y se acumulaba; sólo faltaba
+        // guardarlo. `null` cuando el POS no exportó la columna, que es distinto
+        // de un cero: es lo que decide si los porcentajes del módulo se calculan
+        // sobre venta neta medida o sobre una base declarada.
+        taxAmount: cut.data.taxAmount ?? null,
         ticketCount: cut.data.ticketCount,
         avgTicket:
           cut.data.ticketCount && cut.data.ticketCount > 0

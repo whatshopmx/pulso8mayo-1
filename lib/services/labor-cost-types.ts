@@ -54,9 +54,35 @@ export interface BranchLaborRatio {
   baseCostCents: number;
   overtimeCostCents: number;
   headcount: number;
-  /** Venta neta capturada. `null` cuando no hay cortes en el período. */
+  /**
+   * Nómina con carga patronal aplicada (A3.3). `null` cuando el grupo no ha
+   * capturado `laborBurdenFactorPercent`: sin factor no se estima nada.
+   *
+   * Existe porque `laborCostTargetPercent` viene con default 28.00 — un número
+   * de industria que ya trae IMSS, INFONAVIT, provisiones e ISN dentro— y lo
+   * medido es bruto. El semáforo pintaba verde un 22% bruto que cargado ronda
+   * el 29%, y nómina es el renglón que un QSR ajusta cada semana con la
+   * programación de turnos.
+   */
+  loadedLaborCostCents: number | null;
+  /** Costo cargado / base × 100. `null` sin factor capturado. */
+  loadedRatioPercent: number | null;
+  /** Desglose del factor, para que la nota pueda explicarlo. */
+  burden: {
+    /** % de carga patronal capturado por el grupo, o `null`. */
+    factorPercent: number | null;
+    /** % de ISN estatal capturado por el grupo, o `null`. */
+    stateTaxPercent: number | null;
+  };
+  /** Base de venta contra la que se dividió. `null` cuando no hay cortes. */
   salesCents: number | null;
-  /** Costo laboral / venta × 100, redondeado a un decimal. */
+  /** Venta CON IVA del período, para poder contrastar las dos cifras. */
+  grossSalesCents: number | null;
+  /** De dónde salió la base: medida, estimada o bruta declarada (A3.2). */
+  salesBaseKind: SalesBaseKind | null;
+  /** Nota de la base de venta, lista para mostrarse al pie del ratio. */
+  salesBaseNote: string | null;
+  /** Costo laboral / base × 100, redondeado a un decimal. */
   ratioPercent: number | null;
   source: LaborCostSource;
   /** Cobertura de la asistencia (0-100), no de las ventas. */
@@ -65,6 +91,9 @@ export interface BranchLaborRatio {
   /** Días del período con corte de venta capturado. */
   salesDaysCovered: number;
 }
+
+/** Reexportado para que la UI no tenga que importar la capa de datos. */
+export type SalesBaseKind = "NET_MEASURED" | "NET_DERIVED" | "GROSS_DECLARED";
 
 /** Objetivos y período que acompañan al arreglo de sucursales. */
 export interface LaborCostReport {

@@ -1,0 +1,2 @@
+ALTER TABLE "petty_cash_transactions" ADD COLUMN "cost_center_id" uuid;--> statement-breakpoint
+ALTER TABLE "petty_cash_transactions" ADD CONSTRAINT "petty_cash_transactions_cost_center_id_cost_centers_id_fk" FOREIGN KEY ("cost_center_id") REFERENCES "public"."cost_centers"("id") ON DELETE no action ON UPDATE no action;

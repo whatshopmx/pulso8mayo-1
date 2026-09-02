@@ -2,6 +2,7 @@ import { pgTable, text, timestamp, boolean, uuid, integer, pgEnum, uniqueIndex, 
 import { sql } from "drizzle-orm";
 import { companies, branches } from "./core";
 import { users } from "./auth";
+import { supplierBankAccounts } from "../schema";
 
 export const paymentRunStatusEnum = pgEnum("payment_run_status", [
   'DRAFT',
@@ -102,6 +103,33 @@ export const paymentRunItems = pgTable("payment_run_items", {
   amountCents: integer("amount_cents").notNull(),
   
   notes: text("notes"),
+
+  /**
+   * Cuenta bancaria contra la que se autorizó esta partida, congelada al
+   * agregarla a la corrida.
+   *
+   * Sin este congelado, un proveedor que cambia de CLABE entre la aprobación y
+   * la dispersión cobra en la cuenta nueva sin que nadie la vuelva a firmar —
+   * que es exactamente el fraude que `supplier_bank_accounts` y su máquina de
+   * verificación existen para impedir. El layout resuelve la cuenta al momento
+   * de generarse, así que sin snapshot la firma de la corrida no dice nada
+   * sobre a dónde va el dinero.
+   *
+   * Nullable y sin backfill a propósito: las corridas en `DRAFT` ya creadas
+   * siguen funcionando y el generador cae a la cuenta verificada vigente,
+   * declarándolo en la respuesta.
+   */
+  bankAccountId: uuid("bank_account_id").references(() => supplierBankAccounts.id),
+
+  /**
+   * Últimos 4 dígitos de la CLABE en el momento de agregar la partida.
+   *
+   * Se guardan aparte de la llave foránea porque son lo que se le muestra a una
+   * persona, y porque permiten detectar el cambio aunque la cuenta congelada
+   * siga existiendo: si la vigente ya no coincide con este snapshot, alguien
+   * movió la cuenta después de que la corrida se armó.
+   */
+  clabeLast4Snapshot: text("clabe_last4_snapshot"),
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

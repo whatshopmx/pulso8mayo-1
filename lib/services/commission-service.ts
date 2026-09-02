@@ -25,13 +25,15 @@
 //     tenant en `NO_DATA` para siempre.
 
 import { db } from "@/lib/db";
-import { channelCommissionRates, dailySalesCuts, users } from "@/lib/db/schema";
-import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import { branches, channelCommissionRates, dailySalesCuts, users } from "@/lib/db/schema";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/api/error";
+import { assertBranchOfCompany } from "@/lib/branch-scope";
 import {
   COMMISSION_CHANNELS,
   MAX_RATE_BPS,
   commissionOf,
+  commissionWithVatOf,
   commissionChannelLabel,
   formatRateBps,
   isCommissionChannel,
@@ -66,7 +68,10 @@ export async function listCommissionRates(companyId: string): Promise<Commission
     .select({
       id: channelCommissionRates.id,
       channel: channelCommissionRates.channel,
+      branchId: channelCommissionRates.branchId,
+      branchName: branches.name,
       rateBps: channelCommissionRates.rateBps,
+      vatBps: channelCommissionRates.vatBps,
       effectiveFrom: channelCommissionRates.effectiveFrom,
       notes: channelCommissionRates.notes,
       createdByName: users.name,
@@ -74,13 +79,17 @@ export async function listCommissionRates(companyId: string): Promise<Commission
     })
     .from(channelCommissionRates)
     .leftJoin(users, eq(channelCommissionRates.createdBy, users.id))
+    .leftJoin(branches, eq(channelCommissionRates.branchId, branches.id))
     .where(eq(channelCommissionRates.companyId, companyId))
     .orderBy(asc(channelCommissionRates.channel), desc(channelCommissionRates.effectiveFrom));
 
   return rows.map((r) => ({
     id: r.id,
     channel: r.channel,
+    branchId: r.branchId ?? null,
+    branchName: r.branchName ?? null,
     rateBps: r.rateBps,
+    vatBps: r.vatBps,
     effectiveFrom: r.effectiveFrom,
     notes: r.notes,
     createdByName: r.createdByName ?? null,
@@ -91,7 +100,11 @@ export async function listCommissionRates(companyId: string): Promise<Commission
 export interface CreateRateInput {
   companyId: string;
   channel: string;
+  /** `null` = tarifa del grupo. Con valor, sólo aplica a esa sucursal (A6.1). */
+  branchId?: string | null;
   rateBps: number;
+  /** IVA sobre la comisión en bps. Por omisión 16%, que es lo que cobra el agregador. */
+  vatBps?: number;
   /** `YYYY-MM-DD`. */
   effectiveFrom: string;
   notes?: string | null;
@@ -120,24 +133,56 @@ export async function upsertCommissionRate(input: CreateRateInput): Promise<Comm
     throw ApiError.badRequest("La fecha de vigencia debe tener formato YYYY-MM-DD.");
   }
 
+  const vatBps = input.vatBps ?? 1600;
+  if (!Number.isInteger(vatBps) || vatBps < 0 || vatBps > MAX_RATE_BPS) {
+    throw ApiError.badRequest(
+      `El IVA sobre la comisión debe estar entre 0% y 100% (0 y ${MAX_RATE_BPS} puntos base).`,
+    );
+  }
+
+  const branchId = input.branchId ?? null;
+  if (branchId) {
+    // La sucursal tiene que ser de esta empresa: la llave foránea no lo detecta
+    // —la sucursal de otra empresa **existe**— y dejaría una tarifa cruzada
+    // entre inquilinos.
+    await assertBranchOfCompany(input.companyId, branchId);
+  }
+
+  // Dos índices únicos parciales (uno para la tarifa de sucursal y otro para la
+  // del grupo), porque Postgres trata los NULL como distintos entre sí. El
+  // `onConflictDoUpdate` tiene que apuntar al que corresponde: no se puede
+  // apuntar a los dos a la vez, y el parcial exige repetir su predicado.
   const [row] = await db
     .insert(channelCommissionRates)
     .values({
       companyId: input.companyId,
       channel: input.channel,
+      branchId,
       rateBps: input.rateBps,
+      vatBps,
       effectiveFrom: input.effectiveFrom,
       notes: input.notes ?? null,
       createdBy: input.createdBy,
     })
     .onConflictDoUpdate({
-      target: [
-        channelCommissionRates.companyId,
-        channelCommissionRates.channel,
-        channelCommissionRates.effectiveFrom,
-      ],
+      target: branchId
+        ? [
+            channelCommissionRates.companyId,
+            channelCommissionRates.channel,
+            channelCommissionRates.branchId,
+            channelCommissionRates.effectiveFrom,
+          ]
+        : [
+            channelCommissionRates.companyId,
+            channelCommissionRates.channel,
+            channelCommissionRates.effectiveFrom,
+          ],
+      targetWhere: branchId
+        ? sql`${channelCommissionRates.branchId} IS NOT NULL`
+        : sql`${channelCommissionRates.branchId} IS NULL`,
       set: {
         rateBps: input.rateBps,
+        vatBps,
         notes: input.notes ?? null,
         createdBy: input.createdBy,
         updatedAt: new Date(),
@@ -148,7 +193,10 @@ export async function upsertCommissionRate(input: CreateRateInput): Promise<Comm
   return {
     id: row.id,
     channel: row.channel,
+    branchId: row.branchId ?? null,
+    branchName: null,
     rateBps: row.rateBps,
+    vatBps: row.vatBps,
     effectiveFrom: row.effectiveFrom,
     notes: row.notes,
     createdByName: null,
@@ -186,10 +234,40 @@ export function resolveRateBps(
   rates: Array<{ effectiveFrom: string; rateBps: number }>,
   businessDate: string,
 ): number | null {
+  return resolveRate(rates, businessDate)?.rateBps ?? null;
+}
+
+/** Una vigencia resuelta: tarifa e IVA aplicables a esa fecha. */
+export interface VigenciaResuelta {
+  rateBps: number;
+  vatBps: number;
+}
+
+/**
+ * La vigencia que aplica a una fecha, con su IVA (A6.1).
+ *
+ * Misma regla de siempre —gana la última vigencia que empezó en o antes de la
+ * fecha— pero devolviendo también `vatBps`, porque el IVA se negocia con la
+ * tarifa y cambia con ella.
+ */
+export function resolveRate(
+  rates: Array<{ effectiveFrom: string; rateBps: number; vatBps?: number }>,
+  businessDate: string,
+): VigenciaResuelta | null {
   for (let i = rates.length - 1; i >= 0; i--) {
-    if (rates[i].effectiveFrom <= businessDate) return rates[i].rateBps;
+    if (rates[i].effectiveFrom <= businessDate) {
+      return { rateBps: rates[i].rateBps, vatBps: rates[i].vatBps ?? 0 };
+    }
   }
   return null;
+}
+
+/**
+ * Llave del mapa de vigencias: la tarifa de una sucursal y la del grupo son
+ * series distintas del mismo canal, y sólo se mezclarían mal.
+ */
+function llaveTarifa(channel: string, branchId: string | null): string {
+  return `${branchId ?? "GRUPO"}::${channel}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -226,6 +304,8 @@ interface ChannelAcc {
   measuredCents: number;
   estimatedCents: number;
   ratesApplied: Set<number>;
+  /** IVAs aplicados. Igual que `ratesApplied`: si hay más de uno, no se rotula. */
+  vatApplied: Set<number>;
   cutsCount: number;
 }
 
@@ -249,7 +329,9 @@ export async function getCommissionsByBranch(
     db
       .select({
         channel: channelCommissionRates.channel,
+        branchId: channelCommissionRates.branchId,
         rateBps: channelCommissionRates.rateBps,
+        vatBps: channelCommissionRates.vatBps,
         effectiveFrom: channelCommissionRates.effectiveFrom,
       })
       .from(channelCommissionRates)
@@ -275,13 +357,26 @@ export async function getCommissionsByBranch(
       ),
   ]);
 
-  // Vigencias por canal, ya ordenadas ascendente por la consulta.
-  const ratesByChannel = new Map<string, Array<{ effectiveFrom: string; rateBps: number }>>();
+  // Vigencias por (sucursal, canal), ya ordenadas ascendente por la consulta.
+  // `branchId` nulo es la serie del grupo, y es a la que se cae cuando la
+  // sucursal no tiene la suya (A6.1): un grupo que abrió su sucursal 12 con una
+  // tarifa de arranque distinta antes no podía representarlo, y esa sucursal
+  // salía con la tarifa de las otras once.
+  const ratesByKey = new Map<
+    string,
+    Array<{ effectiveFrom: string; rateBps: number; vatBps: number }>
+  >();
   for (const r of rateRows) {
-    const list = ratesByChannel.get(r.channel) ?? [];
-    list.push({ effectiveFrom: r.effectiveFrom, rateBps: r.rateBps });
-    ratesByChannel.set(r.channel, list);
+    const key = llaveTarifa(r.channel, r.branchId);
+    const list = ratesByKey.get(key) ?? [];
+    list.push({ effectiveFrom: r.effectiveFrom, rateBps: r.rateBps, vatBps: r.vatBps });
+    ratesByKey.set(key, list);
   }
+
+  /** Tarifa de la sucursal si la tiene; si no, la del grupo. */
+  const vigenciaPara = (channel: string, branchId: string, businessDate: string) =>
+    resolveRate(ratesByKey.get(llaveTarifa(channel, branchId)) ?? [], businessDate) ??
+    resolveRate(ratesByKey.get(llaveTarifa(channel, null)) ?? [], businessDate);
 
   const byBranch = new Map<string, Map<string, ChannelAcc>>();
 
@@ -304,6 +399,7 @@ export async function getCommissionsByBranch(
         measuredCents: 0,
         estimatedCents: 0,
         ratesApplied: new Set<number>(),
+        vatApplied: new Set<number>(),
         cutsCount: 0,
       };
       acc.cutsCount += 1;
@@ -312,16 +408,20 @@ export async function getCommissionsByBranch(
         acc.measuredCents += cut.commissionCents;
         acc.coveredBaseCents += baseCents;
       } else {
-        const rateBps = resolveRateBps(ratesByChannel.get(channel) ?? [], cut.businessDate);
-        if (rateBps === null) {
+        const vigencia = vigenciaPara(channel, cut.branchId, cut.businessDate);
+        const rateBps = vigencia?.rateBps ?? null;
+        if (vigencia === null || rateBps === null) {
           // Cubierto/no cubierto se acumula por CORTE y no por canal: una tarifa
           // que empieza a mitad del mes deja fuera sólo los cortes anteriores a
           // su vigencia, y marcar el canal entero como cubierto inflaría la
           // cobertura que el P&L usa para decidir si el renglón es confiable.
           acc.uncoveredBaseCents += baseCents;
         } else {
-          acc.estimatedCents += commissionOf(baseCents, rateBps);
+          // Con IVA: es lo que el agregador descuenta del depósito, y por lo
+          // tanto lo que le cuesta al restaurante.
+          acc.estimatedCents += commissionWithVatOf(baseCents, rateBps, vigencia.vatBps);
           acc.ratesApplied.add(rateBps);
+          acc.vatApplied.add(vigencia.vatBps);
           acc.coveredBaseCents += baseCents;
         }
       }
@@ -368,6 +468,7 @@ export async function getCommissionsByBranch(
         measuredCents: acc.measuredCents,
         estimatedCents: acc.estimatedCents,
         rateBps: acc.ratesApplied.size === 1 ? [...acc.ratesApplied][0] : null,
+        vatBps: acc.vatApplied.size === 1 ? [...acc.vatApplied][0] : null,
         source,
         cutsCount: acc.cutsCount,
       });
@@ -406,7 +507,7 @@ export async function getCommissionsByBranch(
       note =
         source === "MEASURED"
           ? `Comisión conciliada contra el depósito de la terminal en ${lines[0].cutsCount} corte(s).`
-          : `Calculada con la tarifa vigente en la fecha de cada corte (${detalle}).` +
+          : `Calculada con la tarifa vigente en la fecha de cada corte, IVA incluido (${detalle}).` +
             (anyMeasured ? " Incluye comisiones ya conciliadas con la terminal." : "") +
             (uncoveredSalesCents > 0
               ? ` No cubre ${formatMXN(uncoveredSalesCents)} de venta en canales sin tarifa configurada.`

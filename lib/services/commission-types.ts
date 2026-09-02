@@ -65,8 +65,21 @@ export const MAX_RATE_BPS = 10_000;
 export interface CommissionRate {
   id: string;
   channel: string;
+  /**
+   * Sucursal a la que aplica, o `null` para la tarifa del grupo (A6.1).
+   *
+   * La resolución prefiere la de la sucursal y cae a la del grupo. Sin esto,
+   * un grupo que abrió su sucursal 12 con una tarifa de arranque distinta
+   * —lo normal cuando el agregador quiere entrar a una plaza nueva— no la podía
+   * representar, y esa sucursal salía valuada con la tarifa de las otras once.
+   */
+  branchId: string | null;
+  /** Nombre de la sucursal, para la tabla. `null` en la tarifa del grupo. */
+  branchName?: string | null;
   /** Puntos base: 2750 = 27.50%. */
   rateBps: number;
+  /** IVA sobre la comisión, en bps. `1600` = 16%; `0` = no causa IVA. */
+  vatBps: number;
   /** Primer día de negocio al que aplica (inclusive), `YYYY-MM-DD`. */
   effectiveFrom: string;
   notes: string | null;
@@ -101,6 +114,16 @@ export interface ChannelCommission {
    * tasa que sólo rigió parte de él.
    */
   rateBps: number | null;
+  /**
+   * IVA aplicado sobre la comisión, en bps (A6.1). `null` con el mismo criterio
+   * que `rateBps`: varias vigencias en el rango, o importe capturado.
+   *
+   * Existe porque el agregador cobra el IVA **sobre** su comisión: una tarifa
+   * del 27.5% le cuesta al restaurante 31.9% de la venta, y `commissionCents`
+   * ya lo incluye. Publicarlo permite verificar el importe a mano desde la
+   * pantalla, que es el punto de publicar también `rateBps` y `baseSalesCents`.
+   */
+  vatBps: number | null;
   source: CommissionSource;
   /** Cortes del período que aportaron venta a este canal. */
   cutsCount: number;
@@ -132,6 +155,29 @@ export interface BranchCommissions {
 /** Comisión de un monto a una tarifa en bps, redondeada al centavo. */
 export function commissionOf(baseCents: number, rateBps: number): number {
   return Math.round((baseCents * rateBps) / 10_000);
+}
+
+/**
+ * Comisión **con IVA**: lo que el agregador de verdad le descuenta al
+ * restaurante (A6.1 / F14).
+ *
+ * El agregador cobra el IVA **sobre** su comisión, no dentro: una tarifa del
+ * 27.5% le cuesta al restaurante 31.9% de la venta. El cálculo anterior sólo
+ * modelaba la tarifa, así que el renglón de comisiones del P&L venía corto
+ * exactamente en 16% — justo en el canal que decide si el delivery gana o
+ * pierde dinero.
+ *
+ * `vatBps` es por vigencia y no constante de módulo: hay contraprestaciones que
+ * no causan IVA y hay tenants en franja fronteriza. `0` significa "sin IVA",
+ * que es distinto de "no configurado".
+ */
+export function commissionWithVatOf(
+  baseCents: number,
+  rateBps: number,
+  vatBps: number,
+): number {
+  const comision = commissionOf(baseCents, rateBps);
+  return comision + Math.round((comision * vatBps) / 10_000);
 }
 
 /** `2750` → `"27.50%"`. Para etiquetas; nunca para recalcular. */
