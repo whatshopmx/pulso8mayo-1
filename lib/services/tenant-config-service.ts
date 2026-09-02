@@ -63,6 +63,16 @@ export const DEFAULT_TENANT_OPERATING_CONFIG: Omit<TenantOperatingConfigData, "c
     healthyMarginWarnPercent: "35.00",
     // Umbral de varianza de conteo para merma automática (T11): 5%.
     mermaVarianceThresholdPct: "5.00",
+    // A3.2 — tasa general de IVA. Es la del alimento preparado, que es toda la
+    // venta de un QSR. Se puede poner en `null` para que Pulso no estime nada y
+    // los porcentajes se declaren sobre base bruta.
+    vatRatePercent: "16.00",
+    // A3.3 — `null` a propósito en los dos: sin factor capturado el KPI de
+    // nómina se rotula "bruto" y el semáforo no pinta color, porque comparar un
+    // bruto contra un objetivo cargado no dice nada. El ISN es estatal y no
+    // puede tener default de módulo.
+    laborBurdenFactorPercent: null,
+    payrollStateTaxPercent: null,
 };
 
 /**

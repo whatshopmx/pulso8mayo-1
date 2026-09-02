@@ -73,7 +73,9 @@ test.describe("F1 — verificación de CLABE y desbloqueo de tesorería", () => 
     const runId = await seedPaymentRun({
       companyId: COMPANY_ID,
       branchId: BRANCH_CONDESA,
-      createdBy: verificador,
+      status: "DRAFT",
+      preparedBy: verificador,
+      etiqueta: "verificación CLABE",
     });
 
     // 1. Sin ninguna cuenta: la factura no es pagable.
@@ -172,7 +174,9 @@ test.describe("F1 — verificación de CLABE y desbloqueo de tesorería", () => 
     const runId = await seedPaymentRun({
       companyId: COMPANY_ID,
       branchId: BRANCH_CONDESA,
-      createdBy: verificador,
+      status: "DRAFT",
+      preparedBy: verificador,
+      etiqueta: "verificación CLABE",
     });
 
     const { account } = await registerSupplierBankAccount({

@@ -15,6 +15,13 @@ export interface RegisterOutflowInput {
   amountCents: number;
   concept: string;
   category?: "RENTA" | "SERVICIOS" | "MANTENIMIENTO" | "PUBLICIDAD" | "SERVICIOS_PROFESIONALES" | "OTROS";
+  /**
+   * Partida presupuestal contra la que corre la salida (A4.2). Opcional por la
+   * misma razón que en un gasto operativo: el hielo y el taxi no tienen centro
+   * de costo, y obligarlo haría que la gente eligiera cualquiera con tal de
+   * guardar. Cuando viene, la salida consume el presupuesto de esa partida.
+   */
+  costCenterId?: string | null;
   evidenceUrl?: string;
   workflowInstanceId?: string;
   registeredBy: string;
@@ -208,6 +215,7 @@ export async function registerOutflow(input: RegisterOutflowInput) {
       amount: input.amountCents,
       concept: input.concept,
       category: input.category || "OTROS",
+      costCenterId: input.costCenterId || null,
       evidenceUrl: input.evidenceUrl || null,
       workflowInstanceId: input.workflowInstanceId || null,
       registeredBy: input.registeredBy,

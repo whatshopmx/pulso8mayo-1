@@ -575,6 +575,41 @@
       "when": 1788366346150,
       "tag": "0082_factura-contrato-recurrente",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1788366347150,
+      "tag": "0083_deep_barracuda",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1788366348150,
+      "tag": "0084_marvelous_agent_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1788366349150,
+      "tag": "0085_natural_wrecking_crew",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1788366350150,
+      "tag": "0086_plain_arclight",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1788366351150,
+      "tag": "0087_volatile_blue_blade",
+      "breakpoints": true
     }
   ]
 }

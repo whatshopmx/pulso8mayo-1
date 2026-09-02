@@ -1,0 +1,3 @@
+DROP INDEX "channel_commission_rate_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "channel_commission_rate_group_unique" ON "channel_commission_rates" USING btree ("company_id","channel","effective_from") WHERE "channel_commission_rates"."branch_id" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "channel_commission_rate_unique" ON "channel_commission_rates" USING btree ("company_id","channel","branch_id","effective_from") WHERE "channel_commission_rates"."branch_id" IS NOT NULL;

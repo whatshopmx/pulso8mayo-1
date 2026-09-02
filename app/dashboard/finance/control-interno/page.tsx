@@ -34,6 +34,8 @@ export default function ControlInternoPage() {
   // servicio. No se fija en el cliente: si el servicio la cambia, la pantalla
   // no puede quedarse afirmando la anterior.
   const [contractWindowDays, setContractWindowDays] = useState<number | null>(null);
+  /** Ventana de la detección de excepciones de gasto (A5.1), declarada por la ruta. */
+  const [windowDays, setWindowDays] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("audit");
 
   // Bandeja OC/OS: el conteo alimenta el badge del tab; el contenido lo renderiza
@@ -93,6 +95,7 @@ export default function ControlInternoPage() {
             ? json.data.contractVarianceWindowDays
             : null
         );
+        setWindowDays(typeof json.data?.windowDays === "number" ? json.data.windowDays : null);
       } else {
         // Sin esto, una conexión caída se rendía como "Sin excepciones detectadas /
         // Todos los gastos cumplen": una afirmación de cumplimiento inventada.
@@ -253,6 +256,7 @@ export default function ControlInternoPage() {
                   violations={violations}
                   loading={violationsLoading}
                   contractWindowDays={contractWindowDays}
+                  windowDays={windowDays}
                 />
               )}
             </CardContent>

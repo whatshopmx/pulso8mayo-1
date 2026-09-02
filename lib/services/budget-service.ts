@@ -4,6 +4,8 @@ import {
     branchBudgets,
     costCenters,
     operatingExpenses,
+    pettyCashFunds,
+    pettyCashTransactions,
     purchaseOrders,
     serviceOrders,
     tenantOperatingConfig,
@@ -174,10 +176,17 @@ export async function getCommitted(
             ),
         );
 
+    // A4.2 — la caja chica consume la partida igual que un gasto: el efectivo
+    // ya salió del centro de costo aunque no haya pasado por la autorización.
+    const cajaChicaRows = await cajaChicaPorCentro([branchId], month);
+
     return (
         osRows.reduce((s, r) => s + (r.total ?? 0), 0) +
         ocRows.reduce((s, r) => s + (r.total ?? 0), 0) +
-        gastoRows.reduce((s, r) => s + (r.total ?? 0), 0)
+        gastoRows.reduce((s, r) => s + (r.total ?? 0), 0) +
+        cajaChicaRows
+            .filter((r) => r.costCenterId === costCenterId)
+            .reduce((s, r) => s + (r.total ?? 0), 0)
     );
 }
 
@@ -370,6 +379,41 @@ export interface BudgetConsumptionReport {
  * catálogo QSR estándar trae ~30 centros; pintarlos todos en cero convertiría
  * el tablero en una lista que nadie recorre.
  */
+/**
+ * Salidas de caja chica del mes que consumen presupuesto (A4.2).
+ *
+ * Consumen igual que un gasto operativo: es dinero que ya salió del centro de
+ * costo, y no contarlo dejaba la partida viéndose disponible cuando ya no lo
+ * estaba. La diferencia es que **no pasa por la cola de autorización** —para
+ * eso existe el fondo— así que se agrega desde su propia tabla en vez de
+ * duplicarse como fila en `operating_expenses`.
+ *
+ * Sólo `OUT`: la reposición es el efectivo que entra al fondo y contarla
+ * cobraría dos veces la misma compra.
+ */
+async function cajaChicaPorCentro(
+    branchIds: string[],
+    month: string,
+): Promise<Array<{ branchId: string; costCenterId: string | null; total: number }>> {
+    if (branchIds.length === 0) return [];
+    return db
+        .select({
+            branchId: pettyCashFunds.branchId,
+            costCenterId: pettyCashTransactions.costCenterId,
+            total: sql<number>`coalesce(sum(${pettyCashTransactions.amount}), 0)::int`,
+        })
+        .from(pettyCashTransactions)
+        .innerJoin(pettyCashFunds, eq(pettyCashTransactions.fundId, pettyCashFunds.id))
+        .where(
+            and(
+                inArray(pettyCashFunds.branchId, branchIds),
+                eq(pettyCashTransactions.type, "OUT"),
+                sql`to_char(${pettyCashTransactions.createdAt}, 'YYYY-MM') = ${month}`,
+            ),
+        )
+        .groupBy(pettyCashFunds.branchId, pettyCashTransactions.costCenterId);
+}
+
 export async function getBudgetConsumption(
     companyId: string,
     branchIds: string[],
@@ -383,7 +427,7 @@ export async function getBudgetConsumption(
     };
     if (branchIds.length === 0) return vacio;
 
-    const [centros, budgetRows, committedByPair, gastoRows] = await Promise.all([
+    const [centros, budgetRows, committedByPair, gastoRows, cajaChicaRows] = await Promise.all([
         db
             .select({ id: costCenters.id, code: costCenters.code, name: costCenters.name })
             .from(costCenters)
@@ -407,6 +451,7 @@ export async function getBudgetConsumption(
                 ),
             )
             .groupBy(operatingExpenses.costCenterId),
+        cajaChicaPorCentro(branchIds, month),
     ]);
 
     // Presupuesto del alcance: la suma de las sucursales que se están mirando.
@@ -422,8 +467,25 @@ export async function getBudgetConsumption(
         consumidoPorCentro.set(costCenterId, (consumidoPorCentro.get(costCenterId) ?? 0) + total);
     }
 
-    const totalExpensesCents = gastoRows.reduce((s, r) => s + (r.total ?? 0), 0);
-    const sinClasificar = gastoRows.find((r) => r.costCenterId === null)?.total ?? 0;
+    // A4.2 — la caja chica se suma al consumo del centro de costo. Sin esto la
+    // partida se veía disponible cuando el efectivo ya había salido.
+    for (const r of cajaChicaRows) {
+        if (!r.costCenterId) continue;
+        consumidoPorCentro.set(
+            r.costCenterId,
+            (consumidoPorCentro.get(r.costCenterId) ?? 0) + (r.total ?? 0),
+        );
+    }
+
+    const cajaChicaTotal = cajaChicaRows.reduce((s, r) => s + (r.total ?? 0), 0);
+    const cajaChicaSinCentro = cajaChicaRows
+        .filter((r) => !r.costCenterId)
+        .reduce((s, r) => s + (r.total ?? 0), 0);
+
+    const totalExpensesCents =
+        gastoRows.reduce((s, r) => s + (r.total ?? 0), 0) + cajaChicaTotal;
+    const sinClasificar =
+        (gastoRows.find((r) => r.costCenterId === null)?.total ?? 0) + cajaChicaSinCentro;
 
     const rows = centros
         .map((cc) => {

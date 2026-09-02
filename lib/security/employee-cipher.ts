@@ -85,6 +85,39 @@ export async function encryptProfileRecord<T extends Record<string, unknown>>(
 }
 
 /**
+ * Versión por lote de `decryptProfileRecord`: un solo desenvuelto del DEK para
+ * todas las filas.
+ *
+ * Existe porque el layout de dispersión de nómina resuelve la CLABE de **cada
+ * empleado** de la corrida: llamar a la versión de una fila por empleado hacía
+ * una consulta a `tenant_keys` por recibo. Mismo criterio y misma salvedad —es
+ * un no-op verdadero cuando ninguna fila trae el prefijo `enc::`.
+ */
+export async function decryptProfileRecords<T extends Record<string, unknown>>(
+  companyId: string,
+  rows: T[],
+): Promise<T[]> {
+  if (rows.length === 0) return rows;
+
+  const anyEncrypted = rows.some((row) =>
+    EMPLOYEE_PII_FIELDS.some((f) => isEncrypted(row[f] as string | null | undefined)),
+  );
+  if (!anyEncrypted) return rows; // plaintext passthrough — no DEK needed
+
+  const dek = await DekService.getDek(companyId);
+  return rows.map((row) => {
+    const out: Record<string, unknown> = { ...row };
+    for (const field of EMPLOYEE_PII_FIELDS) {
+      out[field] = decryptColumnWithDek(
+        (out[field] as string | null | undefined) ?? null,
+        dek,
+      );
+    }
+    return out as T;
+  });
+}
+
+/**
  * Shallow-copy `row`, decrypting any PII field carrying the `enc::` prefix.
  * TRUE no-op (no DEK, no copy) when no field is encrypted — safe to apply at
  * every reader unconditionally.

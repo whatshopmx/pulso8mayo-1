@@ -38,6 +38,22 @@ const createSchema = z.object({
     .int("La tarifa debe capturarse en puntos base enteros.")
     .min(0)
     .max(MAX_RATE_BPS, "La tarifa no puede pasar del 100%."),
+  /**
+   * IVA sobre la comisión, en bps (A6.1). Por omisión 16%: el agregador cobra
+   * el impuesto **sobre** su comisión, así que una tarifa del 27.5% le cuesta al
+   * restaurante 31.9% de la venta. `0` para la contraprestación que no cause IVA.
+   */
+  vatBps: z
+    .number()
+    .int("El IVA debe capturarse en puntos base enteros.")
+    .min(0)
+    .max(MAX_RATE_BPS)
+    .optional(),
+  /**
+   * Sucursal a la que aplica la tarifa. Omitido o `null` = tarifa del grupo.
+   * La resolución prefiere la de la sucursal y cae a la del grupo.
+   */
+  branchId: z.string().uuid("El id de sucursal es inválido.").nullable().optional(),
   effectiveFrom: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de fecha inválido (YYYY-MM-DD)."),
@@ -58,7 +74,12 @@ export const POST = withTenantAuth(async (req, { auth }) => {
   const rate = await upsertCommissionRate({
     companyId: auth.tenantId,
     channel: data.channel,
+    // `branchId` viene del cuerpo porque es el objeto de la tarifa, no el
+    // alcance de quien escribe: sólo dirección llega hasta aquí, y el servicio
+    // comprueba que la sucursal sea de esta empresa antes de escribir.
+    branchId: data.branchId ?? null,
     rateBps: data.rateBps,
+    vatBps: data.vatBps,
     effectiveFrom: data.effectiveFrom,
     notes: data.notes ?? null,
     createdBy: auth.user.id,

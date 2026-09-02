@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { withRoleAuth } from "@/lib/api/with-auth";
-import { ApiError } from "@/lib/api/error";
+import { ApiError, isApiError } from "@/lib/api/error";
 import { ApiHandler } from "@/lib/api/response";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { rescheduleOperatingExpense } from "@/lib/services/expense-service";
 import { localDateString } from "@/lib/workflows/today";
 
@@ -34,16 +35,22 @@ export const POST = withRoleAuth(
       );
     }
 
+    // Mismo criterio que pagar: el alcance sale de la sesión. Correr un
+    // vencimiento saca un gasto de la lista de vencidos de otra sucursal.
+    const scope = resolveBranchScope(auth.user.role, auth.user.branchId);
+
     try {
       const updated = await rescheduleOperatingExpense(
         id,
         auth.tenantId,
+        scope,
         auth.user.name || auth.user.email || "un usuario",
         parsed.data.dueDate,
         localDateString(new Date(), null)
       );
       return ApiHandler.success(updated);
     } catch (error) {
+      if (isApiError(error)) throw error;
       throw ApiError.badRequest(
         error instanceof Error ? error.message : "No se pudo reprogramar el gasto."
       );

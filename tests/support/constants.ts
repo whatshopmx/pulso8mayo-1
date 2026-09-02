@@ -13,6 +13,15 @@ export const BRANCH_ROMA = "b1000001-0000-4000-8000-000000000003";
 
 export const USER_SUPER_ADMIN = "u0000001-0000-4000-8000-000000000001";
 
+/**
+ * ADMIN sembrado (`maria@pulso.mx`). La sesión por omisión de los specs es la
+ * de `carlos@pulso.mx`, que **es** `USER_SUPER_ADMIN`: cuando un caso necesita
+ * que el actor no sea quien preparó el documento —doble firma, segregación de
+ * funciones— el preparador tiene que ser este otro usuario, o el rechazo vendrá
+ * de la regla equivocada.
+ */
+export const USER_ADMIN = "u0000001-0000-4000-8000-000000000002";
+
 /** Credenciales sembradas por `scripts/seed-passwords.ts`. */
 export const ADMIN_EMAIL = process.env.E2E_EMAIL || "carlos@pulso.mx";
 export const ADMIN_PASSWORD = process.env.E2E_PASSWORD || "123456";

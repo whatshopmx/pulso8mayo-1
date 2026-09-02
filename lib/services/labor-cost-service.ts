@@ -35,6 +35,8 @@ import {
   users,
 } from "@/lib/db/schema";
 import { and, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { getVatRatePercent, resolveSalesBase } from "@/lib/services/sales-base";
+import { getLaborBurden } from "@/lib/services/labor-burden";
 import type {
   BranchLaborCost,
   BranchLaborRatio,
@@ -530,8 +532,11 @@ export async function getLaborCostByBranch(
  * de plantilla contratada, y un `NO_DATA` tiene que verse como sucursal sin
  * contratos, no como un 26.2% inventado.
  *
- * Las ventas se leen igual que en el P&L (`daily_sales_cuts`, neto sin IVA)
- * para que los dos tableros no discrepen en el denominador.
+ * Las ventas se leen igual que en el P&L y pasan por el mismo
+ * `resolveSalesBase`, para que los dos tableros no discrepen en el denominador.
+ * Este comentario decía antes "(`daily_sales_cuts`, neto sin IVA)" y **no era
+ * cierto**: la columna es venta CON IVA. La afirmación equivocada es parte de
+ * por qué el hallazgo tardó en verse.
  */
 export async function getLaborCostRatioByBranch(
   companyId: string,
@@ -551,6 +556,8 @@ export async function getLaborCostRatioByBranch(
       .select({
         branchId: dailySalesCuts.branchId,
         totalSales: sql<number>`COALESCE(SUM(${dailySalesCuts.totalSales}), 0)`,
+        taxSum: sql<number>`COALESCE(SUM(${dailySalesCuts.taxAmount}), 0)`,
+        cutsWithTax: sql<number>`COUNT(${dailySalesCuts.taxAmount})`,
         cutsCount: sql<number>`COUNT(${dailySalesCuts.id})`,
         daysCovered: sql<number>`COUNT(DISTINCT ${dailySalesCuts.businessDate})`,
       })
@@ -565,6 +572,13 @@ export async function getLaborCostRatioByBranch(
       .groupBy(dailySalesCuts.branchId),
 
     getLaborCostByBranch(companyId, startDay, endDay),
+  ]);
+
+  // Configuración del grupo, leída una sola vez: la tasa de IVA para la base y
+  // el factor de carga patronal para el ratio cargado.
+  const [vatRatePercent, burden] = await Promise.all([
+    getVatRatePercent(companyId),
+    getLaborBurden(companyId),
   ]);
 
   const salesByBranch = new Map(salesRows.map((r) => [r.branchId, r]));
@@ -586,14 +600,36 @@ export async function getLaborCostRatioByBranch(
 
     const salesRow = salesByBranch.get(branch.id);
     const cutsCount = Number(salesRow?.cutsCount ?? 0);
+    const grossSalesCents = cutsCount > 0 ? Number(salesRow?.totalSales ?? 0) : null;
+
     // Sin cortes capturados la venta es desconocida, no cero: dividir entre
     // cero fabricaría un ratio infinito y poner cero fabricaría un 0%.
-    const salesCents = cutsCount > 0 ? Number(salesRow?.totalSales ?? 0) : null;
+    const salesBase =
+      cutsCount > 0
+        ? resolveSalesBase({
+            grossCents: Number(salesRow?.totalSales ?? 0),
+            taxCents: Number(salesRow?.taxSum ?? 0),
+            cutsWithTax: Number(salesRow?.cutsWithTax ?? 0),
+            cutsCount,
+            vatRatePercent,
+          })
+        : null;
+    const salesCents = salesBase?.baseCents ?? null;
 
     const hasLabor = labor.source !== "NO_DATA";
     const ratioPercent =
       hasLabor && salesCents !== null && salesCents > 0
         ? Number(((labor.totalCostCents / salesCents) * 100).toFixed(1))
+        : null;
+
+    // A3.3 — la nómina cargada, cuando el grupo capturó el factor.
+    const loadedLaborCostCents =
+      hasLabor && burden.totalPercent !== null
+        ? Math.round(labor.totalCostCents * (1 + burden.totalPercent / 100))
+        : null;
+    const loadedRatioPercent =
+      loadedLaborCostCents !== null && salesCents !== null && salesCents > 0
+        ? Number(((loadedLaborCostCents / salesCents) * 100).toFixed(1))
         : null;
 
     return {
@@ -603,11 +639,20 @@ export async function getLaborCostRatioByBranch(
       baseCostCents: labor.baseCostCents,
       overtimeCostCents: labor.overtimeCostCents,
       headcount: labor.headcount,
+      loadedLaborCostCents,
+      loadedRatioPercent,
+      burden: {
+        factorPercent: burden.factorPercent,
+        stateTaxPercent: burden.stateTaxPercent,
+      },
       salesCents,
+      grossSalesCents,
+      salesBaseKind: salesBase?.kind ?? null,
+      salesBaseNote: salesBase?.note ?? null,
       ratioPercent,
       source: labor.source,
       coveragePercent: labor.coveragePercent,
-      note: labor.note,
+      note: `${labor.note}${burden.nota ? ` ${burden.nota}` : ""}`,
       salesDaysCovered: Number(salesRow?.daysCovered ?? 0),
     };
   });

@@ -2832,6 +2832,23 @@ export const dailySalesCuts = pgTable("daily_sales_cuts", {
     // comparación que hacer, y pintar $0.00 afirmaría que la terminal no depositó.
     commissionCents: integer("commission_cents"),
     tpvDepositCents: integer("tpv_deposit_cents"),
+
+    /**
+     * IVA trasladado del corte, en centavos (A3.1).
+     *
+     * `sales-ingestion-service` ya reconocía la columna de impuesto del POS y la
+     * acumulaba en `agg.taxAmount`; el `INSERT` simplemente no la guardaba. Sin
+     * ella, `totalSales` es venta CON IVA y todos los porcentajes del módulo
+     * —food cost, labor cost, margen— se calculaban contra una base inflada un
+     * 16%: un food cost real del 34.8% se veía como 30%, justo del lado verde
+     * del semáforo.
+     *
+     * NULLABLE a propósito: `null` significa "el POS no lo exportó", que no es
+     * lo mismo que un cero capturado. La distinción es la que decide si el
+     * porcentaje se calcula sobre neto medido o sobre una base declarada.
+     */
+    taxAmount: integer("tax_amount"),
+
     avgTicket: integer("avg_ticket"),
 
     ticketCount: integer("ticket_count"),
@@ -2930,6 +2947,22 @@ export const invoices = pgTable("invoices", {
     nombreReceptor: text("nombre_receptor"),
     
     matchStatus: text("match_status").default("PENDING").notNull(),
+
+    /**
+     * Último estado que el SAT reportó para este CFDI (A6.3 / F15).
+     *
+     * `VIGENTE` | `CANCELADO` | `NO_ENCONTRADO` | `ERROR`, o `null` mientras
+     * nadie lo haya consultado. Existe porque un CFDI se conciliaba **una vez**
+     * —`SIN_MATCH` o `CONCILIADA`— y no se volvía a mirar nunca: si el proveedor
+     * cancelaba una factura que el grupo ya había deducido, nada lo detectaba.
+     * La cancelación es unilateral del emisor y no avisa; el receptor se entera
+     * cuando el SAT le rechaza la deducción, meses después.
+     */
+    satStatus: text("sat_status"),
+
+    /** Cuándo se consultó por última vez. `null` = nunca revalidado. */
+    satCheckedAt: timestamp("sat_checked_at"),
+
     hasPriceDiscrepancy: boolean("has_price_discrepancy").default(false).notNull(),
     hasQtyDiscrepancy: boolean("has_qty_discrepancy").default(false).notNull(),
 
@@ -3159,6 +3192,52 @@ export const tenantOperatingConfig = pgTable("tenant_operating_config", {
     // con razón OTHER y origen `diferencia_conteo`. Default 5%.
     mermaVarianceThresholdPct: numeric("merma_variance_threshold_pct", { precision: 5, scale: 2 }).default("5.00"),
 
+    /**
+     * Tasa de IVA con la que se estima la venta neta cuando el POS no exporta
+     * el impuesto (A3.2, decisión D1).
+     *
+     * Default 16 porque es la tasa general y toda la venta de un QSR es alimento
+     * preparado. **No es un cálculo, es un supuesto**, y el renglón que la usa se
+     * declara `DERIVED` y lo dice en su nota: no todos los inquilinos venden al
+     * 16% —un abarrote mezcla tasas y una sucursal en franja fronteriza tiene la
+     * suya—, así que se configura y se puede apagar.
+     *
+     * `null` = no estimar. El porcentaje se calcula sobre la base bruta y el
+     * renglón lo declara. Es la conducta honesta para quien no quiere que Pulso
+     * suponga una tasa por él.
+     */
+    vatRatePercent: numeric("vat_rate_percent", { precision: 5, scale: 2 }).default("16.00"),
+
+    /**
+     * Carga patronal como % sobre el salario bruto (A3.3, decisión D2).
+     *
+     * `labor-cost-service` mide nómina **bruta**: salarios y horas. El objetivo
+     * contra el que se compara (`laborCostTargetPercent`, default 28.00) es un
+     * número de industria que viene *cargado* — incluye IMSS, INFONAVIT,
+     * provisiones y el impuesto estatal sobre nómina. El semáforo pintaba verde
+     * un 22% bruto que cargado ronda el 29%, y nómina es el renglón que un QSR
+     * ajusta cada semana con la programación de turnos.
+     *
+     * `null` a propósito: con `null` el KPI se rotula "bruto" y el semáforo no
+     * pinta color, porque comparar bruto contra un objetivo cargado no dice
+     * nada. Con valor, se aplica y el renglón se declara `DERIVED`.
+     *
+     * **No es un cálculo de IMSS.** Calcular SBC, topes UMA y ramas de seguro es
+     * un módulo entero; esto es un factor que pone la cifra en el mismo orden de
+     * magnitud que el objetivo contra el que se compara, y lo dice.
+     */
+    laborBurdenFactorPercent: numeric("labor_burden_factor_percent", { precision: 5, scale: 2 }),
+
+    /**
+     * Impuesto Sobre Nóminas estatal, en % (A3.3).
+     *
+     * Línea propia dentro de la carga patronal y **no** constante de módulo: es
+     * estatal. Nuevo León cobra 3%, la CDMX 4%, Jalisco 2% — un grupo con
+     * sucursales en dos estados no tiene una sola tasa, y hardcodear la de
+     * Monterrey le mentiría a todos los demás. `null` = no se conoce, no se suma.
+     */
+    payrollStateTaxPercent: numeric("payroll_state_tax_percent", { precision: 5, scale: 2 }),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
@@ -3170,6 +3249,21 @@ export const tenantOperatingConfig = pgTable("tenant_operating_config", {
 // ---------------------------------------------------------------------------
 
 export const pettyCashTransactionTypeEnum = pgEnum("petty_cash_transaction_type", ['OUT', 'REPLENISHMENT', 'ADJUSTMENT']);
+/**
+ * Forma de pago de un gasto operativo (A4.1).
+ *
+ * Existe para la regla del artículo 27-III de la LISR: el efectivo deja de ser
+ * deducible arriba de $2,000 MXN. Sin distinguir la forma de pago, Control
+ * Interno no puede señalar el gasto que le cuesta impuestos al grupo.
+ */
+export const expensePaymentMethodEnum = pgEnum("expense_payment_method", [
+  'EFECTIVO',
+  'TRANSFERENCIA',
+  'TARJETA',
+  'DOMICILIADO',
+  'CHEQUE',
+]);
+
 export const operatingExpenseCategoryEnum = pgEnum("operating_expense_category", [
   'RENTA',
   'SERVICIOS',
@@ -3210,6 +3304,23 @@ export const pettyCashTransactions = pgTable("petty_cash_transactions", {
     amount: integer("amount").notNull(), // in cents
     concept: text("concept").notNull(),
     category: operatingExpenseCategoryEnum("category"),
+
+    /**
+     * Partida presupuestal contra la que corre la salida (A4.2). NULLABLE por la
+     * misma razón que en `operating_expenses`: el hielo y el taxi de hoy no
+     * tienen centro de costo, y obligarlo haría que la gente eligiera cualquiera
+     * con tal de guardar.
+     *
+     * La tabla ya guardaba `category` con el mismo enum que los gastos
+     * operativos —la intención de contabilizarla estaba ahí desde el principio—
+     * pero fuera de su propio servicio ningún archivo del repo la leía: la
+     * utilidad operativa del P&L venía sobreestimada exactamente en el monto de
+     * la caja chica, sin que ninguna pantalla lo advirtiera. En un QSR eso es el
+     * hielo, el gas de emergencia, el plomero y el taxi del insumo que faltó; en
+     * 15 sucursales deja de ser menudencia.
+     */
+    costCenterId: uuid("cost_center_id").references(() => costCenters.id),
+
     evidenceUrl: text("evidence_url"),
     workflowInstanceId: text("workflow_instance_id"),
 
@@ -3348,6 +3459,36 @@ export const operatingExpenses = pgTable("operating_expenses", {
     approvalNotes: text("approval_notes"),
 
     paidAt: timestamp("paid_at"),
+
+    /**
+     * Cómo se pagó (A4.1). NULLABLE: los gastos ya capturados no lo declaran y
+     * un default los haría afirmar una forma de pago que nadie eligió.
+     *
+     * Existe por la regla de deducibilidad del artículo 27-III de la LISR: un
+     * gasto en efectivo de más de $2,000 MXN **no es deducible**. Sin esta
+     * columna, Control Interno no podía distinguir el gasto que le cuesta
+     * impuestos al grupo del que no.
+     */
+    paymentMethod: expensePaymentMethodEnum("payment_method"),
+
+    /** IVA acreditable del gasto, en centavos. NULLABLE: `null` ≠ cero. */
+    taxAmount: integer("tax_amount"),
+
+    /**
+     * Quién marcó el gasto como pagado (A4.1).
+     *
+     * Antes esto se concatenaba como `"… · Pagado por Fulano"` al final de
+     * `approvalNotes` —el propio código comentaba que lo hacía porque la columna
+     * no existía— y Control Interno tenía que leer un nombre de una cadena de
+     * texto libre para saber quién movió el dinero. Un nombre en una nota no es
+     * una identidad: no se puede unir, no sobrevive a un cambio de nombre y no
+     * distingue a dos personas homónimas.
+     *
+     * NO sustituye a `approvedBy`: quien autoriza y quien paga son roles
+     * distintos, y esa distinción es la segregación de funciones.
+     */
+    paidBy: text("paid_by").references(() => users.id),
+
     dueDate: date("due_date"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -3509,8 +3650,30 @@ export const channelCommissionRates = pgTable("channel_commission_rates", {
      */
     channel: text("channel").notNull(),
 
+    /**
+     * Sucursal a la que aplica la tarifa. `null` = tarifa del grupo (A6.1).
+     *
+     * `channel_commission_rates` era por empresa: un grupo que abrió su sucursal
+     * 12 con una tarifa de arranque distinta —lo normal cuando el agregador
+     * quiere entrar a una plaza nueva— no la podía representar, y la comisión de
+     * esa sucursal salía con la tarifa de las otras once. La resolución prefiere
+     * la tarifa de la sucursal y cae a la del grupo.
+     */
+    branchId: uuid("branch_id").references(() => branches.id),
+
     /** Tarifa en puntos base: 2750 = 27.50%. */
     rateBps: integer("rate_bps").notNull(),
+
+    /**
+     * IVA sobre la comisión, en puntos base (A6.1). Default 1600 = 16%.
+     *
+     * El agregador cobra su comisión **más** IVA: una tarifa del 27.5% le cuesta
+     * al restaurante 31.9% de la venta. El cálculo anterior no lo modelaba, así
+     * que el renglón de comisiones del P&L venía corto justo en el canal que
+     * decide si el delivery gana o pierde. `0` para el caso en que la
+     * contraprestación no cause IVA.
+     */
+    vatBps: integer("vat_bps").default(1600).notNull(),
 
     /** Primer día de negocio al que aplica esta tarifa (inclusive). */
     effectiveFrom: date("effective_from").notNull(),
@@ -3529,11 +3692,17 @@ export const channelCommissionRates = pgTable("channel_commission_rates", {
     // fecha), que es la ÚNICA consulta que hace `commission-service`. Un
     // segundo índice sobre las mismas tres columnas se mantiene en cada
     // escritura sin ganar una sola lectura.
-    channelCommissionRateUnique: uniqueIndex("channel_commission_rate_unique").on(
-        table.companyId,
-        table.channel,
-        table.effectiveFrom
-    ),
+    // Dos índices y no uno, por la misma razón que en `cash_flow_assumptions`:
+    // Postgres trata los NULL como distintos entre sí, así que un único índice
+    // sobre (company, channel, branch, fecha) dejaría capturar dos veces la
+    // tarifa **del grupo** para la misma vigencia — dos verdades para el mismo
+    // día. El parcial cierra ese hueco.
+    channelCommissionRateUnique: uniqueIndex("channel_commission_rate_unique")
+        .on(table.companyId, table.channel, table.branchId, table.effectiveFrom)
+        .where(sql`${table.branchId} IS NOT NULL`),
+    channelCommissionRateGroupUnique: uniqueIndex("channel_commission_rate_group_unique")
+        .on(table.companyId, table.channel, table.effectiveFrom)
+        .where(sql`${table.branchId} IS NULL`),
 }));
 
 

@@ -79,6 +79,25 @@ export interface BranchPnL {
   labor: PnLLine;
   operatingExpenses: PnLLine;
   /**
+   * Salidas de caja chica del período (A4.2 / F7).
+   *
+   * Renglón propio y **no** filas duplicadas en `operating_expenses`: meterlas
+   * a la tabla de gastos las metería también a la cola de autorización, que es
+   * exactamente lo que la caja chica existe para evitar. Se agrega desde
+   * `petty_cash_transactions` por sucursal y período.
+   *
+   * Hasta A4.2 ningún archivo del repo fuera de su propio servicio leía esa
+   * tabla, así que la utilidad operativa venía sobreestimada exactamente en el
+   * monto de la caja chica sin que ninguna pantalla lo advirtiera. En un QSR es
+   * el hielo, el gas de emergencia, el plomero y el taxi del insumo que faltó:
+   * en 15 sucursales deja de ser menudencia.
+   *
+   * Opcional por el mismo motivo que `commissions`: los `pnl_snapshots`
+   * congelados antes de esta fase no tienen el renglón, y escribirles un cero
+   * afirmaría que ese período no tuvo caja chica.
+   */
+  pettyCash?: PnLLine;
+  /**
    * Comisiones de canal (Fase 4): TPV y agregadores.
    *
    * Opcional en el tipo, no por descuido: `pnl_snapshots.lines` guarda un
@@ -95,6 +114,24 @@ export interface BranchPnL {
    * NO es confiable y la UI debe marcarlo como aproximado.
    */
   weakestLine: LineSource;
+  /**
+   * Base sobre la que se calcularon los porcentajes (A3.2).
+   *
+   * Opcional por la misma razón que `commissions`: los `pnl_snapshots`
+   * congelados antes de A3.2 se calcularon sobre la venta CON IVA y no lo
+   * sabían. Marcarlo obligatorio haría que releer el histórico afirmara una
+   * base que ese período nunca usó. Cuando falta, la pantalla debe leerlo como
+   * "base bruta, anterior al cambio" y no como "no aplica".
+   */
+  salesBase?: {
+    kind: "NET_MEASURED" | "NET_DERIVED" | "GROSS_DECLARED";
+    baseCents: number;
+    grossCents: number;
+    taxCents: number;
+    cutsWithTax: number;
+    cutsCount: number;
+    note: string;
+  };
 }
 
 /** Una línea del desglose de comisiones por canal, para el tooltip de la tabla. */

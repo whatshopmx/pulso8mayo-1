@@ -17,17 +17,18 @@ export async function PATCH(
   try {
     const { id } = await params;
     const paymentRunId = id;
-    
-    // First, let's verify if the run belongs to their company
-    const runDetails = await TreasuryService.getPaymentRunDetails(paymentRunId);
 
+    // La autorización va **antes** de leer la corrida: consultarla primero para
+    // luego comprobar el tenant le confirmaba a cualquier sesión si un id de
+    // corrida existe. Ahora el servicio filtra por `companyId` en la misma
+    // consulta y devuelve el mismo 404 para "no existe" y "no es tuya".
     const { ctx } = await requirePermissionApi("reports", "update", {
       classification: "FINANCIAL",
       audit: { action: "UPDATE", req },
     });
 
-    if (runDetails.run.companyId !== ctx.userCompanyId) {
-      return ApiHandler.error(ApiError.forbidden("No tienes acceso a esta corrida de pago."));
+    if (!ctx.userCompanyId) {
+      return ApiHandler.error(ApiError.forbidden("No hay una empresa asignada a tu usuario."));
     }
 
     const body = await req.json();
@@ -48,6 +49,7 @@ export async function PATCH(
 
     const updatedRun = await TreasuryService.updatePaymentRunStatus(
       paymentRunId,
+      ctx.userCompanyId,
       status,
       ctx.userId
     );

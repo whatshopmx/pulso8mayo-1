@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { withRoleAuth } from "@/lib/api/with-auth";
-import { ApiError } from "@/lib/api/error";
+import { ApiError, isApiError } from "@/lib/api/error";
 import { ApiHandler } from "@/lib/api/response";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { markPaidOperatingExpense } from "@/lib/services/expense-service";
 
 /**
@@ -22,6 +23,15 @@ const bodySchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha debe venir como YYYY-MM-DD.")
     .optional(),
+  /**
+   * Con qué se pagó (A4.1). Se captura **al pagar** y no al registrar el gasto
+   * porque es cuando se sabe: un gasto se autoriza sin saber todavía si saldrá
+   * por transferencia o de la caja. De aquí sale la excepción de deducibilidad
+   * del artículo 27-III de la LISR.
+   */
+  paymentMethod: z
+    .enum(["EFECTIVO", "TRANSFERENCIA", "TARJETA", "DOMICILIADO", "CHEQUE"])
+    .optional(),
 });
 
 export const POST = withRoleAuth(
@@ -39,16 +49,27 @@ export const POST = withRoleAuth(
       );
     }
 
+    // El alcance sale de la sesión, nunca del cuerpo —igual que en
+    // `expenses/reject`. Un GERENTE fijado a una sucursal paga la suya y nada
+    // más, y `NONE` (rol de sucursal sin sucursal asignada) niega en vez de
+    // caer en el `null` que significa "toda la empresa".
+    const scope = resolveBranchScope(auth.user.role, auth.user.branchId);
+
     try {
       const updated = await markPaidOperatingExpense(
         id,
         auth.tenantId,
-        auth.user.name || auth.user.email || "un usuario",
+        scope,
+        // Quién paga sale de la sesión, nunca del cuerpo.
+        auth.user.id,
+        parsed.data.paymentMethod ?? null,
         parsed.data.paidAt ? new Date(`${parsed.data.paidAt}T12:00:00Z`) : undefined
       );
       return ApiHandler.success(updated);
     } catch (error) {
-      // El servicio lanza `Error` con mensaje en español listo para mostrar.
+      // Un `ApiError` ya trae su propio estatus: aplastarlo a 400 convertiría
+      // el 403 de alcance en "datos inválidos" y el 404 en lo mismo.
+      if (isApiError(error)) throw error;
       throw ApiError.badRequest(
         error instanceof Error ? error.message : "No se pudo marcar el gasto como pagado."
       );

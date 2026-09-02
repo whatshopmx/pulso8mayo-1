@@ -1,7 +1,17 @@
 // M16 / T40: P&L Service (Estado de Resultados Operativo por Sucursal)
 //
 // Utilidad Operativa = Ventas − Food Cost − Merma − Nómina − Gastos Operativos
-// − Comisiones de canal (neto, sin IVA).
+// − Comisiones de canal.
+//
+// A3.2 — **La base de los porcentajes es la venta NETA cuando se puede.** Este
+// encabezado decía "(neto, sin IVA)" y no era cierto: `daily_sales_cuts.
+// total_sales` es la venta CON IVA, así que todos los porcentajes del estado se
+// dividían entre una base inflada un 16% y un food cost real del 34.8% se
+// presentaba como 30% — del lado verde del semáforo. Ahora la base la resuelve
+// `sales-base.ts`, que la declara: medida cuando el POS exporta el impuesto,
+// estimada con la tasa del inquilino cuando no, y bruta declarada cuando el
+// inquilino apaga la estimación. `salesBase` viaja en el `BranchPnL` para que la
+// pantalla pueda decir cuál se usó.
 //
 // Reescrito según docs/plan-pnl-real.md. Lo que cambió y por qué:
 //
@@ -26,11 +36,18 @@
 //    tarifa negociada; el sistema no tiene ningún monto neto que medir.
 
 import { db } from "@/lib/db";
-import { dailySalesCuts, operatingExpenses, branches } from "@/lib/db/schema";
+import {
+  dailySalesCuts,
+  operatingExpenses,
+  branches,
+  pettyCashFunds,
+  pettyCashTransactions,
+} from "@/lib/db/schema";
 import { eq, and, gte, lte, ne, sql } from "drizzle-orm";
 import { getFoodCostByBranch } from "@/lib/services/food-cost-service";
 import { getLaborCostByBranch } from "@/lib/services/labor-cost-service";
 import { getCommissionsByBranch } from "@/lib/services/commission-service";
+import { getVatRatePercent, resolveSalesBase } from "@/lib/services/sales-base";
 import {
   SECTOR_FOOD_COST_PERCENT,
   SECTOR_LABOR_COST_PERCENT,
@@ -97,11 +114,16 @@ export async function getPnLByBranch(
 
   // 4 consultas en paralelo, todas agregadas por company. Ninguna escala con
   // el número de sucursales.
-  const [salesRows, expenseRows, foodCosts, laborCosts, commissions] = await Promise.all([
+  const [salesRows, expenseRows, foodCosts, laborCosts, commissions, pettyCashRows] =
+    await Promise.all([
     db
       .select({
         branchId: dailySalesCuts.branchId,
         totalSales: sql<number>`COALESCE(SUM(${dailySalesCuts.totalSales}), 0)`,
+        // A3.2 — el IVA se agrega en la misma consulta: la base neta no debe
+        // costar una consulta más por sucursal.
+        taxSum: sql<number>`COALESCE(SUM(${dailySalesCuts.taxAmount}), 0)`,
+        cutsWithTax: sql<number>`COUNT(${dailySalesCuts.taxAmount})`,
         cutsCount: sql<number>`COUNT(${dailySalesCuts.id})`,
         daysCovered: sql<number>`COUNT(DISTINCT ${dailySalesCuts.businessDate})`,
       })
@@ -136,13 +158,39 @@ export async function getPnLByBranch(
     getFoodCostByBranch(companyId, startDay, endDay),
     getLaborCostByBranch(companyId, startDay, endDay),
     getCommissionsByBranch(companyId, startDay, endDay),
+
+    // A4.2 — caja chica agregada por sucursal, en la misma tanda paralela: es
+    // una consulta más para toda la empresa, no una por sucursal.
+    db
+      .select({
+        branchId: pettyCashFunds.branchId,
+        totalOut: sql<number>`COALESCE(SUM(${pettyCashTransactions.amount}), 0)`,
+        movements: sql<number>`COUNT(${pettyCashTransactions.id})`,
+      })
+      .from(pettyCashTransactions)
+      .innerJoin(pettyCashFunds, eq(pettyCashTransactions.fundId, pettyCashFunds.id))
+      .where(
+        and(
+          eq(pettyCashFunds.companyId, companyId),
+          // Sólo las salidas: la reposición es el efectivo que **entra** al
+          // fondo, y contarla como gasto cobraría dos veces la misma compra.
+          eq(pettyCashTransactions.type, "OUT"),
+          sql`${pettyCashTransactions.createdAt}::date BETWEEN ${startDay}::date AND ${endDay}::date`,
+        ),
+      )
+      .groupBy(pettyCashFunds.branchId),
   ]);
+
+  // Una sola lectura de la tasa para todo el grupo: es configuración del
+  // inquilino, no de la sucursal.
+  const vatRatePercent = await getVatRatePercent(companyId);
 
   const salesByBranch = new Map(salesRows.map((r) => [r.branchId, r]));
   const expenseByBranch = new Map(expenseRows.map((r) => [r.branchId, r]));
   const foodByBranch = new Map(foodCosts.map((f) => [f.branchId, f]));
   const laborByBranch = new Map(laborCosts.map((l) => [l.branchId, l]));
   const commissionByBranch = new Map(commissions.map((c) => [c.branchId, c]));
+  const pettyCashByBranch = new Map(pettyCashRows.map((p) => [p.branchId, p]));
 
   return branchList.map((branch) => {
     const salesRow = salesByBranch.get(branch.id);
@@ -150,15 +198,32 @@ export async function getPnLByBranch(
     const cutsCount = Number(salesRow?.cutsCount ?? 0);
     const daysCovered = Number(salesRow?.daysCovered ?? 0);
 
+    /**
+     * A3.2 — el divisor de TODOS los porcentajes del estado.
+     *
+     * El renglón de ventas sigue mostrando la venta bruta como importe —es el
+     * dinero que entró y es lo que la dueña reconoce— pero los porcentajes se
+     * calculan contra la base, que es neta cuando hay con qué. Mezclar las dos
+     * cosas en una sola cifra es justo lo que producía el food cost optimista.
+     */
+    const salesBase = resolveSalesBase({
+      grossCents: totalSalesCents,
+      taxCents: Number(salesRow?.taxSum ?? 0),
+      cutsWithTax: Number(salesRow?.cutsWithTax ?? 0),
+      cutsCount,
+      vatRatePercent,
+    });
+    const baseCents = salesBase.baseCents;
+
     // --- Ventas -----------------------------------------------------------
     const sales: PnLLine =
       cutsCount > 0
         ? line(
             totalSalesCents,
-            totalSalesCents,
+            baseCents,
             "MEASURED",
             (daysCovered / periodDays) * 100,
-            `${daysCovered} de ${periodDays} días con corte registrado (${cutsCount} cortes).`,
+            `${daysCovered} de ${periodDays} días con corte registrado (${cutsCount} cortes). ${salesBase.note}`,
           )
         : noDataLine(
             `Sin cortes de venta capturados en el período (${periodDays} días). ` +
@@ -175,7 +240,7 @@ export async function getPnLByBranch(
       const foodSource: LineSource = food.source === "CONSUMPTION" ? "MEASURED" : "DERIVED";
       foodCost = line(
         food.foodCostCents,
-        totalSalesCents,
+        baseCents,
         food.usedCostFallback && foodSource === "MEASURED" ? "DERIVED" : foodSource,
         food.coveragePercent,
         food.note,
@@ -184,7 +249,7 @@ export async function getPnLByBranch(
         food.source === "CONSUMPTION"
           ? line(
               food.wasteCents,
-              totalSalesCents,
+              baseCents,
               "MEASURED",
               food.coveragePercent,
               food.wasteCents > 0
@@ -195,8 +260,8 @@ export async function getPnLByBranch(
     } else if (totalSalesCents > 0) {
       // Último recurso: constante sectorial, ETIQUETADA.
       foodCost = line(
-        Math.round(totalSalesCents * (SECTOR_FOOD_COST_PERCENT / 100)),
-        totalSalesCents,
+        Math.round(baseCents * (SECTOR_FOOD_COST_PERCENT / 100)),
+        baseCents,
         "SECTOR_DEFAULT",
         0,
         `Estimación sectorial HORECA (${SECTOR_FOOD_COST_PERCENT}% de ventas). ` +
@@ -217,15 +282,15 @@ export async function getPnLByBranch(
       const laborSource: LineSource = labor.source === "MEASURED" ? "MEASURED" : "DERIVED";
       laborLine = line(
         labor.totalCostCents,
-        totalSalesCents,
+        baseCents,
         laborSource,
         labor.coveragePercent,
         labor.note,
       );
     } else if (totalSalesCents > 0) {
       laborLine = line(
-        Math.round(totalSalesCents * (SECTOR_LABOR_COST_PERCENT / 100)),
-        totalSalesCents,
+        Math.round(baseCents * (SECTOR_LABOR_COST_PERCENT / 100)),
+        baseCents,
         "SECTOR_DEFAULT",
         0,
         `Estimación sectorial HORECA (${SECTOR_LABOR_COST_PERCENT}% de ventas). ` +
@@ -242,7 +307,7 @@ export async function getPnLByBranch(
       expenseCount > 0
         ? line(
             Number(expenseRow?.totalExp ?? 0),
-            totalSalesCents,
+            baseCents,
             "MEASURED",
             100,
             `${expenseCount} gasto(s) operativo(s) imputado(s) al período por fecha de pago, ` +
@@ -251,6 +316,29 @@ export async function getPnLByBranch(
         : noDataLine(
             "Sin gastos operativos capturados en el período. Renta, servicios y nómina de " +
               "administración no aparecen aquí si no se registran.",
+          );
+
+    // --- Caja chica -------------------------------------------------------
+    //
+    // MEASURED cuando hay movimientos: son salidas capturadas una por una con
+    // su concepto, no una estimación. Un período sin movimientos NO es cero
+    // medido: es "nadie registró nada", que en caja chica suele significar que
+    // el fondo se está usando sin capturar.
+    const pettyRow = pettyCashByBranch.get(branch.id);
+    const pettyMovements = Number(pettyRow?.movements ?? 0);
+    const pettyCashLine: PnLLine =
+      pettyMovements > 0
+        ? line(
+            Number(pettyRow?.totalOut ?? 0),
+            baseCents,
+            "MEASURED",
+            100,
+            `${pettyMovements} salida(s) de caja chica capturadas en el período. ` +
+              "No pasan por la cola de autorización de gastos: por eso existe el fondo.",
+          )
+        : noDataLine(
+            "Sin salidas de caja chica capturadas en el período. Si la sucursal usó el fondo y " +
+              "no lo registró, este renglón vacío deja la utilidad operativa sobreestimada.",
           );
 
     // --- Comisiones de canal ----------------------------------------------
@@ -267,7 +355,7 @@ export async function getPnLByBranch(
           )
         : line(
             commission.totalCommissionCents,
-            totalSalesCents,
+            baseCents,
             commission.source === "MEASURED" ? "MEASURED" : "ESTIMATED",
             commission.coveragePercent,
             commission.note,
@@ -288,6 +376,10 @@ export async function getPnLByBranch(
     // de verse "medido" — porque no lo está, le falta un costo real del renglón
     // de ingresos. La merma sigue fuera, como estaba: se explica dentro del
     // food cost y no es un insumo independiente del margen.
+    // La caja chica **no** entra en `weakestLine`: un período sin movimientos
+    // capturados es lo normal en una sucursal que no usó el fondo, y degradar
+    // por eso el margen entero convertiría la ausencia de menudencias en una
+    // advertencia sobre el P&L completo. Igual que la merma, se explica sola.
     const weakestLine = weakestOf(
       sales.source,
       foodCost.source,
@@ -304,15 +396,23 @@ export async function getPnLByBranch(
       waste.cents +
       laborLine.cents +
       operatingExpensesLine.cents +
-      commissionsLine.cents;
-    const operatingProfitCents = totalSalesCents - totalCostCents;
+      commissionsLine.cents +
+      // A4.2 — la caja chica es dinero que salió. Antes no estaba en esta suma
+      // y la utilidad operativa venía inflada exactamente en ese monto.
+      pettyCashLine.cents;
+    // A3.2 — la utilidad sale de la venta NETA, no de la bruta. El IVA
+    // trasladado no es dinero del restaurante: se cobra y se entera al SAT.
+    // Restarle los costos a la venta con IVA inflaba la utilidad operativa
+    // exactamente en el impuesto. Cuando no hay base neta, `baseCents` es la
+    // bruta y el comportamiento es el de antes, declarado en la nota.
+    const operatingProfitCents = baseCents - totalCostCents;
 
     const operatingProfit: PnLLine =
       sales.source === "NO_DATA"
         ? noDataLine("Sin ventas capturadas no hay margen que calcular.")
         : line(
             operatingProfitCents,
-            totalSalesCents,
+            baseCents,
             weakestLine === "MEASURED" ? "MEASURED" : "DERIVED",
             Math.min(
               sales.coveragePercent,
@@ -340,10 +440,12 @@ export async function getPnLByBranch(
       waste,
       labor: laborLine,
       operatingExpenses: operatingExpensesLine,
+      pettyCash: pettyCashLine,
       commissions: commissionsLine,
       commissionsByChannel,
       operatingProfit,
       weakestLine,
+      salesBase,
     };
   });
 }

@@ -29,7 +29,7 @@
  * (paso 7).
  */
 import { createHmac } from "node:crypto";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { supplierBankAccounts, suppliers, users } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api/error";
@@ -546,45 +546,125 @@ export async function verifySupplierBankAccount(input: {
 export async function getVerifiedBankAccountForPayment(input: {
   companyId: string;
   supplierId: string;
-}): Promise<{
+}): Promise<BankAccountForPayment | null> {
+  const { porProveedor } = await getBankAccountsForPayment({
+    companyId: input.companyId,
+    supplierIds: [input.supplierId],
+  });
+  return porProveedor.get(input.supplierId) ?? null;
+}
+
+/** La cuenta descifrada tal como la consume un layout de dispersión. */
+export interface BankAccountForPayment {
   accountId: string;
+  supplierId: string;
   clabe: string;
+  clabeLast4: string;
   bankCode: string;
   bankName: string;
   accountHolderName: string;
-} | null> {
-  const [row] = await db
+  /** `true` sólo si esta cuenta es hoy la verificada y activa del proveedor. */
+  vigente: boolean;
+}
+
+/**
+ * Versión por lote de `getVerifiedBankAccountForPayment`.
+ *
+ * **Uso exclusivo de servidor**, con las mismas reglas que la de arriba: la
+ * CLABE en claro no debe alcanzar una respuesta HTTP salvo dentro de un archivo
+ * de dispersión, y esa ruta tiene su propio gate de rol y su registro en
+ * `data_access_logs`.
+ *
+ * Existe porque el layout bancario resuelve una cuenta **por partida**: una
+ * corrida de 200 facturas hacía 200 consultas y 200 desenvueltas del DEK. Aquí
+ * se resuelve todo en una consulta y un solo DEK, que es el patrón que el resto
+ * del módulo ya usa. El descifrado sigue viviendo en un único lugar —este
+ * servicio— en vez de repetirse en el generador del archivo.
+ *
+ * `accountIds` son las cuentas **congeladas** en las partidas (A2.1). Se piden
+ * junto con las vigentes porque una corrida firmada se dispersa contra la cuenta
+ * que se autorizó, aunque el proveedor haya registrado otra después; el
+ * generador compara las dos y declara la diferencia.
+ */
+export async function getBankAccountsForPayment(input: {
+  companyId: string;
+  supplierIds: string[];
+  accountIds?: string[];
+}): Promise<{
+  /** Cuenta verificada y activa de cada proveedor, hoy. */
+  porProveedor: Map<string, BankAccountForPayment>;
+  /** Cualquier cuenta pedida por id, esté vigente o no. */
+  porId: Map<string, BankAccountForPayment>;
+}> {
+  const supplierIds = [...new Set(input.supplierIds.filter(Boolean))];
+  const accountIds = [...new Set((input.accountIds ?? []).filter(Boolean))];
+
+  const vacio = { porProveedor: new Map(), porId: new Map() };
+  if (supplierIds.length === 0 && accountIds.length === 0) return vacio;
+
+  const condiciones = [
+    supplierIds.length > 0
+      ? and(
+          inArray(supplierBankAccounts.supplierId, supplierIds),
+          eq(supplierBankAccounts.status, "VERIFIED"),
+          eq(supplierBankAccounts.active, true),
+        )
+      : undefined,
+    accountIds.length > 0 ? inArray(supplierBankAccounts.id, accountIds) : undefined,
+  ].filter(Boolean);
+
+  const rows = await db
     .select({
       id: supplierBankAccounts.id,
+      supplierId: supplierBankAccounts.supplierId,
       clabe: supplierBankAccounts.clabe,
+      clabeLast4: supplierBankAccounts.clabeLast4,
       bankCode: supplierBankAccounts.bankCode,
       bankName: supplierBankAccounts.bankName,
       accountHolderName: supplierBankAccounts.accountHolderName,
+      status: supplierBankAccounts.status,
+      active: supplierBankAccounts.active,
     })
     .from(supplierBankAccounts)
     .where(
       and(
+        // `companyId` siempre acota: las cuentas de otra empresa no existen
+        // para este lote aunque su id se conozca.
         eq(supplierBankAccounts.companyId, input.companyId),
-        eq(supplierBankAccounts.supplierId, input.supplierId),
-        eq(supplierBankAccounts.status, "VERIFIED"),
-        eq(supplierBankAccounts.active, true),
+        condiciones.length === 1 ? condiciones[0] : or(...(condiciones as any[])),
       ),
-    )
-    .limit(1);
+    );
 
-  if (!row) return null;
+  if (rows.length === 0) return vacio;
 
+  // Un solo desenvuelto del DEK para toda la corrida.
   const dek = await DekService.getDek(input.companyId);
-  const clabe = decryptColumnWithDek(row.clabe, dek);
-  if (!clabe) return null;
 
-  return {
-    accountId: row.id,
-    clabe,
-    bankCode: row.bankCode,
-    bankName: row.bankName,
-    accountHolderName: row.accountHolderName,
-  };
+  const porProveedor = new Map<string, BankAccountForPayment>();
+  const porId = new Map<string, BankAccountForPayment>();
+
+  for (const row of rows) {
+    const clabe = decryptColumnWithDek(row.clabe, dek);
+    // Una CLABE que no descifra no se sustituye por nada: quien la consume
+    // tiene que ver que falta, no una cadena vacía en el archivo del banco.
+    if (!clabe) continue;
+
+    const cuenta: BankAccountForPayment = {
+      accountId: row.id,
+      supplierId: row.supplierId,
+      clabe,
+      clabeLast4: row.clabeLast4,
+      bankCode: row.bankCode,
+      bankName: row.bankName,
+      accountHolderName: row.accountHolderName,
+      vigente: row.status === "VERIFIED" && row.active === true,
+    };
+
+    porId.set(row.id, cuenta);
+    if (cuenta.vigente) porProveedor.set(row.supplierId, cuenta);
+  }
+
+  return { porProveedor, porId };
 }
 
 /**

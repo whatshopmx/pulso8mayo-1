@@ -232,8 +232,17 @@ const PO_COMMITTED_STATUSES = ["APPROVED", "SENT", "PARTIALLY_RECEIVED"] as cons
  */
 const OPENING_BALANCE_STALE_DAYS = 7;
 
-/** Ventana histórica de cortes que alimenta la estimación de entradas. */
-const INFLOW_LOOKBACK_DAYS = 90;
+/**
+ * Ventana histórica de cortes que alimenta la estimación de entradas: los 56
+ * días (ocho semanas) **anteriores** a hoy.
+ *
+ * Ocho semanas dan ocho muestras de cada día de la semana —suficientes para que
+ * el promedio de los sábados sea un promedio y no un par de datos— sin arrastrar
+ * un trimestre entero: en un QSR la venta se mueve con la temporada, y un
+ * febrero no proyecta bien un mayo. Antes eran 90 días, pero el número daba
+ * igual porque la consulta miraba hacia adelante y nunca devolvía nada.
+ */
+const INFLOW_LOOKBACK_DAYS = 56;
 /**
  * Piso de días con corte para partir la muestra por día de la semana. Con menos
  * de dos semanas quedan uno o dos sábados: un promedio de esa muestra es ruido
@@ -451,10 +460,22 @@ export async function getCashFlowProjection(
       )
     : null;
 
-  // ── 1. Entradas reales desde los cortes de venta registrados ─────
+  // ── 1. Entradas: historial de cortes hacia atrás, proyección hacia adelante ─
   //
-  // No se extrapolan estimaciones ni supuestos hacia el futuro: sólo se cuentan
-  // las ventas reales registradas en cortes de caja (`dailySalesCuts`).
+  // **La ventana histórica es propia y va hacia atrás.** Antes esta consulta
+  // usaba `startDateStr`/`endDateStr` —la ventana *proyectada*, hoy → hoy+29—,
+  // así que por construcción no podía devolver un solo corte de un día futuro:
+  // `historyDays` era 0, `avgDailyInflowCents` era `null` y la pantalla decía
+  // "Sin estimar" a un inquilino con seis meses de cortes capturados. Ésa era
+  // la causa raíz, no el literal `"NONE"` de abajo.
+  //
+  // Una sola consulta cubre las dos cosas: lo anterior a hoy es historial del
+  // que se estima, y lo que cae dentro de la ventana proyectada —en la práctica
+  // sólo hoy, si ya se cerró— es venta real que sustituye a la estimación. Un
+  // corte existe cuando el día cerró, así que no hay días a medias.
+  const lookbackStart = addCalendarDays(startDateStr, -INFLOW_LOOKBACK_DAYS);
+  const lookbackEnd = addCalendarDays(startDateStr, -1);
+
   const salesByDate = await db
     .select({
       businessDate: dailySalesCuts.businessDate,
@@ -465,29 +486,77 @@ export async function getCashFlowProjection(
       and(
         eq(dailySalesCuts.companyId, companyId),
         ...(branchId ? [eq(dailySalesCuts.branchId, branchId)] : []),
-        gte(dailySalesCuts.businessDate, startDateStr),
+        gte(dailySalesCuts.businessDate, lookbackStart),
         lte(dailySalesCuts.businessDate, endDateStr)
       )
     )
     .groupBy(dailySalesCuts.businessDate);
 
+  /** Cortes que caen dentro de la ventana proyectada: venta real, no estimada. */
   const actualSalesMap = new Map<string, number>(
-    salesByDate.map((r) => [r.businessDate, Number(r.totalSales || 0)])
+    salesByDate
+      .filter((r) => r.businessDate >= startDateStr)
+      .map((r) => [r.businessDate, Number(r.totalSales || 0)])
   );
 
-  const historyDays = salesByDate.length;
-  const historyTotalCents = salesByDate.reduce(
+  /** Cortes anteriores a hoy: la muestra de la que sale la estimación. */
+  const historial = salesByDate.filter((r) => r.businessDate <= lookbackEnd);
+
+  const historyDays = historial.length;
+  const historyTotalCents = historial.reduce(
     (sum, row) => sum + Number(row.totalSales || 0),
     0
   );
   const avgDailyInflowCents =
     historyDays > 0 ? Math.round(historyTotalCents / historyDays) : null;
 
-  const inflowBasis: InflowBasis = "NONE";
+  // Un día sin corte **no** cuenta como cero: significa "no se capturó", que no
+  // es lo mismo que "no se vendió". Promediar contra los días presentes es la
+  // lectura honesta; meter ceros por los ausentes hundiría la estimación de
+  // cualquier inquilino que capture de forma irregular, que son casi todos al
+  // principio.
+  const porDiaSemana = new Map<number, { totalCents: number; dias: number }>();
+  for (const row of historial) {
+    const dow = dayOfWeekOf(row.businessDate);
+    const acc = porDiaSemana.get(dow) ?? { totalCents: 0, dias: 0 };
+    acc.totalCents += Number(row.totalSales || 0);
+    acc.dias += 1;
+    porDiaSemana.set(dow, acc);
+  }
 
-  /** Entradas basadas únicamente en cortes de caja reales registrados */
-  const inflowFor = (dateStr: string): number => {
-    return actualSalesMap.get(dateStr) ?? 0;
+  /**
+   * La procedencia se declara, no se asume: misma escalera que ya usan food
+   * cost y labor cost, y el copy de los tres casos ya está escrito en la UI.
+   */
+  const inflowBasis: InflowBasis =
+    historyDays >= MIN_DAYS_FOR_SEASONAL
+      ? "SEASONAL"
+      : historyDays > 0
+        ? "AVERAGE"
+        : "NONE";
+
+  /**
+   * Entradas del día: corte real si ya existe, estimación si no.
+   *
+   * Devuelve `null` —no `0`— cuando no hay de dónde estimar. Un cero afirma que
+   * no va a entrar dinero, y contra los egresos del mes pinta de rojo la
+   * pantalla entera de un inquilino que apenas está capturando. Todas las ramas
+   * de `null` aguas abajo (`netFlowCents`, `cumulativeBalanceCents`, la banda de
+   * concentración) ya existían y estaban muertas.
+   */
+  const inflowFor = (dateStr: string): number | null => {
+    const real = actualSalesMap.get(dateStr);
+    if (real !== undefined) return real;
+
+    if (inflowBasis === "NONE") return null;
+    if (inflowBasis === "AVERAGE") return avgDailyInflowCents;
+
+    // Estacional: un sábado se proyecta con los sábados anteriores. Si ese día
+    // de la semana no tiene ninguna muestra —un local que cierra los lunes y
+    // acaba de empezar a capturar— cae al promedio simple y no a cero.
+    const muestra = porDiaSemana.get(dayOfWeekOf(dateStr));
+    if (!muestra || muestra.dias === 0) return avgDailyInflowCents;
+    return Math.round(muestra.totalCents / muestra.dias);
   };
 
   // ── 2. Operating expenses (scheduled) ──────────────────────────

@@ -28,12 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Loader2,
@@ -49,7 +43,6 @@ import {
   Building2,
   Clock,
   Download,
-  ChevronDown,
   ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -199,7 +192,7 @@ export function TreasuryDashboard() {
   const downloadLayout = async (
     runId: string,
     runTitle: string,
-    format: "SPEI_CSV" | "BANORTE_TXT" | "BBVA_TXT" = "SPEI_CSV"
+    format: "SPEI_CSV" = "SPEI_CSV"
   ) => {
     try {
       const res = await fetch(`/api/finance/treasury/runs/${runId}/layout?format=${format}`);
@@ -209,18 +202,55 @@ export function TreasuryDashboard() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        const formatLabel = format === "SPEI_CSV" ? "spei.csv" : format === "BANORTE_TXT" ? "banorte.txt" : "bbva.txt";
+        const formatLabel = "spei.csv";
         a.download = `layout_${(json.data.runTitle || runTitle || "corrida").replace(/\s+/g, "_")}_${formatLabel}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        const nombreFormato = "SPEI (CSV)";
+
+        // Las dos cifras juntas, siempre. Antes el toast decía "N registros
+        // listos" con un `recordCount` que no cuadraba con las partidas de la
+        // corrida, porque nómina, caja chica e impuestos se descartaban en
+        // silencio: la dueña subía al banco un archivo por menos dinero del que
+        // había firmado y no tenía cómo enterarse.
+        const excluidas = Number(json.data.excludedCount || 0);
+        const partidas = Number(json.data.itemCount || 0);
+
         toast.success("Layout bancario descargado", {
-          description: `Formato ${format === "SPEI_CSV" ? "SPEI (CSV)" : format === "BANORTE_TXT" ? "Banorte (TXT)" : "BBVA (TXT)"} listo (${json.data.recordCount || 0} registros).`,
+          description:
+            `Formato ${nombreFormato}: ${json.data.recordCount || 0} transferencias por $${json.data.totalPesos} MXN` +
+            (excluidas > 0
+              ? `. ${excluidas} de ${partidas} partidas quedaron fuera del archivo ($${((json.data.excludedAmountCents || 0) / 100).toFixed(2)} MXN) — revísalas antes de dar por pagada la corrida.`
+              : "."),
+          duration: excluidas > 0 ? 12_000 : 6_000,
         });
+
+        // El detalle de cada exclusión, con lo que hay que hacer para
+        // resolverla. Un toast por partida satura la pantalla, así que van
+        // agrupadas en uno solo, en el orden en que salieron.
+        if (Array.isArray(json.data.excluded) && json.data.excluded.length > 0) {
+          toast.warning("Partidas que no viajan en el archivo", {
+            description: json.data.excluded
+              .map((e: { motivo: string }) => `• ${e.motivo}`)
+              .join("\n"),
+            duration: 20_000,
+          });
+        }
+
+        // Avisos que no impiden el pago pero cambian a dónde va: una CLABE que
+        // el proveedor movió después de que se firmó la corrida, por ejemplo.
+        if (Array.isArray(json.data.avisos) && json.data.avisos.length > 0) {
+          toast.warning("Revisa antes de subirlo al banco", {
+            description: json.data.avisos.join("\n"),
+            duration: 20_000,
+          });
+        }
       } else {
         toast.error("Error al descargar layout", {
           description: json.error || "No se pudo generar el archivo de dispersión.",
+          duration: 12_000,
         });
       }
     } catch (e) {
@@ -512,29 +542,29 @@ export function TreasuryDashboard() {
                             <span className="text-xs text-muted-foreground">{run.currency || "MXN"}</span>
                           </TableCell>
                           <TableCell className="text-right whitespace-nowrap">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-xs gap-1 border-primary/30 hover:bg-primary/10"
-                                  title="Opciones de descarga de layout bancario"
-                                >
-                                  <Download className="h-3 w-3" /> Layout <ChevronDown className="h-3 w-3 opacity-60" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => downloadLayout(run.id, run.title, "SPEI_CSV")}>
-                                  <Download className="mr-2 h-3.5 w-3.5" /> SPEI Estándar (.csv)
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => downloadLayout(run.id, run.title, "BANORTE_TXT")}>
-                                  <Download className="mr-2 h-3.5 w-3.5" /> Banorte Dispersión (.txt)
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => downloadLayout(run.id, run.title, "BBVA_TXT")}>
-                                  <Download className="mr-2 h-3.5 w-3.5" /> BBVA Net Cash (.txt)
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            {/*
+                              A2.6 — un solo formato, el genérico.
+
+                              Aquí había tres opciones: "SPEI Estándar", "Banorte
+                              Dispersión" y "BBVA Net Cash". Los tres archivos
+                              estaban inventados —sin registro de encabezado ni de
+                              cierre, sin clave de banco de 3 dígitos, sin tipo de
+                              cuenta, sin RFC del beneficiario, sin fecha de
+                              aplicación— y ninguno correspondía al layout real de
+                              esos bancos. Tres formatos inventados le cuestan al
+                              cliente tres intentos fallidos en el portal; uno
+                              honesto le cuesta uno. Los otros dos vuelven cuando
+                              haya el manual del banco en mano.
+                            */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1 border-primary/30 hover:bg-primary/10"
+                              title="Descargar el archivo de dispersión SPEI de esta corrida"
+                              onClick={() => downloadLayout(run.id, run.title)}
+                            >
+                              <Download className="h-3 w-3" /> Layout SPEI
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
