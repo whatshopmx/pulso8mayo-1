@@ -251,6 +251,17 @@ const routingRules: Record<NotificationEventType, RoutingRule> = {
     retryDelayMs: 1000,
     businessHoursOnly: false
   },
+  // Mismo control antifraude que supplier_bank_account_changed, aplicado al
+  // catálogo de payees: la contraparte cambia, el riesgo de redirigir un
+  // pago es idéntico.
+  payee_bank_account_changed: {
+    eventType: "payee_bank_account_changed",
+    priority: "critical",
+    channels: ["whatsapp", "in-app"],
+    retryAttempts: 5,
+    retryDelayMs: 1000,
+    businessHoursOnly: false
+  },
   workflow_unassigned: {
     eventType: "workflow_unassigned",
     // Plan 5.2: una programación sin destinatario es un hueco operativo que
