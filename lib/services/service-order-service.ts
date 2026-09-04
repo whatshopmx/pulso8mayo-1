@@ -11,6 +11,7 @@ import {
     serviceOrderQuotes,
     serviceOrders,
     approvalRequests,
+    invoices,
 } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api/error";
 import { draftFolio, nextFolio, type IssuedFolio } from "@/lib/services/folio-generator";
@@ -140,7 +141,7 @@ export async function getOrderDetail(companyId: string, id: string) {
         serviceProviderEmail: row.serviceProviderEmail,
     };
 
-    const [quotes, evidence, approvals] = await Promise.all([
+    const [quotes, evidence, approvals, linkedInvoice] = await Promise.all([
         db
             .select()
             .from(serviceOrderQuotes)
@@ -156,9 +157,24 @@ export async function getOrderDetail(companyId: string, id: string) {
             .from(approvalRequests)
             .where(and(eq(approvalRequests.docType, "OS"), eq(approvalRequests.docId, id)))
             .orderBy(asc(approvalRequests.level)),
+        // Factura ligada (control OC/OS, espejo del enlace de una OC). Nullable:
+        // la mayoría de las OS abiertas todavía no tienen CFDI que asociar.
+        db
+            .select({
+                id: invoices.id,
+                folio: invoices.folio,
+                serie: invoices.serie,
+                uuid: invoices.uuid,
+                total: invoices.total,
+                fecha: invoices.fecha,
+                paymentStatus: invoices.paymentStatus,
+            })
+            .from(invoices)
+            .where(eq(invoices.serviceOrderId, id))
+            .limit(1),
     ]);
 
-    return { order, quotes, evidence, approvals };
+    return { order, quotes, evidence, approvals, invoice: linkedInvoice[0] ?? null };
 }
 
 async function loadCompanyOrder(companyId: string, id: string): Promise<ServiceOrderRow> {
@@ -599,6 +615,39 @@ export async function transitionOrder(
         .where(and(eq(serviceOrders.id, orderId), eq(serviceOrders.companyId, companyId)))
         .returning();
     return updated;
+}
+
+/**
+ * Enlace manual de respaldo: cuando el auto-match al capturar el CFDI no
+ * aplicó (candidato ambiguo, o la OS usa `serviceProviderId` en vez de
+ * `supplierId`, que el matcher automático no cubre), alguien lo captura a
+ * mano desde el detalle de la OS.
+ */
+export async function linkInvoice(
+    companyId: string,
+    orderId: string,
+    invoiceId: string,
+): Promise<ServiceOrderRow> {
+    await loadCompanyOrder(companyId, orderId);
+
+    const [invoice] = await db
+        .select({ id: invoices.id, serviceOrderId: invoices.serviceOrderId })
+        .from(invoices)
+        .where(and(eq(invoices.id, invoiceId), eq(invoices.companyId, companyId)))
+        .limit(1);
+    if (!invoice) {
+        throw new ApiError("La factura no existe en esta empresa", 404);
+    }
+    if (invoice.serviceOrderId && invoice.serviceOrderId !== orderId) {
+        throw new ApiError("Esta factura ya está ligada a otra orden de servicio", 409);
+    }
+
+    await db
+        .update(invoices)
+        .set({ serviceOrderId: orderId, updatedAt: new Date() })
+        .where(eq(invoices.id, invoiceId));
+
+    return loadCompanyOrder(companyId, orderId);
 }
 
 export interface AddQuoteInput {

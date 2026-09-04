@@ -114,6 +114,16 @@ export interface ServiceOrderDetail {
     resolvedAt: string | null;
     reason: string | null;
   }>;
+  /** Factura (CFDI) ligada a esta OS — control OC/OS. `null` si aún no llega. */
+  invoice: {
+    id: string;
+    folio: string | null;
+    serie: string | null;
+    uuid: string;
+    total: number;
+    fecha: string;
+    paymentStatus: "PENDING" | "PAID" | "CANCELLED";
+  } | null;
 }
 
 export function useServiceOrder(id: string) {
@@ -190,6 +200,16 @@ export function useAddEvidence(id: string) {
   return useMutation({
     mutationFn: (body: { type: "ANTES" | "DESPUES"; url: string; description?: string }) =>
       postJson(`/api/service-orders/${id}/evidence`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service-orders"] }),
+  });
+}
+
+/** Enlace manual de respaldo cuando el auto-match al capturar el CFDI no aplicó. */
+export function useLinkInvoiceToServiceOrder(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: string) =>
+      postJson(`/api/service-orders/${id}/link-invoice`, { invoiceId }, "PATCH"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["service-orders"] }),
   });
 }

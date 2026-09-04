@@ -5,7 +5,7 @@ import type { Role } from "@/lib/permissions";
 import { CFDIParserService } from "@/lib/services/cfdi-parser";
 import { InvoiceMatchingService } from "@/lib/services/invoice-matching-service";
 import { db } from "@/lib/db";
-import { suppliers, inventoryItems, purchaseOrders, invoices, invoiceLines, receivingReports, recurringContracts } from "@/lib/db/schema";
+import { suppliers, inventoryItems, purchaseOrders, invoices, invoiceLines, receivingReports, recurringContracts, serviceOrders } from "@/lib/db/schema";
 import { eq, and, or, ilike, sql, inArray } from "drizzle-orm";
 import { resolveContract } from "@/lib/services/recurring-contract-variance";
 
@@ -167,6 +167,38 @@ export async function POST(req: NextRequest) {
             });
         }
 
+        // 3.4 Orden de servicio (control OC/OS) — espejo del match de OC.
+        //
+        // Una OS cerrada (`CLOSED`/`PENDING_CONFORMITY`) con `supplierId` no
+        // tenía dónde anclar el CFDI real del proveedor cuando llegaba. Igual
+        // que `recurringContractId` más abajo: solo se liga si el candidato es
+        // único (mismo proveedor, monto dentro de $1 centavo de tolerancia,
+        // sin factura ya asociada). Ante ambigüedad se deja `null` y no se
+        // adivina — una OS que use `serviceProviderId` en vez de `supplierId`
+        // tampoco entra aquí y se liga a mano desde su detalle.
+        let matchedServiceOrderId: string | null = null;
+        if (matchedSupplier) {
+            const amountCents = Math.round(parsedCFDI.total * 100);
+            const candidatos = await db
+                .select({ id: serviceOrders.id, amount: serviceOrders.amount })
+                .from(serviceOrders)
+                .where(
+                    and(
+                        eq(serviceOrders.companyId, session.user.companyId),
+                        eq(serviceOrders.supplierId, matchedSupplier.id),
+                        or(
+                            eq(serviceOrders.status, "CLOSED"),
+                            eq(serviceOrders.status, "PENDING_CONFORMITY"),
+                        ),
+                        sql`NOT EXISTS (SELECT 1 FROM ${invoices} i WHERE i.service_order_id = ${serviceOrders.id})`,
+                    ),
+                );
+            const coincidencias = candidatos.filter(
+                (c) => c.amount != null && Math.abs(c.amount - amountCents) <= 1,
+            );
+            matchedServiceOrderId = coincidencias.length === 1 ? coincidencias[0].id : null;
+        }
+
         // 3.5 Contrato recurrente (V1.1)
         //
         // Se liga aquí, al capturar, y no al detectar desviaciones: es el único
@@ -208,6 +240,7 @@ export async function POST(req: NextRequest) {
                 branchId: branchId ?? null,
                 supplierId: matchedSupplier ? matchedSupplier.id : null,
                 purchaseOrderId: (matchingPOs.length > 0) ? matchingPOs[0].id : null,
+                serviceOrderId: matchedServiceOrderId,
                 recurringContractId,
                 uuid: parsedCFDI.uuid!,
                 folio: parsedCFDI.folio || null,
@@ -304,6 +337,7 @@ export async function POST(req: NextRequest) {
                 taxId: matchedSupplier.taxId,
             } : null,
             purchaseOrders: matchingPOs,
+            serviceOrderId: matchedServiceOrderId,
             items: matchedItems,
             autoMatch,
         });

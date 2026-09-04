@@ -20,6 +20,7 @@ import {
   useSubmitServiceOrder,
   useAddQuote,
   useAddEvidence,
+  useLinkInvoiceToServiceOrder,
   useSignConformity,
   useApproveRequest,
   useRejectRequest,
@@ -42,6 +43,9 @@ import {
   Paperclip,
   ImageIcon,
   Clock,
+  Receipt,
+  Search,
+  Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -116,7 +120,7 @@ export default function ServiceOrderDetailPage() {
     );
   }
 
-  const { order, quotes, evidence, approvals } = data;
+  const { order, quotes, evidence, approvals, invoice } = data;
   const statusCfg = STATUS_CONFIG[order.status] ?? { label: order.status, variant: "outline" as const };
   const userRole = session?.user?.role;
   const userId = session?.user?.id;
@@ -418,6 +422,14 @@ export default function ServiceOrderDetailPage() {
             <EvidenceGallery evidence={evidence} uploadType={evidenceType} orderId={id} canUpload={canUploadEvidence} />
           </CardContent>
         </Card>
+
+        {/* Factura asociada (control OC/OS) */}
+        <Card className="lg:col-span-3">
+          <CardHeader><CardTitle>Factura asociada</CardTitle></CardHeader>
+          <CardContent>
+            <LinkedInvoiceSection orderId={id} invoice={invoice} canWrite={canWrite} />
+          </CardContent>
+        </Card>
       </div>
 
       {/* Rechazar */}
@@ -478,6 +490,106 @@ export default function ServiceOrderDetailPage() {
         <EditDraftDialog open={editOpen} onClose={() => setEditOpen(false)} detail={data} />
       )}
     </PageContainer>
+  );
+}
+
+const INVOICE_PAYMENT_LABEL: Record<string, string> = {
+  PENDING: "Pendiente de pago",
+  PAID: "Pagada",
+  CANCELLED: "Cancelada",
+};
+
+/**
+ * Factura ligada a la OS (control OC/OS), o el enlace manual de respaldo
+ * cuando el auto-match al capturar el CFDI no aplicó — candidato ambiguo, o
+ * la OS usa `serviceProviderId` en vez de `supplierId`.
+ */
+function LinkedInvoiceSection({
+  orderId,
+  invoice,
+  canWrite,
+}: {
+  orderId: string;
+  invoice: DetailData["invoice"];
+  canWrite: boolean;
+}) {
+  const linkMutation = useLinkInvoiceToServiceOrder(orderId);
+  const [uuidInput, setUuidInput] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  if (invoice) {
+    return (
+      <div className="flex items-start gap-3 text-sm">
+        <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
+          <Receipt className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="font-medium">
+            {invoice.folio ? `Folio ${invoice.serie ? `${invoice.serie}-${invoice.folio}` : invoice.folio}` : `CFDI ${invoice.uuid.slice(0, 8)}`}
+          </p>
+          <p className="text-xs text-muted-foreground font-mono truncate">{invoice.uuid}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {formatCurrency(invoice.total)} · {formatDate(invoice.fecha)} ·{" "}
+            <span className={invoice.paymentStatus === "PENDING" ? "text-warning-text" : ""}>
+              {INVOICE_PAYMENT_LABEL[invoice.paymentStatus] ?? invoice.paymentStatus}
+            </span>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!canWrite) {
+    return <p className="text-sm text-muted-foreground">Aún no llega el CFDI de esta orden.</p>;
+  }
+
+  const search = async () => {
+    const uuid = uuidInput.trim();
+    if (!uuid) return;
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const res = await fetch(`/api/inventory/invoices?uuid=${encodeURIComponent(uuid)}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setSearchError(json.error || "No se encontró una factura con ese folio fiscal.");
+        return;
+      }
+      if (json.invoice.serviceOrderId) {
+        setSearchError("Esa factura ya está ligada a otra orden de servicio.");
+        return;
+      }
+      await linkMutation.mutateAsync(json.invoice.id);
+      toast.success(`Factura ${json.invoice.folio ?? uuid.slice(0, 8)} enlazada a esta orden.`);
+      setUuidInput("");
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : "Error al buscar la factura");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-muted-foreground">
+        Aún no llega el CFDI de esta orden. Si el proveedor ya facturó y no se ligó solo, captura
+        el folio fiscal (UUID) para enlazarla a mano.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <Input
+          value={uuidInput}
+          onChange={(e) => setUuidInput(e.target.value)}
+          placeholder="Folio fiscal (UUID) del CFDI"
+          className="font-mono text-xs sm:max-w-sm"
+        />
+        <Button size="sm" onClick={search} disabled={!uuidInput.trim() || searching}>
+          {searching ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Search className="h-4 w-4 mr-1.5" />}
+          Buscar y enlazar
+        </Button>
+      </div>
+      {searchError && <p className="text-xs text-destructive flex items-center gap-1"><Link2 className="h-3 w-3" /> {searchError}</p>}
+    </div>
   );
 }
 
