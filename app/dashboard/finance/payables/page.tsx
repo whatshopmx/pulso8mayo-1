@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -90,6 +91,9 @@ function PayablesContent() {
   const selectedBranch = selectedBranchId ?? "ALL";
   // `?focus=<id>` llega desde el panel de flujo de efectivo.
   const { focusProps } = useFocusedRow();
+  // `?payeeId=<id>` llega desde "Ver facturas" en el catálogo de Payees.
+  const searchParams = useSearchParams();
+  const payeeId = searchParams.get("payeeId") || undefined;
 
   const [data, setData] = useState<AccountsPayableResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,6 +113,7 @@ function PayablesContent() {
       try {
         const url = new URL("/api/finance/payables", window.location.origin);
         if (selectedBranch !== "ALL") url.searchParams.set("branchId", selectedBranch);
+        if (payeeId) url.searchParams.set("payeeId", payeeId);
 
         const res = await fetch(url.toString());
         const json = await res.json();
@@ -128,7 +133,7 @@ function PayablesContent() {
         setLoading(false);
       }
     },
-    [selectedBranch],
+    [selectedBranch, payeeId],
   );
 
   useEffect(() => {

@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader, PageContainer } from "@/components/shared";
 import { usePurchaseOrder, useUpdatePurchaseOrder } from "@/hooks/queries";
-import { ChevronLeft, FileText, Loader2, PackageCheck } from "lucide-react";
+import { ChevronLeft, FileText, Loader2, PackageCheck, Receipt } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "warning" }> = {
@@ -143,6 +143,13 @@ export default function PODetailPage() {
   };
 
   const items = po.items || [];
+  const relatedInvoices = po.invoices || [];
+
+  const INVOICE_PAYMENT_LABEL: Record<string, string> = {
+    PENDING: "Pendiente de pago",
+    PAID: "Pagada",
+    CANCELLED: "Cancelada",
+  };
 
   return (
     <PageContainer>
@@ -319,6 +326,39 @@ export default function PODetailPage() {
                   <span className="text-muted-foreground">Notas</span>
                   <p className="text-sm">{po.notes}</p>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Facturas recibidas</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm">
+              {relatedInvoices.length === 0 ? (
+                <p className="text-muted-foreground">Aún no llega ningún CFDI contra esta orden.</p>
+              ) : (
+                <ul className="divide-y">
+                  {relatedInvoices.map((inv: Record<string, unknown>) => (
+                    <li key={inv.id as string} className="py-2 first:pt-0 last:pb-0 flex items-start gap-2">
+                      <Receipt className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">
+                          {inv.folio ? `Folio ${inv.serie ? `${inv.serie}-${inv.folio}` : inv.folio}` : `CFDI ${(inv.uuid as string).slice(0, 8)}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatCurrency(inv.total as number)} · {formatDate(inv.fecha as string)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {(inv.matchStatus as string) || "Sin conciliar"} ·{" "}
+                          <span className={inv.paymentStatus === "PENDING" ? "text-warning-text" : ""}>
+                            {INVOICE_PAYMENT_LABEL[inv.paymentStatus as string] ?? (inv.paymentStatus as string)}
+                          </span>
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </CardContent>
           </Card>

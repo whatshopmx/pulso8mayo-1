@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get("branchId") || undefined;
     const supplierId = searchParams.get("supplierId") || undefined;
+    const payeeId = searchParams.get("payeeId") || undefined;
 
     const { ctx, decision } = await requirePermissionApi("reports", "read", {
       classification: "FINANCIAL",
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
       companyId: ctx.userCompanyId,
       branchId: alcance.kind === "BRANCH" ? alcance.branchId : undefined,
       supplierId,
+      payeeId,
       itemsLimit,
     });
 

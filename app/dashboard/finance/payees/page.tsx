@@ -41,7 +41,9 @@ import { mensajeDeError } from "@/lib/api/client-error";
 import {
   ArrowRight,
   Building2,
+  FileText,
   Handshake,
+  Landmark,
   Loader2,
   Pencil,
   Plus,
@@ -456,6 +458,28 @@ export default function PayeesPage() {
                             >
                               <Link href={`/dashboard/finance/expenses?payeeId=${payee.id}`}>
                                 <Receipt className="w-3.5 h-3.5" /> Ver gastos
+                              </Link>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                              asChild
+                              title="Ver facturas y gastos por pagar de esta contraparte"
+                            >
+                              <Link href={`/dashboard/finance/payables?payeeId=${payee.id}`}>
+                                <FileText className="w-3.5 h-3.5" /> Ver facturas
+                              </Link>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                              asChild
+                              title="Cuenta bancaria verificada para pagarle por tesorería"
+                            >
+                              <Link href={`/dashboard/finance/payee-bank-accounts?payeeId=${payee.id}`}>
+                                <Landmark className="w-3.5 h-3.5" /> Cuenta bancaria
                               </Link>
                             </Button>
                             <Button

@@ -35,6 +35,14 @@ export interface AccountsPayableFilter {
   branchId?: string;
   supplierId?: string;
   /**
+   * Filtra por la contraparte (payee) que agrupa la deuda: facturas cuyo
+   * proveedor está enlazado a este payee (`suppliers.payeeId`), y gastos
+   * operativos capturados directamente contra él. A diferencia de
+   * `supplierId`, sí incluye gastos operativos — es justo el cruce que unifica
+   * las dos identidades bajo "a quién le debo".
+   */
+  payeeId?: string;
+  /**
    * A19 — Cota del detalle. Los agregados se calculan sobre **todas** las
    * partidas y el corte se aplica al final, así que acotar no cambia ni un
    * total ni un tramo de antigüedad: sólo cuántas filas viajan.
@@ -61,6 +69,7 @@ export async function getAccountsPayable(
   ];
   if (filter.branchId) invoiceConditions.push(eq(invoices.branchId, filter.branchId));
   if (filter.supplierId) invoiceConditions.push(eq(invoices.supplierId, filter.supplierId));
+  if (filter.payeeId) invoiceConditions.push(eq(suppliers.payeeId, filter.payeeId));
 
   const expenseConditions = [
     eq(operatingExpenses.companyId, filter.companyId),
@@ -70,6 +79,7 @@ export async function getAccountsPayable(
     eq(operatingExpenses.status, "APPROVED"),
   ];
   if (filter.branchId) expenseConditions.push(eq(operatingExpenses.branchId, filter.branchId));
+  if (filter.payeeId) expenseConditions.push(eq(operatingExpenses.payeeId, filter.payeeId));
 
   const [invoiceRows, expenseRows] = await Promise.all([
     db

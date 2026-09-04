@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { approvalRequests, purchaseOrders, purchaseOrderItems, requisitions, requisitionItems, suppliers, branches, inventoryBatches, inventoryItems, companies, users } from "@/lib/db/schema";
+import { approvalRequests, purchaseOrders, purchaseOrderItems, requisitions, requisitionItems, suppliers, branches, inventoryBatches, inventoryItems, companies, users, invoices } from "@/lib/db/schema";
 import { eq, and, desc, sql, inArray, or, asc, ilike } from "drizzle-orm";
 import { AuditService } from "./audit-service";
 import { ApiError } from "@/lib/api/error";
@@ -285,12 +285,31 @@ export class PurchaseOrderService {
       itemName: r.itemName || r.item.itemId,
     }));
 
+    // Facturas recibidas contra esta OC. Sin esto, el detalle de la orden no
+    // decía si ya llegó su CFDI ni si ya se pagó — había que adivinarlo desde
+    // el módulo de finanzas, buscando por proveedor y monto a mano.
+    const relatedInvoices = await db
+      .select({
+        id: invoices.id,
+        folio: invoices.folio,
+        serie: invoices.serie,
+        uuid: invoices.uuid,
+        total: invoices.total,
+        fecha: invoices.fecha,
+        matchStatus: invoices.matchStatus,
+        paymentStatus: invoices.paymentStatus,
+      })
+      .from(invoices)
+      .where(eq(invoices.purchaseOrderId, id))
+      .orderBy(desc(invoices.createdAt));
+
     return {
       ...row.po,
       supplierName: row.supplierName || row.po.supplierId,
       branchName: row.branchName || row.po.branchId,
       requestedBy: row.requestedByName || row.po.requestedBy,
       items,
+      invoices: relatedInvoices,
     };
   }
 
