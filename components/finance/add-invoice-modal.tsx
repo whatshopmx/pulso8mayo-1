@@ -12,7 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Plus, FileCheck, Users, Receipt } from "lucide-react";
+import { Loader2, Plus, FileCheck, Users, Receipt, Wallet } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -25,11 +25,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatCents } from "@/lib/utils";
 
-export function AddInvoiceModal({ 
-  runId, 
+export function AddPaymentRunItemModal({
+  runId,
   branchId,
-  onInvoiceAdded 
-}: { 
+  onInvoiceAdded
+}: {
   runId: string;
   branchId?: string | null;
   onInvoiceAdded: () => void;
@@ -37,8 +37,10 @@ export function AddInvoiceModal({
   const [open, setOpen] = useState(false);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [payrollRuns, setPayrollRuns] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
   const [isLoadingPayroll, setIsLoadingPayroll] = useState(false);
+  const [isLoadingExpenses, setIsLoadingExpenses] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("invoices");
 
@@ -76,11 +78,29 @@ export function AddInvoiceModal({
     }
   };
 
+  const fetchExpenses = async () => {
+    setIsLoadingExpenses(true);
+    try {
+      const url = branchId ? `/api/finance/treasury/expenses/unpaid?branchId=${branchId}` : "/api/finance/treasury/expenses/unpaid";
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "No se pudieron cargar los gastos operativos");
+      setExpenses(json.data || []);
+    } catch (error: any) {
+      toast.error("Error", {
+        description: error.message || "No se pudieron cargar los gastos operativos pendientes.",
+      });
+    } finally {
+      setIsLoadingExpenses(false);
+    }
+  };
+
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (newOpen) {
       fetchInvoices();
       fetchPayrollRuns();
+      fetchExpenses();
     }
   };
 
@@ -154,6 +174,38 @@ export function AddInvoiceModal({
     }
   };
 
+  const addExpense = async (expense: any) => {
+    setAddingId(expense.id);
+    try {
+      const res = await fetch(`/api/finance/treasury/runs/${runId}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemType: "OPERATING_EXPENSE",
+          referenceId: expense.id,
+          // Sin `amountCents`: el monto lo lee el servidor del gasto (G1.2).
+          notes: `${expense.description} — ${expense.payeeName || expense.category}`
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Error al agregar el gasto a la corrida.");
+
+      toast.success("Gasto agregado", {
+        description: `"${expense.description}" adjuntado exitosamente.`,
+      });
+
+      setExpenses(prev => prev.filter(e => e.id !== expense.id));
+      onInvoiceAdded();
+    } catch (error: any) {
+      toast.error("Error al agregar", {
+        description: error.message,
+      });
+    } finally {
+      setAddingId(null);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -167,14 +219,18 @@ export function AddInvoiceModal({
             <FileCheck className="h-5 w-5 text-primary" /> Agregar Ítem a Corrida de Pago
           </DialogTitle>
           <DialogDescription>
-            Selecciona facturas de proveedores o corridas de nómina procesadas para autorizar su dispersión.
+            Selecciona facturas de proveedores, gastos operativos autorizados o corridas de nómina
+            procesadas para autorizar su dispersión.
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="invoices" className="flex items-center gap-2">
               <Receipt className="h-4 w-4" /> Facturas Proveedores ({invoices.length})
+            </TabsTrigger>
+            <TabsTrigger value="expenses" className="flex items-center gap-2">
+              <Wallet className="h-4 w-4" /> Gastos Operativos ({expenses.length})
             </TabsTrigger>
             <TabsTrigger value="payroll" className="flex items-center gap-2">
               <Users className="h-4 w-4" /> Nómina de Sucursal ({payrollRuns.length})
@@ -235,6 +291,69 @@ export function AddInvoiceModal({
                             onClick={() => addInvoice(inv)}
                           >
                             {addingId === inv.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Plus className="h-3 w-3" />
+                            )}
+                            Adjuntar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="expenses" className="mt-4">
+            <div className="max-h-[50vh] overflow-auto">
+              {isLoadingExpenses ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : expenses.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground bg-muted/20 rounded-lg border border-dashed border-border">
+                  <p className="text-sm font-medium text-foreground">No hay gastos operativos autorizados sin pagar</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Todos los gastos aprobados ya están liquidados o asignados a otras corridas.
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Descripción</TableHead>
+                      <TableHead>Contraparte</TableHead>
+                      <TableHead>Categoría</TableHead>
+                      <TableHead className="text-right">Monto</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {expenses.map((exp) => (
+                      <TableRow key={exp.id} className="hover:bg-muted/50 transition-colors">
+                        <TableCell className="text-sm font-medium text-foreground">{exp.description}</TableCell>
+                        <TableCell className="text-sm">
+                          {exp.payeeName ?? (
+                            <span className="text-xs text-destructive">Sin contraparte</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs font-normal">{exp.category}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-sm whitespace-nowrap">
+                          ${formatCents(exp.amount)}
+                        </TableCell>
+                        <TableCell className="text-right whitespace-nowrap">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1"
+                            disabled={addingId === exp.id}
+                            onClick={() => addExpense(exp)}
+                          >
+                            {addingId === exp.id ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
                               <Plus className="h-3 w-3" />

@@ -1,11 +1,14 @@
 import { db } from "@/lib/db";
-import { 
-  paymentRuns, 
-  paymentRunItems, 
-  recurringContracts, 
+import {
+  paymentRuns,
+  paymentRunItems,
+  recurringContracts,
   invoices,
   suppliers,
   supplierBankAccounts,
+  operatingExpenses,
+  payees,
+  payeeBankAccounts,
   paymentRunStatusEnum,
   paymentRunItemTypeEnum,
   branches,
@@ -18,7 +21,8 @@ import {
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { ApiError } from "@/lib/api/error";
-import { getBankAccountsForPayment } from "@/lib/services/supplier-bank-account-service";
+import { getBankAccountsForPayment as getSupplierBankAccountsForPayment } from "@/lib/services/supplier-bank-account-service";
+import { getBankAccountsForPayment as getPayeeBankAccountsForPayment } from "@/lib/services/payee-bank-account-service";
 import { decryptProfileRecords } from "@/lib/security/employee-cipher";
 
 type PaymentRunStatus = typeof paymentRunStatusEnum.enumValues[number];
@@ -272,6 +276,43 @@ export class TreasuryService {
   }
 
   /**
+   * Fetch operating expenses ready to be paid in Treasury: `APPROVED` (no
+   * `PENDING_APPROVAL` — todavía puede rechazarse — ni `PAID`). Espejo de
+   * `getUnpaidMatchedInvoices`; sin `payeeId` igual aparecen aquí porque el
+   * gasto casual sí necesita verse para que alguien note que le falta
+   * contraparte — `assertCounterpartyPayable` es quien lo rechaza al
+   * intentar agregarlo a una corrida.
+   */
+  static async getUnpaidApprovedExpenses(companyId: string, branchId?: string | null) {
+    const conditions = [
+      eq(operatingExpenses.companyId, companyId),
+      eq(operatingExpenses.status, "APPROVED"),
+    ];
+
+    if (branchId && branchId !== "ALL") {
+      conditions.push(eq(operatingExpenses.branchId, branchId));
+    }
+
+    return db
+      .select({
+        id: operatingExpenses.id,
+        description: operatingExpenses.description,
+        category: operatingExpenses.category,
+        amount: operatingExpenses.amount,
+        branchId: operatingExpenses.branchId,
+        branchName: branches.name,
+        payeeId: operatingExpenses.payeeId,
+        payeeName: payees.name,
+        dueDate: operatingExpenses.dueDate,
+      })
+      .from(operatingExpenses)
+      .leftJoin(branches, eq(operatingExpenses.branchId, branches.id))
+      .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
+      .where(and(...conditions))
+      .orderBy(sql`${operatingExpenses.dueDate} ASC NULLS LAST`);
+  }
+
+  /**
    * Fetch payroll runs ready to be paid in Treasury.
    */
   static async getUnpaidPayrollRuns(companyId: string, branchId?: string | null) {
@@ -339,8 +380,10 @@ export class TreasuryService {
   }): Promise<{
     amountCents: number;
     counterparty: string;
-    /** Cuenta verificada vigente al momento de agregar la partida (A2.1). */
+    /** Cuenta verificada de proveedor, vigente al momento de agregar la partida (A2.1). */
     bankAccountId?: string | null;
+    /** Cuenta verificada de payee — mutuamente excluyente con `bankAccountId`: son dos catálogos distintos. */
+    payeeBankAccountId?: string | null;
     clabeLast4?: string | null;
   }> {
     const { companyId, itemType, referenceId, notes } = input;
@@ -488,6 +531,60 @@ export class TreasuryService {
         return { amountCents: solicitado, counterparty: "Fondo de caja chica de la sucursal" };
       }
 
+      // Gasto operativo autorizado (renta, luz, honorarios...) con payee.
+      // Espejo de "INVOICE": la contraparte es el payee del gasto, con CLABE
+      // verificada en `payee_bank_accounts`. Un gasto sin `payeeId` (taxi,
+      // hielo, plomero) no tiene a quién transferirle — igual que una factura
+      // sin `supplierId` — así que se rechaza en vez de colarse como OTHER.
+      case "OPERATING_EXPENSE": {
+        const expense = await db.query.operatingExpenses.findFirst({
+          where: and(eq(operatingExpenses.id, referenceId), eq(operatingExpenses.companyId, companyId)),
+        });
+
+        if (!expense) throw ApiError.notFound("Gasto operativo no encontrado");
+
+        if (expense.status === "PAID") {
+          throw ApiError.badRequest("Este gasto ya está marcado como pagado.");
+        }
+        if (expense.status !== "APPROVED") {
+          throw ApiError.badRequest(
+            `El gasto está en estado "${expense.status}"; solo un gasto APPROVED puede programarse para pago.`,
+          );
+        }
+
+        if (!expense.payeeId) {
+          throw ApiError.badRequest(
+            "Este gasto no tiene contraparte (payee) asignada. Un gasto casual sin contraparte no tiene a quién transferirle; asígnale una antes de programarlo para pago.",
+          );
+        }
+
+        const verifiedAccount = await db.query.payeeBankAccounts.findFirst({
+          where: and(
+            eq(payeeBankAccounts.payeeId, expense.payeeId),
+            eq(payeeBankAccounts.status, "VERIFIED"),
+            eq(payeeBankAccounts.active, true),
+          ),
+        });
+
+        const payee = await db.query.payees.findFirst({
+          where: eq(payees.id, expense.payeeId),
+        });
+        const payeeNameResuelto = payee?.name || "de la contraparte";
+
+        if (!verifiedAccount) {
+          throw ApiError.badRequest(
+            `La contraparte "${payeeNameResuelto}" no tiene una cuenta bancaria CLABE verificada. Se requiere validación previa contra fraude.`,
+          );
+        }
+
+        return {
+          amountCents: expense.amount,
+          counterparty: payeeNameResuelto,
+          payeeBankAccountId: verifiedAccount.id,
+          clabeLast4: verifiedAccount.clabeLast4,
+        };
+      }
+
       // Un cajón de sastre en un lote de pago **es** el bypass: monto libre,
       // referencia libre, sin contraparte que verificar. Si aparece un caso de
       // uso real, se le declara su propio tipo con su propia regla.
@@ -534,7 +631,7 @@ export class TreasuryService {
       throw ApiError.badRequest("Solo puedes agregar ítems a una corrida en estado DRAFT.");
     }
 
-    const { amountCents, bankAccountId, clabeLast4 } =
+    const { amountCents, bankAccountId, payeeBankAccountId, clabeLast4 } =
       await TreasuryService.assertCounterpartyPayable({
         companyId,
         itemType,
@@ -556,8 +653,11 @@ export class TreasuryService {
           notes,
           // Congelado de cuenta (A2.1). Los tipos sin contraparte bancaria
           // —nómina, caja chica, impuestos— lo dejan en `null`, que es la
-          // verdad y no una omisión.
+          // verdad y no una omisión. `bankAccountId` y `payeeBankAccountId`
+          // son mutuamente excluyentes: proveedor y payee son catálogos
+          // distintos y una partida solo tiene contraparte en uno de los dos.
           bankAccountId: bankAccountId ?? null,
+          payeeBankAccountId: payeeBankAccountId ?? null,
           clabeLast4Snapshot: clabeLast4 ?? null,
         })
         .returning();
@@ -612,6 +712,13 @@ export class TreasuryService {
             columns: { periodStart: true, periodEnd: true, status: true }
           });
           return { ...item, payrollDetails: pr || null };
+        }
+        if (item.itemType === 'OPERATING_EXPENSE') {
+          const exp = await db.query.operatingExpenses.findFirst({
+            where: eq(operatingExpenses.id, item.referenceId),
+            columns: { description: true, category: true, status: true }
+          });
+          return { ...item, expenseDetails: exp || null };
         }
         return item;
       })
@@ -825,6 +932,20 @@ export class TreasuryService {
             .set({ paymentStatus: 'PAID', paidAt: new Date(), paidBy: userId })
             .where(inArray(invoices.id, invoiceIds));
         }
+
+        // Espejo para gastos operativos: sin esto, un gasto que sí pasó por
+        // la corrida y se dispersó se quedaba en APPROVED para siempre — la
+        // misma inconsistencia que el comentario de arriba describe para
+        // facturas, aplicada al otro origen de "lo que debo".
+        const expenseIds = items
+          .filter(i => i.itemType === 'OPERATING_EXPENSE')
+          .map(i => i.referenceId);
+
+        if (expenseIds.length > 0) {
+          await tx.update(operatingExpenses)
+            .set({ status: 'PAID', paidAt: new Date(), paidBy: userId })
+            .where(inArray(operatingExpenses.id, expenseIds));
+        }
       }
 
       return updatedRun;
@@ -910,7 +1031,7 @@ export class TreasuryService {
       // cada partida y las vigentes de cada proveedor. Se piden las dos porque
       // la corrida se dispersa contra la que se autorizó, y la diferencia entre
       // ambas es justo lo que hay que declarar.
-      const { porProveedor, porId } = await getBankAccountsForPayment({
+      const { porProveedor, porId } = await getSupplierBankAccountsForPayment({
         companyId,
         supplierIds: filas.map((f) => f.supplierId).filter(Boolean) as string[],
         accountIds: facturaItems
@@ -979,6 +1100,103 @@ export class TreasuryService {
           beneficiario: cuenta.accountHolderName || factura.supplierName || "PROVEEDOR",
           amountCents: item.amountCents,
           concepto: `PAGO FAC ${etiquetaFactura}`,
+        });
+      }
+    }
+
+    // ── Gastos operativos ────────────────────────────────────────────────
+    // Simétrico al bloque de facturas: resuelve `payee_bank_accounts` por
+    // lote (congelada + vigente) y arma renglones contra la contraparte del
+    // gasto, no del proveedor de mercancía.
+    const gastoItems = items.filter((i) => i.itemType === "OPERATING_EXPENSE");
+
+    if (gastoItems.length > 0) {
+      const filasGasto = await db
+        .select({
+          id: operatingExpenses.id,
+          description: operatingExpenses.description,
+          payeeId: operatingExpenses.payeeId,
+          payeeName: payees.name,
+        })
+        .from(operatingExpenses)
+        .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
+        .where(
+          and(
+            eq(operatingExpenses.companyId, companyId),
+            inArray(
+              operatingExpenses.id,
+              gastoItems.map((i) => i.referenceId)
+            )
+          )
+        );
+
+      const gastoPorId = new Map(filasGasto.map((g) => [g.id, g]));
+
+      const { porPayee, porId: porIdPayee } = await getPayeeBankAccountsForPayment({
+        companyId,
+        payeeIds: filasGasto.map((g) => g.payeeId).filter(Boolean) as string[],
+        accountIds: gastoItems
+          .map((i) => i.payeeBankAccountId)
+          .filter(Boolean) as string[],
+      });
+
+      for (const item of gastoItems) {
+        const gasto = gastoPorId.get(item.referenceId);
+
+        if (!gasto) {
+          excluidas.push({
+            itemId: item.id,
+            itemType: item.itemType,
+            amountCents: item.amountCents,
+            motivo:
+              "El gasto operativo referenciado no existe o no pertenece a esta empresa. Quita la partida de la corrida.",
+          });
+          continue;
+        }
+
+        const etiquetaGasto = gasto.description || item.id.slice(0, 8);
+
+        if (!gasto.payeeId) {
+          excluidas.push({
+            itemId: item.id,
+            itemType: item.itemType,
+            amountCents: item.amountCents,
+            motivo: `El gasto "${etiquetaGasto}" no tiene contraparte asignada: no hay a quién transferirle.`,
+          });
+          continue;
+        }
+
+        const congeladaPayee = item.payeeBankAccountId ? porIdPayee.get(item.payeeBankAccountId) : undefined;
+        const vigentePayee = porPayee.get(gasto.payeeId);
+        const cuentaPayee = congeladaPayee ?? vigentePayee;
+
+        if (!cuentaPayee) {
+          excluidas.push({
+            itemId: item.id,
+            itemType: item.itemType,
+            amountCents: item.amountCents,
+            motivo: `"${gasto.payeeName || "La contraparte"}" no tiene cuenta CLABE verificada y activa. Verifícala antes de dispersar.`,
+          });
+          continue;
+        }
+
+        if (!item.payeeBankAccountId) {
+          avisos.push(
+            `La partida del gasto "${etiquetaGasto}" se agregó antes de que se congelara la cuenta bancaria, así que se dispersa contra la cuenta verificada vigente (••••${cuentaPayee.clabeLast4}).`
+          );
+        } else if (vigentePayee && vigentePayee.accountId !== cuentaPayee.accountId) {
+          avisos.push(
+            `"${gasto.payeeName || "La contraparte"}" registró una cuenta distinta (••••${vigentePayee.clabeLast4}) después de que se autorizó esta corrida. El archivo se genera contra la cuenta que se firmó (••••${cuentaPayee.clabeLast4}).`
+          );
+        }
+
+        renglones.push({
+          itemId: item.id,
+          clabe: cuentaPayee.clabe,
+          bankName: cuentaPayee.bankName,
+          beneficiario: cuentaPayee.accountHolderName || gasto.payeeName || "CONTRAPARTE",
+          amountCents: item.amountCents,
+          concepto: `PAGO GASTO ${etiquetaGasto}`,
         });
       }
     }

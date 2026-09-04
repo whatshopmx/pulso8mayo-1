@@ -22,7 +22,7 @@ import {
 import { ArrowLeft, Loader2, Send, CheckCircle, FileText, Ban, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { AddInvoiceModal } from "./add-invoice-modal";
+import { AddPaymentRunItemModal } from "./add-invoice-modal";
 
 const STATUS_CONFIG: Record<
   string,
@@ -235,7 +235,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-semibold">Ítems de la Corrida ({items.length})</h3>
               {run.status === "DRAFT" && (
-                <AddInvoiceModal runId={runId} branchId={run.branchId} onInvoiceAdded={fetchData} />
+                <AddPaymentRunItemModal runId={runId} branchId={run.branchId} onInvoiceAdded={fetchData} />
               )}
             </div>
 
@@ -244,7 +244,8 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                 <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                 <p className="text-sm font-medium text-foreground">No hay ítems agregados a esta corrida</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Agrega facturas conciliadas (3-way match) o corridas de nómina para autorizar su pago.
+                  Agrega facturas conciliadas (3-way match), gastos operativos autorizados o corridas
+                  de nómina para autorizar su pago.
                 </p>
               </div>
             ) : (
@@ -269,6 +270,10 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                           <Badge variant="outline" className="bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/20 font-normal">
                             Nómina
                           </Badge>
+                        ) : item.itemType === "OPERATING_EXPENSE" ? (
+                          <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20 font-normal">
+                            Gasto Operativo
+                          </Badge>
                         ) : (
                           <Badge variant="outline" className="font-normal">
                             {item.itemType}
@@ -276,7 +281,11 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                         )}
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
-                        {item.invoiceDetails?.folio ? `FAC-${item.invoiceDetails.folio}` : item.referenceId.slice(0, 8)}
+                        {item.invoiceDetails?.folio
+                          ? `FAC-${item.invoiceDetails.folio}`
+                          : item.expenseDetails?.description
+                            ? item.expenseDetails.description
+                            : item.referenceId.slice(0, 8)}
                       </TableCell>
                       <TableCell className="text-sm">{item.notes || "-"}</TableCell>
                       <TableCell className="text-right font-medium text-sm whitespace-nowrap">{formatCurrency(item.amountCents)}</TableCell>
