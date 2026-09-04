@@ -610,6 +610,13 @@
       "when": 1788366351150,
       "tag": "0087_volatile_blue_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1788495126176,
+      "tag": "0088_black_archangel",
+      "breakpoints": true
     }
   ]
 }

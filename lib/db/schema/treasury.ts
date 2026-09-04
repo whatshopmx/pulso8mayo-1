@@ -1,8 +1,8 @@
-import { pgTable, text, timestamp, boolean, uuid, integer, pgEnum, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, integer, pgEnum, uniqueIndex, index, foreignKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { companies, branches } from "./core";
 import { users } from "./auth";
-import { supplierBankAccounts } from "../schema";
+import { supplierBankAccounts, payees } from "../schema";
 
 export const paymentRunStatusEnum = pgEnum("payment_run_status", [
   'DRAFT',
@@ -88,7 +88,17 @@ export const paymentRunItemTypeEnum = pgEnum("payment_run_item_type", [
   'PAYROLL',
   'TAXES',
   'PETTY_CASH_REIMBURSEMENT',
-  'OTHER'
+  'OTHER',
+  /**
+   * Gasto operativo autorizado (renta, luz, honorarios...) con `payeeId`.
+   *
+   * Hasta aquí un gasto `APPROVED` aparecía en `/dashboard/finance/payables`
+   * como "por pagar" pero no tenía ningún camino hacia el pago: el switch de
+   * `assertCounterpartyPayable` no lo cubría y `OTHER` está prohibido a
+   * propósito. Requiere cuenta verificada en `payee_bank_accounts`, igual que
+   * una factura requiere una en `supplier_bank_accounts`.
+   */
+  'OPERATING_EXPENSE',
 ]);
 
 export const paymentRunItems = pgTable("payment_run_items", {
@@ -122,6 +132,14 @@ export const paymentRunItems = pgTable("payment_run_items", {
   bankAccountId: uuid("bank_account_id").references(() => supplierBankAccounts.id),
 
   /**
+   * Cuenta congelada de la contraparte cuando la partida es `OPERATING_EXPENSE`
+   * (mismo criterio que `bankAccountId`, pero apuntando a `payee_bank_accounts`
+   * en vez de `supplier_bank_accounts`: son dos catálogos de identidad
+   * distintos y una sola columna no puede referenciar a los dos a la vez).
+   */
+  payeeBankAccountId: uuid("payee_bank_account_id").references(() => payeeBankAccounts.id),
+
+  /**
    * Últimos 4 dígitos de la CLABE en el momento de agregar la partida.
    *
    * Se guardan aparte de la llave foránea porque son lo que se le muestra a una
@@ -130,6 +148,87 @@ export const paymentRunItems = pgTable("payment_run_items", {
    * movió la cuenta después de que la corrida se armó.
    */
   clabeLast4Snapshot: text("clabe_last4_snapshot"),
-  
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ---------------------------------------------------------------------------
+// Cuentas bancarias de payee — espejo de `supplier_bank_accounts`
+// (`lib/db/schema.ts`) para el mismo control antifraude, aplicado al catálogo
+// de contrapartes de gasto operativo en vez del de proveedores.
+//
+// El fraude que se cierra es el mismo: no es el gasto inventado, es cambiarle
+// la CLABE a un payee real (el arrendador, el despacho contable) para
+// redirigir un pago legítimo. Las mismas cuatro reglas aplican aquí: validar
+// antes de confiar, capturar no es verificar, capturar no desplaza, y un
+// cambio siempre despierta al dueño. Ver `payee-bank-account-service.ts`.
+// ---------------------------------------------------------------------------
+
+export const payeeBankAccountStatusEnum = pgEnum("payee_bank_account_status", [
+  'PENDING_VERIFICATION',
+  'VERIFIED',
+  'REJECTED',
+]);
+
+export const payeeBankAccounts = pgTable("payee_bank_accounts", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  payeeId: uuid("payee_id").notNull().references(() => payees.id),
+
+  /** CLABE cifrada en reposo — mismo esquema de cifrado que `supplier_bank_accounts.clabe`. */
+  clabe: text("clabe").notNull(),
+  /** Últimos 4 dígitos en claro: es todo lo que la UI muestra jamás. */
+  clabeLast4: text("clabe_last4").notNull(),
+  /** HMAC-SHA256(CLABE, DEK del tenant) — mismo propósito que en `supplier_bank_accounts`. */
+  clabeFingerprint: text("clabe_fingerprint").notNull(),
+
+  bankCode: text("bank_code").notNull(),
+  bankName: text("bank_name").notNull(),
+
+  /** Titular declarado por quien captura; el paso de verificación lo contrasta contra el CEP. */
+  accountHolderName: text("account_holder_name").notNull(),
+
+  status: payeeBankAccountStatusEnum("status").default('PENDING_VERIFICATION').notNull(),
+  /** Baja lógica. Una cuenta nunca se borra: es evidencia de a quién se pagó. */
+  active: boolean("active").default(true).notNull(),
+
+  verifiedAt: timestamp("verified_at"),
+  verifiedBy: text("verified_by").references(() => users.id),
+  verificationMethod: text("verification_method"),
+  verificationEvidenceUrl: text("verification_evidence_url"),
+
+  rejectedAt: timestamp("rejected_at"),
+  rejectedBy: text("rejected_by").references(() => users.id),
+  rejectionReason: text("rejection_reason"),
+
+  /** Quién capturó. El verificador tiene que ser alguien distinto. */
+  registeredBy: text("registered_by").notNull().references(() => users.id),
+  /** Cuenta vigente que ésta pretende sustituir — la traza del cambio. */
+  replacesAccountId: uuid("replaces_account_id"),
+
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  /** Un payee no puede tener dos cuentas verificadas y activas a la vez. */
+  oneVerifiedActivePerPayee: uniqueIndex("payee_bank_accounts_one_verified_active")
+    .on(table.payeeId)
+    .where(sql`${table.status} = 'VERIFIED' AND ${table.active}`),
+  /** Recapturar la misma CLABE de un payee no crea filas duplicadas. */
+  payeeClabeUnique: uniqueIndex("payee_bank_accounts_payee_clabe_unique")
+    .on(table.payeeId, table.clabeFingerprint)
+    .where(sql`${table.active}`),
+  companyPayeeIdx: index("payee_bank_accounts_company_payee_idx").on(
+    table.companyId,
+    table.payeeId,
+  ),
+  fingerprintIdx: index("payee_bank_accounts_fingerprint_idx").on(
+    table.companyId,
+    table.clabeFingerprint,
+  ),
+  replacesAccountFk: foreignKey({
+    columns: [table.replacesAccountId],
+    foreignColumns: [table.id],
+    name: "payee_bank_accounts_replaces_account_id_fk",
+  }),
+}));

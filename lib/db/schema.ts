@@ -13,7 +13,7 @@ import { account, users, session, sessions, verifications, magicLinks, roleEnum 
 // Import core tables for foreign key references
 import { companies, branches } from './schema/core';
 import { branchComplianceServices } from './schema/equipment';
-import { purchaseTypeEnum, costCenters } from './schema/service-orders';
+import { purchaseTypeEnum, costCenters, serviceOrders } from './schema/service-orders';
 import { recurringContracts } from './schema/treasury';
 
 // Re-export modular schema
@@ -2933,6 +2933,19 @@ export const invoices = pgTable("invoices", {
      */
     recurringContractId: uuid("recurring_contract_id").references(() => recurringContracts.id, { onDelete: "set null" }),
 
+    /**
+     * Orden de servicio que este CFDI liquida (control OC/OS).
+     *
+     * Simétrico a `purchaseOrderId`: una OC ya podía ligarse a su factura, pero
+     * una OS cerrada (`service_orders.status = CLOSED`, con su `amount`) no
+     * tenía ninguna columna donde anclar el CFDI real del proveedor cuando
+     * llegaba. Nullable porque el auto-match sólo liga cuando el candidato es
+     * único (mismo criterio que `recurringContractId`); ante ambigüedad, o
+     * cuando la OS se hizo con `serviceProviderId` en vez de `supplierId`, se
+     * captura a mano desde el detalle de la OS.
+     */
+    serviceOrderId: uuid("service_order_id").references(() => serviceOrders.id, { onDelete: "set null" }),
+
     uuid: text("uuid").unique().notNull(),
     folio: text("folio"),
     serie: text("serie"),
@@ -2986,7 +2999,9 @@ export const invoices = pgTable("invoices", {
     xmlContent: text("xml_content"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+    invoicesServiceOrderIdx: index("invoices_service_order_idx").on(table.serviceOrderId),
+}));
 
 export const invoiceLines = pgTable("invoice_lines", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
