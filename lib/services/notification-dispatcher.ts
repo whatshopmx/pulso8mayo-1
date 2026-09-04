@@ -40,6 +40,7 @@ export type NotificationEventType =
   | "budget_threshold_reached"
   | "morning_brief"
   | "supplier_bank_account_changed"
+  | "payee_bank_account_changed"
   | "workflow_unassigned";
 
 export interface UserData {
@@ -444,6 +445,31 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
     inAppMessage: "****{previousLast4} → ****{newLast4} ({bankName}). Sin verificar.",
     variables: [
       "supplierName",
+      "previousLast4",
+      "newLast4",
+      "bankName",
+      "sharedLine",
+    ]
+  },
+  "payee_bank_account_changed": {
+    id: "payee_bank_account_changed",
+    name: "Cambio de CLABE de Contraparte",
+    eventType: "payee_bank_account_changed",
+    // Mismo motivo que `supplier_bank_account_changed`: sin plantilla de
+    // correo a propósito, para no afirmar un envío que no existe.
+    channels: ["whatsapp", "in-app"],
+    whatsappTemplate:
+      "🏦 *Cambio de cuenta bancaria de contraparte*\n\n" +
+      "Contraparte: *{payeeName}*\n" +
+      "Cuenta anterior: ****{previousLast4}\n" +
+      "Cuenta nueva: ****{newLast4} ({bankName}){sharedLine}\n\n" +
+      "La cuenta nueva *todavía no está verificada* y NO se le puede pagar. " +
+      "La cuenta anterior sigue vigente.\n\n" +
+      "Si no autorizaste este cambio, recházalo desde Pulso ahora.",
+    inAppTitle: "Cambio de CLABE: {payeeName}",
+    inAppMessage: "****{previousLast4} → ****{newLast4} ({bankName}). Sin verificar.",
+    variables: [
+      "payeeName",
       "previousLast4",
       "newLast4",
       "bankName",
