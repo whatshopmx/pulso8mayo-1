@@ -25,7 +25,8 @@ import {
     Plus,
     Trash2,
     Flag,
-    Info
+    Info,
+    Sparkles
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
@@ -36,6 +37,7 @@ interface Holiday {
     name: string
     date: string
     description?: string
+    isMandatory?: boolean
     createdAt: string
     updatedAt: string
 }
@@ -52,6 +54,7 @@ export function HolidayCalendar({ initialYear }: HolidayCalendarProps) {
     const [selectedHoliday, setSelectedHoliday] = React.useState<Holiday | null>(null)
     const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
     const [holidayToDelete, setHolidayToDelete] = React.useState<string | null>(null)
+    const [syncingOfficial, setSyncingOfficial] = React.useState(false)
 
     // Form state
     const [holidayName, setHolidayName] = React.useState("")
@@ -82,6 +85,27 @@ export function HolidayCalendar({ initialYear }: HolidayCalendarProps) {
             toast.error("Error cargando días festivos")
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleSyncOfficial = async () => {
+        setSyncingOfficial(true)
+        try {
+            const year = currentDate.getFullYear()
+            const res = await fetch("/api/holidays/sync-official", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ year }),
+            })
+            if (!res.ok) throw new Error("Error sincronizando festivos")
+            const json = await res.json()
+            toast.success(json.data?.message || "Festivos oficiales LFT sincronizados con éxito")
+            loadHolidays()
+        } catch (error: any) {
+            console.error("Error syncing official holidays:", error)
+            toast.error(error.message || "Error al sincronizar festivos oficiales")
+        } finally {
+            setSyncingOfficial(false)
         }
     }
 
@@ -194,6 +218,16 @@ export function HolidayCalendar({ initialYear }: HolidayCalendarProps) {
                         </div>
 
                         <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleSyncOfficial}
+                                disabled={syncingOfficial}
+                                className="border-primary/30 hover:bg-primary/5"
+                            >
+                                <Sparkles className="h-4 w-4 mr-2 text-primary" />
+                                {syncingOfficial ? "Sincronizando..." : "Importar Festivos LFT"}
+                            </Button>
                             <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
                                 Hoy
                             </Button>
@@ -333,7 +367,12 @@ export function HolidayCalendar({ initialYear }: HolidayCalendarProps) {
                                                     <Flag className="h-5 w-5 text-red-600 dark:text-red-400" />
                                                 </div>
                                                 <div>
-                                                    <div className="font-medium">{holiday.name}</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-medium">{holiday.name}</span>
+                                                        <Badge variant={holiday.isMandatory !== false ? "default" : "secondary"} className="text-xs">
+                                                            {holiday.isMandatory !== false ? "Obligatorio LFT" : "Asueto"}
+                                                        </Badge>
+                                                    </div>
                                                     <div className="text-sm text-muted-foreground">
                                                         {format(parseISO(holiday.date), "EEEE d 'de' MMMM, yyyy", { locale: es })}
                                                     </div>

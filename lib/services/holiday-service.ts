@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { holidays } from "@/lib/db/schema";
 import { eq, and, desc, gte, lte } from "drizzle-orm";
 import { ApiError } from "@/lib/api/error";
+import { HolidayCatalogService } from "./holiday-catalog";
 
 export class HolidayService {
     static async listHolidays(companyId: string, year?: number) {
@@ -25,7 +26,7 @@ export class HolidayService {
         });
     }
 
-    static async createHoliday(data: { name: string; date: Date | string; companyId: string; description?: string }) {
+    static async createHoliday(data: { name: string; date: Date | string; companyId: string; description?: string; isMandatory?: boolean }) {
         if (!data.companyId) throw ApiError.badRequest("Company ID required");
 
         const dateStr = typeof data.date === 'string' ? data.date : data.date.toISOString().split('T')[0];
@@ -34,10 +35,17 @@ export class HolidayService {
             name: data.name,
             date: dateStr,
             companyId: data.companyId,
-            description: data.description
+            description: data.description,
+            isMandatory: data.isMandatory !== undefined ? data.isMandatory : true,
         }).returning();
 
         return newHoliday[0];
+    }
+
+    static async syncOfficialHolidays(companyId: string, year?: number) {
+        if (!companyId) throw ApiError.badRequest("Company ID required");
+        const targetYear = year || new Date().getFullYear();
+        return await HolidayCatalogService.seedHolidaysForCompany(companyId, targetYear);
     }
 
     static async deleteHoliday(id: string, companyId: string) {
@@ -49,3 +57,4 @@ export class HolidayService {
         return true;
     }
 }
+

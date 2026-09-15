@@ -3,6 +3,7 @@ import { companies, branches, users, tenantOperatingConfig } from "@/lib/db/sche
 import { eq, desc } from "drizzle-orm";
 import { CreateCompanyInput, UpdateCompanyInput } from "@/lib/validations/company";
 import { ApiError } from "@/lib/api/error";
+import { HolidayCatalogService } from "./holiday-catalog";
 
 export class CompanyService {
     static async createCompany(data: CreateCompanyInput, ownerUserId?: string) {
@@ -23,7 +24,12 @@ export class CompanyService {
             companyId: company.id,
         }).onConflictDoNothing();
 
-        // 3. If an owner is provided, assign them to this company and set as ADMIN/SUPER_ADMIN
+        // 3. Auto-poblar días festivos oficiales de la LFT (Art. 74) para el año en curso y siguiente
+        const currentYear = new Date().getFullYear();
+        await HolidayCatalogService.seedHolidaysForCompany(company.id, currentYear).catch(() => {});
+        await HolidayCatalogService.seedHolidaysForCompany(company.id, currentYear + 1).catch(() => {});
+
+        // 4. If an owner is provided, assign them to this company and set as ADMIN/SUPER_ADMIN
         if (ownerUserId) {
             await db.update(users).set({
                 companyId: company.id,

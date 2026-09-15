@@ -9,7 +9,8 @@ import {
   leaveRequests,
   users,
   payrollRuns,
-  payrollPayslips
+  payrollPayslips,
+  holidays
 } from "@/lib/db/schema";
 import { eq, and, gte, lte, sum, desc } from "drizzle-orm";
 import { timbrarNomina } from "./fiscal-service";
@@ -252,14 +253,83 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
   const daysInPeriod = differenceInDays(parseISO(endDate), parseISO(startDate)) + 1;
   const baseSalaryCents = (contract?.baseSalary || 0) * daysInPeriod;
 
-  // Carga Patronal Real (35% IMSS/Infonavit/ISN) (Módulo 7.3)
-  const employerSocialSecurityCents = Math.round(baseSalaryCents * 0.35);
-  const realLaborCostCents = baseSalaryCents + employerSocialSecurityCents + tipsCents;
+  // 3. Holiday extra pay (LFT Art. 75): Salario doble ADICIONAL por laborar en día de descanso obligatorio
+  let holidayPayCents = 0;
+  let holidayDaysWorked = 0;
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { companyId: true }
+  });
+
+  if (user?.companyId && contract?.baseSalary) {
+    const holidayList = await db
+      .select({
+        date: holidays.date,
+        isMandatory: holidays.isMandatory
+      })
+      .from(holidays)
+      .where(
+        and(
+          eq(holidays.companyId, user.companyId),
+          gte(holidays.date, startDate),
+          lte(holidays.date, endDate)
+        )
+      );
+
+    const holidaySet = new Set(
+      holidayList
+        .filter((h) => h.isMandatory !== false)
+        .map((h) => (typeof h.date === "string" ? h.date.slice(0, 10) : new Date(h.date).toISOString().slice(0, 10)))
+    );
+
+    if (holidaySet.size > 0) {
+      const periodStart = new Date(`${startDate}T00:00:00`);
+      const periodEnd = new Date(`${endDate}T23:59:59`);
+
+      const sessions = await db
+        .select({
+          startedAt: shiftSessions.startedAt,
+        })
+        .from(shiftSessions)
+        .where(
+          and(
+            eq(shiftSessions.userId, userId),
+            eq(shiftSessions.status, "COMPLETED"),
+            gte(shiftSessions.startedAt, periodStart),
+            lte(shiftSessions.startedAt, periodEnd)
+          )
+        );
+
+      const workedDays = new Set<string>();
+      for (const s of sessions) {
+        if (s.startedAt) {
+          const day = new Date(s.startedAt).toISOString().slice(0, 10);
+          if (holidaySet.has(day)) {
+            workedDays.add(day);
+          }
+        }
+      }
+
+      holidayDaysWorked = workedDays.size;
+      // Salario doble adicional por cada festivo trabajado (Art. 75 LFT)
+      holidayPayCents = holidayDaysWorked * contract.baseSalary * 2;
+    }
+  }
+
+  const totalPercepcionesCents = baseSalaryCents + tipsCents + holidayPayCents;
+
+  // Carga Patronal Real (35% IMSS/Infonavit/ISN sobre base + festivos) (Módulo 7.3)
+  const employerSocialSecurityCents = Math.round((baseSalaryCents + holidayPayCents) * 0.35);
+  const realLaborCostCents = totalPercepcionesCents + employerSocialSecurityCents;
 
   return {
     baseSalaryCents,
     propinasCents: tipsCents,
-    totalPercepcionesCents: baseSalaryCents + tipsCents,
+    holidayPayCents,
+    overtimePayCents: 0,
+    holidayDaysWorked,
+    totalPercepcionesCents,
     totalDeduccionesCents: 0,
     employerSocialSecurityCents,
     realLaborCostCents,
@@ -277,12 +347,12 @@ export async function calculateEmployeePayroll(userId: string, startDate: string
  * El sueldo va como "001 Sueldos" gravado; las propinas asignadas NO son
  * salario (LFT art. 87) y el catálogo `c_TipoPercepcion` no les da clave
  * propia, así que van como "038 Otros ingresos por salarios" exentas de ISR.
- * Las deducciones reales (ISR/IMSS retenidos) aún no se calculan en este
- * servicio: cuando existan, entran al array con sus claves de catálogo.
+ * La prima de festivo trabajado va como "025 Día festivo" conforme a LISR art. 93.
  */
 export function construirDesgloseNomina(payroll: {
   baseSalaryCents: number;
   propinasCents: number;
+  holidayPayCents?: number;
 }): {
   desglosePercepciones: NominaPercepcion[];
   desgloseDeducciones: NominaDeduccion[];
@@ -303,6 +373,23 @@ export function construirDesgloseNomina(payroll: {
       concept: "Propinas asignadas",
       taxedAmount: 0,
       exemptAmount: payroll.propinasCents,
+    });
+  }
+  if (payroll.holidayPayCents && payroll.holidayPayCents > 0) {
+    // LISR Art. 93 Fracción I: Tratamiento fiscal del pago por festivo trabajado
+    // 50% exento topado a 5 veces la UMA diaria
+    const UMA_DIARIA_CENTS_2026 = 11314;
+    const maxExempt = 5 * UMA_DIARIA_CENTS_2026;
+    const half = Math.floor(payroll.holidayPayCents / 2);
+    const exemptAmount = Math.min(half, maxExempt);
+    const taxedAmount = payroll.holidayPayCents - exemptAmount;
+
+    desglosePercepciones.push({
+      earningTypeCode: "025",
+      code: "025",
+      concept: "Prima por día festivo trabajado (Art. 75 LFT)",
+      taxedAmount,
+      exemptAmount,
     });
   }
   return { desglosePercepciones, desgloseDeducciones: [] };
@@ -365,7 +452,6 @@ export async function executePayrollRun(
       const desglose = construirDesgloseNomina(payrollCalc);
       
       // Timbrar nómina
-      // El periodo en fiscal API suele ser "2025-01" o texto. Usaremos startDate
       const timbrado = await timbrarNomina({
         companyId,
         performedBy,
@@ -387,6 +473,8 @@ export async function executePayrollRun(
         userId: emp.userId,
         baseSalaryCents: payrollCalc.baseSalaryCents,
         propinasCents: payrollCalc.propinasCents,
+        holidayPayCents: payrollCalc.holidayPayCents,
+        overtimePayCents: payrollCalc.overtimePayCents,
         totalPercepcionesCents: payrollCalc.totalPercepcionesCents,
         totalDeduccionesCents: payrollCalc.totalDeduccionesCents,
         cfdiUuid: timbrado.uuid,
@@ -405,6 +493,8 @@ export async function executePayrollRun(
         userId: emp.userId,
         baseSalaryCents: payrollCalc.baseSalaryCents,
         propinasCents: payrollCalc.propinasCents,
+        holidayPayCents: payrollCalc.holidayPayCents,
+        overtimePayCents: payrollCalc.overtimePayCents,
         totalPercepcionesCents: payrollCalc.totalPercepcionesCents,
         totalDeduccionesCents: payrollCalc.totalDeduccionesCents,
         cfdiStatus: "ERROR",
@@ -438,6 +528,8 @@ export async function getPayrollPayslips(runId: string) {
     userName: users.name,
     baseSalaryCents: payrollPayslips.baseSalaryCents,
     propinasCents: payrollPayslips.propinasCents,
+    holidayPayCents: payrollPayslips.holidayPayCents,
+    overtimePayCents: payrollPayslips.overtimePayCents,
     totalPercepcionesCents: payrollPayslips.totalPercepcionesCents,
     cfdiUuid: payrollPayslips.cfdiUuid,
     cfdiStatus: payrollPayslips.cfdiStatus,

@@ -337,12 +337,9 @@ export class LaborCalculator {
      * provee, solo aplica la regla de domingo.
      */
     private static isHoliday(date: Date, holidayDates?: Set<string>): boolean {
-        // Domingo — día de descanso semanal (LFT art. 69).
-        if (date.getDay() === 0) {
-            return true;
-        }
-
-        // Día de descanso obligatorio declarado por la company (LFT art. 74).
+        // Día de descanso obligatorio declarado por la company o LFT (LFT art. 74).
+        // Nota: El domingo es día de descanso ordinario con prima dominical (+25%, art. 71 LFT),
+        // no genera salario triple de día festivo (art. 75 LFT).
         return holidayDates?.has(toDayKey(date)) ?? false;
     }
 
