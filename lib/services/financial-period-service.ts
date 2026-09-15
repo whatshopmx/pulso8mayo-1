@@ -55,11 +55,15 @@ export async function closeFinancialPeriod(params: {
   const { companyId, year, month, closedBy } = params;
 
   // 1. Congelar los P&L del mes para todas las sucursales (idempotente)
-  const periodStr = `${year}-${String(month).padStart(2, "0")}`;
+  const monthStr = String(month).padStart(2, "0");
+  const periodStart = `${year}-${monthStr}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const periodEnd = `${year}-${monthStr}-${String(lastDay).padStart(2, "0")}`;
+
   try {
-    await freezePnLPeriod(companyId, periodStr);
+    await freezePnLPeriod(companyId, periodStart, periodEnd, closedBy);
   } catch (error) {
-    console.warn(`[closeFinancialPeriod] Warning freezing PnL for ${periodStr}:`, error);
+    console.warn(`[closeFinancialPeriod] Warning freezing PnL for ${periodStart} to ${periodEnd}:`, error);
   }
 
   // 2. Marcar el periodo como CLOSED en la base de datos

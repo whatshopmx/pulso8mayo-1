@@ -217,9 +217,10 @@ export function CashFlowHero({
 
       {/* ── Captura / Verificación del Saldo Inicial ─────────────────── */}
       <OpeningBalanceCard
-        initialBalanceCents={projection.initialBalanceCents}
+        balanceCents={projection.initialBalanceCents}
         openingBalance={projection.openingBalance}
-        scope={projection.scope}
+        branchId={projection.scope?.branchId ?? null}
+        branchName={projection.scope?.branchName ?? null}
         canEdit={canEditAssumptions}
         onSaved={onAssumptionSaved}
       />

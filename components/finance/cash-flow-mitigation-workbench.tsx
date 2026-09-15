@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { formatCents } from "@/lib/utils";
-import { Wrench, Calendar, Clock, Loader2, ArrowUpRight, CalendarForward, CheckCircle2 } from "lucide-react";
+import { Wrench, Calendar, Clock, Loader2, ArrowUpRight, CheckCircle2 } from "lucide-react";
 
 interface OutflowItem {
   id: string;

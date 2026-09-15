@@ -17,13 +17,15 @@ export async function requireManagementRole() {
     redirect("/sign-in");
   }
 
-  const userRole = ((session.user as any).role || 'EMPLEADO') as UserRole;
+  const user = session.user as any;
+  const userRole = (user.role || 'EMPLEADO') as UserRole;
+  const companyId = (user.companyId || "") as string;
 
   if (!MANAGEMENT_ROLES.includes(userRole)) {
     redirect("/dashboard/workflows");
   }
 
-  return { session, userRole };
+  return { session, userRole, companyId };
 }
 
 /**
@@ -37,13 +39,15 @@ export async function requireRole(allowedRoles: UserRole[]) {
     redirect("/sign-in");
   }
 
-  const userRole = ((session.user as any).role || 'EMPLEADO') as UserRole;
+  const user = session.user as any;
+  const userRole = (user.role || 'EMPLEADO') as UserRole;
+  const companyId = (user.companyId || "") as string;
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
     redirect("/dashboard/workflows");
   }
 
-  return { session, userRole };
+  return { session, userRole, companyId };
 }
 
 // ---------------------------------------------------------------------------
