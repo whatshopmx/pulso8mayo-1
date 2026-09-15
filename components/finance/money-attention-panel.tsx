@@ -260,7 +260,11 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
             </CardDescription>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-center">
-            <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-mono text-muted-foreground bg-muted border border-border rounded cursor-help" title="Atajo de teclado: Recargar alertas">
+            <kbd
+              aria-keyshortcuts="Alt+R"
+              className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-mono text-muted-foreground bg-muted border border-border rounded cursor-help"
+              title="Atajo de teclado: Recargar alertas (Alt+R)"
+            >
               Alt+R
             </kbd>
             {items !== null && items.length > 0 && (

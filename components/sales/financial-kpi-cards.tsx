@@ -215,8 +215,12 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <sup
-                      className="ml-0.5 text-amber-700 dark:text-amber-400 cursor-help"
+                      role="button"
                       tabIndex={0}
+                      className="ml-0.5 text-warning-text cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") e.preventDefault();
+                      }}
                     >
                       {marker.mark}
                     </sup>
@@ -272,7 +276,7 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-muted-foreground/30 text-xs leading-none text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex items-center justify-center w-5 h-5 min-w-[28px] min-h-[28px] sm:min-w-0 sm:min-h-0 rounded-full border border-muted-foreground/30 text-xs leading-none text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Qué incluye el resumen financiero: ventas totales, tickets promedio, proporción efectivo/tarjeta y costos operativos calculados con las mismas fuentes que el P&L por sucursal."
               >
                 ?
@@ -338,7 +342,7 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-muted-foreground/30 text-xs leading-none text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="inline-flex items-center justify-center w-4 h-4 min-w-[28px] min-h-[28px] sm:min-w-0 sm:min-h-0 rounded-full border border-muted-foreground/30 text-xs leading-none text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label="Qué es este margen: 100% menos food cost menos labor cost. No es utilidad operativa, no descuenta renta ni gastos operativos."
                 >
                   ?

@@ -49,7 +49,14 @@ function NoteTip({ note, children }: { note?: string | null; children: ReactNode
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className="cursor-help">
+        <span
+          role="button"
+          tabIndex={0}
+          className="cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") e.preventDefault();
+          }}
+        >
           {children}
         </span>
       </TooltipTrigger>
@@ -155,7 +162,14 @@ function ConfidenceDot({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className="inline-flex justify-center cursor-help">
+        <span
+          role="button"
+          tabIndex={0}
+          className="inline-flex justify-center items-center cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-full p-1 min-w-[28px] min-h-[28px]"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") e.preventDefault();
+          }}
+        >
           <span
             aria-hidden="true"
             className={`w-2 h-2 rounded-full ${approximate ? "bg-warning" : "bg-success"}`}
@@ -278,14 +292,14 @@ function PrimeCostCell({
   }
 
   const primeCost = Number((foodCost.percentOfSales + labor.percentOfSales).toFixed(1));
-  let badgeClass = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20";
+  let badgeClass = "bg-success/15 text-success border-success/20";
   let statusText = "🟢 Óptimo (≤58%)";
 
   if (primeCost > 65) {
     badgeClass = "bg-destructive/15 text-destructive border-destructive/20 font-bold";
     statusText = "🔴 Crítico (>65%)";
   } else if (primeCost > 58) {
-    badgeClass = "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20";
+    badgeClass = "bg-warning/15 text-warning-text border-warning/20";
     statusText = "🟡 Atención (58-65%)";
   }
 
@@ -889,19 +903,21 @@ export function PnlBranchTable() {
                 </span>
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     disabled={currentPage === 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="px-2.5 py-1 rounded-md border border-input bg-background hover:bg-muted disabled:opacity-40 transition-colors"
+                    className="px-3 py-2 min-h-[36px] min-w-[44px] inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-muted disabled:opacity-40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Anterior
                   </button>
-                  <span className="font-medium text-foreground">
+                  <span className="font-medium text-foreground px-1">
                     {currentPage} / {totalPages}
                   </span>
                   <button
+                    type="button"
                     disabled={currentPage === totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="px-2.5 py-1 rounded-md border border-input bg-background hover:bg-muted disabled:opacity-40 transition-colors"
+                    className="px-3 py-2 min-h-[36px] min-w-[44px] inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-muted disabled:opacity-40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Siguiente
                   </button>

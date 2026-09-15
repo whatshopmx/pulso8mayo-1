@@ -454,7 +454,7 @@ export function AddPaymentRunItemModal({
           {currentSelectionCount > 0 && (
             <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-xs px-2.5 py-1 font-medium flex items-center gap-1.5 self-start sm:self-center">
               <CheckSquare className="h-3.5 w-3.5" />
-              {currentSelectionCount} seleccionado{currentSelectionCount > 1 ? "s" : ""} (${formatCents(currentSelectionTotalCents)} MXN)
+              {currentSelectionCount} seleccionado{currentSelectionCount > 1 ? "s" : ""} ({formatCents(currentSelectionTotalCents)} MXN)
             </Badge>
           )}
         </DialogHeader>
@@ -870,7 +870,7 @@ export function AddPaymentRunItemModal({
                 ) : (
                   <Plus className="h-4 w-4" />
                 )}
-                Adjuntar {currentSelectionCount} seleccionado{currentSelectionCount > 1 ? "s" : ""} (${formatCents(currentSelectionTotalCents)} MXN)
+                Adjuntar {currentSelectionCount} seleccionado{currentSelectionCount > 1 ? "s" : ""} ({formatCents(currentSelectionTotalCents)} MXN)
               </Button>
             )}
           </div>

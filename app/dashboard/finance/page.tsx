@@ -152,9 +152,9 @@ export default function FinanceOverviewPage() {
           "eyebrow en cada sección" de DESIGN.md).
           1. ¿Cómo vamos? — costos contra el objetivo del grupo, con tendencia. */}
       <section>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+        <h2 className="text-sm font-semibold text-foreground/80 mb-2">
           ¿Cómo vamos?
-        </p>
+        </h2>
         <FinancialKpiCards branchId={selectedBranch} />
       </section>
 
