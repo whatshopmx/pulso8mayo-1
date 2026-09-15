@@ -554,7 +554,7 @@ export class EmployeeService {
       await AuditService.logEmployeeAction({
         userId,
         performedBy,
-        action: 'DEACTIVATE',
+        action: 'UPDATE',
         entityType: 'PROFILE',
         entityId: userId,
         newValue: { status: 'TERMINATED', reason: terminationReason },
