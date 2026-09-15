@@ -147,7 +147,7 @@ function ProductPickerPopover({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-2 z-50 bg-popover border shadow-md rounded-md" align="start">
+      <PopoverContent className="w-80 p-2 z-50 bg-popover border border-border rounded-md" align="start">
         <div className="flex items-center border-b pb-2 mb-2 px-1 gap-2">
           <Search className="h-4 w-4 shrink-0 opacity-50" />
           <input

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,24 +50,36 @@ interface Transfer {
 interface TransferListProps {
     branchId: string;
     branches?: Array<{ id: string; name: string }>;
+    onRequestNewTransfer?: () => void;
+    refreshKey?: number;
 }
 
-export function TransferList({ branchId, branches = [] }: TransferListProps) {
+export function TransferList({ branchId, branches = [], onRequestNewTransfer, refreshKey }: TransferListProps) {
     const [transfers, setTransfers] = useState<Transfer[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedTransfer, setSelectedTransfer] = useState<Transfer | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
-    const [actionType, setActionType] = useState<"approve" | "reject" | "ship" | "receive" | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [rejectionReason, setRejectionReason] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
     const [receivedQuantities, setReceivedQuantities] = useState<Record<string, number>>({});
     const [roleFilter, setRoleFilter] = useState<"from" | "to" | "both">("both");
 
+    // Memoize branch lookup Map to avoid O(N*B) search loops
+    const branchMap = useMemo(() => {
+        const map = new Map<string, string>();
+        branches.forEach(b => map.set(b.id, b.name));
+        return map;
+    }, [branches]);
+
+    const getBranchName = useCallback((id: string) => {
+        return branchMap.get(id) || id;
+    }, [branchMap]);
+
     // Fetch transfers
     useEffect(() => {
         fetchTransfers();
-    }, [branchId, roleFilter]);
+    }, [branchId, roleFilter, refreshKey]);
 
     const handleOpenDetail = (t: Transfer) => {
         setSelectedTransfer(t);
@@ -89,7 +101,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
             const result = await response.json();
 
             if (response.ok) {
-                setTransfers(result.transfers);
+                setTransfers(result.transfers || []);
             } else {
                 setTransfers([]);
                 toast.error(result.error || "Failed to fetch transfers");
@@ -104,6 +116,11 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
 
     // Handle transfer action
     const handleAction = async (transferId: string, action: string, data?: any) => {
+        if (action === "reject" && (!data?.reason || !data.reason.trim())) {
+            toast.error("Por favor ingresa el motivo del rechazo en el campo correspondiente.");
+            return;
+        }
+
         setIsProcessing(true);
 
         try {
@@ -131,6 +148,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
         }
     };
 
+
     // Get status badge
     const getStatusBadge = (status: string) => {
         const badges: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string; icon: any }> = {
@@ -146,30 +164,34 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
         const Icon = config.icon;
 
         return (
-            <Badge variant={config.variant} className="gap-1">
-                <Icon className="w-3 h-3" />
+            <Badge variant={config.variant} className="gap-1 px-2.5 py-1 text-xs">
+                <Icon className="w-3.5 h-3.5" />
                 {config.label}
             </Badge>
         );
     };
 
-    // Get branch name
-    const getBranchName = (id: string) => {
-        return branches.find(b => b.id === id)?.name || id;
-    };
+    // Memoize search filtering
+    const filteredTransfers = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return transfers;
+        return transfers.filter(t => {
+            const numMatch = t.transfer.transferNumber.toLowerCase().includes(term);
+            const fromName = getBranchName(t.transfer.fromBranchId).toLowerCase();
+            const toName = getBranchName(t.transfer.toBranchId).toLowerCase();
+            return numMatch || fromName.includes(term) || toName.includes(term);
+        });
+    }, [transfers, searchTerm, getBranchName]);
 
-    // Filter transfers
-    const filteredTransfers = transfers.filter(t => 
-        t.transfer.transferNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        getBranchName(t.transfer.toBranchId).toLowerCase().includes(searchTerm.toLowerCase()) ||
-        getBranchName(t.transfer.fromBranchId).toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    // Group transfers by status
-    const pendingTransfers = filteredTransfers.filter(t => t.transfer.status === "PENDING" && t.transfer.fromBranchId === branchId);
-    const toApproveTransfers = filteredTransfers.filter(t => t.transfer.status === "PENDING" && t.transfer.toBranchId === branchId);
-    const inTransitTransfers = filteredTransfers.filter(t => t.transfer.status === "IN_TRANSIT");
-    const completedTransfers = filteredTransfers.filter(t => ["COMPLETED", "REJECTED", "CANCELLED"].includes(t.transfer.status));
+    // Group transfers by status using useMemo
+    const { pendingTransfers, toApproveTransfers, inTransitTransfers, completedTransfers } = useMemo(() => {
+        return {
+            pendingTransfers: filteredTransfers.filter(t => t.transfer.status === "PENDING" && t.transfer.fromBranchId === branchId),
+            toApproveTransfers: filteredTransfers.filter(t => t.transfer.status === "PENDING" && t.transfer.toBranchId === branchId),
+            inTransitTransfers: filteredTransfers.filter(t => t.transfer.status === "IN_TRANSIT"),
+            completedTransfers: filteredTransfers.filter(t => ["COMPLETED", "REJECTED", "CANCELLED"].includes(t.transfer.status)),
+        };
+    }, [filteredTransfers, branchId]);
 
     const renderTransferTable = (transferList: Transfer[]) => (
         <div className="space-y-2">
@@ -178,35 +200,36 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                     icon={Package}
                     title="Sin transferencias"
                     description="No hay transferencias en esta categoría."
-                    action={{ label: "Solicitar primera transferencia" }}
+                    action={onRequestNewTransfer ? {
+                        label: "Solicitar primera transferencia",
+                        onClick: onRequestNewTransfer,
+                    } : undefined}
                 />
             ) : (
                 transferList.map(({ transfer, items }) => (
-                    <Card key={transfer.id}>
+                    <Card key={transfer.id} className="hover:border-primary/40 transition-colors">
                         <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                                <div className="space-y-1">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="space-y-1.5">
                                     <div className="flex items-center gap-2">
-                                        <p className="font-semibold">{transfer.transferNumber}</p>
+                                        <p className="font-semibold text-base">{transfer.transferNumber}</p>
                                         {getStatusBadge(transfer.status)}
                                     </div>
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                        <ArrowRight className="w-3 h-3" />
-                                        <span>{getBranchName(transfer.fromBranchId)}</span>
-                                        <span>→</span>
-                                        <span>{getBranchName(transfer.toBranchId)}</span>
+                                        <span className="font-medium text-foreground">{getBranchName(transfer.fromBranchId)}</span>
+                                        <ArrowRight className="w-3.5 h-3.5" />
+                                        <span className="font-medium text-foreground">{getBranchName(transfer.toBranchId)}</span>
                                     </div>
                                     <p className="text-xs text-muted-foreground">
-                                        Solicitado: {format(new Date(transfer.requestedAt), "dd MMM yyyy", { locale: es })}
+                                        Solicitado: {format(new Date(transfer.requestedAt), "dd MMM yyyy HH:mm", { locale: es })}
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 shrink-0">
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => {
-                                            handleOpenDetail({ transfer, items });
-                                        }}
+                                        onClick={() => handleOpenDetail({ transfer, items })}
+                                        className="gap-2 min-h-[40px] px-3 text-xs"
                                     >
                                         <Eye className="w-4 h-4" />
                                         Ver Detalle
@@ -228,8 +251,8 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
         return (
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Transferencia {transfer.transferNumber}</DialogTitle>
-                    <DialogDescription>
+                    <DialogTitle className="text-xl">Transferencia {transfer.transferNumber}</DialogTitle>
+                    <DialogDescription className="text-sm">
                         {getBranchName(transfer.fromBranchId)} → {getBranchName(transfer.toBranchId)}
                     </DialogDescription>
                 </DialogHeader>
@@ -237,14 +260,14 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                 <div className="space-y-4 py-4">
                     {/* Status */}
                     <div className="flex items-center gap-2">
-                        <Label>Estado:</Label>
+                        <Label className="font-medium">Estado:</Label>
                         {getStatusBadge(transfer.status)}
                     </div>
 
                     {/* Items */}
-                    <Card>
+                    <Card className="border">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-base">Items</CardTitle>
+                            <CardTitle className="text-base font-semibold">Productos</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2">
@@ -254,11 +277,11 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                                         : parseFloat(item.requestedQuantity || "0");
                                         
                                     return (
-                                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded gap-2">
+                                        <div key={item.id || `item-${idx}`} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg gap-2 bg-muted/20">
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2">
                                                     <Package className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-semibold">{item.itemName || "Desconocido"}</span>
+                                                    <span className="text-sm font-semibold">{item.itemName || "Producto"}</span>
                                                 </div>
                                                 <div className="text-xs text-muted-foreground">
                                                     SKU: {item.itemSku || 'N/A'} • Solicitado: {item.requestedQuantity} {item.itemUnit || 'U'}
@@ -268,7 +291,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                                             
                                             {transfer.status === "IN_TRANSIT" && transfer.toBranchId === branchId ? (
                                                 <div className="flex items-center gap-2 shrink-0">
-                                                    <Label htmlFor={`qty-${item.id}`} className="text-xs">Recibido:</Label>
+                                                    <Label htmlFor={`qty-${item.id}`} className="text-xs font-medium">Recibido:</Label>
                                                     <Input
                                                         id={`qty-${item.id}`}
                                                         type="number"
@@ -286,13 +309,13 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                                                                 }));
                                                             }
                                                         }}
-                                                        className="w-24 h-8 text-right"
+                                                        className="w-24 h-10 text-right font-mono"
                                                     />
                                                 </div>
                                             ) : (
                                                 <div className="text-sm font-medium text-right">
                                                     {transfer.status === "COMPLETED" ? (
-                                                        <span className="text-emerald-700 font-semibold">
+                                                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                                                             Recibido: {item.receivedQuantity}
                                                         </span>
                                                     ) : (
@@ -310,8 +333,8 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                     {/* Notes */}
                     {transfer.notes && (
                         <div className="space-y-2">
-                            <Label>Notas:</Label>
-                            <p className="text-sm text-muted-foreground p-2 border rounded bg-muted">
+                            <Label className="font-medium">Notas:</Label>
+                            <p className="text-sm text-muted-foreground p-3 border rounded-lg bg-muted/30">
                                 {transfer.notes}
                             </p>
                         </div>
@@ -320,12 +343,13 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                     {/* Rejection input */}
                     {transfer.status === "PENDING" && transfer.toBranchId === branchId && (
                         <div className="space-y-2">
-                            <Label htmlFor="rejection-reason">Motivo de Rechazo (si se rechaza):</Label>
+                            <Label htmlFor="rejection-reason" className="font-medium">Motivo de Rechazo (si se rechaza):</Label>
                             <Input
                                 id="rejection-reason"
                                 placeholder="Escribe el motivo..."
                                 value={rejectionReason}
                                 onChange={(e) => setRejectionReason(e.target.value)}
+                                className="min-h-[44px]"
                             />
                         </div>
                     )}
@@ -342,8 +366,8 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
 
                     {/* Timeline */}
                     <div className="space-y-2">
-                        <Label>Historial:</Label>
-                        <div className="space-y-1 text-xs text-muted-foreground">
+                        <Label className="font-medium">Historial:</Label>
+                        <div className="space-y-1 text-xs text-muted-foreground bg-muted/20 p-3 rounded-lg border font-mono">
                             <p>Solicitado: {format(new Date(transfer.requestedAt), "dd MMM yyyy HH:mm", { locale: es })}</p>
                             {transfer.approvedAt && (
                                 <p>Aprobado: {format(new Date(transfer.approvedAt), "dd MMM yyyy HH:mm", { locale: es })}</p>
@@ -366,13 +390,15 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                                 variant="outline"
                                 onClick={() => handleAction(transfer.id, "reject", { reason: rejectionReason })}
                                 disabled={isProcessing}
+                                className="min-h-[44px]"
                             >
-                                <XCircle className="w-4 h-4 mr-2" />
+                                <XCircle className="w-4 h-4 mr-2 text-destructive" />
                                 Rechazar
                             </Button>
                             <Button
                                 onClick={() => handleAction(transfer.id, "approve")}
                                 disabled={isProcessing}
+                                className="min-h-[44px]"
                             >
                                 <CheckCircle className="w-4 h-4 mr-2" />
                                 Aprobar
@@ -383,6 +409,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                         <Button
                             onClick={() => handleAction(transfer.id, "ship")}
                             disabled={isProcessing}
+                            className="min-h-[44px]"
                         >
                             <Truck className="w-4 h-4 mr-2" />
                             Enviar
@@ -398,6 +425,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                                 handleAction(transfer.id, "receive", { items: itemsData });
                             }}
                             disabled={isProcessing}
+                            className="min-h-[44px]"
                         >
                             <CheckCircle className="w-4 h-4 mr-2" />
                             Confirmar Recepción
@@ -410,60 +438,77 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
 
     return (
         <div className="space-y-4">
-            {/* Search */}
-            <div className="flex items-center gap-2">
+            {/* Search and Role Filter */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Buscar transferencia..."
+                        placeholder="Buscar por número o sucursal..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-8"
+                        className="pl-9 min-h-[44px]"
                     />
                 </div>
-            </div>
 
-            {/* Role filter */}
-            <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium">Rol:</span>
-                <div className="flex gap-1 p-0.5 bg-muted/40 rounded-lg border">
-                    <Button
-                        variant={roleFilter === "both" ? "secondary" : "ghost"}
-                        size="sm"
-                        onClick={() => setRoleFilter("both")}
-                        className="text-xs"
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground font-medium">Rol:</span>
+                    <div 
+                        className="flex gap-1 p-1 bg-muted/50 rounded-lg border"
+                        role="radiogroup"
+                        aria-label="Filtrar transferencias por rol de sucursal"
                     >
-                        Todos
-                    </Button>
-                    <Button
-                        variant={roleFilter === "from" ? "secondary" : "ghost"}
-                        size="sm"
-                        onClick={() => setRoleFilter("from")}
-                        className="text-xs"
-                    >
-                        Origen
-                    </Button>
-                    <Button
-                        variant={roleFilter === "to" ? "secondary" : "ghost"}
-                        size="sm"
-                        onClick={() => setRoleFilter("to")}
-                        className="text-xs"
-                    >
-                        Destino
-                    </Button>
+                        <Button
+                            variant={roleFilter === "both" ? "secondary" : "ghost"}
+                            size="sm"
+                            onClick={() => setRoleFilter("both")}
+                            aria-pressed={roleFilter === "both"}
+                            className="text-xs min-h-[36px] px-3"
+                        >
+                            Todos
+                        </Button>
+                        <Button
+                            variant={roleFilter === "from" ? "secondary" : "ghost"}
+                            size="sm"
+                            onClick={() => setRoleFilter("from")}
+                            aria-pressed={roleFilter === "from"}
+                            className="text-xs min-h-[36px] px-3"
+                        >
+                            Origen
+                        </Button>
+                        <Button
+                            variant={roleFilter === "to" ? "secondary" : "ghost"}
+                            size="sm"
+                            onClick={() => setRoleFilter("to")}
+                            aria-pressed={roleFilter === "to"}
+                            className="text-xs min-h-[36px] px-3"
+                        >
+                            Destino
+                        </Button>
+                    </div>
                 </div>
             </div>
 
             {/* Tabs */}
             <Tabs defaultValue="pending" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1 h-auto p-1">
-                    <TabsTrigger value="pending">Pendientes ({pendingTransfers.length})</TabsTrigger>
-                    <TabsTrigger value="to-approve">Por Aprobar ({toApproveTransfers.length})</TabsTrigger>
-                    <TabsTrigger value="transit">En Tránsito ({inTransitTransfers.length})</TabsTrigger>
-                    <TabsTrigger value="completed">Completadas ({completedTransfers.length})</TabsTrigger>
-                </TabsList>
+                <div className="overflow-x-auto pb-1">
+                    <TabsList className="grid w-full min-w-[500px] sm:min-w-0 grid-cols-2 md:grid-cols-4 gap-1 h-auto p-1 bg-muted/50 border">
+                        <TabsTrigger value="pending" className="min-h-[40px] text-xs font-medium">
+                            Pendientes ({pendingTransfers.length})
+                        </TabsTrigger>
+                        <TabsTrigger value="to-approve" className="min-h-[40px] text-xs font-medium">
+                            Por Aprobar ({toApproveTransfers.length})
+                        </TabsTrigger>
+                        <TabsTrigger value="transit" className="min-h-[40px] text-xs font-medium">
+                            En Tránsito ({inTransitTransfers.length})
+                        </TabsTrigger>
+                        <TabsTrigger value="completed" className="min-h-[40px] text-xs font-medium">
+                            Completadas ({completedTransfers.length})
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
 
-                <TabsContent value="pending">
+
+                <TabsContent value="pending" className="mt-4">
                     {loading ? (
                         <DataTableSkeleton columns={5} rows={4} />
                     ) : (
@@ -471,7 +516,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                     )}
                 </TabsContent>
 
-                <TabsContent value="to-approve">
+                <TabsContent value="to-approve" className="mt-4">
                     {loading ? (
                         <DataTableSkeleton columns={5} rows={4} />
                     ) : (
@@ -479,7 +524,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                     )}
                 </TabsContent>
 
-                <TabsContent value="transit">
+                <TabsContent value="transit" className="mt-4">
                     {loading ? (
                         <DataTableSkeleton columns={5} rows={4} />
                     ) : (
@@ -487,7 +532,7 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
                     )}
                 </TabsContent>
 
-                <TabsContent value="completed">
+                <TabsContent value="completed" className="mt-4">
                     {loading ? (
                         <DataTableSkeleton columns={5} rows={4} />
                     ) : (
@@ -503,3 +548,4 @@ export function TransferList({ branchId, branches = [] }: TransferListProps) {
         </div>
     );
 }
+

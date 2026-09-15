@@ -29,10 +29,10 @@ interface MatrixData {
 }
 
 const QUAD_META: Record<string, { label: string; desc: string; color: string; bg: string }> = {
-    STAR: { label: "Estrella", desc: "Alta rentabilidad · Alta popularidad", color: "#16a34a", bg: "#dcfce7" },
-    CASH_COW: { label: "Vaca", desc: "Alta rentabilidad · Baja popularidad", color: "#2563eb", bg: "#dbeafe" },
-    QUESTION_MARK: { label: "Incógnita", desc: "Baja rentabilidad · Alta popularidad", color: "#d97706", bg: "#fef3c7" },
-    DOG: { label: "Peso", desc: "Baja rentabilidad · Baja popularidad", color: "#dc2626", bg: "#fee2e2" },
+    STAR: { label: "Estrella", desc: "Alta rentabilidad · Alta popularidad", color: "var(--emerald-500, #10b981)", bg: "var(--emerald-500-10, rgba(16, 185, 129, 0.1))" },
+    CASH_COW: { label: "Vaca", desc: "Alta rentabilidad · Baja popularidad", color: "var(--blue-500, #3b82f6)", bg: "var(--blue-500-10, rgba(59, 130, 246, 0.1))" },
+    QUESTION_MARK: { label: "Incógnita", desc: "Baja rentabilidad · Alta popularidad", color: "var(--amber-500, #f59e0b)", bg: "var(--amber-500-10, rgba(245, 158, 11, 0.1))" },
+    DOG: { label: "Peso", desc: "Baja rentabilidad · Baja popularidad", color: "var(--rose-500, #f43f5e)", bg: "var(--rose-500-10, rgba(244, 63, 94, 0.1))" },
 };
 
 function formatCents(cents: number): string {
@@ -44,7 +44,7 @@ const CustomTooltip = ({ active, payload }: any) => {
     const d = payload[0].payload as MenuItem;
     const meta = QUAD_META[d.quadrant];
     return (
-        <div className="bg-white border rounded-lg shadow-lg p-3 text-sm space-y-1">
+        <div className="bg-popover border border-border text-popover-foreground rounded-lg p-3 text-sm space-y-1">
             <p className="font-bold">{d.recipeName}</p>
             <p className="text-xs text-muted-foreground">{meta.label} · {meta.desc}</p>
             <div className="pt-1 space-y-0.5">

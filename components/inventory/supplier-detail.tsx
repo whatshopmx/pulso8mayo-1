@@ -413,7 +413,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                     </Button>
                                 </div>
                             ) : (
-                                <div className="border rounded-md overflow-hidden">
+                                <div className="border rounded-md overflow-x-auto">
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
@@ -439,7 +439,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                                     </TableCell>
                                                     <TableCell className="font-mono">{item.leadTimeDays} días</TableCell>
                                                     <TableCell className="text-right">
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleUnlinkItem(item.itemId, item.name)}>
+                                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" aria-label={`Desvincular ${item.name}`} onClick={() => handleUnlinkItem(item.itemId, item.name)}>
                                                             <Trash2 className="w-4 h-4" />
                                                         </Button>
                                                     </TableCell>
@@ -465,7 +465,7 @@ export function SupplierDetail({ supplier, open, onOpenChange, onEdit }: Supplie
                                     <p className="text-sm text-muted-foreground">No hay órdenes de compra registradas para este proveedor.</p>
                                 </div>
                             ) : (
-                                <div className="border rounded-md overflow-hidden">
+                                <div className="border rounded-md overflow-x-auto">
                                     <Table>
                                         <TableHeader>
                                             <TableRow>

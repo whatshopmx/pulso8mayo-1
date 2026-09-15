@@ -123,7 +123,7 @@ export function StockManager({ item, batches, movements, priceHistory, totalStoc
                                     <option value="">Cualquiera / FIFO</option>
                                     {batches.filter(b => b.status === 'AVAILABLE').map(b => (
                                         <option key={b.id} value={b.id}>
-                                            {b.lotNumber} (Q: {formatQty(b.currentQuantity)}) - Exp: {b.expirationDate ? format(b.expirationDate, 'dd/MM/yyyy') : 'N/A'}
+                                            {b.lotNumber} (Q: {formatQty(b.currentQuantity)}) - Exp: {b.expirationDate ? format(new Date(b.expirationDate), 'dd/MM/yyyy') : 'N/A'}
                                         </option>
                                     ))}
                                 </select>
@@ -138,142 +138,147 @@ export function StockManager({ item, batches, movements, priceHistory, totalStoc
                             </div>
                             <Button type="submit" variant="destructive" className="w-full">Registrar Salida</Button>
                         </form>
-</DialogContent>
-      </Dialog>
+                    </DialogContent>
+                </Dialog>
 
-      <Link href={`/dashboard/inventory/waste?item=${item.id}`}>
-        <Button variant="outline" className="border-amber-200 hover:bg-amber-50 hover:text-amber-900">
-          <AlertTriangle className="w-4 h-4 mr-2 text-amber-600" />
-          Registrar Merma
-        </Button>
-      </Link>
-    </div>
+                <Link href={`/dashboard/inventory/waste?item=${item.id}`}>
+                    <Button variant="outline" className="border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-800 dark:hover:text-amber-200 text-amber-700 dark:text-amber-300">
+                        <AlertTriangle className="w-4 h-4 mr-2 text-amber-600 dark:text-amber-400" />
+                        Registrar Merma
+                    </Button>
+                </Link>
+            </div>
 
-    <Tabs defaultValue="batches" className="w-full">
+            <Tabs defaultValue="batches" className="w-full">
                 <TabsList>
                     <TabsTrigger value="batches">Lotes</TabsTrigger>
                     <TabsTrigger value="movements">Historial de Movimientos</TabsTrigger>
                     <TabsTrigger value="prices">Historial de Costos</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="batches">
+                <TabsContent value="batches" className="mt-4">
                     <Card>
                         <CardHeader><CardTitle>Lotes en Inventario</CardTitle></CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Lote</TableHead>
-                                        <TableHead>Cantidad Actual</TableHead>
-                                        <TableHead>Ingreso</TableHead>
-                                        <TableHead>Caducidad</TableHead>
-                                        <TableHead>Estado</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {batches.map((batch) => (
-                                        <TableRow key={batch.id}>
-                                            <TableCell className="font-medium">{batch.lotNumber || 'Sin Lote'}</TableCell>
-                                            <TableCell>{formatQty(batch.currentQuantity)} {item.unit}</TableCell>
-                                            <TableCell>{batch.receivedAt ? format(new Date(batch.receivedAt), 'dd/MM/yyyy') : '-'}</TableCell>
-                                            <TableCell>{batch.expirationDate ? format(new Date(batch.expirationDate), 'dd/MM/yyyy') : '-'}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={batch.status === 'AVAILABLE' ? 'default' : 'destructive'}>
-                                                    {STATUS_TRANSLATIONS[batch.status] || batch.status}
-                                                </Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {batches.length === 0 && (
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center text-muted-foreground">
-                                                No hay lotes registrados.
-                                            </TableCell>
+                                            <TableHead>Lote</TableHead>
+                                            <TableHead>Cantidad Actual</TableHead>
+                                            <TableHead>Ingreso</TableHead>
+                                            <TableHead>Caducidad</TableHead>
+                                            <TableHead>Estado</TableHead>
                                         </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {batches.map((batch) => (
+                                            <TableRow key={batch.id}>
+                                                <TableCell className="font-mono font-medium">{batch.lotNumber || 'Sin Lote'}</TableCell>
+                                                <TableCell className="font-mono">{formatQty(batch.currentQuantity)} {item.unit}</TableCell>
+                                                <TableCell>{batch.receivedAt ? format(new Date(batch.receivedAt), 'dd/MM/yyyy') : '-'}</TableCell>
+                                                <TableCell>{batch.expirationDate ? format(new Date(batch.expirationDate), 'dd/MM/yyyy') : '-'}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={batch.status === 'AVAILABLE' ? 'default' : 'destructive'}>
+                                                        {STATUS_TRANSLATIONS[batch.status] || batch.status}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {batches.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                                                    No hay lotes registrados.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="movements">
+                <TabsContent value="movements" className="mt-4">
                     <Card>
                         <CardHeader><CardTitle>Últimos Movimientos</CardTitle></CardHeader>
                         <CardContent>
-                            {/* Placeholder for movement history - needs to be passed in or fetched */}
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Fecha</TableHead>
-                                        <TableHead>Tipo</TableHead>
-                                        <TableHead>Cambio</TableHead>
-                                        <TableHead>Motivo</TableHead>
-                                        <TableHead>Usuario</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {movements.map((mov) => (
-                                        <TableRow key={mov.id}>
-                                            <TableCell>{format(new Date(mov.timestamp), "dd/MM/yyyy HH:mm")}</TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline">{MOVEMENT_TRANSLATIONS[mov.type] || mov.type}</Badge>
-                                            </TableCell>
-                                            <TableCell className={mov.quantityChange > 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                                                {mov.quantityChange > 0 ? "+" : ""}{formatQty(mov.quantityChange)}
-                                            </TableCell>
-                                            <TableCell>{mov.reason || "-"}</TableCell>
-                                            <TableCell className="text-xs text-muted-foreground truncate max-w-[100px]">{mov.performedBy}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {movements.length === 0 && (
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center text-muted-foreground p-4">
-                                                No hay movimientos registrados.
-                                            </TableCell>
+                                            <TableHead>Fecha</TableHead>
+                                            <TableHead>Tipo</TableHead>
+                                            <TableHead>Cambio</TableHead>
+                                            <TableHead>Motivo</TableHead>
+                                            <TableHead>Usuario</TableHead>
                                         </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {movements.map((mov) => (
+                                            <TableRow key={mov.id}>
+                                                <TableCell>{format(new Date(mov.timestamp), "dd/MM/yyyy HH:mm")}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline">{MOVEMENT_TRANSLATIONS[mov.type] || mov.type}</Badge>
+                                                </TableCell>
+                                                <TableCell className={mov.quantityChange > 0 ? "text-emerald-600 dark:text-emerald-400 font-medium font-mono" : "text-destructive font-medium font-mono"}>
+                                                    {mov.quantityChange > 0 ? "+" : ""}{formatQty(mov.quantityChange)}
+                                                </TableCell>
+                                                <TableCell>{mov.reason || "-"}</TableCell>
+                                                <TableCell className="text-xs text-muted-foreground truncate max-w-[100px]">{mov.performedBy}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {movements.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                                                    No hay movimientos registrados.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="prices">
+                <TabsContent value="prices" className="mt-4">
                     <Card>
                         <CardHeader><CardTitle>Historial de Precios / Costos</CardTitle></CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Fecha</TableHead>
-                                        <TableHead>Costo Anterior</TableHead>
-                                        <TableHead>Nuevo Costo</TableHead>
-                                        <TableHead>Modificado Por</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {priceHistory.map((ph, idx) => (
-                                        <TableRow key={ph.id || idx}>
-                                            <TableCell>{format(new Date(ph.changedAt), "dd/MM/yyyy HH:mm")}</TableCell>
-                                            <TableCell>
-                                                {ph.previousCost ? `$${(ph.previousCost / 100).toFixed(2)}` : "-"}
-                                            </TableCell>
-                                            <TableCell className="font-medium">
-                                                ${(ph.newCost / 100).toFixed(2)}
-                                            </TableCell>
-                                            <TableCell>{ph.changedByName || "Desconocido"}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {priceHistory.length === 0 && (
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
                                         <TableRow>
-                                            <TableCell colSpan={4} className="text-center text-muted-foreground">
-                                                No hay historial de cambios de precio.
-                                            </TableCell>
+                                            <TableHead>Fecha</TableHead>
+                                            <TableHead>Costo Anterior</TableHead>
+                                            <TableHead>Nuevo Costo</TableHead>
+                                            <TableHead>Modificado Por</TableHead>
                                         </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {priceHistory.map((ph, idx) => (
+                                            <TableRow key={ph.id || idx}>
+                                                <TableCell>{format(new Date(ph.changedAt), "dd/MM/yyyy HH:mm")}</TableCell>
+                                                <TableCell className="font-mono">
+                                                    {ph.previousCost ? `$${(ph.previousCost / 100).toFixed(2)}` : "-"}
+                                                </TableCell>
+                                                <TableCell className="font-medium font-mono">
+                                                    ${(ph.newCost / 100).toFixed(2)}
+                                                </TableCell>
+                                                <TableCell>{ph.changedByName || "Desconocido"}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {priceHistory.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
+                                                    No hay historial de cambios de precio.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>

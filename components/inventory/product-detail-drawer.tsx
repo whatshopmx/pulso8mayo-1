@@ -192,8 +192,8 @@ export function ProductDetailDrawer({ productId, branchId, open, onOpenChange }:
                 </div>
               </dl>
               {product.allergenInfo && (
-                <div className="flex gap-2 p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-xs">
-                  <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600" />
+                <div className="flex gap-2 p-3 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
+                  <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                   <div>
                     <span className="font-semibold block mb-0.5">Alérgenos</span>
                     {product.allergenInfo}

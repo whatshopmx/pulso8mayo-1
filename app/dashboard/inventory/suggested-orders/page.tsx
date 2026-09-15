@@ -215,7 +215,7 @@ export default function SuggestedOrdersPage() {
                 const someGroupSelected = groupItemIds.some(id => selectedIds.has(id)) && !allGroupSelected;
 
                 return (
-                  <div key={key} className="border rounded-md overflow-hidden bg-card text-card-foreground shadow-sm">
+                  <div key={key} className="border border-border rounded-md overflow-hidden bg-card text-card-foreground">
                     {/* Supplier Group Header */}
                     <div className="flex items-center justify-between px-4 py-2.5 bg-muted/40 border-b">
                       <div className="flex items-center gap-3">

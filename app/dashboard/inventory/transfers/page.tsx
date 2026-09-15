@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { TransferList } from "@/components/inventory/transfer-list";
 import { TransferRequest } from "@/components/inventory/transfer-request";
 import { PageHeader, PageContainer } from "@/components/shared";
@@ -11,12 +11,19 @@ import { ArrowRight } from "lucide-react";
 export default function TransfersPage() {
   const { selectedBranchId, selectedBranch, branches, setBranches } = useBranch();
   const { data: fetchedBranches } = useBranches();
+  const [isRequestOpen, setIsRequestOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (fetchedBranches && branches.length === 0) {
       setBranches(fetchedBranches);
     }
   }, [fetchedBranches, branches.length, setBranches]);
+
+  const handleTransferCreated = () => {
+    setRefreshKey(prev => prev + 1);
+    setIsRequestOpen(false);
+  };
 
   return (
     <PageContainer>
@@ -27,11 +34,23 @@ export default function TransfersPage() {
         branchName={selectedBranch?.name}
         actions={
           branches.length > 0 && (
-            <TransferRequest branches={branches} fromBranchId={selectedBranchId || undefined} />
+            <TransferRequest
+              branches={branches}
+              fromBranchId={selectedBranchId || undefined}
+              open={isRequestOpen}
+              onOpenChange={setIsRequestOpen}
+              onComplete={handleTransferCreated}
+            />
           )
         }
       />
-      <TransferList branchId={selectedBranchId || ""} branches={branches} />
+      <TransferList
+        branchId={selectedBranchId || ""}
+        branches={branches}
+        refreshKey={refreshKey}
+        onRequestNewTransfer={() => setIsRequestOpen(true)}
+      />
     </PageContainer>
   );
 }
+
