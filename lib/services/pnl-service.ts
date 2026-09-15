@@ -150,7 +150,7 @@ export async function getPnLByBranch(
         and(
           eq(operatingExpenses.companyId, companyId),
           ne(operatingExpenses.status, "REJECTED"),
-          sql`COALESCE(${operatingExpenses.paidAt}::date, ${operatingExpenses.dueDate}, ${operatingExpenses.createdAt}::date) BETWEEN ${startDay}::date AND ${endDay}::date`,
+          sql`COALESCE(${operatingExpenses.businessDate}, ${operatingExpenses.paidAt}::date, ${operatingExpenses.dueDate}, ${operatingExpenses.createdAt}::date) BETWEEN ${startDay}::date AND ${endDay}::date`,
         ),
       )
       .groupBy(operatingExpenses.branchId),

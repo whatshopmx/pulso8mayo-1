@@ -44,6 +44,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
   const [amount, setAmount] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
+  const [businessDate, setBusinessDate] = useState<string>("");
   const [evidenceUrl, setEvidenceUrl] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -181,6 +182,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
           amountCents: Math.round(parsed * 100),
           description,
           dueDate: dueDate || undefined,
+          businessDate: businessDate || undefined,
           evidenceUrl: evidenceUrl || undefined,
           payeeId: payeeId !== NO_PAYEE ? payeeId : undefined,
           costCenterId: costCenterId !== NO_COST_CENTER ? costCenterId : undefined,
@@ -203,6 +205,7 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
       setAmount("");
       setDescription("");
       setDueDate("");
+      setBusinessDate("");
       setEvidenceUrl("");
       setOpen(false);
       if (onSuccess) onSuccess();
@@ -437,6 +440,19 @@ export function ExpenseForm({ branches, onSuccess }: ExpenseFormProps) {
               onChange={(e) => setDescription(e.target.value)}
               required
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="expense-business">Fecha de Operación (opcional)</Label>
+            <Input
+              id="expense-business"
+              type="date"
+              value={businessDate}
+              onChange={(e) => setBusinessDate(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Periodo contable al que pertenece el gasto. Si no se indica, toma hoy.
+            </p>
           </div>
 
           <div className="space-y-2">

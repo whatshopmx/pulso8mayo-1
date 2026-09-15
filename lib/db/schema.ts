@@ -3293,7 +3293,7 @@ export const operatingExpenseCategoryEnum = pgEnum("operating_expense_category",
   'SERVICIOS_PROFESIONALES',
   'OTROS'
 ]);
-export const operatingExpenseStatusEnum = pgEnum("operating_expense_status", ['PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'PAID']);
+export const operatingExpenseStatusEnum = pgEnum("operating_expense_status", ['PENDING_APPROVAL', 'PENDING_OVERBUDGET_APPROVAL', 'APPROVED', 'REJECTED', 'PAID']);
 
 export const pettyCashFunds = pgTable("petty_cash_funds", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -3509,6 +3509,13 @@ export const operatingExpenses = pgTable("operating_expenses", {
      * distintos, y esa distinción es la segregación de funciones.
      */
     paidBy: text("paid_by").references(() => users.id),
+
+    /** Fecha de la operación a la que pertenece el gasto (ej. 2026-08-30 aunque se capture en Septiembre). */
+    businessDate: date("business_date"),
+
+    /** Campos de autorización de sobre-presupuesto (>100%) */
+    overbudgetApprovedBy: text("overbudget_approved_by").references(() => users.id),
+    overbudgetApprovedAt: timestamp("overbudget_approved_at"),
 
     dueDate: date("due_date"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -3850,6 +3857,63 @@ export const payrollPayslips = pgTable("payroll_payslips", {
     cfdiStatus: text("cfdi_status"),
     selloDigital: text("sello_digital"),
     
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// Cierre Financiero Mensual, Cajeros por Corte y Liquidación de Agregadores
+// ---------------------------------------------------------------------------
+
+export const financialPeriodStatusEnum = pgEnum("financial_period_status", ['OPEN', 'CLOSED']);
+
+export const financialPeriods = pgTable("financial_periods", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    year: integer("year").notNull(),
+    month: integer("month").notNull(), // 1 a 12
+    status: financialPeriodStatusEnum("status").notNull().default('OPEN'),
+    closedAt: timestamp("closed_at"),
+    closedBy: text("closed_by").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    companyYearMonthUnique: uniqueIndex("financial_periods_company_year_month_unique").on(
+        table.companyId,
+        table.year,
+        table.month
+    ),
+    companyIdx: index("financial_periods_company_idx").on(table.companyId),
+}));
+
+export const salesCutCashiers = pgTable("sales_cut_cashiers", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    salesCutId: uuid("sales_cut_id").notNull().references(() => dailySalesCuts.id, { onDelete: 'cascade' }),
+    cashierName: text("cashier_name").notNull(),
+    cashierUserId: text("cashier_user_id").references(() => users.id),
+    declaredCashCents: integer("declared_cash_cents").notNull(),
+    expectedCashCents: integer("expected_cash_cents"),
+    varianceCents: integer("variance_cents"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const aggregatorSettlementStatusEnum = pgEnum("aggregator_settlement_status", ['PENDING', 'RECONCILED', 'DISCREPANCY']);
+
+export const aggregatorSettlements = pgTable("aggregator_settlements", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    channel: text("channel").notNull(), // 'rappi', 'ubereats', 'didi', etc.
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    grossSalesCents: integer("gross_sales_cents").notNull(),
+    commissionCents: integer("commission_cents").notNull(),
+    netDepositedCents: integer("net_deposited_cents").notNull(),
+    posSalesCents: integer("pos_sales_cents"),
+    varianceCents: integer("variance_cents"),
+    status: aggregatorSettlementStatusEnum("status").notNull().default('PENDING'),
+    notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

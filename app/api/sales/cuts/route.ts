@@ -4,9 +4,10 @@ import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import { assertBranchOfCompany } from "@/lib/branch-scope";
 import { db } from "@/lib/db";
-import { dailySalesCuts, branches, users } from "@/lib/db/schema";
+import { dailySalesCuts, branches, users, salesCutCashiers } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { checkCashVarianceAndAlertSafe } from "@/lib/services/cash-variance-alert-service";
+import { isPeriodClosed } from "@/lib/services/financial-period-service";
 import { localDateString } from "@/lib/workflows/today";
 import { count } from "drizzle-orm";
 
@@ -71,6 +72,14 @@ const createCutSchema = z.object({
   // aquí habría bloqueado la captura del corte por un dato que llega después.
   commissionCents: z.number().int().nonnegative().nullable().optional(),
   tpvDepositCents: z.number().int().nonnegative().nullable().optional(),
+  cashiers: z.array(z.object({
+    cashierName: z.string().min(1, "Nombre de cajero requerido"),
+    cashierUserId: z.string().optional().nullable(),
+    declaredCashCents: z.number().int().nonnegative(),
+    expectedCashCents: z.number().int().optional().nullable(),
+    varianceCents: z.number().int().optional().nullable(),
+    notes: z.string().optional().nullable(),
+  })).optional().nullable(),
 });
 
 export const GET = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
@@ -180,6 +189,14 @@ export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
     // frontera de tenant se comprueba aquí. Va antes del chequeo de duplicados
     // para no responder "ya existe un corte" sobre la sucursal de otra empresa.
     await assertBranchOfCompany(auth.tenantId, data.branchId);
+
+    // Validar periodo cerrado
+    if (await isPeriodClosed(auth.tenantId, data.businessDate)) {
+      throw new ApiError(
+        `El periodo financiero para la fecha ${data.businessDate} está CERRADO. No se pueden registrar cortes en un mes cerrado.`,
+        403
+      );
+    }
 
     // Duplicate check
     const existing = await db
@@ -308,6 +325,21 @@ export const POST = withRoleAuth([...ROLES_VENTAS], async (req, { auth }) => {
       throw new ApiError(
         `Ya existe un corte (${data.channel}) para esta sucursal el ${data.businessDate} en turno ${data.shift}.`,
         409
+      );
+    }
+
+    // Si se enviaron desglose de cajeros, insertarlos
+    if (data.cashiers && data.cashiers.length > 0) {
+      await db.insert(salesCutCashiers).values(
+        data.cashiers.map((c) => ({
+          salesCutId: inserted.id,
+          cashierName: c.cashierName,
+          cashierUserId: c.cashierUserId || null,
+          declaredCashCents: c.declaredCashCents,
+          expectedCashCents: c.expectedCashCents ?? null,
+          varianceCents: c.varianceCents ?? null,
+          notes: c.notes || null,
+        }))
       );
     }
 

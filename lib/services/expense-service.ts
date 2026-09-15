@@ -34,6 +34,7 @@ import { denyExpenseResolution, rolExigidoPorMonto } from "@/lib/expenses/approv
 import { getTenantOperatingConfig } from "./tenant-config-service";
 import { checkBudgetAvailability } from "./budget-service";
 import { emitDomainEvent } from "./domain-event-service";
+import { isPeriodClosed } from "./financial-period-service";
 
 /**
  * ¿Puede este alcance resolver un gasto de esta sucursal?
@@ -77,6 +78,8 @@ export interface CreateExpenseInput {
   description: string;
   invoiceId?: string;
   dueDate?: string;
+  /** Fecha de la operación del gasto (ej. YYYY-MM-DD). Si no se provee, toma hoy. */
+  businessDate?: string;
   /** URL del ticket/foto de evidencia (R2). */
   evidenceUrl?: string;
   /** Contraparte (payee) a la que se le paga. Opcional: los gastos casuales no la tienen. */
@@ -202,6 +205,14 @@ async function resolverRolExigido(
 }
 
 export async function createOperatingExpense(input: CreateExpenseInput) {
+  // Validar si el periodo financiero de la fecha asignada está CERRADO
+  const opDate = input.businessDate || new Date().toISOString().slice(0, 10);
+  if (await isPeriodClosed(input.companyId, opDate)) {
+    throw ApiError.forbidden(
+      `El periodo financiero para la fecha ${opDate} está CERRADO. No se pueden registrar gastos en un mes cerrado.`
+    );
+  }
+
   // La contraparte es un dato de la empresa: se valida aquí, en el servicio,
   // y no confiando en el cliente. Un payee de otra empresa no existe para
   // este tenant — se rechaza sin revelar por qué (sin leak de datos).
@@ -241,14 +252,15 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
     input.amountCents
   );
 
-  // A16 — **Todo gasto nace pendiente.** Antes se auto-aprobaba aquí cuando el
-  // rol de quien registraba alcanzaba el exigido por la regla, y quedaba escrito
-  // en `approvalNotes`. Eso vacíaba la segregación de funciones que la pantalla
-  // afirmaba tener: el dueño que captura su propia renta la aprobaba con el
-  // mismo clic, sin que nadie más la mirara. Decidido con David (2026-08-21):
-  // gana la segregación. Quien registra no resuelve — la regla vive en
-  // `lib/expenses/approval-policy.ts` y la comparte la UI.
-  const initialStatus = "PENDING_APPROVAL" as const;
+  // Evaluar si el gasto supera el 100% del presupuesto de la partida
+  let initialStatus: "PENDING_APPROVAL" | "PENDING_OVERBUDGET_APPROVAL" = "PENDING_APPROVAL";
+  if (input.costCenterId) {
+    const monthStr = opDate.slice(0, 7);
+    const budgetState = await checkBudgetAvailability(input.branchId, input.costCenterId, monthStr, input.amountCents);
+    if (budgetState.budgeted > 0 && (budgetState.committed + input.amountCents) > budgetState.budgeted) {
+      initialStatus = "PENDING_OVERBUDGET_APPROVAL";
+    }
+  }
 
   const [expense] = await db
     .insert(operatingExpenses)
@@ -262,6 +274,7 @@ export async function createOperatingExpense(input: CreateExpenseInput) {
       evidenceUrl: input.evidenceUrl || null,
       payeeId: input.payeeId || null,
       costCenterId: input.costCenterId || null,
+      businessDate: input.businessDate || null,
       status: initialStatus,
       requestedBy: input.requestedBy,
       dueDate: input.dueDate || null,
@@ -546,11 +559,22 @@ export async function approveOperatingExpense(
     throw ApiError.notFound("El gasto especificado no fue encontrado.");
   }
 
+  // Validar periodo cerrado
+  const expDate = expense.businessDate || expense.createdAt.toISOString().slice(0, 10);
+  if (await isPeriodClosed(companyId, expDate)) {
+    throw ApiError.forbidden(`El periodo financiero (${expDate}) está CERRADO. No se pueden modificar gastos.`);
+  }
+
   // Antes que el estado y antes que el rol: de un gasto fuera de tu alcance no
   // se responde ni siquiera en qué estado está.
   assertScopeCoversBranch(scope, expense.branchId);
 
-  if (expense.status !== "PENDING_APPROVAL") {
+  if (expense.status === "PENDING_OVERBUDGET_APPROVAL") {
+    // Si está pendiente por sobre-presupuesto, se exige rol ADMIN o superior
+    if (!roleIsAtLeast(approverRole, "ADMIN")) {
+      throw ApiError.forbidden("Este gasto supera el 100% del presupuesto de la partida y requiere autorización de nivel ADMIN o superior.");
+    }
+  } else if (expense.status !== "PENDING_APPROVAL") {
     throw ApiError.badRequest(
       `No se puede aprobar un gasto en estado "${expense.status}".`
     );
@@ -592,13 +616,15 @@ export async function approveOperatingExpense(
       status: "APPROVED",
       approvedBy: approverId,
       approvalNotes: notes || "Aprobado",
+      overbudgetApprovedBy: expense.status === "PENDING_OVERBUDGET_APPROVAL" ? approverId : expense.overbudgetApprovedBy,
+      overbudgetApprovedAt: expense.status === "PENDING_OVERBUDGET_APPROVAL" ? new Date() : expense.overbudgetApprovedAt,
       updatedAt: new Date(),
     })
     .where(
       and(
         eq(operatingExpenses.id, expenseId),
         eq(operatingExpenses.companyId, companyId),
-        eq(operatingExpenses.status, "PENDING_APPROVAL"),
+        inArray(operatingExpenses.status, ["PENDING_APPROVAL", "PENDING_OVERBUDGET_APPROVAL"]),
         ...(scope.kind === "BRANCH"
           ? [eq(operatingExpenses.branchId, scope.branchId)]
           : [])
