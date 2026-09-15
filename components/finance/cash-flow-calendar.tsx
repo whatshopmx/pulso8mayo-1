@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmptyState } from "@/components/ui/empty-state";
 import { OpeningBalanceCard } from "@/components/finance/opening-balance-card";
+import { CashFlowHero } from "@/components/finance/cash-flow-hero";
+import { CashFlowMitigationWorkbench } from "@/components/finance/cash-flow-mitigation-workbench";
 import { ExpenseRowActions } from "@/components/finance/expense-row-actions";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
 import {
@@ -965,71 +967,14 @@ export function CashFlowCalendar({
       )}
 
       {/* ════════════════════════════════════════════════════════════
-          BLOQUE 1: ¿Me alcanza? — la respuesta primaria y su contexto
+          BLOQUE 1: Torre de Control de Liquidez & Cobertura
           ════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* La respuesta primaria va primera y es la única en `text-4xl`. Antes
-            había cuatro valores `text-2xl` con el mismo peso compitiendo por ser
-            la respuesta, así que la pantalla no contestaba: enumeraba. Las otras
-            dos tarjetas son el contexto que sostiene esta cifra, y bajan un
-            nivel para decirlo. */}
-        {tarjetaAlcance}
-
-        {/* El saldo se captura en la misma tarjeta que lo muestra: corregirlo no
-            debería exigir salir de la pantalla que motivó la corrección. */}
-        <OpeningBalanceCard
-          balanceCents={initialBalanceCents}
-          openingBalance={data.openingBalance}
-          branchId={data.scope?.branchId ?? null}
-          branchName={data.scope?.branchName ?? null}
-          canEdit={canEditAssumptions}
-          onSaved={onAssumptionSaved ?? (() => {})}
-        />
-
-        {/* Saldo mínimo. La tarjeta ya no se tiñe: la severidad la comunica el
-            número, y teñir esta y la de al lado por la misma causa —el saldo
-            cruza a negativo— gastaba el rojo dos veces por un solo hecho. */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-1">
-              <TrendingDown className="w-4 h-4" />
-              Saldo mínimo proyectado
-            </div>
-            {sinProyeccionDeSaldo ? (
-              <>
-                <div className="text-xl font-bold text-muted-foreground">
-                  Sin estimar
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">{faltante}</p>
-              </>
-            ) : (
-              <>
-                <div
-                  className={`text-xl font-bold tabular-nums ${
-                    metrics && metrics.minBalance < 0
-                      ? "text-destructive"
-                      : metrics && metrics.minBalance < COLCHON_MINIMO_CENTS
-                      // `--warning` es 2.52:1 sobre blanco: falla incluso el
-                      // piso de 3:1 de texto grande. `--warning-text` da 6.61:1.
-                      ? "text-warning-text"
-                      : "text-foreground"
-                  }`}
-                >
-                  {formatCents(metrics?.minBalance ?? 0)}
-                </div>
-                {metrics?.minDay && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Día más crítico:{" "}
-                    <span className="font-medium text-foreground">
-                      {formatDate(metrics.minDay.date)}
-                    </span>
-                  </p>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <CashFlowHero
+        projection={projection}
+        horizonDays={horizonte}
+        canEditAssumptions={canEditAssumptions}
+        onAssumptionSaved={onAssumptionSaved}
+      />
 
       {/* ════════════════════════════════════════════════════════════
           Línea de supuestos: qué de esta pantalla es dato y qué es estimación.
@@ -1068,6 +1013,16 @@ export function CashFlowCalendar({
       {tarjetaVencidos && (
         <section aria-label="Gastos vencidos">{tarjetaVencidos}</section>
       )}
+
+      {/* Workbench de Mitigación de Liquidez */}
+      <section aria-label="Workbench de Mitigación">
+        <CashFlowMitigationWorkbench
+          overdueItems={overdueItems}
+          upcomingItems={upcomingItems}
+          canActOnExpenses={canActOnExpenses}
+          onActionDone={onActionDone}
+        />
+      </section>
 
       {/* ════════════════════════════════════════════════════════════
           BLOQUE 3: ¿En qué gasto? — composición y presión por semana
