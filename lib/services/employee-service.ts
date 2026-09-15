@@ -538,7 +538,7 @@ export class EmployeeService {
       // 1. Deactivate user and profile
       await tx
         .update(users)
-        .set({ isActive: false, updatedAt: new Date() })
+        .set({ active: false, status: 'INACTIVE', updatedAt: new Date() })
         .where(eq(users.id, userId));
 
       await tx
