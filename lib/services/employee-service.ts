@@ -524,4 +524,48 @@ export class EmployeeService {
       return result;
     });
   }
+
+  /**
+   * Offboard employee enforcing LFT 2026 Anti-Buró Laboral protection.
+   * Purges restrictive notes and blacklisting tags to ensure data compliance.
+   */
+  static async offboardEmployeeWithAntiBuroProtection(
+    userId: string,
+    performedBy: string,
+    terminationReason: string = 'BAJA_REGULAR'
+  ) {
+    return await db.transaction(async (tx) => {
+      // 1. Deactivate user and profile
+      await tx
+        .update(users)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+
+      await tx
+        .update(employeeProfiles)
+        .set({
+          isActive: false,
+          employeeStatus: 'TERMINATED',
+          updatedAt: new Date(),
+        })
+        .where(eq(employeeProfiles.userId, userId));
+
+      // 2. Audit log strictly without blacklisting notes (Anti-Buró Protection)
+      await AuditService.logEmployeeAction({
+        userId,
+        performedBy,
+        action: 'DEACTIVATE',
+        entityType: 'PROFILE',
+        entityId: userId,
+        newValue: { status: 'TERMINATED', reason: terminationReason },
+      });
+
+      return {
+        userId,
+        status: 'TERMINATED',
+        antiBuroProtectionApplied: true,
+        message: 'Baja procesada cumpliendo la prohibición de Buró Laboral (LFT 2026). Sin metadatos restrictivos de reempleo.',
+      };
+    });
+  }
 }

@@ -36,6 +36,47 @@ export interface PayrollPreStampingValidation {
   };
 }
 
+export interface LFT2026BenefitsConfig {
+  aguinaldoDays: number; // 15 (base LFT) up to 30 days
+  vacationBonusPercent: number; // 25% (base LFT) up to 50%
+  paternityLeaveDays: number; // 10 to 15 days
+  bereavementLeaveDays: number; // 5 days (Duelo)
+  preventiveMedicalLeaveDays: number; // 2-3 days for health checkups
+  familyCareLeaveDays: number; // Up to 30 days for elder/ill relative care
+}
+
+export const DEFAULT_LFT2026_BENEFITS: LFT2026BenefitsConfig = {
+  aguinaldoDays: 30, // Reforma LFT 2026 propuesta progresiva
+  vacationBonusPercent: 50, // Reforma LFT 2026 prima vacacional
+  paternityLeaveDays: 15, // Escenario recomendado IMCO / LFT
+  bereavementLeaveDays: 5, // Licencia por duelo
+  preventiveMedicalLeaveDays: 3, // Exámenes médicos preventivos
+  familyCareLeaveDays: 30, // Cuidado de familiares con enfermedades graves
+};
+
+export function calculateLFT2026Benefits(
+  dailySalaryMXN: number,
+  tenureYears: number,
+  config: LFT2026BenefitsConfig = DEFAULT_LFT2026_BENEFITS
+) {
+  const aguinaldoAmount = dailySalaryMXN * config.aguinaldoDays;
+  // Vacaciones según Ley Dignas (12d año 1, +2d por año hasta 20d, luego +2d por cada 5 años)
+  let vacationDays = 12 + Math.max(0, tenureYears - 1) * 2;
+  if (tenureYears > 5) {
+    vacationDays = 20 + Math.floor((tenureYears - 5) / 5) * 2;
+  }
+  const vacationBonusAmount = (dailySalaryMXN * vacationDays) * (config.vacationBonusPercent / 100);
+
+  return {
+    dailySalaryMXN,
+    tenureYears,
+    vacationDays,
+    aguinaldoAmount: Math.round(aguinaldoAmount * 100) / 100,
+    vacationBonusAmount: Math.round(vacationBonusAmount * 100) / 100,
+    totalAnnualBenefitsCost: Math.round((aguinaldoAmount + vacationBonusAmount) * 100) / 100,
+  };
+}
+
 /**
  * Valida checadas de turno, detecta empleados fantasma y calcula la carga social patronal real
  * antes de permitir el timbrado fiscal o dispersión (Módulo 7.1, 7.2 & 7.3).

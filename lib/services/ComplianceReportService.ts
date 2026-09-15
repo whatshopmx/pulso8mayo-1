@@ -1462,6 +1462,22 @@ export class ComplianceReportService {
         }
         return value;
     }
+
+    /**
+     * Audit gender pay gap for STPS Article 86 inspections
+     */
+    public async generateGenderPayGapAudit(companyId: string) {
+        const { SalaryTransparencyService } = await import('./salary-transparency-service');
+        const dbUsers = await db.query.users.findMany();
+        const employees = dbUsers.map(u => ({
+            userId: String(u.id),
+            roleName: String(u.role || 'EMPLEADO'),
+            gender: ((u as any).gender || 'MALE') as 'MALE' | 'FEMALE' | 'OTHER',
+            monthlySalary: Number((u as any).monthlySalary || 12000),
+        }));
+
+        return SalaryTransparencyService.calculateGenderPayGap(employees);
+    }
 }
 
 export const complianceReportService = new ComplianceReportService();

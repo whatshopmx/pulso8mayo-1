@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Building2 } from "lucide-react";
+import { Loader2, Plus, Building2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface CreatePaymentRunModalProps {
@@ -29,6 +29,14 @@ export function CreatePaymentRunModal({ onSuccess, trigger }: CreatePaymentRunMo
   const [runDate, setRunDate] = useState("");
   const [branchId, setBranchId] = useState("ALL");
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
+
+  const isPastDate = useMemo(() => {
+    if (!runDate) return false;
+    const selected = new Date(runDate + "T00:00:00");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return selected < today;
+  }, [runDate]);
 
   useEffect(() => {
     if (open) {
@@ -135,21 +143,24 @@ export function CreatePaymentRunModal({ onSuccess, trigger }: CreatePaymentRunMo
               <div className="flex flex-wrap gap-1.5 pt-1">
                 <button
                   type="button"
-                  className="text-xs bg-muted hover:bg-muted/80 text-muted-foreground px-2 py-0.5 rounded border border-border/40 transition-colors"
+                  className="text-xs bg-muted hover:bg-muted/80 text-muted-foreground px-2 py-0.5 rounded border border-border/40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  aria-label="Autocompletar título con Nómina Quincenal"
                   onClick={() => setTitle("Nómina Quincenal")}
                 >
                   + Nómina
                 </button>
                 <button
                   type="button"
-                  className="text-xs bg-muted hover:bg-muted/80 text-muted-foreground px-2 py-0.5 rounded border border-border/40 transition-colors"
+                  className="text-xs bg-muted hover:bg-muted/80 text-muted-foreground px-2 py-0.5 rounded border border-border/40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  aria-label="Autocompletar título con Proveedores Alimentos & Bebidas"
                   onClick={() => setTitle("Proveedores Alimentos & Bebidas")}
                 >
                   + Proveedores A&B
                 </button>
                 <button
                   type="button"
-                  className="text-xs bg-muted hover:bg-muted/80 text-muted-foreground px-2 py-0.5 rounded border border-border/40 transition-colors"
+                  className="text-xs bg-muted hover:bg-muted/80 text-muted-foreground px-2 py-0.5 rounded border border-border/40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  aria-label="Autocompletar título con Servicios & Renta"
                   onClick={() => setTitle("Servicios & Renta")}
                 >
                   + Servicios & Renta
@@ -165,6 +176,12 @@ export function CreatePaymentRunModal({ onSuccess, trigger }: CreatePaymentRunMo
                 onChange={(e) => setRunDate(e.target.value)}
                 required
               />
+              {isPastDate && (
+                <div className="flex items-center gap-1.5 text-xs text-amber-800 dark:text-amber-300 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-md">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>Fecha en el pasado. Se registrará como dispersión extemporánea.</span>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

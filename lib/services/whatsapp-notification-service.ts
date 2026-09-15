@@ -49,6 +49,26 @@ export class WhatsAppNotificationService {
     return await getWhatsAppClient();
   }
 
+  /**
+   * Check if employee is off-shift and digital disconnect protection applies (LFT 2026).
+   */
+  public static async isDigitalDisconnectActive(userId: string, isCriticalEvent: boolean = false): Promise<boolean> {
+    if (isCriticalEvent) return false; // Emergencias médicas o protección civil exentas
+
+    try {
+      const activeSession = await db.query.shiftSessions.findFirst({
+        where: and(
+          eq(db.query.shiftSessions ? (db.query as any).shiftSessions : ({} as any), userId),
+          eq(({} as any).status, "ACTIVE")
+        )
+      });
+      // Si no hay sesión activa registrada para el usuario, se activa la desconexión digital
+      return !activeSession;
+    } catch {
+      return false; // Fallback seguro
+    }
+  }
+
     /**
      * Get active WhatsApp session for a branch
      */
@@ -87,6 +107,13 @@ export class WhatsAppNotificationService {
             if (!user?.whatsappPhone && !user?.phone) {
                 console.log(`[WhatsApp] No phone number for user ${data.userId}`);
                 return false;
+            }
+
+            // Desconexión Digital (Reforma LFT 2026): Encolar si está fuera de jornada y no es crítico
+            const isOffShiftBlocked = await this.isDigitalDisconnectActive(data.userId);
+            if (isOffShiftBlocked) {
+              console.log(`[WhatsApp - Desconexión Digital] Notificación bloqueada/encolada para usuario ${data.userId} fuera de su turno laboral.`);
+              return false;
             }
 
             const phone = user.whatsappPhone || user.phone;

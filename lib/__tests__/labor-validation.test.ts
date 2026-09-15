@@ -44,9 +44,9 @@ const shift = (id: string, userId: string, startTime: string, endTime: string): 
 });
 
 describe("DEFAULT_COMPLIANCE_RULES", () => {
-    it("ancla las reglas LFT default contra drift accidental", () => {
+    it("ancla las reglas LFT default vigentes en 2026 (48h) contra drift accidental", () => {
         expect(DEFAULT_COMPLIANCE_RULES).toEqual({
-            weeklyHours: 40,
+            weeklyHours: 48,
             workDays: 5,
             toleranceMinutes: 15,
             minBreakDuration: 30,
@@ -315,23 +315,23 @@ describe("formatOvertimeRate", () => {
 });
 
 describe("getComplianceStatus", () => {
-    // Umbrales con reglas default (40h = 2400 min): warning >2460, violation
-    // >2940 (= 2400 + 9h de extra, el tope semanal LFT).
+    // Umbrales con reglas 2026 default (48h = 2880 min): warning >2940, violation
+    // >3420 (= 2880 + 9h de extra, el tope semanal LFT en 2026).
     it.each([
-        ["40h exactas", 2400, "compliant"],
-        ["41h exactas aún compliant (tolerancia de 1h)", 2460, "compliant"],
-        ["41h 1min ya es warning", 2461, "warning"],
-        ["49h todavía warning (dentro de las 9h extra)", 2940, "warning"],
-        ["49h 1min viola el tope LFT de extra", 2941, "violation"],
+        ["48h exactas", 2880, "compliant"],
+        ["49h exactas aún compliant (tolerancia de 1h)", 2940, "compliant"],
+        ["49h 1min ya es warning", 2941, "warning"],
+        ["57h todavía warning (dentro de las 9h extra)", 3420, "warning"],
+        ["57h 1min viola el tope LFT de extra", 3421, "violation"],
     ])("%s (%i min → %s)", (_label, minutes, expected) => {
         expect(getComplianceStatus(minutes)).toBe(expected);
     });
 
-    it("reglas por tenant (48h) desplazan los tres umbrales", () => {
-        const rules: ComplianceRule = { ...DEFAULT_COMPLIANCE_RULES, weeklyHours: 48 };
-        expect(getComplianceStatus(2880, rules)).toBe("compliant");
-        expect(getComplianceStatus(2941, rules)).toBe("warning");
-        expect(getComplianceStatus(3421, rules)).toBe("violation");
+    it("reglas de reforma 2030 (40h) desplazan los tres umbrales", () => {
+        const rules: ComplianceRule = { ...DEFAULT_COMPLIANCE_RULES, weeklyHours: 40 };
+        expect(getComplianceStatus(2400, rules)).toBe("compliant");
+        expect(getComplianceStatus(2461, rules)).toBe("warning");
+        expect(getComplianceStatus(2941, rules)).toBe("violation");
     });
 });
 

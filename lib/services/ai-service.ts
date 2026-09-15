@@ -33,6 +33,25 @@ export class AIService {
     private static moondream: MoondreamProvider | null = null;
     private static openai: OpenAIProvider | null = null;
 
+    /**
+     * Log AI decision transparency event for LFT 2026 AI Regulation compliance.
+     */
+    public static logAiTransparencyEvent(event: {
+      action: string;
+      modelUsed: string;
+      confidenceScore?: number;
+      userId?: string;
+      details?: Record<string, any>;
+    }) {
+      console.log(`[AI Transparency Log - LFT 2026] Action: ${event.action} | Model: ${event.modelUsed} | Score: ${event.confidenceScore ?? 'N/A'}`);
+      return {
+        loggedAt: new Date().toISOString(),
+        transparentDisclosure: true,
+        legalCompliance: 'LFT-2026-AI-TRANSPARENCY',
+        ...event,
+      };
+    }
+
     private static getMoondreamClient() {
         if (!this.moondream) {
             const apiKey = process.env.MOONDREAM_API_KEY;

@@ -6,6 +6,7 @@
  */
 
 import { format, differenceInDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
+import { LaborCalendarRulesService } from './labor-calendar-rules';
 
 export type LFTConflictType = 
     | 'SIXTH_DAY_VIOLATION'
@@ -148,7 +149,7 @@ export class LFTConflictDetector {
     }
 
     /**
-     * Detect weekly hours exceeding 48 hours
+     * Detect weekly hours exceeding legal limits (dynamic 2026-2030 timeline)
      */
     private static detectWeeklyLimitViolation(
         userId: string,
@@ -169,9 +170,12 @@ export class LFTConflictDetector {
 
         // Check each week
         for (const [weekStart, weekShifts] of Object.entries(byWeek)) {
+            const shiftYear = new Date(weekStart).getFullYear();
+            const yearlyRules = LaborCalendarRulesService.getRulesForYear(shiftYear);
+            const maxAllowedWeeklyHours = yearlyRules.maxWeeklyHours;
             const totalHours = weekShifts.reduce((sum, shift) => sum + shift.workHours, 0);
 
-            if (totalHours > 48) {
+            if (totalHours > maxAllowedWeeklyHours) {
                 const weekEnd = format(endOfWeek(new Date(weekStart), { weekStartsOn: 1 }), 'yyyy-MM-dd');
                 
                 conflicts.push({
@@ -179,16 +183,16 @@ export class LFTConflictDetector {
                     userId,
                     userName: shifts[0].userName,
                     type: 'WEEKLY_LIMIT_EXCEEDED',
-                    severity: totalHours > 54 ? 'MUY_GRAVE' : 'GRAVE',
-                    description: `${totalHours.toFixed(1)} horas en la semana del ${weekStart} (máx 48 horas)`,
-                    article: 'Artículo 61 LFT',
+                    severity: totalHours > (maxAllowedWeeklyHours + 6) ? 'MUY_GRAVE' : 'GRAVE',
+                    description: `${totalHours.toFixed(1)} horas en la semana del ${weekStart} (máx ${maxAllowedWeeklyHours} horas legal en ${shiftYear})`,
+                    article: 'Artículo 61, 123 LFT',
                     dates: weekShifts.map(s => s.date),
                     details: {
                         weekStart,
                         weekEnd,
                         totalHours,
-                        maxHours: 48,
-                        excessHours: totalHours - 48,
+                        maxHours: maxAllowedWeeklyHours,
+                        excessHours: totalHours - maxAllowedWeeklyHours,
                     },
                 });
             }

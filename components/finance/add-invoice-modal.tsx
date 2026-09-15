@@ -98,10 +98,17 @@ export function AddPaymentRunItemModal({
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (newOpen) {
-      fetchInvoices();
-      fetchPayrollRuns();
-      fetchExpenses();
+      if (activeTab === "invoices") fetchInvoices();
+      else if (activeTab === "expenses") fetchExpenses();
+      else if (activeTab === "payroll") fetchPayrollRuns();
     }
+  };
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (tab === "invoices" && invoices.length === 0) fetchInvoices();
+    if (tab === "expenses" && expenses.length === 0) fetchExpenses();
+    if (tab === "payroll" && payrollRuns.length === 0) fetchPayrollRuns();
   };
 
   const addInvoice = async (invoice: any) => {
@@ -224,7 +231,7 @@ export function AddPaymentRunItemModal({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="invoices" className="flex items-center gap-2">
               <Receipt className="h-4 w-4" /> Facturas Proveedores ({invoices.length})
@@ -251,57 +258,59 @@ export function AddPaymentRunItemModal({
                   </p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Folio</TableHead>
-                      <TableHead>Emisor / Proveedor</TableHead>
-                      <TableHead>Conciliación</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {invoices.map((inv) => (
-                      <TableRow key={inv.id} className="hover:bg-muted/50 transition-colors">
-                        <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
-                          {inv.fecha ? new Date(inv.fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs font-semibold">{inv.folio || "S/F"}</TableCell>
-                        <TableCell className="text-sm">
-                          <div className="font-medium text-foreground">{inv.nombreEmisor || inv.rfcEmisor}</div>
-                          {inv.nombreEmisor && <div className="text-xs text-muted-foreground font-mono">{inv.rfcEmisor}</div>}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-xs font-normal">
-                            {inv.matchStatus === "MATCHED" ? "Conciliada" : inv.matchStatus === "EXCEPTION_APPROVED" ? "Excepción Aprobada" : inv.matchStatus}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-sm whitespace-nowrap">
-                          ${formatCents(inv.total)}{" "}
-                          <span className="text-xs text-muted-foreground">{inv.currency || "MXN"}</span>
-                        </TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="h-7 text-xs gap-1"
-                            disabled={addingId === inv.id}
-                            onClick={() => addInvoice(inv)}
-                          >
-                            {addingId === inv.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Plus className="h-3 w-3" />
-                            )}
-                            Adjuntar
-                          </Button>
-                        </TableCell>
+                <div className="overflow-x-auto w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Fecha</TableHead>
+                        <TableHead>Folio</TableHead>
+                        <TableHead>Emisor / Proveedor</TableHead>
+                        <TableHead>Conciliación</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {invoices.map((inv) => (
+                        <TableRow key={inv.id} className="hover:bg-muted/50 transition-colors">
+                          <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
+                            {inv.fecha ? new Date(inv.fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs font-semibold">{inv.folio || "S/F"}</TableCell>
+                          <TableCell className="text-sm">
+                            <div className="font-medium text-foreground">{inv.nombreEmisor || inv.rfcEmisor}</div>
+                            {inv.nombreEmisor && <div className="text-xs text-muted-foreground font-mono">{inv.rfcEmisor}</div>}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-xs font-normal">
+                              {inv.matchStatus === "MATCHED" ? "Conciliada" : inv.matchStatus === "EXCEPTION_APPROVED" ? "Excepción Aprobada" : inv.matchStatus}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-sm whitespace-nowrap">
+                            ${formatCents(inv.total)}{" "}
+                            <span className="text-xs text-muted-foreground">{inv.currency || "MXN"}</span>
+                          </TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="h-9 sm:h-7 min-h-[44px] sm:min-h-0 text-xs gap-1"
+                              disabled={addingId === inv.id}
+                              onClick={() => addInvoice(inv)}
+                            >
+                              {addingId === inv.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Plus className="h-3 w-3" />
+                              )}
+                              Adjuntar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </div>
           </TabsContent>
@@ -320,51 +329,53 @@ export function AddPaymentRunItemModal({
                   </p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Descripción</TableHead>
-                      <TableHead>Contraparte</TableHead>
-                      <TableHead>Categoría</TableHead>
-                      <TableHead className="text-right">Monto</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {expenses.map((exp) => (
-                      <TableRow key={exp.id} className="hover:bg-muted/50 transition-colors">
-                        <TableCell className="text-sm font-medium text-foreground">{exp.description}</TableCell>
-                        <TableCell className="text-sm">
-                          {exp.payeeName ?? (
-                            <span className="text-xs text-destructive">Sin contraparte</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs font-normal">{exp.category}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-sm whitespace-nowrap">
-                          ${formatCents(exp.amount)}
-                        </TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs gap-1"
-                            disabled={addingId === exp.id}
-                            onClick={() => addExpense(exp)}
-                          >
-                            {addingId === exp.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Plus className="h-3 w-3" />
-                            )}
-                            Adjuntar
-                          </Button>
-                        </TableCell>
+                <div className="overflow-x-auto w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Descripción</TableHead>
+                        <TableHead>Contraparte</TableHead>
+                        <TableHead>Categoría</TableHead>
+                        <TableHead className="text-right">Monto</TableHead>
+                        <TableHead></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {expenses.map((exp) => (
+                        <TableRow key={exp.id} className="hover:bg-muted/50 transition-colors">
+                          <TableCell className="text-sm font-medium text-foreground">{exp.description}</TableCell>
+                          <TableCell className="text-sm">
+                            {exp.payeeName ?? (
+                              <span className="text-xs text-destructive">Sin contraparte</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs font-normal">{exp.category}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-sm whitespace-nowrap">
+                            ${formatCents(exp.amount)}
+                          </TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-9 sm:h-7 min-h-[44px] sm:min-h-0 text-xs gap-1"
+                              disabled={addingId === exp.id}
+                              onClick={() => addExpense(exp)}
+                            >
+                              {addingId === exp.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Plus className="h-3 w-3" />
+                              )}
+                              Adjuntar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </div>
           </TabsContent>
@@ -383,53 +394,55 @@ export function AddPaymentRunItemModal({
                   </p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Sucursal</TableHead>
-                      <TableHead>Período</TableHead>
-                      <TableHead>Estatus</TableHead>
-                      <TableHead className="text-right">Monto Total</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {payrollRuns.map((pr) => (
-                      <TableRow key={pr.id} className="hover:bg-muted/50 transition-colors">
-                        <TableCell className="text-sm font-medium text-foreground">
-                          {pr.branchName}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {pr.periodStart} al {pr.periodEnd}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/20 text-xs font-normal">
-                            {pr.status === 'COMPLETED' ? 'Procesada / Timbrada' : pr.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-sm whitespace-nowrap">
-                          ${formatCents(pr.totalAmountCents || 0)} MXN
-                        </TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="h-7 text-xs gap-1"
-                            disabled={addingId === pr.id}
-                            onClick={() => addPayroll(pr)}
-                          >
-                            {addingId === pr.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Plus className="h-3 w-3" />
-                            )}
-                            Adjuntar
-                          </Button>
-                        </TableCell>
+                <div className="overflow-x-auto w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Sucursal</TableHead>
+                        <TableHead>Período</TableHead>
+                        <TableHead>Estatus</TableHead>
+                        <TableHead className="text-right">Monto Total</TableHead>
+                        <TableHead></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {payrollRuns.map((pr) => (
+                        <TableRow key={pr.id} className="hover:bg-muted/50 transition-colors">
+                          <TableCell className="text-sm font-medium text-foreground">
+                            {pr.branchName}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {pr.periodStart} al {pr.periodEnd}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/20 text-xs font-normal">
+                              {pr.status === 'COMPLETED' ? 'Procesada / Timbrada' : pr.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-sm whitespace-nowrap">
+                            ${formatCents(pr.totalAmountCents || 0)} MXN
+                          </TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="h-9 sm:h-7 min-h-[44px] sm:min-h-0 text-xs gap-1"
+                              disabled={addingId === pr.id}
+                              onClick={() => addPayroll(pr)}
+                            >
+                              {addingId === pr.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Plus className="h-3 w-3" />
+                              )}
+                              Adjuntar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </div>
           </TabsContent>

@@ -733,6 +733,12 @@ export const breakComplianceRules = pgTable("break_compliance_rules", {
     // Status
     isActive: boolean("is_active").default(true),
     
+    // Ley Silla (STPS 2025/2026 Compliance)
+    requiresBackrestChair: boolean("requires_backrest_chair").default(true),
+    standingRiskLevel: text("standing_risk_level").default('PROLONGADA'), // ESTATICA, DINAMICA, PROLONGADA
+    restAreaLocation: text("rest_area_location").default('WORKSTATION'), // WORKSTATION, ADJACENT_ZONE, REST_ROOM
+    ritPauseIntervalMinutes: integer("rit_pause_interval_minutes").default(120), // Pausas en RIT (minutos)
+
     // Audit
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

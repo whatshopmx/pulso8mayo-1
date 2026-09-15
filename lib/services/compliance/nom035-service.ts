@@ -180,12 +180,26 @@ Regla Activada: ${ruleId}`;
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + 7);
 
+      let riskCategory = 'PSICOSOCIAL';
+      const msgLower = message.toLowerCase();
+      if (msgLower.includes('ley silla') || msgLower.includes('bipedestación') || msgLower.includes('asiento')) {
+        riskCategory = 'LEY_SILLA';
+      } else if (msgLower.includes('mobbing') || msgLower.includes('acoso') || msgLower.includes('violencia')) {
+        riskCategory = 'MOBBING';
+      } else if (msgLower.includes('ciber') || msgLower.includes('digital')) {
+        riskCategory = 'CIBERACOSO';
+      } else if (msgLower.includes('burnout') || msgLower.includes('estrés')) {
+        riskCategory = 'BURNOUT';
+      } else if (!isNom035) {
+        riskCategory = 'NOM-251_HIGIENE';
+      }
+
       const planInput: ActionPlanInput = {
         companyId,
         branchId: instance.branchId,
         title,
         description,
-        riskCategory: isNom035 ? 'PSICOSOCIAL' : 'NOM-251_HIGIENE',
+        riskCategory,
         priority: 'HIGH',
         status: 'PENDING',
         assignedTo: userId,

@@ -1,0 +1,102 @@
+{
+  "id": "tpl-ley-silla-inspection-v1",
+  "nombre": "🪑 Ley Silla: Auditoría Operativa de Ergonomía y Descanso",
+  "descripcion": "Verificación del cumplimiento de la Ley Silla (Art. 132 LFT) e inspecciones STPS 2026 en estaciones de trabajo y áreas de descanso HORECA",
+  "categoria": "COMPLIANCE",
+  "version": 1,
+  "activo": true,
+  "requiereIA": true,
+  "duracionEstimada": "10-15 min",
+  "complianceConfig": {
+    "complianceType": "LEY-SILLA-STPS-2026",
+    "regulationSection": "Art. 132 Fracc. V LFT",
+    "requiredFrequency": "monthly",
+    "auditable": true,
+    "evidenceRequired": true,
+    "criticalForCompliance": true
+  },
+  "cumplimientoNormativo": [
+    {
+      "norma": "LFT-Art-132-Ley-Silla",
+      "seccion": "Fracción V",
+      "descripcion": "Obligación patronal de proveer asientos con respaldo para personal en estaciones de trabajo de pie y pausas reglamentarias en el RIT"
+    }
+  ],
+  "tags": ["ley-silla", "ergonomia", "stps", "inspeccion", "pausas-activas", "bipedestacion", "horeca"],
+  "aiConfig": {
+    "provider": "gemini",
+    "fallbackProvider": "openai",
+    "maxRetries": 2
+  },
+  "completionActions": [
+    {
+      "type": "EVALUATE_LEY_SILLA_RISK",
+      "message": "Evaluar índice de cumplimiento y riesgo de bipedestación por área"
+    },
+    {
+      "type": "GENERATE_STPS_EVIDENCE_RECORD",
+      "message": "Generar expediente auditable de la Ley Silla para el Plan Anual STPS 2026"
+    }
+  ],
+  "pasos": [
+    {
+      "id": "paso-1",
+      "type": "instruction",
+      "titulo": "Instrucciones de Inspección Ley Silla STPS",
+      "descripcion": "Revise las estaciones donde el personal labora de pie (Coyuntura de Cocina, Servicio/Caja, Bar, Limpieza). Valide la presencia física de sillas ergonómicas con respaldo y el cumplimiento de las pausas establecidas en el Reglamento Interior de Trabajo (RIT)."
+    },
+    {
+      "id": "paso-2",
+      "type": "Select",
+      "titulo": "Área u Operación a Inspeccionar",
+      "obligatorio": true,
+      "options": ["Cocina Principal", "Caja / Servicio", "Barra / Barman", "Recepción / Hostess", "Limpieza / Stewards"]
+    },
+    {
+      "id": "paso-3",
+      "type": "YesNo",
+      "titulo": "¿Existen asientos o sillas CON RESPALDO disponibles en la estación o área contigua?",
+      "obligatorio": true,
+      "logicRules": [
+        {
+          "id": "lr-falta-silla-respaldo",
+          "condition": "value == false",
+          "severity": "CRITICAL",
+          "message": "Violación Ley Silla: No se detectaron asientos con respaldo en el área inspeccionada. Se generará un plan de acción remedial inmediato para evitar sanciones STPS.",
+          "actions": ["GENERATE_NOM035_ACTION_PLAN", "NOTIFY_SUPERVISOR"]
+        }
+      ]
+    },
+    {
+      "id": "paso-4",
+      "type": "Photo",
+      "titulo": "Evidencia Fotográfica de Sillas con Respaldo en Estación/Área de Descanso",
+      "obligatorio": true,
+      "aiAnalysisConfig": {
+        "expectedObject": "chair with backrest or ergonomic stool",
+        "description": "Validar que la imagen contenga sillas con respaldo utilizables (no bancos sin respaldo)"
+      }
+    },
+    {
+      "id": "paso-5",
+      "type": "YesNo",
+      "titulo": "¿Se respetan las pausas reglamentarias de descanso durante el turno (mínimo 10 min por cada 2h)?",
+      "obligatorio": true,
+      "logicRules": [
+        {
+          "id": "lr-incumplimiento-pausas-rit",
+          "condition": "value == false",
+          "severity": "HIGH",
+          "message": "Incumplimiento RIT: El personal reporta no poder tomar las pausas físicas de descanso durante bipedestación prolongada.",
+          "actions": ["GENERATE_NOM035_ACTION_PLAN"]
+        }
+      ]
+    },
+    {
+      "id": "paso-6",
+      "type": "Textarea",
+      "titulo": "Observaciones Ergológicas y Estado de los Asientos",
+      "obligatorio": false
+    }
+  ]
+}

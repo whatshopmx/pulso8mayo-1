@@ -37,6 +37,8 @@ export interface OvertimeCalculation {
   rate3Minutes: number;
 }
 
+import { LaborCalendarRulesService } from "./services/labor-calendar-rules";
+
 export interface ComplianceRule {
   weeklyHours: number;
   workDays: number;
@@ -48,7 +50,7 @@ export interface ComplianceRule {
 }
 
 export const DEFAULT_COMPLIANCE_RULES: ComplianceRule = {
-  weeklyHours: 40,
+  weeklyHours: LaborCalendarRulesService.getRulesForYear().maxWeeklyHours,
   workDays: 5,
   toleranceMinutes: 15,
   minBreakDuration: 30,
@@ -59,17 +61,16 @@ export const DEFAULT_COMPLIANCE_RULES: ComplianceRule = {
 
 export function calculateOvertime(
   totalMinutes: number,
-  weeklyOvertimeAccumulated: number = 0
+  weeklyOvertimeAccumulated: number = 0,
+  year: number = new Date().getFullYear()
 ): OvertimeCalculation {
-  const regularMinutes = 8 * 60;
+  const rules = LaborCalendarRulesService.getRulesForYear(year);
+  const regularMinutes = 8 * 60; // 8h diarias ordinarias LFT
   const beyondRegular = Math.max(0, totalMinutes - regularMinutes);
 
-  // LFT Art. 84/87 (decisión 2026-08-24): toda hora extra se paga mínimo al
-  // doble; las primeras 9 h extra de la semana van a doble y el excedente a
-  // triple. `weeklyOvertimeAccumulated` trae lo ya pagado a doble en la
-  // semana y recorta ese allowance. rate1 queda deprecado en 0: no existe
-  // categoría legal de extra a tarifa normal.
-  const doubleAllowance = Math.max(0, 540 - weeklyOvertimeAccumulated);
+  // LFT Art. 84/87 y Reforma 2026: Horas extra a doble y triple según escalonamiento anual
+  const maxDoubleMinutes = rules.maxWeeklyDoubleOvertimeHours * 60;
+  const doubleAllowance = Math.max(0, maxDoubleMinutes - weeklyOvertimeAccumulated);
   const rate2Minutes = Math.min(beyondRegular, doubleAllowance);
   const rate3Minutes = beyondRegular - rate2Minutes;
 

@@ -36,22 +36,22 @@ const STATUS_CONFIG: Record<
   PENDING_APPROVAL: {
     label: "Pendiente Aprobación",
     variant: "outline",
-    className: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20 font-medium",
+    className: "bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/25 font-medium",
   },
   APPROVED: {
     label: "Aprobada",
     variant: "default",
-    className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-medium",
+    className: "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/25 font-medium",
   },
   PROCESSING: {
     label: "En Proceso",
     variant: "outline",
-    className: "bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/20 font-medium",
+    className: "bg-sky-500/10 text-sky-800 dark:text-sky-300 border-sky-500/25 font-medium",
   },
   COMPLETED: {
     label: "Pagada / Completada",
     variant: "secondary",
-    className: "bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 border-emerald-600/20 font-medium",
+    className: "bg-emerald-600/10 text-emerald-800 dark:text-emerald-300 border-emerald-600/25 font-medium",
   },
   CANCELLED: { label: "Cancelada", variant: "destructive" },
 };
@@ -249,50 +249,52 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                 </p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Referencia</TableHead>
-                    <TableHead>Notas / Detalle</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((item: any) => (
-                    <TableRow key={item.id} className="hover:bg-muted/50 transition-colors">
-                      <TableCell className="font-medium text-xs whitespace-nowrap">
-                        {item.itemType === "INVOICE" ? (
-                          <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-normal">
-                            Factura
-                          </Badge>
-                        ) : item.itemType === "PAYROLL" ? (
-                          <Badge variant="outline" className="bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/20 font-normal">
-                            Nómina
-                          </Badge>
-                        ) : item.itemType === "OPERATING_EXPENSE" ? (
-                          <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20 font-normal">
-                            Gasto Operativo
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="font-normal">
-                            {item.itemType}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {item.invoiceDetails?.folio
-                          ? `FAC-${item.invoiceDetails.folio}`
-                          : item.expenseDetails?.description
-                            ? item.expenseDetails.description
-                            : item.referenceId.slice(0, 8)}
-                      </TableCell>
-                      <TableCell className="text-sm">{item.notes || "-"}</TableCell>
-                      <TableCell className="text-right font-medium text-sm whitespace-nowrap">{formatCurrency(item.amountCents)}</TableCell>
+              <div className="overflow-x-auto w-full -mx-2 px-2 sm:mx-0 sm:px-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Referencia</TableHead>
+                      <TableHead>Notas / Detalle</TableHead>
+                      <TableHead className="text-right">Monto</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item: any) => (
+                      <TableRow key={item.id} className="hover:bg-muted/50 transition-colors">
+                        <TableCell className="font-medium text-xs whitespace-nowrap">
+                          {item.itemType === "INVOICE" ? (
+                            <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-normal">
+                              Factura
+                            </Badge>
+                          ) : item.itemType === "PAYROLL" ? (
+                            <Badge variant="outline" className="bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/20 font-normal">
+                              Nómina
+                            </Badge>
+                          ) : item.itemType === "OPERATING_EXPENSE" ? (
+                            <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20 font-normal">
+                              Gasto Operativo
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="font-normal">
+                              {item.itemType}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {item.invoiceDetails?.folio
+                            ? `FAC-${item.invoiceDetails.folio}`
+                            : item.expenseDetails?.description
+                              ? item.expenseDetails.description
+                              : item.referenceId.slice(0, 8)}
+                        </TableCell>
+                        <TableCell className="text-sm">{item.notes || "-"}</TableCell>
+                        <TableCell className="text-right font-medium text-sm whitespace-nowrap">{formatCurrency(item.amountCents)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </div>
         </CardContent>
