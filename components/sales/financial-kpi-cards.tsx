@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
@@ -12,9 +12,12 @@ import type {
   SemaphoreStatus,
 } from "@/lib/services/financial-kpi-types";
 import type { LineSource } from "@/lib/services/pnl-types";
+import type { DateRange } from "@/components/finance/period-selector";
+import { format } from "date-fns";
 
 interface FinancialKpiCardsProps {
   branchId?: string;
+  dateRange?: DateRange;
 }
 
 // Tokens semánticos: la paleta cruda de Tailwind no tenía variante oscura, así
@@ -87,7 +90,7 @@ function DeltaBadge({
   );
 }
 
-export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
+export function FinancialKpiCards({ branchId, dateRange }: FinancialKpiCardsProps) {
   const [kpis, setKpis] = useState<FinancialKPIsResult | null>(null);
   const [salesSummary, setSalesSummary] = useState<{
     cutsCount: number;
@@ -109,6 +112,16 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
         if (branchId && branchId !== "ALL") {
           salesUrl.searchParams.set("branchId", branchId);
           kpiUrl.searchParams.set("branchId", branchId);
+        }
+        if (dateRange?.from) {
+          const fromStr = format(dateRange.from, "yyyy-MM-dd");
+          salesUrl.searchParams.set("startDate", fromStr);
+          kpiUrl.searchParams.set("startDate", fromStr);
+          if (dateRange.to) {
+            const toStr = format(dateRange.to, "yyyy-MM-dd");
+            salesUrl.searchParams.set("endDate", toStr);
+            kpiUrl.searchParams.set("endDate", toStr);
+          }
         }
 
         const [salesRes, kpiRes] = await Promise.all([
@@ -137,7 +150,7 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
     };
 
     fetchKpis();
-  }, [branchId]);
+  }, [branchId, dateRange]);
 
   if (loading) {
     return (
@@ -268,7 +281,7 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardDescription className="text-xs font-medium flex items-center gap-1.5">
+        <CardTitle className="text-base font-bold flex items-center gap-1.5">
           Resumen Financiero
           {/* Tooltip Radix, no `title`: visible con foco de teclado y en táctil.
               Mismo patrón que app/dashboard/sales. */}
@@ -286,7 +299,7 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
               Ventas totales, tickets promedio, proporción efectivo/tarjeta y costos operativos (food cost, labor cost) calculados con las mismas fuentes que el P&L por sucursal. Los objetivos son los configurados para tu grupo.
             </TooltipContent>
           </Tooltip>
-        </CardDescription>
+        </CardTitle>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 pt-1">
           <span className="text-3xl font-bold text-foreground">
             {formatCents(kpis.totalSalesCents)}
@@ -387,9 +400,21 @@ export function FinancialKpiCards({ branchId }: FinancialKpiCardsProps) {
                 {cashPct}% / {100 - cashPct}%
               </span>
             </div>
-            <div className="w-full h-2.5 rounded-full overflow-hidden bg-muted flex">
-              <div className="h-full bg-chart-1" style={{ width: `${cashPct}%` }} />
-              <div className="h-full bg-chart-4" style={{ width: `${100 - cashPct}%` }} />
+            <div className="w-full h-5 rounded-full overflow-hidden bg-muted flex text-xs font-medium leading-none">
+              <div
+                className="h-full bg-chart-1 flex items-center justify-center text-white"
+                style={{ width: `${cashPct}%` }}
+                aria-label={`Efectivo: ${cashPct}%`}
+              >
+                {cashPct >= 15 && <span>E</span>}
+              </div>
+              <div
+                className="h-full bg-chart-4 flex items-center justify-center text-white"
+                style={{ width: `${100 - cashPct}%` }}
+                aria-label={`Tarjeta: ${100 - cashPct}%`}
+              >
+                {100 - cashPct >= 15 && <span>T</span>}
+              </div>
             </div>
             <div className="flex items-center justify-between text-xs text-muted-foreground mt-1.5">
               <span>Efectivo: {formatCents(cashCents)}</span>

@@ -820,7 +820,7 @@ export default function AuditPage() {
                                                                 <span>{log.userName || "Personal de Sucursal"}</span>
                                                             </div>
                                                             {log.userRole && (
-                                                                <span className="text-[11px] text-muted-foreground">
+                                                                <span className="text-xs text-muted-foreground">
                                                                     {log.userRole}
                                                                 </span>
                                                             )}
@@ -846,7 +846,7 @@ export default function AuditPage() {
                                                                     {format(new Date(log.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}
                                                                 </span>
                                                             </div>
-                                                            <div className="text-[11px] text-muted-foreground">
+                                                            <div className="text-xs text-muted-foreground">
                                                                 {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true, locale: es })}
                                                             </div>
                                                         </div>
@@ -964,7 +964,7 @@ export default function AuditPage() {
                                 <div className="bg-muted/40 p-4 rounded-lg border space-y-3">
                                     <div className="flex items-start justify-between">
                                         <div>
-                                            <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
+                                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
                                                 Actividad / Tarea
                                             </span>
                                             <h3 className="font-bold text-sm sm:text-base text-foreground mt-0.5">
@@ -974,7 +974,7 @@ export default function AuditPage() {
                                         {isIncident ? (
                                             getSeverityBadge(selectedLog.details?.severity)
                                         ) : (
-                                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs font-semibold">
+                                            <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs font-semibold">
                                                 <Check className="h-3 w-3 mr-1" />
                                                 {getStatusLabel(selectedLog.details?.status || "COMPLETED")}
                                             </Badge>
@@ -983,26 +983,26 @@ export default function AuditPage() {
 
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t text-xs">
                                         <div>
-                                            <span className="text-muted-foreground block text-[11px]">Sucursal</span>
+                                            <span className="text-muted-foreground block text-xs">Sucursal</span>
                                             <span className="font-semibold text-foreground flex items-center gap-1 mt-0.5">
                                                 <Store className="h-3 w-3 text-muted-foreground" />
                                                 {selectedLog.branchName || "Sucursal Matriz"}
                                             </span>
                                         </div>
                                         <div>
-                                            <span className="text-muted-foreground block text-[11px]">Responsable</span>
+                                            <span className="text-muted-foreground block text-xs">Responsable</span>
                                             <span className="font-semibold text-foreground flex items-center gap-1 mt-0.5">
                                                 <User className="h-3 w-3 text-muted-foreground" />
                                                 {selectedLog.userName || "Personal de Turno"}
                                             </span>
                                             {selectedLog.userRole && (
-                                                <span className="text-[10px] text-muted-foreground block">
+                                                <span className="text-xs text-muted-foreground block">
                                                     {selectedLog.userRole}
                                                 </span>
                                             )}
                                         </div>
                                         <div>
-                                            <span className="text-muted-foreground block text-[11px]">Canal de Captura</span>
+                                            <span className="text-muted-foreground block text-xs">Canal de Captura</span>
                                             <span className="font-semibold text-foreground flex items-center gap-1 mt-0.5">
                                                 <ChannelIcon className="h-3 w-3 text-muted-foreground" />
                                                 {channel.label}
@@ -1026,13 +1026,13 @@ export default function AuditPage() {
 
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="bg-muted/30 p-3 rounded-lg border">
-                                                <span className="text-muted-foreground block text-[11px]">Estado de Atención</span>
+                                                <span className="text-muted-foreground block text-xs">Estado de Atención</span>
                                                 <span className="font-bold text-foreground mt-0.5 block">
                                                     {getStatusLabel(selectedLog.details?.status || "OPEN")}
                                                 </span>
                                             </div>
                                             <div className="bg-muted/30 p-3 rounded-lg border">
-                                                <span className="text-muted-foreground block text-[11px]">Fecha y Hora de Reporte</span>
+                                                <span className="text-muted-foreground block text-xs">Fecha y Hora de Reporte</span>
                                                 <span className="font-medium text-foreground mt-0.5 block">
                                                     {format(new Date(selectedLog.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}
                                                 </span>
@@ -1043,18 +1043,18 @@ export default function AuditPage() {
                                     <div className="space-y-3">
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="bg-muted/30 p-3 rounded-lg border">
-                                                <span className="text-muted-foreground block text-[11px]">Calificación del Checklist</span>
+                                                <span className="text-muted-foreground block text-xs">Calificación del Checklist</span>
                                                 <div className="flex items-baseline gap-1 mt-0.5">
                                                     <span className="text-lg font-bold text-foreground">
                                                         {selectedLog.details?.score !== undefined && selectedLog.details?.score !== null 
                                                             ? `${selectedLog.details.score}%` 
                                                             : "100%"}
                                                     </span>
-                                                    <span className="text-xs text-emerald-600 font-medium">Cumplimiento</span>
+                                                    <span className="text-xs text-success font-medium">Cumplimiento</span>
                                                 </div>
                                             </div>
                                             <div className="bg-muted/30 p-3 rounded-lg border">
-                                                <span className="text-muted-foreground block text-[11px]">Tiempo de Ejecución</span>
+                                                <span className="text-muted-foreground block text-xs">Tiempo de Ejecución</span>
                                                 <div className="flex items-center gap-1.5 mt-1 text-foreground font-semibold">
                                                     <Timer className="h-3.5 w-3.5 text-muted-foreground" />
                                                     <span>{durationMins !== null ? `${durationMins} minutos` : "En tiempo regular"}</span>
@@ -1063,7 +1063,7 @@ export default function AuditPage() {
                                         </div>
 
                                         <div className="bg-muted/20 border p-3 rounded-lg space-y-1">
-                                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
                                                 Dictamen de Supervisión
                                             </span>
                                             <p className="text-xs text-foreground leading-relaxed">
@@ -1075,7 +1075,7 @@ export default function AuditPage() {
 
                                 {/* Folio & Quick Actions Footer */}
                                 <div className="flex items-center justify-between pt-3 border-t text-xs text-muted-foreground">
-                                    <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                                    <div className="flex items-center gap-1.5 font-mono text-xs">
                                         <span>Folio:</span>
                                         <span className="font-semibold text-foreground">#{selectedLog.id.slice(0, 8).toUpperCase()}</span>
                                     </div>

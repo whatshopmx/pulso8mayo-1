@@ -5,7 +5,6 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { ComplianceReportGenerator } from "@/components/compliance/report-generator";
-import { AlertDistributionChart } from "@/components/dashboard/alert-distribution-chart";
 import { getTranslations } from "next-intl/server";
 import { ExecutiveSummary } from "@/components/dashboard/executive-summary"
 import { GroupAreaOverview } from "@/components/dashboard/group-area-overview"
@@ -71,17 +70,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
         </SectionErrorBoundary>
       </Suspense>
 
-      {/* #5 — Charts */}
+      {/* #4 — Operational Execution & Incident Distribution Charts */}
       <Suspense fallback={<ChartSkeleton />}>
         <SectionErrorBoundary>
           <DashboardCharts branch={selectedBranch} startDate={startDate} endDate={endDate} />
-        </SectionErrorBoundary>
-      </Suspense>
-
-      {/* #6 — Alert distribution */}
-      <Suspense fallback={<ChartSkeleton />}>
-        <SectionErrorBoundary>
-          <AlertDistributionChart branch={selectedBranch} startDate={startDate} endDate={endDate} />
         </SectionErrorBoundary>
       </Suspense>
 

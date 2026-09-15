@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { formatCents, statusBadgeClasses } from "@/lib/utils";
 import { computeCashVariance } from "@/lib/sales/cash-variance";
 import type { Violation } from "@/components/finance/excepciones-panel";
+import type { DateRange } from "@/components/finance/period-selector";
+import { format } from "date-fns";
 import {
   AlertCircle,
   ArrowRight,
@@ -79,7 +81,7 @@ function daysSince(iso: string): number {
   return Math.max(0, Math.floor(ms / 86_400_000));
 }
 
-export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
+export function MoneyAttentionPanel({ branchId, dateRange }: { branchId: string; dateRange?: DateRange }) {
   const [items, setItems] = useState<AttentionItem[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,6 +96,12 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
     const scoped = (path: string) => {
       const url = new URL(path, window.location.origin);
       if (branchId !== "ALL") url.searchParams.set("branchId", branchId);
+      if (dateRange?.from) {
+        url.searchParams.set("startDate", format(dateRange.from, "yyyy-MM-dd"));
+        if (dateRange.to) {
+          url.searchParams.set("endDate", format(dateRange.to, "yyyy-MM-dd"));
+        }
+      }
       return url.toString();
     };
 
@@ -220,18 +228,9 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, dateRange]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && (e.key === "r" || e.key === "R")) {
-        e.preventDefault();
-        load();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [load]);
+
 
   const VISIBLE_LIMIT = 8;
   const visible = items?.slice(0, VISIBLE_LIMIT) ?? [];
@@ -260,13 +259,6 @@ export function MoneyAttentionPanel({ branchId }: { branchId: string }) {
             </CardDescription>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-center">
-            <kbd
-              aria-keyshortcuts="Alt+R"
-              className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-mono text-muted-foreground bg-muted border border-border rounded cursor-help"
-              title="Atajo de teclado: Recargar alertas (Alt+R)"
-            >
-              Alt+R
-            </kbd>
             {items !== null && items.length > 0 && (
               <span
                 className={`text-xs px-2 py-1 rounded-full border ${statusBadgeClasses(

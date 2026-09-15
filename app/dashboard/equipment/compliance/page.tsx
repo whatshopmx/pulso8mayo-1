@@ -269,12 +269,12 @@ export default function EquipmentCompliancePage() {
                       ) : service.providerName ? (
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-foreground">{service.providerName}</span>
-                          <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10">
+                          <Badge variant="outline" className="text-xs border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10">
                             Sin catálogo
                           </Badge>
                         </div>
                       ) : (
-                        <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10">
+                        <Badge variant="outline" className="text-xs border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10">
                           Sin proveedor
                         </Badge>
                       )}

@@ -14,6 +14,8 @@ import { formatCents } from "@/lib/utils";
 import { commissionChannelLabel, formatRateBps } from "@/lib/services/commission-types";
 import { noDataLine } from "@/lib/services/pnl-types";
 import type { BranchPnL, LineSource, PnLLine } from "@/lib/services/pnl-types";
+import type { DateRange } from "@/components/finance/period-selector";
+import { format } from "date-fns";
 
 export type BranchPnLItem = BranchPnL;
 
@@ -314,7 +316,7 @@ function PrimeCostCell({
   );
 }
 
-export function PnlBranchTable() {
+export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
   const [pnlData, setPnlData] = useState<BranchPnLItem[]>([]);
   const [period, setPeriod] = useState<{ startDate: string; endDate: string; days: number } | null>(
     null,
@@ -445,11 +447,18 @@ export function PnlBranchTable() {
     URL.revokeObjectURL(url);
   };
 
-  const loadPnL = useCallback(async () => {
+  const loadPnL = useCallback(async (range?: DateRange) => {
     setLoading(true);
     setFailed(false);
     try {
-      const res = await fetch("/api/finance/pnl");
+      const url = new URL("/api/finance/pnl", window.location.origin);
+      if (range?.from) {
+        url.searchParams.set("startDate", format(range.from, "yyyy-MM-dd"));
+        if (range.to) {
+          url.searchParams.set("endDate", format(range.to, "yyyy-MM-dd"));
+        }
+      }
+      const res = await fetch(url.toString());
       const json = await res.json();
       if (!res.ok || !json.success) {
         setFailed(true);
@@ -466,8 +475,8 @@ export function PnlBranchTable() {
   }, []);
 
   useEffect(() => {
-    loadPnL();
-  }, [loadPnL]);
+    loadPnL(dateRange);
+  }, [loadPnL, dateRange]);
 
   // Totales del grupo. Solo se suman los renglones que tienen datos: un NO_DATA
   // no aporta cero, deja el total marcado como incompleto.
@@ -666,14 +675,26 @@ export function PnlBranchTable() {
             title="No se pudo cargar el P&L por sucursal"
             description="Error al conectar con el servicio de finanzas. Revisa tu conexión e intenta de nuevo."
             action={
-              <Button variant="outline" size="sm" onClick={loadPnL}>
+              <Button variant="outline" size="sm" onClick={() => loadPnL(dateRange)}>
                 Reintentar
               </Button>
             }
           />
         ) : pnlData.length === 0 ? (
-          <div className="py-6 text-center text-xs text-muted-foreground">
-            Sin suficientes datos para consolidar el P&L de las sucursales.
+          <div className="py-8 flex flex-col items-center gap-3 text-center">
+            <AlertCircle className="w-8 h-8 text-muted-foreground" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Sin suficientes datos para el P&L</p>
+              <p className="text-xs text-muted-foreground max-w-md">
+                Necesitas al menos cortes POS en{" "}
+                <Link href="/dashboard/sales" className="text-primary hover:underline">Cortes de Ventas</Link>,
+                gastos en{" "}
+                <Link href="/dashboard/finance/expenses" className="text-primary hover:underline">Gastos Operativos</Link>,
+                y nómina en{" "}
+                <Link href="/dashboard/finance/labor-cost" className="text-primary hover:underline">Costo Laboral</Link>{" "}
+                para que el sistema calcule la utilidad operativa por sucursal.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -695,7 +716,7 @@ export function PnlBranchTable() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 text-xs">
-                    <TableHead>Sucursal</TableHead>
+                    <TableHead className="sticky left-0 z-10 bg-muted/50">Sucursal</TableHead>
                     <SortableHead
                       label="Venta Neta"
                       active={sort?.key === "sales"}
@@ -704,7 +725,25 @@ export function PnlBranchTable() {
                     />
                     <TableHead className="text-right">Food Cost %</TableHead>
                     <TableHead className="text-right">Nómina %</TableHead>
-                    <TableHead className="text-right">Prime Cost %</TableHead>
+                    <TableHead className="text-right">
+                      <span className="inline-flex items-center gap-1">
+                        Prime Cost %
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex items-center justify-center w-4 h-4 min-w-[28px] min-h-[28px] sm:min-w-0 sm:min-h-0 rounded-full border border-muted-foreground/30 text-xs leading-none text-muted-foreground cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              aria-label="Qué es Prime Cost"
+                            >
+                              ?
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-72">
+                            Prime Cost = Food Cost + Nómina. Es el costo directo de producir y servir. En QSR saludable: ≤58% (verde), 58–65% (precaución), &gt;65% (crítico).
+                          </TooltipContent>
+                        </Tooltip>
+                      </span>
+                    </TableHead>
                     <TableHead className="text-right">Gastos Operativos</TableHead>
                     <TableHead className="text-right">Comisiones</TableHead>
                     <SortableHead
@@ -719,7 +758,7 @@ export function PnlBranchTable() {
                 <TableBody>
                   {/* Consolidado del grupo */}
                   <TableRow className="bg-primary/5 hover:bg-primary/10 font-bold text-xs border-b-2 border-primary/20">
-                    <TableCell className="font-bold text-foreground flex items-center gap-1.5">
+                    <TableCell className="sticky left-0 z-10 bg-primary/5 font-bold text-foreground flex items-center gap-1.5">
                       <span>TOTAL GRUPO</span>
                       <Badge variant="outline" className="text-xs py-0 font-medium text-foreground bg-background">
                         {groupCount} sucursales
@@ -830,11 +869,11 @@ export function PnlBranchTable() {
                         : `Caja chica del período: ${formatCents(item.pettyCash.cents)}. Ya está restada de la utilidad; no pasa por la cola de autorización de gastos.`;
                     return (
                       <TableRow key={item.branchId} className="hover:bg-muted/40 focus-within:bg-muted/40 transition text-xs">
-                        <TableCell className="font-medium">
+                        <TableCell className="sticky left-0 z-10 bg-background font-medium">
                           <Link
                             href={`/dashboard/branches?branchId=${item.branchId}`}
                             title={item.branchName}
-                            className="hover:underline text-foreground inline-block max-w-[16ch] truncate align-bottom"
+                            className="hover:underline text-foreground inline-block max-w-[22ch] truncate align-bottom"
                           >
                             {item.branchName}
                           </Link>

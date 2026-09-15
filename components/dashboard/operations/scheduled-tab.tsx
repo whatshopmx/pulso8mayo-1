@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, User, Building } from "lucide-react";
+import { Calendar, Clock, User, Building, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 
@@ -77,7 +77,7 @@ export function ScheduledTab() {
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center justify-center p-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                         </div>
                     </CardContent>
                 </Card>

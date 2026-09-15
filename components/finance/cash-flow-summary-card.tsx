@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { formatCents } from "@/lib/utils";
 import type { CashFlowDay, CashFlowProjection } from "@/components/finance/cash-flow-calendar";
+import type { DateRange } from "@/components/finance/period-selector";
+import { format } from "date-fns";
 import { ArrowRight, Calendar, Clock, Loader2, RefreshCw, TrendingDown } from "lucide-react";
 
 /**
@@ -59,7 +61,7 @@ function toSummary(payload: CashFlowProjection | CashFlowDay[]): Summary | null 
   };
 }
 
-export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
+export function CashFlowSummaryCard({ branchId, dateRange }: { branchId: string; dateRange?: DateRange }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +73,12 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
       const url = new URL("/api/finance/cash-flow", window.location.origin);
       url.searchParams.set("days", String(HORIZON_DAYS));
       if (branchId !== "ALL") url.searchParams.set("branchId", branchId);
+      if (dateRange?.from) {
+        url.searchParams.set("startDate", format(dateRange.from, "yyyy-MM-dd"));
+        if (dateRange.to) {
+          url.searchParams.set("endDate", format(dateRange.to, "yyyy-MM-dd"));
+        }
+      }
 
       const res = await fetch(url.toString());
       const json = await res.json();
@@ -91,7 +99,7 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, dateRange]);
 
   return (
     <Card>
@@ -137,9 +145,12 @@ export function CashFlowSummaryCard({ branchId }: { branchId: string }) {
               <div>
                 <p className="text-xs text-muted-foreground">Saldo inicial</p>
                 {summary.initialBalanceCents === null ? (
-                  <p className="text-lg font-bold text-muted-foreground">
-                    Sin capturar
-                  </p>
+                  <Link
+                    href="/dashboard/finance/treasury"
+                    className="text-lg font-bold text-primary hover:underline"
+                  >
+                    Sin capturar →
+                  </Link>
                 ) : (
                   <p className="text-lg font-bold tabular-nums">
                     {formatCents(summary.initialBalanceCents)}

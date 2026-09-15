@@ -128,10 +128,10 @@ export function DashboardTabbedMetrics({ branchId, startDate, endDate }: Dashboa
     fetchData();
   }, [branchId, startDate, endDate]);
 
-  // Global Keyboard listener for cycling tabs (AD-4 / Task 5 / Task 6)
+  // Keyboard listener: '/' shortcut for global search, and tab cycling only when tablist is focused
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Handle '/' key to focus search input even if activeElement is not input (but check we aren't typing)
+      // Handle '/' key to focus search input when not typing in editable fields
       if (e.key === "/") {
         if (
           document.activeElement?.tagName === "INPUT" || 
@@ -148,24 +148,9 @@ export function DashboardTabbedMetrics({ branchId, startDate, endDate }: Dashboa
         return;
       }
 
-      // Handle 'Escape' to reset filters/selectors
-      if (e.key === "Escape") {
-        document.cookie = "pulso_selected_branch=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-        router.push('/dashboard');
-        return;
-      }
-
-      // Don't intercept typing in inputs or textareas for arrow keys
-      if (
-        document.activeElement?.tagName === "INPUT" || 
-        document.activeElement?.tagName === "TEXTAREA" || 
-        (document.activeElement as HTMLElement)?.isContentEditable
-      ) {
-        return;
-      }
-
-      // Tab key or custom arrow key triggers to cycle tabs (prevent default standard Tab if we want specific tab behavior, or Alt+Tab)
-      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      // Constrain arrow-key tab cycling strictly to when the tablist or a tab trigger has focus
+      const isTabFocused = document.activeElement?.closest('[role="tablist"]') !== null;
+      if (isTabFocused && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
         const tabs = ["overview", "compliance", "inventory", "labor"];
         const currentIndex = tabs.indexOf(activeTab);
         let nextIndex = currentIndex;
@@ -183,7 +168,7 @@ export function DashboardTabbedMetrics({ branchId, startDate, endDate }: Dashboa
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeTab, router]);
+  }, [activeTab]);
 
   if (loading) {
     return (

@@ -50,7 +50,13 @@ export function CompletionRateChart() {
           tickFormatter={(value) => `${value}%`}
         />
         <Tooltip
-          contentStyle={{ backgroundColor: theme === 'dark' ? '#1f2937' : '#fff', borderRadius: '8px' }}
+          contentStyle={{
+            backgroundColor: "hsl(var(--popover))",
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "6px",
+            color: "hsl(var(--popover-foreground))",
+            fontSize: "12px",
+          }}
           formatter={(value: number) => [`${value}%`, 'Tasa de Completitud']}
         />
         <Line

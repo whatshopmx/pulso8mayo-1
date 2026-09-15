@@ -172,7 +172,7 @@ export function ComplianceTrendChart({
                     type="monotone"
                     dataKey="rangeGrupo"
                     name="Rango Min-Max del Grupo"
-                    fill="#10b981"
+                    fill="oklch(0.60 0.16 150)"
                     stroke="none"
                     fillOpacity={0.15}
                   />
@@ -180,9 +180,9 @@ export function ComplianceTrendChart({
                     type="monotone"
                     dataKey="promedioGrupo"
                     name="Promedio del Grupo"
-                    stroke="#10b981"
+                    stroke="oklch(0.60 0.16 150)"
                     strokeWidth={3}
-                    dot={{ r: 4, fill: "#10b981" }}
+                    dot={{ r: 4, fill: "oklch(0.60 0.16 150)" }}
                     activeDot={{ r: 6 }}
                   />
                 </>

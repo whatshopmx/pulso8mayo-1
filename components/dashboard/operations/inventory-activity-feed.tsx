@@ -65,12 +65,12 @@ export function InventoryActivityFeed({ branchId }: { branchId?: string }) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-[10px] px-1.5">{m.typeLabel}</Badge>
+                  <Badge variant="outline" className="text-xs px-1.5">{m.typeLabel}</Badge>
                   <span className="text-sm font-medium truncate">{m.itemName}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">{m.performerName} · {time}</p>
               </div>
-              <span className={`text-sm font-semibold ${m.quantityChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <span className={`text-sm font-semibold ${m.quantityChange >= 0 ? 'text-success' : 'text-destructive'}`}>
                 {m.quantityChange >= 0 ? '+' : ''}{formatQty(m.quantityChange)}
               </span>
             </div>

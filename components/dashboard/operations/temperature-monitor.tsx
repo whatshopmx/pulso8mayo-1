@@ -160,7 +160,7 @@ export function TemperatureMonitor({ period = "30d", branchId }: TemperatureMoni
                   contentStyle={{
                     backgroundColor: "hsl(var(--popover))",
                     border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
+                    borderRadius: "6px",
                     fontSize: "12px",
                   }}
                 />

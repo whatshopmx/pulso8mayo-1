@@ -72,15 +72,15 @@ export async function ExecutiveSummary({ branch }: ExecutiveSummaryProps) {
               </div>
 
               {data.branchOverview.topPerformer && (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-success/10 border border-success/20">
                   <div className="flex items-center gap-2">
-                    <ArrowUpRight className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <ArrowUpRight className="h-4 w-4 text-success" />
                     <div>
-                      <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Mejor Sucursal</p>
+                      <p className="text-xs text-success font-medium">Mejor Sucursal</p>
                       <p className="text-sm font-medium">{data.branchOverview.topPerformer.branchName}</p>
                     </div>
                   </div>
-                  <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="text-lg font-bold text-success">
                     {data.branchOverview.topPerformer.performanceIndex.toFixed(1)}
                   </span>
                 </div>

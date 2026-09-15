@@ -3856,6 +3856,8 @@ export const payrollPayslips = pgTable("payroll_payslips", {
     
     baseSalaryCents: integer("base_salary_cents").notNull().default(0),
     propinasCents: integer("propinas_cents").notNull().default(0),
+    holidayPayCents: integer("holiday_pay_cents").notNull().default(0),
+    overtimePayCents: integer("overtime_pay_cents").notNull().default(0),
     totalPercepcionesCents: integer("total_percepciones_cents").notNull().default(0),
     totalDeduccionesCents: integer("total_deducciones_cents").notNull().default(0),
     

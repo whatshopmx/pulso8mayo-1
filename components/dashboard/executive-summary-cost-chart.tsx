@@ -64,7 +64,7 @@ export function ExecutiveSummaryCostChart({ costTrends }: ExecutiveSummaryCostCh
                   className="text-muted-foreground"
                 />
                 <YAxis
-                  fontSize={11}
+                  fontSize={12}
                   tickLine={false}
                   axisLine={false}
                   className="text-muted-foreground"
@@ -73,7 +73,7 @@ export function ExecutiveSummaryCostChart({ costTrends }: ExecutiveSummaryCostCh
                   contentStyle={{
                     backgroundColor: "hsl(var(--popover))",
                     border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
+                    borderRadius: "6px",
                     fontSize: "12px",
                   }}
                 />

@@ -79,6 +79,7 @@ export const holidays = pgTable("holidays", {
   name: text("name").notNull(),
   date: text("date").notNull(),
   description: text("description"),
+  isMandatory: boolean("is_mandatory").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
