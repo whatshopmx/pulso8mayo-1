@@ -442,19 +442,19 @@ export default function PayrollPage() {
                     </div>
                     <div className="flex justify-between border-t border-border pt-1">
                       <span className="text-muted-foreground">Sueldo Bruto:</span>
-                      <span className="font-mono font-medium">${formatCents(validationData.financialSummary.totalGrossSalaryCents)}</span>
+                      <span className="font-mono font-medium">{formatCents(validationData.financialSummary.totalGrossSalaryCents)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Propinas Auditadas (Art. 346):</span>
-                      <span className="font-mono font-medium text-primary">+${formatCents(validationData.financialSummary.totalTipsCents)}</span>
+                      <span className="font-mono font-medium text-primary">+{formatCents(validationData.financialSummary.totalTipsCents)}</span>
                     </div>
                     <div className="flex justify-between text-amber-700 dark:text-amber-300 font-medium">
                       <span>Carga Social Patronal (~35%):</span>
-                      <span className="font-mono">+${formatCents(validationData.financialSummary.totalEmployerSocialSecurityCents)}</span>
+                      <span className="font-mono">+{formatCents(validationData.financialSummary.totalEmployerSocialSecurityCents)}</span>
                     </div>
                     <div className="flex justify-between border-t border-border pt-1 font-bold text-foreground">
                       <span>Costo Laboral Total:</span>
-                      <span className="font-mono text-primary">${formatCents(validationData.financialSummary.totalRealLaborCostCents)}</span>
+                      <span className="font-mono text-primary">{formatCents(validationData.financialSummary.totalRealLaborCostCents)}</span>
                     </div>
                   </div>
 
@@ -608,9 +608,9 @@ export default function PayrollPage() {
                   {payslips.map((p) => (
                     <TableRow key={p.id} className="hover:bg-muted/30">
                       <TableCell className="text-xs font-semibold">{p.userName}</TableCell>
-                      <TableCell className="text-xs font-mono text-right">${formatCents(p.baseSalaryCents)}</TableCell>
-                      <TableCell className="text-xs font-mono text-right text-primary">+${formatCents(p.propinasCents)}</TableCell>
-                      <TableCell className="text-xs font-mono text-right font-bold">${formatCents(p.totalPercepcionesCents)}</TableCell>
+                      <TableCell className="text-xs font-mono text-right">{formatCents(p.baseSalaryCents)}</TableCell>
+                      <TableCell className="text-xs font-mono text-right text-primary">+{formatCents(p.propinasCents)}</TableCell>
+                      <TableCell className="text-xs font-mono text-right font-bold">{formatCents(p.totalPercepcionesCents)}</TableCell>
                       <TableCell className="text-xs text-center">
                         {p.cfdiStatus === "STAMPED" ? (
                           <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-0 text-xs">

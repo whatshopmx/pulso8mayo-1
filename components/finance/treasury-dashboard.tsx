@@ -413,7 +413,7 @@ export function TreasuryDashboard() {
           <div>
             <p className="text-xs font-medium text-muted-foreground">Egresos Programados Total</p>
             <p className="text-2xl font-bold tracking-tight text-foreground mt-1">
-              ${formatCents(totalScheduledCents)} <span className="text-xs font-normal text-muted-foreground">MXN</span>
+              {formatCents(totalScheduledCents)} <span className="text-xs font-normal text-muted-foreground">MXN</span>
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {rawPaymentRuns.length} {rawPaymentRuns.length === 1 ? "corrida activa" : "corridas activas"}
@@ -431,7 +431,7 @@ export function TreasuryDashboard() {
                 presupuestar con un número que no se va a cumplir. */}
             <p className="text-xs font-medium text-muted-foreground">Compromiso Recurrente</p>
             <p className="text-2xl font-bold tracking-tight text-foreground mt-1">
-              ${formatCents(monthlyContractsCents)}{" "}
+              {formatCents(monthlyContractsCents)}{" "}
               <span className="text-xs font-normal text-muted-foreground">MXN/mes</span>
               {hayMontosVariables && (
                 <span className="text-xs font-normal text-muted-foreground" title="Incluye servicios de monto variable: la cifra es el monto base esperado, no un importe pactado.">
@@ -578,7 +578,7 @@ export function TreasuryDashboard() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right font-medium text-sm whitespace-nowrap">
-                              ${formatCents(run.totalAmountCents)}{" "}
+                              {formatCents(run.totalAmountCents)}{" "}
                               <span className="text-xs text-muted-foreground">{run.currency || "MXN"}</span>
                             </TableCell>
                             <TableCell className="text-right whitespace-nowrap">
@@ -672,7 +672,7 @@ export function TreasuryDashboard() {
                             {FREQUENCY_MAP[contract.paymentFrequency] || contract.paymentFrequency}
                           </TableCell>
                           <TableCell className="text-right font-medium text-sm whitespace-nowrap">
-                            ${formatCents(contract.baseAmountCents)}{" "}
+                            {formatCents(contract.baseAmountCents)}{" "}
                             <span className="text-xs text-muted-foreground">MXN</span>
                           </TableCell>
                         </TableRow>

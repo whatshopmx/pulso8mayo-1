@@ -602,7 +602,7 @@ export function AddPaymentRunItemModal({
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right font-mono font-bold text-xs whitespace-nowrap">
-                              ${formatCents(inv.total)}{" "}
+                              {formatCents(inv.total)}{" "}
                               <span className="text-[10px] text-muted-foreground font-normal">
                                 {inv.currency || "MXN"}
                               </span>
@@ -706,7 +706,7 @@ export function AddPaymentRunItemModal({
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right font-mono font-bold text-xs whitespace-nowrap">
-                              ${formatCents(exp.amount)} MXN
+                              {formatCents(exp.amount)} MXN
                             </TableCell>
                             <TableCell className="text-right whitespace-nowrap">
                               <Button
@@ -806,7 +806,7 @@ export function AddPaymentRunItemModal({
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right font-mono font-bold text-xs whitespace-nowrap">
-                              ${formatCents(pr.totalAmountCents || 0)} MXN
+                              {formatCents(pr.totalAmountCents || 0)} MXN
                             </TableCell>
                             <TableCell className="text-right whitespace-nowrap">
                               <Button
