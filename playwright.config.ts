@@ -10,6 +10,8 @@ import path from 'path';
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
+const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000';
+
 export default defineConfig({
   testDir: './tests',
   /* Los specs comparten la base de desarrollo y se pisan entre sí (SKUs de alto
@@ -28,7 +30,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000',
+    baseURL: BASE_URL,
 
     actionTimeout: 30_000,
     navigationTimeout: 60_000,
@@ -73,14 +75,14 @@ export default defineConfig({
   webServer: [
     {
       command: process.env.PLAYWRIGHT_WEB_SERVER_CMD || 'npm run dev',
-      url: 'http://localhost:3000',
+      url: BASE_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 300_000,
       env: { ...process.env, INNGEST_DEV: '1' },
     },
     {
       command:
-        'npx inngest-cli@latest dev -u http://localhost:3000/api/inngest',
+        `npx inngest-cli@latest dev -u ${BASE_URL}/api/inngest`,
       url: 'http://localhost:8288',
       reuseExistingServer: !process.env.CI,
       timeout: 300_000,

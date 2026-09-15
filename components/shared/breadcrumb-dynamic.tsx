@@ -28,6 +28,7 @@ const PATH_LABELS: Record<string, string> = {
   reports: "Reportes",
   evidence: "Evidencias",
   incidents: "Incidentes",
+  exceptions: "Excepciones",
   operations: "Operación",
   execute: "Ejecución Rápida",
   history: "Historial",

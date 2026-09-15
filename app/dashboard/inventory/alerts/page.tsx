@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,10 @@ interface AlertSummary {
 }
 
 export default function InventoryAlertsPage() {
+    // Deep link desde el Centro de Excepciones (?highlight=<id>): resalta y
+    // hace scroll a la fila exacta en vez de dejar al usuario buscarla en
+    // la tabla completa.
+    const highlightId = useSearchParams().get("highlight");
     const [alerts, setAlerts] = React.useState<AlertRecord[]>([]);
     const [summary, setSummary] = React.useState<AlertSummary | null>(null);
     const [loading, setLoading] = React.useState(true);
@@ -104,6 +109,13 @@ export default function InventoryAlertsPage() {
     React.useEffect(() => {
         fetchAlerts();
     }, [fetchAlerts]);
+
+    React.useEffect(() => {
+        if (!highlightId || loading) return;
+        document
+            .getElementById(`alert-row-${highlightId}`)
+            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, [highlightId, loading, alerts]);
 
     const sortedAlerts = React.useMemo(
         () =>
@@ -364,7 +376,11 @@ const getSeverityBadge = (severity: string) => {
                                 </TableRow>
                             ) : (
                                 sortedAlerts.map((alert) => (
-                                    <TableRow key={alert.id}>
+                                    <TableRow
+                                        key={alert.id}
+                                        id={`alert-row-${alert.id}`}
+                                        className={alert.id === highlightId ? "bg-accent/60" : undefined}
+                                    >
                                         <TableCell>
                                             <input
                                                 type="checkbox"

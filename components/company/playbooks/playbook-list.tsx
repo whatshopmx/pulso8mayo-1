@@ -19,6 +19,8 @@ interface Playbook {
   appliesToAllBranches: boolean;
   publishedBranchCount: number;
   totalBranchCount: number;
+  incidentCount: number;
+  openIncidentCount: number;
 }
 
 interface BranchState {
@@ -124,6 +126,15 @@ export function PlaybookList() {
                   <CardDescription className="line-clamp-2">
                     {p.description || p.category || "Playbook corporativo"}
                   </CardDescription>
+                  {p.incidentCount > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {p.incidentCount} incidente{p.incidentCount === 1 ? "" : "s"} disparado
+                      {p.incidentCount === 1 ? "" : "s"} con este playbook
+                      {p.openIncidentCount > 0 && (
+                        <span className="text-warning-text font-medium"> · {p.openIncidentCount} abierto{p.openIncidentCount === 1 ? "" : "s"}</span>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {p.appliesToAllBranches ? (

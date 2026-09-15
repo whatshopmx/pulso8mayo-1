@@ -1,0 +1,2 @@
+ALTER TABLE "incidents" ADD COLUMN "source_playbook_id" text;--> statement-breakpoint
+ALTER TABLE "incidents" ADD CONSTRAINT "incidents_source_playbook_id_workflow_templates_id_fk" FOREIGN KEY ("source_playbook_id") REFERENCES "public"."workflow_templates"("id") ON DELETE no action ON UPDATE no action;

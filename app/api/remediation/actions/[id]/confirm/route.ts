@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { remediationActions, incidents, workflowSchedules, complianceServiceHistory, branchComplianceServices } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getWorkflowTemplateForServiceType } from "@/lib/compliance-mapping";
+import { getWorkflowTemplateForServiceType, getServiceNameForType } from "@/lib/compliance-mapping";
 import { withRoleAuth } from "@/lib/api/with-auth";
 import { ApiError } from "@/lib/api/error";
 import { ApiHandler } from "@/lib/api/response";
@@ -60,7 +60,10 @@ export const POST = withRoleAuth(
         frequency: "ONCE",
         startDate: scheduleDateTime,
         nextExecutionAt: scheduleDateTime,
-        title: `Remediación Externa: ${action.serviceType}`,
+        // Nombre en español del servicio, no el valor crudo del enum (p.ej.
+        // "FUMIGATION"): este título se muestra tal cual en Excepciones y en
+        // las alertas de Deadline vencido, y el producto es Spanish-only.
+        title: `Remediación Externa: ${getServiceNameForType(action.serviceType)}`,
         description: notes || `Visita programada por gerencia para atender incidente`,
         priority: "HIGH",
         assignmentType: "ROLE",

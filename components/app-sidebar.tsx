@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import {
-  SquareTerminal,
   Building2,
   Users,
   Layout,
@@ -40,31 +39,41 @@ import {
 
 const navMain = [
   {
-    title: "Tablero",
+    // Antes "Tablero": es el primer contacto del dueño con el sistema, así
+    // que aquí vive todo lo que compara sucursales o junta excepciones de
+    // varias áreas — no un módulo de dominio más. Ver tasks/plan.md ("Consejo
+    // del Grupo"). El resto de secciones (Inventario, Personal...) son para
+    // "operar" un dominio, no para el primer vistazo del grupo.
+    title: "Mi Grupo",
     url: "/dashboard",
-    icon: SquareTerminal,
+    icon: Crown,
     items: [
       {
         title: "Vista General",
         url: "/dashboard",
       },
       {
+        title: "Centro de Excepciones",
+        url: "/dashboard/exceptions",
+        icon: AlertTriangle,
+      },
+      {
         title: "Dashboard Ejecutivo",
         url: "/dashboard/executive",
-        icon: Crown,
-      },
-      {
-        title: "Analítica",
-        url: "/dashboard/analytics",
-      },
-      {
-        title: "Constructor KPIs",
-        url: "/dashboard/analytics/kpi-builder",
       },
       {
         title: "Performance por Sucursal",
         url: "/dashboard/analytics/branches",
         icon: BarChart3,
+      },
+      { groupLabel: "Analítica" },
+      {
+        title: "Analítica General",
+        url: "/dashboard/analytics",
+      },
+      {
+        title: "Constructor KPIs",
+        url: "/dashboard/analytics/kpi-builder",
       },
       {
         title: "Tendencias",
@@ -74,7 +83,6 @@ const navMain = [
       {
         title: "Analítica de Incidentes",
         url: "/dashboard/analytics/incidents",
-        icon: AlertTriangle,
       },
     ],
   },
@@ -528,7 +536,7 @@ export function AppSidebar({ user, company, branches, currentBranchId, ...props 
       return section.title === 'Flujos de Trabajo';
     }
     if (userRole === 'READONLY') {
-      return section.title === 'Tablero' || section.title === 'Cumplimiento' || section.title === 'Desempeño';
+      return section.title === 'Mi Grupo' || section.title === 'Cumplimiento' || section.title === 'Desempeño';
     }
     if (userRole === 'SUPERVISOR') {
       return section.title !== 'Organización';

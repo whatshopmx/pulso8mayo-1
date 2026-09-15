@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { incidents, branches, users } from '@/lib/db/schema';
+import { incidents, branches, users, workflowTemplates } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { IncidentEngine } from '@/lib/services/incident-engine';
 import { withTenantAuth, withRoleAuth } from '@/lib/api/with-auth';
@@ -49,6 +49,18 @@ export const GET = withTenantAuth(async (
                 columns: { name: true },
             });
             result.resolvedByName = user?.name ?? null;
+        }
+
+        if (incident.sourcePlaybookId) {
+            const template = await db.query.workflowTemplates.findFirst({
+                where: eq(workflowTemplates.id, incident.sourcePlaybookId),
+                columns: { name: true, scope: true },
+            });
+            result.sourcePlaybookName = template?.name ?? null;
+            // Solo es "playbook" en el sentido del grupo si está publicado con
+            // scope='company' (ver PlaybookService); si no, es una plantilla
+            // normal de la sucursal y no tiene sentido linkear a Playbooks.
+            result.sourceIsPlaybook = template?.scope === 'company';
         }
 
         return NextResponse.json({ incident: result });

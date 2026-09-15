@@ -371,6 +371,7 @@ export class IncidentEngine {
       instanceId: instanceId, // Fixed column name
       stepId: stepId,
       branchId: context.branchId || instance.branchId,
+      sourcePlaybookId: instance.workflowTemplateId || null,
       severity,
                 status: 'DETECTED' as const,
                 title: rule.message || 'Incident detected',

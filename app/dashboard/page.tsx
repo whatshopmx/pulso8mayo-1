@@ -8,7 +8,7 @@ import { ComplianceReportGenerator } from "@/components/compliance/report-genera
 import { AlertDistributionChart } from "@/components/dashboard/alert-distribution-chart";
 import { getTranslations } from "next-intl/server";
 import { ExecutiveSummary } from "@/components/dashboard/executive-summary"
-import { PendingRemediationActionsCard } from "@/components/dashboard/pending-actions"
+import { GroupAreaOverview } from "@/components/dashboard/group-area-overview"
 import { Suspense } from "react"
 import { MetricCardSkeleton } from "@/components/ui/metric-card"
 import {
@@ -44,8 +44,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
         actions={<ComplianceReportGenerator />}
       />
 
-      {/* #1 — Attention queue: act first, then measure (AD-3). */}
-      <PendingRemediationActionsCard />
+      {/* #1 — El Consejo del Grupo: una tarjeta por área, con su cola de
+          excepciones abiertas cross-sucursal. Act first, then measure (AD-3).
+          Reemplaza el antiguo PendingRemediationActionsCard: esos mismos
+          incidentes (AWAITING_EXTERNAL, etc.) ya aparecen aquí vía Operación
+          /Equipos/Cumplimiento, con drill-down a su pantalla de resolución. */}
+      <Suspense fallback={<MetricCardSkeleton count={6} />}>
+        <SectionErrorBoundary>
+          <GroupAreaOverview branch={selectedBranch} />
+        </SectionErrorBoundary>
+      </Suspense>
 
       {/* #2 — Unified Tabbed KPI Control */}
       <Suspense fallback={<MetricCardSkeleton count={4} />}>
@@ -54,7 +62,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ b
         </SectionErrorBoundary>
       </Suspense>
 
-      {/* #3 — Operational alerts & executive overview */}
+      {/* #3 — Executive cost trend: la única parte de ExecutiveSummary que no
+          se absorbe en las tarjetas de área (el resto era top/bottom
+          performer, que ahora vive en /dashboard/executive). */}
       <Suspense fallback={<MetricCardSkeleton count={2} />}>
         <SectionErrorBoundary>
           <ExecutiveSummary branch={selectedBranch} startDate={startDate} endDate={endDate} />

@@ -23,8 +23,9 @@ import {
   branches,
   playbookPublications,
   playbookVersions,
+  incidents,
 } from "@/lib/db/schema";
-import { and, count, desc, eq, inArray, notInArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, ne, notInArray } from "drizzle-orm";
 
 export type PlaybookScope = "company" | "branch";
 
@@ -49,6 +50,9 @@ export interface PlaybookSummary {
   appliesToAllBranches: boolean;
   publishedBranchCount: number;
   totalBranchCount: number;
+  /** Incidentes cuya logic rule disparó vía este playbook (incidents.source_playbook_id). */
+  incidentCount: number;
+  openIncidentCount: number;
 }
 
 /** Falla si el template no existe o no pertenece a la compañía. */
@@ -257,7 +261,7 @@ export const PlaybookService = {
 
   /** Listado de playbooks corporativos con su cobertura. */
   async listPublished(companyId: string): Promise<PlaybookSummary[]> {
-    const [templates, branchRow, pubs] = await Promise.all([
+    const [templates, branchRow, pubs, incidentCounts, openIncidentCounts] = await Promise.all([
       db
         .select()
         .from(workflowTemplates)
@@ -285,10 +289,33 @@ export const PlaybookService = {
           ),
         )
         .groupBy(playbookPublications.templateId),
+      // Incidentes disparados vía este playbook, sin importar su estado
+      // actual — "cuántas veces se usó" (join a branches: incidents no tiene
+      // companyId propio).
+      db
+        .select({ templateId: incidents.sourcePlaybookId, n: count() })
+        .from(incidents)
+        .innerJoin(branches, eq(incidents.branchId, branches.id))
+        .where(and(eq(branches.companyId, companyId), isNotNull(incidents.sourcePlaybookId)))
+        .groupBy(incidents.sourcePlaybookId),
+      db
+        .select({ templateId: incidents.sourcePlaybookId, n: count() })
+        .from(incidents)
+        .innerJoin(branches, eq(incidents.branchId, branches.id))
+        .where(
+          and(
+            eq(branches.companyId, companyId),
+            ne(incidents.status, "RESOLVED"),
+            isNotNull(incidents.sourcePlaybookId),
+          ),
+        )
+        .groupBy(incidents.sourcePlaybookId),
     ]);
 
     const totalBranchCount = branchRow[0]?.n ?? 0;
     const pubCount = new Map(pubs.map((p) => [p.templateId, p.n]));
+    const incidentCount = new Map(incidentCounts.map((i) => [i.templateId, i.n]));
+    const openIncidentCount = new Map(openIncidentCounts.map((i) => [i.templateId, i.n]));
 
     return templates.map((t) => {
       const published = pubCount.get(t.id) ?? 0;
@@ -304,6 +331,8 @@ export const PlaybookService = {
         appliesToAllBranches: published === 0,
         publishedBranchCount: published === 0 ? totalBranchCount : published,
         totalBranchCount,
+        incidentCount: incidentCount.get(t.id) ?? 0,
+        openIncidentCount: openIncidentCount.get(t.id) ?? 0,
       };
     });
   },

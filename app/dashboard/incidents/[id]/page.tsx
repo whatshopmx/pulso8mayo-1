@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +40,7 @@ import {
     Calendar,
     Clock,
     Timer,
+    BookOpen,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
@@ -101,6 +103,9 @@ interface IncidentDetail {
     branchName?: string;
     detectedByName?: string;
     resolvedByName?: string;
+    sourcePlaybookId?: string | null;
+    sourcePlaybookName?: string | null;
+    sourceIsPlaybook?: boolean;
 }
 
 export default function IncidentDetailPage() {
@@ -367,6 +372,27 @@ export default function IncidentDetailPage() {
                                 {formatDistanceToNow(new Date(incident.createdAt), { addSuffix: false, locale: es })}
                             </p>
                             <p className="text-xs text-muted-foreground">desde la detección</p>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {incident.sourcePlaybookName && (
+                    <Card>
+                        <CardHeader className="flex flex-row items-center gap-2 pb-2">
+                            <BookOpen className="h-4 w-4 text-muted-foreground" />
+                            <CardTitle className="text-sm font-medium">Playbook aplicado</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {incident.sourceIsPlaybook ? (
+                                <Link
+                                    href="/dashboard/company/playbooks"
+                                    className="text-sm text-primary hover:underline"
+                                >
+                                    {incident.sourcePlaybookName}
+                                </Link>
+                            ) : (
+                                <p className="text-sm">{incident.sourcePlaybookName}</p>
+                            )}
                         </CardContent>
                     </Card>
                 )}

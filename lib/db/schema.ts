@@ -275,6 +275,12 @@ export const incidents = pgTable("incidents", {
     resolution: text("resolution"), // Resolution notes
     resolvedBy: text("resolved_by"), // User ID who resolved
     resolvedAt: timestamp("resolved_at"),
+    // Plantilla (workflow_templates) cuya logic rule disparó este incidente.
+    // No implica que sea un playbook publicado (scope='company') — eso lo
+    // decide la UI al mostrarlo, ver PlaybookService. Nullable: incidentes
+    // creados fuera del logic-rule engine (ej. cold-chain en receiving) no
+    // tienen una plantilla que "aplica" en el sentido de playbook.
+    sourcePlaybookId: text("source_playbook_id").references(() => workflowTemplates.id),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });
