@@ -130,7 +130,7 @@ export function CashFlowSummaryCard({ branchId, dateRange: _dateRange }: { branc
         ) : error ? (
           <div className="py-4 flex flex-col items-center gap-3 text-center">
             <p className="text-sm text-muted-foreground">{error}</p>
-            <Button variant="outline" size="sm" onClick={load}>
+            <Button variant="outline" size="sm" onClick={() => load()}>
               <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
             </Button>
           </div>

@@ -185,7 +185,7 @@ export function formatearPesos(cents: number): string {
 }
 
 export type RevisionCierre =
-  | { ok: true }
+  | { ok: true; pendientes?: undefined; pendientesCents?: undefined; mensaje?: undefined }
   | { ok: false; pendientes: number; pendientesCents: number; mensaje: string };
 
 /**
@@ -242,11 +242,15 @@ export function motivoExclusionPorLiquidacion(item: SettlementItemLike): string 
  * contra el estado de cuenta. Una confirmación sin referencia deja el libro
  * saldado sin nada que lo respalde.
  */
+export type ValidacionEvidencia =
+  | { ok: true; motivo?: undefined }
+  | { ok: false; motivo: string };
+
 export function validarEvidenciaLiquidacion(input: {
   settlement: Exclude<PaymentRunItemSettlement, "PENDING">;
   reference?: string | null;
   failureReason?: string | null;
-}): { ok: true } | { ok: false; motivo: string } {
+}): ValidacionEvidencia {
   if (input.settlement === "CONFIRMED") {
     if (!(input.reference ?? "").trim()) {
       return {

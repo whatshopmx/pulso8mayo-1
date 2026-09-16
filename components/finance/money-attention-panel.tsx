@@ -296,7 +296,7 @@ export function MoneyAttentionPanel({ branchId, dateRange }: { branchId: string;
         ) : error ? (
           <div className="py-6 flex flex-col items-center gap-3 text-center">
             <p className="text-sm text-muted-foreground">{error}</p>
-            <Button variant="outline" size="sm" onClick={load}>
+            <Button variant="outline" size="sm" onClick={() => load()}>
               <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
             </Button>
           </div>
@@ -309,7 +309,7 @@ export function MoneyAttentionPanel({ branchId, dateRange }: { branchId: string;
                   No se pudieron consultar {failedSources.join(" ni ")} — esta lista puede estar
                   incompleta.
                 </span>
-                <Button variant="outline" size="sm" onClick={load} className="h-6 px-2 text-xs">
+                <Button variant="outline" size="sm" onClick={() => load()} className="h-6 px-2 text-xs">
                   <RefreshCw className="w-3 h-3 mr-1" /> Reintentar
                 </Button>
               </div>
