@@ -12,8 +12,11 @@ import { ApprovalMatrixEditor } from "@/components/service-orders/approval-matri
 import { useBranch } from "@/lib/branch-context";
 import { useSession } from "@/hooks/use-session";
 import { useApprovalInbox } from "@/hooks/queries";
+import Link from "next/link";
 import { roleIsAtLeast } from "@/lib/permissions";
-import { Shield, FileSearch, AlertTriangle, AlertCircle, RefreshCw, ClipboardCheck, SlidersHorizontal } from "lucide-react";
+import { Shield, FileSearch, AlertTriangle, AlertCircle, RefreshCw, ClipboardCheck, SlidersHorizontal, Lock, Unlock, FileText } from "lucide-react";
+import { PeriodCloseDialog } from "@/components/finance/period-close-dialog";
+import { toast } from "sonner";
 
 /** Tope de entradas solicitadas a la bitácora; se avisa cuando hay más. */
 const AUDIT_LIMIT = 100;
@@ -46,6 +49,53 @@ export default function ControlInternoPage() {
   // La matriz solo se administra desde ADMIN+; el tab no existe para el resto.
   const { session } = useSession();
   const isAdmin = !!session?.user?.role && roleIsAtLeast(session.user.role, "ADMIN");
+
+  // Periodo financiero mensual y diálogo de cierre
+  const [periodDialogOpen, setPeriodDialogOpen] = useState(false);
+  const [periods, setPeriods] = useState<any[]>([]);
+  const now = new Date();
+  const currentYear = now.getUTCFullYear();
+  const currentMonth = now.getUTCMonth() + 1;
+
+  const fetchPeriods = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/finance/periods?year=${currentYear}`);
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setPeriods(json.data?.periods || []);
+      }
+    } catch {
+      // Silencioso si no hay conexión
+    }
+  }, [currentYear]);
+
+  useEffect(() => {
+    fetchPeriods();
+  }, [fetchPeriods]);
+
+  const currentPeriod = periods.find((p) => p.year === currentYear && p.month === currentMonth);
+  const isCurrentPeriodClosed = currentPeriod?.status === "CLOSED";
+
+  const handlePeriodAction = async () => {
+    try {
+      const res = await fetch("/api/finance/periods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          year: currentYear,
+          month: currentMonth,
+          action: isCurrentPeriodClosed ? "REOPEN" : "CLOSE",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || json.message || "No se pudo actualizar el periodo.");
+      toast.success(json.data?.message || "Periodo financiero actualizado.");
+      fetchPeriods();
+    } catch (err: any) {
+      toast.error("Error al actualizar periodo", { description: err.message });
+      throw err;
+    }
+  };
 
   const fetchAuditLog = useCallback(async () => {
     setAuditLoading(true);
@@ -138,7 +188,31 @@ export default function ControlInternoPage() {
             Bitácora de autorizaciones, doble control y detección de excepciones en gastos operativos.
           </p>
         </div>
-
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/finance/fiscal">
+              <FileText className="w-4 h-4 mr-2" /> Expediente Fiscal
+            </Link>
+          </Button>
+          {isAdmin && (
+            <Button
+              variant={isCurrentPeriodClosed ? "outline" : "default"}
+              size="sm"
+              onClick={() => setPeriodDialogOpen(true)}
+              className={isCurrentPeriodClosed ? "border-amber-500/30 text-amber-800 dark:text-amber-300" : ""}
+            >
+              {isCurrentPeriodClosed ? (
+                <>
+                  <Unlock className="w-4 h-4 mr-2 text-amber-500" /> Reabrir Mes ({currentMonth}/{currentYear})
+                </>
+              ) : (
+                <>
+                  <Lock className="w-4 h-4 mr-2" /> Cerrar Mes ({currentMonth}/{currentYear})
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -299,6 +373,15 @@ export default function ControlInternoPage() {
           </TabsContent>
         )}
       </Tabs>
+
+      <PeriodCloseDialog
+        open={periodDialogOpen}
+        onOpenChange={setPeriodDialogOpen}
+        year={currentYear}
+        month={currentMonth}
+        isClosed={isCurrentPeriodClosed}
+        onConfirm={handlePeriodAction}
+      />
     </div>
   );
 }
