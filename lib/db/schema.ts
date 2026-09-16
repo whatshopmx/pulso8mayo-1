@@ -274,6 +274,7 @@ export const incidents = pgTable("incidents", {
     currentAttempt: integer("current_attempt").default(0),
     maxAttempts: integer("max_attempts").default(1),
     resolution: text("resolution"), // Resolution notes
+    resolutionType: text("resolution_type"),
     resolvedBy: text("resolved_by"), // User ID who resolved
     resolvedAt: timestamp("resolved_at"),
     // Plantilla (workflow_templates) cuya logic rule disparó este incidente.

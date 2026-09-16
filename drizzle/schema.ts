@@ -495,6 +495,7 @@ export const incidents = pgTable("incidents", {
 	metadata: jsonb(),
 	escalationChain: jsonb("escalation_chain"),
 	resolution: text(),
+	resolutionType: text("resolution_type"),
 	resolvedBy: text("resolved_by"),
 });
 

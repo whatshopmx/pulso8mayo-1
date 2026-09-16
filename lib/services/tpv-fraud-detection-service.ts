@@ -125,7 +125,7 @@ export async function detectTpvFraudFindings(
         alias: branchTerminals.alias,
         serialNumber: branchTerminals.serialNumber,
         acquirer: branchTerminals.acquirer,
-        isActive: branchTerminals.isActive,
+        isActive: branchTerminals.active,
       })
       .from(branchTerminals)
       .where(
@@ -168,9 +168,9 @@ export async function detectTpvFraudFindings(
         terminalAlias: branchTerminals.alias,
         batchNumber: tpvShiftBatches.batchNumber,
         cardAmountCents: tpvShiftBatches.cardAmountCents,
-        tipsCents: tpvShiftBatches.tipsCents,
-        voucherImageUrl: tpvShiftBatches.voucherImageUrl,
-        capturedAt: tpvShiftBatches.capturedAt,
+        tipsCents: tpvShiftBatches.tipAmountCents,
+        voucherImageUrl: tpvShiftBatches.voucherPhotoUrl,
+        capturedAt: tpvShiftBatches.createdAt,
         notes: tpvShiftBatches.notes,
       })
       .from(tpvShiftBatches)
