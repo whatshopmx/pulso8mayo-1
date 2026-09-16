@@ -38,17 +38,20 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowRight,
+  Calendar,
   CheckCircle2,
   Clock,
   FileText,
   Filter,
   Loader2,
+  Plus,
   Receipt,
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
   Wallet,
 } from "lucide-react";
+import { CreatePaymentRunModal } from "@/components/finance/create-payment-run-modal";
 
 /**
  * Cuentas por Pagar.
@@ -177,9 +180,24 @@ function PayablesContent() {
             urgencia.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => load()} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Actualizar
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/finance/treasury">
+              <Calendar className="w-4 h-4 mr-2" /> Ver Corridas de Pago
+            </Link>
+          </Button>
+          <CreatePaymentRunModal
+            trigger={
+              <Button size="sm">
+                <Plus className="w-4 h-4 mr-2" /> Nueva Corrida
+              </Button>
+            }
+            onSuccess={() => load(true)}
+          />
+          <Button variant="outline" size="sm" onClick={() => load()} disabled={loading} title="Actualizar">
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -245,14 +263,20 @@ function PayablesContent() {
           {/* Se dice explícitamente que esta pantalla no registra pagos. Sin
               esto, una vista de deuda sin acción se lee como una función a
               medias en vez de como una decisión de control. */}
-          <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs">
-            <ShieldCheck className="w-4 h-4 text-muted-foreground shrink-0 mt-px" />
-            <span>
-              <span className="font-semibold">Esta vista es de consulta.</span> El registro de pagos
-              llega con el flujo de tesorería completo: regla de umbral, doble firma cuando aplica,
-              lote con la CLABE del proveedor verificada, y conciliación contra el movimiento
-              bancario. Mientras tanto los pagos se siguen registrando donde se hagan hoy.
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-md border border-border bg-muted/40 p-3 text-xs">
+            <div className="flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <span>
+                <span className="font-semibold">Flujo de Pagos:</span> Las facturas y gastos autorizados aquí listados se agrupan en{" "}
+                <span className="font-medium">Corridas de Pago</span> para su revisión, doble firma, descarga de layout bancario SPEI y liquidación con comprobante.
+              </span>
+            </div>
+            <Button variant="ghost" size="sm" className="text-xs shrink-0 self-end sm:self-auto text-primary hover:text-primary" asChild>
+              <Link href="/dashboard/finance/treasury">
+                Gestionar Corridas
+                <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Link>
+            </Button>
           </div>
 
           {data.missingDueDateCount > 0 && (

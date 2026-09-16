@@ -24,7 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useSearchParams } from "next/navigation";
-import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield, ImagePlus, RefreshCw, Filter } from "lucide-react";
+import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield, ImagePlus, RefreshCw, Filter, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/hooks/use-session";
 import { denyExpenseResolution } from "@/lib/expenses/approval-policy";
@@ -476,6 +476,12 @@ function ExpensesContent() {
               </SelectContent>
             </Select>
           </div>
+
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/finance/petty-cash">
+              <Wallet className="w-4 h-4 mr-2" /> Caja Chica
+            </Link>
+          </Button>
 
           <ExpenseForm branches={branches} onSuccess={handleExpenseCreated} />
         </div>
