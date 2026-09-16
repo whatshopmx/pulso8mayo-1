@@ -8,19 +8,19 @@ import {
   inventoryAlerts,
   equipmentAlerts,
   branches,
+  dailySalesCuts,
 } from "@/lib/db/schema";
-import { and, desc, eq, ne, inArray } from "drizzle-orm";
+import { and, desc, eq, ne, inArray, or, sql } from "drizzle-orm";
 
 /**
  * GroupExceptionsService — capa de lectura que unifica los sistemas de
  * excepción "Nivel A" (ya tienen status + responsable + resolución propios,
  * solo están aislados entre sí). No escribe nada: cada dominio conserva su
  * propia pantalla de resolución, esto solo la hace encontrable desde un
- * único feed a nivel grupo. Ver tasks/plan.md (plan "Consejo del Grupo").
+ * único feed a nivel grupo.
  *
- * `inventory_expiration_alerts` se dejó fuera a propósito: no tiene columna
- * de status/resolución (solo `window` + `notifiedAt`), así que no encaja en
- * este contrato — es candidato a Nivel C, no Nivel A.
+ * Enriquecido para el perfil QSR multi-unidad (3 a 15 sucursales) clasificando
+ * las anomalías en 4 categorías de impacto: DINERO, INOCUIDAD, ABASTO y PERSONAL.
  */
 
 export type ExceptionDomain =
@@ -28,13 +28,33 @@ export type ExceptionDomain =
   | "cumplimiento"
   | "equipos"
   | "personal"
-  | "inventario";
+  | "inventario"
+  | "finanzas";
 
 export type ExceptionSeverity = "info" | "warning" | "high" | "critical" | "fatal";
+
+export type QsrRiskCategory = "DINERO" | "INOCUIDAD" | "ABASTO" | "PERSONAL";
+
+export type QsrActionType =
+  | "AUDIT_DRAWER"
+  | "INSPECT_EQUIPMENT"
+  | "TRANSFER_STOCK"
+  | "WHATSAPP_CALL"
+  | "REVIEW_WORKFLOW"
+  | "AUTHORIZE_SHIFT"
+  | "RESOLVE_ALERT";
+
+export interface QsrActionMeta {
+  type: QsrActionType;
+  label: string;
+  url: string;
+  whatsappSuggestedMessage?: string;
+}
 
 export interface GroupException {
   id: string;
   domain: ExceptionDomain;
+  qsrCategory: QsrRiskCategory;
   sourceTable: string;
   branchId: string | null;
   branchName: string | null;
@@ -47,19 +67,19 @@ export interface GroupException {
   resolvedAt: Date | null;
   resolutionNotes: string | null;
   deepLinkUrl: string;
+  estimatedImpact?: string | null;
+  action?: QsrActionMeta;
 }
 
 export interface ListOpenOptions {
   branchId?: string;
   domain?: ExceptionDomain;
+  qsrCategory?: QsrRiskCategory;
   limit?: number;
 }
 
 function normalizeIncidentSeverity(s: string | null): ExceptionSeverity {
   switch (s) {
-    // FATAL es un nivel propio, más grave que CRITICAL — colapsarlo en
-    // "critical" hacía que el mismo incidente se leyera "Fatal" en su
-    // detalle y "Crítico" en Excepciones/tarjetas de área.
     case "FATAL":
       return "fatal";
     case "CRITICAL":
@@ -100,14 +120,14 @@ function normalizeInventorySeverity(s: string | null): ExceptionSeverity {
 }
 
 const INVENTORY_ALERT_TITLES: Record<string, string> = {
-  LOW_STOCK: "Stock bajo",
-  OUT_OF_STOCK: "Sin stock",
-  EXPIRING_SOON: "Por vencer",
-  EXPIRED: "Vencido",
-  PRICE_INCREASE: "Alza de precio",
-  HIGH_VARIANCE: "Variación alta",
-  ANOMALOUS_WASTE: "Merma anómala",
-  YIELD_DROP: "Caída de rendimiento",
+  LOW_STOCK: "Stock bajo en insumo clave",
+  OUT_OF_STOCK: "Desabasto de insumo en turno",
+  EXPIRING_SOON: "Insumo por vencer (caducidad)",
+  EXPIRED: "Insumo vencido detectado",
+  PRICE_INCREASE: "Alza de precio en compra",
+  HIGH_VARIANCE: "Variación alta en porcionado",
+  ANOMALOUS_WASTE: "Merma anómala registrada",
+  YIELD_DROP: "Caída de rendimiento en receta",
 };
 
 function normalizeNom035Priority(p: string | null): ExceptionSeverity {
@@ -123,17 +143,116 @@ function normalizeNom035Priority(p: string | null): ExceptionSeverity {
   }
 }
 
+function classifyQsrIncident(
+  title: string,
+  desc: string | null,
+  incidentId: string,
+): {
+  qsrCategory: QsrRiskCategory;
+  impact: string;
+  action: QsrActionMeta;
+} {
+  const text = `${title} ${desc ?? ""}`.toLowerCase();
+  if (
+    text.includes("temp") ||
+    text.includes("frio") ||
+    text.includes("frío") ||
+    text.includes("refrig") ||
+    text.includes("congel") ||
+    text.includes("nom-251") ||
+    text.includes("higiene") ||
+    text.includes("sanit") ||
+    text.includes("plaga")
+  ) {
+    return {
+      qsrCategory: "INOCUIDAD",
+      impact: "Riesgo de inocuidad alimentaria o sanción sanitaria NOM-251",
+      action: {
+        type: "INSPECT_EQUIPMENT",
+        label: "Inspeccionar en Turno",
+        url: `/dashboard/incidents/${incidentId}`,
+        whatsappSuggestedMessage: `Alerta sanitaria detectada en sucursal. Por favor revisar de inmediato la cámara de frío y registrar lectura de temperatura.`,
+      },
+    };
+  }
+  if (
+    text.includes("caja") ||
+    text.includes("dinero") ||
+    text.includes("arqueo") ||
+    text.includes("terminal") ||
+    text.includes("tpv") ||
+    text.includes("cobro") ||
+    text.includes("robo") ||
+    text.includes("faltante")
+  ) {
+    return {
+      qsrCategory: "DINERO",
+      impact: "Dinero en riesgo o descuadre de cobro",
+      action: {
+        type: "AUDIT_DRAWER",
+        label: "Auditar Corte POS/TPV",
+        url: `/dashboard/incidents/${incidentId}`,
+      },
+    };
+  }
+  if (
+    text.includes("merma") ||
+    text.includes("stock") ||
+    text.includes("desabasto") ||
+    text.includes("insumo") ||
+    text.includes("carne") ||
+    text.includes("pollo") ||
+    text.includes("queso")
+  ) {
+    return {
+      qsrCategory: "ABASTO",
+      impact: "Riesgo de desabasto o merma crítica en servicio",
+      action: {
+        type: "TRANSFER_STOCK",
+        label: "Transferir Insumos",
+        url: `/dashboard/incidents/${incidentId}`,
+      },
+    };
+  }
+  if (
+    text.includes("personal") ||
+    text.includes("retardo") ||
+    text.includes("falta") ||
+    text.includes("asistencia") ||
+    text.includes("turno")
+  ) {
+    return {
+      qsrCategory: "PERSONAL",
+      impact: "Falta o retardo en plantilla operativa",
+      action: {
+        type: "AUTHORIZE_SHIFT",
+        label: "Revisar Asistencia",
+        url: `/dashboard/labor/approvals`,
+      },
+    };
+  }
+  return {
+    qsrCategory: "INOCUIDAD",
+    impact: "Desviación operativa en línea de servicio",
+    action: {
+      type: "REVIEW_WORKFLOW",
+      label: "Revisar Incidente",
+      url: `/dashboard/incidents/${incidentId}`,
+    },
+  };
+}
+
 export const GroupExceptionsService = {
   /**
    * Todas las excepciones abiertas de las fuentes Nivel A, para una compañía.
-   * Ejecuta 7 queries en paralelo (no una vista SQL: los shapes son distintos
-   * por tabla) y normaliza el resultado a `GroupException`.
+   * Ejecuta queries en paralelo y normaliza el resultado a `GroupException`
+   * clasificándolas por categoría QSR de negocio.
    */
   async listOpen(
     companyId: string,
     opts: ListOpenOptions = {},
   ): Promise<GroupException[]> {
-    const { branchId, domain, limit } = opts;
+    const { branchId, domain, qsrCategory, limit } = opts;
 
     const [
       incidentRows,
@@ -143,6 +262,7 @@ export const GroupExceptionsService = {
       shiftApprovalRows,
       shiftChangeRows,
       inventoryRows,
+      salesCutRows,
     ] = await Promise.all([
       db
         .select({
@@ -299,14 +419,47 @@ export const GroupExceptionsService = {
             branchId ? eq(inventoryAlerts.branchId, branchId) : undefined,
           ),
         ),
+
+      db
+        .select({
+          id: dailySalesCuts.id,
+          branchId: dailySalesCuts.branchId,
+          branchName: branches.name,
+          businessDate: dailySalesCuts.businessDate,
+          shift: dailySalesCuts.shift,
+          status: dailySalesCuts.status,
+          cashSales: dailySalesCuts.cashSales,
+          cashCountedCents: dailySalesCuts.cashCountedCents,
+          totalSales: dailySalesCuts.totalSales,
+          detectedAt: dailySalesCuts.createdAt,
+        })
+        .from(dailySalesCuts)
+        .innerJoin(branches, eq(dailySalesCuts.branchId, branches.id))
+        .where(
+          and(
+            eq(branches.companyId, companyId),
+            or(
+              eq(dailySalesCuts.status, "PENDING_REVIEW"),
+              and(
+                sql`${dailySalesCuts.cashSales} IS NOT NULL`,
+                sql`${dailySalesCuts.cashCountedCents} IS NOT NULL`,
+                sql`ABS(${dailySalesCuts.cashSales} - ${dailySalesCuts.cashCountedCents}) >= 10000`,
+              ),
+            ),
+            branchId ? eq(dailySalesCuts.branchId, branchId) : undefined,
+          ),
+        ),
     ]);
 
     const results: GroupException[] = [];
 
+    // 1. Incidents
     for (const r of incidentRows) {
+      const qsr = classifyQsrIncident(r.title, r.description, r.id);
       results.push({
         id: r.id,
         domain: "operacion",
+        qsrCategory: qsr.qsrCategory,
         sourceTable: "incidents",
         branchId: r.branchId,
         branchName: r.branchName,
@@ -319,13 +472,17 @@ export const GroupExceptionsService = {
         resolvedAt: r.resolvedAt,
         resolutionNotes: r.resolution,
         deepLinkUrl: `/dashboard/incidents/${r.id}`,
+        estimatedImpact: qsr.impact,
+        action: qsr.action,
       });
     }
 
+    // 2. Compliance Alerts (NOM-251)
     for (const r of complianceRows) {
       results.push({
         id: r.id,
         domain: "cumplimiento",
+        qsrCategory: "INOCUIDAD",
         sourceTable: "compliance_alerts",
         branchId: r.branchId,
         branchName: r.branchName,
@@ -338,13 +495,21 @@ export const GroupExceptionsService = {
         resolvedAt: r.resolvedAt,
         resolutionNotes: r.resolution,
         deepLinkUrl: `/dashboard/compliance`,
+        estimatedImpact: "Riesgo de no conformidad sanitaria NOM-251",
+        action: {
+          type: "RESOLVE_ALERT",
+          label: "Atender Alerta Sanitaria",
+          url: "/dashboard/compliance",
+        },
       });
     }
 
+    // 3. Equipment Alerts (Cold Chain & Kitchen Line)
     for (const r of equipmentRows) {
       results.push({
         id: r.id,
         domain: "equipos",
+        qsrCategory: "INOCUIDAD",
         sourceTable: "equipment_alerts",
         branchId: r.branchId,
         branchName: r.branchName,
@@ -357,13 +522,21 @@ export const GroupExceptionsService = {
         resolvedAt: r.resolvedAt,
         resolutionNotes: r.resolution,
         deepLinkUrl: `/dashboard/equipment/maintenance`,
+        estimatedImpact: "Falla de equipo en línea de cocina / cadena de frío",
+        action: {
+          type: "INSPECT_EQUIPMENT",
+          label: "Ver Orden de Servicio",
+          url: `/dashboard/equipment/maintenance`,
+        },
       });
     }
 
+    // 4. NOM-035 (Labor compliance)
     for (const r of nom035Rows) {
       results.push({
         id: r.id,
         domain: "cumplimiento",
+        qsrCategory: "PERSONAL",
         sourceTable: "nom035_action_plans",
         branchId: r.branchId,
         branchName: r.branchName,
@@ -376,13 +549,21 @@ export const GroupExceptionsService = {
         resolvedAt: null,
         resolutionNotes: null,
         deepLinkUrl: `/dashboard/compliance`,
+        estimatedImpact: "Riesgo psicosocial / normativo NOM-035",
+        action: {
+          type: "RESOLVE_ALERT",
+          label: "Ver Plan NOM-035",
+          url: `/dashboard/compliance`,
+        },
       });
     }
 
+    // 5. Shift Approvals
     for (const r of shiftApprovalRows) {
       results.push({
         id: r.id,
         domain: "personal",
+        qsrCategory: "PERSONAL",
         sourceTable: "shift_approvals",
         branchId: r.branchId,
         branchName: r.branchName,
@@ -395,13 +576,21 @@ export const GroupExceptionsService = {
         resolvedAt: null,
         resolutionNotes: null,
         deepLinkUrl: `/dashboard/labor/approvals`,
+        estimatedImpact: "Turno pendiente de confirmación de plantilla",
+        action: {
+          type: "AUTHORIZE_SHIFT",
+          label: "Autorizar Turno",
+          url: `/dashboard/labor/approvals`,
+        },
       });
     }
 
+    // 6. Shift Change Requests
     for (const r of shiftChangeRows) {
       results.push({
         id: r.id,
         domain: "personal",
+        qsrCategory: "PERSONAL",
         sourceTable: "shift_change_requests",
         branchId: r.branchId,
         branchName: r.branchName,
@@ -414,13 +603,22 @@ export const GroupExceptionsService = {
         resolvedAt: null,
         resolutionNotes: null,
         deepLinkUrl: `/dashboard/labor/shift-changes/${r.id}`,
+        estimatedImpact: "Reemplazo de personal en turno de servicio",
+        action: {
+          type: "AUTHORIZE_SHIFT",
+          label: "Evaluar Cambio",
+          url: `/dashboard/labor/shift-changes/${r.id}`,
+        },
       });
     }
 
+    // 7. Inventory Alerts
     for (const r of inventoryRows) {
+      const isCriticalSupply = r.type === "LOW_STOCK" || r.type === "OUT_OF_STOCK";
       results.push({
         id: r.id,
         domain: "inventario",
+        qsrCategory: "ABASTO",
         sourceTable: "inventory_alerts",
         branchId: r.branchId,
         branchName: r.branchName,
@@ -433,10 +631,74 @@ export const GroupExceptionsService = {
         resolvedAt: r.resolvedAt,
         resolutionNotes: r.notes,
         deepLinkUrl: `/dashboard/inventory/alerts?highlight=${r.id}`,
+        estimatedImpact: isCriticalSupply
+          ? "Riesgo de desabasto en rush de ventas"
+          : "Merma o caducidad detectada en almacén",
+        action: {
+          type: "TRANSFER_STOCK",
+          label: "Transferir Insumos",
+          url: `/dashboard/inventory/alerts?highlight=${r.id}`,
+        },
       });
     }
 
-    const filtered = domain ? results.filter((r) => r.domain === domain) : results;
+    // 8. Sales & Cash Discrepancies (DINERO)
+    for (const r of salesCutRows) {
+      const cashExpected = r.cashSales ?? 0;
+      const cashCounted = r.cashCountedCents ?? cashExpected;
+      const diffCents = cashExpected - cashCounted;
+      const absDiff = Math.abs(diffCents);
+
+      let title: string;
+      let severity: ExceptionSeverity = "warning";
+      let impactText: string;
+
+      if (absDiff >= 10000) {
+        if (diffCents > 0) {
+          title = `Faltante de caja en turno ${r.shift}: -$${(diffCents / 100).toFixed(2)} MXN`;
+          severity = absDiff >= 50000 ? "critical" : "high";
+          impactText = `Faltante físico de $${(diffCents / 100).toFixed(2)} MXN sin justificar`;
+        } else {
+          title = `Sobrante de caja en turno ${r.shift}: +$${(absDiff / 100).toFixed(2)} MXN`;
+          severity = "warning";
+          impactText = `Diferencia de $${(absDiff / 100).toFixed(2)} MXN en arqueo`;
+        }
+      } else {
+        title = `Corte de caja pendiente de validación (${r.shift})`;
+        severity = "info";
+        impactText = `Corte del ${r.businessDate} pendiente de cierre administrativo`;
+      }
+
+      results.push({
+        id: r.id,
+        domain: "finanzas",
+        qsrCategory: "DINERO",
+        sourceTable: "daily_sales_cuts",
+        branchId: r.branchId,
+        branchName: r.branchName,
+        severity,
+        title,
+        description: `Fecha de negocio: ${r.businessDate} · Turno ${r.shift}`,
+        status: r.status,
+        assignedTo: null,
+        detectedAt: r.detectedAt,
+        resolvedAt: null,
+        resolutionNotes: null,
+        deepLinkUrl: `/dashboard/finance/cash-flow?cutId=${r.id}`,
+        estimatedImpact: impactText,
+        action: {
+          type: "AUDIT_DRAWER",
+          label: "Auditar Arqueo de Caja",
+          url: `/dashboard/finance/cash-flow?cutId=${r.id}`,
+          whatsappSuggestedMessage: `Hola, detectamos una diferencia de efectivo en el corte del turno ${r.shift} de ${r.branchName}. ¿Podrías confirmar el arqueo?`,
+        },
+      });
+    }
+
+    let filtered = domain ? results.filter((r) => r.domain === domain) : results;
+    if (qsrCategory) {
+      filtered = filtered.filter((r) => r.qsrCategory === qsrCategory);
+    }
 
     filtered.sort((a, b) => {
       const rank: Record<ExceptionSeverity, number> = {

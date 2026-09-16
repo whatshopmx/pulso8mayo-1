@@ -16,6 +16,7 @@ interface ScoreCardProps {
   performanceIndex: number;
   previousIndex?: number;
   dimensions: DimensionScore[];
+  hrefPrefix?: string;
 }
 
 export function BranchPerformanceScoreCard({
@@ -24,6 +25,7 @@ export function BranchPerformanceScoreCard({
   performanceIndex,
   previousIndex,
   dimensions,
+  hrefPrefix = "/dashboard/branches",
 }: ScoreCardProps) {
   const trend = previousIndex
     ? ((performanceIndex - previousIndex) / previousIndex) * 100
@@ -44,7 +46,7 @@ export function BranchPerformanceScoreCard({
   const offset = circumference - (performanceIndex / 100) * circumference;
 
   return (
-    <Link href={`/dashboard/analytics/branches/${branchId}`} className="block">
+    <Link href={`${hrefPrefix}/${branchId}`} className="block">
     <Card className="hover:shadow-md transition-shadow cursor-pointer">
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center justify-between">

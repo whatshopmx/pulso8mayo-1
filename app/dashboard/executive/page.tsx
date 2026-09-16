@@ -19,10 +19,7 @@ import {
 import { MorningBrief } from "@/components/dashboard/morning-brief";
 import { ExecutiveCopilot } from "@/components/dashboard/executive/executive-copilot";
 import { KpiHeroCards } from "@/components/dashboard/executive/kpi-hero-cards";
-import { BranchRanking } from "@/components/dashboard/executive/branch-ranking";
-import { AlertsPanel } from "@/components/dashboard/executive/alerts-panel";
 import { PredictionsPanel } from "@/components/dashboard/executive/predictions-panel";
-import { BenchmarkingInsights } from "@/components/dashboard/executive/benchmarking-insights";
 import {
   ComplianceTrendChart,
   type TrendDataPoint,
@@ -110,43 +107,31 @@ export default async function ExecutiveDashboardPage() {
         <KpiHeroCards companyId={companyId} />
       </Suspense>
 
-      {/* Section 1.5: 14-day cash flow projection (Executive Twin) */}
-      <Suspense fallback={<ChartSkeleton />}>
-        <CashFlowProjectionWrapper companyId={companyId} />
-      </Suspense>
-
-      {/* Section 2: Branch Ranking + Alerts (side by side on desktop) */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <Suspense
-            fallback={
-              <div className="h-64 rounded-xl bg-muted animate-pulse border border-border" />
-            }
-          >
-            <BranchRanking companyId={companyId} />
-          </Suspense>
+      {/* Section 2: P&L Operativo Comparativo por Sucursal */}
+      <div className="space-y-2">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">P&L Operativo Multi-Unidad</h2>
+          <p className="text-xs text-muted-foreground">
+            Ingresos, costos de alimentos, nómina y EBITDA estimado por cada tienda del grupo
+          </p>
         </div>
-        <div className="lg:col-span-1">
-          <Suspense
-            fallback={
-              <div className="h-64 rounded-xl bg-muted animate-pulse border border-border" />
-            }
-          >
-            <AlertsPanel companyId={companyId} />
-          </Suspense>
-        </div>
+        <PnlBranchTable />
       </div>
 
-      {/* Section 2.5: Benchmarking Insights */}
-      <Suspense
-        fallback={
-          <div className="h-48 rounded-xl bg-muted animate-pulse border border-border" />
-        }
-      >
-        <BenchmarkingInsights companyId={companyId} />
-      </Suspense>
+      {/* Section 3: Proyección de Flujo a 14 días (Executive Twin) */}
+      <div className="space-y-2">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Proyección de Flujo de Efectivo (14 días)</h2>
+          <p className="text-xs text-muted-foreground">
+            Estimación de entradas y salidas basada en compromisos de nómina, proveedores y ventas proyectadas
+          </p>
+        </div>
+        <Suspense fallback={<ChartSkeleton />}>
+          <CashFlowProjectionWrapper companyId={companyId} />
+        </Suspense>
+      </div>
 
-      {/* Section 3: Predictions + Trend */}
+      {/* Section 4: Pronóstico y Tendencia de Cumplimiento */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1">
           <Suspense
@@ -162,11 +147,6 @@ export default async function ExecutiveDashboardPage() {
             <TrendChartWrapper companyId={companyId} />
           </Suspense>
         </div>
-      </div>
-
-      {/* Section 4: P&L Operativo Estimado por Sucursal */}
-      <div>
-        <PnlBranchTable />
       </div>
     </div>
   );

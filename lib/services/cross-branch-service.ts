@@ -17,10 +17,13 @@ import {
   inventoryWaste,
   shiftSessions,
   employeeDocuments,
+  dailySalesCuts,
+  costRecords,
+  temperatureLogs,
 } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
-import { subDays, startOfDay } from "date-fns";
+import { subDays, startOfDay, endOfDay } from "date-fns";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -91,6 +94,61 @@ export interface BenchmarkingData {
   metrics: MetricRanking[];
   bestPractices: PracticeInsight | null;
   worstPractices: PracticeInsight | null;
+  qsrSummary?: {
+    networkAveragePrimeCost: number;
+    networkAverageFoodCost: number;
+    networkAverageLaborCost: number;
+    branches: {
+      branchId: string;
+      branchName: string;
+      primeCostPercent: number;
+      foodCostPercent: number;
+      laborCostPercent: number;
+    }[];
+  };
+}
+
+// --- Tipos QSR: Prime Cost, Scorecards y Detección de Inconsistencias ---
+
+export interface BranchQSRScore {
+  branchId: string;
+  branchName: string;
+  salesTotalCents: number;
+  foodCostCents: number;
+  laborCostCents: number;
+  foodCostPercent: number; // ej. 31.5%
+  laborCostPercent: number; // ej. 24.2%
+  primeCostPercent: number; // ej. 55.7% (Food + Labor)
+  primeCostStatus: "HEALTHY" | "WATCH" | "CRITICAL"; // <60% HEALTHY, 60-65% WATCH, >65% CRITICAL
+  nom251ComplianceRate: number; // 0-100%
+  cashReconciliationRate: number; // 0-100%
+  compositeScore: number; // 0-100 ponderado
+  rank: number;
+  dataQuality: "VERIFIED" | "ESTIMATED";
+}
+
+export interface NetworkAnomalyFinding {
+  id: string;
+  type: "FOOD_COST_DISCREPANCY" | "LABOR_OVERRUN" | "PRIME_COST_LEAK" | "CASH_VARIANCE_OUTLIER";
+  severity: "critical" | "warning" | "info";
+  title: string;
+  narrative: string;
+  affectedBranchId: string;
+  affectedBranchName: string;
+  benchmarkBranchName?: string;
+  variancePoints: number; // puntos porcentuales de desvío
+  estimatedImpactMxn: number;
+  suggestedAction: string;
+}
+
+export interface BranchQSRRankingResult {
+  periodDays: number;
+  branches: BranchQSRScore[];
+  podiumTop3: BranchQSRScore[];
+  networkAveragePrimeCost: number;
+  networkAverageFoodCost: number;
+  networkAverageLaborCost: number;
+  anomalies: NetworkAnomalyFinding[];
 }
 
 // ---------------------------------------------------------------------------
@@ -780,10 +838,406 @@ export const CrossBranchService = {
             )
           : null;
 
-        return { metrics, bestPractices, worstPractices };
+        // --- QSR Prime Cost & Benchmarks ---
+        const qsrData = await CrossBranchService.getBranchQSRRanking(cid, 30);
+        const qsrMap = new Map(qsrData.branches.map((b) => [b.branchId, b]));
+
+        metrics.push(
+          {
+            label: "Prime Cost",
+            unit: "%",
+            higherIsBetter: false,
+            rankings: rank((b) => qsrMap.get(b.id)?.primeCostPercent ?? 0, false),
+          },
+          {
+            label: "Food Cost",
+            unit: "%",
+            higherIsBetter: false,
+            rankings: rank((b) => qsrMap.get(b.id)?.foodCostPercent ?? 0, false),
+          },
+          {
+            label: "Labor Cost",
+            unit: "%",
+            higherIsBetter: false,
+            rankings: rank((b) => qsrMap.get(b.id)?.laborCostPercent ?? 0, false),
+          }
+        );
+
+        return {
+          metrics,
+          bestPractices,
+          worstPractices,
+          qsrSummary: {
+            networkAveragePrimeCost: qsrData.networkAveragePrimeCost,
+            networkAverageFoodCost: qsrData.networkAverageFoodCost,
+            networkAverageLaborCost: qsrData.networkAverageLaborCost,
+            branches: qsrData.branches.map((b) => ({
+              branchId: b.branchId,
+              branchName: b.branchName,
+              primeCostPercent: b.primeCostPercent,
+              foodCostPercent: b.foodCostPercent,
+              laborCostPercent: b.laborCostPercent,
+            })),
+          },
+        };
       },
       [cacheKey(companyId, "benchmarking")],
       { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "benchmarking"] },
     )(companyId);
   },
+
+  // -----------------------------------------------------------------------
+  // getBranchRanking — Alias canónico para getBranchQSRRanking
+  // -----------------------------------------------------------------------
+
+  async getBranchRanking(
+    companyId: string,
+    periodDays = 30
+  ): Promise<BranchQSRRankingResult> {
+    return this.getBranchQSRRanking(companyId, periodDays);
+  },
+
+  // -----------------------------------------------------------------------
+  // getBranchQSRRanking — Prime Cost, Scorecard QSR y Detección de Anomalías
+  // -----------------------------------------------------------------------
+
+  async getBranchQSRRanking(
+    companyId: string,
+    periodDays = 30
+  ): Promise<BranchQSRRankingResult> {
+    return unstable_cache(
+      async (cid: string, pDays: number) => {
+        const branchList = await db
+          .select({ id: branches.id, name: branches.name })
+          .from(branches)
+          .where(eq(branches.companyId, cid));
+
+        if (branchList.length === 0) {
+          return {
+            periodDays: pDays,
+            branches: [],
+            podiumTop3: [],
+            networkAveragePrimeCost: 0,
+            networkAverageFoodCost: 0,
+            networkAverageLaborCost: 0,
+            anomalies: [],
+          };
+        }
+
+        const branchIds = branchList.map((b) => b.id);
+        const startDate = startOfDay(subDays(new Date(), pDays));
+        const endDate = endOfDay(new Date());
+
+        // 1. Ventas por sucursal desde dailySalesCuts
+        const salesRows = await db
+          .select({
+            branchId: dailySalesCuts.branchId,
+            totalSales: sql<number>`coalesce(sum(${dailySalesCuts.totalSales}), 0)`,
+            totalCuts: sql<number>`cast(count(*) as integer)`,
+            balancedCuts: sql<number>`cast(count(*) filter (where abs(coalesce(${dailySalesCuts.cashSales}, 0) - coalesce(${dailySalesCuts.cashCountedCents}, ${dailySalesCuts.cashSales}, 0)) <= 5000) as integer)`,
+          })
+          .from(dailySalesCuts)
+          .where(
+            and(
+              eq(dailySalesCuts.companyId, cid),
+              inArray(dailySalesCuts.branchId, branchIds),
+              gte(dailySalesCuts.businessDate, startDate.toISOString().slice(0, 10)),
+              lte(dailySalesCuts.businessDate, endDate.toISOString().slice(0, 10))
+            )
+          )
+          .groupBy(dailySalesCuts.branchId);
+
+        const salesMap = new Map<string, { totalSales: number; totalCuts: number; balancedCuts: number }>();
+        for (const row of salesRows) {
+          salesMap.set(row.branchId, {
+            totalSales: Number(row.totalSales),
+            totalCuts: Number(row.totalCuts),
+            balancedCuts: Number(row.balancedCuts),
+          });
+        }
+
+        // 2. Costos de comida desde costRecords e inventoryWaste
+        const foodCostRows = await db
+          .select({
+            branchId: costRecords.branchId,
+            total: sql<number>`coalesce(sum(${costRecords.amount}), 0)`,
+          })
+          .from(costRecords)
+          .where(
+            and(
+              eq(costRecords.companyId, cid),
+              inArray(costRecords.branchId, branchIds),
+              gte(costRecords.recordedAt, startDate),
+              lte(costRecords.recordedAt, endDate),
+              sql`upper(${costRecords.category}) in ('FOOD', 'ALIMENTOS', 'INGREDIENTS', 'INSUMOS', 'BEBIDAS', 'MATERIA_PRIMA')`
+            )
+          )
+          .groupBy(costRecords.branchId);
+
+        const wasteRows = await db
+          .select({
+            branchId: inventoryWaste.branchId,
+            totalLoss: sql<number>`coalesce(sum(${inventoryWaste.totalLoss}), 0)`,
+          })
+          .from(inventoryWaste)
+          .where(
+            and(
+              eq(inventoryWaste.companyId, cid),
+              inArray(inventoryWaste.branchId, branchIds),
+              gte(inventoryWaste.recordedAt, startDate),
+              lte(inventoryWaste.recordedAt, endDate)
+            )
+          )
+          .groupBy(inventoryWaste.branchId);
+
+        const foodCostMap = new Map<string, { amount: number; hasRecordedData: boolean }>();
+        for (const r of foodCostRows) {
+          if (r.branchId) {
+            foodCostMap.set(r.branchId, { amount: Number(r.total), hasRecordedData: true });
+          }
+        }
+        for (const w of wasteRows) {
+          if (w.branchId) {
+            const current = foodCostMap.get(w.branchId) ?? { amount: 0, hasRecordedData: false };
+            foodCostMap.set(w.branchId, {
+              amount: current.amount + Number(w.totalLoss),
+              hasRecordedData: current.hasRecordedData || Number(w.totalLoss) > 0,
+            });
+          }
+        }
+
+        // 3. Costos de mano de obra desde costRecords
+        const laborCostRows = await db
+          .select({
+            branchId: costRecords.branchId,
+            total: sql<number>`coalesce(sum(${costRecords.amount}), 0)`,
+          })
+          .from(costRecords)
+          .where(
+            and(
+              eq(costRecords.companyId, cid),
+              inArray(costRecords.branchId, branchIds),
+              gte(costRecords.recordedAt, startDate),
+              lte(costRecords.recordedAt, endDate),
+              sql`upper(${costRecords.category}) in ('LABOR', 'NOMINA', 'MANO_DE_OBRA', 'SUELDOS')`
+            )
+          )
+          .groupBy(costRecords.branchId);
+
+        const laborCostMap = new Map<string, { amount: number; hasRecordedData: boolean }>();
+        for (const r of laborCostRows) {
+          if (r.branchId) {
+            laborCostMap.set(r.branchId, { amount: Number(r.total), hasRecordedData: true });
+          }
+        }
+
+        // 4. Cumplimiento NOM-251 de temperaturas
+        const tempRows = await db
+          .select({
+            branchId: temperatureLogs.branchId,
+            total: sql<number>`cast(count(*) as integer)`,
+            compliant: sql<number>`cast(count(*) filter (where ${temperatureLogs.isCompliant} = true) as integer)`,
+          })
+          .from(temperatureLogs)
+          .where(
+            and(
+              inArray(temperatureLogs.branchId, branchIds),
+              gte(temperatureLogs.timestamp, startDate),
+              lte(temperatureLogs.timestamp, endDate)
+            )
+          )
+          .groupBy(temperatureLogs.branchId);
+
+        const tempMap = new Map<string, number>();
+        for (const r of tempRows) {
+          const tot = Number(r.total);
+          const comp = Number(r.compliant);
+          tempMap.set(r.branchId, tot > 0 ? (comp / tot) * 100 : 100);
+        }
+
+        // 5. Consolidación de cada sucursal
+        const rawBranches: Omit<BranchQSRScore, "rank">[] = branchList.map((b) => {
+          const salesData = salesMap.get(b.id) ?? { totalSales: 0, totalCuts: 0, balancedCuts: 0 };
+          const salesTotal = salesData.totalSales;
+
+          let foodCostCents = foodCostMap.get(b.id)?.amount ?? 0;
+          let laborCostCents = laborCostMap.get(b.id)?.amount ?? 0;
+          let isEstimated = false;
+
+          // Si no hay datos contables registrados pero hay ventas, usamos estimaciones estándar QSR
+          if (salesTotal > 0 && foodCostCents === 0) {
+            foodCostCents = Math.round(salesTotal * 0.315); // 31.5%
+            isEstimated = true;
+          }
+          if (salesTotal > 0 && laborCostCents === 0) {
+            laborCostCents = Math.round(salesTotal * 0.245); // 24.5%
+            isEstimated = true;
+          }
+
+          const foodCostPercent =
+            salesTotal > 0 ? Math.round((foodCostCents / salesTotal) * 1000) / 10 : 31.5;
+          const laborCostPercent =
+            salesTotal > 0 ? Math.round((laborCostCents / salesTotal) * 1000) / 10 : 24.5;
+          const primeCostPercent = Math.round((foodCostPercent + laborCostPercent) * 10) / 10;
+
+          const primeCostStatus: BranchQSRScore["primeCostStatus"] =
+            primeCostPercent < 60 ? "HEALTHY" : primeCostPercent <= 65 ? "WATCH" : "CRITICAL";
+
+          const nom251Rate = Math.round((tempMap.get(b.id) ?? 100) * 10) / 10;
+
+          const cashReconciliationRate =
+            salesData.totalCuts > 0
+              ? Math.round((salesData.balancedCuts / salesData.totalCuts) * 1000) / 10
+              : 100;
+
+          // Composite Score (0-100)
+          const primeEfficiencyScore = Math.max(0, Math.min(100, 100 - (primeCostPercent - 50) * 3));
+          const salesScore = salesTotal > 0 ? 90 : 50;
+          const composite = Math.round(
+            (salesScore * 0.3 +
+              primeEfficiencyScore * 0.3 +
+              nom251Rate * 0.2 +
+              cashReconciliationRate * 0.2) *
+              10
+          ) / 10;
+
+          return {
+            branchId: b.id,
+            branchName: b.name,
+            salesTotalCents: salesTotal,
+            foodCostCents,
+            laborCostCents,
+            foodCostPercent,
+            laborCostPercent,
+            primeCostPercent,
+            primeCostStatus,
+            nom251ComplianceRate: nom251Rate,
+            cashReconciliationRate,
+            compositeScore: composite,
+            dataQuality: isEstimated ? "ESTIMATED" : "VERIFIED",
+          };
+        });
+
+        // 6. Ordenar por compositeScore desc y asignar rank
+        const sortedBranches = [...rawBranches]
+          .sort((a, b) => b.compositeScore - a.compositeScore)
+          .map((b, idx) => ({ ...b, rank: idx + 1 }));
+
+        // 7. Podio Top 3
+        const podiumTop3 = sortedBranches.slice(0, 3);
+
+        // 8. Promedios de la red
+        const activeUnits = sortedBranches.filter((b) => b.salesTotalCents > 0);
+        const count = activeUnits.length || sortedBranches.length || 1;
+        const avgPrime =
+          Math.round(
+            (sortedBranches.reduce((acc, b) => acc + b.primeCostPercent, 0) / count) * 10
+          ) / 10;
+        const avgFood =
+          Math.round(
+            (sortedBranches.reduce((acc, b) => acc + b.foodCostPercent, 0) / count) * 10
+          ) / 10;
+        const avgLabor =
+          Math.round(
+            (sortedBranches.reduce((acc, b) => acc + b.laborCostPercent, 0) / count) * 10
+          ) / 10;
+
+        // 9. Detección de inconsistencias de red
+        const anomalies = detectNetworkAnomalies(sortedBranches);
+
+        return {
+          periodDays: pDays,
+          branches: sortedBranches,
+          podiumTop3,
+          networkAveragePrimeCost: avgPrime,
+          networkAverageFoodCost: avgFood,
+          networkAverageLaborCost: avgLabor,
+          anomalies,
+        };
+      },
+      [cacheKey(companyId, `qsr-ranking-${periodDays}`)],
+      { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "qsr-ranking"] }
+    )(companyId, periodDays);
+  },
 };
+
+/**
+ * Algoritmo de detección de inconsistencias de red entre sucursales hermanas QSR.
+ * Identifica varianzas de Food Cost > 3 puntos porcentuales, fugas de Prime Cost (>65%)
+ * y sobrecostos laborales desproporcionados.
+ */
+export function detectNetworkAnomalies(branchScores: BranchQSRScore[]): NetworkAnomalyFinding[] {
+  if (branchScores.length < 2) return [];
+
+  const findings: NetworkAnomalyFinding[] = [];
+
+  const activeBranches = branchScores.filter((b) => b.salesTotalCents > 0);
+  if (activeBranches.length < 2) return [];
+
+  const avgLaborCost =
+    activeBranches.reduce((acc, b) => acc + b.laborCostPercent, 0) / activeBranches.length;
+
+  // Encontrar la sucursal más eficiente en Food Cost
+  const sortedByFood = [...activeBranches].sort((a, b) => a.foodCostPercent - b.foodCostPercent);
+  const bestFoodBranch = sortedByFood[0];
+
+  for (const branch of activeBranches) {
+    // 1. Desviación en Food Cost > 3 puntos porcentuales contra la más eficiente
+    const diffAgainstBest = branch.foodCostPercent - bestFoodBranch.foodCostPercent;
+    if (diffAgainstBest > 3.0 && branch.branchId !== bestFoodBranch.branchId) {
+      const impactMxn = Math.round((diffAgainstBest / 100) * (branch.salesTotalCents / 100));
+      findings.push({
+        id: `food-cost-variance-${branch.branchId}`,
+        type: "FOOD_COST_DISCREPANCY",
+        severity: diffAgainstBest > 5.0 ? "critical" : "warning",
+        title: `Desviación de Food Cost en ${branch.branchName}`,
+        narrative: `${branch.branchName} reporta un costo de alimentos de ${branch.foodCostPercent.toFixed(1)}%, que supera por ${diffAgainstBest.toFixed(1)} puntos a ${bestFoodBranch.branchName} (${bestFoodBranch.foodCostPercent.toFixed(1)}%) operando el mismo menú.`,
+        affectedBranchId: branch.branchId,
+        affectedBranchName: branch.branchName,
+        benchmarkBranchName: bestFoodBranch.branchName,
+        variancePoints: Math.round(diffAgainstBest * 10) / 10,
+        estimatedImpactMxn: impactMxn,
+        suggestedAction: "Auditar rendimiento de porciones en recetas y verificar mermas de carne o proteínas no declaradas.",
+      });
+    }
+
+    // 2. Fuga de Prime Cost > 65% (Alerta roja de viabilidad unit economics)
+    if (branch.primeCostPercent > 65.0) {
+      const overrunPoints = branch.primeCostPercent - 60.0;
+      const impactMxn = Math.round((overrunPoints / 100) * (branch.salesTotalCents / 100));
+      findings.push({
+        id: `prime-cost-leak-${branch.branchId}`,
+        type: "PRIME_COST_LEAK",
+        severity: "critical",
+        title: `Prime Cost Crítico en ${branch.branchName} (${branch.primeCostPercent.toFixed(1)}%)`,
+        narrative: `El costo combinado de alimentos y mano de obra en ${branch.branchName} absorbe el ${branch.primeCostPercent.toFixed(1)}% de la venta, excediendo el límite de viabilidad de 60%.`,
+        affectedBranchId: branch.branchId,
+        affectedBranchName: branch.branchName,
+        variancePoints: Math.round(overrunPoints * 10) / 10,
+        estimatedImpactMxn: impactMxn,
+        suggestedAction: "Ajustar cuadrante de horas en horas valle y revisar precios de compra con comisariato.",
+      });
+    }
+
+    // 3. Sobrecosto laboral > 3.5 puntos sobre el promedio de la red
+    const laborDiff = branch.laborCostPercent - avgLaborCost;
+    if (laborDiff > 3.5) {
+      const impactMxn = Math.round((laborDiff / 100) * (branch.salesTotalCents / 100));
+      findings.push({
+        id: `labor-overrun-${branch.branchId}`,
+        type: "LABOR_OVERRUN",
+        severity: "warning",
+        title: `Sobrecosto Laboral en ${branch.branchName} (+${laborDiff.toFixed(1)} pts)`,
+        narrative: `La nómina en ${branch.branchName} representa el ${branch.laborCostPercent.toFixed(1)}% de las ventas, comparado con el promedio de la red de ${avgLaborCost.toFixed(1)}%.`,
+        affectedBranchId: branch.branchId,
+        affectedBranchName: branch.branchName,
+        variancePoints: Math.round(laborDiff * 10) / 10,
+        estimatedImpactMxn: impactMxn,
+        suggestedAction: "Auditar horas extras aprobadas y redistribuir personal hacia tiendas con mayor afluencia.",
+      });
+    }
+  }
+
+  return findings;
+}
+

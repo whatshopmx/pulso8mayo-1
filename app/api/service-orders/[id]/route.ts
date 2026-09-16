@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { hasPermission } from "@/lib/permissions";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { isApiError } from "@/lib/api/error";
 import {
     getOrderDetail,
@@ -44,7 +45,10 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         }
 
         const { id } = await params;
-        const detail = await getOrderDetail(tenant.id!, id);
+        // El alcance por ID es el mismo que el del listado: rol y sucursal de la
+        // sesión; la sucursal activa de la aplicación manda sobre el query.
+        const scope = resolveBranchScope(user.role, user.branchId ?? null, tenant.branchId ?? null);
+        const detail = await getOrderDetail(tenant.id!, id, scope);
         if (!detail) {
             return NextResponse.json({ error: "Orden de servicio no encontrada" }, { status: 404 });
         }
@@ -79,9 +83,19 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
                 return NextResponse.json({ error: "No tienes permisos" }, { status: 403 });
             }
             const { action, scheduledDate } = actionSchema.parse(body);
-            const order = await transitionOrder(tenant.id!, id, action as ServiceOrderAction, {
-                scheduledDate: scheduledDate === undefined ? undefined : new Date(scheduledDate),
-            });
+            // El alcance se resuelve antes de tocar la orden: una transición
+            // sobre una orden de otra sucursal responde 403 sin decir en qué
+            // estado está.
+            const scope = resolveBranchScope(user.role, user.branchId ?? null, tenant.branchId ?? null);
+            const order = await transitionOrder(
+                tenant.id!,
+                id,
+                action as ServiceOrderAction,
+                {
+                    scheduledDate: scheduledDate === undefined ? undefined : new Date(scheduledDate),
+                },
+                scope,
+            );
             return NextResponse.json({ order });
         }
 
@@ -108,6 +122,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
                           : new Date(data.scheduledDate),
             },
             tenant.id!,
+            resolveBranchScope(user.role, user.branchId ?? null, tenant.branchId ?? null),
         );
 
         return NextResponse.json({ order });

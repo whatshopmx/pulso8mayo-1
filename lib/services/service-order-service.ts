@@ -14,6 +14,8 @@ import {
     invoices,
 } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api/error";
+import type { BranchScope } from "@/lib/branch-scope";
+import { equipmentService } from "@/lib/services/equipment-service";
 import { draftFolio, nextFolio, type IssuedFolio } from "@/lib/services/folio-generator";
 import {
     createApprovalRequests,
@@ -108,7 +110,11 @@ export async function listOrders(params: ListOrdersParams) {
 
 // ── Detalle ──
 
-export async function getOrderDetail(companyId: string, id: string) {
+export async function getOrderDetail(
+    companyId: string,
+    id: string,
+    scope: BranchScope,
+) {
     const [row] = await db
         .select({
             order: serviceOrders,
@@ -129,6 +135,12 @@ export async function getOrderDetail(companyId: string, id: string) {
         .where(and(eq(serviceOrders.id, id), eq(serviceOrders.companyId, companyId)))
         .limit(1);
     if (!row) return null;
+
+    // Lectura por ID: misma frontera que el listado. De una orden fuera del
+    // alcance no se filtra nada: 404 si no es de la empresa, 403 si es de la
+    // empresa pero de otra sucursal.
+    assertOrderInScope(scope, row.order);
+
     const order = {
         ...row.order,
         branchName: row.branchName,
@@ -187,6 +199,33 @@ async function loadCompanyOrder(companyId: string, id: string): Promise<ServiceO
     return order;
 }
 
+/**
+ * ¿Puede este alcance ver y operar esta orden?
+ *
+ * El listado ya se acota por sucursal en la ruta (`tenant.branchId` manda sobre
+ * el query para los roles fijados), pero las rutas por ID cargaban la orden sólo
+ * por empresa: un GERENTE fijado a Condesa no veía las órdenes de Polanco en la
+ * lista y, con el id en la mano, las leía, las editaba y las cancelaba igual.
+ * Es la misma asimetría que `expense-service.ts:52` cerró para los gastos.
+ *
+ * `NONE` niega en vez de dejar pasar: un rol acotado sin sucursal asignada no
+ * cae en el `null` que significaría "ve toda la empresa".
+ */
+function assertOrderInScope(scope: BranchScope, order: ServiceOrderRow): void {
+    if (scope.kind === "ALL") return;
+
+    if (scope.kind === "NONE") {
+        throw new ApiError(
+            "Tu usuario no tiene una sucursal asignada, así que no puede ver ni operar órdenes de servicio. Pide que te asignen una.",
+            403,
+        );
+    }
+
+    if (order.branchId !== scope.branchId) {
+        throw new ApiError("No puedes ver ni operar una orden de servicio de otra sucursal.", 403);
+    }
+}
+
 // ── Validación de pertenencia al tenant (FKs que el cliente manda) ──
 
 async function assertBranchInCompany(branchId: string, companyId: string): Promise<void> {
@@ -234,11 +273,38 @@ async function assertServiceProviderInCompany(serviceProviderId: string, company
     if (!row) throw new ApiError("El proveedor de servicio indicado no pertenece a la empresa", 400);
 }
 
+/**
+ * El equipo que la orden referencia: de esta empresa **y de la sucursal de la
+ * orden**.
+ *
+ * `equipmentId` era la única FK del payload que `validateReferences` no
+ * miraba: la llave foránea alcanzaba, así que una OS de la empresa A podía
+ * nacer apuntando al equipo de la empresa B, y el detalle de la orden quedaba
+ * como puerta de lectura hacia un expediente ajeno. La consulta del equipo ya
+ * filtra por empresa (`getEquipmentById`, T03); aquí sólo falta exigir que el
+ * equipo sea de la misma sucursal que la orden, que es como la pantalla lo
+ * ofrece (el selector lista el alcance de la sesión).
+ */
+async function assertEquipmentInOrderBranch(
+    equipmentId: string,
+    companyId: string,
+    branchId: string,
+): Promise<void> {
+    const equipment = await equipmentService.getEquipmentById(equipmentId, companyId);
+    if (!equipment) {
+        throw new ApiError("El equipo indicado no pertenece a la empresa", 400);
+    }
+    if (equipment.branchId !== branchId) {
+        throw new ApiError("El equipo indicado no pertenece a la sucursal de la orden", 400);
+    }
+}
+
 /** Valida las FKs opcionales presentes en el payload contra la empresa del tenant. */
 async function validateReferences(
     companyId: string,
     data: {
         branchId: string;
+        equipmentId?: string | null;
         supplierId?: string | null;
         serviceProviderId?: string | null;
         costCenterId?: string | null;
@@ -246,6 +312,7 @@ async function validateReferences(
     },
 ): Promise<void> {
     await assertBranchInCompany(data.branchId, companyId);
+    if (data.equipmentId) await assertEquipmentInOrderBranch(data.equipmentId, companyId, data.branchId);
     if (data.supplierId) await assertSupplierInCompany(data.supplierId, companyId);
     if (data.serviceProviderId) await assertServiceProviderInCompany(data.serviceProviderId, companyId);
     if (data.costCenterId) await assertCostCenterInCompany(data.costCenterId, companyId);
@@ -277,6 +344,7 @@ export async function createDraft(
 ): Promise<ServiceOrderRow> {
     await validateReferences(companyId, {
         branchId: input.branchId,
+        equipmentId: input.equipmentId,
         supplierId: input.supplierId,
         serviceProviderId: input.serviceProviderId,
         costCenterId: input.costCenterId,
@@ -332,8 +400,13 @@ export async function updateDraft(
     id: string,
     patch: UpdateServiceOrderPatch,
     companyId: string,
+    scope: BranchScope,
 ): Promise<ServiceOrderRow> {
     const order = await loadCompanyOrder(companyId, id);
+    // Editar por ID es una escritura: el filtro de sucursal del listado no
+    // alcanzaba, así que con el id en la mano se editaba el borrador de otra
+    // sucursal. Antes de validar nada se responde que la orden no es alcanzable.
+    assertOrderInScope(scope, order);
     if (order.status !== "DRAFT") {
         throw new ApiError(
             "Solo se pueden editar órdenes en borrador. Una vez enviada usa el flujo de aprobación.",
@@ -343,6 +416,7 @@ export async function updateDraft(
 
     await validateReferences(companyId, {
         branchId: patch.branchId ?? order.branchId,
+        equipmentId: patch.equipmentId !== undefined ? patch.equipmentId : order.equipmentId,
         supplierId: patch.supplierId !== undefined ? patch.supplierId : order.supplierId,
         serviceProviderId: patch.serviceProviderId !== undefined ? patch.serviceProviderId : order.serviceProviderId,
         costCenterId: patch.costCenterId !== undefined ? patch.costCenterId : order.costCenterId,
@@ -586,9 +660,13 @@ export async function transitionOrder(
     companyId: string,
     orderId: string,
     action: ServiceOrderAction,
-    opts?: { scheduledDate?: Date | null },
+    opts: { scheduledDate?: Date | null } | undefined,
+    scope: BranchScope,
 ): Promise<ServiceOrderRow> {
     const order = await loadCompanyOrder(companyId, orderId);
+    // Antes que el estado y que el rol: de una orden fuera del alcance no se
+    // responde ni en qué estado está.
+    assertOrderInScope(scope, order);
     const guard = actionTransitionError(order.status, action);
     if (guard) throw new ApiError(guard, 409);
 

@@ -1,357 +1,294 @@
-# Task Breakdown: Finanzas Operativas y Conciliación TPV Pulso
+# Task Breakdown: Sistema Operativo de Red QSR (3 a 15 Sucursales) — Pulso HORECA
 
 ---
 
-## Task 1: Backend unificado de pendientes de Hoy y desacoplamiento temporal
+## Task 1: Reestructuración de navegación en app-sidebar y ruta canónica de sucursales
 
 **Description:**
-Crear o refactorizar el endpoint centralizador de atención financiera (`/api/finance/attention`) para que agregue excepciones de control interno, gastos pendientes de autorización, arqueos de caja con diferencias y discrepancias de conciliación TPV. Debe resolver el problema de paginación de cortes (calculando discrepancias a nivel SQL o con agregados completos sin truncar a 100 registros) y desacoplar las fechas históricas de consulta del estado de "pendientes abiertos al día de hoy".
+Reestructurar la barra lateral en `components/app-sidebar.tsx` para el grupo de restaurantes. Consolidar el menú bajo la sección "Comando de Red" con 4 enlaces estratégicos: En Vivo (`/dashboard`), Excepciones & Riesgos (`/dashboard/exceptions`), Liga de Sucursales (`/dashboard/branches`) y Dirección & P&L (`/dashboard/executive`). Retirar del menú los 5 subenlaces huérfanos de Analítica (`/analytics`, `/kpi-builder`, `/trends`, `/incidents`). Crear la ruta canónica `/dashboard/branches` que delega o absorbe `/dashboard/analytics/branches` con retrocompatibilidad.
 
 **Acceptance criteria:**
-- [x] La consulta de arqueos evalúa el total de cortes del período sin limitarse arbitrariamente a la primera página de 100 registros.
-- [x] Los gastos devueltos para autorización reflejan todos los pendientes abiertos actualmente (`status = 'PENDING_APPROVAL'`), independientemente del rango de fechas del P&L.
-- [x] La respuesta incluye metadatos de estado por cada fuente (`available`, `partial`, `unavailable`), indicando con precisión si alguna falló.
+- [x] La sección "Comando de Red" en el sidebar contiene exactamente los 4 accesos: En Vivo, Excepciones, Liga de Sucursales y Dirección.
+- [x] Se eliminan los accesos directos a `/dashboard/analytics`, `/kpi-builder`, `/trends` e `/incidents` de la barra lateral.
+- [x] La ruta `/dashboard/branches` renderiza la vista de desempeño de sucursales y la ruta `/dashboard/analytics/branches` redirige transparentemente hacia `/dashboard/branches`.
+- [x] Las rutas de detalle `/dashboard/branches/[id]` funcionan de forma consistente con su navegación hacia atrás.
 
 **Verification:**
-- [x] Tests pasan: `pnpm test lib/services/__tests__/`
-- [x] Build exitoso: `pnpm run build` (tsc --noEmit & test:unit passing)
-- [x] Manual check: Probar el endpoint con más de 100 cortes y verificar que reporta el total completo de faltantes/sobrantes.
+- [x] Build exitoso: `pnpm run build`
+- [x] Tests pasan: `pnpm test:unit`
+- [x] Manual check: Verificar en navegador que la barra lateral muestra los 4 accesos limpios y que hacer clic en "Liga de Sucursales" abre `/dashboard/branches`.
 
 **Dependencies:** None
 
 **Files likely touched:**
-- `app/api/finance/attention/route.ts`
-- `components/finance/money-attention-panel.tsx`
-- `app/dashboard/finance/page.tsx`
-- `lib/services/expense-service.ts`
+- `components/app-sidebar.tsx`
+- `app/dashboard/branches/page.tsx`
+- `app/dashboard/branches/[id]/page.tsx`
+- `app/dashboard/analytics/branches/page.tsx`
 
 **Estimated scope:** Medium (3-4 files)
 
 ---
 
-## Task 2: Pruebas de integración para cierre seguro de períodos financieros
+## Checkpoint 1: Navegación y Rutas Limpias
+- [x] El menú lateral refleja la nueva arquitectura de 4 pilares QSR.
+- [x] La compilación `pnpm run build` no arroja errores de tipado ni rutas rotas.
+
+---
+
+## Task 2: Clasificación por impacto de negocio QSR en GroupExceptionsService
 
 **Description:**
-Verificar y blindar mediante pruebas de integración automáticas el comportamiento transaccional de `closeFinancialPeriod` en `lib/services/financial-period-service.ts`. Asegurar que si la congelación de snapshots de P&L (`freezePnLPeriod`) falla por cualquier motivo, la transacción aborte de inmediato, no marque el período como `CLOSED`, conserve el estado `OPEN` y registre el error de forma trazable e idempotente.
+Evolucionar `lib/services/group-exceptions-service.ts` para clasificar las anomalías detectadas en 4 categorías de riesgo operacional de restaurante:
+1. `DINERO` (arqueos con descuadre, cancelaciones post-cobro, terminales fantasma, gastos no autorizados).
+2. `INOCUIDAD` (temperaturas de refrigeración/congelación fuera de norma NOM-251, checklists sanitarios omitidos).
+3. `ABASTO` (mermas anormales al cierre, insumos críticos bajo punto de reorden en horario de rush).
+4. `PERSONAL` (retardos o ausentismo en puestos operativos clave).
+Incluir metadatos de acción resolutiva (enlace de WhatsApp al gerente, deep link de arqueo, solicitud de transferencia de insumos).
 
 **Acceptance criteria:**
-- [x] Existe un test unitario/integración que simula un fallo en `freezePnLPeriod` y confirma que `financial_periods.status` permanece en `OPEN`.
-- [x] Reintentar el cierre tras resolver la causa raíz congela los snapshots e idempotentemente sella el período.
-- [x] La reapertura de un período requiere permisos explícitos de administrador y deja registro en bitácora con motivo y autor.
+- [x] El servicio expone un agrupador o campo `qsrCategory` con los valores: `DINERO`, `INOCUIDAD`, `ABASTO`, `PERSONAL`.
+- [x] Cada excepción incluye metadatos de acción rápida: tipo de acción (`WHATSAPP_CALL`, `AUDIT_DRAWER`, `TRANSFER_STOCK`, `WORK_ORDER`) y URL de resolución directa.
+- [x] Las pruebas unitarias validan que las excepciones se categorizan correctamente según su procedencia (M13 Ventas, M17 Control Interno, NOM-251, M12 Inventario).
 
 **Verification:**
-- [x] Tests pasan: `pnpm test -- --grep "closeFinancialPeriod"` (7/7 passed)
-- [x] Build exitoso: `pnpm run build` (tsc --noEmit & test:unit 578 passing)
+- [x] Tests pasan: `pnpm test:unit lib/services/__tests__/group-exceptions-service.test.ts`
+- [x] Build exitoso: `pnpm run build`
 
 **Dependencies:** Task 1
 
 **Files likely touched:**
-- `lib/services/financial-period-service.ts`
-- `lib/services/__tests__/financial-period-close.test.ts`
-- `app/api/finance/periods/close/route.ts`
+- `lib/services/group-exceptions-service.ts`
+- `lib/services/__tests__/group-exceptions-service.test.ts`
 
-**Estimated scope:** Small (2-3 files)
-
----
-
-## Checkpoint: Contratos y Confianza
-- [x] Todas las pruebas de contratos y períodos pasan sin errores.
-- [x] La aplicación compila limpiamente con `pnpm run build`.
-- [x] La bandeja de pendientes no oculta casos por límites de paginación ni filtros temporales desalineados.
+**Estimated scope:** Medium (2-3 files)
 
 ---
 
-## Task 3: Enriquecimiento del expediente HoyCaseDossier con contexto presupuestal
+## Task 3: Rediseño UI del Centro de Excepciones & Riesgos con Triage Operativo
 
 **Description:**
-Completar la experiencia de resolución de casos en `components/finance/hoy-case-dossier.tsx` y `FinanceTodayPage`. Para gastos pendientes de autorización, mostrar el impacto sobre el presupuesto de la categoría y sucursal, la contraparte/beneficiario y el enlace a la evidencia/factura XML, permitiendo aprobar o rechazar directamente desde el panel lateral sin abandonar la pantalla.
+Rediseñar `app/dashboard/exceptions/page.tsx` para abandonar la lista plana genérica y convertirla en una bandeja de triage por impacto. Incorporar pestañas superiores de categorías QSR con contadores (Dinero & Caja, Inocuidad & Frío, Mermas & Stock, Personal). Añadir en cada tarjeta el impacto financiero/operativo estimado y botones de acción directa en 1 clic (ej. "Auditar Corte POS vs TPV", "Ver Cámara Fría", "Contactar Gerente").
 
 **Acceptance criteria:**
-- [x] Al seleccionar un gasto en la lista de Hoy, el expediente muestra: partida presupuestal consumida vs. disponible, proveedor/contraparte y archivo de comprobante.
-- [x] Los botones "Autorizar" y "Rechazar" ejecutan la mutación en `/api/expenses/[id]/approve` con validación de roles de autorización.
-- [x] Tras resolver el caso, la lista de Hoy se actualiza optimistamente y pasa el foco al siguiente caso prioritario.
+- [x] La pantalla presenta pestañas con contadores en vivo para las 4 categorías QSR: Dinero, Inocuidad, Abasto y Personal.
+- [x] Las tarjetas destacan el dinero en riesgo o el peligro normativo (ej. "Riesgo de merma de $42,000 en carne", "Descuadre de -$840 MXN").
+- [x] Cada tarjeta incluye un botón de acción primaria resolutiva con deep link directo.
+- [x] Cuenta con selector de sucursal individual o "Todas las sucursales" respetando el contexto del grupo.
 
 **Verification:**
-- [x] Build exitoso: `pnpm run build` (tsc --noEmit & vitest passed)
-- [x] Manual check: Abrir un gasto pendiente en `/dashboard/finance`, aprobarlo y confirmar que desaparece de la bandeja y se refleja en el presupuesto.
+- [x] Build exitoso: `pnpm run build`
+- [x] Manual check: Abrir `/dashboard/exceptions`, alternar entre pestañas de riesgo y verificar que las acciones abren el expediente correspondiente.
+
+**Dependencies:** Task 2
+
+**Files likely touched:**
+- `app/dashboard/exceptions/page.tsx`
+
+**Estimated scope:** Medium (3-4 files)
+
+---
+
+## Checkpoint 2: Centro de Excepciones QSR en Funcionamiento
+- [x] Las alertas de toda la cadena se priorizan por impacto económico y sanitario.
+- [x] El operador puede resolver o delegar incidentes sin navegar por menús secundarios.
+
+---
+
+## Task 4: Servicio y Endpoint de Pulso en Vivo (Live Command)
+
+**Description:**
+Crear el servicio `lib/services/live-command-service.ts` y su endpoint correspondiente `/api/group/live-pulse` que consolida el estado operativo del día en curso para las 3 a 15 sucursales:
+- Estado de apertura (abierto a tiempo antes de la hora límite del turno vs. retrasado vs. sin abrir).
+- Cobertura de personal (empleados con check-in en turno actual vs. plantilla requerida).
+- Monitoreo de temperaturas críticas (últimas lecturas de cámaras frías vs. umbrales NOM-251).
+- Venta acumulada del día (a partir de `dailySalesCuts` y ventas POS del día vs. meta diaria por sucursal).
+- Alertas rojas activas que amenazan el rush actual.
+
+**Acceptance criteria:**
+- [x] El endpoint `/api/group/live-pulse` devuelve el consolidado de las sucursales con tiempo de respuesta < 200ms.
+- [x] Calcula el semáforo de apertura de cada sucursal comparando la hora de ejecución del checklist de apertura con la hora configurada.
+- [x] Reporta la lista de alertas rojas en curso que requieren atención inmediata en el turno.
+
+**Verification:**
+- [x] Tests unitarios: `pnpm test:unit lib/services/__tests__/live-command-service.test.ts`
+- [x] Build exitoso: `pnpm run build`
 
 **Dependencies:** Task 1
 
 **Files likely touched:**
-- `components/finance/hoy-case-dossier.tsx`
-- `app/dashboard/finance/page.tsx`
-- `app/api/expenses/[id]/approve/route.ts`
+- `lib/services/live-command-service.ts`
+- `app/api/group/live-pulse/route.ts`
+- `lib/services/__tests__/live-command-service.test.ts`
 
 **Estimated scope:** Medium (3 files)
 
 ---
 
-## Task 4: Consolidación de navegación en app-sidebar y enlaces profundos
+## Task 5: Rediseño del Home Operativo como Live Command Center
 
 **Description:**
-Asegurar que la navegación principal en `components/app-sidebar.tsx` refleje consistentemente los 6 espacios de trabajo de Finanzas: Hoy (`/dashboard/finance`), Gastos (`/dashboard/finance/expenses`), Pagos (`/dashboard/finance/payables`), Caja y Cobros (`/dashboard/finance/cash-flow`), Resultados (`/dashboard/finance/results`) y Cierre y Control (`/dashboard/finance/control-interno`). Garantizar que cada pendiente en la bandeja Hoy posea un enlace profundo directo que conserve el foco y contexto al regresar.
+Transformar `app/dashboard/page.tsx` para que funcione como el centro de control en tiempo real de la cadena de restaurantes ("El Pulso de Hoy"). Reemplazar la colección de pestañas y gráficos genéricos por:
+1. Barra de pulso del turno (Tiendas abiertas a tiempo, % asistencia de turno, venta acumulada hoy).
+2. Banner de Alertas Rojas en Rush (problemas que afectan el servicio de este momento).
+3. Matriz en Vivo de Sucursales (tabla/parrilla interactiva con semáforos por tienda en Apertura, Personal, Frío y Venta).
+4. Acceso directo a la resolución de incidencias en trinchera.
 
 **Acceptance criteria:**
-- [x] La barra lateral agrupa los accesos según la estructura de los 6 espacios sin duplicar secciones operativas confusas.
-- [x] Cada tarjeta de pendiente en Hoy incluye un enlace profundo con query param (`?focus=[id]`) que abre directamente el registro en su pantalla correspondiente.
-- [x] Al presionar "Volver" desde un registro enfocado, el usuario regresa exactamente a la posición previa en Hoy.
+- [x] El Home carga con Server Components y Suspense mostrando de inmediato la matriz de sucursales.
+- [x] Permite filtrar la matriz por sucursal o ver la red completa de un solo vistazo.
+- [x] Si una sucursal tiene un congelador fuera de rango o un retraso en apertura, se resalta en rojo con enlace directo al detalle.
+- [x] Se elimina la sobrecarga de pestañas abstractas de BI de la pantalla principal.
 
 **Verification:**
-- [x] Build exitoso: `pnpm run build` (tsc --noEmit & vitest passed)
-- [x] Manual check: Navegar por los 6 espacios desde el sidebar y probar los enlaces directos de casos.
-
-**Dependencies:** Task 3
-
-**Files likely touched:**
-- `components/app-sidebar.tsx`
-- `components/finance/hoy-case-dossier.tsx`
-- `app/dashboard/finance/expenses/page.tsx`
-
-**Estimated scope:** Small (2-3 files)
-
----
-
-## Checkpoint: Experiencia Hoy y Navegación
-- [x] Navegación fluida y consistente entre los 6 espacios de Finanzas.
-- [x] Resolución de casos de gasto de punta a punta en menos de 2 interacciones.
-- [x] Build limpio en TypeScript y Next.js.
-
----
-
-## Task 5: Cuentas por Pagar: selección de partidas y armado de lotes
-
-**Description:**
-Conectar la vista de Cuentas por Pagar (`app/dashboard/finance/payables/page.tsx`) con el flujo de creación de corridas de tesorería (`TreasuryService.createPaymentRun`). Permitir filtrar facturas y gastos autorizados, seleccionar partidas elegibles con cuenta bancaria verificada activa y congelar los datos de la cuenta en la partida de la corrida para blindar el destino del pago.
-
-**Acceptance criteria:**
-- [x] Las partidas bloqueadas por falta de cuenta bancaria o verificación muestran claramente el motivo del bloqueo y un acceso directo para resolverlo.
-- [x] El usuario puede seleccionar múltiples partidas y hacer clic en "Programar lote de pago".
-- [x] La creación del lote congela el número de cuenta/CLABE del proveedor en `payment_run_items.bankAccountId` / `payeeBankAccountId` / `clabeLast4Snapshot` evitando cambios posteriores no autorizados.
-
-**Verification:**
-- [x] Tests pasan: `pnpm test:unit lib/services/__tests__/treasury*` (3/3 passed, 17/17 suites passed)
-- [x] Build exitoso: `tsc --noEmit` pasado limpiamente (0 errors)
-- [x] Manual check: Crear una corrida con partidas seleccionadas y verificar congelamiento transaccional de cuentas bancarias.
+- [x] Typecheck exitoso: `pnpm exec tsc --noEmit`
+- [x] Tests pasan: `pnpm test:unit lib/services/__tests__/live-command-service.test.ts`
+- [x] Manual check: Componentes creados y cableados en `/dashboard`.
 
 **Dependencies:** Task 4
 
 **Files likely touched:**
-- `app/dashboard/finance/payables/page.tsx`
-- `components/finance/payables-table.tsx`
-- `lib/services/treasury-service.ts`
-- `app/api/finance/treasury/runs/route.ts`
+- `app/dashboard/page.tsx`
+- `components/dashboard/live/live-command-matrix.tsx`
+- `components/dashboard/live/live-pulse-banner.tsx`
+- `components/dashboard/live/live-rush-alerts.tsx`
+- `components/dashboard/live/live-command-section.tsx`
 
-**Estimated scope:** Medium (4 files)
+**Estimated scope:** Large (4-5 files)
 
 ---
 
-## Task 6: UI de liquidación individual por partida en corridas de tesorería
+## Checkpoint 3: Live Command Center Operativo
+- [x] El Home de Pulso responde en tiempo real a las preguntas operativas del día: quién abrió, quién faltó, cuánto se ha vendido y qué alertas amenazan el turno.
+
+---
+
+## Task 6: Motor de Prime Cost y Scorecard QSR en CrossBranchService
 
 **Description:**
-Implementar en la vista de detalle de corrida (`app/dashboard/finance/treasury/runs/[id]/page.tsx`) la interfaz de confirmación partida por partida utilizando `payment-run-settlement.ts`. Permitir ingresar el folio/referencia de transferencia o marcar la partida como fallida con motivo bancario, actualizando el saldo pendiente sin cerrar arbitrariamente la corrida completa hasta que todas las partidas estén resueltas.
+Extender `lib/services/cross-branch-service.ts` para calcular métricas especializadas en cadenas QSR:
+- **Prime Cost Combinado:** (Costo de Alimentos / Venta Bruta) + (Costo de Mano de Obra / Venta Bruta). Meta objetivo: <60%.
+- **Score QSR Ponderado:** Venta vs Meta (30%) + Prime Cost (30%) + Cumplimiento NOM-251 (20%) + Cuadre de Caja/TPV (20%).
+- **Detección de Inconsistencias de Red:** Identificar desviaciones automáticas significativas entre sucursales que operan con el mismo menú (ej. "Sucursal Roma presenta un Food Cost 6.2% mayor que Condesa").
 
 **Acceptance criteria:**
-- [x] Cada partida de la corrida muestra su estado individual: `PENDING`, `CONFIRMED` o `FAILED`.
-- [x] Acción de confirmación solicita referencia/folio bancario y registra quién y cuándo liquidó la partida.
-- [x] Si una partida falla, la factura/gasto origen regresa a estado pendiente de pago (conserva la deuda) y la corrida no se cierra como pagada en su totalidad.
+- [ ] `getBranchRanking` y `getBenchmarking` devuelven `primeCostPercent`, `foodCostPercent` y `laborCostPercent` para cada sucursal del grupo.
+- [ ] El algoritmo de detección de anomalías genera hallazgos narrativos basados en diferencias de más de 3 puntos porcentuales entre unidades hermanas.
+- [ ] Maneja casos donde faltan datos de inventario o nómina clasificando la procedencia como `ESTIMATED` sin romper el cálculo.
 
 **Verification:**
-- [x] Tests pasan: `pnpm test:unit lib/services/__tests__/payment-run-settlement.test.ts` (21/21 passed)
-- [x] Build exitoso: `tsc --noEmit` pasado limpiamente
-- [x] Manual check: Confirmar 1 partida y rechazar otra; verificar que la corrida refleja estado mixto y la deuda rechazada sigue viva en Cuentas por Pagar.
-
-**Dependencies:** Task 5
-
-**Files likely touched:**
-- `app/dashboard/finance/treasury/runs/[id]/page.tsx`
-- `components/finance/payment-run-detail.tsx`
-- `lib/services/treasury-service.ts`
-- `app/api/finance/treasury/runs/[id]/items/[itemId]/settle/route.ts`
-
-**Estimated scope:** Medium (4 files)
-
----
-
-## Checkpoint: Ciclo de Pagos y Tesorería
-- [x] Deuda autorizada fluye hacia lote de pago con cuenta bancaria congelada.
-- [x] Partidas se confirman o rechazan individualmente con auditoría estricta.
-- [x] Pruebas unitarias de liquidación ejecutándose con éxito.
-
----
-
-## Task 7: Catálogo de terminales autorizadas (branch_terminals)
-
-**Description:**
-Crear el esquema Drizzle `branch_terminals` y su API administrativa para registrar y gestionar el parque de terminales físicas por sucursal (número de serie, alias "Barra 1", proveedor/adquirente [Clip, Mercado Pago, BBVA, Banorte, Santander], número de afiliación y estado activo). Esta tabla es la base fundamental para detectar terminales fantasma y controlar cierres de lote.
-
-**Acceptance criteria:**
-- [x] Tabla `branch_terminals` creada en `lib/db/schema/finance.ts` con índices únicos por compañía y número de serie.
-- [x] API CRUD en `/api/finance/terminals` con validación Zod y aislamiento por `companyId`/`branchId`.
-- [x] Vista de catálogo accesible en Configuración de Finanzas para dar de alta y editar terminales (`app/dashboard/finance/settings/terminals/page.tsx`).
-
-**Verification:**
-- [x] Tests pasan: `pnpm test:unit lib/services/__tests__/terminal-service.test.ts` (3/3 passed, 18/18 suites passed)
-- [x] Build exitoso: `tsc --noEmit` pasado limpiamente
-- [x] Manual check: Registrar terminal con alias y validar rechazo de duplicados de serie por compañía.
+- [ ] Tests pasan: `pnpm test lib/services/__tests__/cross-branch-qsr.test.ts`
+- [ ] Build exitoso: `pnpm run build`
 
 **Dependencies:** Task 1
 
 **Files likely touched:**
-- `lib/db/schema/finance.ts`
-- `app/api/finance/terminals/route.ts`
-- `lib/services/terminal-service.ts`
-- `app/dashboard/finance/settings/terminals/page.tsx`
+- `lib/services/cross-branch-service.ts`
+- `lib/services/__tests__/cross-branch-qsr.test.ts`
 
-**Estimated scope:** Medium (4 files)
+**Estimated scope:** Medium (2-3 files)
 
 ---
 
-## Task 8: Registro de cierre de lotes de terminales en turno con foto de voucher
+## Task 7: Rediseño de la Liga de Sucursales y Benchmarking de Red
 
 **Description:**
-Diseñar el esquema `tpv_shift_batches` y el componente de formulario para el cierre de turno del gerente. Permite registrar por cada terminal física de la sucursal: folio de lote, monto total cobrado en tarjeta, propinas acumuladas y fotografía obligatoria del voucher de cierre de lote físico (almacenada en R2 o fallback local).
+Rediseñar `app/dashboard/branches/page.tsx` como la "Liga de Sucursales" para grupos de 3 a 15 unidades:
+1. Podio de honor con Top 3 sucursales del mes según el Scorecard QSR integral.
+2. Tabla comparativa de consistencia multi-unidad mostrando: Venta Promedio, Food Cost %, Labor Cost %, Prime Cost %, NOM-251 y Cuadre TPV.
+3. Panel de Hallazgos de Inteligencia de Red (Executive Twin) explicando causas de varianza entre tiendas.
+4. Ficha 360° en `app/dashboard/branches/[id]/page.tsx` con la radiografía completa de la sucursal (organigrama de turno, equipos de refrigeración, bitácora de mermas y auditorías fotográficas).
 
 **Acceptance criteria:**
-- [x] Tabla `tpv_shift_batches` vinculada a `daily_sales_cuts` y `branch_terminals`.
-- [x] Componente interactivo en el cierre de turno que despliega las terminales activas de la sucursal y solicita montos y fotografía del voucher.
-- [x] Validación de que la suma de lotes físicos ingresados se compare contra `daily_sales_cuts.card_sales` alertando discrepancias inmediatas al gerente.
-
-**Verification:**
-- [x] Unit tests pasan: `pnpm test:unit lib/services/__tests__/tpv-batch-service.test.ts` (5/5 passed, 42/42 suites passed)
-- [x] Build exitoso: `tsc --noEmit` pasado limpiamente (0 errors)
-- [x] Manual check: Completar un corte de turno capturando dos lotes de terminal con imagen adjunta.
-
-**Dependencies:** Task 7
-
-**Files likely touched:**
-- `lib/db/schema/finance.ts`
-- `app/api/sales/cuts/[id]/batches/route.ts`
-- `components/sales/tpv-batch-entry-form.tsx`
-- `lib/services/tpv-reconciliation-service.ts`
-
-**Estimated scope:** Medium (4 files)
-
----
-
-## Task 9: Importador de reportes CSV/Excel de pasarelas (Clip, MP, bancos)
-
-**Description:**
-Construir el parser e importador de reportes de pasarelas de pago y adquirentes en `/dashboard/finance/cash-flow/reconciliation`. Adaptar la arquitectura de plantillas existente (`pos_mapping_templates`) para normalizar archivos descargados de portales web (Clip, Mercado Pago, Stripe, portales bancarios BBVA/Banorte), extrayendo por transacción: fecha/hora, número de autorización/tarjeta, monto bruto, comisión retenida, IVA de comisión y abono neto.
-
-**Acceptance criteria:**
-- [x] Parser flexible que procesa archivos CSV y Excel (.xlsx) mapeando columnas canónicas según la pasarela seleccionada.
-- [x] Detección automática de duplicados por folio de transacción o fecha/hora/monto dentro de la compañía.
-- [x] Almacenamiento estructurado de transacciones conciliables vinculadas a la sucursal y período.
-
-**Verification:**
-- [x] Tests unitarios: `pnpm test:unit lib/services/__tests__/gateway-parser.test.ts` & `gateway-report-service.test.ts` (9/9 passed, 44/44 suites passed)
-- [x] Build exitoso: `tsc --noEmit` pasado limpiamente (0 errors)
-- [x] Manual check: Cargar un archivo CSV de prueba de Clip y verificar que extrae correctamente transacciones, comisiones y montos netos.
-
-**Dependencies:** Task 8
-
-**Files likely touched:**
-- `lib/services/gateway-report-parser.ts`
-- `app/api/finance/reconciliation/upload/route.ts`
-- `app/dashboard/finance/cash-flow/reconciliation/page.tsx`
-- `lib/services/__tests__/gateway-parser.test.ts`
-
-**Estimated scope:** Medium (4 files)
-
----
-
-## Task 10: Auditoría de comisiones e integridad en P&L (Línea 214)
-
-**Description:**
-Implementar el motor de auditoría matemática de comisiones contractuales vs. retenidas reales y conectar el resultado con `pnl-service.ts` respetando estrictamente la regla de integridad: la venta bruta se mantiene al 100% en ingresos (evitando distorsionar el food cost % y ticket promedio), mientras que la comisión auditada se registra como gasto financiero de venta con etiqueta `MEASURED` (o `ESTIMATED` si proviene de tarifa) segregando el 16% de IVA acreditable.
-
-**Acceptance criteria:**
-- [x] El sistema calcula la comisión contractual esperada según tarifas pactadas en `channel_commission_rates` (MDR bps + sobretasas) y la compara contra el monto cobrado por la pasarela, alertando discrepancias por sobrecobro.
-- [x] En `pnl-service.ts`, el renglón de comisiones se alimenta de los montos medidos del reporte de pasarela cuando existen, marcándose como `MEASURED`.
-- [x] El cálculo del porcentaje de Food Cost y utilidad operativa se realiza sobre la base neta/bruta sin restar previamente comisiones a los ingresos.
-
-**Verification:**
-- [x] Tests pasan: `pnpm test:unit lib/services/__tests__/commission-audit.test.ts` (4/4 passed, 45/45 suites passed)
-- [x] TypeScript limpio: `tsc --noEmit` pasado limpiamente (0 errors)
-- [x] Manual check: Visualización de auditoría de comisiones en `/dashboard/finance/cash-flow/reconciliation` con detección de sobrecobros y segregación de IVA 16%.
-
-**Dependencies:** Task 9
-
-**Files touched:**
-- `lib/services/commission-service.ts`
-- `app/api/finance/commissions/audit/route.ts`
-- `app/dashboard/finance/cash-flow/reconciliation/page.tsx`
-- `lib/services/__tests__/commission-audit.test.ts`
-
-**Estimated scope:** Medium (4 files)
-
----
-
-## Task 11: Motor antifraude operativo (Cancelaciones, Propinas y Terminales Fantasma)
-
-**Description:**
-Implementar las reglas de detección de anomalías y prevención de fugas operativas en `lib/services/tpv-fraud-detection-service.ts`. Ejecutar chequeos automáticos al registrar cortes y reportes:
-1. Alerta de ticket cancelado en POS con cobro exitoso en terminal (±20 min).
-2. Alerta de propina desproporcionada (>20% del consumo o sin comanda) y descuadre voucher vs. POS vs. tronco.
-3. Alerta de terminal no autorizada cuando la tarjeta en POS excede la suma de terminales registradas.
-Inyectar estas alertas directamente en la bandeja de **Hoy**.
-
-**Acceptance criteria:**
-- [ ] Detección automática de coincidencias monto/hora entre tickets cancelados y vouchers de lote.
-- [ ] Generación automática de excepciones de severidad `HIGH` en `violation_records` que se reflejan de inmediato en la bandeja Hoy.
-- [ ] Alerta de terminal no autorizada levantada si un corte reporta ventas con tarjeta sin respaldo en los lotes de las terminales del catálogo.
-
-**Verification:**
-- [ ] Tests unitarios: `pnpm test lib/services/__tests__/tpv-fraud-detection.test.ts`
-- [ ] Build exitoso: `pnpm run build`
-- [ ] Manual check: Simular ticket cancelado post-cobro y verificar aparición inmediata en la bandeja Hoy con badge "Crítico".
-
-**Dependencies:** Task 10
-
-**Files likely touched:**
-- `lib/services/tpv-fraud-detection-service.ts`
-- `app/api/finance/attention/route.ts`
-- `components/finance/hoy-case-dossier.tsx`
-- `lib/services/__tests__/tpv-fraud-detection.test.ts`
-
-**Estimated scope:** Medium (4 files)
-
----
-
-## Checkpoint: Conciliación TPV y Antifraude Operativo
-- [ ] Ciclo completo de conciliación a 3 bandas operable con datos de prueba.
-- [ ] Detección de fraude operativo alimentando alertas en Hoy en tiempo real.
-- [ ] Integridad de P&L garantizada (comisiones auditadas sin alterar venta bruta ni food cost).
-
----
-
-## Task 12: Checklist de cierre mensual y expediente en Cierre y Control
-
-**Description:**
-Diseñar el checklist interactivo de cierre en `app/dashboard/finance/control-interno/page.tsx`. Presentar al administrador la verificación de los pilares del mes antes de permitir el cierre definitivo: todos los cortes de venta capturados, todos los lotes de terminales conciliados con voucher, sin discrepancias abiertas de tarjeta ni gastos sin autorizar, y cálculo de P&L consistente. Al completar el checklist, invoca `closeFinancialPeriod` con confirmación explícita y generación del expediente de cierre.
-
-**Acceptance criteria:**
-- [ ] El checklist bloquea el botón de cierre si existen discrepancias financieras críticas sin justificar o lotes TPV sin voucher.
-- [ ] Al ejecutar el cierre, se valida el snapshot de P&L de todas las sucursales con atomicidad garantizada.
-- [ ] Vista histórica de períodos cerrados con opción de descarga de expediente completo y auditoría de reaperturas.
+- [ ] Muestra el ranking visual de las 3 a 15 sucursales ordenadas por su puntaje integral QSR.
+- [ ] La tabla destaca con colores semafóricos los Prime Costs saludables (<60% verde, 60-65% amarillo, >65% rojo).
+- [ ] Al hacer clic en cualquier sucursal, se accede a la ficha detallada 360° conservando el selector de período.
+- [ ] Incluye exportación a CSV con codificación BOM para Excel en español.
 
 **Verification:**
 - [ ] Build exitoso: `pnpm run build`
-- [ ] Manual check: Navegar a Cierre y Control, completar el checklist y ejecutar el cierre de un período de prueba.
+- [ ] Manual check: Abrir `/dashboard/branches`, comparar sucursales y entrar a la ficha de una sucursal específica.
 
-**Dependencies:** Task 2, Task 11
+**Dependencies:** Task 6
 
 **Files likely touched:**
-- `app/dashboard/finance/control-interno/page.tsx`
-- `components/finance/monthly-period-close-dialog.tsx`
-- `lib/services/financial-period-service.ts`
+- `app/dashboard/branches/page.tsx`
+- `app/dashboard/branches/[id]/page.tsx`
+- `components/analytics/branch-ranking-table.tsx`
+- `components/analytics/branch-qsr-scorecard.tsx`
 
-**Estimated scope:** Medium (3 files)
+**Estimated scope:** Large (4-5 files)
 
 ---
 
-## Checkpoint Final: Sistema de Finanzas Operativas Completo
-- [ ] Todos los 12 tasks completados con criterios de aceptación cumplidos.
-- [ ] Suite completa de pruebas pasa: `pnpm test`.
-- [ ] Compilación de producción limpia: `pnpm run build`.
-- [ ] Revisión final y validación de flujos con el usuario.
+## Checkpoint 4: Benchmarking y Liga QSR Funcionando
+- [ ] Las sucursales se comparan de forma justa con métricas estandarizadas de la industria.
+- [ ] Los socios y supervisores pueden auditar exactamente qué tienda está fugando margen en alimentos o personal.
+
+---
+
+## Task 8: Consolidación de Dirección & Unit Economics (Executive Suite)
+
+**Description:**
+Refinar `app/dashboard/executive/page.tsx` para concentrar la visión del dueño y socios de la marca:
+- Mantener en la cabecera el **Morning Brief diario (7:00 AM)** con el estado de salud sobre 100 y las 3 prioridades del día.
+- Destacar el bloque de métricas consolidadas: Venta acumulada del mes, Prime Cost consolidado de la marca y Caja disponible.
+- Integrar la tabla de P&L Operativo Comparativo (`PnlBranchTable`) con EBITDA por sucursal.
+- Mantener la Proyección de Flujo a 14 días (`CashFlowProjection`) vinculada a compromisos con proveedores y nóminas.
+
+**Acceptance criteria:**
+- [ ] La pantalla de Dirección carga limpiamente sin duplicar la lista de excepciones ni rankings redundantes que ya viven en `/dashboard/branches`.
+- [ ] Presenta el Morning Brief matutino generado por el motor de inteligencia.
+- [ ] El P&L operativo y el flujo de caja muestran la rentabilidad neta por tienda.
+
+**Verification:**
+- [ ] Build exitoso: `pnpm run build`
+- [ ] Manual check: Verificar que `/dashboard/executive` ofrece la vista panorámica de negocio para el dueño sin ruido operativo.
+
+**Dependencies:** Task 1, Task 6
+
+**Files likely touched:**
+- `app/dashboard/executive/page.tsx`
+- `components/dashboard/executive/kpi-hero-cards.tsx`
+
+**Estimated scope:** Medium (2-3 files)
+
+---
+
+## Task 9: Retiro seguro de rutas de analítica obsoletas y verificación integral
+
+**Description:**
+Completar la transición de la suite analítica:
+- Configurar redirecciones permanentes o mensajes de delegación en las rutas que se retiran del flujo principal (`/dashboard/analytics/kpi-builder`, `/dashboard/analytics/trends`, `/dashboard/analytics/incidents`, `/dashboard/analytics`).
+- Asegurar que no queden enlaces rotos en componentes secundarios ni en notificaciones.
+- Ejecutar la suite completa de pruebas unitarias y de integración del proyecto.
+- Comprobar que el build de producción (`pnpm run build`) compila con cero errores.
+
+**Acceptance criteria:**
+- [ ] Si un usuario accede a `/dashboard/analytics`, es redirigido a `/dashboard/branches` o `/dashboard`.
+- [ ] Si accede a `/dashboard/analytics/incidents`, es redirigido a `/dashboard/exceptions`.
+- [ ] Todos los tests del proyecto pasan limpiamente: `pnpm test`.
+- [ ] `pnpm run build` y `pnpm run lint` finalizan con éxito.
+
+**Verification:**
+- [ ] `pnpm test`
+- [ ] `pnpm run build`
+- [ ] `pnpm run lint`
+
+**Dependencies:** Tasks 1 a 8
+
+**Files likely touched:**
+- `next.config.ts` (o `next.config.js`)
+- `app/dashboard/analytics/page.tsx`
+- `app/dashboard/analytics/kpi-builder/page.tsx`
+- `app/dashboard/analytics/trends/page.tsx`
+- `app/dashboard/analytics/incidents/page.tsx`
+
+**Estimated scope:** Medium (3-5 files)
+
+---
+
+## Checkpoint Final: Sistema Operativo QSR Completo y Verificado
+- [ ] El sistema Pulso queda transformado en un verdadero Sistema Operativo Multi-Unidad para grupos QSR de 3 a 15 sucursales.
+- [ ] Desapareció la confusión entre 4 dashboards distintos.
+- [ ] Todas las pruebas automatizadas y compilación pasan al 100%.

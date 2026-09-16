@@ -29,6 +29,7 @@ export const GET = withTenantAuth(async (req, { auth }) => {
   const { searchParams } = new URL(req.url);
   const requestedBranchId = searchParams.get("branchId");
   const domainParam = searchParams.get("domain");
+  const categoryParam = searchParams.get("category");
   const limitParam = searchParams.get("limit");
 
   const scope = resolveBranchScope(auth.user.role, auth.user.branchId, requestedBranchId);
@@ -42,11 +43,17 @@ export const GET = withTenantAuth(async (req, { auth }) => {
       ? (domainParam as ExceptionDomain)
       : undefined;
 
+  const validCategories = ["DINERO", "INOCUIDAD", "ABASTO", "PERSONAL"];
+  const qsrCategory = categoryParam && validCategories.includes(categoryParam.toUpperCase())
+    ? (categoryParam.toUpperCase() as any)
+    : undefined;
+
   const limit = limitParam ? Number(limitParam) : undefined;
 
   const exceptions = await GroupExceptionsService.listOpen(auth.tenantId, {
     branchId: scope.kind === "BRANCH" ? scope.branchId : undefined,
     domain,
+    qsrCategory,
     limit: limit && Number.isFinite(limit) && limit > 0 ? limit : undefined,
   });
 

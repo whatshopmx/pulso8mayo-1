@@ -21,7 +21,20 @@ import {
 } from '@/lib/db/schema/equipment';
 import { eq, and, desc, asc, gte, lte, isNull, or, sql } from 'drizzle-orm';
 import { branches } from '@/lib/db/schema';
+import type { BranchScope } from '@/lib/branch-scope';
+import { assertBranchOfCompany } from '@/lib/branch-scope';
+import { assertScopeCoversBranch } from '@/lib/equipment/scope';
+import { ApiError } from '@/lib/api/error';
 import { v4 as uuidv4 } from 'uuid';
+
+/** Una fila de inventario tal como sale de la base. */
+export type EquipmentRow = typeof branchEquipments.$inferSelect;
+
+/**
+ * Fila de `equipment_maintenance_history`, para no repetir el `typeof`.
+ * El PUT de `[id]/maintenance` la necesita fuera del servicio para tipar su guarda.
+ */
+export type MaintenanceRow = typeof equipmentMaintenanceHistory.$inferSelect;
 
 // Types
 export interface CreateEquipmentInput {
@@ -126,6 +139,18 @@ export interface CreateComplianceServiceInput {
   workflowTemplateId?: string;
 }
 
+/**
+ * Filtros de inventario que acompañan al alcance.
+ *
+ * No sustituyen al alcance: se suman a él. `companyId` y sucursal los impone el
+ * servidor y ningún filtro puede aflojarlos (`getEquipmentByScope`).
+ */
+export interface EquipmentListFilters {
+  status?: string;
+  type?: string;
+  isCritical?: boolean;
+}
+
 export class EquipmentService {
   /**
    * Create a new equipment catalog entry
@@ -225,24 +250,93 @@ export class EquipmentService {
   /**
    * Get equipment by ID
    */
-  async getEquipmentById(equipmentId: string) {
+  /**
+   * Un equipo de esta empresa, o `undefined`.
+   *
+   * `companyId` va dentro del `WHERE` y no es adorno: la consulta anterior
+   * buscaba sólo por `id`, así que el `equipmentId` de otra empresa —o de otra
+   * sucursal— era alcanzable con tener el id en la mano. La llave foránea no lo
+   * impide: la fila existe, sólo que no es tuya.
+   */
+  async getEquipmentById(equipmentId: string, companyId: string) {
     const [equipment] = await db
       .select()
       .from(branchEquipments)
-      .where(eq(branchEquipments.id, equipmentId));
+      .where(and(
+        eq(branchEquipments.id, equipmentId),
+        eq(branchEquipments.companyId, companyId)
+      ))
+      .limit(1);
     return equipment;
   }
 
   /**
-   * Get equipment list by branch
+   * El equipo que este alcance puede alcanzar: el expediente, no el listado.
+   *
+   * Filtrar la sucursal en el listado no protegía las rutas por ID. Quien tenía
+   * el `equipmentId` entraba igual a un equipo de otra sucursal —e incluso de
+   * otra empresa—, porque los servicios por ID consultaban sólo por `id`.
+   * Listar es distinto de alcanzar, y esta guarda cubre lo segundo.
+   *
+   * Los dos rechazos son deliberadamente distintos, y siguen el patrón de
+   * `expense-service.ts:52`:
+   *
+   * - **404** (`ApiError.notFound`): el id no existe *en esta empresa*. También
+   *   cubre el id de otra empresa y el id mal escrito, con el mismo mensaje: si
+   *   difirieran, quien prueba ids averiguaría qué equipos tienen las demás.
+   * - **403** (`assertScopeCoversBranch`): el equipo es de la empresa pero está
+   *   fuera del alcance del usuario —otra sucursal, o un rol acotado sin
+   *   sucursal asignada—. Aquí la empresa ya está dentro de la frontera del
+   *   usuario y callar la causa sólo deja al gerente sin saber a quién pedirle
+   *   el cambio.
    */
-  async getEquipmentByBranch(branchId: string, filters?: {
-    status?: string;
-    type?: string;
-    isCritical?: boolean;
-  }) {
-    const conditions = [eq(branchEquipments.branchId, branchId)];
+  async getEquipmentInScope(input: {
+    equipmentId: string;
+    companyId: string;
+    scope: BranchScope;
+  }): Promise<EquipmentRow> {
+    const equipment = await this.getEquipmentById(input.equipmentId, input.companyId);
 
+    if (!equipment) {
+      throw ApiError.notFound(
+        "El equipo especificado no fue encontrado. Puede que se haya dado de baja o que ya no exista."
+      );
+    }
+
+    assertScopeCoversBranch(input.scope, equipment.branchId);
+
+    return equipment;
+  }
+
+  /**
+   * Get equipment list for an authorized scope.
+   *
+   * `companyId` sale de la sesión y va dentro del `WHERE`, no de adorno: la
+   * versión anterior filtraba sólo por sucursal, así que un `branchId` de otra
+   * empresa devolvía su inventario. La sucursal ajena existe —sólo que no es
+   * tuya— y la llave foránea no lo detecta.
+   *
+   * `NONE` devuelve vacío en vez de caer en "sin filtro": es la convención de
+   * las listas del repo para un rol de sucursal sin sucursal asignada
+   * (`app/api/expenses/route.ts:78`). El vacío no se rotula aquí; distinguirlo
+   * de "no hay equipos" es trabajo de la pantalla (T10/T30).
+   */
+  async getEquipmentByScope(input: {
+    companyId: string;
+    scope: BranchScope;
+    filters?: EquipmentListFilters;
+  }) {
+    if (input.scope.kind === "NONE") {
+      return [];
+    }
+
+    const conditions = [eq(branchEquipments.companyId, input.companyId)];
+
+    if (input.scope.kind === "BRANCH") {
+      conditions.push(eq(branchEquipments.branchId, input.scope.branchId));
+    }
+
+    const filters = input.filters;
     if (filters?.status) {
       conditions.push(eq(branchEquipments.status, filters.status as any));
     }
@@ -261,22 +355,22 @@ export class EquipmentService {
   }
 
   /**
-   * Get equipment with full details including warranties and maintenance
+   * El expediente del equipo: garantías, historial y programación.
+   *
+   * Recibe la fila ya cargada por `getEquipmentInScope` en vez del `id`. Antes
+   * volvía a consultar el equipo por `id` —sin empresa ni sucursal— y esa
+   * consulta duplicada era justo el agujero que T03 cierra: una segunda lectura
+   * que no pasaba por el alcance. Como el `id` es único, cargar de nuevo sólo
+   * agregaba una consulta y un camino sin guarda.
    */
-  async getEquipmentWithDetails(equipmentId: string) {
-    const [equipment] = await db
-      .select()
-      .from(branchEquipments)
-      .where(eq(branchEquipments.id, equipmentId));
-
-    if (!equipment) return null;
-
+  async getEquipmentWithDetails(equipment: EquipmentRow) {
     // Get active warranties
     const warranties = await db
       .select()
       .from(equipmentWarranties)
       .where(and(
-        eq(equipmentWarranties.equipmentId, equipmentId),
+        eq(equipmentWarranties.equipmentId, equipment.id),
+        eq(equipmentWarranties.companyId, equipment.companyId),
         eq(equipmentWarranties.status, 'ACTIVE')
       ));
 
@@ -284,7 +378,10 @@ export class EquipmentService {
     const maintenance = await db
       .select()
       .from(equipmentMaintenanceHistory)
-      .where(eq(equipmentMaintenanceHistory.equipmentId, equipmentId))
+      .where(and(
+        eq(equipmentMaintenanceHistory.equipmentId, equipment.id),
+        eq(equipmentMaintenanceHistory.companyId, equipment.companyId)
+      ))
       .orderBy(desc(equipmentMaintenanceHistory.scheduledDate))
       .limit(10);
 
@@ -293,7 +390,8 @@ export class EquipmentService {
       .select()
       .from(equipmentMaintenanceSchedules)
       .where(and(
-        eq(equipmentMaintenanceSchedules.equipmentId, equipmentId),
+        eq(equipmentMaintenanceSchedules.equipmentId, equipment.id),
+        eq(equipmentMaintenanceSchedules.companyId, equipment.companyId),
         eq(equipmentMaintenanceSchedules.isActive, true)
       ));
 
@@ -307,8 +405,17 @@ export class EquipmentService {
 
   /**
    * Update equipment
+   *
+   * `companyId` va en el `WHERE` además de la guarda previa: si alguien llama a
+   * este método sin pasar por `getEquipmentInScope`, la escritura sigue sin
+   * poder tocar la fila de otra empresa.
    */
-  async updateEquipment(equipmentId: string, data: UpdateEquipmentInput, updatedBy: string) {
+  async updateEquipment(
+    equipmentId: string,
+    companyId: string,
+    data: UpdateEquipmentInput,
+    updatedBy: string
+  ) {
     const [updated] = await db
       .update(branchEquipments)
       .set({
@@ -316,15 +423,21 @@ export class EquipmentService {
         updatedBy,
         updatedAt: new Date(),
       } as any)
-      .where(eq(branchEquipments.id, equipmentId))
+      .where(and(
+        eq(branchEquipments.id, equipmentId),
+        eq(branchEquipments.companyId, companyId)
+      ))
       .returning();
     return updated;
   }
 
   /**
    * Delete equipment (soft delete by setting status to DISPOSED)
+   *
+   * Mismo par `(id, companyId)` que la actualización: dar de baja un equipo
+   * ajeno era la versión destructiva del mismo agujero.
    */
-  async deleteEquipment(equipmentId: string, updatedBy: string) {
+  async deleteEquipment(equipmentId: string, companyId: string, updatedBy: string) {
     const [updated] = await db
       .update(branchEquipments)
       .set({
@@ -332,7 +445,10 @@ export class EquipmentService {
         updatedBy,
         updatedAt: new Date(),
       })
-      .where(eq(branchEquipments.id, equipmentId))
+      .where(and(
+        eq(branchEquipments.id, equipmentId),
+        eq(branchEquipments.companyId, companyId)
+      ))
       .returning();
     return updated;
   }
@@ -354,13 +470,21 @@ export class EquipmentService {
   }
 
   /**
-   * Get warranties for equipment
+   * Garantías de un equipo, de esta empresa.
+   *
+   * La empresa va en el `WHERE` además de la guarda del equipo: son dos capas
+   * para el mismo hueco. La guarda decide si el usuario alcanza el equipo; esta
+   * condición garantiza que, aunque un llamador nuevo se olvide de la guarda, no
+   * exista una consulta de garantías capaz de cruzar empresas.
    */
-  async getWarrantiesByEquipment(equipmentId: string) {
+  async getWarrantiesByEquipment(equipmentId: string, companyId: string) {
     return db
       .select()
       .from(equipmentWarranties)
-      .where(eq(equipmentWarranties.equipmentId, equipmentId))
+      .where(and(
+        eq(equipmentWarranties.equipmentId, equipmentId),
+        eq(equipmentWarranties.companyId, companyId)
+      ))
       .orderBy(desc(equipmentWarranties.endDate));
   }
 
@@ -396,10 +520,56 @@ export class EquipmentService {
   }
 
   /**
+   * El registro de mantenimiento que este alcance puede cerrar.
+   *
+   * El `PUT` de `[id]/maintenance` cerraba por el `maintenanceId` que llegaba en
+   * el **cuerpo**, sin mirar de quién era. Con ese id en la mano se completaba
+   * mantenimiento de otra empresa —y el cierre arrastraba, además, la fecha de
+   * último mantenimiento del equipo ajeno—. Es el mismo agujero que
+   * `getEquipmentInScope` cierra para el equipo, un nivel más abajo.
+   *
+   * El `equipmentId` de la ruta va en el `WHERE` a propósito: ata el registro al
+   * equipo del URL, así que no se puede cerrar el mantenimiento de un equipo
+   * pasando el id de otro. Los rechazos son los mismos que en el expediente —
+   * 404 para "no existe en esta empresa", 403 para "fuera de tu sucursal"—.
+   */
+  async getMaintenanceInScope(input: {
+    maintenanceId: string;
+    equipmentId: string;
+    companyId: string;
+    scope: BranchScope;
+  }): Promise<MaintenanceRow> {
+    const [maintenance] = await db
+      .select()
+      .from(equipmentMaintenanceHistory)
+      .where(and(
+        eq(equipmentMaintenanceHistory.id, input.maintenanceId),
+        eq(equipmentMaintenanceHistory.equipmentId, input.equipmentId),
+        eq(equipmentMaintenanceHistory.companyId, input.companyId)
+      ))
+      .limit(1);
+
+    if (!maintenance) {
+      throw ApiError.notFound("El registro de mantenimiento especificado no fue encontrado.");
+    }
+
+    assertScopeCoversBranch(input.scope, maintenance.branchId);
+
+    return maintenance;
+  }
+
+  /**
    * Complete maintenance record
+   *
+   * `companyId` entra en los dos `WHERE`: al registro de mantenimiento y al
+   * equipo cuya fecha de último mantenimiento se actualiza. Sin el segundo, un
+   * cierre legítimo podía escribir sobre el equipo de otra empresa si el
+   * registro apuntaba a uno ajeno —el `equipmentId` que trae la fila se usaba
+   * como única condición—.
    */
   async completeMaintenance(
     maintenanceId: string,
+    companyId: string,
     data: {
       workPerformed: string;
       tasksCompleted?: unknown[];
@@ -427,7 +597,10 @@ export class EquipmentService {
         updatedBy,
         updatedAt: new Date(),
       })
-      .where(eq(equipmentMaintenanceHistory.id, maintenanceId))
+      .where(and(
+        eq(equipmentMaintenanceHistory.id, maintenanceId),
+        eq(equipmentMaintenanceHistory.companyId, companyId)
+      ))
       .returning();
 
     // Update equipment last maintenance date
@@ -439,7 +612,10 @@ export class EquipmentService {
           nextMaintenanceDate: data.nextMaintenanceDate,
           updatedAt: new Date(),
         })
-        .where(eq(branchEquipments.id, updated.equipmentId));
+        .where(and(
+          eq(branchEquipments.id, updated.equipmentId),
+          eq(branchEquipments.companyId, companyId)
+        ));
     }
 
     return updated;
@@ -448,11 +624,14 @@ export class EquipmentService {
   /**
    * Get maintenance history
    */
-  async getMaintenanceHistory(equipmentId: string, limit?: number) {
+  async getMaintenanceHistory(equipmentId: string, companyId: string, limit?: number) {
     let query = db
       .select()
       .from(equipmentMaintenanceHistory)
-      .where(eq(equipmentMaintenanceHistory.equipmentId, equipmentId))
+      .where(and(
+        eq(equipmentMaintenanceHistory.equipmentId, equipmentId),
+        eq(equipmentMaintenanceHistory.companyId, companyId)
+      ))
       .orderBy(desc(equipmentMaintenanceHistory.scheduledDate));
 
     if (limit) {
@@ -489,8 +668,30 @@ export class EquipmentService {
 
   /**
    * Create compliance service configuration
+   *
+   * Los servicios periódicos viven en una sucursal y pueden contratar a un
+   * proveedor. Hasta T04 ninguno de los dos se comprobaba: el `branchId` y el
+   * `providerId` del cuerpo se insertaban tal cual, y la llave foránea no
+   * impide la fila cruzada —la sucursal y el proveedor de otra empresa
+   * existen, sólo que no son tuyos—.
    */
   async createComplianceService(data: CreateComplianceServiceInput, createdBy: string) {
+    await assertBranchOfCompany(data.companyId, data.branchId);
+
+    if (data.providerId) {
+      const [provider] = await db
+        .select({ id: serviceProviders.id })
+        .from(serviceProviders)
+        .where(and(
+          eq(serviceProviders.id, data.providerId),
+          eq(serviceProviders.companyId, data.companyId)
+        ))
+        .limit(1);
+      if (!provider) {
+        throw ApiError.badRequest("El proveedor de servicio indicado no pertenece a la empresa");
+      }
+    }
+
     const serviceData: Record<string, unknown> = {
       ...data,
       providerId: data.providerId || null,

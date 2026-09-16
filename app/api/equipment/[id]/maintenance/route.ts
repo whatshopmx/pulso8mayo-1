@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { equipmentService } from "@/lib/services/equipment-service";
 import { ApiHandler } from "@/lib/api/response";
-import { requireTenant } from "@/lib/tenant-context";
+import { requireTenant, requireAuth } from "@/lib/tenant-context";
+import { resolveEquipmentScope } from "@/lib/equipment/scope";
 import { z } from "zod";
 
 const createMaintenanceSchema = z.object({
@@ -42,11 +43,23 @@ const completeMaintenanceSchema = z.object({
   approvedBy: z.string().optional(),
 });
 
+/**
+ * Mantenimiento de un equipo: historial, programación y cierre.
+ *
+ * Las tres rutas comparten la guarda del expediente (`getEquipmentInScope`): el
+ * equipo del URL tiene que ser de esta empresa y estar dentro del alcance del
+ * usuario. El cierre añade una segunda guarda, `getMaintenanceInScope`, porque
+ * hasta T03 cerraba por el `maintenanceId` que llegaba en el **cuerpo** sin
+ * mirar de quién era: con ese id en la mano se completaba mantenimiento de otra
+ * empresa, y el cierre arrastraba además la fecha de último mantenimiento del
+ * equipo ajeno.
+ */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { user } = await requireAuth();
     const tenant = await requireTenant();
     const { id } = await params;
     
@@ -54,12 +67,20 @@ export async function GET(
       return ApiHandler.error(new Error("Unauthorized"), 401);
     }
 
+    const scope = resolveEquipmentScope(user.role, user.branchId ?? null, tenant.branchId ?? null);
+
+    const equipment = await equipmentService.getEquipmentInScope({
+      equipmentId: id,
+      companyId: tenant.id,
+      scope,
+    });
+
     const url = new URL(req.url);
     const limit = url.searchParams.get("limit") 
       ? parseInt(url.searchParams.get("limit")!) 
       : undefined;
 
-    const history = await equipmentService.getMaintenanceHistory(id, limit);
+    const history = await equipmentService.getMaintenanceHistory(equipment.id, tenant.id, limit);
     
     return ApiHandler.success(history);
   } catch (error) {
@@ -72,6 +93,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { user } = await requireAuth();
     const tenant = await requireTenant();
     const { id } = await params;
     
@@ -79,18 +101,23 @@ export async function POST(
       return ApiHandler.error(new Error("Unauthorized"), 401);
     }
 
-    // Get equipment to ensure it exists and get branchId
-    const equipment = await equipmentService.getEquipmentById(id);
-    if (!equipment) {
-      return ApiHandler.error(new Error("Equipment not found"), 404);
-    }
+    const scope = resolveEquipmentScope(user.role, user.branchId ?? null, tenant.branchId ?? null);
+
+    // El equipo del URL, ya validado contra empresa y sucursal: de ahí salen el
+    // `equipmentId`, la empresa y la sucursal del registro nuevo, no del cuerpo
+    // de la petición.
+    const equipment = await equipmentService.getEquipmentInScope({
+      equipmentId: id,
+      companyId: tenant.id,
+      scope,
+    });
 
     const body = await req.json();
     const data = createMaintenanceSchema.parse(body);
 
     const maintenance = await equipmentService.createMaintenance(
       {
-        equipmentId: id,
+        equipmentId: equipment.id,
         companyId: tenant.id,
         branchId: equipment.branchId,
         ...data,
@@ -111,12 +138,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { user } = await requireAuth();
     const tenant = await requireTenant();
     const { id } = await params;
     
     if (!tenant.id) {
       return ApiHandler.error(new Error("Unauthorized"), 401);
     }
+
+    const scope = resolveEquipmentScope(user.role, user.branchId ?? null, tenant.branchId ?? null);
 
     const body = await req.json();
     const { maintenanceId, ...data } = body;
@@ -125,10 +155,22 @@ export async function PUT(
       return ApiHandler.error(new Error("maintenanceId is required"), 400);
     }
 
+    // El `maintenanceId` viene del cuerpo y el equipo del URL: se exige que el
+    // registro sea de *ese* equipo, de esta empresa y de una sucursal del
+    // alcance antes de cerrarlo. Un id de otra empresa responde 404; uno de otra
+    // sucursal, 403.
+    await equipmentService.getMaintenanceInScope({
+      maintenanceId,
+      equipmentId: id,
+      companyId: tenant.id,
+      scope,
+    });
+
     const validatedData = completeMaintenanceSchema.parse(data);
 
     const maintenance = await equipmentService.completeMaintenance(
       maintenanceId,
+      tenant.id,
       {
         ...validatedData,
         nextMaintenanceDate: validatedData.nextMaintenanceDate 

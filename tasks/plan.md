@@ -1,77 +1,90 @@
-# Implementation Plan: Finanzas Operativas y Conciliación TPV Pulso
+# Implementation Plan: Sistema Operativo de Red QSR (3 a 15 Sucursales) — Pulso HORECA
 
 ## Overview
 
-Reestructuración y consolidación del módulo de Finanzas de Pulso (`app/dashboard/finance`) para cadenas HORECA (3 a 15 sucursales), organizado alrededor del ciclo diario del dinero:
-**Revisar pendientes (Hoy) → Registrar y autorizar (Gastos) → Programar y confirmar pagos (Pagos) → Control de liquidez y conciliación de tarjetas (Caja y Cobros) → Explicar resultados con procedencia (Resultados) → Cerrar el período con snapshot garantizado (Cierre y Control)**.
+Transformación de la experiencia de administración y supervisión de Pulso HORECA para **grupos restauranteros de servicio rápido (QSR) de 3 a 15 sucursales**. 
 
-Incluye la capa crítica de **conciliación a tres bandas de cobros con tarjeta (TPV)** sin APIs bancarias directas (corte POS vs. vouchers/cierres de lote por terminal vs. reportes CSV/Excel de pasarelas vs. depósitos bancarios D+0/D+1/D+2), la **auditoría matemática de comisiones con segregación de IVA acreditable (16%) preservando la integridad del P&L**, y un **motor antifraude operativo** (cancelaciones sospechosas post-cobro, jineteo de propinas y terminales fantasma).
+Reemplaza la arquitectura actual fragmentada de 4 dashboards desconectados y herramientas de BI genéricas (`/dashboard`, `/dashboard/executive`, `/dashboard/exceptions`, `/dashboard/analytics/branches`, `/dashboard/analytics`, `/dashboard/analytics/kpi-builder`, `/dashboard/analytics/trends`, `/dashboard/analytics/incidents`) por un **Sistema Operativo Multi-Unidad** articulado en torno a la trinchera diaria de un operador de cadena:
+1. **En Vivo (Live Command Center en `/dashboard`):** Semáforo de aperturas a tiempo, dotación de personal por turno, monitoreo de cadena de frío y venta acumulada.
+2. **Excepciones & Riesgos (`/dashboard/exceptions`):** Bandeja de triage clasificada por impacto directo (Dinero en caja/TPV, Inocuidad NOM-251, Mermas en horas pico y Personal).
+3. **Liga de Sucursales (`/dashboard/branches`):** Benchmarking peer-to-peer, Prime Cost comparativo (Food Cost % + Labor Cost %) y detección de inconsistencias entre tiendas.
+4. **Dirección & Unit Economics (`/dashboard/executive`):** Morning Brief diario de IA (7:00 AM), P&L operativo estimado por tienda y proyección de flujo a 14 días.
+
+---
 
 ## Architecture Decisions
 
-1. **Integridad en P&L (Línea 214):** La venta bruta se registra al 100% en ingresos en `pnl-service.ts` para no distorsionar el *food cost %* ni el ticket promedio. La comisión de terminal/pasarela se clasifica como gasto financiero de venta con procedencia `MEASURED` (cuando surge de reporte de pasarela/lote conciliado) o `ESTIMATED` (cuando proyecta tarifa contractual), segregando el IVA acreditable (16%) para conciliación fiscal.
-2. **Conciliación TPV basada en artefactos reales:** Sin dependencias de webhooks o APIs bancarias en vivo (inexistentes en el segmento HORECA medio en México). La conciliación cruza:
-   - Banda 1: Cortes de turno POS (`daily_sales_cuts` y tickets en tarjeta).
-   - Banda 2: Cierre de lote físico por terminal (`tpv_shift_batches` + foto de voucher) y reportes descargables CSV/Excel de pasarelas (Clip, Mercado Pago, bancos) procesados con plantillas configurables (`gateway_mapping_templates`).
-   - Banda 3: Abono neto bancario (`tpv_deposit_cents`) desfasado por ventanas de liquidación (D+1 / lunes).
-3. **Semántica de pagos por partida individual:** Uso de `paymentRunItems.settlementStatus` (`PENDING`, `CONFIRMED`, `FAILED`) con `settlementReference` congelando la cuenta bancaria de destino para evitar fraudes por cambio de CLABE post-firma. Un rechazo bancario mantiene viva la deuda; una repetición no duplica efectos.
-4. **Bandeja Hoy como agregador unificado:** Los pendientes de pago, arqueos de caja, autorizaciones de gasto, alertas antifraude y discrepancias de tarjeta se consultan a través de un endpoint optimizado con conteos completos (sin truncar a 100 registros).
-5. **Cierre de período transaccional y recuperable:** `closeFinancialPeriod` en `financial-period-service.ts` garantiza que el período solo pase a `CLOSED` si el snapshot de P&L de todas las sucursales quedó congelado e inmutable.
+1. **Unificación de Navegación en "Comando de Red":** Se reestructura `components/app-sidebar.tsx` eliminando la sección redundante de "Analítica" (5 subenlaces huérfanos). Se establecen 4 accesos claros que corresponden al ciclo de supervisión diario del operador QSR.
+2. **Depuración del "Síndrome de BI Genérico":** Se retira el constructor de KPIs manuales (`/dashboard/analytics/kpi-builder`) y el dashboard analítico abstracto (`/dashboard/analytics`). Los operadores QSR no formulan KPIs matemáticos; operan con guardrails estándar del sector (Food Cost, Labor Cost, Ticket Promedio, Cumplimiento de Apertura/Cierre, NOM-251).
+3. **Triage por Impacto de Negocio (GroupExceptionsService):** Las excepciones se categorizan formalmente en 4 dominios críticos para QSR: `DINERO` (caja, TPVs, fraudes), `INOCUIDAD` (NOM-251, frío, higiene), `ABASTO` (mermas anormales, rotación) y `PERSONAL` (asistencia y turnos clave). Cada ítem expone una acción directa resolutiva (WhatsApp, arqueo, transferencia).
+4. **Scorecard QSR y Prime Cost en Benchmarking:** Se enriquece `CrossBranchService` para calcular el Prime Cost combinado por tienda aprovechando los datos de ventas (`daily_sales_cuts`), insumos/recetas (`recipes`, `operating_expenses`) y horas laborales (`shift_logs`), permitiendo rankear qué sucursales operan en el rango objetivo (<60%).
+5. **Preservación Total de Datos y Retrocompatibilidad:** Ninguna tabla existente se destruye. Las URLs anteriores como `/dashboard/analytics/branches` se redirigen transparentemente o se mantienen como alias para no romper marcadores ni flujos existentes.
 
 ---
 
 ## Task List
 
-### Fase 1: Contratos, Confianza y Correcciones Críticas
-- [ ] **Task 1:** Backend unificado de pendientes de Hoy y desacoplamiento temporal de fuentes
-- [ ] **Task 2:** Verificación y pruebas de integración para cierre seguro de períodos financieros e idempotencia
+### Fase 1: Consolidación de Navegación y Rutas
 
-### Checkpoint 1: Contratos Base
-- [ ] Pruebas unitarias de contratos y períodos pasan (`pnpm test`)
-- [ ] `MoneyAttentionPanel` / `FinanceTodayPage` reciben totales sin truncar y sin filtros cruzados
+- [ ] **Task 1:** Reestructuración de navegación en `app-sidebar.tsx` y creación de alias/ruta canónica `/dashboard/branches`.
 
----
-
-### Fase 2: Navegación y Bandeja Hoy
-- [ ] **Task 3:** Enriquecimiento del expediente `HoyCaseDossier` con contexto presupuestal y resolución directa
-- [ ] **Task 4:** Consolidación de la navegación en `components/app-sidebar.tsx` y enlaces profundos de casos
-
-### Checkpoint 2: Experiencia Hoy
-- [ ] Un usuario abre un pendiente desde Hoy, visualiza su expediente y ejecuta la acción en <= 2 clics
-- [ ] Los 6 espacios de trabajo están conectados sin rutas huérfanas
+### Checkpoint 1: Navegación Limpia
+- [ ] La barra lateral muestra únicamente las 4 secciones operativas de Comando de Red.
+- [ ] No existen enlaces rotos; las rutas anteriores redirigen limpiamente.
+- [ ] `pnpm run build` compila sin errores.
 
 ---
 
-### Fase 3: Gastos y Pagos Integrados
-- [ ] **Task 5:** Conexión de Cuentas por Pagar (`/dashboard/finance/payables`) con creación de corridas de tesorería y cuentas bancarias congeladas
-- [ ] **Task 6:** UI de liquidación individual por partida en corridas de tesorería (`/dashboard/finance/treasury/runs/[id]`)
+### Fase 2: Centro de Excepciones QSR & Triage de Riesgos
 
-### Checkpoint 3: Flujo de Pagos Completo
-- [ ] Partidas individuales pueden confirmarse con referencia o marcarse como fallidas conservando deuda
-- [ ] Doble firma respetada; quien prepara no autoriza
+- [ ] **Task 2:** Clasificación por riesgo de negocio en `GroupExceptionsService` (Dinero, Inocuidad NOM, Mermas/Abasto, Personal).
+- [ ] **Task 3:** Rediseño UI del Centro de Excepciones (`/dashboard/exceptions`) con selector de impacto y acciones de resolución en 1 clic.
 
----
-
-### Fase 4: Conciliación TPV, Auditoría de Comisiones y Motor Antifraude
-- [ ] **Task 7:** Esquema Drizzle y CRUD para catálogo de terminales autorizadas (`branch_terminals`)
-- [ ] **Task 8:** Esquema y formulario de cierre de lotes de terminales en turno (`tpv_shift_batches` con foto de voucher)
-- [ ] **Task 9:** Importador y motor de mapeo para reportes CSV/Excel de pasarelas (Clip, Mercado Pago, bancos)
-- [ ] **Task 10:** Auditoría de comisiones MDR + IVA acreditable y reflejo en P&L con integridad (Línea 214)
-- [ ] **Task 11:** Motor de reglas antifraude en cortes (cancelaciones post-cobro, jineteo de propinas y terminales fantasma)
-
-### Checkpoint 4: Conciliación y Antifraude TPV
-- [ ] Reporte de pasarela cruza contra lotes físicos y cortes POS
-- [ ] Alertas de cancelaciones sospechosas y terminales no autorizadas aparecen en Hoy
-- [ ] P&L calcula comisiones con procedencia `MEASURED` sin alterar venta bruta
+### Checkpoint 2: Triage Operativo Activo
+- [ ] Un faltante de arqueo o alerta TPV se lista bajo "Dinero & Caja" con deep link al corte.
+- [ ] Una alerta de temperatura NOM-251 se lista bajo "Inocuidad" con acceso al registro del equipo.
+- [ ] Cada excepción permite detonar una acción sin perder el contexto.
 
 ---
 
-### Fase 5: Cierre de Período y Control Interno
-- [ ] **Task 12:** Checklist interactivo de fin de mes y expediente de cierre en `/dashboard/finance/control-interno`
+### Fase 3: Live Command Center ("El Pulso de Hoy")
 
-### Checkpoint 5: Cierre Completo
-- [ ] Cierre mensual bloqueado si hay discrepancias de tarjeta abiertas o snapshots fallidos
-- [ ] Auditoría y trazabilidad de reaperturas con bitácora inmutable
+- [ ] **Task 4:** Servicio y endpoint de Pulso en Vivo (Apertura de tiendas, asistencia del turno, alertas rojas de servicio y venta acumulada).
+- [ ] **Task 5:** Rediseño del Home (`app/dashboard/page.tsx`) integrando la Matriz en Vivo de Sucursales y alertas prioritarias de rush.
+
+### Checkpoint 3: Comando en Vivo Operativo
+- [ ] El director de operaciones visualiza de un vistazo cuáles de las 3 a 15 sucursales abrieron a tiempo y completaron su checklist.
+- [ ] Las alertas rojas de servicio (frío, falta de cajero, desabasto) aparecen en la cabecera.
+- [ ] Se elimina la sobrecarga de pestañas abstractas en el Home.
+
+---
+
+### Fase 4: Liga de Sucursales & Benchmarking Multi-Unidad
+
+- [ ] **Task 6:** Cálculo de Scorecard QSR y Prime Cost (Food Cost % + Labor Cost %) en `CrossBranchService`.
+- [ ] **Task 7:** Rediseño de la pantalla de Benchmarking (`/dashboard/branches`) con ranking de consistencia, comparativa cruzada y ficha 360° por tienda.
+
+### Checkpoint 4: Benchmarking Multi-Unidad Completo
+- [ ] Las sucursales se ordenan según el Score QSR integral (Venta, Costos, NOM-251, Cuadre TPV).
+- [ ] El motor resalta discrepancias automáticas ("Sucursal A tiene 5% más Food Cost que Sucursal B").
+- [ ] El drill-down por tienda muestra la radiografía completa de la unidad.
+
+---
+
+### Fase 5: Dirección & Unit Economics (Executive Suite)
+
+- [ ] **Task 8:** Consolidación de `/dashboard/executive` con foco en Morning Brief diario, P&L operativo por tienda y proyección de flujo a 14 días.
+
+### Checkpoint 5: Vista de Dirección Validada
+- [ ] El dueño visualiza el Morning Brief matutino generado por el Executive Twin.
+- [ ] El P&L operativo compara ingresos, costo de alimentos, nómina y EBITDA tienda por tienda.
+- [ ] La proyección de caja a 14 días muestra la solvencia del grupo frente a pagos programados.
+
+---
+
+### Fase 6: Retiro de Rutas Obsoletas y Pruebas de Integración
+
+- [ ] **Task 9:** Depuración de rutas obsoletas (`/analytics/kpi-builder`, `/analytics/trends`), redirecciones y verificación integral de build y tests.
 
 ---
 
@@ -79,14 +92,13 @@ Incluye la capa crítica de **conciliación a tres bandas de cobros con tarjeta 
 
 | Riesgo | Impacto | Mitigación |
 |---|---|---|
-| Diversidad de formatos CSV/Excel entre bancos y agregadores | Alto | Sistema de plantillas de mapeo configurable (`gateway_mapping_templates`) similar a `pos_mapping_templates`. |
-| Rezago bancario en depósitos de fin de semana (D+2) interpretado como faltante | Medio | Ventanas de conciliación con fecha valor que agrupan ventas de viernes a domingo para cuadre el lunes/martes. |
-| Inconsistencia de timezone en cruce horario de tickets cancelados post-cobro | Medio | Normalización a hora local de la sucursal con tolerancia configurable de ±20 minutos. |
-| Fuga de datos bancarios sensibles en descargas de dispersión | Alto | Exigir permisos estrictos de finanzas (`treasury:disburse`) y máscaras visuales de CLABE en UI. |
+| Faltante de datos de ventas en vivo si la sucursal no ha capturado el corte matutino | Medio | Mostrar estado "En turno / Esperando corte de cambio de turno" con badge informativo en lugar de marcarlo como venta en cero. |
+| Inconsistencia en recetas al calcular Food Cost teórico en sucursales nuevas | Medio | Clasificar la procedencia del dato como `ESTIMATED` (basado en compras/gastos de insumos) hasta que existan recetas y cortes vinculados. |
+| Resistencia del operador a cambios en los enlaces habituales | Bajo | Mantener redirecciones permanentes (`next.config.ts` o páginas delegadas) para que ningún enlace guardado falle. |
 
 ---
 
 ## Open Questions
 
-1. **Frecuencia de carga de reportes de pasarela:** ¿La importación del CSV/Excel de Clip/MercadoPago/bancos la realizará el gerente diariamente o administración semanal/quincenalmente? (Recomendado: permitir ambas modalidades).
-2. **Umbral de tolerancia para alertas de propinas:** ¿Fijar el 20% sobre el consumo como alerta predeterminada o hacerlo configurable por sucursal en `branch_terminals` / configuración operativa?
+1. **Prioridad de la pantalla de inicio:** ¿Prefieres que los administradores lleguen por defecto a "En Vivo" (`/dashboard`) o al "Morning Brief Ejecutivo" (`/dashboard/executive`)? (Recomendación: En Vivo para Directores de Operaciones; Morning Brief para Dueños/Socios).
+2. **Umbral de Alerta de Prime Cost:** ¿Establecer la meta de Prime Cost en 60% por defecto (estándar QSR en México) con alerta amarilla a partir del 62% y roja en 65%?

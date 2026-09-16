@@ -45,45 +45,29 @@ const navMain = [
     // varias áreas — no un módulo de dominio más. Ver tasks/plan.md ("Consejo
     // del Grupo"). El resto de secciones (Inventario, Personal...) son para
     // "operar" un dominio, no para el primer vistazo del grupo.
-    title: "Mi Grupo",
+    title: "Comando de Red",
     url: "/dashboard",
     icon: Crown,
     items: [
       {
-        title: "Vista General",
+        title: "En Vivo",
         url: "/dashboard",
+        icon: Clock,
       },
       {
-        title: "Centro de Excepciones",
+        title: "Excepciones & Riesgos",
         url: "/dashboard/exceptions",
         icon: AlertTriangle,
       },
       {
-        title: "Dashboard Ejecutivo",
-        url: "/dashboard/executive",
-      },
-      {
-        title: "Performance por Sucursal",
-        url: "/dashboard/analytics/branches",
+        title: "Liga de Sucursales",
+        url: "/dashboard/branches",
         icon: BarChart3,
       },
-      { groupLabel: "Analítica" },
       {
-        title: "Analítica General",
-        url: "/dashboard/analytics",
-      },
-      {
-        title: "Constructor KPIs",
-        url: "/dashboard/analytics/kpi-builder",
-      },
-      {
-        title: "Tendencias",
-        url: "/dashboard/analytics/trends",
+        title: "Dirección & P&L",
+        url: "/dashboard/executive",
         icon: TrendingUp,
-      },
-      {
-        title: "Analítica de Incidentes",
-        url: "/dashboard/analytics/incidents",
       },
     ],
   },
