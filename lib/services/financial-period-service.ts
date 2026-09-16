@@ -63,7 +63,10 @@ export async function closeFinancialPeriod(params: {
   try {
     await freezePnLPeriod(companyId, periodStart, periodEnd, closedBy);
   } catch (error) {
-    console.warn(`[closeFinancialPeriod] Warning freezing PnL for ${periodStart} to ${periodEnd}:`, error);
+    console.error(`[closeFinancialPeriod] Error al congelar P&L para ${periodStart} a ${periodEnd}:`, error);
+    throw new Error(
+      `No se pudo cerrar el período financiero ${year}-${monthStr}: falló la congelación y preservación del snapshot de P&L (${error instanceof Error ? error.message : String(error)}). El período permanece abierto para proteger la consistencia histórica.`
+    );
   }
 
   // 2. Marcar el periodo como CLOSED en la base de datos

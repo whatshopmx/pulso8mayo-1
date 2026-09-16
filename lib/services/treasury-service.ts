@@ -24,6 +24,15 @@ import { ApiError } from "@/lib/api/error";
 import { getBankAccountsForPayment as getSupplierBankAccountsForPayment } from "@/lib/services/supplier-bank-account-service";
 import { getBankAccountsForPayment as getPayeeBankAccountsForPayment } from "@/lib/services/payee-bank-account-service";
 import { decryptProfileRecords } from "@/lib/security/employee-cipher";
+import {
+  decidirLiquidacion,
+  motivoExclusionPorLiquidacion,
+  motivoNoLiquidable,
+  puedeLiquidarCorrida,
+  revisarCierreCorrida,
+  validarEvidenciaLiquidacion,
+  aplicaEspejoDocumento,
+} from "./payment-run-settlement";
 
 type PaymentRunStatus = typeof paymentRunStatusEnum.enumValues[number];
 
@@ -228,6 +237,53 @@ function asignarReferencias(itemIds: string[]): Map<string, string> {
   }
 
   return salida;
+}
+
+/**
+ * Tipo de una transacción de Drizzle, derivado del propio cliente: escribir
+ * `any` aquí perdería el chequeo justo en las dos escrituras que tienen que ser
+ * atómicas (marcar la partida y saldar su documento).
+ */
+type Transaccion = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Marca como pagados los documentos de origen de las partidas indicadas.
+ *
+ * Sólo facturas y gastos operativos (`aplicaEspejoDocumento`): son los dos
+ * orígenes cuya deuda se salda con la transferencia. La nómina, los impuestos y
+ * la caja chica no se marcan aquí a propósito — su ciclo de cierre es otro y el
+ * sistema no debe afirmar un pago que no puede verificar.
+ *
+ * Es idempotente por construcción: escribirlo dos veces sobre el mismo
+ * documento deja el mismo resultado, que es lo que permite llamarlo tanto al
+ * confirmar cada partida como al cerrar la corrida.
+ */
+async function saldarDocumentosDePartidas(
+  tx: Transaccion,
+  partidas: Array<{ itemType: string; referenceId: string }>,
+  userId: string
+): Promise<void> {
+  const facturaIds = partidas
+    .filter((p) => p.itemType === "INVOICE")
+    .map((p) => p.referenceId);
+
+  if (facturaIds.length > 0) {
+    await tx
+      .update(invoices)
+      .set({ paymentStatus: "PAID", paidAt: new Date(), paidBy: userId })
+      .where(inArray(invoices.id, facturaIds));
+  }
+
+  const gastoIds = partidas
+    .filter((p) => p.itemType === "OPERATING_EXPENSE")
+    .map((p) => p.referenceId);
+
+  if (gastoIds.length > 0) {
+    await tx
+      .update(operatingExpenses)
+      .set({ status: "PAID", paidAt: new Date(), paidBy: userId })
+      .where(inArray(operatingExpenses.id, gastoIds));
+  }
 }
 
 export class TreasuryService {
@@ -917,38 +973,127 @@ export class TreasuryService {
         );
       }
 
-      // If it's completed, mark all its invoices as PAID.
+      // Al cerrar se salda lo que tiene comprobante, y sólo eso.
+      //
+      // Las partidas confirmadas ya saldaron su documento al confirmarse; esta
+      // pasada es la red de seguridad para cualquier corrida que llegara al
+      // cierre sin ese paso, y es idempotente. Las rechazadas **no** se tocan:
+      // su documento sigue abierto porque el dinero no llegó, y cerrarlas como
+      // pagadas era exactamente el agujero que la liquidación por partida
+      // cierra.
       if (newStatus === "COMPLETED") {
         const items = await tx.query.paymentRunItems.findMany({
           where: eq(paymentRunItems.paymentRunId, paymentRunId),
         });
 
-        const invoiceIds = items
-          .filter(i => i.itemType === 'INVOICE')
-          .map(i => i.referenceId);
-
-        if (invoiceIds.length > 0) {
-          await tx.update(invoices)
-            .set({ paymentStatus: 'PAID', paidAt: new Date(), paidBy: userId })
-            .where(inArray(invoices.id, invoiceIds));
+        const cierre = revisarCierreCorrida(items);
+        if (!cierre.ok) {
+          throw ApiError.badRequest(cierre.mensaje);
         }
 
-        // Espejo para gastos operativos: sin esto, un gasto que sí pasó por
-        // la corrida y se dispersó se quedaba en APPROVED para siempre — la
-        // misma inconsistencia que el comentario de arriba describe para
-        // facturas, aplicada al otro origen de "lo que debo".
-        const expenseIds = items
-          .filter(i => i.itemType === 'OPERATING_EXPENSE')
-          .map(i => i.referenceId);
-
-        if (expenseIds.length > 0) {
-          await tx.update(operatingExpenses)
-            .set({ status: 'PAID', paidAt: new Date(), paidBy: userId })
-            .where(inArray(operatingExpenses.id, expenseIds));
-        }
+        await saldarDocumentosDePartidas(
+          tx,
+          items.filter((i) => i.settlementStatus === "CONFIRMED"),
+          userId
+        );
       }
 
       return updatedRun;
+    });
+  }
+
+  /**
+   * Liquida una partida individual dentro de una corrida de pago (Módulo 6.2).
+   */
+  static async settlePaymentRunItem(params: {
+    paymentRunId: string;
+    itemId: string;
+    companyId: string;
+    settlementStatus: "CONFIRMED" | "FAILED";
+    userId: string;
+    reference?: string | null;
+    failureReason?: string | null;
+    notes?: string | null;
+  }) {
+    const {
+      paymentRunId,
+      itemId,
+      companyId,
+      settlementStatus,
+      userId,
+      reference,
+      failureReason,
+      notes,
+    } = params;
+
+    const run = await db.query.paymentRuns.findFirst({
+      where: and(eq(paymentRuns.id, paymentRunId), eq(paymentRuns.companyId, companyId)),
+    });
+
+    if (!run) throw ApiError.notFound("Corrida de pago no encontrada");
+
+    if (!puedeLiquidarCorrida(run.status)) {
+      throw ApiError.badRequest(motivoNoLiquidable(run.status));
+    }
+
+    const item = await db.query.paymentRunItems.findFirst({
+      where: and(
+        eq(paymentRunItems.id, itemId),
+        eq(paymentRunItems.paymentRunId, paymentRunId)
+      ),
+    });
+
+    if (!item) throw ApiError.notFound("Partida de la corrida no encontrada");
+
+    const evidencia = validarEvidenciaLiquidacion({
+      settlement: settlementStatus,
+      reference,
+      failureReason,
+    });
+    if (!evidencia.ok) {
+      throw ApiError.badRequest(evidencia.motivo);
+    }
+
+    const decision = decidirLiquidacion(item.settlementStatus, settlementStatus);
+    if (!decision.ok) {
+      throw ApiError.badRequest(decision.motivo);
+    }
+
+    if (decision.accion === "SIN_CAMBIO") {
+      return { item, accion: "SIN_CAMBIO" as const };
+    }
+
+    return db.transaction(async (tx) => {
+      const updateData: any = {
+        settlementStatus,
+        settledAt: new Date(),
+        settledBy: userId,
+        settlementNotes: notes !== undefined ? notes : item.settlementNotes,
+        updatedAt: new Date(),
+      };
+
+      if (settlementStatus === "CONFIRMED") {
+        updateData.settlementReference = reference;
+        updateData.failureReason = null;
+      } else {
+        updateData.failureReason = failureReason;
+      }
+
+      const [updatedItem] = await tx
+        .update(paymentRunItems)
+        .set(updateData)
+        .where(eq(paymentRunItems.id, itemId))
+        .returning();
+
+      if (settlementStatus === "CONFIRMED" && aplicaEspejoDocumento(item.itemType)) {
+        await saldarDocumentosDePartidas(
+          tx,
+          [{ itemType: item.itemType, referenceId: item.referenceId }],
+          userId
+        );
+      }
+
+      return { item: updatedItem, accion: decision.accion };
     });
   }
 
@@ -995,6 +1140,15 @@ export class TreasuryService {
       orderBy: (i, { asc }) => [asc(i.createdAt), asc(i.id)],
     });
 
+    // ── Partidas que ya no deben viajar ──────────────────────────────────
+    // Una partida confirmada o rechazada no se vuelve a mandar al banco:
+    // reenviar la confirmada dispersaría el mismo dinero dos veces, y
+    // reintentar el renglón que el banco ya devolvió vuelve a fallar. Se
+    // separan antes de resolver CLABEs para que ni siquiera entren al archivo.
+    const partidasVigentes = items.filter(
+      (i) => motivoExclusionPorLiquidacion(i) === null
+    );
+
     const sourceAcc = sanearTexto(run.sourceAccount || "", 20) || "SIN_CUENTA_ORIGEN";
 
     const renglones: RenglonDispersion[] = [];
@@ -1002,7 +1156,7 @@ export class TreasuryService {
     const avisos: string[] = [];
 
     // ── Facturas ───────────────────────────────────────────────────────────
-    const facturaItems = items.filter((i) => i.itemType === "INVOICE");
+    const facturaItems = partidasVigentes.filter((i) => i.itemType === "INVOICE");
 
     if (facturaItems.length > 0) {
       const filas = await db
@@ -1108,7 +1262,7 @@ export class TreasuryService {
     // Simétrico al bloque de facturas: resuelve `payee_bank_accounts` por
     // lote (congelada + vigente) y arma renglones contra la contraparte del
     // gasto, no del proveedor de mercancía.
-    const gastoItems = items.filter((i) => i.itemType === "OPERATING_EXPENSE");
+    const gastoItems = partidasVigentes.filter((i) => i.itemType === "OPERATING_EXPENSE");
 
     if (gastoItems.length > 0) {
       const filasGasto = await db
@@ -1202,7 +1356,7 @@ export class TreasuryService {
     }
 
     // ── Nómina ─────────────────────────────────────────────────────────────
-    const nominaItems = items.filter((i) => i.itemType === "PAYROLL");
+    const nominaItems = partidasVigentes.filter((i) => i.itemType === "PAYROLL");
 
     if (nominaItems.length > 0) {
       const recibos = await db
@@ -1292,8 +1446,22 @@ export class TreasuryService {
     }
 
     // ── Lo que no se dispersa por SPEI, declarado ─────────────────────────
-    for (const item of items) {
+    for (const item of partidasVigentes) {
       const motivo = MOTIVO_NO_DISPERSABLE[item.itemType];
+      if (!motivo) continue;
+      excluidas.push({
+        itemId: item.id,
+        itemType: item.itemType,
+        amountCents: item.amountCents,
+        motivo,
+      });
+    }
+
+    // ── Partidas ya liquidadas, declaradas ───────────────────────────────
+    // No viajan, y el motivo se enuncia en vez de restarlas en silencio: el
+    // total del archivo tiene que poder cuadrarse contra el de la corrida.
+    for (const item of items) {
+      const motivo = motivoExclusionPorLiquidacion(item);
       if (!motivo) continue;
       excluidas.push({
         itemId: item.id,

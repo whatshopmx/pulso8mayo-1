@@ -88,7 +88,10 @@ export function MoneyAttentionPanel({ branchId, dateRange }: { branchId: string;
   /** Fuentes que fallaron sin tumbar el panel completo: la lista puede quedar corta. */
   const [failedSources, setFailedSources] = useState<string[]>([]);
 
-  const load = useCallback(async () => {
+  const startDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
+  const endDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined;
+
+  const load = useCallback(async (isCancelled?: () => boolean) => {
     setLoading(true);
     setError(null);
     setFailedSources([]);
@@ -96,10 +99,10 @@ export function MoneyAttentionPanel({ branchId, dateRange }: { branchId: string;
     const scoped = (path: string) => {
       const url = new URL(path, window.location.origin);
       if (branchId !== "ALL") url.searchParams.set("branchId", branchId);
-      if (dateRange?.from) {
-        url.searchParams.set("startDate", format(dateRange.from, "yyyy-MM-dd"));
-        if (dateRange.to) {
-          url.searchParams.set("endDate", format(dateRange.to, "yyyy-MM-dd"));
+      if (startDate) {
+        url.searchParams.set("startDate", startDate);
+        if (endDate) {
+          url.searchParams.set("endDate", endDate);
         }
       }
       return url.toString();
@@ -117,6 +120,8 @@ export function MoneyAttentionPanel({ branchId, dateRange }: { branchId: string;
         expensesRes.json(),
         cutsRes.json(),
       ]);
+
+      if (isCancelled?.()) return;
 
       // Si las tres fuentes fallan no hay panel que mostrar: decirlo es mejor
       // que renderizar "todo en orden", que es una afirmación de cumplimiento
@@ -143,6 +148,8 @@ export function MoneyAttentionPanel({ branchId, dateRange }: { branchId: string;
       }
       if (!(cutsRes.ok && cutsJson.success)) {
         failures.push("los arqueos del período");
+      } else if (cutsJson.data?.scope?.truncated) {
+        failures.push(`los arqueos completos (se evalúan los primeros ${cutsJson.data?.items?.length ?? 0} de ${cutsJson.data?.total ?? 0} cortes)`);
       }
       setFailedSources(failures);
 
@@ -216,19 +223,28 @@ export function MoneyAttentionPanel({ branchId, dateRange }: { branchId: string;
         return Math.abs(b.amountCents ?? 0) - Math.abs(a.amountCents ?? 0);
       });
 
-      setItems(collected);
+      if (!isCancelled?.()) {
+        setItems(collected);
+      }
     } catch (err) {
+      if (isCancelled?.()) return;
       console.error("Failed to load money attention panel:", err);
       setError("Error de conexión al consultar las alertas financieras.");
       setItems(null);
     } finally {
-      setLoading(false);
+      if (!isCancelled?.()) {
+        setLoading(false);
+      }
     }
-  }, [branchId]);
+  }, [branchId, startDate, endDate]);
 
   useEffect(() => {
-    load();
-  }, [load, dateRange]);
+    let cancelled = false;
+    load(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
 
 
 

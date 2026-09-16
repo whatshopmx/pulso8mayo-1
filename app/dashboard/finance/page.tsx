@@ -1,330 +1,534 @@
 "use client";
 
+import { useCallback, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { FinancialKpiCards } from "@/components/sales/financial-kpi-cards";
-import { MoneyAttentionPanel } from "@/components/finance/money-attention-panel";
-import { CashFlowSummaryCard } from "@/components/finance/cash-flow-summary-card";
-import { PnlBranchTable } from "@/components/finance/pnl-branch-table";
-import { PeriodSelector, getPresetRange, type DateRange } from "@/components/finance/period-selector";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useBranch } from "@/lib/branch-context";
+import { formatCents, statusBadgeClasses } from "@/lib/utils";
+import { computeCashVariance } from "@/lib/sales/cash-variance";
+import { CashFlowSummaryCard } from "@/components/finance/cash-flow-summary-card";
 import {
-  ArrowRight,
-  Calendar,
-  Coins,
-  FileCheck,
-  FileText,
-  Handshake,
-  Landmark,
-  Percent,
-  Receipt,
+  HoyCaseDossier,
+  type HoyCaseItem,
+  type CaseSourceType,
+} from "@/components/finance/hoy-case-dossier";
+import {
+  Clock,
   RefreshCw,
-  Shield,
-  Target,
-  Users,
+  AlertCircle,
+  CheckCircle2,
+  ShieldAlert,
   Wallet,
+  Receipt,
+  BarChart3,
+  Loader2,
+  ChevronRight,
 } from "lucide-react";
 
-/**
- * Portada del módulo de Finanzas.
- *
- * Antes de esta pantalla, "Finanzas" en la navegación llevaba a
- * `/dashboard/sales` y el módulo era siete rutas sueltas: cortes, mapeo POS,
- * caja chica, gastos, flujo, control interno y fiscal. Ninguna respondía la
- * pregunta con la que el dueño abre el sistema — ¿cómo vamos de dinero? — y el
- * P&L por sucursal, que es el entregable central del M16, solo existía como un
- * bloque al fondo del dashboard ejecutivo.
- *
- * Esta página no calcula nada propio: compone lo que ya existe en el orden en
- * que se pregunta. Cómo vamos (KPIs) → dónde gano y dónde pierdo (P&L) → qué
- * necesita mi firma (atención) → me alcanza (tesorería).
- */
-
-// --------------------------------------------------------------------------
-//  Badges: conteos vivos para las tarjetas de navegación
-// --------------------------------------------------------------------------
-
-/** Mapa href → conteo pendiente. Solo se cuenta lo que tiene acción del dueño. */
-type BadgeCounts = Record<string, number>;
-
-function useBadgeCounts(branchId: string, refreshKey: number): BadgeCounts {
-  const [counts, setCounts] = useState<BadgeCounts>({});
-
-  useEffect(() => {
-    const scoped = (path: string) => {
-      const url = new URL(path, window.location.origin);
-      if (branchId !== "ALL") url.searchParams.set("branchId", branchId);
-      return url.toString();
-    };
-
-    // Lanzar las consultas en paralelo; si una falla el badge se queda en
-    // cero, que es seguro (no afirma nada falso).
-    Promise.allSettled([
-      fetch(scoped("/api/expenses")).then((r) => r.json()),
-      fetch(scoped("/api/finance/control-interno/excepciones")).then((r) => r.json()),
-    ]).then(([expensesResult, violationsResult]) => {
-      const next: BadgeCounts = {};
-
-      if (expensesResult.status === "fulfilled" && expensesResult.value?.success) {
-        const items = expensesResult.value.data?.items ?? [];
-        const pending = items.filter((e: { status: string }) => e.status === "PENDING_APPROVAL");
-        if (pending.length > 0) next["/dashboard/finance/expenses"] = pending.length;
-      }
-
-      if (violationsResult.status === "fulfilled" && violationsResult.value?.success) {
-        const violations = violationsResult.value.data?.violations ?? [];
-        if (violations.length > 0) next["/dashboard/finance/control-interno"] = violations.length;
-      }
-
-      setCounts(next);
-    });
-  }, [branchId, refreshKey]);
-
-  return counts;
+function daysSince(iso: string): number {
+  const ms = Date.now() - new Date(iso).getTime();
+  return Math.max(0, Math.floor(ms / 86_400_000));
 }
 
-// --------------------------------------------------------------------------
-//  Section navigation items
-// --------------------------------------------------------------------------
+const SEVERITY_ORDER: Record<string, number> = {
+  HIGH: 0,
+  MEDIUM: 1,
+  LOW: 2,
+};
 
-/** Accesos a las pantallas de captura y detalle del módulo, agrupados por
- *  la pregunta que responden: qué capturo hoy, a quién le pago, cómo cumplo. */
-const SECTION_GROUPS = [
-  {
-    label: "Operación del día",
-    items: [
-      {
-        title: "Cortes de Ventas",
-        description: "Ingesta diaria del POS y arqueo de caja",
-        href: "/dashboard/sales",
-        icon: Coins,
-      },
-      {
-        title: "Gastos Operativos",
-        description: "Captura y autorización por nivel",
-        href: "/dashboard/finance/expenses",
-        icon: Receipt,
-      },
-      {
-        title: "Caja Chica",
-        description: "Fondo por sucursal y reposiciones",
-        href: "/dashboard/finance/petty-cash",
-        icon: Wallet,
-      },
-      {
-        title: "Costo Laboral",
-        description: "Nómina sobre venta por sucursal, contra el objetivo",
-        href: "/dashboard/finance/labor-cost",
-        icon: Users,
-      },
-      {
-        title: "Comisiones por Canal",
-        description: "Lo que se queda cada agregador y la terminal, y sus tarifas",
-        href: "/dashboard/finance/commissions",
-        icon: Percent,
-      },
-    ],
-  },
-  {
-    label: "A quién le pago",
-    items: [
-      {
-        title: "Cuentas por Pagar",
-        description: "Lo que se debe, con antigüedad y vencimientos",
-        href: "/dashboard/finance/payables",
-        icon: FileText,
-      },
-      {
-        title: "Contrapartes",
-        description: "A quién se le paga: renta, luz, gas, servicios",
-        href: "/dashboard/finance/payees",
-        icon: Handshake,
-      },
-      {
-        title: "Flujo de Efectivo",
-        description: "Calendario de salidas a 30 días",
-        href: "/dashboard/finance/cash-flow",
-        icon: Calendar,
-      },
-      {
-        title: "Tesorería",
-        description: "Corridas de pago, dispersión SPEI y contratos fijos",
-        href: "/dashboard/finance/treasury",
-        icon: Landmark,
-      },
-    ],
-  },
-  {
-    label: "Control y cumplimiento",
-    items: [
-      {
-        title: "Control Interno",
-        description: "Bitácora de autorizaciones y excepciones",
-        href: "/dashboard/finance/control-interno",
-        icon: Shield,
-      },
-      {
-        title: "Fiscal y Facturación",
-        description: "Validación CFDI y timbrado de nómina",
-        href: "/dashboard/finance/fiscal",
-        icon: FileCheck,
-      },
-      {
-        // Los objetivos se leen arriba en cada semáforo; el camino para cambiarlos
-        // debe salir de aquí y no de buscarlos en Organización.
-        title: "Objetivos de Costo",
-        description: "Umbrales de food cost, labor cost y margen",
-        href: "/dashboard/company/operating-config",
-        icon: Target,
-      },
-    ],
-  },
-] as const;
-
-export default function FinanceOverviewPage() {
-  // Mismo scope que el resto del módulo: el control del encabezado manda.
+export default function FinanceTodayPage() {
   const { selectedBranchId } = useBranch();
-  const selectedBranch = selectedBranchId ?? "ALL";
+  const branchId = selectedBranchId ?? "ALL";
 
-  // Refresh global: incrementar esta key fuerza la recarga de todos los hijos.
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this_month"));
+  const [items, setItems] = useState<HoyCaseItem[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [failedSources, setFailedSources] = useState<string[]>([]);
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<"ALL" | CaseSourceType>("ALL");
 
-  const refresh = useCallback(() => {
-    setRefreshing(true);
-    setRefreshKey((k) => k + 1);
-    // El estado de refreshing se limpia después de un tick para que el icono
-    // haga un giro visual y la key ya esté propagada.
-    setTimeout(() => setRefreshing(false), 600);
-  }, []);
+  const loadCases = useCallback(
+    async (isCancelled?: () => boolean) => {
+      setLoading(true);
+      setError(null);
+      setFailedSources([]);
 
-  // Atajo de teclado global: Ctrl+Shift+R recarga todos los paneles.
+      const scoped = (path: string) => {
+        const url = new URL(path, window.location.origin);
+        if (branchId !== "ALL") url.searchParams.set("branchId", branchId);
+        return url.toString();
+      };
+
+      try {
+        const [violationsRes, expensesRes, cutsRes] = await Promise.all([
+          fetch(scoped("/api/finance/control-interno/excepciones")),
+          fetch(scoped("/api/expenses")),
+          fetch(scoped("/api/sales/cuts")),
+        ]);
+
+        const [violationsJson, expensesJson, cutsJson] = await Promise.all([
+          violationsRes.json().catch(() => ({})),
+          expensesRes.json().catch(() => ({})),
+          cutsRes.json().catch(() => ({})),
+        ]);
+
+        if (isCancelled?.()) return;
+
+        const anyOk =
+          (violationsRes.ok && violationsJson.success) ||
+          (expensesRes.ok && expensesJson.success) ||
+          (cutsRes.ok && cutsJson.success);
+
+        if (!anyOk) {
+          setError("No se pudo consultar ninguna de las fuentes de pendientes financieros.");
+          setItems(null);
+          return;
+        }
+
+        const failures: string[] = [];
+        if (!(violationsRes.ok && violationsJson.success)) {
+          failures.push("excepciones de control");
+        }
+        if (!(expensesRes.ok && expensesJson.success)) {
+          failures.push("gastos por autorizar");
+        }
+        if (!(cutsRes.ok && cutsJson.success)) {
+          failures.push("arqueos de caja");
+        } else if (cutsJson.data?.scope?.truncated) {
+          failures.push(
+            `arqueos completos (se evaluaron los primeros ${cutsJson.data?.items?.length ?? 0} cortes)`
+          );
+        }
+        setFailedSources(failures);
+
+        const collected: HoyCaseItem[] = [];
+
+        // 1. Excepciones de control interno
+        if (violationsRes.ok && violationsJson.success) {
+          const violations = violationsJson.data?.violations ?? [];
+          for (const v of violations) {
+            collected.push({
+              id: `violation-${v.id}`,
+              rawId: v.id,
+              sourceType: "violation",
+              severity: v.severity,
+              title: v.description,
+              detail: `${v.branchName} · ${v.detail}`,
+              amountCents: v.amountCents,
+              href: "/dashboard/finance/control-interno",
+              branchName: v.branchName,
+              violationMeta: {
+                ruleCode: v.ruleCode,
+                description: v.description,
+                severity: v.severity,
+              },
+            });
+          }
+        }
+
+        // 2. Gastos por autorizar
+        if (expensesRes.ok && expensesJson.success) {
+          const rawExpenses = expensesJson.data?.items ?? [];
+          const pending = rawExpenses.filter(
+            (e: { status: string }) => e.status === "PENDING_APPROVAL"
+          );
+          for (const e of pending) {
+            const age = daysSince(e.createdAt);
+            collected.push({
+              id: `expense-${e.id}`,
+              rawId: e.id,
+              sourceType: "expense",
+              severity: age >= 2 ? "HIGH" : "MEDIUM",
+              title: "Gasto pendiente de autorización",
+              detail:
+                `${e.branchName} · ${e.category}` +
+                (age > 0 ? ` · lleva ${age} día${age === 1 ? "" : "s"} esperando` : " · capturado hoy"),
+              amountCents: e.amountCents,
+              href: `/dashboard/finance/expenses?focus=${e.id}`,
+              branchName: e.branchName,
+              dateOrAge: age > 0 ? `Hace ${age} días` : "Hoy",
+              category: e.category,
+              notes: e.description,
+              evidenceUrl: e.receiptUrl || e.xmlFileUrl,
+              requiredRole: e.requiredApproverRole,
+            });
+          }
+        }
+
+        // 3. Arqueos de caja desfasados
+        if (cutsRes.ok && cutsJson.success) {
+          const rawCuts = cutsJson.data?.items ?? [];
+          for (const c of rawCuts) {
+            const arqueo = computeCashVariance(c);
+            if (!arqueo || arqueo.direction === "cuadrado") continue;
+            collected.push({
+              id: `cut-${c.id}`,
+              rawId: c.id,
+              sourceType: "cut",
+              severity: arqueo.direction === "faltante" ? "HIGH" : "MEDIUM",
+              title: `Arqueo con ${arqueo.direction}`,
+              detail: `${c.branchName} · corte del ${c.businessDate} (${c.shift})`,
+              amountCents: arqueo.varianceCents,
+              href: "/dashboard/sales",
+              branchName: c.branchName,
+              dateOrAge: c.businessDate,
+              cutVariance: {
+                direction: arqueo.direction,
+                varianceCents: arqueo.varianceCents,
+                cashSalesCents: c.cashSales,
+                cashCountedCents: c.cashCountedCents,
+                shift: c.shift,
+                businessDate: c.businessDate,
+              },
+            });
+          }
+        }
+
+        // Ordenar por severidad y luego por monto descendente
+        collected.sort((a, b) => {
+          const bySev = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
+          if (bySev !== 0) return bySev;
+          return Math.abs(b.amountCents ?? 0) - Math.abs(a.amountCents ?? 0);
+        });
+
+        if (!isCancelled?.()) {
+          setItems(collected);
+          // Si no hay seleccionado o el seleccionado ya no existe, seleccionar el primero
+          if (collected.length > 0) {
+            setSelectedCaseId((prev) =>
+              prev && collected.some((i) => i.id === prev) ? prev : collected[0].id
+            );
+          } else {
+            setSelectedCaseId(null);
+          }
+        }
+      } catch (err) {
+        if (isCancelled?.()) return;
+        console.error("Failed to load today cases:", err);
+        setError("Error de conexión al cargar la bandeja de pendientes.");
+        setItems(null);
+      } finally {
+        if (!isCancelled?.()) {
+          setLoading(false);
+        }
+      }
+    },
+    [branchId]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    loadCases(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [loadCases]);
+
+  // Atajo de teclado para recargar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && (e.key === "r" || e.key === "R")) {
         e.preventDefault();
-        refresh();
+        loadCases();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [refresh]);
+  }, [loadCases]);
 
-  const badgeCounts = useBadgeCounts(selectedBranch, refreshKey);
+  const handleCaseResolved = (resolvedCaseId: string) => {
+    setItems((prev) => {
+      if (!prev) return null;
+      const next = prev.filter((c) => c.id !== resolvedCaseId);
+      if (selectedCaseId === resolvedCaseId) {
+        setSelectedCaseId(next.length > 0 ? next[0].id : null);
+      }
+      return next;
+    });
+  };
+
+  const filteredItems = useMemo(() => {
+    if (!items) return [];
+    if (activeFilter === "ALL") return items;
+    return items.filter((i) => i.sourceType === activeFilter);
+  }, [items, activeFilter]);
+
+  const selectedCase = useMemo(() => {
+    if (!items || !selectedCaseId) return null;
+    return items.find((i) => i.id === selectedCaseId) ?? null;
+  }, [items, selectedCaseId]);
+
+  const counts = useMemo(() => {
+    const all = items ?? [];
+    return {
+      total: all.length,
+      high: all.filter((i) => i.severity === "HIGH").length,
+      expense: all.filter((i) => i.sourceType === "expense").length,
+      cut: all.filter((i) => i.sourceType === "cut").length,
+      violation: all.filter((i) => i.sourceType === "violation").length,
+    };
+  }, [items]);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      {/* Encabezado del espacio Hoy */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Coins className="h-7 w-7 text-primary" /> Finanzas
-          </h1>
-          <p className="text-sm text-muted-foreground max-w-[70ch]">
-            Cómo vamos de dinero: costos contra objetivo, lo que espera tu firma, la tesorería del mes
-            y la utilidad por sucursal.
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Clock className="h-7 w-7 text-primary" /> Hoy
+            </h1>
+            <span className="text-xs px-2.5 py-0.5 rounded-full border border-border bg-muted font-medium">
+              Bandeja de acción
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1 max-w-[75ch]">
+            Todo lo que requiere revisión, firma o resolución en tu operación hoy. Selecciona un caso para ver su expediente y resolverlo sin salir.
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
-          <PeriodSelector dateRange={dateRange} onDateRangeChange={setDateRange} disabled={refreshing} />
-          <button
-            type="button"
-            onClick={refresh}
-            className="self-start sm:self-center inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-input bg-background text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            title="Recargar todos los paneles (Ctrl+Shift+R)"
+
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild className="h-9 text-xs gap-1.5 font-medium">
+            <Link href="/dashboard/finance/results">
+              <BarChart3 className="w-4 h-4 text-primary" /> Ver Resultados (P&L)
+            </Link>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadCases()}
+            disabled={loading}
+            className="h-9 text-xs gap-1.5"
+            title="Recargar bandeja (Ctrl+Shift+R)"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Recargar</span>
-            <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1 py-0.5 text-xs font-mono text-muted-foreground bg-muted border border-border rounded">
-              Ctrl+⇧+R
-            </kbd>
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* Un solo rótulo deliberado abre la narrativa; los otros tres bloques
-          ya se presentan solos con su título de card (Regla del anti-patrón
-          "eyebrow en cada sección" de DESIGN.md).
-          1. ¿Cómo vamos? — costos contra el objetivo del grupo, con tendencia. */}
-      <section id="kpis">
-        <h2 className="text-sm font-semibold text-foreground/80 mb-2">
-          ¿Cómo vamos?
-        </h2>
-        <FinancialKpiCards key={`kpi-${refreshKey}`} branchId={selectedBranch} dateRange={dateRange} />
-      </section>
+      {/* Chips de filtro / resumen de pendientes */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
+        <button
+          type="button"
+          onClick={() => setActiveFilter("ALL")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+            activeFilter === "ALL"
+              ? "bg-foreground text-background border-foreground font-semibold"
+              : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          }`}
+        >
+          <span>Todos</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted/30">
+            {counts.total}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveFilter("expense")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+            activeFilter === "expense"
+              ? "bg-foreground text-background border-foreground font-semibold"
+              : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          }`}
+        >
+          <Receipt className="w-3.5 h-3.5" />
+          <span>Gastos por autorizar</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted/30">
+            {counts.expense}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveFilter("cut")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+            activeFilter === "cut"
+              ? "bg-foreground text-background border-foreground font-semibold"
+              : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          }`}
+        >
+          <Wallet className="w-3.5 h-3.5" />
+          <span>Diferencias en arqueo</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted/30">
+            {counts.cut}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveFilter("violation")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+            activeFilter === "violation"
+              ? "bg-foreground text-background border-foreground font-semibold"
+              : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          }`}
+        >
+          <ShieldAlert className="w-3.5 h-3.5" />
+          <span>Control interno</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted/30">
+            {counts.violation}
+          </span>
+        </button>
 
-      {/* 2. ¿Dónde gano y dónde pierdo? El P&L es la comparación que el dueño
-          usa para decidir. No se filtra por el scope del encabezado porque su
-          valor está justamente en verlas juntas. Movido a posición 2 para que
-          el número más valioso esté visible sin scroll en 1440p. */}
-      <section id="pnl">
-        <PnlBranchTable key={`pnl-${refreshKey}`} dateRange={dateRange} />
-      </section>
-
-      {/* 3. ¿Qué necesita mi firma hoy? */}
-      <section id="atencion">
-        <MoneyAttentionPanel key={`att-${refreshKey}`} branchId={selectedBranch} dateRange={dateRange} />
-      </section>
-
-      {/* 4. ¿Me alcanza? */}
-      <section id="tesoreria">
-        <CashFlowSummaryCard key={`cash-${refreshKey}`} branchId={selectedBranch} dateRange={dateRange} />
-      </section>
-
-      {/* ── Corte visual: la sección de arriba es análisis; la de abajo es
-          navegación. Sin esta separación las dos se leían al mismo volumen. */}
-      <div className="relative py-2">
-        <div className="absolute inset-x-0 top-1/2 h-px bg-border" />
+        {counts.high > 0 && (
+          <span className="ml-auto inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-destructive/20 bg-destructive/10 text-destructive font-semibold shrink-0">
+            <AlertCircle className="w-3.5 h-3.5" /> {counts.high} caso{counts.high === 1 ? "" : "s"} crítico{counts.high === 1 ? "" : "s"}
+          </span>
+        )}
       </div>
 
-      <section id="modulos">
-        <h2 className="text-sm font-semibold text-foreground/80 mb-4">
-          Accesos al módulo
-        </h2>
-        <div className="space-y-5">
-          {SECTION_GROUPS.map((group) => (
-            <section key={group.label}>
-              <h2 className="text-sm font-semibold text-foreground/80 mb-3">{group.label}</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {group.items.map((item) => {
-                  const badgeCount = badgeCounts[item.href];
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <Card className="h-full transition-all duration-150 hover:bg-muted/40 hover:border-muted-foreground/30">
-                        <CardContent className="flex items-start gap-3 p-4">
-                          <span className="mt-0.5 shrink-0 rounded-md border border-border p-2 text-primary">
-                            <item.icon className="w-4 h-4" />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium flex items-center gap-2">
-                              {item.title}
-                              {badgeCount != null && badgeCount > 0 && (
-                                <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-semibold rounded-full bg-destructive/15 text-destructive border border-destructive/20 tabular-nums">
-                                  {badgeCount}
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{item.description}</p>
-                          </div>
-                          <ArrowRight
-                            className="w-4 h-4 text-muted-foreground shrink-0 mt-1"
-                            aria-hidden
-                          />
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  );
-                })}
+      {/* Aviso de fallos parciales o truncamiento */}
+      {failedSources.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/5 px-3.5 py-2.5 text-xs text-warning-text">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span className="flex-1">
+            Información parcial: no se pudieron consultar o están truncados{" "}
+            {failedSources.join(" ni ")}. La bandeja puede no reflejar el total absoluto.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadCases()}
+            className="h-6 px-2 text-xs"
+          >
+            Reintentar
+          </Button>
+        </div>
+      )}
+
+      {/* Zona principal: Maestro - Detalle (Split view) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Bandeja de pendientes (Izquierda, 7 cols) */}
+        <div className="lg:col-span-7 space-y-3">
+          <Card className="border-border">
+            <CardHeader className="pb-3 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <span>Pendientes ({filteredItems.length})</span>
+                </CardTitle>
+                <span className="text-xs text-muted-foreground">
+                  Ordenado por urgencia e importe
+                </span>
               </div>
-            </section>
-          ))}
+            </CardHeader>
+            <CardContent className="p-3">
+              {loading ? (
+                <div className="py-16 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  <span>Cargando bandeja operativa...</span>
+                </div>
+              ) : error ? (
+                <div className="py-12 flex flex-col items-center text-center gap-3">
+                  <p className="text-sm text-muted-foreground">{error}</p>
+                  <Button variant="outline" size="sm" onClick={() => loadCases()}>
+                    Reintentar
+                  </Button>
+                </div>
+              ) : filteredItems.length === 0 ? (
+                <div className="py-16 flex flex-col items-center text-center gap-2">
+                  <CheckCircle2 className="w-10 h-10 text-success" />
+                  <p className="text-sm font-semibold">Sin pendientes en este filtro</p>
+                  <p className="text-xs text-muted-foreground max-w-sm">
+                    No hay casos abiertos que requieran tu atención en la sucursal seleccionada.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredItems.map((item) => {
+                    const isSelected = item.id === selectedCaseId;
+
+                    return (
+                      <div
+                        key={item.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedCaseId(item.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedCaseId(item.id);
+                          }
+                        }}
+                        className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20"
+                            : "border-border hover:bg-muted/40 hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        <span
+                          className={`mt-0.5 shrink-0 rounded-full border p-1.5 ${statusBadgeClasses(
+                            item.severity === "HIGH"
+                              ? "destructive"
+                              : item.severity === "MEDIUM"
+                                ? "warning"
+                                : "neutral"
+                          )}`}
+                        >
+                          {item.sourceType === "expense" ? (
+                            <Receipt className="w-3.5 h-3.5" />
+                          ) : item.sourceType === "cut" ? (
+                            <Wallet className="w-3.5 h-3.5" />
+                          ) : (
+                            <ShieldAlert className="w-3.5 h-3.5" />
+                          )}
+                        </span>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-sm font-semibold truncate text-foreground">
+                              {item.title}
+                            </span>
+                            {item.amountCents !== null && (
+                              <span className="text-sm font-bold tabular-nums shrink-0 text-foreground">
+                                {formatCents(item.amountCents)}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                            {item.detail}
+                          </p>
+                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-2">
+                            <span>{item.branchName || "Sucursal"}</span>
+                            <span>•</span>
+                            <span>{item.dateOrAge || "Hoy"}</span>
+                            {item.requiredRole && (
+                              <>
+                                <span>•</span>
+                                <span className="font-medium text-foreground/80">
+                                  Firma: {item.requiredRole}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <ChevronRight
+                          className={`w-4 h-4 shrink-0 mt-2 transition-transform ${
+                            isSelected ? "text-primary translate-x-0.5" : "text-muted-foreground/50"
+                          }`}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      </section>
+
+        {/* Panel lateral: Expediente del caso seleccionado (Derecha, 5 cols) */}
+        <div className="lg:col-span-5 sticky top-16">
+          <HoyCaseDossier
+            selectedCase={selectedCase}
+            onCaseResolved={handleCaseResolved}
+          />
+        </div>
+      </div>
+
+      {/* Sección inferior: Liquidez y proyección a 30 días */}
+      <div className="pt-4 border-t border-border">
+        <CashFlowSummaryCard branchId={branchId} />
+      </div>
     </div>
   );
 }

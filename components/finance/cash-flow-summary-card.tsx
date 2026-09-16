@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { formatCents } from "@/lib/utils";
 import type { CashFlowDay, CashFlowProjection } from "@/components/finance/cash-flow-calendar";
 import type { DateRange } from "@/components/finance/period-selector";
-import { format } from "date-fns";
 import { ArrowRight, Calendar, Clock, Loader2, RefreshCw, TrendingDown } from "lucide-react";
 
 /**
@@ -61,27 +60,23 @@ function toSummary(payload: CashFlowProjection | CashFlowDay[]): Summary | null 
   };
 }
 
-export function CashFlowSummaryCard({ branchId, dateRange }: { branchId: string; dateRange?: DateRange }) {
+export function CashFlowSummaryCard({ branchId, dateRange: _dateRange }: { branchId: string; dateRange?: DateRange }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isCancelled?: () => boolean) => {
     setLoading(true);
     setError(null);
     try {
       const url = new URL("/api/finance/cash-flow", window.location.origin);
       url.searchParams.set("days", String(HORIZON_DAYS));
       if (branchId !== "ALL") url.searchParams.set("branchId", branchId);
-      if (dateRange?.from) {
-        url.searchParams.set("startDate", format(dateRange.from, "yyyy-MM-dd"));
-        if (dateRange.to) {
-          url.searchParams.set("endDate", format(dateRange.to, "yyyy-MM-dd"));
-        }
-      }
 
       const res = await fetch(url.toString());
       const json = await res.json();
+      if (isCancelled?.()) return;
+
       if (res.ok && json.success) {
         setSummary(toSummary(json.data));
       } else {
@@ -89,17 +84,24 @@ export function CashFlowSummaryCard({ branchId, dateRange }: { branchId: string;
         setSummary(null);
       }
     } catch (err) {
+      if (isCancelled?.()) return;
       console.error("Failed to load cash flow summary:", err);
       setError("Error de conexión al calcular la proyección.");
       setSummary(null);
     } finally {
-      setLoading(false);
+      if (!isCancelled?.()) {
+        setLoading(false);
+      }
     }
   }, [branchId]);
 
   useEffect(() => {
-    load();
-  }, [load, dateRange]);
+    let cancelled = false;
+    load(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
 
   return (
     <Card>

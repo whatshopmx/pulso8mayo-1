@@ -101,6 +101,26 @@ export const paymentRunItemTypeEnum = pgEnum("payment_run_item_type", [
   'OPERATING_EXPENSE',
 ]);
 
+/**
+ * Liquidación de una partida: el tramo entre "la corrida salió del banco" y
+ * "el dinero llegó".
+ *
+ * Una corrida tenía un solo estado para todas sus partidas, así que al
+ * completarla el servicio marcaba **todas** sus facturas y gastos como pagados.
+ * Eso no puede expresar el caso normal de una transferencia rechazada: la
+ * corrida se cerraba, el documento quedaba saldado y la deuda desaparecía del
+ * libro sin que nadie hubiera recibido el dinero.
+ *
+ * `PENDING` es el valor de partida de las corridas que ya existían: siguen
+ * funcionando, sólo que ahora hay que resolver cada renglón antes de cerrar la
+ * corrida.
+ */
+export const paymentRunItemSettlementEnum = pgEnum("payment_run_item_settlement", [
+  'PENDING',
+  'CONFIRMED',
+  'FAILED',
+]);
+
 export const paymentRunItems = pgTable("payment_run_items", {
   id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
   paymentRunId: uuid("payment_run_id").notNull().references(() => paymentRuns.id, { onDelete: 'cascade' }),
@@ -113,6 +133,31 @@ export const paymentRunItems = pgTable("payment_run_items", {
   amountCents: integer("amount_cents").notNull(),
   
   notes: text("notes"),
+
+  /**
+   * Estado de liquidación individual. `PENDING` hasta que alguien confirma con
+   * comprobante o registra el rechazo del banco.
+   */
+  settlementStatus: paymentRunItemSettlementEnum("settlement_status").default('PENDING').notNull(),
+
+  /** Cuándo y quién resolvió la partida. */
+  settledAt: timestamp("settled_at"),
+  settledBy: text("settled_by").references(() => users.id),
+
+  /**
+   * Referencia, folio o rastro del comprobante con que se confirmó el pago.
+   *
+   * Es la evidencia mínima del movimiento: sin ella "confirmado" sería una
+   * afirmación sin nada que la sostenga. Va en claro porque es el número que se
+   * contrasta contra el estado de cuenta, no un dato de la contraparte.
+   */
+  settlementReference: text("settlement_reference"),
+
+  /** Nota libre de quien liquida (a qué cuenta llegó, quién lo verificó...). */
+  settlementNotes: text("settlement_notes"),
+
+  /** Motivo del rechazo bancario. Sin él, una partida fallida no se puede resolver. */
+  failureReason: text("failure_reason"),
 
   /**
    * Cuenta bancaria contra la que se autorizó esta partida, congelada al
@@ -150,7 +195,17 @@ export const paymentRunItems = pgTable("payment_run_items", {
   clabeLast4Snapshot: text("clabe_last4_snapshot"),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  /**
+   * El panel de una corrida pregunta "¿qué falta liquidar?" y el generador del
+   * layout "¿qué partidas ya no deben viajar?". Las dos son consultas por
+   * corrida y estado, no un recorrido de la tabla completa.
+   */
+  runSettlementIdx: index("payment_run_items_run_settlement_idx").on(
+    table.paymentRunId,
+    table.settlementStatus
+  ),
+}));
 
 // ---------------------------------------------------------------------------
 // Cuentas bancarias de payee — espejo de `supplier_bank_accounts`

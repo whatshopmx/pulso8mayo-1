@@ -393,80 +393,60 @@ const navMain = [
     ],
   },
   {
-    // "Finanzas" llevaba a /dashboard/sales, así que el módulo abría en una
-    // pantalla de captura de cortes en vez de en el estado del dinero.
     title: "Finanzas",
     url: "/dashboard/finance",
     icon: Coins,
     items: [
       {
-        title: "Resumen",
+        title: "Hoy (Pendientes)",
         url: "/dashboard/finance",
+        icon: Clock,
       },
       {
-        title: "Cortes de Ventas",
-        url: "/dashboard/sales",
+        title: "Gastos",
+        url: "/dashboard/finance/expenses",
+        icon: Receipt,
       },
       {
-        title: "Mapeo POS",
-        url: "/dashboard/sales/mapping",
+        title: "Pagos y Cuentas",
+        url: "/dashboard/finance/payables",
+        icon: FileText,
       },
+      {
+        title: "Caja y Cobros",
+        url: "/dashboard/finance/cash-flow",
+        icon: Calendar,
+      },
+      {
+        title: "Resultados (P&L)",
+        url: "/dashboard/finance/results",
+        icon: BarChart3,
+      },
+      {
+        title: "Cierre y Control",
+        url: "/dashboard/finance/control-interno",
+        icon: Shield,
+      },
+      { groupLabel: "Operación y Cuentas" },
       {
         title: "Caja Chica",
         url: "/dashboard/finance/petty-cash",
         icon: Wallet,
       },
       {
-        title: "Gastos Operativos",
-        url: "/dashboard/finance/expenses",
-        icon: Receipt,
+        title: "Tesorería y Corridas",
+        url: "/dashboard/finance/treasury",
+        icon: Landmark,
       },
-      // Presupuestos (Task 9): captura administrativa financiera junto a Gastos
-      // Operativos; edición ADMIN+, consumo desde OC/OS aprobadas.
+      {
+        title: "Cortes de Ventas",
+        url: "/dashboard/sales",
+        icon: Coins,
+      },
       {
         title: "Presupuestos",
         url: "/dashboard/budgets",
         icon: PiggyBank,
-      },
-      // Control gerencial (Task 10): lectura de la misma data de presupuesto
-      // que captura la pantalla anterior, más la disciplina de compra del mes.
-      {
-        title: "Control Gerencial",
-        url: "/dashboard/reports/control",
-        icon: Gauge,
-      },
-      {
-        title: "Cuentas por Pagar",
-        url: "/dashboard/finance/payables",
-        icon: FileText,
-      },
-      {
-        title: "Cuentas de Proveedores",
-        url: "/dashboard/finance/supplier-bank-accounts",
-        icon: Landmark,
-      },
-      {
-        title: "Flujo de Efectivo",
-        url: "/dashboard/finance/cash-flow",
-        icon: Calendar,
-      },
-      {
-        title: "Tesorería",
-        url: "/dashboard/finance/treasury",
-        icon: Wallet,
-      },
-      // Ambas existían y no estaban enlazadas desde ningún lado: sólo se llegaba
-      // escribiendo la URL, y son las dos pantallas con más especificidad fiscal
-      // mexicana del producto.
-      {
-        title: "Control Interno",
-        url: "/dashboard/finance/control-interno",
-        icon: Shield,
-      },
-      {
-        title: "Fiscal y Facturación",
-        url: "/dashboard/finance/fiscal",
-        icon: Receipt,
       },
     ],
   },
