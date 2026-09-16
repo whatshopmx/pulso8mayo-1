@@ -68,7 +68,7 @@ export default async function ProductDetailPage({ params }: Props) {
                 actions={
                     <div className="flex items-center gap-2">
                         <Link href="/dashboard/inventory">
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" aria-label="Volver al inventario">
                                 <ChevronLeft className="w-5 h-5" />
                             </Button>
                         </Link>

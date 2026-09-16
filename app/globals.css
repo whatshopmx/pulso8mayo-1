@@ -213,4 +213,13 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* Preserve functional indicators: spinners & busy indicators must communicate background activity */
+  .animate-spin,
+  [data-slot="spinner"],
+  [aria-busy="true"] svg {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+  }
 }
+

@@ -584,7 +584,7 @@ function SalesDashboardPageContent() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-6 text-[11px] px-2 mt-1.5 self-start"
+                                  className="h-7 text-xs px-2.5 mt-1.5 self-start"
                                   onClick={() => setSelectedCutForBatches(cut.id)}
                                 >
                                   <CreditCard className="h-3 w-3 mr-1" />

@@ -121,7 +121,7 @@ export function NavMain({ items }: { items: NavSection[] }) {
                       subItem.groupLabel ? (
                         <li
                           key={`group-${idx}`}
-                          className="px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground first:pt-1"
+                          className="px-2 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground first:pt-1"
                         >
                           {subItem.groupLabel}
                         </li>

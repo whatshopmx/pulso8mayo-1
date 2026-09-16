@@ -191,7 +191,7 @@ export default function ExceptionsPage() {
                   {count}
                 </Badge>
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5 line-clamp-1">
+              <p className="text-xs text-muted-foreground mt-1.5 line-clamp-1">
                 {cat.description}
               </p>
             </button>
@@ -291,8 +291,8 @@ export default function ExceptionsPage() {
                     )}
 
                     {item.estimatedImpact && (
-                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/60 text-[11px] font-medium text-muted-foreground mt-1">
-                        <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/60 text-xs font-medium text-muted-foreground mt-1">
+                        <AlertTriangle className="w-3 h-3 text-warning-text shrink-0" />
                         <span>{item.estimatedImpact}</span>
                       </div>
                     )}

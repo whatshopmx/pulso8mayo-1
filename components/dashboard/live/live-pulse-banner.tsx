@@ -56,13 +56,13 @@ export function LivePulseBanner({ summary }: LivePulseBannerProps) {
             href="/dashboard/exceptions"
             className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/15 transition-colors"
           >
-            <ShieldAlert className="h-4 w-4 animate-bounce" />
+            <ShieldAlert className="h-4 w-4 animate-pulse" />
             <span>{summary.criticalAlertsCount} riesgo{summary.criticalAlertsCount > 1 ? "s" : ""} en rush requiere{summary.criticalAlertsCount > 1 ? "n" : ""} atención</span>
             <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         ) : (
-          <div className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-            <CheckCircle2 className="h-3.5 w-3.5" />
+          <div className="inline-flex items-center gap-1.5 text-xs text-success-text font-medium px-2.5 py-1 rounded-full bg-success/10 border border-success/20">
+            <CheckCircle2 className="h-3.5 w-3.5 text-success" />
             <span>Servicio Estable sin Alertas Críticas</span>
           </div>
         )}
@@ -72,13 +72,13 @@ export function LivePulseBanner({ summary }: LivePulseBannerProps) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {/* Pilar 1: Aperturas */}
         <div className="flex items-center gap-3.5 rounded-lg border border-border/70 bg-background/50 p-3">
-          <div className={`p-2.5 rounded-lg ${isOpenFull ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
+          <div className={`p-2.5 rounded-lg ${isOpenFull ? 'bg-success/10 text-success-text' : 'bg-warning/10 text-warning-text'}`}>
             <Store className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Aperturas a Tiempo</span>
-              <span className={`text-[11px] font-semibold ${isOpenFull ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              <span className={`text-xs font-semibold ${isOpenFull ? 'text-success-text' : 'text-warning-text'}`}>
                 {summary.openRatePercent}%
               </span>
             </div>
@@ -93,13 +93,13 @@ export function LivePulseBanner({ summary }: LivePulseBannerProps) {
 
         {/* Pilar 2: Personal en Turno */}
         <div className="flex items-center gap-3.5 rounded-lg border border-border/70 bg-background/50 p-3">
-          <div className={`p-2.5 rounded-lg ${isStaffHealthy ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
+          <div className={`p-2.5 rounded-lg ${isStaffHealthy ? 'bg-info/10 text-info' : 'bg-warning/10 text-warning-text'}`}>
             <Users className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Personal en Piso</span>
-              <span className={`text-[11px] font-semibold ${isStaffHealthy ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              <span className={`text-xs font-semibold ${isStaffHealthy ? 'text-info' : 'text-warning-text'}`}>
                 {summary.staffAttendanceRate}% cubierto
               </span>
             </div>
@@ -114,13 +114,13 @@ export function LivePulseBanner({ summary }: LivePulseBannerProps) {
 
         {/* Pilar 3: Ventas POS del Día */}
         <div className="flex items-center gap-3.5 rounded-lg border border-border/70 bg-background/50 p-3">
-          <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <div className="p-2.5 rounded-lg bg-success/10 text-success-text">
             <DollarSign className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Venta Acumulada Hoy</span>
-              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+              <span className="text-xs font-semibold text-success-text">
                 POS
               </span>
             </div>
@@ -144,7 +144,7 @@ export function LivePulseBanner({ summary }: LivePulseBannerProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Riesgos Operativos</span>
-              <span className="text-[11px] font-semibold text-muted-foreground">
+              <span className="text-xs font-semibold text-muted-foreground">
                 M17 / NOM-251
               </span>
             </div>

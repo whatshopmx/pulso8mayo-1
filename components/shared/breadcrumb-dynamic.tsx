@@ -103,9 +103,9 @@ export function BreadcrumbDynamic({ companyName }: { companyName: string }) {
           return (
             <Fragment key={segment}>
               <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem>
+              <BreadcrumbItem className={isLast ? "" : "hidden sm:block"}>
                 {isLast ? (
-                  <BreadcrumbPage>{getLabel(segment)}</BreadcrumbPage>
+                  <BreadcrumbPage className="max-w-[120px] sm:max-w-xs truncate">{getLabel(segment)}</BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink href={href}>{getLabel(segment)}</BreadcrumbLink>
                 )}

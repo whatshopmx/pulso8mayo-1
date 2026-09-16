@@ -208,7 +208,7 @@ export default function FinanceTodayPage() {
           }`}
         >
           <span>Todos</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted/30">
+          <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold bg-muted/40">
             {counts.total}
           </span>
         </button>
@@ -223,7 +223,7 @@ export default function FinanceTodayPage() {
         >
           <Receipt className="w-3.5 h-3.5" />
           <span>Gastos por autorizar</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted/30">
+          <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold bg-muted/40">
             {counts.expense}
           </span>
         </button>
@@ -238,7 +238,7 @@ export default function FinanceTodayPage() {
         >
           <Wallet className="w-3.5 h-3.5" />
           <span>Diferencias en arqueo</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted/30">
+          <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold bg-muted/40">
             {counts.cut}
           </span>
         </button>
@@ -253,7 +253,7 @@ export default function FinanceTodayPage() {
         >
           <ShieldAlert className="w-3.5 h-3.5" />
           <span>Control interno</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted/30">
+          <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold bg-muted/40">
             {counts.violation}
           </span>
         </button>
@@ -339,7 +339,7 @@ export default function FinanceTodayPage() {
                         }}
                         className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-all ${
                           isSelected
-                            ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20"
+                            ? "border-primary bg-primary/5 ring-1 ring-primary/20"
                             : "border-border hover:bg-muted/40 hover:border-muted-foreground/30"
                         }`}
                       >
@@ -375,7 +375,7 @@ export default function FinanceTodayPage() {
                           <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                             {item.detail}
                           </p>
-                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-2">
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
                             <span>{item.branchName || "Sucursal"}</span>
                             <span>•</span>
                             <span>{item.dateOrAge || "Hoy"}</span>

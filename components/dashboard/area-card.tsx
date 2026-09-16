@@ -70,7 +70,7 @@ export function AreaCard({
             <Link
               key={`${item.sourceTable}-${item.id}`}
               href={item.deepLinkUrl}
-              className="flex items-start gap-2 text-sm hover:bg-muted/40 rounded-md px-1.5 py-1 -mx-1.5 transition-colors"
+              className="flex items-start gap-2 text-sm hover:bg-muted/40 rounded-md px-2 py-1.5 -mx-1 transition-colors min-h-[36px]"
             >
               <Badge
                 variant="outline"
@@ -83,14 +83,14 @@ export function AreaCard({
           ))
         )}
 
-        <div className="mt-auto pt-2 flex items-center justify-between text-xs">
-          <Link href={href} className="text-muted-foreground hover:text-foreground font-medium">
+        <div className="mt-auto pt-2 flex items-center justify-between text-xs border-t border-border/40">
+          <Link href={href} className="text-muted-foreground hover:text-foreground font-medium py-2 px-1 inline-flex items-center min-h-[36px]">
             Ir a {title}
           </Link>
           {totalExceptionCount > PREVIEW_COUNT && (
             <Link
               href={`/dashboard/exceptions?domain=${domain}`}
-              className="text-primary hover:underline font-medium inline-flex items-center gap-1"
+              className="text-primary hover:underline font-medium inline-flex items-center gap-1 py-2 px-1 min-h-[36px]"
             >
               Ver {totalExceptionCount}
               <ArrowRight className="w-3 h-3" />

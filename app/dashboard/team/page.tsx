@@ -313,7 +313,12 @@ Invitar Miembro
                                     value={getSmartLink()}
                                     className="text-xs font-mono bg-muted"
                                 />
-                                <Button variant="outline" size="icon" onClick={handleCopyLink}>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={handleCopyLink}
+                                    aria-label="Copiar enlace de registro"
+                                >
                                     <Copy className="h-4 w-4" />
                                 </Button>
                             </div>

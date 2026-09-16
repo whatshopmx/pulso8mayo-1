@@ -482,7 +482,7 @@ export default function TerminalsSettingsPage() {
                   disabled={!!editingTerminal}
                   required
                 />
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {editingTerminal
                     ? "El número de serie es inmutable para mantener la trazabilidad de auditoría."
                     : "Impreso en el reverso o etiqueta del hardware. No se puede repetir en la empresa."}

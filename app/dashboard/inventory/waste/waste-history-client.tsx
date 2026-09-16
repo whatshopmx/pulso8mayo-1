@@ -162,12 +162,12 @@ export function WasteHistoryClient({
       <div className="bg-sidebar border border-border rounded-lg p-4 flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-wrap gap-4 items-end">
           <div className="space-y-1">
-            <Label className="text-xs">Desde</Label>
-            <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} className="h-8 w-36" />
+            <Label htmlFor="waste-filter-from" className="text-xs">Desde</Label>
+            <Input id="waste-filter-from" type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} className="h-8 w-36" />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Hasta</Label>
-            <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} className="h-8 w-36" />
+            <Label htmlFor="waste-filter-to" className="text-xs">Hasta</Label>
+            <Input id="waste-filter-to" type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} className="h-8 w-36" />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Motivo</Label>

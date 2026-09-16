@@ -172,13 +172,13 @@ Extender `lib/services/cross-branch-service.ts` para calcular métricas especial
 - **Detección de Inconsistencias de Red:** Identificar desviaciones automáticas significativas entre sucursales que operan con el mismo menú (ej. "Sucursal Roma presenta un Food Cost 6.2% mayor que Condesa").
 
 **Acceptance criteria:**
-- [ ] `getBranchRanking` y `getBenchmarking` devuelven `primeCostPercent`, `foodCostPercent` y `laborCostPercent` para cada sucursal del grupo.
-- [ ] El algoritmo de detección de anomalías genera hallazgos narrativos basados en diferencias de más de 3 puntos porcentuales entre unidades hermanas.
-- [ ] Maneja casos donde faltan datos de inventario o nómina clasificando la procedencia como `ESTIMATED` sin romper el cálculo.
+- [x] `getBranchRanking` y `getBenchmarking` devuelven `primeCostPercent`, `foodCostPercent` y `laborCostPercent` para cada sucursal del grupo.
+- [x] El algoritmo de detección de anomalías genera hallazgos narrativos basados en diferencias de más de 3 puntos porcentuales entre unidades hermanas.
+- [x] Maneja casos donde faltan datos de inventario o nómina clasificando la procedencia como `ESTIMATED` sin romper el cálculo.
 
 **Verification:**
-- [ ] Tests pasan: `pnpm test lib/services/__tests__/cross-branch-qsr.test.ts`
-- [ ] Build exitoso: `pnpm run build`
+- [x] Tests pasan: `pnpm test lib/services/__tests__/cross-branch-qsr.test.ts`
+- [x] Build exitoso: `pnpm run build`
 
 **Dependencies:** Task 1
 
@@ -200,14 +200,14 @@ Rediseñar `app/dashboard/branches/page.tsx` como la "Liga de Sucursales" para g
 4. Ficha 360° en `app/dashboard/branches/[id]/page.tsx` con la radiografía completa de la sucursal (organigrama de turno, equipos de refrigeración, bitácora de mermas y auditorías fotográficas).
 
 **Acceptance criteria:**
-- [ ] Muestra el ranking visual de las 3 a 15 sucursales ordenadas por su puntaje integral QSR.
-- [ ] La tabla destaca con colores semafóricos los Prime Costs saludables (<60% verde, 60-65% amarillo, >65% rojo).
-- [ ] Al hacer clic en cualquier sucursal, se accede a la ficha detallada 360° conservando el selector de período.
-- [ ] Incluye exportación a CSV con codificación BOM para Excel en español.
+- [x] Muestra el ranking visual de las 3 a 15 sucursales ordenadas por su puntaje integral QSR.
+- [x] La tabla destaca con colores semafóricos los Prime Costs saludables (<60% verde, 60-65% amarillo, >65% rojo).
+- [x] Al hacer clic en cualquier sucursal, se accede a la ficha detallada 360° conservando el selector de período.
+- [x] Incluye exportación a CSV con codificación BOM para Excel en español.
 
 **Verification:**
-- [ ] Build exitoso: `pnpm run build`
-- [ ] Manual check: Abrir `/dashboard/branches`, comparar sucursales y entrar a la ficha de una sucursal específica.
+- [x] Build exitoso: `pnpm run build`
+- [x] Manual check: Abrir `/dashboard/branches`, comparar sucursales y entrar a la ficha de una sucursal específica.
 
 **Dependencies:** Task 6
 
@@ -222,8 +222,8 @@ Rediseñar `app/dashboard/branches/page.tsx` como la "Liga de Sucursales" para g
 ---
 
 ## Checkpoint 4: Benchmarking y Liga QSR Funcionando
-- [ ] Las sucursales se comparan de forma justa con métricas estandarizadas de la industria.
-- [ ] Los socios y supervisores pueden auditar exactamente qué tienda está fugando margen en alimentos o personal.
+- [x] Las sucursales se comparan de forma justa con métricas estandarizadas de la industria.
+- [x] Los socios y supervisores pueden auditar exactamente qué tienda está fugando margen en alimentos o personal.
 
 ---
 
@@ -237,13 +237,13 @@ Refinar `app/dashboard/executive/page.tsx` para concentrar la visión del dueño
 - Mantener la Proyección de Flujo a 14 días (`CashFlowProjection`) vinculada a compromisos con proveedores y nóminas.
 
 **Acceptance criteria:**
-- [ ] La pantalla de Dirección carga limpiamente sin duplicar la lista de excepciones ni rankings redundantes que ya viven en `/dashboard/branches`.
-- [ ] Presenta el Morning Brief matutino generado por el motor de inteligencia.
-- [ ] El P&L operativo y el flujo de caja muestran la rentabilidad neta por tienda.
+- [x] La pantalla de Dirección carga limpiamente sin duplicar la lista de excepciones ni rankings redundantes que ya viven en `/dashboard/branches`.
+- [x] Presenta el Morning Brief matutino generado por el motor de inteligencia.
+- [x] El P&L operativo y el flujo de caja muestran la rentabilidad neta por tienda.
 
 **Verification:**
-- [ ] Build exitoso: `pnpm run build`
-- [ ] Manual check: Verificar que `/dashboard/executive` ofrece la vista panorámica de negocio para el dueño sin ruido operativo.
+- [x] Build exitoso: `pnpm run build`
+- [x] Manual check: Verificar que `/dashboard/executive` ofrece la vista panorámica de negocio para el dueño sin ruido operativo.
 
 **Dependencies:** Task 1, Task 6
 
@@ -265,15 +265,15 @@ Completar la transición de la suite analítica:
 - Comprobar que el build de producción (`pnpm run build`) compila con cero errores.
 
 **Acceptance criteria:**
-- [ ] Si un usuario accede a `/dashboard/analytics`, es redirigido a `/dashboard/branches` o `/dashboard`.
-- [ ] Si accede a `/dashboard/analytics/incidents`, es redirigido a `/dashboard/exceptions`.
-- [ ] Todos los tests del proyecto pasan limpiamente: `pnpm test`.
-- [ ] `pnpm run build` y `pnpm run lint` finalizan con éxito.
+- [x] Si un usuario accede a `/dashboard/analytics`, es redirigido a `/dashboard/branches` o `/dashboard`.
+- [x] Si accede a `/dashboard/analytics/incidents`, es redirigido a `/dashboard/exceptions`.
+- [x] Todos los tests del proyecto pasan limpiamente: `pnpm test`.
+- [x] `pnpm run build` y `pnpm run lint` finalizan con éxito.
 
 **Verification:**
-- [ ] `pnpm test`
-- [ ] `pnpm run build`
-- [ ] `pnpm run lint`
+- [x] `pnpm test`
+- [x] `pnpm run build`
+- [x] `pnpm run lint`
 
 **Dependencies:** Tasks 1 a 8
 
@@ -289,6 +289,6 @@ Completar la transición de la suite analítica:
 ---
 
 ## Checkpoint Final: Sistema Operativo QSR Completo y Verificado
-- [ ] El sistema Pulso queda transformado en un verdadero Sistema Operativo Multi-Unidad para grupos QSR de 3 a 15 sucursales.
-- [ ] Desapareció la confusión entre 4 dashboards distintos.
-- [ ] Todas las pruebas automatizadas y compilación pasan al 100%.
+- [x] El sistema Pulso queda transformado en un verdadero Sistema Operativo Multi-Unidad para grupos QSR de 3 a 15 sucursales.
+- [x] Desapareció la confusión entre 4 dashboards distintos.
+- [x] Todas las pruebas automatizadas y compilación pasan al 100%.

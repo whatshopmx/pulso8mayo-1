@@ -586,13 +586,13 @@ export default function EvidencePage() {
                                     </Badge>
 
                                     {evidence.aiVerified ? (
-                                        <Badge className="text-xs px-2 py-0.5 bg-emerald-500/90 text-white border-0 font-medium flex items-center gap-1 shadow-none">
+                                        <Badge variant="outline" className="text-xs px-2 py-0.5 bg-success/15 text-success-text border-success/30 font-medium flex items-center gap-1 shadow-none">
                                             <CheckCircle2 className="h-3 w-3" />
                                             {evidence.aiScore ? `${evidence.aiScore}%` : "IA"}
                                         </Badge>
                                     ) : (
-                                        <Badge variant="outline" className="text-xs px-2 py-0.5 bg-background/90 backdrop-blur-sm border-amber-500/40 text-amber-700 dark:text-amber-300 font-medium flex items-center gap-1 shadow-none">
-                                            <AlertCircle className="h-3 w-3 text-amber-600" />
+                                        <Badge variant="outline" className="text-xs px-2 py-0.5 bg-warning/15 text-warning-text border-warning/30 font-medium flex items-center gap-1 shadow-none">
+                                            <AlertCircle className="h-3 w-3" />
                                             Revisión
                                         </Badge>
                                     )}
@@ -815,13 +815,13 @@ export default function EvidencePage() {
                                     <p className="text-muted-foreground">Estado IA</p>
                                     <div className="flex items-center gap-1.5 mt-0.5">
                                         {selectedEvidence.aiVerified ? (
-                                            <Badge className="text-xs px-1.5 py-0 bg-emerald-500 text-white border-0 font-medium">
+                                            <Badge variant="outline" className="text-xs px-1.5 py-0 bg-success/15 text-success-text border-success/30 font-medium">
                                                 <CheckCircle2 className="h-2.5 w-2.5 mr-1" />
                                                 {selectedEvidence.aiScore ? `${selectedEvidence.aiScore}%` : "Aprobada"}
                                             </Badge>
                                         ) : (
-                                            <Badge variant="outline" className="text-xs px-1.5 py-0 border-amber-500/40 text-amber-700 dark:text-amber-300 font-medium">
-                                                <AlertCircle className="h-2.5 w-2.5 mr-1 text-amber-600" />
+                                            <Badge variant="outline" className="text-xs px-1.5 py-0 bg-warning/15 text-warning-text border-warning/30 font-medium">
+                                                <AlertCircle className="h-2.5 w-2.5 mr-1" />
                                                 Por Revisar
                                             </Badge>
                                         )}

@@ -400,17 +400,17 @@ export default function InvoiceUploadPage() {
                                         onChange={handleFileChange}
                                         className="absolute inset-0 opacity-0 cursor-pointer"
                                     />
-                                    <Upload className="w-10 h-10 text-slate-400 mb-4" />
+                                    <Upload className="w-10 h-10 text-muted-foreground mb-4" />
                                     {file ? (
                                         <div className="text-center">
-                                            <p className="font-semibold text-slate-700">{file.name}</p>
+                                            <p className="font-semibold text-foreground">{file.name}</p>
                                             <p className="text-xs text-muted-foreground mt-1">
                                                 {(file.size / 1024).toFixed(2)} KB
                                             </p>
                                         </div>
                                     ) : (
                                         <div className="text-center">
-                                            <p className="font-medium text-slate-700">Haz clic o arrastra un archivo XML aquí</p>
+                                            <p className="font-medium text-foreground">Haz clic o arrastra un archivo XML aquí</p>
                                             <p className="text-xs text-muted-foreground mt-1">Formatos permitidos: .xml</p>
                                         </div>
                                     )}
@@ -577,10 +577,10 @@ export default function InvoiceUploadPage() {
                                                                     {item.concepto.claveProdServ} • {item.concepto.unidad || 'U'}
                                                                 </span>
                                                             </div>
-                                                            <p className="font-medium text-sm text-slate-800 truncate" title={item.concepto.descripcion}>
+                                                            <p className="font-medium text-sm text-foreground truncate" title={item.concepto.descripcion}>
                                                                 {item.concepto.descripcion}
                                                             </p>
-                                                            <p className="text-xs text-slate-500">
+                                                            <p className="text-xs text-muted-foreground">
                                                                 Costo unitario: ${item.concepto.valorUnitario.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                                                             </p>
                                                         </div>
@@ -672,7 +672,7 @@ export default function InvoiceUploadPage() {
                                                         {new Date(invoice.fecha).toLocaleDateString()}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <div className="font-semibold text-slate-700">{invoice.supplierName || 'Desconocido'}</div>
+                                                        <div className="font-semibold text-foreground">{invoice.supplierName || 'Desconocido'}</div>
                                                         <div className="text-xs text-muted-foreground">Emisor: {invoice.nombreEmisor || 'N/A'}</div>
                                                     </TableCell>
                                                     <TableCell className="font-mono text-xs">
@@ -881,10 +881,10 @@ export default function InvoiceUploadPage() {
 
                             {/* Main Comparison Table */}
                             <div className="space-y-2">
-                                <h3 className="font-bold text-sm text-slate-800">Cotejo Detallado por Concepto (Factura vs PO vs Recepción)</h3>
+                                <h3 className="font-bold text-sm text-foreground">Cotejo Detallado por Concepto (Factura vs PO vs Recepción)</h3>
                                 <div className="border rounded-lg overflow-hidden">
                                     <Table>
-                                        <TableHeader className="bg-slate-50/50">
+                                        <TableHeader className="bg-muted/30">
                                             <TableRow>
                                                 <TableHead>Insumo</TableHead>
                                                 <TableHead className="text-center">Cant. Factura</TableHead>
@@ -1012,8 +1012,8 @@ export default function InvoiceUploadPage() {
                         <div className="space-y-6 p-4">
                             <div className="flex justify-between items-start border-b pb-4">
                                 <div>
-                                    <h1 className="text-2xl font-bold text-slate-800">RECLAMO FORMAL A PROVEEDOR</h1>
-                                    <p className="text-sm text-slate-500 mt-1">Pulso HORECA - Control de Calidad</p>
+                                    <h1 className="text-2xl font-bold text-foreground">RECLAMO FORMAL A PROVEEDOR</h1>
+                                    <p className="text-sm text-muted-foreground mt-1">Pulso HORECA - Control de Calidad</p>
                                 </div>
                                 <div className="text-right text-sm">
                                     <p className="font-semibold">Fecha: {new Date().toLocaleDateString()}</p>
@@ -1021,20 +1021,20 @@ export default function InvoiceUploadPage() {
                                 </div>
                             </div>
 
-                            <div className="space-y-2 text-sm text-slate-700">
+                            <div className="space-y-2 text-sm text-foreground">
                                 <p><strong>Para:</strong> {selectedInvoiceDetail.supplier?.name || selectedInvoiceDetail.invoice.nombreEmisor}</p>
                                 <p><strong>De:</strong> Control de Inventarios, Pulso HORECA</p>
                                 <p><strong>Asunto:</strong> Reporte de Discrepancias en Factura {selectedInvoiceDetail.invoice.serie || ''}-{selectedInvoiceDetail.invoice.folio || ''}</p>
                             </div>
 
-                            <div className="text-sm text-slate-700 leading-relaxed space-y-4">
+                            <div className="text-sm text-foreground leading-relaxed space-y-4">
                                 <p>Estimado Proveedor,</p>
                                 <p>Por medio del presente documento, le notificamos de manera formal que durante nuestro proceso de control de calidad y conciliación automatizada, se han identificado discrepancias significativas entre las cantidades/precios facturados y la mercancía físicamente recibida.</p>
                                 <p>Detalle de las discrepancias identificadas:</p>
                             </div>
 
                             {/* Discrepancies list */}
-                            <div className="p-4 bg-rose-50 border border-rose-100 rounded-lg text-rose-800 text-sm">
+                            <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
                                 <ul className="list-disc list-inside space-y-2">
                                     {selectedInvoiceDetail.matchDetails?.discrepancies.map((dis: any, idx: number) => (
                                         <li key={idx} className="leading-relaxed">
@@ -1046,10 +1046,10 @@ export default function InvoiceUploadPage() {
 
                             {/* Verification Table */}
                             <div className="space-y-2">
-                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cotejo de Ítems Afectados</p>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cotejo de Ítems Afectados</p>
                                 <div className="border rounded-lg overflow-hidden">
                                     <Table>
-                                        <TableHeader className="bg-slate-50">
+                                        <TableHeader className="bg-muted/30">
                                             <TableRow>
                                                 <TableHead>Producto</TableHead>
                                                 <TableHead className="text-center">Facturado</TableHead>
@@ -1063,16 +1063,16 @@ export default function InvoiceUploadPage() {
                                                 .filter((comp: any) => !comp.qtyMatches || !comp.priceMatches)
                                                 .map((comp: any, index: number) => (
                                                     <TableRow key={index} className="text-xs">
-                                                        <TableCell className="font-semibold text-slate-800">
-                                                            {comp.itemName}
-                                                        </TableCell>
-                                                        <TableCell className={cn("text-center", !comp.qtyMatches && "text-rose-600 font-semibold")}>
-                                                            {comp.invoiceQty}
-                                                        </TableCell>
-                                                        <TableCell className={cn("text-center", !comp.qtyMatches && "text-rose-600 font-semibold")}>
-                                                            {comp.receivedQty}
-                                                        </TableCell>
-                                                        <TableCell className={cn("text-right", !comp.priceMatches && "text-rose-600 font-semibold")}>
+                                                        <TableCell className="font-semibold text-foreground">
+                                                             {comp.itemName}
+                                                         </TableCell>
+                                                         <TableCell className={cn("text-center", !comp.qtyMatches && "text-destructive font-semibold")}>
+                                                             {comp.invoiceQty}
+                                                         </TableCell>
+                                                         <TableCell className={cn("text-center", !comp.qtyMatches && "text-destructive font-semibold")}>
+                                                             {comp.receivedQty}
+                                                         </TableCell>
+                                                         <TableCell className={cn("text-right", !comp.priceMatches && "text-destructive font-semibold")}>
                                                             ${comp.invoicePrice.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                                                         </TableCell>
                                                         <TableCell className="text-right text-muted-foreground">
@@ -1086,15 +1086,15 @@ export default function InvoiceUploadPage() {
                                 </div>
                             </div>
 
-                            <div className="text-sm text-slate-700 leading-relaxed space-y-4 pt-4">
+                            <div className="text-sm text-foreground leading-relaxed space-y-4 pt-4">
                                 <p>Solicitamos atentamente su apoyo para realizar la revisión de los puntos anteriores y proceder con la emisión de la nota de crédito correspondiente o la reposición física del producto a la brevedad posible.</p>
                                 <p>Agradecemos de antemano su colaboración.</p>
                                 <div className="pt-8 flex justify-between">
-                                    <div className="border-t border-slate-300 w-48 text-center pt-2">
+                                    <div className="border-t border-border w-48 text-center pt-2">
                                         <p className="font-semibold text-xs">Firma Sucursal</p>
                                         <p className="text-xs text-muted-foreground">Recibido de Almacén</p>
                                     </div>
-                                    <div className="border-t border-slate-300 w-48 text-center pt-2">
+                                    <div className="border-t border-border w-48 text-center pt-2">
                                         <p className="font-semibold text-xs">Firma Autorizada</p>
                                         <p className="text-xs text-muted-foreground">Control de Inventarios</p>
                                     </div>

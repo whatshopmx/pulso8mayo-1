@@ -30,7 +30,7 @@ export function NotificationBell() {
           {unreadCount > 0 && (
             <Badge
               variant="destructive"
-              className="absolute -top-1 -right-1 h-5 min-w-5 rounded-full px-1 text-[10px] font-bold flex items-center justify-center"
+              className="absolute -top-1 -right-1 h-5 min-w-5 rounded-full px-1 text-xs font-bold flex items-center justify-center"
             >
               {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>
@@ -102,14 +102,14 @@ function NotificationContent({
   return (
     <div className="flex items-start gap-2 w-full">
       {!n.read && (
-        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
       )}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium leading-none truncate">{n.title}</p>
         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
           {n.message}
         </p>
-        <p className="text-[10px] text-muted-foreground mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           {formatDistanceToNow(new Date(n.createdAt), {
             addSuffix: true,
             locale: es,

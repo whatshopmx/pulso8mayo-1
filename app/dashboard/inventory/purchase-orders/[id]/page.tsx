@@ -214,7 +214,7 @@ export default function PODetailPage() {
               Compartir WhatsApp
             </Button>
             <Link href="/dashboard/inventory/purchase-orders">
-              <Button variant="ghost" size="icon"><ChevronLeft className="h-5 w-5" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Volver a órdenes de compra"><ChevronLeft className="h-5 w-5" /></Button>
             </Link>
           </div>
         }

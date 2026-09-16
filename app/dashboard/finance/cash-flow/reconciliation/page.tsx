@@ -288,7 +288,7 @@ function ReconciliationContent() {
             <p className="text-2xl font-bold text-foreground">
               {formatCents(summary.totalGrossCents)}
             </p>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {totalCount} transacciones importadas
             </span>
           </CardContent>
@@ -303,7 +303,7 @@ function ReconciliationContent() {
             <p className="text-2xl font-bold text-foreground">
               {formatCents(summary.totalFeeCents)}
             </p>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {summary.totalGrossCents > 0
                 ? `${((summary.totalFeeCents / summary.totalGrossCents) * 100).toFixed(2)}% tasa promedio`
                 : "Sin datos"}
@@ -318,14 +318,14 @@ function ReconciliationContent() {
                 <Percent className="h-4 w-4 text-success" />
                 IVA Comisión (16%)
               </span>
-              <Badge variant="outline" className="text-[10px] border-success text-success bg-success/10 py-0">
+              <Badge variant="outline" className="text-xs font-semibold border-success text-success bg-success/10 py-0.5">
                 Acreditable
               </Badge>
             </div>
             <p className="text-2xl font-bold text-success">
               {formatCents(summary.totalFeeVatCents)}
             </p>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               Segregado para conciliación fiscal SAT
             </span>
           </CardContent>
@@ -340,7 +340,7 @@ function ReconciliationContent() {
             <p className="text-2xl font-bold text-foreground">
               {formatCents(summary.totalNetCents)}
             </p>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               Bruto menos comisiones e IVA
             </span>
           </CardContent>
@@ -426,7 +426,7 @@ function ReconciliationContent() {
               <Scale className="h-3.5 w-3.5" />
               Auditoría de Comisiones
               {auditResult && auditResult.discrepanciesCount > 0 && (
-                <Badge variant="destructive" className="ml-1 text-[10px] px-1.5 py-0">
+                <Badge variant="destructive" className="ml-1 text-xs px-1.5 py-0 font-semibold">
                   {auditResult.discrepanciesCount}
                 </Badge>
               )}
@@ -499,21 +499,21 @@ function ReconciliationContent() {
                           </TableCell>
                           <TableCell>{tx.branchName || "—"}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-[11px] font-medium">
+                            <Badge variant="outline" className="text-xs font-medium">
                               {tx.acquirer}
                             </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1 font-mono">
                               {tx.cardBrand && (
-                                <span className="text-[10px] font-semibold text-muted-foreground">
+                                <span className="text-xs font-semibold text-muted-foreground">
                                   {tx.cardBrand}
                                 </span>
                               )}
                               {tx.cardLast4 ? `•••• ${tx.cardLast4}` : "—"}
                             </div>
                           </TableCell>
-                          <TableCell className="font-mono text-[11px] max-w-[140px] truncate" title={tx.externalId || tx.authorizationCode || ""}>
+                          <TableCell className="font-mono text-xs max-w-[140px] truncate" title={tx.externalId || tx.authorizationCode || ""}>
                             {tx.authorizationCode ? (
                               <span>Aut: {tx.authorizationCode}</span>
                             ) : (
@@ -533,7 +533,7 @@ function ReconciliationContent() {
                             {formatCents(tx.netAmountCents)}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className="text-[10px]">
+                            <Badge variant="secondary" className="text-xs">
                               {tx.status}
                             </Badge>
                           </TableCell>
@@ -607,19 +607,20 @@ function ReconciliationContent() {
               )}
 
               {/* Tarjetas de Auditoría */}
+              {/* Tarjetas de Auditoría */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card>
                   <CardContent className="p-4 space-y-1">
                     <span className="text-xs text-muted-foreground">Venta Bruta Auditada</span>
                     <p className="text-xl font-bold">{formatCents(auditResult.totalGrossCents)}</p>
-                    <span className="text-[11px] text-muted-foreground">100% íntegra para P&L</span>
+                    <span className="text-xs text-muted-foreground">100% íntegra para P&L</span>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="p-4 space-y-1">
                     <span className="text-xs text-muted-foreground">Retención Cobrada Real</span>
                     <p className="text-xl font-bold">{formatCents(auditResult.totalActualFeeCents)}</p>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       Tasa promedio: {(auditResult.effectiveAvgRateBps / 100).toFixed(2)}%
                     </span>
                   </CardContent>
@@ -628,7 +629,7 @@ function ReconciliationContent() {
                   <CardContent className="p-4 space-y-1">
                     <span className="text-xs text-muted-foreground">Tarifa Esperada Pactada</span>
                     <p className="text-xl font-bold">{formatCents(auditResult.totalExpectedFeeCents)}</p>
-                    <span className="text-[11px] text-muted-foreground">Tarifa contrato + IVA 16%</span>
+                    <span className="text-xs text-muted-foreground">Tarifa contrato + IVA 16%</span>
                   </CardContent>
                 </Card>
                 <Card className={auditResult.totalOverchargeCents > 0 ? "border-destructive/40 bg-destructive/5" : ""}>
@@ -637,7 +638,7 @@ function ReconciliationContent() {
                     <p className={`text-xl font-bold ${auditResult.totalOverchargeCents > 0 ? "text-destructive" : "text-foreground"}`}>
                       {formatCents(auditResult.totalOverchargeCents)}
                     </p>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       Reclamable ante el adquirente
                     </span>
                   </CardContent>
@@ -688,11 +689,11 @@ function ReconciliationContent() {
                                   minute: "2-digit",
                                 })}
                               </TableCell>
-                              <TableCell className="font-mono text-[11px]">
+                              <TableCell className="font-mono text-xs">
                                 {d.authorizationCode ? `Aut: ${d.authorizationCode}` : d.externalId?.slice(0, 10)}
                               </TableCell>
                               <TableCell>
-                                <span className="font-mono text-[11px]">
+                                <span className="font-mono text-xs">
                                   {d.cardBrand || "—"} {d.cardType ? `(${d.cardType})` : ""}
                                 </span>
                               </TableCell>
@@ -716,7 +717,7 @@ function ReconciliationContent() {
                               <TableCell>
                                 <Badge
                                   variant={d.type === "OVERCHARGED" ? "destructive" : "secondary"}
-                                  className="text-[10px]"
+                                  className="text-xs"
                                 >
                                   {d.type === "OVERCHARGED" ? "SOBRECOBRO" : "A FAVOR"}
                                 </Badge>
@@ -799,7 +800,7 @@ function ReconciliationContent() {
                 onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                 className="text-xs file:text-xs file:py-1 file:px-2 file:rounded file:border-0 file:bg-primary file:text-primary-foreground"
               />
-              <span className="text-[11px] text-muted-foreground block">
+              <span className="text-xs text-muted-foreground block">
                 Las transacciones repetidas son detectadas y omitidas automáticamente.
               </span>
             </div>

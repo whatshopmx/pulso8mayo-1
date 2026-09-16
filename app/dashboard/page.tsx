@@ -45,9 +45,9 @@ export default async function Page({
 
       {/* #2 — El Consejo del Grupo: salud por área operativa con colas de excepciones cruzadas */}
       <div className="pt-2">
-        <h3 className="text-sm font-semibold tracking-tight text-foreground mb-3">
+        <h2 className="text-sm font-semibold tracking-tight text-foreground mb-3">
           Salud Operativa por Áreas del Grupo
-        </h3>
+        </h2>
         <Suspense fallback={<MetricCardSkeleton count={6} />}>
           <SectionErrorBoundary>
             <GroupAreaOverview branch={selectedBranch} />
@@ -57,9 +57,9 @@ export default async function Page({
 
       {/* #3 — Bitácora de actividad reciente del turno */}
       <div className="pt-2">
-        <h3 className="text-sm font-semibold tracking-tight text-foreground mb-3">
+        <h2 className="text-sm font-semibold tracking-tight text-foreground mb-3">
           Bitácora en Tiempo Real de la Red
-        </h3>
+        </h2>
         <Suspense fallback={<DataTableSkeleton columns={5} rows={5} />}>
           {companyId ? (
             <RecentActivity companyId={companyId} branchId={selectedBranch} />
