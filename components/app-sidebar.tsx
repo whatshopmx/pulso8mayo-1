@@ -23,6 +23,7 @@ import {
   PiggyBank,
   Gauge,
   AlertTriangle,
+  Clock,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
