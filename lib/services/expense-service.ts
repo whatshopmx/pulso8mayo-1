@@ -976,7 +976,7 @@ async function consultarGastos(
 export async function getOperatingExpenses(
   companyId: string,
   branchId?: string,
-  opciones?: { limiteHistorial?: number; payeeId?: string; costCenterId?: string }
+  opciones?: { limiteHistorial?: number; payeeId?: string; costCenterId?: string; status?: string }
 ) {
   const limiteHistorial = opciones?.limiteHistorial ?? LIMITE_HISTORIAL;
 
@@ -996,23 +996,39 @@ export async function getOperatingExpenses(
     base.push(eq(operatingExpenses.costCenterId, opciones.costCenterId));
   }
 
-  // Se pide uno de más para saber si hubo corte sin un COUNT aparte.
-  const [pendientes, historial] = await Promise.all([
-    consultarGastos([...base, eq(operatingExpenses.status, "PENDING_APPROVAL")]),
-    consultarGastos(
-      [...base, ne(operatingExpenses.status, "PENDING_APPROVAL")],
+  let expenses: Awaited<ReturnType<typeof consultarGastos>>;
+  let truncated = false;
+
+  if (opciones?.status === "PENDING_APPROVAL") {
+    // Si solo se piden pendientes (ej. bandeja Hoy), se consultan sin límite
+    // y sin traer el historial innecesario.
+    expenses = await consultarGastos([...base, eq(operatingExpenses.status, "PENDING_APPROVAL")]);
+  } else if (opciones?.status) {
+    const res = await consultarGastos(
+      [...base, eq(operatingExpenses.status, opciones.status as any)],
       limiteHistorial + 1
-    ),
-  ]);
+    );
+    truncated = res.length > limiteHistorial;
+    expenses = truncated ? res.slice(0, limiteHistorial) : res;
+  } else {
+    // Se pide uno de más para saber si hubo corte sin un COUNT aparte.
+    const [pendientes, historial] = await Promise.all([
+      consultarGastos([...base, eq(operatingExpenses.status, "PENDING_APPROVAL")]),
+      consultarGastos(
+        [...base, ne(operatingExpenses.status, "PENDING_APPROVAL")],
+        limiteHistorial + 1
+      ),
+    ]);
 
-  const truncated = historial.length > limiteHistorial;
-  const historialAcotado = truncated ? historial.slice(0, limiteHistorial) : historial;
+    truncated = historial.length > limiteHistorial;
+    const historialAcotado = truncated ? historial.slice(0, limiteHistorial) : historial;
 
-  // Se reordena el conjunto: la pantalla puede mostrar "todos los estatus" y
-  // dos bloques concatenados se leerían como dos tablas pegadas.
-  const expenses = [...pendientes, ...historialAcotado].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+    // Se reordena el conjunto: la pantalla puede mostrar "todos los estatus" y
+    // dos bloques concatenados se leerían como dos tablas pegadas.
+    expenses = [...pendientes, ...historialAcotado].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
 
   // El rol exigido y quién puede satisfacerlo. Tres consultas fijas para toda la
   // lista —reglas, config y usuarios— en vez de una por gasto.

@@ -15,6 +15,7 @@ import { companies, branches } from './schema/core';
 import { branchComplianceServices } from './schema/equipment';
 import { purchaseTypeEnum, costCenters, serviceOrders } from './schema/service-orders';
 import { recurringContracts } from './schema/treasury';
+import { branchTerminals } from './schema/finance';
 
 // Re-export modular schema
 export * from './schema/index';
@@ -2889,6 +2890,54 @@ export const dailySalesCuts = pgTable("daily_sales_cuts", {
         table.businessDate
     ),
 }));
+
+/**
+ * Cierres de lote físico de terminales TPV por turno (Módulo 6.2 - Conciliación TPV Banda 2).
+ *
+ * Registra por cada terminal autorizada de la sucursal: folio de lote, monto total cobrado
+ * en tarjeta según voucher, propinas acumuladas y foto del voucher físico.
+ * Base para comparar contra dailySalesCuts.cardSales y reportes de pasarelas.
+ */
+export const tpvShiftBatches = pgTable("tpv_shift_batches", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").notNull().references(() => branches.id),
+    salesCutId: uuid("sales_cut_id").notNull().references(() => dailySalesCuts.id, { onDelete: "cascade" }),
+    terminalId: uuid("terminal_id").notNull().references(() => branchTerminals.id),
+
+    /** Folio del lote físico (impreso en el ticket de cierre de lote). */
+    batchNumber: text("batch_number").notNull(),
+
+    /** Monto total cobrado en tarjeta según el voucher físico, en centavos. */
+    cardAmountCents: integer("card_amount_cents").notNull(),
+
+    /** Propinas acumuladas en tarjeta del lote, en centavos. */
+    tipAmountCents: integer("tip_amount_cents").default(0).notNull(),
+
+    /** Identificador de la foto del voucher físico en R2 o storage local. */
+    voucherPhotoUrl: text("voucher_photo_url"),
+
+    notes: text("notes"),
+
+    capturedBy: text("captured_by").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    tpvShiftBatchesCutTerminalUnique: uniqueIndex("tpv_shift_batches_cut_terminal_unique").on(
+        table.salesCutId,
+        table.terminalId
+    ),
+    tpvShiftBatchesCompanyBranchIdx: index("tpv_shift_batches_company_branch_idx").on(
+        table.companyId,
+        table.branchId
+    ),
+    tpvShiftBatchesSalesCutIdx: index("tpv_shift_batches_sales_cut_idx").on(
+        table.salesCutId
+    ),
+}));
+
+export type TpvShiftBatch = typeof tpvShiftBatches.$inferSelect;
+export type NewTpvShiftBatch = typeof tpvShiftBatches.$inferInsert;
 
 // M13: POS column-mapping templates — per-tenant configurable mapping of
 // POS export columns → canonical sales-cut fields (plan decision 4).

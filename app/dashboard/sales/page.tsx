@@ -20,7 +20,9 @@ import {
   Settings2,
   BarChart3,
   FileSpreadsheet,
+  CreditCard,
 } from "lucide-react";
+import { TpvBatchEntryModal } from "@/components/sales/tpv-batch-entry-modal";
 import { useToast } from "@/hooks/use-toast";
 import { statusBadgeClasses, formatCents } from "@/lib/utils";
 import {
@@ -114,6 +116,7 @@ function SalesDashboardPageContent() {
    * tabla vacía para las dos, con un toast que se va solo a los segundos.
    */
   const [cutsError, setCutsError] = useState<string | null>(null);
+  const [selectedCutForBatches, setSelectedCutForBatches] = useState<string | null>(null);
 
   // Scope único para toda la página: sucursal desde el control del encabezado
   // (cookie) y rango de fechas desde la URL que ese mismo control escribe. Antes
@@ -577,6 +580,17 @@ function SalesDashboardPageContent() {
                               ) : (
                                 <span className="text-xs text-muted-foreground/60">—</span>
                               )}
+                              {cut.cardSales !== null && cut.cardSales > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-6 text-[11px] px-2 mt-1.5 self-start"
+                                  onClick={() => setSelectedCutForBatches(cut.id)}
+                                >
+                                  <CreditCard className="h-3 w-3 mr-1" />
+                                  Lotes TPV
+                                </Button>
+                              )}
                             </TableCell>
                             <TableCell>{getSourceBadge(cut.source)}</TableCell>
                             <TableCell>
@@ -649,6 +663,15 @@ function SalesDashboardPageContent() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <TpvBatchEntryModal
+        salesCutId={selectedCutForBatches}
+        open={!!selectedCutForBatches}
+        onOpenChange={(open) => {
+          if (!open) setSelectedCutForBatches(null);
+        }}
+        onSaved={fetchCuts}
+      />
     </div>
   );
 }

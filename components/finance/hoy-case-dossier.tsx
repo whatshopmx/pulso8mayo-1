@@ -34,10 +34,11 @@ import {
   Loader2,
   X,
   AlertTriangle,
+  ShieldAlert,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-export type CaseSourceType = "expense" | "cut" | "violation";
+export type CaseSourceType = "expense" | "cut" | "cut_cash" | "cut_tpv" | "violation";
 
 export interface HoyCaseItem {
   id: string;
@@ -54,13 +55,34 @@ export interface HoyCaseItem {
   notes?: string;
   evidenceUrl?: string;
   requiredRole?: string;
-  // Metadata específica de corte
+  payeeName?: string;
+  costCenterName?: string;
+  costCenterCode?: string;
+  costCenterId?: string;
+  requestedByName?: string;
+  budgetContext?: {
+    budgetedCents: number;
+    committedCents: number;
+    availableCents: number;
+    ok: boolean;
+  };
+  // Metadata específica de corte de efectivo
   cutVariance?: {
     direction: "faltante" | "sobrante";
     varianceCents: number;
-    cashSalesCents?: number;
-    cashCountedCents?: number;
+    cashSalesCents?: number | null;
+    cashCountedCents?: number | null;
     shift?: string;
+    businessDate?: string;
+  };
+  // Metadata específica de corte TPV
+  tpvVariance?: {
+    direction: "faltante" | "sobrante";
+    varianceCents: number;
+    cardSalesCents?: number | null;
+    tpvDepositCents?: number | null;
+    commissionCents?: number | null;
+    commissionCaptured: boolean;
     businessDate?: string;
   };
   // Metadata de violación de control interno
@@ -104,11 +126,11 @@ export function HoyCaseDossier({
   const handleApproveExpense = async () => {
     setLoadingAction(true);
     try {
-      const res = await fetch("/api/expenses/approvals", {
+      const res = await fetch(`/api/expenses/${selectedCase.rawId}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          expenseId: selectedCase.rawId,
+          action: "APPROVE",
           notes: "Aprobado directamente desde la bandeja Hoy",
         }),
       });
@@ -143,11 +165,11 @@ export function HoyCaseDossier({
 
     setLoadingAction(true);
     try {
-      const res = await fetch("/api/expenses/reject", {
+      const res = await fetch(`/api/expenses/${selectedCase.rawId}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          expenseId: selectedCase.rawId,
+          action: "REJECT",
           reason: rejectReason.trim(),
         }),
       });
@@ -205,9 +227,11 @@ export function HoyCaseDossier({
               <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
                 {selectedCase.sourceType === "expense"
                   ? "Gasto Operativo"
-                  : selectedCase.sourceType === "cut"
-                    ? "Arqueo de Caja"
-                    : "Control Interno"}
+                  : selectedCase.sourceType === "cut_tpv"
+                    ? "Conciliación TPV"
+                    : selectedCase.sourceType === "violation"
+                      ? "Control Interno"
+                      : "Arqueo de Caja"}
               </span>
             </div>
             {onClose && (
@@ -236,9 +260,11 @@ export function HoyCaseDossier({
           {selectedCase.amountCents !== null && (
             <div className="p-3.5 rounded-lg bg-muted/40 border border-border/80">
               <span className="text-xs text-muted-foreground font-medium block">
-                {selectedCase.sourceType === "cut"
-                  ? `Diferencia de Arqueo (${selectedCase.cutVariance?.direction || "varianza"})`
-                  : "Importe involucrado"}
+                {selectedCase.sourceType === "cut_tpv"
+                  ? `Diferencia TPV (${selectedCase.tpvVariance?.direction || "varianza"})`
+                  : selectedCase.sourceType === "cut" || selectedCase.sourceType === "cut_cash"
+                    ? `Diferencia de Arqueo (${selectedCase.cutVariance?.direction || "varianza"})`
+                    : "Importe involucrado"}
               </span>
               <span className="text-2xl font-bold tabular-nums text-foreground mt-0.5 block">
                 {formatCents(selectedCase.amountCents)}
@@ -263,18 +289,89 @@ export function HoyCaseDossier({
                   </span>
                 </div>
                 <div>
+                  <span className="text-muted-foreground block">Proveedor / Beneficiario</span>
+                  <span className="font-semibold text-foreground truncate block" title={selectedCase.payeeName}>
+                    {selectedCase.payeeName || "Sin proveedor asignado"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Solicitado por</span>
+                  <span className="font-semibold text-foreground truncate block" title={selectedCase.requestedByName}>
+                    {selectedCase.requestedByName || "Usuario de sucursal"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Partida / Centro Costo</span>
+                  <span className="font-semibold text-foreground truncate block" title={selectedCase.costCenterName}>
+                    {selectedCase.costCenterName
+                      ? `${selectedCase.costCenterCode ? `${selectedCase.costCenterCode} · ` : ""}${selectedCase.costCenterName}`
+                      : "Sin partida presupuestal"}
+                  </span>
+                </div>
+                <div>
                   <span className="text-muted-foreground block">Rol Requerido</span>
                   <span className="font-semibold text-foreground">
                     {selectedCase.requiredRole || "Gerente / Admin"}
                   </span>
                 </div>
-                <div>
-                  <span className="text-muted-foreground block">Antigüedad</span>
-                  <span className="font-semibold text-foreground">
-                    {selectedCase.dateOrAge || "Hoy"}
-                  </span>
-                </div>
               </div>
+
+              {/* Contexto presupuestal: Consumido vs. Disponible */}
+              {selectedCase.budgetContext ? (
+                <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      Partida Presupuestal (Mes en curso)
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={
+                        selectedCase.budgetContext.ok
+                          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px]"
+                          : "bg-destructive/10 text-destructive border-destructive/30 text-[10px]"
+                      }
+                    >
+                      {selectedCase.budgetContext.ok ? "Dentro de presupuesto" : "Excede presupuesto"}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/50">
+                    <div>
+                      <span className="text-muted-foreground text-[11px] block">Presupuestado</span>
+                      <span className="font-medium text-foreground tabular-nums text-xs">
+                        {formatCents(selectedCase.budgetContext.budgetedCents)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-[11px] block">Comprometido</span>
+                      <span className="font-medium text-foreground tabular-nums text-xs">
+                        {formatCents(selectedCase.budgetContext.committedCents)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-[11px] block">Disponible</span>
+                      <span
+                        className={`font-semibold tabular-nums text-xs ${
+                          selectedCase.budgetContext.availableCents < 0
+                            ? "text-destructive"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {formatCents(selectedCase.budgetContext.availableCents)}
+                      </span>
+                    </div>
+                  </div>
+                  {!selectedCase.budgetContext.ok && (
+                    <p className="text-[11px] text-destructive flex items-center gap-1 mt-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      Este gasto sobrepasará la partida presupuestal asignada para esta sucursal.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-2.5 rounded border border-dashed border-border text-[11px] text-muted-foreground">
+                  Gasto sin partida presupuestal asignada (no afecta un centro de costo específico).
+                </div>
+              )}
 
               {selectedCase.notes && (
                 <div className="p-2.5 rounded border border-border bg-background text-xs">
@@ -285,12 +382,15 @@ export function HoyCaseDossier({
 
               {selectedCase.evidenceUrl && (
                 <div className="p-2.5 rounded border border-border bg-background text-xs flex items-center justify-between">
-                  <span className="text-muted-foreground">Comprobante / Evidencia digital</span>
+                  <div>
+                    <span className="text-foreground font-medium block">Factura o Comprobante Digital</span>
+                    <span className="text-muted-foreground text-[11px]">Evidencia cargada por el solicitante</span>
+                  </div>
                   <a
                     href={selectedCase.evidenceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary font-medium hover:underline inline-flex items-center gap-1"
+                    className="text-primary font-medium hover:underline inline-flex items-center gap-1 shrink-0 ml-2"
                   >
                     Ver archivo <ExternalLink className="w-3 h-3" />
                   </a>
@@ -299,8 +399,8 @@ export function HoyCaseDossier({
             </div>
           )}
 
-          {/* Bloque específico para CORTE DE CAJA */}
-          {selectedCase.sourceType === "cut" && (
+          {/* Bloque específico para ARQUEO DE EFECTIVO */}
+          {(selectedCase.sourceType === "cut" || selectedCase.sourceType === "cut_cash") && (
             <div className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -319,7 +419,7 @@ export function HoyCaseDossier({
                   <div>
                     <span className="text-muted-foreground block">Efectivo POS Esperado</span>
                     <span className="font-semibold text-foreground tabular-nums">
-                      {formatCents(selectedCase.cutVariance.cashSalesCents)}
+                      {formatCents(selectedCase.cutVariance?.cashSalesCents ?? 0)}
                     </span>
                   </div>
                 )}
@@ -327,7 +427,7 @@ export function HoyCaseDossier({
                   <div>
                     <span className="text-muted-foreground block">Efectivo Contado</span>
                     <span className="font-semibold text-foreground tabular-nums">
-                      {formatCents(selectedCase.cutVariance.cashCountedCents)}
+                      {formatCents(selectedCase.cutVariance?.cashCountedCents ?? 0)}
                     </span>
                   </div>
                 )}
@@ -343,15 +443,106 @@ export function HoyCaseDossier({
             </div>
           )}
 
+          {/* Bloque específico para CONCILIACIÓN TPV */}
+          {selectedCase.sourceType === "cut_tpv" && (
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-muted-foreground block">Sucursal</span>
+                  <span className="font-semibold text-foreground">
+                    {selectedCase.branchName || "Sucursal"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Fecha de Corte</span>
+                  <span className="font-semibold text-foreground">
+                    {selectedCase.tpvVariance?.businessDate || selectedCase.dateOrAge || "Fecha de negocio"}
+                  </span>
+                </div>
+                {selectedCase.tpvVariance?.cardSalesCents !== undefined && (
+                  <div>
+                    <span className="text-muted-foreground block">Venta Tarjeta POS</span>
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {formatCents(selectedCase.tpvVariance?.cardSalesCents ?? 0)}
+                    </span>
+                  </div>
+                )}
+                {selectedCase.tpvVariance?.tpvDepositCents !== undefined && (
+                  <div>
+                    <span className="text-muted-foreground block">Depósito Bancario</span>
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {formatCents(selectedCase.tpvVariance?.tpvDepositCents ?? 0)}
+                    </span>
+                  </div>
+                )}
+                {selectedCase.tpvVariance?.commissionCents !== undefined && (
+                  <div>
+                    <span className="text-muted-foreground block">Comisión Terminal</span>
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {formatCents(selectedCase.tpvVariance?.commissionCents ?? 0)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3 rounded border border-warning/30 bg-warning/5 text-xs text-warning-text flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  {selectedCase.tpvVariance?.commissionCaptured
+                    ? "La suma del depósito bancario y la comisión auditada no cubre la venta con tarjeta declarada por el POS."
+                    : "El corte no tiene comisión bancaria capturada; la diferencia refleja el monto por conciliar contra el estado de cuenta."}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Bloque específico para VIOLACIÓN DE CONTROL INTERNO */}
           {selectedCase.sourceType === "violation" && (
             <div className="space-y-3 text-xs">
               <div className="p-3 rounded border border-destructive/20 bg-destructive/5 space-y-1">
-                <span className="font-semibold text-destructive block">Regla infringida</span>
+                <div className="flex items-center gap-1.5 text-destructive font-semibold">
+                  <ShieldAlert className="w-4 h-4 shrink-0" />
+                  <span>
+                    {selectedCase.violationMeta?.ruleCode?.startsWith("TPV_")
+                      ? "Alerta Antifraude TPV"
+                      : "Regla infringida"}
+                  </span>
+                </div>
                 <p className="text-foreground">
                   {selectedCase.violationMeta?.description || selectedCase.detail}
                 </p>
               </div>
+
+              {selectedCase.violationMeta?.ruleCode === "TPV_VOID_AFTER_CHARGE" && (
+                <div className="p-2.5 rounded bg-muted/40 border border-border text-muted-foreground text-[11px] space-y-1">
+                  <strong className="text-foreground block">Protocolo de investigación:</strong>
+                  <p>
+                    Revisa la comanda física y los registros del POS. Si la terminal física Clip/Banco
+                    cobró con éxito y luego se canceló el ticket, solicita al cajero el recibo firmado o la aclaración del cliente.
+                  </p>
+                </div>
+              )}
+
+              {selectedCase.violationMeta?.ruleCode === "TPV_EXCESSIVE_TIP" && (
+                <div className="p-2.5 rounded bg-muted/40 border border-border text-muted-foreground text-[11px] space-y-1">
+                  <strong className="text-foreground block">Protocolo de propinas:</strong>
+                  <p>
+                    Inspecciona la fotografía del voucher de cierre de lote físico. Verifica si el importe de propinas
+                    fue alterado a mano o si coincide con el tronco declarado en el corte.
+                  </p>
+                </div>
+              )}
+
+              {selectedCase.violationMeta?.ruleCode === "TPV_GHOST_TERMINAL" && (
+                <div className="p-2.5 rounded bg-muted/40 border border-border text-muted-foreground text-[11px] space-y-1">
+                  <strong className="text-foreground block">Auditoría física de terminales:</strong>
+                  <p>
+                    Verifica los números de serie de todas las terminales físicas que están operando en la barra y salón.
+                    Cualquier terminal no registrada en el catálogo debe ser retenida de inmediato.
+                  </p>
+                </div>
+              )}
+
               <p className="text-muted-foreground">
                 Las excepciones de control interno requieren revisión y justificación firmada para cerrar el período sin observaciones.
               </p>

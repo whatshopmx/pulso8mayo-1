@@ -18,6 +18,7 @@ import {
   shiftLabel,
 } from "@/lib/services/cash-variance-alert-service";
 import { getRecurringContractFindings } from "@/lib/services/recurring-contract-variance";
+import { detectTpvFraudFindings } from "@/lib/services/tpv-fraud-detection-service";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -92,7 +93,13 @@ export interface Violation {
      * factura, la deducción se cae y se entera cuando el SAT la rechaza —meses
      * después y con recargos.
      */
-    | "CFDI_CANCELADO";
+    | "CFDI_CANCELADO"
+    /** Ticket POS cancelado con cobro previo exitoso en terminal física. */
+    | "TPV_VOID_AFTER_CHARGE"
+    /** Propina desproporcionada en lote de terminal (>20% del consumo). */
+    | "TPV_EXCESSIVE_TIP"
+    /** Cobro con tarjeta en POS no amparado por terminales autorizadas del catálogo. */
+    | "TPV_GHOST_TERMINAL";
   severity: "LOW" | "MEDIUM" | "HIGH";
   /** `null` en las excepciones que no nacen de un gasto — el patrón de faltantes. */
   expenseId: string | null;
@@ -870,6 +877,27 @@ export async function detectViolations(
     }
   } catch (err) {
     console.error("[ControlInterno] No se pudieron derivar los faltantes recurrentes:", err);
+  }
+
+  // 6. Fraude operativo en TPV (cancelaciones post-cobro, propinas excesivas, terminales fantasma)
+  try {
+    const fraudFindings = await detectTpvFraudFindings(companyId, branchId, { sinceDays });
+    for (const f of fraudFindings) {
+      violations.push({
+        id: f.id,
+        type: f.type,
+        severity: f.severity,
+        expenseId: null,
+        branchName: f.branchName,
+        category: f.category,
+        amountCents: f.amountCents,
+        description: f.description,
+        detail: f.detail,
+        createdAt: f.createdAt,
+      });
+    }
+  } catch (err) {
+    console.error("[ControlInterno] No se pudieron derivar anomalías de fraude TPV:", err);
   }
 
   // Sort by severity (HIGH first) then by date

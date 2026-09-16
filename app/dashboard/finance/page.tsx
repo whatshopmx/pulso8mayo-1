@@ -54,147 +54,25 @@ export default function FinanceTodayPage() {
       setError(null);
       setFailedSources([]);
 
-      const scoped = (path: string) => {
-        const url = new URL(path, window.location.origin);
-        if (branchId !== "ALL") url.searchParams.set("branchId", branchId);
-        return url.toString();
-      };
-
       try {
-        const [violationsRes, expensesRes, cutsRes] = await Promise.all([
-          fetch(scoped("/api/finance/control-interno/excepciones")),
-          fetch(scoped("/api/expenses")),
-          fetch(scoped("/api/sales/cuts")),
-        ]);
+        const url = new URL("/api/finance/attention", window.location.origin);
+        if (branchId !== "ALL") url.searchParams.set("branchId", branchId);
 
-        const [violationsJson, expensesJson, cutsJson] = await Promise.all([
-          violationsRes.json().catch(() => ({})),
-          expensesRes.json().catch(() => ({})),
-          cutsRes.json().catch(() => ({})),
-        ]);
+        const res = await fetch(url.toString());
+        const json = await res.json().catch(() => ({}));
 
         if (isCancelled?.()) return;
 
-        const anyOk =
-          (violationsRes.ok && violationsJson.success) ||
-          (expensesRes.ok && expensesJson.success) ||
-          (cutsRes.ok && cutsJson.success);
+        if (res.ok && json.success) {
+          const collected: HoyCaseItem[] = json.data?.items ?? [];
+          const statuses = json.data?.sourceStatuses ?? {};
+          const failures: string[] = [];
+          if (statuses.violations === "unavailable") failures.push("excepciones de control");
+          if (statuses.expenses === "unavailable") failures.push("gastos por autorizar");
+          if (statuses.cuts === "unavailable") failures.push("arqueos y conciliaciones TPV");
+          setFailedSources(failures);
 
-        if (!anyOk) {
-          setError("No se pudo consultar ninguna de las fuentes de pendientes financieros.");
-          setItems(null);
-          return;
-        }
-
-        const failures: string[] = [];
-        if (!(violationsRes.ok && violationsJson.success)) {
-          failures.push("excepciones de control");
-        }
-        if (!(expensesRes.ok && expensesJson.success)) {
-          failures.push("gastos por autorizar");
-        }
-        if (!(cutsRes.ok && cutsJson.success)) {
-          failures.push("arqueos de caja");
-        } else if (cutsJson.data?.scope?.truncated) {
-          failures.push(
-            `arqueos completos (se evaluaron los primeros ${cutsJson.data?.items?.length ?? 0} cortes)`
-          );
-        }
-        setFailedSources(failures);
-
-        const collected: HoyCaseItem[] = [];
-
-        // 1. Excepciones de control interno
-        if (violationsRes.ok && violationsJson.success) {
-          const violations = violationsJson.data?.violations ?? [];
-          for (const v of violations) {
-            collected.push({
-              id: `violation-${v.id}`,
-              rawId: v.id,
-              sourceType: "violation",
-              severity: v.severity,
-              title: v.description,
-              detail: `${v.branchName} · ${v.detail}`,
-              amountCents: v.amountCents,
-              href: "/dashboard/finance/control-interno",
-              branchName: v.branchName,
-              violationMeta: {
-                ruleCode: v.ruleCode,
-                description: v.description,
-                severity: v.severity,
-              },
-            });
-          }
-        }
-
-        // 2. Gastos por autorizar
-        if (expensesRes.ok && expensesJson.success) {
-          const rawExpenses = expensesJson.data?.items ?? [];
-          const pending = rawExpenses.filter(
-            (e: { status: string }) => e.status === "PENDING_APPROVAL"
-          );
-          for (const e of pending) {
-            const age = daysSince(e.createdAt);
-            collected.push({
-              id: `expense-${e.id}`,
-              rawId: e.id,
-              sourceType: "expense",
-              severity: age >= 2 ? "HIGH" : "MEDIUM",
-              title: "Gasto pendiente de autorización",
-              detail:
-                `${e.branchName} · ${e.category}` +
-                (age > 0 ? ` · lleva ${age} día${age === 1 ? "" : "s"} esperando` : " · capturado hoy"),
-              amountCents: e.amountCents,
-              href: `/dashboard/finance/expenses?focus=${e.id}`,
-              branchName: e.branchName,
-              dateOrAge: age > 0 ? `Hace ${age} días` : "Hoy",
-              category: e.category,
-              notes: e.description,
-              evidenceUrl: e.receiptUrl || e.xmlFileUrl,
-              requiredRole: e.requiredApproverRole,
-            });
-          }
-        }
-
-        // 3. Arqueos de caja desfasados
-        if (cutsRes.ok && cutsJson.success) {
-          const rawCuts = cutsJson.data?.items ?? [];
-          for (const c of rawCuts) {
-            const arqueo = computeCashVariance(c);
-            if (!arqueo || arqueo.direction === "cuadrado") continue;
-            collected.push({
-              id: `cut-${c.id}`,
-              rawId: c.id,
-              sourceType: "cut",
-              severity: arqueo.direction === "faltante" ? "HIGH" : "MEDIUM",
-              title: `Arqueo con ${arqueo.direction}`,
-              detail: `${c.branchName} · corte del ${c.businessDate} (${c.shift})`,
-              amountCents: arqueo.varianceCents,
-              href: "/dashboard/sales",
-              branchName: c.branchName,
-              dateOrAge: c.businessDate,
-              cutVariance: {
-                direction: arqueo.direction,
-                varianceCents: arqueo.varianceCents,
-                cashSalesCents: c.cashSales,
-                cashCountedCents: c.cashCountedCents,
-                shift: c.shift,
-                businessDate: c.businessDate,
-              },
-            });
-          }
-        }
-
-        // Ordenar por severidad y luego por monto descendente
-        collected.sort((a, b) => {
-          const bySev = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
-          if (bySev !== 0) return bySev;
-          return Math.abs(b.amountCents ?? 0) - Math.abs(a.amountCents ?? 0);
-        });
-
-        if (!isCancelled?.()) {
           setItems(collected);
-          // Si no hay seleccionado o el seleccionado ya no existe, seleccionar el primero
           if (collected.length > 0) {
             setSelectedCaseId((prev) =>
               prev && collected.some((i) => i.id === prev) ? prev : collected[0].id
@@ -202,6 +80,9 @@ export default function FinanceTodayPage() {
           } else {
             setSelectedCaseId(null);
           }
+        } else {
+          setError(json?.error || "No se pudo consultar la bandeja de pendientes financieros.");
+          setItems(null);
         }
       } catch (err) {
         if (isCancelled?.()) return;
@@ -251,6 +132,11 @@ export default function FinanceTodayPage() {
   const filteredItems = useMemo(() => {
     if (!items) return [];
     if (activeFilter === "ALL") return items;
+    if (activeFilter === "cut") {
+      return items.filter(
+        (i) => i.sourceType === "cut" || i.sourceType === "cut_cash" || i.sourceType === "cut_tpv"
+      );
+    }
     return items.filter((i) => i.sourceType === activeFilter);
   }, [items, activeFilter]);
 
@@ -265,7 +151,9 @@ export default function FinanceTodayPage() {
       total: all.length,
       high: all.filter((i) => i.severity === "HIGH").length,
       expense: all.filter((i) => i.sourceType === "expense").length,
-      cut: all.filter((i) => i.sourceType === "cut").length,
+      cut: all.filter(
+        (i) => i.sourceType === "cut" || i.sourceType === "cut_cash" || i.sourceType === "cut_tpv"
+      ).length,
       violation: all.filter((i) => i.sourceType === "violation").length,
     };
   }, [items]);

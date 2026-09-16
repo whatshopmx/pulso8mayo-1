@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     if (body.action === "CREATE_PAYMENT_RUN") {
-      const { title, runDate, branchId } = body.payload;
+      const { title, runDate, branchId, items } = body.payload;
       const run = await TreasuryService.createPaymentRun(
         companyId,
         title,
@@ -48,6 +48,20 @@ export async function POST(req: NextRequest) {
         userId,
         branchId || null
       );
+
+      if (Array.isArray(items) && items.length > 0) {
+        for (const it of items) {
+          await TreasuryService.addItemToRun({
+            paymentRunId: run.id,
+            companyId,
+            itemType: it.itemType,
+            referenceId: it.referenceId,
+            amountCents: it.amountCents,
+            notes: it.notes,
+          });
+        }
+      }
+
       return ApiHandler.success({ run });
     }
 

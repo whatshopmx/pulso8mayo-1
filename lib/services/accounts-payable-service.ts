@@ -12,8 +12,8 @@
 // total de "por pagar a proveedores" dejara de ser comparable con la realidad.
 
 import { db } from "@/lib/db";
-import { invoices, operatingExpenses, suppliers, branches, payees } from "@/lib/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { invoices, operatingExpenses, suppliers, branches, payees, supplierBankAccounts, payeeBankAccounts } from "@/lib/db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   AGING_BUCKET_ORDER,
   PAYABLES_ITEMS_LIMIT,
@@ -130,6 +130,64 @@ export async function getAccountsPayable(
           .where(and(...expenseConditions)),
   ]);
 
+  const supplierIds = Array.from(
+    new Set(invoiceRows.map((r) => r.supplierId).filter((id): id is string => Boolean(id)))
+  );
+  const expensePayeeIds = Array.from(
+    new Set(expenseRows.map((r) => r.payeeId).filter((id): id is string => Boolean(id)))
+  );
+
+  const [supplierAccounts, payeeAccounts] = await Promise.all([
+    supplierIds.length > 0
+      ? db
+          .select({
+            supplierId: supplierBankAccounts.supplierId,
+            status: supplierBankAccounts.status,
+          })
+          .from(supplierBankAccounts)
+          .where(
+            and(
+              eq(supplierBankAccounts.companyId, filter.companyId),
+              inArray(supplierBankAccounts.supplierId, supplierIds),
+              eq(supplierBankAccounts.active, true)
+            )
+          )
+      : Promise.resolve([]),
+    expensePayeeIds.length > 0
+      ? db
+          .select({
+            payeeId: payeeBankAccounts.payeeId,
+            status: payeeBankAccounts.status,
+          })
+          .from(payeeBankAccounts)
+          .where(
+            and(
+              eq(payeeBankAccounts.companyId, filter.companyId),
+              inArray(payeeBankAccounts.payeeId, expensePayeeIds),
+              eq(payeeBankAccounts.active, true)
+            )
+          )
+      : Promise.resolve([]),
+  ]);
+
+  const supplierAccountStatusMap = new Map<string, "VERIFIED" | "UNVERIFIED" | "MISSING">();
+  for (const acc of supplierAccounts) {
+    if (acc.status === "VERIFIED") {
+      supplierAccountStatusMap.set(acc.supplierId, "VERIFIED");
+    } else if (supplierAccountStatusMap.get(acc.supplierId) !== "VERIFIED") {
+      supplierAccountStatusMap.set(acc.supplierId, "UNVERIFIED");
+    }
+  }
+
+  const payeeAccountStatusMap = new Map<string, "VERIFIED" | "UNVERIFIED" | "MISSING">();
+  for (const acc of payeeAccounts) {
+    if (acc.status === "VERIFIED") {
+      payeeAccountStatusMap.set(acc.payeeId, "VERIFIED");
+    } else if (payeeAccountStatusMap.get(acc.payeeId) !== "VERIFIED") {
+      payeeAccountStatusMap.set(acc.payeeId, "UNVERIFIED");
+    }
+  }
+
   const items: PayableItem[] = [];
   let missingDueDateCount = 0;
 
@@ -142,6 +200,33 @@ export async function getAccountsPayable(
     // RFC emisor son lo único con lo que alguien puede buscarla.
     const reference =
       [row.serie, row.folio].filter(Boolean).join("-") || `CFDI de ${row.rfcEmisor}`;
+
+    const hasDiscrepancy = Boolean(row.hasPriceDiscrepancy || row.hasQtyDiscrepancy);
+    const is3WayBlocked =
+      (hasDiscrepancy || row.matchStatus === "DISCREPANCY") &&
+      row.matchStatus !== "EXCEPTION_APPROVED";
+
+    let bankAccountStatus: "VERIFIED" | "MISSING" | "UNVERIFIED" = "MISSING";
+    if (row.supplierId) {
+      bankAccountStatus = supplierAccountStatusMap.get(row.supplierId) ?? "MISSING";
+    }
+
+    let canPay = true;
+    let blockedReason: string | null = null;
+
+    if (is3WayBlocked) {
+      canPay = false;
+      blockedReason = "Bloqueada por discrepancia en 3-Way Match sin autorización de excepción";
+    } else if (!row.supplierId) {
+      canPay = false;
+      blockedReason = "Factura sin proveedor asignado";
+    } else if (bankAccountStatus === "MISSING") {
+      canPay = false;
+      blockedReason = "Proveedor sin cuenta bancaria CLABE registrada";
+    } else if (bankAccountStatus === "UNVERIFIED") {
+      canPay = false;
+      blockedReason = "Cuenta bancaria del proveedor pendiente de verificación CEP";
+    }
 
     items.push({
       id: row.id,
@@ -157,7 +242,10 @@ export async function getAccountsPayable(
       daysUntilDue: days,
       bucket: bucketFor(days),
       matchStatus: row.matchStatus,
-      hasDiscrepancy: row.hasPriceDiscrepancy || row.hasQtyDiscrepancy,
+      hasDiscrepancy,
+      bankAccountStatus,
+      canPay,
+      blockedReason,
     });
   }
 
@@ -170,6 +258,25 @@ export async function getAccountsPayable(
     // El gasto casual — taxi, hielo, plomero— no tiene payee y cae a categoría,
     // que es lo que decía el comportamiento anterior.
     const counterparty = row.payeeName ?? row.category;
+
+    let bankAccountStatus: "VERIFIED" | "MISSING" | "UNVERIFIED" = "MISSING";
+    if (row.payeeId) {
+      bankAccountStatus = payeeAccountStatusMap.get(row.payeeId) ?? "MISSING";
+    }
+
+    let canPay = true;
+    let blockedReason: string | null = null;
+
+    if (!row.payeeId) {
+      canPay = false;
+      blockedReason = "Gasto operativo sin contraparte (payee) asignada";
+    } else if (bankAccountStatus === "MISSING") {
+      canPay = false;
+      blockedReason = "Contraparte sin cuenta bancaria CLABE registrada";
+    } else if (bankAccountStatus === "UNVERIFIED") {
+      canPay = false;
+      blockedReason = "Cuenta bancaria de la contraparte pendiente de verificación CEP";
+    }
 
     items.push({
       id: row.id,
@@ -186,6 +293,9 @@ export async function getAccountsPayable(
       bucket: bucketFor(days),
       matchStatus: null,
       hasDiscrepancy: false,
+      bankAccountStatus,
+      canPay,
+      blockedReason,
     });
   }
 

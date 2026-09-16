@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
@@ -50,8 +51,12 @@ import {
   ShieldAlert,
   ShieldCheck,
   Wallet,
+  ArrowLeft,
 } from "lucide-react";
-import { CreatePaymentRunModal } from "@/components/finance/create-payment-run-modal";
+import {
+  CreatePaymentRunModal,
+  type CreatePaymentRunInitialItem,
+} from "@/components/finance/create-payment-run-modal";
 
 /**
  * Cuentas por Pagar.
@@ -92,8 +97,8 @@ export default function PayablesPage() {
 function PayablesContent() {
   const { selectedBranchId } = useBranch();
   const selectedBranch = selectedBranchId ?? "ALL";
-  // `?focus=<id>` llega desde el panel de flujo de efectivo.
-  const { focusProps } = useFocusedRow();
+  // `?focus=<id>` llega desde la bandeja Hoy o el panel de flujo de efectivo.
+  const { focusId, focusProps } = useFocusedRow();
   // `?payeeId=<id>` llega desde "Ver facturas" en el catálogo de Payees.
   const searchParams = useSearchParams();
   const payeeId = searchParams.get("payeeId") || undefined;
@@ -108,6 +113,65 @@ function PayablesContent() {
   const [exceptionReason, setExceptionReason] = useState("");
   const [isApproving, setIsApproving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Selección de partidas para lote de pago y congelamiento de cuentas (Módulo 6.1)
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [isCreateRunOpen, setIsCreateRunOpen] = useState(false);
+
+  const filteredItems = useMemo(() => {
+    if (!data?.items) return [];
+    return data.items.filter((item) => {
+      if (filterMode === "DISCREPANCIES") return item.hasDiscrepancy || item.matchStatus === "DISCREPANCY";
+      if (filterMode === "OVERDUE") return item.bucket === "OVERDUE";
+      return true;
+    });
+  }, [data?.items, filterMode]);
+
+  const eligibleItems = useMemo(
+    () => filteredItems.filter((item) => item.canPay),
+    [filteredItems]
+  );
+
+  const allEligibleSelected =
+    eligibleItems.length > 0 && eligibleItems.every((item) => selectedItemIds.has(item.id));
+
+  const toggleSelectAll = () => {
+    if (allEligibleSelected) {
+      setSelectedItemIds(new Set());
+    } else {
+      const next = new Set(selectedItemIds);
+      eligibleItems.forEach((item) => next.add(item.id));
+      setSelectedItemIds(next);
+    }
+  };
+
+  const toggleSelectItem = (id: string) => {
+    const next = new Set(selectedItemIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedItemIds(next);
+  };
+
+  const selectedItemsList: CreatePaymentRunInitialItem[] = useMemo(() => {
+    if (!data?.items) return [];
+    return data.items
+      .filter((item) => selectedItemIds.has(item.id))
+      .map((item) => ({
+        itemType: item.source,
+        referenceId: item.id,
+        amountCents: item.amountCents,
+        reference: item.reference,
+        counterparty: item.counterparty,
+      }));
+  }, [data?.items, selectedItemIds]);
+
+  const selectedTotalCents = useMemo(
+    () => selectedItemsList.reduce((sum, it) => sum + it.amountCents, 0),
+    [selectedItemsList]
+  );
 
   const load = useCallback(
     async (silent = false) => {
@@ -181,6 +245,13 @@ function PayablesContent() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {focusId && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/finance">
+                <ArrowLeft className="w-4 h-4 mr-2" /> Volver a Hoy
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard/finance/treasury">
               <Calendar className="w-4 h-4 mr-2" /> Ver Corridas de Pago
@@ -383,6 +454,26 @@ function PayablesContent() {
             </CardContent>
           </Card>
 
+          {/* Barra de acción para programar lote de pago con partidas seleccionadas */}
+          {selectedItemIds.size > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-primary/10 border border-primary/25 rounded-lg text-sm animate-in fade-in duration-200">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-primary">
+                  {selectedItemIds.size} partida{selectedItemIds.size === 1 ? "" : "s"} seleccionada{selectedItemIds.size === 1 ? "" : "s"}
+                </span>
+                <span className="text-muted-foreground">· Total a programar: {formatCents(selectedTotalCents)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedItemIds(new Set())}>
+                  Limpiar selección
+                </Button>
+                <Button size="sm" onClick={() => setIsCreateRunOpen(true)}>
+                  <Calendar className="w-4 h-4 mr-1.5" /> Programar lote de pago ({selectedItemIds.size})
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Detalle */}
           <Card>
             <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -393,7 +484,7 @@ function PayablesContent() {
                     ? "Facturas bloqueadas para pago por discrepancia 3-Way (precio o cantidad). Requieren autorización de excepción."
                     : filterMode === "OVERDUE"
                       ? "Partidas cuyo plazo de crédito ya expiró."
-                      : "Lo vencido primero."}
+                      : "Lo vencido primero. Selecciona partidas elegibles con cuenta verificada para programar un lote de pago."}
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -427,12 +518,21 @@ function PayablesContent() {
               <div className="border rounded-md overflow-x-auto">
                 <Table>
                   <TableCaption className="sr-only">
-                    Partidas por pagar: referencia, contraparte, sucursal, origen, fecha de vencimiento, monto y estado de conciliación.
+                    Partidas por pagar: selección, referencia, contraparte, cuenta destino, sucursal, origen, fecha de vencimiento, monto y estado de conciliación.
                   </TableCaption>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
+                      <TableHead className="w-10 text-center">
+                        <Checkbox
+                          checked={allEligibleSelected ? true : selectedItemIds.size > 0 ? "indeterminate" : false}
+                          onCheckedChange={toggleSelectAll}
+                          disabled={eligibleItems.length === 0}
+                          aria-label="Seleccionar todas las partidas elegibles"
+                        />
+                      </TableHead>
                       <TableHead>Referencia</TableHead>
                       <TableHead>Contraparte</TableHead>
+                      <TableHead>Cuenta Destino</TableHead>
                       <TableHead>Sucursal</TableHead>
                       <TableHead>Origen</TableHead>
                       <TableHead>Vence</TableHead>
@@ -441,97 +541,142 @@ function PayablesContent() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.items
-                      .filter((item) => {
-                        if (filterMode === "DISCREPANCIES") return item.hasDiscrepancy || item.matchStatus === "DISCREPANCY";
-                        if (filterMode === "OVERDUE") return item.bucket === "OVERDUE";
-                        return true;
-                      })
-                      .map((item) => (
-                        <TableRow
-                          key={`${item.source}-${item.id}`}
-                          {...focusProps(item.id, "hover:bg-muted/40")}
-                        >
-                          <TableCell className="font-medium">
-                            <span className="flex items-center gap-1.5">
-                              {item.source === "INVOICE" ? (
-                                <FileText className="w-3.5 h-3.5 text-muted-foreground" />
-                              ) : (
-                                <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
-                              )}
-                              {item.reference}
-                            </span>
-                            {item.hasDiscrepancy && (
-                              <span className="text-xs text-warning-text block mt-0.5 font-medium">
-                                Discrepancia en conciliación
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell>{item.counterparty}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {item.branchName ?? "—"}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">
-                              {SOURCE_LABEL[item.source]}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-sm">{item.dueDate ?? "Sin fecha"}</span>
-                              <span
-                                className={`text-xs px-1.5 py-0.5 rounded-full border w-fit ${statusBadgeClasses(
-                                  BUCKET_TONE[item.bucket],
-                                )}`}
-                              >
-                                {item.daysUntilDue === null
-                                  ? "Sin vencimiento"
-                                  : item.daysUntilDue < 0
-                                    ? `${Math.abs(item.daysUntilDue)} días vencida`
-                                    : item.daysUntilDue === 0
-                                      ? "Vence hoy"
-                                      : `en ${item.daysUntilDue} días`}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right font-semibold tabular-nums">
-                            {formatCents(item.amountCents)}
-                          </TableCell>
-                          <TableCell className="text-right">
+                    {filteredItems.map((item) => (
+                      <TableRow
+                        key={`${item.source}-${item.id}`}
+                        {...focusProps(item.id, "hover:bg-muted/40")}
+                      >
+                        <TableCell className="w-10 text-center">
+                          <Checkbox
+                            checked={selectedItemIds.has(item.id)}
+                            onCheckedChange={() => toggleSelectItem(item.id)}
+                            disabled={!item.canPay}
+                            title={item.blockedReason || "Partida elegible para pago"}
+                            aria-label={`Seleccionar partida ${item.reference}`}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <span className="flex items-center gap-1.5">
                             {item.source === "INVOICE" ? (
-                              item.matchStatus === "EXCEPTION_APPROVED" ? (
-                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs">
-                                  Excepción Autorizada
-                                </Badge>
-                              ) : item.hasDiscrepancy || item.matchStatus === "DISCREPANCY" ? (
-                                <div className="flex items-center justify-end gap-2">
-                                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs">
-                                    Bloqueada
-                                  </Badge>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 text-xs border-primary/30 hover:bg-primary/10"
-                                    onClick={() => {
-                                      setSelectedInvoiceForException(item);
-                                      setExceptionReason("");
-                                      setActionError(null);
-                                    }}
-                                  >
-                                    Autorizar Excepción
-                                  </Button>
-                                </div>
-                              ) : (
-                                <Badge variant="outline" className="bg-muted text-muted-foreground text-xs">
-                                  {item.matchStatus || "Conciliada"}
-                                </Badge>
-                              )
+                              <FileText className="w-3.5 h-3.5 text-muted-foreground" />
                             ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
+                              <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
                             )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            {item.reference}
+                          </span>
+                          {item.hasDiscrepancy && (
+                            <span className="text-xs text-warning-text block mt-0.5 font-medium">
+                              Discrepancia en conciliación
+                            </span>
+                          )}
+                          {item.blockedReason && !item.hasDiscrepancy && (
+                            <span className="text-xs text-amber-700 dark:text-amber-400 block mt-0.5">
+                              {item.blockedReason}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>{item.counterparty}</TableCell>
+                        <TableCell>
+                          {item.bankAccountStatus === "VERIFIED" ? (
+                            <Badge
+                              variant="outline"
+                              className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25 text-xs inline-flex items-center gap-1"
+                            >
+                              <ShieldCheck className="w-3 h-3" />
+                              CLABE Verificada
+                            </Badge>
+                          ) : item.bankAccountStatus === "UNVERIFIED" ? (
+                            <Link
+                              href={
+                                item.source === "INVOICE"
+                                  ? `/dashboard/finance/supplier-bank-accounts${item.supplierId ? `?supplierId=${item.supplierId}` : ""}`
+                                  : `/dashboard/finance/payee-bank-accounts${item.payeeId ? `?payeeId=${item.payeeId}` : ""}`
+                              }
+                              className="inline-flex items-center gap-1 text-xs text-blue-700 dark:text-blue-400 hover:underline font-medium"
+                              title="Cuenta registrada pendiente de validación CEP"
+                            >
+                              <Clock className="w-3.5 h-3.5" />
+                              CLABE por verificar
+                            </Link>
+                          ) : (
+                            <Link
+                              href={
+                                item.source === "INVOICE"
+                                  ? `/dashboard/finance/supplier-bank-accounts${item.supplierId ? `?supplierId=${item.supplierId}` : ""}`
+                                  : `/dashboard/finance/payee-bank-accounts${item.payeeId ? `?payeeId=${item.payeeId}` : ""}`
+                              }
+                              className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 hover:underline font-medium"
+                              title="Registrar cuenta bancaria CLABE para poder pagar"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              Sin CLABE (Registrar)
+                            </Link>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {item.branchName ?? "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {SOURCE_LABEL[item.source]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm">{item.dueDate ?? "Sin fecha"}</span>
+                            <span
+                              className={`text-xs px-1.5 py-0.5 rounded-full border w-fit ${statusBadgeClasses(
+                                BUCKET_TONE[item.bucket],
+                              )}`}
+                            >
+                              {item.daysUntilDue === null
+                                ? "Sin vencimiento"
+                                : item.daysUntilDue < 0
+                                  ? `${Math.abs(item.daysUntilDue)} días vencida`
+                                  : item.daysUntilDue === 0
+                                    ? "Vence hoy"
+                                    : `en ${item.daysUntilDue} días`}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums">
+                          {formatCents(item.amountCents)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.source === "INVOICE" ? (
+                            item.matchStatus === "EXCEPTION_APPROVED" ? (
+                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs">
+                                Excepción Autorizada
+                              </Badge>
+                            ) : item.hasDiscrepancy || item.matchStatus === "DISCREPANCY" ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs">
+                                  Bloqueada
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs border-primary/30 hover:bg-primary/10"
+                                  onClick={() => {
+                                    setSelectedInvoiceForException(item);
+                                    setExceptionReason("");
+                                    setActionError(null);
+                                  }}
+                                >
+                                  Autorizar Excepción
+                                </Button>
+                              </div>
+                            ) : (
+                              <Badge variant="outline" className="bg-muted text-muted-foreground text-xs">
+                                {item.matchStatus || "Conciliada"}
+                              </Badge>
+                            )
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -628,6 +773,18 @@ function PayablesContent() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Modal de Creación de Corrida / Lote de Pago (Módulo 6.1) */}
+          <CreatePaymentRunModal
+            open={isCreateRunOpen}
+            onOpenChange={setIsCreateRunOpen}
+            initialItems={selectedItemsList}
+            defaultBranchId={selectedBranch !== "ALL" ? selectedBranch : undefined}
+            onSuccess={() => {
+              setSelectedItemIds(new Set());
+              load(true);
+            }}
+          />
         </>
       )}
 

@@ -88,11 +88,13 @@ export const GET = withRoleAuth([...ROLES_FINANZAS], async (req, { auth }) => {
   // El centinela viaja tal cual: `SIN_CENTRO` no es un uuid y el servicio lo
   // traduce a "los que no tienen partida".
   const costCenterId = searchParams.get("costCenterId") || undefined;
+  const status = searchParams.get("status") || undefined;
 
   const [{ items, truncated }, branchName] = await Promise.all([
     getOperatingExpenses(auth.tenantId, effectiveBranchId ?? undefined, {
       payeeId,
       costCenterId,
+      status,
     }),
     nombreDeSucursal(auth.tenantId, effectiveBranchId),
   ]);

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { financialPeriods, pnlSnapshots } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { freezePnLPeriod } from "./pnl-snapshot-service";
+import { logDataAccess } from "@/lib/security/audit";
 
 export interface FinancialPeriod {
   id: string;
@@ -114,13 +115,16 @@ export async function closeFinancialPeriod(params: {
 
 /**
  * Reabre un periodo financiero previamente cerrado (exclusivo para Admins).
+ * Registra en bitácora el usuario autor y motivo de reapertura.
  */
 export async function reopenFinancialPeriod(params: {
   companyId: string;
   year: number;
   month: number;
+  reopenedBy?: string;
+  reason?: string;
 }): Promise<void> {
-  const { companyId, year, month } = params;
+  const { companyId, year, month, reopenedBy, reason } = params;
 
   await db
     .update(financialPeriods)
@@ -137,6 +141,20 @@ export async function reopenFinancialPeriod(params: {
         eq(financialPeriods.month, month)
       )
     );
+
+  if (reopenedBy) {
+    await logDataAccess({
+      userId: reopenedBy,
+      companyId,
+      action: "UPDATE",
+      resource: "financial_periods",
+      resourceId: `${year}-${String(month).padStart(2, "0")}`,
+      decision: {
+        allowed: true,
+        reason: reason || "Reapertura de período financiero",
+      },
+    });
+  }
 }
 
 /**

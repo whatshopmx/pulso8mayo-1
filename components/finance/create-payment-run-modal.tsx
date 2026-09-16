@@ -14,21 +14,66 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Building2, AlertCircle } from "lucide-react";
+import { Loader2, Plus, Building2, AlertCircle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+import { formatCents } from "@/lib/utils";
+
+export interface CreatePaymentRunInitialItem {
+  itemType: "INVOICE" | "OPERATING_EXPENSE";
+  referenceId: string;
+  amountCents: number;
+  reference: string;
+  counterparty: string;
+}
 
 interface CreatePaymentRunModalProps {
   onSuccess?: () => void;
   trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  initialItems?: CreatePaymentRunInitialItem[];
+  defaultBranchId?: string;
 }
 
-export function CreatePaymentRunModal({ onSuccess, trigger }: CreatePaymentRunModalProps) {
-  const [open, setOpen] = useState(false);
+export function CreatePaymentRunModal({
+  onSuccess,
+  trigger,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  initialItems,
+  defaultBranchId,
+}: CreatePaymentRunModalProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (val: boolean) => {
+    if (isControlled) {
+      controlledOnOpenChange?.(val);
+    } else {
+      setInternalOpen(val);
+    }
+  };
+
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState("");
   const [runDate, setRunDate] = useState("");
-  const [branchId, setBranchId] = useState("ALL");
+  const [branchId, setBranchId] = useState(defaultBranchId || "ALL");
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
+
+  const initialTotalCents = useMemo(
+    () => initialItems?.reduce((sum, it) => sum + it.amountCents, 0) ?? 0,
+    [initialItems]
+  );
+
+  useEffect(() => {
+    if (open && initialItems && initialItems.length > 0 && !title) {
+      const todayStr = new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
+      setTitle(`Lote ${todayStr} (${initialItems.length} partidas)`);
+    }
+    if (open && !runDate) {
+      setRunDate(new Date().toISOString().slice(0, 10));
+    }
+  }, [open, initialItems, title, runDate]);
 
   const isPastDate = useMemo(() => {
     if (!runDate) return false;
@@ -69,19 +114,35 @@ export function CreatePaymentRunModal({ onSuccess, trigger }: CreatePaymentRunMo
             title,
             runDate,
             branchId: branchId === "ALL" ? null : branchId,
+            items:
+              initialItems && initialItems.length > 0
+                ? initialItems.map((it) => ({
+                    itemType: it.itemType,
+                    referenceId: it.referenceId,
+                    amountCents: it.amountCents,
+                  }))
+                : undefined,
           },
         }),
       });
 
       const json = await res.json();
       if (res.ok && json.success) {
-        toast.success("Corrida de pago creada", {
-          description: "La corrida se ha creado en estatus borrador. Ya puedes agregar ítems.",
-        });
+        toast.success(
+          initialItems && initialItems.length > 0
+            ? "Lote de pago programado"
+            : "Corrida de pago creada",
+          {
+            description:
+              initialItems && initialItems.length > 0
+                ? `Se agregaron ${initialItems.length} partidas con cuentas congeladas.`
+                : "La corrida se ha creado en estatus borrador. Ya puedes agregar ítems.",
+          }
+        );
         setOpen(false);
         setTitle("");
         setRunDate("");
-        setBranchId("ALL");
+        setBranchId(defaultBranchId || "ALL");
         if (onSuccess) onSuccess();
       } else {
         toast.error("Error al crear", { description: json.error || "Ocurrió un error inesperado." });
@@ -95,22 +156,40 @@ export function CreatePaymentRunModal({ onSuccess, trigger }: CreatePaymentRunMo
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
+      {!trigger && !isControlled && (
+        <DialogTrigger asChild>
           <Button size="sm">
             <Plus className="mr-2 h-4 w-4" /> Crear Corrida
           </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+        </DialogTrigger>
+      )}
+      <DialogContent className="sm:max-w-[460px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Nueva Corrida de Pago</DialogTitle>
+            <DialogTitle>
+              {initialItems && initialItems.length > 0 ? "Programar Lote de Pago" : "Nueva Corrida de Pago"}
+            </DialogTitle>
             <DialogDescription>
-              Programa una nueva corrida para agrupar facturas conciliadas, nómina y servicios operativos.
+              {initialItems && initialItems.length > 0
+                ? "Crea una corrida con las partidas seleccionadas y congela las cuentas destino."
+                : "Programa una nueva corrida para agrupar facturas conciliadas, nómina y servicios operativos."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {initialItems && initialItems.length > 0 && (
+              <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs space-y-1.5">
+                <div className="flex items-center gap-1.5 font-semibold text-primary">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>
+                    Lote con {initialItems.length} partida{initialItems.length === 1 ? "" : "s"} ({formatCents(initialTotalCents)})
+                  </span>
+                </div>
+                <p className="text-muted-foreground">
+                  Se congelará la cuenta bancaria verificada activa de cada contraparte en la partida para garantizar el destino de pago sin alteraciones posteriores.
+                </p>
+              </div>
+            )}
             <div className="grid gap-2">
               <Label htmlFor="branchId" className="flex items-center gap-1.5">
                 <Building2 className="h-3.5 w-3.5 text-muted-foreground" /> Sucursal Destino

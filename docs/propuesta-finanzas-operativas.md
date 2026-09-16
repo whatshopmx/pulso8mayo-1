@@ -33,11 +33,11 @@ Rutas relativas a `/dashboard/finance`:
 | `/payee-bank-accounts` | Registro y verificación de cuentas de contrapartes | Ficha del beneficiario |
 | `/supplier-bank-accounts` | Registro y verificación de cuentas de proveedores | Ficha del beneficiario |
 | `/labor-cost` | Costo laboral por sucursal, cobertura, fuente y objetivo | Resultados → Personal |
-| `/commissions` | Costos por canal, tarifas y liquidaciones | Resultados → Canales; liquidaciones en Caja y cobros |
+| `/commissions` | Costos por canal, tarifas y liquidaciones | Resultados → Canales; conciliación TPV y comisiones en Caja y cobros |
 | `/control-interno` | Bitácora, excepciones, autorizaciones y matriz | Hoy + Cierre y control; matriz en Configuración |
 | `/fiscal` | Validación de facturas y formulario de timbrado de nómina | Cierre y control → Documentos |
 
-El módulo real también alcanza `/dashboard/sales`, mapeo POS, presupuestos, control gerencial y objetivos de operación. Compras aporta órdenes, recepciones y facturas; RH aporta contratos, asistencia y nómina; inventario aporta costos y merma. La navegación propuesta debe integrar estos puntos sin duplicar sus registros.
+El módulo real también alcanza `/dashboard/sales` (corte diario de ventas, varianza de efectivo y depósito TPV), mapeo POS, presupuestos, control gerencial y objetivos de operación. Compras aporta órdenes, recepciones y facturas; RH aporta contratos, asistencia y nómina; inventario aporta costos y merma. La navegación propuesta debe integrar estos puntos sin duplicar sus registros.
 
 ## Diagnóstico
 
@@ -48,6 +48,7 @@ El módulo real también alcanza `/dashboard/sales`, mapeo POS, presupuestos, co
 - **Flujo con supuestos explícitos.** El saldo inicial es capturado; las entradas pueden estimarse por día de la semana; los contratos recurrentes proyectados se distinguen de obligaciones capturadas.
 - **Conexión con la operación.** El resultado utiliza ventas, costos de insumos, personal y gastos. Esta conexión es el valor específico de Pulso.
 - **Control operativo existente.** Caja chica consolidada, aprobaciones, presupuestos, excepciones y períodos financieros no necesitan presentarse como funciones por construir desde cero.
+- **Capa base de ventas y TPV.** `daily_sales_cuts` ya separa ventas en efectivo y tarjeta (`cardSales`), captura depósito de terminal (`tpvDepositCents`) y comisión (`commissionCents`), y aísla la varianza TPV de la de efectivo para evitar que un faltante de caja se enmascare tras el rezago de liquidación bancaria.
 
 Fuentes: [P&L y procedencia](../lib/services/pnl-types.ts), [servicio de resultados](../lib/services/pnl-service.ts), [tesorería](../lib/services/treasury-service.ts), [flujo](../lib/services/cash-flow-service.ts).
 
@@ -59,6 +60,7 @@ Fuentes: [P&L y procedencia](../lib/services/pnl-types.ts), [servicio de resulta
 4. **El análisis histórico y la operación futura comparten controles ambiguos.** El rango del resultado mensual no debería parecer que controla también las obligaciones abiertas o los próximos 30 días de caja.
 5. **Los catálogos interrumpen las tareas.** Proveedores y contrapartes tienen cuentas en pantallas separadas. Conviene una ficha visible unificada que conserve sus identidades y permisos de origen.
 6. **La procedencia exige demasiado descifrado.** Existe información rica sobre cobertura y estimaciones. Puede convertirse en una tarea concreta: qué falta capturar, en qué sucursal y cómo cambia la confianza del resultado.
+7. **La conciliación con tarjeta es un punto ciego a nivel transacción y lote.** El corte solo captura totales agregados por turno. Al no confrontar los vouchers físicos de las terminales ni los reportes descargables de Clip, Mercado Pago o bancos, el restaurante no puede auditar si le cobraron la comisión pactada, si un mesero cobró con una terminal ajena, o si un ticket se canceló en el POS después de haberse cobrado exitosamente con tarjeta.
 
 Fuentes: [portada](../app/dashboard/finance/page.tsx), [menú](../components/app-sidebar.tsx), [atención](../components/finance/money-attention-panel.tsx), [tabla de resultados](../components/finance/pnl-branch-table.tsx), [tesorería UI](../components/finance/treasury-dashboard.tsx).
 
@@ -73,6 +75,7 @@ Fuentes: [portada](../app/dashboard/finance/page.tsx), [menú](../components/app
 | Alta | `closeFinancialPeriod` captura un fallo de `freezePnLPeriod`, registra una advertencia y continúa al estado CLOSED | El cierre puede existir sin la fotografía de resultados esperada. Cerrar solo cuando el resultado quede preservado, con recuperación de fallos e idempotencia. |
 | Media | Los badges de portada omiten conteos cuando falla su fuente, sin presentar estado de error en el acceso | La ausencia de badge puede confundirse con ausencia de pendientes. Usar estados disponible, parcial y no disponible. |
 | Media | Atención envía fechas a `/api/expenses`, pero el GET revisado no las consume | Una misma lista mezcla criterios temporales. Definir “pendientes abiertos al día de hoy” independientemente del mes del P&L. |
+| Media | `daily_sales_cuts` registra `commission_cents` y `tpv_deposit_cents` como agregados opcionales por corte; no existe desglose por terminal física ni importador de reportes de pasarela | Limita la detección de fugas (cancelaciones post-cobro, propinas infladas) y la auditoría de comisiones a comparaciones globales. Crear entidad ligera de lotes/terminales e importador de reportes CSV/Excel de pasarelas. |
 
 Anclas: [dependencias de atención](../components/finance/money-attention-panel.tsx#L227), [resumen de flujo](../components/finance/cash-flow-summary-card.tsx#L64), [API de flujo](../app/api/finance/cash-flow/route.ts), [cortes paginados](../app/api/sales/cuts/route.ts), [confirmación de corrida](../lib/services/treasury-service.ts#L871), [partidas](../lib/db/schema/treasury.ts), [cierre](../lib/services/financial-period-service.ts#L49).
 
@@ -86,16 +89,16 @@ Nombre visible: **Finanzas**. Descripción: **Control del dinero de tu operació
 
 | Espacio | Pregunta que resuelve | Contenido y acción principal |
 |---|---|---|
-| **Hoy** | ¿Qué necesita atención? | Bandeja de aprobaciones, vencimientos, diferencias y bloqueos. Abrir y resolver un caso. |
+| **Hoy** | ¿Qué necesita atención? | Bandeja de aprobaciones, vencimientos, diferencias, cancelaciones sospechosas y bloqueos. Abrir y resolver un caso. |
 | **Gastos** | ¿Qué se gastó y qué viene? | Gastos, recurrentes, caja chica y vínculo con presupuesto. Registrar una vez y seguir su avance. |
 | **Pagos** | ¿Qué podemos pagar y qué falta? | Deuda, partidas elegibles, programación, doble firma y seguimiento. Preparar un lote. |
-| **Caja y cobros** | ¿Con cuánto contamos y qué falta recibir? | Saldos declarados, proyección, cortes y liquidaciones. Revisar diferencias o actualizar saldo. |
-| **Resultados** | ¿Dónde ganamos y qué lo explica? | Comparación de sucursales, insumos, merma, personal, comisiones y gastos. Investigar una desviación. |
+| **Caja y cobros** | ¿Con cuánto contamos y qué falta recibir? | Saldos declarados, proyección, cortes, conciliación TPV/pasarelas y liquidaciones bancarias. Revisar diferencias o actualizar saldo. |
+| **Resultados** | ¿Dónde ganamos y qué lo explica? | Comparación de sucursales, insumos, merma, personal, comisiones auditadas y gastos. Investigar una desviación. |
 | **Cierre y control** | ¿Está completo y respaldado el período? | Checklist de cierre, documentos, excepciones, bitácora y resultado congelado. Completar y cerrar. |
 
 **Configuración** queda en un acceso secundario: beneficiarios, cuentas, tarifas, reglas de autorización, centros de costo y objetivos. Se conserva un único editor para cada configuración existente.
 
-“Cobros” se refiere aquí a cortes y liquidaciones de canales ya presentes. Una cartera completa de clientes y una conexión bancaria automática serían ampliaciones posteriores, con requisitos propios.
+“Cobros” se refiere aquí a cortes de turno, conciliación de terminales (TPV), liquidaciones de pasarelas y depósitos bancarios de canales existentes. Dado que las sucursales operan sin integraciones directas por API con bancos ni terminales, la conciliación se apoya en los artefactos reales de la operación: cortes de POS, vouchers físicos y reportes descargables de las plataformas.
 
 ### Pantalla inicial: Hoy
 
@@ -149,6 +152,87 @@ La vista de grupo distingue fondos corporativos y sucursales. Un saldo corporati
 
 La reprogramación real de gastos ya existe. Un simulador futuro debe permitir explorar cambios antes de guardarlos y declarar su impacto, sin modificar automáticamente los vencimientos.
 
+### Cobros con tarjeta, conciliación TPV y control de fugas (Operación sin integraciones directas)
+
+En cadenas restauranteras y de hospitalidad en México (3 a 15 sucursales), entre el 60% y el 85% de las ventas se cobran con tarjeta mediante terminales punto de venta (TPV). El parque de terminales es heterogéneo y **no cuenta con integraciones directas por API**: conviven agregadores móviles (Clip, Mercado Pago Point, Stripe Terminal) con terminales bancarias fijas e inalámbricas de adquirentes tradicionales (BBVA, Banorte, Santander). 
+
+El sistema POS (Soft Restaurant, Aloha, Micros, etc.) registra los tickets como cobrados con tarjeta, pero no tiene comunicación con el hardware de cobro. Sin un control riguroso, este desacoplamiento genera dos problemas críticos: **comisiones bancarias no auditadas** (cobros excesivos no detectados) y **fugas operativas** (cancelaciones de comandas ya cobradas, alteración de propinas y terminales ajenas).
+
+#### Conciliación a tres bandas a partir de artefactos reales
+
+Dado que no existen APIs en vivo, la conciliación automática cruza los tres artefactos que el restaurante produce cotidianamente:
+
+```mermaid
+flowchart TD
+    subgraph POS["1. Turno y POS (Comandas)"]
+        A[Corte X/Z del turno]
+        B[Tickets con tarjeta]
+        A --> D{Motor de Conciliación Pulso}
+        B --> D
+    end
+
+    subgraph TPV["2. Terminales Físicas y Pasarelas"]
+        E[Cierre de lote físico por terminal + foto voucher]
+        F[Reporte CSV/Excel exportado de portal Clip / MP / Banco]
+        E --> D
+        F --> D
+    end
+
+    subgraph BANCO["3. Depósito en Banco"]
+        G[Abono en cuenta fiscal según ciclo D+0 / D+1 / D+2]
+        G --> D
+    end
+
+    D --> H[Auditoría de Comisiones vs Tarifa Pactada]
+    D --> I[Detección de Fugas y Fraude Operativo]
+    D --> J[Calendario de Liquidaciones en Caja y Cobros]
+
+    I -->|Alerta inmediata| K[Bandeja Hoy: Ticket cancelado con cobro en TPV]
+    I -->|Alerta de turno| L[Bandeja Hoy: Desvío de propina o terminal no autorizada]
+    H -->|Gasto financiero real| M[Resultados: P&L con comisiones auditadas]
+```
+
+1. **Banda 1 (POS / Turno):** Venta con tarjeta según corte de turno (`daily_sales_cuts.card_sales`) y tickets individuales cerrados con tarjeta en `sales_entries`.
+2. **Banda 2 (Terminales y Pasarelas):**
+   - *En cada cierre de turno:* El gerente captura en Pulso el total de venta y propinas de cada terminal física asignada a la sucursal, adjuntando la fotografía del voucher de cierre de lote (vía Web o WhatsApp, reutilizando el canal de evidencias del sistema).
+   - *Periódica (semanal o mensual):* Carga del reporte CSV/Excel descargado del portal web de Clip, Mercado Pago, Stripe o del portal de adquirencia bancaria, procesado mediante plantillas de mapeo configurables (`pos_mapping_templates` adaptado a pasarelas).
+3. **Banda 3 (Banco / Depósito):** Cruce con el abono neto que ingresa a la cuenta bancaria (`tpv_deposit_cents`), considerando las ventanas de liquidación de la pasarela:
+   - Agregadores: D+0 (con sobrecosto opcional) o D+1 hábil.
+   - Terminales bancarias: D+1 en días hábiles; las ventas de viernes, sábado y domingo se agrupan y dispersan juntas el lunes o martes.
+
+#### Auditoría matemática de comisiones y costo financiero
+
+Pulso permite configurar las condiciones comerciales pactadas por sucursal y pasarela:
+- **Tasa MDR base:** Expresada en puntos base (`tasaBps`), diferenciando tarifas de débito (ej. 160–180 bps) y crédito (ej. 220–250 bps) en terminales bancarias, o tasa fija en agregadores (ej. 360 bps en Clip).
+- **Sobretasas contractuales:** Puntos base adicionales para tarjetas internacionales, corporativas o American Express.
+- **Cuota fija por transacción:** Costo fijo por evento (cuando aplica en pasarelas en línea o procesadores específicos).
+- **IVA sobre comisiones:** Tasa del 16% sobre la comisión calculada, la cual es un impuesto acreditable para el restaurante.
+- **Retenciones fiscales:** Retenciones de ISR e IVA que aplican por ley las plataformas tecnológicas a personas físicas (Art. 113-A LISR).
+
+**Detección de sobrecostos:** Al procesar el reporte descargado de la pasarela, Pulso recalcula la comisión que debió retenerse transacción por transacción y la compara contra el monto retenido real. Si la plataforma aplicó cobros de renta de terminal no devengados, penalizaciones por facturación mínima o sobretasas fuera de contrato, el sistema genera una discrepancia financiera identificando el folio y el importe a reclamar.
+
+**Integridad en P&L:** La venta bruta se registra al 100% en los ingresos para no distorsionar el cálculo del costo de alimentos (*food cost* %) ni el ticket promedio. La comisión se clasifica como gasto financiero de venta con etiqueta `MEASURED` (cuando proviene del reporte de la pasarela) o `ESTIMATED` (cuando se proyecta por tarifa pactada), segregando el IVA acreditable para la conciliación fiscal.
+
+#### Motor de detección de anomalías y prevención de fugas
+
+Al cruzar los datos del POS con los cierres de lote físicos y los reportes de las pasarelas, Pulso ejecuta reglas de detección de fraude operativo:
+
+1. **Cancelaciones sospechosas post-cobro:**
+   - *Patrón de fuga:* Un mesero o cajero cobra una cuenta en la terminal física; el comensal paga, recibe su voucher y se retira. Minutos u horas después, el personal anula o cancela el ticket en el POS con justificaciones como "error de comanda", "mesa duplicada" o "cortesía 100%", pretendiendo embolsarse el importe en efectivo o encubrir faltantes.
+   - *Control Pulso:* Si en el corte del POS aparecen tickets cancelados que coinciden en monto y hora (ventana de ±20 min) con cobros exitosos registrados en las terminales del turno, el sistema bloquea la aprobación del corte y exige obligatoriamente la fotografía del voucher de cancelación/devolución física firmado por el cliente. Si no se aporta, se genera una alerta inmediata en la bandeja **Hoy**.
+2. **Desvío y sustitución de propinas ("jineteo"):**
+   - *Patrón de fuga:* El restaurante entrega las propinas cobradas con tarjeta en efectivo al personal al final del turno. Un cajero o mesero puede digitar en la terminal una propina inflada para retirar más efectivo de la caja, o cobrar una cuenta pagada en efectivo pasando un voucher de tarjeta falso o ajeno para sustraer el dinero líquido.
+   - *Control Pulso:* Cuadre automático entre:
+     a) Propina total acumulada en los vouchers y cierres de lote de las terminales.
+     b) Propina registrada en el sistema POS.
+     c) Monto total de propinas repartido al personal (tronco).
+     El sistema levanta una alerta si la propina de una terminal excede el umbral histórico de la sucursal (>18–20% del consumo) o si existen transacciones con propina sin comanda asociada.
+3. **Terminales no autorizadas ("terminales fantasma"):**
+   - *Patrón de fuga:* Un empleado introduce a la sucursal un lector móvil personal (ej. un Clip o Mercado Pago propio) y cobra consumos directamente a su cuenta bancaria privada. En el POS marca la mesa como "Pagada con tarjeta", o la deja abierta para cancelarla al cierre.
+   - *Control Pulso:* Catálogo de terminales autorizadas por sucursal (`branch_terminals`: número de serie físico, alias "Barra 1", afiliación, proveedor). Si el corte del POS reporta tickets pagados con tarjeta cuyo total excede la suma de los lotes de las terminales registradas de la empresa, Pulso notifica inmediatamente una presunción de cobro con terminal no autorizada.
+4. **Cierres de lote olvidados:**
+   - En terminales bancarias tradicionales, no ejecutar el corte de lote al final del turno nocturno arriesga la caducidad de las pre-autorizaciones bancarias y retrasa la dispersión del flujo de efectivo. Pulso incluye el checklist de cierre de lote con voucher en el formulario de fin de turno del gerente.
+
 ### Cierre y control: expediente del mes
 
 Checklist de ventas capturadas, movimientos revisados, documentos asociados, diferencias abiertas y calidad del resultado. Cada punto dirige al dato que falta.
@@ -159,10 +243,10 @@ La nómina fiscal debe partir del registro de nómina disponible y completar los
 
 ## Experiencia por rol y dispositivo
 
-- **Dueño/administrador:** Hoy del grupo, decisiones pendientes, liquidez y comparación de sucursales.
+- **Dueño/administrador:** Hoy del grupo, decisiones pendientes, liquidez, auditoría de comisiones cobradas vs contratadas, alertas de fugas (cancelaciones sospechosas, terminales ajenas) y comparación de sucursales.
 - **Persona que prepara pagos:** cola de obligaciones, bloqueos, programación y seguimiento. Es una responsabilidad a mapear a los permisos actuales, no un rol existente asumido.
-- **Gerente:** registros, evidencia, caja chica y pendientes de su sucursal dentro de su autoridad.
-- **Revisión financiera/fiscal:** documentos, exportación y cierre con acceso explícito; no ampliar automáticamente el rol READONLY actual.
+- **Gerente:** registros de turno, captura de lotes por terminal y fotos de vouchers (web o WhatsApp), evidencia de caja chica, justificación de cancelaciones/devoluciones de tarjeta y pendientes de su sucursal.
+- **Revisión financiera/fiscal:** documentos, importación de reportes de pasarela, conciliación bancaria, exportación y cierre con acceso explícito; no ampliar automáticamente el rol READONLY actual.
 
 En escritorio: lista y detalle simultáneos. En tablet: lista con detalle expandible. En móvil: un caso por pantalla, regreso que conserve filtros y acciones grandes. Navegación por teclado, foco restaurado al cerrar el detalle y estados expresados con texto además de color.
 
@@ -179,6 +263,7 @@ WhatsApp puede servir como entrada de evidencia y enlace al caso una vez comprob
 | Cuentas por pagar y elegibilidad de partidas | Composición de deuda y programación dentro de Pagos |
 | Verificación de cuentas y doble firma | Estado de pago por partida, evidencia, saldos pendientes e idempotencia |
 | Proyección y saldo inicial declarado | Separación visible de saldo, compromisos y estimaciones |
+| Cortes de venta (`daily_sales_cuts`), comisiones por canal y plantillas de mapeo POS | Importador de reportes CSV/Excel de pasarelas (Clip, Mercado Pago, bancos), captura de lotes por terminal en turno y motor de reglas antifraude |
 | Períodos y fotografías del resultado | Cierre recuperable que garantice preservar el resultado |
 
 No fusionar inmediatamente las tablas de proveedores y contrapartes. Una ficha de beneficiario puede componer ambos orígenes mediante una referencia tipada, conservando historia y controles.
@@ -192,7 +277,7 @@ La bandeja y el expediente componen servicios existentes; no recalculan cifras e
 | **1. Contratos y confianza** | Resolver filtros, totales de pendientes, semántica de pago y fallo de cierre | Casos reproducidos y cubiertos con pruebas que ejecuten servicios/API reales |
 | **2. Hoy y navegación** | Seis entradas principales, bandeja y expediente para gastos; enlaces directos para otros casos | Se abre el registro correcto y se conserva el contexto al regresar |
 | **3. Gastos y Pagos** | Captura, autorización, deuda y lotes conectados; confirmación individual | Un caso recorre el proceso sin duplicar registros y refleja fallos parciales |
-| **4. Caja y Resultados** | Liquidez y rentabilidad con procedencia, comparación y detalle | Los mismos datos y alcance producen totales consistentes entre vistas |
+| **4. Caja, Resultados y Cobros** | Liquidez, P&L con procedencia, conciliación de reportes TPV, auditoría de comisiones y alertas de fugas | Los mismos datos y alcance producen totales consistentes; se auditan comisiones contra reportes y se detectan cancelaciones con tarjeta |
 | **5. Cierre y control** | Checklist, documentos, preservación y reapertura trazable | El cierre no termina si falla su resultado preservado; historia verificable |
 
 Mantener las rutas existentes mediante enlaces o redirecciones compatibles durante la transición. No borrar históricos ni sustituir snapshots anteriores por cálculos nuevos. La primera entrega útil sería **Hoy + expediente de gasto**, una vez corregidos sus contratos de lectura.
@@ -211,6 +296,10 @@ Las metas siguientes son criterios de aceptación propuestos, no mejoras medidas
 - Una fuente caída aparece como no disponible; no se presenta “todo resuelto” por falta de datos.
 - Un fallo al preservar resultados impide declarar un cierre exitoso.
 - El acceso directo a URL/API mantiene aislamiento de empresa y sucursal.
+- Cuadrar el importe de tarjeta entre corte POS, cierre de lotes físicos y reporte de pasarela/banco, aislando rezagos de fecha valor (D+1/D+2).
+- Auditar comisiones calculando la tasa contractual esperada contra la retenida en el reporte de la plataforma, desglosando IVA acreditable (16%) y alertando sobrecobros.
+- Detectar y alertar en Hoy cualquier ticket cobrado con tarjeta que haya sido cancelado o convertido en cortesía en el POS sin voucher de devolución justificado.
+- Alertar tickets cerrados con tarjeta en POS que carezcan de correspondencia en las terminales dadas de alta en la sucursal.
 
 Hay pruebas de flujo, caja chica, contrapartes y control interno que conviene conservar. El archivo `lib/services/__tests__/treasury-disbursement.test.ts` revisado reproduce reglas con funciones locales dentro del test; por sí solo no comprueba el comportamiento de `TreasuryService`. Para esta propuesta se necesitan pruebas del servicio y sus transacciones reales.
 
@@ -219,5 +308,6 @@ Hay pruebas de flujo, caja chica, contrapartes y control interno que conviene co
 1. Si el principal usuario cotidiano será el dueño, administración o una persona dedicada a pagos; cambia la vista inicial por defecto.
 2. Si se requiere confirmación manual con comprobantes, importación bancaria o integración directa; determina el alcance de conciliación.
 3. Si el objetivo fiscal es reunir documentos para el contador o operar más procesos dentro de Pulso.
+4. Frecuencia y operativa de carga de reportes de pasarelas: diaria por gerente de sucursal o semanal/quincenal centralizada por administración/contabilidad.
 
 **Dirección recomendada:** conservar el nombre Finanzas y convertirlo en un espacio donde cada cifra lleva a su origen y cada pendiente a una acción completa. Empezar por Hoy y Pagos ofrece un cambio tangible en la operación diaria.

@@ -56,6 +56,12 @@ export interface PayableItem {
   /** Conciliación contra OC y recepción. Solo aplica a facturas. */
   matchStatus: string | null;
   hasDiscrepancy: boolean;
+  /** Estado de verificación de la cuenta bancaria CLABE de la contraparte */
+  bankAccountStatus?: "VERIFIED" | "MISSING" | "UNVERIFIED";
+  /** Si la partida puede incluirse en una corrida de pago (cuenta verificada y sin bloqueo de conciliación) */
+  canPay?: boolean;
+  /** Motivo por el cual no puede programarse para pago */
+  blockedReason?: string | null;
 }
 
 export interface BucketTotal {

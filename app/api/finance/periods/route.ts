@@ -57,10 +57,16 @@ export const POST = withTenantAuth(async (req, { auth }) => {
     });
     return ApiHandler.success({ message: `Periodo ${year}-${String(month).padStart(2, "0")} cerrado con éxito.`, period });
   } else {
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    if (!reason) {
+      throw ApiError.badRequest("Se requiere un motivo ('reason') para reabrir un periodo financiero cerrado.");
+    }
     await reopenFinancialPeriod({
       companyId: auth.tenantId,
       year,
       month,
+      reopenedBy: auth.user.id,
+      reason,
     });
     return ApiHandler.success({ message: `Periodo ${year}-${String(month).padStart(2, "0")} reabierto con éxito.` });
   }

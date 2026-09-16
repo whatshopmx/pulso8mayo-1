@@ -96,135 +96,57 @@ export function MoneyAttentionPanel({ branchId, dateRange }: { branchId: string;
     setError(null);
     setFailedSources([]);
 
-    const scoped = (path: string) => {
-      const url = new URL(path, window.location.origin);
-      if (branchId !== "ALL") url.searchParams.set("branchId", branchId);
-      if (startDate) {
-        url.searchParams.set("startDate", startDate);
-        if (endDate) {
-          url.searchParams.set("endDate", endDate);
-        }
-      }
-      return url.toString();
-    };
-
     try {
-      const [violationsRes, expensesRes, cutsRes] = await Promise.all([
-        fetch(scoped("/api/finance/control-interno/excepciones")),
-        fetch(scoped("/api/expenses")),
-        fetch(scoped("/api/sales/cuts")),
-      ]);
+      const url = new URL("/api/finance/attention", window.location.origin);
+      if (branchId !== "ALL") url.searchParams.set("branchId", branchId);
 
-      const [violationsJson, expensesJson, cutsJson] = await Promise.all([
-        violationsRes.json(),
-        expensesRes.json(),
-        cutsRes.json(),
-      ]);
+      const res = await fetch(url.toString());
+      const json = await res.json().catch(() => ({}));
 
       if (isCancelled?.()) return;
 
-      // Si las tres fuentes fallan no hay panel que mostrar: decirlo es mejor
-      // que renderizar "todo en orden", que es una afirmación de cumplimiento
-      // que nadie verificó.
-      const anyOk =
-        (violationsRes.ok && violationsJson.success) ||
-        (expensesRes.ok && expensesJson.success) ||
-        (cutsRes.ok && cutsJson.success);
+      if (res.ok && json.success) {
+        const rawItems = json.data?.items ?? [];
+        const statuses = json.data?.sourceStatuses ?? {};
+        const failures: string[] = [];
+        if (statuses.violations === "unavailable") failures.push("las excepciones de control interno");
+        if (statuses.expenses === "unavailable") failures.push("los gastos por autorizar");
+        if (statuses.cuts === "unavailable") failures.push("los arqueos y conciliaciones TPV");
+        setFailedSources(failures);
 
-      if (!anyOk) {
-        setError("No se pudo consultar ninguna de las fuentes de alertas financieras.");
-        setItems(null);
-        return;
-      }
+        const collected: AttentionItem[] = rawItems.map(
+          (item: {
+            id: string;
+            severity: Severity;
+            sourceType: string;
+            title: string;
+            detail: string;
+            amountCents: number | null;
+            href: string;
+          }) => {
+            let icon = <ShieldAlert className="w-4 h-4 text-muted-foreground" />;
+            if (item.sourceType === "expense") {
+              icon = <Clock className="w-4 h-4 text-muted-foreground" />;
+            } else if (item.sourceType === "cut_cash" || item.sourceType === "cut_tpv" || item.sourceType === "cut") {
+              icon = <Wallet className="w-4 h-4 text-muted-foreground" />;
+            }
 
-      // Fallo parcial: el panel sigue, pero decir "todo en orden" con una
-      // fuente caída es la misma afirmación de cumplimiento no verificada.
-      const failures: string[] = [];
-      if (!(violationsRes.ok && violationsJson.success)) {
-        failures.push("las excepciones de control interno");
-      }
-      if (!(expensesRes.ok && expensesJson.success)) {
-        failures.push("los gastos por autorizar");
-      }
-      if (!(cutsRes.ok && cutsJson.success)) {
-        failures.push("los arqueos del período");
-      } else if (cutsJson.data?.scope?.truncated) {
-        failures.push(`los arqueos completos (se evalúan los primeros ${cutsJson.data?.items?.length ?? 0} de ${cutsJson.data?.total ?? 0} cortes)`);
-      }
-      setFailedSources(failures);
+            return {
+              id: item.id,
+              severity: item.severity,
+              icon,
+              title: item.title,
+              detail: item.detail,
+              amountCents: item.amountCents,
+              href: item.href,
+            };
+          }
+        );
 
-      const collected: AttentionItem[] = [];
-
-      // 1. Excepciones de control interno.
-      if (violationsRes.ok && violationsJson.success) {
-        const violations: Violation[] = violationsJson.data?.violations ?? [];
-        for (const v of violations) {
-          collected.push({
-            id: `violation-${v.id}`,
-            severity: v.severity,
-            icon: <ShieldAlert className="w-4 h-4 text-muted-foreground" />,
-            title: v.description,
-            detail: `${v.branchName} · ${v.detail}`,
-            amountCents: v.amountCents,
-            href: "/dashboard/finance/control-interno",
-          });
-        }
-      }
-
-      // 2. Gastos esperando autorización. La antigüedad marca la severidad:
-      //    la política de control interno considera excepción a partir de 48h.
-      if (expensesRes.ok && expensesJson.success) {
-        // `/api/expenses` devuelve `{ items, scope, truncated }` desde que la
-        // ruta rotula el alcance aplicado; antes era un arreglo pelado.
-        const expenses: ExpenseRow[] = expensesJson.data?.items ?? [];
-        const pending = expenses.filter((e) => e.status === "PENDING_APPROVAL");
-        for (const e of pending) {
-          const age = daysSince(e.createdAt);
-          collected.push({
-            id: `expense-${e.id}`,
-            severity: age >= 2 ? "HIGH" : "MEDIUM",
-            icon: <Clock className="w-4 h-4 text-muted-foreground" />,
-            title: "Gasto pendiente de autorización",
-            detail:
-              `${e.branchName} · ${e.category}` +
-              (age > 0 ? ` · lleva ${age} día${age === 1 ? "" : "s"} esperando` : " · capturado hoy"),
-            amountCents: e.amountCents,
-            href: "/dashboard/finance/expenses",
-          });
-        }
-      }
-
-      // 3. Cortes cuyo arqueo no cuadra. Misma fuente de verdad que la tabla de
-      //    /dashboard/sales, para que los dos conteos no puedan discrepar.
-      if (cutsRes.ok && cutsJson.success) {
-        // La ruta pagina: data es { items, total, scope }, no un arreglo.
-        const rawCuts = cutsJson.data?.items;
-        const cuts: CutRow[] = Array.isArray(rawCuts) ? rawCuts : [];
-        for (const c of cuts) {
-          const arqueo = computeCashVariance(c);
-          if (!arqueo || arqueo.direction === "cuadrado") continue;
-          collected.push({
-            id: `cut-${c.id}`,
-            // Un faltante es dinero que no está; un sobrante es un error de
-            // captura o de cobro. No pesan igual.
-            severity: arqueo.direction === "faltante" ? "HIGH" : "MEDIUM",
-            icon: <Wallet className="w-4 h-4 text-muted-foreground" />,
-            title: `Arqueo con ${arqueo.direction}`,
-            detail: `${c.branchName} · corte del ${c.businessDate}`,
-            amountCents: arqueo.varianceCents,
-            href: "/dashboard/sales",
-          });
-        }
-      }
-
-      collected.sort((a, b) => {
-        const bySeverity = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
-        if (bySeverity !== 0) return bySeverity;
-        return Math.abs(b.amountCents ?? 0) - Math.abs(a.amountCents ?? 0);
-      });
-
-      if (!isCancelled?.()) {
         setItems(collected);
+      } else {
+        setError(json?.error || "No se pudo consultar ninguna de las fuentes de alertas financieras.");
+        setItems(null);
       }
     } catch (err) {
       if (isCancelled?.()) return;
@@ -236,7 +158,7 @@ export function MoneyAttentionPanel({ branchId, dateRange }: { branchId: string;
         setLoading(false);
       }
     }
-  }, [branchId, startDate, endDate]);
+  }, [branchId]);
 
   useEffect(() => {
     let cancelled = false;

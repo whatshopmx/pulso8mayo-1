@@ -1,57 +1,92 @@
-# Plan activo: cierre de la auditoría de Finanzas
-
-> **Estado: cerrado el 2026-09-01.** Fases 0–5 completas, más A6.1 y A6.3 de la fase 6.
-> Abiertas: A6.2 (🔒 D4), A6.4 (diferida por alcance) y A6.5 (🔒 D5).
->
-> **Este archivo es un puntero.** El plan canónico, con decisiones, riesgos y premisas
-> descartadas, vive en `tasks/plan-cierre-auditoria-finanzas.md`. El detalle por tarea está en
-> `tasks/todo-cierre-auditoria-finanzas.md`. `tasks/plan.md` y `tasks/todo.md` son borradores
-> que cada plan sobrescribe; no editar aquí lo que pertenece al canónico.
->
-> Reemplaza al plan anterior (Incident Resolution — System Action Gaps), cerrado en `3c003cc`.
+# Implementation Plan: Finanzas Operativas y Conciliación TPV Pulso
 
 ## Overview
 
-Auditoría de lectura de código sobre `app/dashboard/finance` (13 pantallas, 38 rutas API, 13
-servicios) contra el perfil objetivo: grupo QSR de 3 a 15 sucursales en Monterrey. 15 hallazgos.
+Reestructuración y consolidación del módulo de Finanzas de Pulso (`app/dashboard/finance`) para cadenas HORECA (3 a 15 sucursales), organizado alrededor del ciclo diario del dinero:
+**Revisar pendientes (Hoy) → Registrar y autorizar (Gastos) → Programar y confirmar pagos (Pagos) → Control de liquidez y conciliación de tarjetas (Caja y Cobros) → Explicar resultados con procedencia (Resultados) → Cerrar el período con snapshot garantizado (Cierre y Control)**.
 
-El módulo calcula bien y opera mal. La capa de cálculo declara la procedencia de cada cifra y no
-inventa constantes — ese es el activo y no se toca. Fallan la capa donde el dinero se mueve
-(flujo de efectivo sin entradas proyectadas, layout bancario sin CLABE) y la capa que controla
-quién lo mueve (segregación aplicada al aprobar pero no al pagar; doble firma saltable).
+Incluye la capa crítica de **conciliación a tres bandas de cobros con tarjeta (TPV)** sin APIs bancarias directas (corte POS vs. vouchers/cierres de lote por terminal vs. reportes CSV/Excel de pasarelas vs. depósitos bancarios D+0/D+1/D+2), la **auditoría matemática de comisiones con segregación de IVA acreditable (16%) preservando la integridad del P&L**, y un **motor antifraude operativo** (cancelaciones sospechosas post-cobro, jineteo de propinas y terminales fantasma).
 
-Reporte: https://claude.ai/code/artifact/9e752612-227d-471e-994c-2fb46b5478c6
+## Architecture Decisions
 
-## Fases
+1. **Integridad en P&L (Línea 214):** La venta bruta se registra al 100% en ingresos en `pnl-service.ts` para no distorsionar el *food cost %* ni el ticket promedio. La comisión de terminal/pasarela se clasifica como gasto financiero de venta con procedencia `MEASURED` (cuando surge de reporte de pasarela/lote conciliado) o `ESTIMATED` (cuando proyecta tarifa contractual), segregando el IVA acreditable (16%) para conciliación fiscal.
+2. **Conciliación TPV basada en artefactos reales:** Sin dependencias de webhooks o APIs bancarias en vivo (inexistentes en el segmento HORECA medio en México). La conciliación cruza:
+   - Banda 1: Cortes de turno POS (`daily_sales_cuts` y tickets en tarjeta).
+   - Banda 2: Cierre de lote físico por terminal (`tpv_shift_batches` + foto de voucher) y reportes descargables CSV/Excel de pasarelas (Clip, Mercado Pago, bancos) procesados con plantillas configurables (`gateway_mapping_templates`).
+   - Banda 3: Abono neto bancario (`tpv_deposit_cents`) desfasado por ventanas de liquidación (D+1 / lunes).
+3. **Semántica de pagos por partida individual:** Uso de `paymentRunItems.settlementStatus` (`PENDING`, `CONFIRMED`, `FAILED`) con `settlementReference` congelando la cuenta bancaria de destino para evitar fraudes por cambio de CLABE post-firma. Un rechazo bancario mantiene viva la deuda; una repetición no duplica efectos.
+4. **Bandeja Hoy como agregador unificado:** Los pendientes de pago, arqueos de caja, autorizaciones de gasto, alertas antifraude y discrepancias de tarjeta se consultan a través de un endpoint optimizado con conteos completos (sin truncar a 100 registros).
+5. **Cierre de período transaccional y recuperable:** `closeFinancialPeriod` en `financial-period-service.ts` garantiza que el período solo pase a `CLOSED` si el snapshot de P&L de todas las sucursales quedó congelado e inmutable.
 
-- [ ] **Fase 0 — Los dos huecos de control** (F3, F4) · P0 · A0.1–A0.3
-- [ ] **Checkpoint:** nadie mueve dinero solo
-- [ ] **Fase 1 — Encender el flujo de efectivo** (F1) · P0 · A1.1–A1.3
-- [ ] **Checkpoint:** "¿me alcanza?" contesta
-- [ ] **Fase 2 — Tesorería que opera** (F2, F10, F13) · P0 · A2.1–A2.6
-- [ ] **Checkpoint:** el archivo se puede subir al banco
-- [ ] **Fase 3 — La base de los números** (F5, F6) · A3.1–A3.3
-- [ ] **Checkpoint:** el semáforo dice la verdad
-- [ ] **Fase 4 — Cerrar el circuito del gasto** (F7, F8) · A4.1–A4.3
-- [ ] **Checkpoint:** el gasto es auditable
-- [ ] **Fase 5 — Control interno que detecta** (F9, F11, F12) · A5.1–A5.6
-- [ ] **Checkpoint:** la excepción vale lo que cuesta
-- [ ] **Fase 6 — Producto** (F14, F15) · A6.1–A6.5
+---
 
-## Decisiones que bloquean
+## Task List
 
-| # | Pregunta | Bloquea | Recomendación |
-|---|---|---|---|
-| D1 | ¿Qué se hace cuando el POS no exporta el IVA? | A3.2 | Tasa configurable por tenant, default 16, procedencia `DERIVED`; `null` = base bruta declarada |
-| D2 | ¿De dónde sale el factor de carga patronal? | A3.3 | `laborBurdenFactorPercent` nullable en `tenant_operating_config`, con ISN de NL como línea propia |
-| D3 | ¿Se sostienen los formatos Banorte y BBVA? | A2.6 | Sin el layout real del banco, dejar sólo el genérico y quitar los otros dos del menú |
-| D4 | ¿Cómo entran las promociones de agregador? | A6.2 | Es la captura de liquidación que `plan-finance-module-gaps.md` dejó como opción (c) |
-| D5 | ¿Pulso emite REP o sólo lo concilia? | A6.5 | La responde el contador del cliente |
+### Fase 1: Contratos, Confianza y Correcciones Críticas
+- [ ] **Task 1:** Backend unificado de pendientes de Hoy y desacoplamiento temporal de fuentes
+- [ ] **Task 2:** Verificación y pruebas de integración para cierre seguro de períodos financieros e idempotencia
 
-## Riesgo que ordena las fases
+### Checkpoint 1: Contratos Base
+- [ ] Pruebas unitarias de contratos y períodos pasan (`pnpm test`)
+- [ ] `MoneyAttentionPanel` / `FinanceTodayPage` reciben totales sin truncar y sin filtros cruzados
 
-Meter la CLABE en claro en la respuesta del layout **sin** cambiar antes su autorización
-(`reports:read`, que GERENTE tiene) convierte un archivo inútil en una fuga de datos bancarios de
-todos los proveedores del grupo. **A2.2 va antes que A2.3, en el mismo PR.**
+---
 
-El resto de riesgos y las premisas ya descartadas están en el plan canónico.
+### Fase 2: Navegación y Bandeja Hoy
+- [ ] **Task 3:** Enriquecimiento del expediente `HoyCaseDossier` con contexto presupuestal y resolución directa
+- [ ] **Task 4:** Consolidación de la navegación en `components/app-sidebar.tsx` y enlaces profundos de casos
+
+### Checkpoint 2: Experiencia Hoy
+- [ ] Un usuario abre un pendiente desde Hoy, visualiza su expediente y ejecuta la acción en <= 2 clics
+- [ ] Los 6 espacios de trabajo están conectados sin rutas huérfanas
+
+---
+
+### Fase 3: Gastos y Pagos Integrados
+- [ ] **Task 5:** Conexión de Cuentas por Pagar (`/dashboard/finance/payables`) con creación de corridas de tesorería y cuentas bancarias congeladas
+- [ ] **Task 6:** UI de liquidación individual por partida en corridas de tesorería (`/dashboard/finance/treasury/runs/[id]`)
+
+### Checkpoint 3: Flujo de Pagos Completo
+- [ ] Partidas individuales pueden confirmarse con referencia o marcarse como fallidas conservando deuda
+- [ ] Doble firma respetada; quien prepara no autoriza
+
+---
+
+### Fase 4: Conciliación TPV, Auditoría de Comisiones y Motor Antifraude
+- [ ] **Task 7:** Esquema Drizzle y CRUD para catálogo de terminales autorizadas (`branch_terminals`)
+- [ ] **Task 8:** Esquema y formulario de cierre de lotes de terminales en turno (`tpv_shift_batches` con foto de voucher)
+- [ ] **Task 9:** Importador y motor de mapeo para reportes CSV/Excel de pasarelas (Clip, Mercado Pago, bancos)
+- [ ] **Task 10:** Auditoría de comisiones MDR + IVA acreditable y reflejo en P&L con integridad (Línea 214)
+- [ ] **Task 11:** Motor de reglas antifraude en cortes (cancelaciones post-cobro, jineteo de propinas y terminales fantasma)
+
+### Checkpoint 4: Conciliación y Antifraude TPV
+- [ ] Reporte de pasarela cruza contra lotes físicos y cortes POS
+- [ ] Alertas de cancelaciones sospechosas y terminales no autorizadas aparecen en Hoy
+- [ ] P&L calcula comisiones con procedencia `MEASURED` sin alterar venta bruta
+
+---
+
+### Fase 5: Cierre de Período y Control Interno
+- [ ] **Task 12:** Checklist interactivo de fin de mes y expediente de cierre en `/dashboard/finance/control-interno`
+
+### Checkpoint 5: Cierre Completo
+- [ ] Cierre mensual bloqueado si hay discrepancias de tarjeta abiertas o snapshots fallidos
+- [ ] Auditoría y trazabilidad de reaperturas con bitácora inmutable
+
+---
+
+## Risks and Mitigations
+
+| Riesgo | Impacto | Mitigación |
+|---|---|---|
+| Diversidad de formatos CSV/Excel entre bancos y agregadores | Alto | Sistema de plantillas de mapeo configurable (`gateway_mapping_templates`) similar a `pos_mapping_templates`. |
+| Rezago bancario en depósitos de fin de semana (D+2) interpretado como faltante | Medio | Ventanas de conciliación con fecha valor que agrupan ventas de viernes a domingo para cuadre el lunes/martes. |
+| Inconsistencia de timezone en cruce horario de tickets cancelados post-cobro | Medio | Normalización a hora local de la sucursal con tolerancia configurable de ±20 minutos. |
+| Fuga de datos bancarios sensibles en descargas de dispersión | Alto | Exigir permisos estrictos de finanzas (`treasury:disburse`) y máscaras visuales de CLABE en UI. |
+
+---
+
+## Open Questions
+
+1. **Frecuencia de carga de reportes de pasarela:** ¿La importación del CSV/Excel de Clip/MercadoPago/bancos la realizará el gerente diariamente o administración semanal/quincenalmente? (Recomendado: permitir ambas modalidades).
+2. **Umbral de tolerancia para alertas de propinas:** ¿Fijar el 20% sobre el consumo como alerta predeterminada o hacerlo configurable por sucursal en `branch_terminals` / configuración operativa?

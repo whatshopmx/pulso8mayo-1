@@ -25,7 +25,13 @@
 //     tenant en `NO_DATA` para siempre.
 
 import { db } from "@/lib/db";
-import { branches, channelCommissionRates, dailySalesCuts, users } from "@/lib/db/schema";
+import {
+  branches,
+  channelCommissionRates,
+  dailySalesCuts,
+  users,
+  gatewayTransactions,
+} from "@/lib/db/schema";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/api/error";
 import { assertBranchOfCompany } from "@/lib/branch-scope";
@@ -325,7 +331,7 @@ export async function getCommissionsByBranch(
   const startDay = from.slice(0, 10);
   const endDay = to.slice(0, 10);
 
-  const [rateRows, cuts] = await Promise.all([
+  const [rateRows, cuts, gatewayRows] = await Promise.all([
     db
       .select({
         channel: channelCommissionRates.channel,
@@ -353,6 +359,22 @@ export async function getCommissionsByBranch(
           eq(dailySalesCuts.companyId, companyId),
           gte(dailySalesCuts.businessDate, startDay),
           lte(dailySalesCuts.businessDate, endDay),
+        ),
+      ),
+
+    db
+      .select({
+        branchId: gatewayTransactions.branchId,
+        grossAmountCents: gatewayTransactions.grossAmountCents,
+        feeAmountCents: gatewayTransactions.feeAmountCents,
+        feeVatCents: gatewayTransactions.feeVatCents,
+      })
+      .from(gatewayTransactions)
+      .where(
+        and(
+          eq(gatewayTransactions.companyId, companyId),
+          gte(gatewayTransactions.transactionDate, new Date(startDay)),
+          lte(gatewayTransactions.transactionDate, new Date(`${endDay}T23:59:59.999Z`)),
         ),
       ),
   ]);
@@ -426,7 +448,42 @@ export async function getCommissionsByBranch(
         }
       }
 
-      channels.set(channel, acc);
+    channels.set(channel, acc);
+    }
+  }
+
+  // Integrar transacciones medidas de reportes de pasarelas (Clip, MP, bancos)
+  const gatewayByBranch = new Map<string, { feeCents: number; grossCents: number }>();
+  for (const g of gatewayRows) {
+    const prev = gatewayByBranch.get(g.branchId) ?? { feeCents: 0, grossCents: 0 };
+    gatewayByBranch.set(g.branchId, {
+      feeCents: prev.feeCents + g.feeAmountCents + g.feeVatCents,
+      grossCents: prev.grossCents + g.grossAmountCents,
+    });
+  }
+
+  for (const [branchId, gw] of gatewayByBranch) {
+    const channels = byBranch.get(branchId) ?? new Map<string, ChannelAcc>();
+    byBranch.set(branchId, channels);
+
+    if (gw.feeCents > 0) {
+      const tpvAcc = channels.get("tpv") ?? {
+        coveredBaseCents: 0,
+        uncoveredBaseCents: 0,
+        measuredCents: 0,
+        estimatedCents: 0,
+        ratesApplied: new Set<number>(),
+        vatApplied: new Set<number>(),
+        cutsCount: 0,
+      };
+
+      // Si no había medición manual en cortes, la medición del reporte de pasarela toma prioridad
+      if (tpvAcc.measuredCents === 0) {
+        tpvAcc.measuredCents = gw.feeCents;
+        tpvAcc.coveredBaseCents = Math.max(tpvAcc.coveredBaseCents, gw.grossCents);
+        tpvAcc.estimatedCents = 0; // Desplaza estimación por medición real
+        channels.set("tpv", tpvAcc);
+      }
     }
   }
 
@@ -532,3 +589,206 @@ export async function getCommissionsByBranch(
 function formatMXN(cents: number): string {
   return (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 }
+
+// ---------------------------------------------------------------------------
+// Auditoría matemática de comisiones (Línea 214 propuesta finanzas)
+// ---------------------------------------------------------------------------
+
+export interface CommissionAuditDiscrepancy {
+  transactionId: string;
+  externalId: string | null;
+  authorizationCode: string | null;
+  transactionDate: Date;
+  cardBrand: string | null;
+  cardType: string | null;
+  grossAmountCents: number;
+  actualFeeCents: number;
+  actualFeeVatCents: number;
+  actualTotalFeeCents: number;
+  expectedFeeCents: number;
+  expectedFeeVatCents: number;
+  expectedTotalFeeCents: number;
+  differenceCents: number; // actual - expected (>0 = sobrecobro)
+  rateBpsApplied: number;
+  vatBpsApplied: number;
+  type: "OVERCHARGED" | "UNDERCHARGED" | "OK";
+}
+
+export interface CommissionAuditResult {
+  totalAudited: number;
+  totalGrossCents: number;
+  totalActualFeeCents: number;
+  totalExpectedFeeCents: number;
+  totalFeeVatCents: number;
+  totalOverchargeCents: number;
+  discrepanciesCount: number;
+  effectiveAvgRateBps: number;
+  discrepancies: CommissionAuditDiscrepancy[];
+}
+
+/**
+ * Auditoría matemática de comisiones: compara la comisión retenida por la pasarela
+ * contra las tarifas pactadas en channel_commission_rates (MDR bps + IVA 16%).
+ */
+export async function auditGatewayCommissions(params: {
+  companyId: string;
+  branchId?: string;
+  acquirer?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<CommissionAuditResult> {
+  const { companyId, branchId, acquirer, startDate, endDate } = params;
+
+  const conditions = [eq(gatewayTransactions.companyId, companyId)];
+  if (branchId && branchId !== "ALL") {
+    conditions.push(eq(gatewayTransactions.branchId, branchId));
+  }
+  if (acquirer && acquirer !== "ALL") {
+    conditions.push(eq(gatewayTransactions.acquirer, acquirer as any));
+  }
+  if (startDate) {
+    conditions.push(gte(gatewayTransactions.transactionDate, new Date(startDate)));
+  }
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    conditions.push(lte(gatewayTransactions.transactionDate, end));
+  }
+
+  const [transactions, rateRows] = await Promise.all([
+    db
+      .select({
+        id: gatewayTransactions.id,
+        branchId: gatewayTransactions.branchId,
+        externalId: gatewayTransactions.externalId,
+        authorizationCode: gatewayTransactions.authorizationCode,
+        transactionDate: gatewayTransactions.transactionDate,
+        cardBrand: gatewayTransactions.cardBrand,
+        cardType: gatewayTransactions.cardType,
+        grossAmountCents: gatewayTransactions.grossAmountCents,
+        feeAmountCents: gatewayTransactions.feeAmountCents,
+        feeVatCents: gatewayTransactions.feeVatCents,
+      })
+      .from(gatewayTransactions)
+      .where(and(...conditions))
+      .orderBy(desc(gatewayTransactions.transactionDate)),
+
+    db
+      .select({
+        channel: channelCommissionRates.channel,
+        branchId: channelCommissionRates.branchId,
+        rateBps: channelCommissionRates.rateBps,
+        vatBps: channelCommissionRates.vatBps,
+        effectiveFrom: channelCommissionRates.effectiveFrom,
+      })
+      .from(channelCommissionRates)
+      .where(eq(channelCommissionRates.companyId, companyId))
+      .orderBy(asc(channelCommissionRates.effectiveFrom)),
+  ]);
+
+  const ratesByKey = new Map<
+    string,
+    Array<{ effectiveFrom: string; rateBps: number; vatBps: number }>
+  >();
+  for (const r of rateRows) {
+    const key = llaveTarifa(r.channel, r.branchId);
+    const list = ratesByKey.get(key) ?? [];
+    list.push({ effectiveFrom: r.effectiveFrom, rateBps: r.rateBps, vatBps: r.vatBps });
+    ratesByKey.set(key, list);
+  }
+
+  const vigenciaPara = (channel: string, bId: string, businessDate: string) =>
+    resolveRate(ratesByKey.get(llaveTarifa(channel, bId)) ?? [], businessDate) ??
+    resolveRate(ratesByKey.get(llaveTarifa(channel, null)) ?? [], businessDate);
+
+  let totalGrossCents = 0;
+  let totalActualFeeCents = 0;
+  let totalExpectedFeeCents = 0;
+  let totalFeeVatCents = 0;
+  let totalOverchargeCents = 0;
+  const discrepancies: CommissionAuditDiscrepancy[] = [];
+
+  for (const tx of transactions) {
+    const dateStr = tx.transactionDate.toISOString().slice(0, 10);
+    // Buscar tarifa para 'tpv' en la sucursal o grupo
+    const rate = vigenciaPara("tpv", tx.branchId, dateStr);
+
+    const rateBps = rate?.rateBps ?? 250; // Default 2.50% si no está configurada
+    const vatBps = rate?.vatBps ?? 1600; // Default 16% IVA
+
+    const expectedFeeCents = Math.round((tx.grossAmountCents * rateBps) / 10000);
+    const expectedFeeVatCents = Math.round((expectedFeeCents * vatBps) / 10000);
+    const expectedTotalFeeCents = expectedFeeCents + expectedFeeVatCents;
+    const actualTotalFeeCents = tx.feeAmountCents + tx.feeVatCents;
+    const differenceCents = actualTotalFeeCents - expectedTotalFeeCents;
+
+    totalGrossCents += tx.grossAmountCents;
+    totalActualFeeCents += actualTotalFeeCents;
+    totalExpectedFeeCents += expectedTotalFeeCents;
+    totalFeeVatCents += tx.feeVatCents;
+
+    let type: "OVERCHARGED" | "UNDERCHARGED" | "OK" = "OK";
+    if (differenceCents > 50) {
+      type = "OVERCHARGED";
+      totalOverchargeCents += differenceCents;
+      discrepancies.push({
+        transactionId: tx.id,
+        externalId: tx.externalId,
+        authorizationCode: tx.authorizationCode,
+        transactionDate: tx.transactionDate,
+        cardBrand: tx.cardBrand,
+        cardType: tx.cardType,
+        grossAmountCents: tx.grossAmountCents,
+        actualFeeCents: tx.feeAmountCents,
+        actualFeeVatCents: tx.feeVatCents,
+        actualTotalFeeCents,
+        expectedFeeCents,
+        expectedFeeVatCents,
+        expectedTotalFeeCents,
+        differenceCents,
+        rateBpsApplied: rateBps,
+        vatBpsApplied: vatBps,
+        type,
+      });
+    } else if (differenceCents < -50) {
+      type = "UNDERCHARGED";
+      discrepancies.push({
+        transactionId: tx.id,
+        externalId: tx.externalId,
+        authorizationCode: tx.authorizationCode,
+        transactionDate: tx.transactionDate,
+        cardBrand: tx.cardBrand,
+        cardType: tx.cardType,
+        grossAmountCents: tx.grossAmountCents,
+        actualFeeCents: tx.feeAmountCents,
+        actualFeeVatCents: tx.feeVatCents,
+        actualTotalFeeCents,
+        expectedFeeCents,
+        expectedFeeVatCents,
+        expectedTotalFeeCents,
+        differenceCents,
+        rateBpsApplied: rateBps,
+        vatBpsApplied: vatBps,
+        type,
+      });
+    }
+  }
+
+  const effectiveAvgRateBps =
+    totalGrossCents > 0
+      ? Math.round((totalActualFeeCents / totalGrossCents) * 10000)
+      : 0;
+
+  return {
+    totalAudited: transactions.length,
+    totalGrossCents,
+    totalActualFeeCents,
+    totalExpectedFeeCents,
+    totalFeeVatCents,
+    totalOverchargeCents,
+    discrepanciesCount: discrepancies.length,
+    effectiveAvgRateBps,
+    discrepancies,
+  };
+}
+

@@ -24,7 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useSearchParams } from "next/navigation";
-import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield, ImagePlus, RefreshCw, Filter, Wallet } from "lucide-react";
+import { Receipt, CheckCircle, Clock, XCircle, AlertCircle, Loader2, Shield, ImagePlus, RefreshCw, Filter, Wallet, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/hooks/use-session";
 import { denyExpenseResolution } from "@/lib/expenses/approval-policy";
@@ -501,7 +501,16 @@ function ExpensesContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-bold">Listado de Gastos Operativos</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <CardTitle className="text-base font-bold">Listado de Gastos Operativos</CardTitle>
+            {focusId && (
+              <Button variant="outline" size="sm" asChild className="h-8 text-xs font-medium self-start sm:self-auto">
+                <Link href="/dashboard/finance">
+                  <ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Volver a Hoy (Pendientes)
+                </Link>
+              </Button>
+            )}
+          </div>
           {payeeId && (
             <div className="mt-2 bg-primary/10 border border-primary/20 rounded-md p-3 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">

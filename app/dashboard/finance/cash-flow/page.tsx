@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBranch } from "@/lib/branch-context";
 import { useSession } from "@/hooks/use-session";
-import { Calendar, Loader2, AlertCircle, RefreshCw, Repeat } from "lucide-react";
+import { Calendar, Loader2, AlertCircle, RefreshCw, Repeat, CreditCard } from "lucide-react";
+import Link from "next/link";
 
 /** Horizontes ofrecidos. `days` fuera de esta lista cae al default. */
 const HORIZONTES = [7, 30, 60] as const;
@@ -169,6 +170,13 @@ function CashFlowContent() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="rounded-lg">
+            <Link href="/dashboard/finance/cash-flow/reconciliation">
+              <CreditCard className="w-4 h-4 mr-2" />
+              Conciliación TPV
+            </Link>
+          </Button>
+
           {/* Un interruptor y no un filtro con opciones: la pregunta es binaria
               —¿cuento lo que sé que viene, o sólo lo capturado?— y presentarla
               como lista invitaría a buscar una tercera respuesta que no existe. */}
