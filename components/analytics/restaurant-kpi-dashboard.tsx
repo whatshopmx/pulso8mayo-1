@@ -273,9 +273,9 @@ export function RestaurantKpiDashboard({ userRole = "GERENTE" }: RestaurantKpiDa
             Actualizar
           </Button>
           <Button size="sm" asChild>
-            <Link href="/dashboard/analytics/kpi-builder">
+            <Link href="/dashboard/branches">
               <Plus className="h-4 w-4 mr-2" />
-              Nuevo KPI
+              Ver Sucursales
             </Link>
           </Button>
         </div>

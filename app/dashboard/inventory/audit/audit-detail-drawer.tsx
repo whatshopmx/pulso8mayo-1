@@ -79,6 +79,16 @@ export function AuditDetailDrawer({
 }: AuditDetailDrawerProps) {
   const [copied, setCopied] = React.useState(false);
 
+  const oldObj = log && isObject(log.oldValue) ? log.oldValue : null;
+  const newObj = log && isObject(log.newValue) ? log.newValue : null;
+
+  // Build key differences if both are objects
+  const diffKeys = React.useMemo(() => {
+    if (!oldObj && !newObj) return [];
+    const keys = new Set([...Object.keys(oldObj || {}), ...Object.keys(newObj || {})]);
+    return Array.from(keys);
+  }, [oldObj, newObj]);
+
   if (!log) return null;
 
   const handleCopyRawJson = () => {
@@ -101,16 +111,6 @@ export function AuditDetailDrawer({
     minute: "2-digit",
     second: "2-digit",
   });
-
-  const oldObj = isObject(log.oldValue) ? log.oldValue : null;
-  const newObj = isObject(log.newValue) ? log.newValue : null;
-
-  // Build key differences if both are objects
-  const diffKeys = React.useMemo(() => {
-    if (!oldObj && !newObj) return [];
-    const keys = new Set([...Object.keys(oldObj || {}), ...Object.keys(newObj || {})]);
-    return Array.from(keys);
-  }, [oldObj, newObj]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

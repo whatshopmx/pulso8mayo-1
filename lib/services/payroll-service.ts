@@ -117,7 +117,7 @@ export async function validatePayrollPreStamping(
 
   const validationErrors: PayrollPreStampingValidation["validationErrors"] = [];
   let totalGrossSalaryCents = 0;
-  let totalTipsCents = 0;
+  const totalTipsCents = 0;
   let verifiedEmployees = 0;
 
   for (const emp of activeStaff) {

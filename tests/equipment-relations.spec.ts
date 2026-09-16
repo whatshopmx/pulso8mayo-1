@@ -208,7 +208,9 @@ async function sembrarOrden(opts: {
 }
 
 test.describe("T04 · el servicio contra la base", () => {
-  test.beforeAll(async () => {
+  // Siembra POR TEST: la limpieza borra las empresas sintéticas, así que
+  // sembrarlas en `beforeAll` dejaría a los test siguientes con FKs muertas.
+  test.beforeEach(async () => {
     A = await sembrarEmpresa();
     B = await sembrarAjeno();
   });
@@ -392,7 +394,7 @@ test.describe("T04 · el servicio contra la base", () => {
 });
 
 test.describe("T04 · las rutas HTTP · sin servidor no corren, con servidor sí", () => {
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     A = await sembrarEmpresa();
     B = await sembrarAjeno();
   });
