@@ -149,44 +149,48 @@ export class LaborCalculator {
         // salvo en domingo).
         const holidayDates = await this.loadHolidayDates(user.companyId);
 
-        // Calculate weekly hours
-        let weeklyMinutes = 0;
+        // Group shift sessions by ISO week to calculate statutory weekly overtime (LFT Art. 68: 48h limit per week)
+        const weeklyMinutesMap = new Map<string, number>();
+        const weeklyDailyOvertimeMap = new Map<string, number>();
         const sessionSummaries: ShiftSessionSummary[] = [];
+
+        let totalDiurnal = 0;
+        let totalNocturnal = 0;
+        let totalHoliday = 0;
+        let totalWorkMinutesAll = 0;
 
         for (const session of sessions) {
             const summary = this.analyzeSession(session, holidayDates);
             sessionSummaries.push(summary);
-            weeklyMinutes += summary.totalWorkMinutes;
-        }
 
-        // Calculate overtime breakdown
-        let totalDiurnal = 0;
-        let totalNocturnal = 0;
-        let totalHoliday = 0;
-        let totalWeekly = 0;
-        let totalRegular = 0;
-
-        sessionSummaries.forEach(summary => {
             totalDiurnal += summary.overtimeBreakdown.diurnal;
             totalNocturnal += summary.overtimeBreakdown.nocturnal;
             totalHoliday += summary.overtimeBreakdown.holiday;
-            totalWeekly += summary.overtimeBreakdown.weekly;
+            totalWorkMinutesAll += summary.totalWorkMinutes;
 
-            // Regular minutes = total - overtime
-            const sessionOvertime =
+            const sessionDate = new Date(session.startedAt);
+            const weekKey = this.getWeekKey(sessionDate);
+            weeklyMinutesMap.set(weekKey, (weeklyMinutesMap.get(weekKey) || 0) + summary.totalWorkMinutes);
+            const dailyOvertimeInSession =
                 summary.overtimeBreakdown.diurnal +
                 summary.overtimeBreakdown.nocturnal +
                 summary.overtimeBreakdown.holiday;
-            totalRegular += Math.max(0, summary.totalWorkMinutes - sessionOvertime);
-        });
+            weeklyDailyOvertimeMap.set(weekKey, (weeklyDailyOvertimeMap.get(weekKey) || 0) + dailyOvertimeInSession);
+        }
 
-        // Add weekly overtime
-        if (weeklyMinutes > MAX_WEEKLY_HOURS * 60) {
-            const weeklyOvertimeMinutes = weeklyMinutes - MAX_WEEKLY_HOURS * 60;
-            totalWeekly += weeklyOvertimeMinutes;
+        // Calculate weekly overtime per week (only hours exceeding 48h not already counted in daily overtime or holiday)
+        let totalWeekly = 0;
+        for (const [weekKey, weekMinutes] of weeklyMinutesMap.entries()) {
+            if (weekMinutes > MAX_WEEKLY_HOURS * 60) {
+                const excessOver48h = weekMinutes - MAX_WEEKLY_HOURS * 60;
+                const dailyOvertimeInWeek = weeklyDailyOvertimeMap.get(weekKey) || 0;
+                const netWeekly = Math.max(0, excessOver48h - dailyOvertimeInWeek);
+                totalWeekly += netWeekly;
+            }
         }
 
         const totalOvertime = totalDiurnal + totalNocturnal + totalHoliday + totalWeekly;
+        const totalRegular = Math.max(0, totalWorkMinutesAll - totalOvertime);
 
         return {
             userId,
@@ -261,42 +265,48 @@ export class LaborCalculator {
         let holiday = 0;
         const weekly = 0;
 
-        // If holiday, all hours are 3x
+        // If holiday, all hours are 3x (LFT Art. 75)
         if (isHoliday) {
             holiday = totalMinutes;
             return { diurnal, nocturnal, holiday, weekly };
         }
 
-        // Calculate night hours within the shift
-        const nightMinutes = this.calculateNightMinutes(startTime, endTime);
-        const dayMinutes = totalMinutes - nightMinutes;
-
-        // Apply daily thresholds
+        // Apply daily thresholds (8h diurnal, 7h nocturnal)
         const maxDaily = isNightShift ? MAX_DAILY_HOURS_NOCTURNAL * 60 : MAX_DAILY_HOURS_DIURNAL * 60;
 
         if (totalMinutes <= maxDaily) {
-            // No daily overtime
-            nocturnal = nightMinutes;
-            diurnal = dayMinutes;
+            // No daily overtime! Regular hours stay regular, overtime is 0.
+            return { diurnal: 0, nocturnal: 0, holiday: 0, weekly: 0 };
+        }
+
+        // Overtime applies ONLY to minutes exceeding maxDaily
+        const overtimeMinutes = totalMinutes - maxDaily;
+        const nightMinutes = this.calculateNightMinutes(startTime, endTime);
+
+        if (isNightShift) {
+            // Night shift: overtime is nocturnal (3x)
+            nocturnal = overtimeMinutes;
         } else {
-            // Overtime applies
-            const overtimeMinutes = totalMinutes - maxDaily;
-
-            if (isNightShift) {
-                // Night shift: base hours are nocturnal, overtime is also nocturnal (3x)
-                nocturnal = maxDaily + overtimeMinutes;
-                diurnal = dayMinutes;
-            } else {
-                // Day shift: distribute overtime proportionally
-                const nightRatio = nightMinutes / totalMinutes;
-                const dayRatio = dayMinutes / totalMinutes;
-
-                diurnal = dayMinutes + (overtimeMinutes * dayRatio);
-                nocturnal = nightMinutes + (overtimeMinutes * nightRatio);
-            }
+            // Day shift: if shift extended past 22:00, count night portion as nocturnal
+            const nightOvertime = Math.min(overtimeMinutes, nightMinutes);
+            const dayOvertime = Math.max(0, overtimeMinutes - nightOvertime);
+            diurnal = dayOvertime;
+            nocturnal = nightOvertime;
         }
 
         return { diurnal, nocturnal, holiday, weekly };
+    }
+
+    /**
+     * Get ISO week key for grouping weekly hours (LFT Art. 68)
+     */
+    private static getWeekKey(date: Date): string {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+        return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
     }
 
     /**

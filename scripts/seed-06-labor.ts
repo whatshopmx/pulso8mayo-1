@@ -128,6 +128,7 @@ export async function main() {
         status: "NO_SHOW",
         scheduledStartTime: ps.startTime,
         scheduledEndTime: ps.endTime,
+        startedAt: new Date(ps.shiftDate + "T" + ps.startTime + ":00"),
         notes: "Falta sin justificación",
       });
       continue;
@@ -158,6 +159,8 @@ export async function main() {
       scheduledEndTime: ps.endTime,
       checkInTime,
       checkOutTime,
+      startedAt: checkInTime,
+      endedAt: checkOutTime,
       totalBreakMinutes: breakMinutes,
       totalWorkMinutes: Math.round(totalMinutes - breakMinutes),
       overtimeMinutes,
@@ -346,4 +349,11 @@ export async function main() {
   }
 
   console.log("Phase 6 complete!");
+}
+
+if (process.argv[1]?.includes("seed-06-labor")) {
+  main().then(() => process.exit(0)).catch((err) => {
+    console.error("Labor seed failed:", err);
+    process.exit(1);
+  });
 }

@@ -15,19 +15,40 @@ function AbsenceFocusBanner() {
 
     if (!focusSessionId) return null;
 
+    const handleScrollToRow = () => {
+        const el = document.getElementById(`shift-${focusSessionId}`);
+        if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-2", "ring-primary");
+            setTimeout(() => {
+                el.classList.remove("ring-2", "ring-primary");
+            }, 3000);
+        }
+    };
+
     return (
         <Alert variant="destructive" className="border-destructive/30 bg-destructive/10">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle className="text-xs font-semibold">Alerta de Ausencia / Retardo Detectada</AlertTitle>
+            <AlertTitle className="text-xs font-semibold">Alerta de Incidencia / Ausencia Detectada</AlertTitle>
             <AlertDescription className="text-xs mt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <span>
-                    Se ha detectado una incidencia en la sesión identificada como <code className="font-mono bg-destructive/20 px-1.5 py-0.5 rounded text-xs">{focusSessionId.slice(0, 8)}</code>.
+                    Se ha detectado una incidencia operativa en la sesión <code className="font-mono bg-destructive/20 px-1.5 py-0.5 rounded text-xs">{focusSessionId.slice(0, 8)}</code>.
                 </span>
-                <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
-                    <Link href={`/dashboard/labor/attendance`}>
-                        Limpiar enfoque
-                    </Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-7 text-xs font-medium"
+                        onClick={handleScrollToRow}
+                    >
+                        Ver turno en tabla
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
+                        <Link href={`/dashboard/labor/attendance`}>
+                            Limpiar enfoque
+                        </Link>
+                    </Button>
+                </div>
             </AlertDescription>
         </Alert>
     );
@@ -45,7 +66,9 @@ export default function AttendanceReportsPage() {
             <Suspense fallback={null}>
                 <AbsenceFocusBanner />
             </Suspense>
-            <AttendanceDashboard />
+            <Suspense fallback={<div className="h-48 flex items-center justify-center text-xs text-muted-foreground">Cargando auditoría de turnos...</div>}>
+                <AttendanceDashboard />
+            </Suspense>
         </div>
     );
 }

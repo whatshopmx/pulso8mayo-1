@@ -55,10 +55,15 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        // Build query conditions
+        // Build query conditions (ensure end of day is covered)
+        const startDateTime = new Date(startDate.includes("T") ? startDate : `${startDate}T00:00:00.000`);
+        const endDateTime = new Date(endDate.includes("T") ? endDate : `${endDate}T23:59:59.999`);
+
+        const effectiveTimeSql = sql`COALESCE(${shiftSessions.checkInTime}, ${shiftSessions.startedAt})`;
+
         const conditions = [
-            gte(shiftSessions.startedAt, new Date(startDate)),
-            lte(shiftSessions.startedAt, new Date(endDate))
+            gte(effectiveTimeSql, startDateTime),
+            lte(effectiveTimeSql, endDateTime)
         ];
 
         if (branchId) {
@@ -81,6 +86,8 @@ export async function GET(req: NextRequest) {
                 branchName: branches.name,
                 startedAt: shiftSessions.startedAt,
                 endedAt: shiftSessions.endedAt,
+                checkInTime: shiftSessions.checkInTime,
+                checkOutTime: shiftSessions.checkOutTime,
                 status: shiftSessions.status,
                 totalWorkMinutes: shiftSessions.totalWorkMinutes,
                 totalBreakMinutes: shiftSessions.totalBreakMinutes,
@@ -92,26 +99,30 @@ export async function GET(req: NextRequest) {
             .leftJoin(users, eq(shiftSessions.userId, users.id))
             .leftJoin(branches, eq(shiftSessions.branchId, branches.id))
             .where(and(...conditions))
-            .orderBy(sql`${shiftSessions.startedAt} DESC`);
+            .orderBy(sql`${effectiveTimeSql} DESC`);
 
         // Transform to attendance records
-        const attendanceRecords: AttendanceRecord[] = sessions.map(session => ({
-            id: session.id,
-            userId: session.userId,
-            userName: session.userName || "Unknown",
-            userEmail: session.userEmail || "",
-            userRole: session.userRole || "EMPLEADO",
-            branchId: session.branchId,
-            branchName: session.branchName || "Unknown",
-            date: new Date(session.startedAt).toISOString().split("T")[0],
-            clockIn: session.startedAt ? new Date(session.startedAt).toISOString() : null,
-            clockOut: session.endedAt ? new Date(session.endedAt).toISOString() : null,
-            totalWorkMinutes: session.totalWorkMinutes || 0,
-            breakMinutes: session.totalBreakMinutes || 0,
-            overtimeMinutes: session.overtimeMinutes || 0,
-            status: session.status as "COMPLETED" | "ACTIVE" | "MISSED",
-            geolocation: session.checkInGeolocation || session.checkOutGeolocation || null
-        }));
+        const attendanceRecords: AttendanceRecord[] = sessions.map(session => {
+            const effectiveStart = session.checkInTime || session.startedAt;
+            const effectiveEnd = session.checkOutTime || session.endedAt;
+            return {
+                id: session.id,
+                userId: session.userId,
+                userName: session.userName || "Unknown",
+                userEmail: session.userEmail || "",
+                userRole: session.userRole || "EMPLEADO",
+                branchId: session.branchId,
+                branchName: session.branchName || "Unknown",
+                date: effectiveStart ? new Date(effectiveStart).toISOString().split("T")[0] : "",
+                clockIn: effectiveStart ? new Date(effectiveStart).toISOString() : null,
+                clockOut: effectiveEnd ? new Date(effectiveEnd).toISOString() : null,
+                totalWorkMinutes: session.totalWorkMinutes || 0,
+                breakMinutes: session.totalBreakMinutes || 0,
+                overtimeMinutes: session.overtimeMinutes || 0,
+                status: session.status as "COMPLETED" | "ACTIVE" | "MISSED",
+                geolocation: session.checkInGeolocation || session.checkOutGeolocation || null
+            };
+        });
 
         // Calculate summary statistics
         const summary = {
