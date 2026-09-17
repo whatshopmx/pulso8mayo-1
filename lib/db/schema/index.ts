@@ -24,3 +24,6 @@ export * from './treasury';
 
 // Producción Diaria: planes de producción y control de lotes FEFO generados internamente.
 export * from './production';
+
+// Cabina ejecutiva: resoluciones persistidas de la Cola de Decisiones.
+export * from './executive-decisions';

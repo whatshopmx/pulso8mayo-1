@@ -22,6 +22,12 @@ export type SeverityLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type ConfidenceLevel = 'LOW' | 'MEDIUM' | 'HIGH';
 
 /**
+ * Resolución de un caso de la Cola de Decisiones ejecutiva (`ExecutiveDecisionDeck`).
+ * Persistida en `executive_decisions` (lib/db/schema/executive-decisions.ts).
+ */
+export type ExecutiveDecisionResolution = 'authorized' | 'deferred';
+
+/**
  * Stable engine ids — used as `engine_outputs.engineId` discriminator.
  *
  * Alineado con los 8 engines del roadmap v2. Notas de nomenclatura:

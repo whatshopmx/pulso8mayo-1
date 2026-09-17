@@ -1,24 +1,16 @@
 "use client";
 
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Activity,
-  TrendingUp,
-  Percent,
-  Wallet,
-  CheckCircle2,
-  AlertTriangle,
-  Flame,
-  ArrowRight,
-} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Activity, Printer, TrendingUp, Percent, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ExecutiveViewMode = "cockpit" | "economics" | "liquidity";
 
-interface VitalSignsData {
+/** Signos vitales consolidados que alimentan la cabecera y las pestañas. */
+export interface VitalSignsData {
   healthScore: number;
   driftScore: number;
   salesMonthMxn: number;
@@ -34,8 +26,12 @@ interface VitalSignsData {
 interface ExecutiveCockpitHeaderProps {
   companyName: string;
   data: VitalSignsData;
-  activeView?: ExecutiveViewMode;
 }
+
+/** Umbrales compartidos por las tarjetas de signos vitales y las pestañas. */
+const PRIME_COST_TARGET = 60;
+const PRIME_COST_WARNING = 65;
+const LIQUIDITY_RISK_LIMIT = 35;
 
 function fmtMxnCompact(cents: number): string {
   const abs = Math.abs(cents);
@@ -44,19 +40,18 @@ function fmtMxnCompact(cents: number): string {
   return `$${(cents / 100).toLocaleString("es-MX", { maximumFractionDigits: 0 })}`;
 }
 
-export function ExecutiveCockpitHeader({
-  companyName,
-  data,
-  activeView: forcedView,
-}: ExecutiveCockpitHeaderProps) {
-  const searchParams = useSearchParams();
-  const rawView = searchParams.get("view");
-  const currentView: ExecutiveViewMode =
-    forcedView ??
-    (rawView === "economics" || rawView === "liquidity" ? rawView : "cockpit");
-
-  const isPrimeCostHealthy = data.primeCostPercent <= 60;
-  const isPrimeCostWarning = data.primeCostPercent > 60 && data.primeCostPercent <= 65;
+/**
+ * Cabecera y barra de pestañas de la cabina ejecutiva.
+ *
+ * Debe renderizarse dentro de `<ExecutiveCockpitTabs>`: las pestañas son
+ * `TabsTrigger` de Radix y consumen el estado de `<Tabs>` (cambio en cliente,
+ * cero latencia). No depende de `useSearchParams`, así que no obliga a
+ * suspender el árbol ni dispara navegaciones RSC al alternar de vista.
+ */
+export function ExecutiveCockpitHeader({ companyName, data }: ExecutiveCockpitHeaderProps) {
+  const isPrimeCostHealthy = data.primeCostPercent <= PRIME_COST_TARGET;
+  const isPrimeCostWarning =
+    data.primeCostPercent > PRIME_COST_TARGET && data.primeCostPercent <= PRIME_COST_WARNING;
 
   return (
     <div className="space-y-4">
@@ -73,6 +68,19 @@ export function ExecutiveCockpitHeader({
             Cabina de decisiones estratégicas, margen operativo y liquidez de red
           </p>
         </div>
+        <div className="flex items-center gap-2 print:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs font-medium"
+            data-testid="executive-export-button"
+            onClick={() => window.print()}
+          >
+            <Printer className="mr-1.5 h-3.5 w-3.5" />
+            Exportar (PDF)
+          </Button>
+        </div>
       </div>
 
       {/* Vital Signs Bar (4 Key Metrics) */}
@@ -82,7 +90,7 @@ export function ExecutiveCockpitHeader({
           <CardContent className="p-4 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
               <span>Salud de Red (Twin)</span>
-              <Activity className={cn("h-4 w-4", data.healthScore >= 80 ? "text-emerald-500" : "text-amber-500")} />
+              <Activity className={cn("h-4 w-4", data.healthScore >= 80 ? "text-success" : "text-warning")} />
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl font-bold tracking-tight text-foreground">
@@ -91,7 +99,7 @@ export function ExecutiveCockpitHeader({
               </span>
               <span className={cn(
                 "text-xs font-semibold px-1.5 py-0.5 rounded",
-                data.driftScore <= 15 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                data.driftScore <= 15 ? "bg-success/10 text-success-text" : "bg-warning/10 text-warning-text"
               )}>
                 {data.driftScore <= 15 ? "Alineado" : `Desv. ${data.driftScore}`}
               </span>
@@ -115,7 +123,7 @@ export function ExecutiveCockpitHeader({
               </span>
               <span className={cn(
                 "text-xs font-semibold px-1.5 py-0.5 rounded",
-                data.salesTargetPercent >= 95 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                data.salesTargetPercent >= 95 ? "bg-success/10 text-success-text" : "bg-warning/10 text-warning-text"
               )}>
                 {Math.round(data.salesTargetPercent)}% meta
               </span>
@@ -136,19 +144,19 @@ export function ExecutiveCockpitHeader({
               <span>Prime Cost (Comida + Nómina)</span>
               <Percent className={cn(
                 "h-4 w-4",
-                isPrimeCostHealthy ? "text-emerald-500" : isPrimeCostWarning ? "text-amber-500" : "text-destructive"
+                isPrimeCostHealthy ? "text-success" : isPrimeCostWarning ? "text-warning" : "text-destructive"
               )} />
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className={cn(
                 "text-2xl font-bold tracking-tight",
-                isPrimeCostHealthy ? "text-foreground" : isPrimeCostWarning ? "text-amber-600 dark:text-amber-400" : "text-destructive"
+                isPrimeCostHealthy ? "text-foreground" : isPrimeCostWarning ? "text-warning-text" : "text-destructive"
               )}>
                 {data.primeCostPercent.toFixed(1)}%
               </span>
               <span className={cn(
                 "text-xs font-semibold px-1.5 py-0.5 rounded",
-                isPrimeCostHealthy ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 text-destructive"
+                isPrimeCostHealthy ? "bg-success/10 text-success-text" : "bg-destructive/10 text-destructive"
               )}>
                 {isPrimeCostHealthy ? "Meta ≤ 60%" : "Fuga de Margen"}
               </span>
@@ -164,7 +172,12 @@ export function ExecutiveCockpitHeader({
           <CardContent className="p-4 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
               <span>Caja Libre Proyectada (14d)</span>
-              <Wallet className={cn("h-4 w-4", data.liquidityRisk <= 35 ? "text-emerald-500" : "text-amber-500")} />
+              <Wallet
+                className={cn(
+                  "h-4 w-4",
+                  data.liquidityRisk <= LIQUIDITY_RISK_LIMIT ? "text-success" : "text-warning"
+                )}
+              />
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl font-bold tracking-tight text-foreground">
@@ -172,9 +185,9 @@ export function ExecutiveCockpitHeader({
               </span>
               <span className={cn(
                 "text-xs font-semibold px-1.5 py-0.5 rounded",
-                data.liquidityRisk <= 35 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                data.liquidityRisk <= LIQUIDITY_RISK_LIMIT ? "bg-success/10 text-success-text" : "bg-warning/10 text-warning-text"
               )}>
-                {data.liquidityRisk <= 35 ? "Holgado" : "Alerta de Flujo"}
+                {data.liquidityRisk <= LIQUIDITY_RISK_LIMIT ? "Holgado" : "Alerta de Flujo"}
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-1 truncate">
@@ -184,73 +197,55 @@ export function ExecutiveCockpitHeader({
         </Card>
       </div>
 
-      {/* Decision Modes Navigation Tabs */}
-      <div className="flex items-center justify-between border-b border-border pb-1">
-        <div className="flex items-center gap-1 sm:gap-2">
-          {/* Tab 1: Despacho & Decisiones */}
-          <Link
-            href="/dashboard/executive?view=cockpit"
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors",
-              currentView === "cockpit"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-            )}
-          >
-            <span>1. Despacho & Decisiones</span>
-            {data.pendingDecisionsCount > 0 && (
-              <span
-                className={cn(
-                  "text-xs px-1.5 py-0.2 rounded-full font-bold",
-                  currentView === "cockpit"
-                    ? "bg-primary-foreground/20 text-primary-foreground"
-                    : "bg-destructive text-destructive-foreground"
-                )}
-              >
-                {data.pendingDecisionsCount}
-              </span>
-            )}
-          </Link>
+      {/*
+        Modos de decisión — pestañas en cliente.
+        El indicador activo es un subrayado de Operational Red (2px) más un tinte
+        tonal en el badge: se elimina el bloque rojo sólido que saturaba la
+        cabecera y se respeta el límite del 10-15% de la regla One Voice.
+      */}
+      <TabsList
+        variant="line"
+        className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b border-border bg-transparent p-0 print:hidden"
+      >
+        <TabsTrigger
+          value="cockpit"
+          data-testid="executive-tab-cockpit"
+          className="h-9 flex-none gap-2 px-3 text-sm text-muted-foreground group-data-[orientation=horizontal]/tabs:after:bottom-0 after:bg-primary data-[state=active]:text-foreground"
+        >
+          <span>1. Despacho & Decisiones</span>
+          {data.pendingDecisionsCount > 0 && (
+            <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-xs font-bold leading-none tabular-nums text-destructive">
+              {data.pendingDecisionsCount}
+            </span>
+          )}
+        </TabsTrigger>
 
-          {/* Tab 2: Unit Economics & Prime Cost */}
-          <Link
-            href="/dashboard/executive?view=economics"
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors",
-              currentView === "economics"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-            )}
-          >
-            <span>2. Unit Economics & Prime Cost</span>
-            {!isPrimeCostHealthy && (
-              <span
-                className={cn(
-                  "text-xs px-1.5 py-0.2 rounded-full font-bold",
-                  currentView === "economics"
-                    ? "bg-primary-foreground/20 text-primary-foreground"
-                    : "bg-amber-500 text-white"
-                )}
-              >
-                !
-              </span>
-            )}
-          </Link>
+        <TabsTrigger
+          value="economics"
+          data-testid="executive-tab-economics"
+          className="h-9 flex-none gap-2 px-3 text-sm text-muted-foreground group-data-[orientation=horizontal]/tabs:after:bottom-0 after:bg-primary data-[state=active]:text-foreground"
+        >
+          <span>2. Unit Economics & Prime Cost</span>
+          {!isPrimeCostHealthy && (
+            <span className="rounded-full bg-warning/10 px-1.5 py-0.5 text-xs font-bold leading-none tabular-nums text-warning-text">
+              {data.primeCostPercent.toFixed(1)}%
+            </span>
+          )}
+        </TabsTrigger>
 
-          {/* Tab 3: Oxígeno & Flujo 14D */}
-          <Link
-            href="/dashboard/executive?view=liquidity"
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors",
-              currentView === "liquidity"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-            )}
-          >
-            <span>3. Oxígeno & Flujo 14D</span>
-          </Link>
-        </div>
-      </div>
+        <TabsTrigger
+          value="liquidity"
+          data-testid="executive-tab-liquidity"
+          className="h-9 flex-none gap-2 px-3 text-sm text-muted-foreground group-data-[orientation=horizontal]/tabs:after:bottom-0 after:bg-primary data-[state=active]:text-foreground"
+        >
+          <span>3. Oxígeno & Flujo 14D</span>
+          {data.liquidityRisk > LIQUIDITY_RISK_LIMIT && (
+            <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-xs font-bold leading-none tabular-nums text-destructive">
+              {data.liquidityRisk}
+            </span>
+          )}
+        </TabsTrigger>
+      </TabsList>
     </div>
   );
 }

@@ -1,0 +1,217 @@
+$ next dev
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.66:3000
+- Environments: .env
+- Experiments (use with caution):
+  · serverActions
+  ✓ turbopackUseSystemTlsCerts
+
+✓ Starting...
+○ Compiling proxy ...
+✓ Ready in 19.8s
+[Auth API] No session found
+ GET /api/auth/get-session 401 in 2.4s (compile: 2.3s, proxy.ts: 26ms, render: 93ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 2.2s (compile: 231ms, proxy.ts: 44ms, render: 1921ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 476ms (compile: 31ms, proxy.ts: 32ms, render: 413ms)
+○ Compiling /dashboard/labor/attendance ...
+ GET /dashboard/labor/attendance?startDate=2026-09-01&endDate=2026-09-17 200 in 40s (compile: 31.4s, proxy.ts: 2.6s, render: 6.5s)
+ GET /dashboard/executive?view=liquidity 200 in 36.8s (compile: 24.3s, proxy.ts: 535ms, render: 11.9s)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 469ms (compile: 105ms, proxy.ts: 24ms, render: 340ms)
+[18:36:58] [33mWARN[39m: [36mRedis not available, falling back to in-memory rate limiting[39m
+    [35mcomponent[39m: "rate-limiter"
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 1157ms (compile: 294ms, proxy.ts: 55ms, render: 807ms)
+○ Compiling /api/notifications ...
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 576ms (compile: 128ms, proxy.ts: 40ms, render: 409ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 273ms (compile: 51ms, proxy.ts: 15ms, render: 207ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 270ms (compile: 17ms, proxy.ts: 17ms, render: 237ms)
+ GET /api/notifications?limit=20 200 in 10.2s (compile: 8.3s, proxy.ts: 661ms, render: 1280ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 912ms (compile: 76ms, proxy.ts: 39ms, render: 797ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 1329ms (compile: 108ms, proxy.ts: 41ms, render: 1180ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 283ms (compile: 35ms, proxy.ts: 24ms, render: 224ms)
+ GET /api/notifications?limit=20 200 in 1378ms (compile: 28ms, proxy.ts: 429ms, render: 921ms)
+ GET /api/reports/attendance?startDate=2026-09-16&endDate=2026-09-30 200 in 3.4s (compile: 1182ms, proxy.ts: 1556ms, render: 699ms)
+ GET /api/branches 200 in 3.5s (compile: 1335ms, proxy.ts: 1141ms, render: 1058ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 353ms (compile: 15ms, proxy.ts: 10ms, render: 328ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 395ms (compile: 36ms, proxy.ts: 11ms, render: 348ms)
+ GET /api/reports/attendance?startDate=2026-09-16&endDate=2026-09-30 200 in 676ms (compile: 15ms, proxy.ts: 377ms, render: 284ms)
+ GET /api/branches 200 in 899ms (compile: 19ms, proxy.ts: 422ms, render: 458ms)
+✓ Finished filesystem cache database compaction in 41s
+✓ Finished writing to filesystem cache in 39.2s
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 2.4s (compile: 20ms, proxy.ts: 11ms, render: 2.4s)
+ GET /api/notifications?limit=20 200 in 3.2s (compile: 48ms, proxy.ts: 2.5s, render: 686ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 863ms (compile: 67ms, proxy.ts: 14ms, render: 783ms)
+✓ Finished filesystem cache database compaction in 31.6s
+○ Compiling /api/executive/reason ...
+✓ Finished writing to filesystem cache in 32.2s
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 533ms (compile: 24ms, proxy.ts: 251ms, render: 258ms)
+ GET /api/notifications?limit=20 200 in 1773ms (compile: 19ms, proxy.ts: 1303ms, render: 451ms)
+ POST /api/executive/reason 200 in 21.2s (compile: 19.3s, proxy.ts: 993ms, render: 852ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 705ms (compile: 15ms, proxy.ts: 10ms, render: 680ms)
+ POST /api/executive/reason 200 in 1144ms (compile: 13ms, proxy.ts: 742ms, render: 389ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 273ms (compile: 21ms, proxy.ts: 14ms, render: 238ms)
+ GET /api/notifications?limit=20 200 in 790ms (compile: 22ms, proxy.ts: 299ms, render: 468ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 588ms (compile: 13ms, proxy.ts: 11ms, render: 565ms)
+ POST /api/executive/reason 200 in 1041ms (compile: 14ms, proxy.ts: 635ms, render: 391ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 239ms (compile: 22ms, proxy.ts: 9ms, render: 208ms)
+○ Compiling /dashboard/workflows ...
+ GET /dashboard/workflows 200 in 8.6s (compile: 8.1s, proxy.ts: 273ms, render: 233ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 328ms (compile: 40ms, proxy.ts: 86ms, render: 202ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 700ms (compile: 26ms, proxy.ts: 27ms, render: 647ms)
+ GET /api/workflows/today 200 in 2.4s (compile: 934ms, proxy.ts: 857ms, render: 577ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 227ms (compile: 8ms, proxy.ts: 6ms, render: 213ms)
+ GET /api/workflows/today 200 in 791ms (compile: 10ms, proxy.ts: 247ms, render: 534ms)

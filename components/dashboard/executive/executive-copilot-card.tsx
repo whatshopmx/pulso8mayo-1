@@ -12,7 +12,6 @@ import {
   TrendingUp,
   Flame,
   ArrowRight,
-  ShieldAlert,
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -80,7 +79,7 @@ const PRESET_SIMULATIONS: SimulationScenario[] = [
   },
 ];
 
-export function ExecutiveCopilotCard({ companyId }: { companyId: string }) {
+export function ExecutiveCopilotCard() {
   const [customQuestion, setCustomQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
@@ -120,7 +119,7 @@ export function ExecutiveCopilotCard({ companyId }: { companyId: string }) {
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-amber-500" />
+              <Sparkles className="h-5 w-5 text-warning" />
               Socio Estratégico & Simulador de Decisiones
             </CardTitle>
             <CardDescription>
@@ -156,19 +155,19 @@ export function ExecutiveCopilotCard({ companyId }: { companyId: string }) {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Icon className="h-4 w-4 text-primary" />
-                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-background border border-border text-foreground">
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-background border border-border text-foreground">
                       {sim.impactTag}
                     </span>
                   </div>
                   <h4 className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
                     {sim.title}
                   </h4>
-                  <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">
+                  <p className="text-xs text-muted-foreground leading-snug line-clamp-2">
                     {sim.description}
                   </p>
                 </div>
 
-                <div className="mt-3 pt-2 border-t border-border/50 flex items-center justify-between text-[11px] font-medium text-primary">
+                <div className="mt-3 pt-2 border-t border-border/50 flex items-center justify-between text-xs font-medium text-primary">
                   <span>{isSelected ? "Simulando..." : "Correr simulación"}</span>
                   {isSelected ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -184,12 +183,14 @@ export function ExecutiveCopilotCard({ companyId }: { companyId: string }) {
         {/* Custom inquiry row */}
         <div className="flex gap-2">
           <Textarea
+            aria-label="Pregunta estratégica para el copiloto ejecutivo"
             placeholder="O escribe una pregunta estratégica... (ej. ¿Qué sucursal tiene mayor riesgo de fuga en nómina?)"
             value={customQuestion}
             onChange={(e) => setCustomQuestion(e.target.value)}
             disabled={loading}
-            className="min-h-[42px] max-h-24 resize-none text-xs bg-background"
-            rows={1}
+            className="min-h-[76px] max-h-40 resize-y bg-background text-xs"
+            rows={3}
+            maxLength={500}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -215,7 +216,7 @@ export function ExecutiveCopilotCard({ companyId }: { companyId: string }) {
                 <CheckCircle2 className="h-4 w-4" />
                 Diagnóstico del Directorio Digital
               </span>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Fuentes: {result.sources?.map((s) => s.label).join(", ") || "Executive Twin"}
               </span>
             </div>
@@ -226,7 +227,7 @@ export function ExecutiveCopilotCard({ companyId }: { companyId: string }) {
 
             {result.keyFacts && result.keyFacts.length > 0 && (
               <div className="pt-2 border-t border-border/50">
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide mb-1">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1">
                   Hechos verificados en datos:
                 </p>
                 <ul className="space-y-1">

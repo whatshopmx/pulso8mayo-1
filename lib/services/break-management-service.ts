@@ -401,7 +401,7 @@ export class BreakManagementService {
         }> = [];
 
         for (const session of sessions) {
-            const validation = await this.validateBreakCompliance(session.id);
+            const validation = await this.checkBreakCompliance(session.id);
             if (validation.isCompliant) {
                 compliantCount++;
             } else {

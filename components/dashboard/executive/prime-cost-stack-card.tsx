@@ -2,30 +2,25 @@
 
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Trophy,
-  AlertTriangle,
-  Flame,
-  ArrowRight,
-  TrendingDown,
-  TrendingUp,
-  Percent,
-  Sparkles,
-} from "lucide-react";
+import { Trophy, Flame, ArrowRight, Percent, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { BranchQSRRankingResult, BranchQSRScore, NetworkAnomalyFinding } from "@/lib/services/cross-branch-service";
-
-interface PrimeCostStackCardProps {
-  ranking: BranchQSRRankingResult;
-}
+import type { BranchQSRRankingResult } from "@/lib/services/cross-branch-service";
 
 export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResult }) {
   const { branches, networkAveragePrimeCost, networkAverageFoodCost, networkAverageLaborCost, anomalies } = ranking;
 
   // Sort branches by primeCostPercent ascending (best margin efficiency first)
   const sortedByPrime = [...branches].sort((a, b) => a.primeCostPercent - b.primeCostPercent);
+
+  // Escala dinámica: la peor sucursal de la red define el ancho total, así una
+  // desviación por encima del 80% de Prime Cost no se recorta ni desborda.
+  const worstPrimeCost = branches.reduce(
+    (max, branch) => Math.max(max, branch.primeCostPercent),
+    0
+  );
+  const scaleMax = Math.max(80, Math.ceil(worstPrimeCost / 10) * 10);
+  const widthPercent = (value: number) => Math.min(100, Math.max(0, (value / scaleMax) * 100));
 
   return (
     <div className="space-y-4">
@@ -50,7 +45,7 @@ export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResul
                 className={cn(
                   "text-xs font-bold px-2 py-0.5 rounded",
                   networkAveragePrimeCost <= 60
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    ? "bg-success/10 text-success-text"
                     : "bg-destructive/10 text-destructive"
                 )}
               >
@@ -65,17 +60,20 @@ export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResul
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground pb-2 border-b border-border/50">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-sm bg-sky-500 inline-block" />
+                <span className="h-3 w-3 rounded-sm bg-chart-4 inline-block" />
                 <span>Alimentos (Food Cost %) · Prom: {networkAverageFoodCost.toFixed(1)}%</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-sm bg-indigo-500 inline-block" />
+                <span className="h-3 w-3 rounded-sm bg-chart-6 inline-block" />
                 <span>Nómina (Labor Cost %) · Prom: {networkAverageLaborCost.toFixed(1)}%</span>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 font-medium text-foreground">
-              <span className="h-3 w-0.5 bg-destructive inline-block" />
-              <span>Umbral Máximo Seguro: 60%</span>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <div className="flex items-center gap-1.5 font-medium text-foreground">
+                <span className="h-3 w-0.5 bg-destructive inline-block" />
+                <span>Umbral Máximo Seguro: 60%</span>
+              </div>
+              <span className="tabular-nums">Escala del riel: 0–{scaleMax}%</span>
             </div>
           </div>
 
@@ -85,10 +83,6 @@ export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResul
               const isBest = idx === 0 && branch.primeCostPercent <= 60;
               const isLeak = branch.primeCostPercent > 65;
               const isWarning = branch.primeCostPercent > 60 && branch.primeCostPercent <= 65;
-
-              // Scale for visualization: 0% to 80% max width
-              const foodWidth = Math.min(branch.foodCostPercent, 50);
-              const laborWidth = Math.min(branch.laborCostPercent, 50);
 
               return (
                 <div key={branch.branchId} className="space-y-1.5">
@@ -103,19 +97,19 @@ export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResul
                         {branch.branchName}
                       </Link>
                       {isBest && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 bg-amber-500/10 text-amber-600 rounded">
+                        <span className="text-xs font-bold uppercase tracking-wider px-1.5 py-0.5 bg-amber-500/10 text-amber-600 rounded">
                           Benchmark
                         </span>
                       )}
                       {isLeak && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 bg-destructive/10 text-destructive rounded">
+                        <span className="text-xs font-bold uppercase tracking-wider px-1.5 py-0.5 bg-destructive/10 text-destructive rounded">
                           Fuga de Margen
                         </span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className="text-muted-foreground text-[11px]">
+                      <span className="text-muted-foreground text-xs">
                         Comida <strong className="text-foreground">{branch.foodCostPercent.toFixed(1)}%</strong> + Nómina <strong className="text-foreground">{branch.laborCostPercent.toFixed(1)}%</strong>
                       </span>
                       <span
@@ -133,24 +127,26 @@ export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResul
                     </div>
                   </div>
 
-                  {/* Horizontal Stack Bar */}
-                  <div className="relative h-4 w-full bg-muted rounded overflow-hidden flex">
+                  {/* Horizontal Stack Bar — ancho relativo a la escala dinámica */}
+                  <div
+                    className="relative flex h-4 w-full overflow-hidden rounded bg-muted"
+                    role="img"
+                    aria-label={`${branch.branchName}: Prime Cost ${branch.primeCostPercent.toFixed(1)}% (Alimentos ${branch.foodCostPercent.toFixed(1)}% + Nómina ${branch.laborCostPercent.toFixed(1)}%)`}
+                  >
                     {/* Food cost segment */}
                     <div
-                      style={{ width: `${(branch.foodCostPercent / 80) * 100}%` }}
-                      className="bg-sky-500 h-full transition-all"
-                      title={`Alimentos: ${branch.foodCostPercent.toFixed(1)}%`}
+                      style={{ width: `${widthPercent(branch.foodCostPercent)}%` }}
+                      className="h-full bg-chart-4 transition-all"
                     />
                     {/* Labor cost segment */}
                     <div
-                      style={{ width: `${(branch.laborCostPercent / 80) * 100}%` }}
-                      className="bg-indigo-500 h-full transition-all"
-                      title={`Nómina: ${branch.laborCostPercent.toFixed(1)}%`}
+                      style={{ width: `${widthPercent(branch.laborCostPercent)}%` }}
+                      className="h-full bg-chart-6 transition-all"
                     />
 
                     {/* 60% Reference Threshold Line */}
                     <div
-                      style={{ left: `${(60 / 80) * 100}%` }}
+                      style={{ left: `${widthPercent(60)}%` }}
                       className="absolute top-0 bottom-0 w-0.5 bg-destructive z-10"
                       title="Límite máximo recomendado: 60%"
                     />
@@ -181,8 +177,8 @@ export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResul
                 <div className="space-y-1 max-w-2xl">
                   <div className="flex items-center gap-2">
                     <span className={cn(
-                      "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
-                      item.severity === "critical" ? "bg-destructive text-destructive-foreground" : "bg-amber-500 text-white"
+                      "text-xs font-bold uppercase px-2 py-0.5 rounded",
+                      item.severity === "critical" ? "bg-destructive text-destructive-foreground" : "bg-warning text-warning-foreground"
                     )}>
                       {item.type.replace(/_/g, " ")}
                     </span>

@@ -13,23 +13,20 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
 import { db } from "@/lib/db";
 import { companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { ExecutiveTwinEngine } from "@/lib/services/executive-twin-engine";
 import { CrossBranchService } from "@/lib/services/cross-branch-service";
 import { MorningBriefService } from "@/lib/services/morning-brief-service";
-import {
-  ExecutiveCockpitHeader,
-  type ExecutiveViewMode,
-} from "@/components/dashboard/executive/executive-cockpit-header";
+import { ExecutiveDecisionService } from "@/lib/services/executive-decision-service";
+import type { ExecutiveViewMode } from "@/components/dashboard/executive/executive-cockpit-header";
+import { ExecutiveCockpitTabs } from "@/components/dashboard/executive/executive-cockpit-tabs";
 import { ExecutiveDecisionDeck } from "@/components/dashboard/executive/executive-decision-deck";
 import { ExecutiveCopilotCard } from "@/components/dashboard/executive/executive-copilot-card";
 import { PrimeCostStackCard } from "@/components/dashboard/executive/prime-cost-stack-card";
 import { PnlExecutiveWaterfall } from "@/components/dashboard/executive/pnl-executive-waterfall";
 import { CashRunwayCard } from "@/components/dashboard/executive/cash-runway-card";
-import { ExecutiveCockpitSkeleton } from "@/components/dashboard/executive/executive-cockpit-skeleton";
 import type { CashFlowDay, Obligation } from "@/lib/services/intelligence/types";
 
 interface PageProps {
@@ -52,12 +49,13 @@ export default async function ExecutiveDashboardPage(props: PageProps) {
   const currentView: ExecutiveViewMode =
     rawView === "economics" || rawView === "liquidity" ? rawView : "cockpit";
 
-  // Fetch core executive models in parallel
-  const [companyRow, twin, ranking, brief] = await Promise.all([
+  // Fetch core executive models in parallel (incluye resoluciones ya despachadas)
+  const [companyRow, twin, ranking, brief, resolvedDecisions] = await Promise.all([
     db.select({ name: companies.name }).from(companies).where(eq(companies.id, companyId)).limit(1),
     ExecutiveTwinEngine.getLatest(companyId),
     CrossBranchService.getBranchRanking(companyId, 30),
     MorningBriefService.getLatest(companyId),
+    ExecutiveDecisionService.list(companyId),
   ]);
 
   const companyName = companyRow[0]?.name ?? "Grupo Restaurantero";
@@ -65,6 +63,17 @@ export default async function ExecutiveDashboardPage(props: PageProps) {
   // Compute Vital Signs Data
   const totalSalesCents = ranking.branches.reduce((acc, b) => acc + b.salesTotalCents, 0);
   const totalSalesMxn = totalSalesCents / 100;
+
+  // Contador de pendientes = casos vivos menos los ya resueltos y persistidos.
+  // Las claves replican la derivación de `ExecutiveDecisionDeck` (brief-<rank>-<title>
+  // y el id de la anomalía) para que el badge del servidor y la cola coincidan.
+  const decisionKeys = new Set<string>([
+    ...(brief?.brief?.priorities ?? []).map((p) => `brief-${p.rank}-${p.title}`),
+    ...(ranking.anomalies ?? []).map((a) => a.id),
+  ]);
+  const resolvedDecisionCount = Object.keys(resolvedDecisions).filter((key) =>
+    decisionKeys.has(key)
+  ).length;
 
   const vitalSigns = {
     healthScore: twin?.healthScore ?? 88,
@@ -76,57 +85,57 @@ export default async function ExecutiveDashboardPage(props: PageProps) {
     laborCostPercent: ranking.networkAverageLaborCost > 0 ? ranking.networkAverageLaborCost : 28.4,
     freeCash14dCents: twin?.projectedCashFlowCents ?? 64800000,
     liquidityRisk: twin?.liquidityRisk ?? 22,
-    pendingDecisionsCount: (brief?.brief?.priorities?.length ?? 0) + (ranking.anomalies?.length ?? 0),
+    pendingDecisionsCount: Math.max(
+      0,
+      (brief?.brief?.priorities?.length ?? 0) + (ranking.anomalies?.length ?? 0) - resolvedDecisionCount
+    ),
   };
 
   const cashFlowDays = (twin?.executiveState?.cashFlowProjection as CashFlowDay[]) ?? [];
   const obligations = (twin?.executiveState?.upcomingObligations as Obligation[]) ?? [];
 
-  return (
-    <div className="space-y-6">
-      {/* Header & Vital Signs Bar */}
-      <Suspense fallback={<ExecutiveCockpitSkeleton />}>
-        <ExecutiveCockpitHeader
-          companyName={companyName}
-          data={vitalSigns}
-          activeView={currentView}
-        />
-      </Suspense>
+  // Sucursal con la mayor fuga de Prime Cost: se destaca dentro de la cascada P&L.
+  const leakBranch =
+    [...ranking.branches].sort((a, b) => b.primeCostPercent - a.primeCostPercent)[0] ?? null;
 
-      {/* View 1: Despacho & Decisiones */}
-      {currentView === "cockpit" && (
-        <div className="space-y-6 animate-in fade-in duration-200">
+  // Fecha de referencia del servidor: mantiene determinista la proyección
+  // preliminar de tesorería entre SSR e hidratación.
+  const asOf = new Date().toISOString().slice(0, 10);
+
+  return (
+    <ExecutiveCockpitTabs
+      companyName={companyName}
+      data={vitalSigns}
+      initialView={currentView}
+      cockpit={
+        <div className="space-y-6">
           <ExecutiveDecisionDeck
             priorities={brief?.brief?.priorities}
             anomalies={ranking.anomalies}
-            companyId={companyId}
+            initialResolutions={resolvedDecisions}
           />
-          <ExecutiveCopilotCard companyId={companyId} />
+          <ExecutiveCopilotCard />
         </div>
-      )}
-
-      {/* View 2: Unit Economics & Prime Cost */}
-      {currentView === "economics" && (
-        <div className="space-y-6 animate-in fade-in duration-200">
+      }
+      economics={
+        <div className="space-y-6">
           <PrimeCostStackCard ranking={ranking} />
           <PnlExecutiveWaterfall
             salesTotalCents={totalSalesCents}
             foodCostPercent={vitalSigns.foodCostPercent}
             laborCostPercent={vitalSigns.laborCostPercent}
+            leakBranch={leakBranch}
           />
         </div>
-      )}
-
-      {/* View 3: Oxígeno & Flujo 14D */}
-      {currentView === "liquidity" && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <CashRunwayCard
-            projectionData={cashFlowDays}
-            obligations={obligations}
-            liquidityRisk={vitalSigns.liquidityRisk}
-          />
-        </div>
-      )}
-    </div>
+      }
+      liquidity={
+        <CashRunwayCard
+          projectionData={cashFlowDays}
+          obligations={obligations}
+          liquidityRisk={vitalSigns.liquidityRisk}
+          asOf={asOf}
+        />
+      }
+    />
   );
 }

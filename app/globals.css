@@ -223,3 +223,18 @@
   }
 }
 
+@media print {
+  /* Export ejecutivo (window.print desde /dashboard/executive): imprime el
+     contenido de la vista activa sin la navegación lateral ni la barra de
+     pestañas; las vistas no activas ya están ocultas por Radix (`hidden`). */
+  [data-slot="sidebar"],
+  [data-slot="sidebar-gap"],
+  [data-slot="sidebar-trigger"] {
+    display: none !important;
+  }
+  [data-slot="sidebar-inset"] {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+}
+

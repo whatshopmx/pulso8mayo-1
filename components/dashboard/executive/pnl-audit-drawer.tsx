@@ -10,28 +10,45 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Table, Eye, Download } from "lucide-react";
+import { Table, Eye } from "lucide-react";
 import { PnlBranchTable } from "@/components/finance/pnl-branch-table";
 
 interface PnlAuditDrawerProps {
   buttonText?: string;
   className?: string;
+  /** Modo controlado: permite abrir la auditoría desde un escalón de la cascada. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Oculta el botón disparador cuando otro componente controla la apertura. */
+  hideTrigger?: boolean;
 }
 
 export function PnlAuditDrawer({
   buttonText = "Ver P&L Detallado por Sucursal",
   className,
+  open,
+  onOpenChange,
+  hideTrigger = false,
 }: PnlAuditDrawerProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = open !== undefined;
+  const isOpen = isControlled ? open : internalOpen;
+
+  function setOpen(next: boolean) {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className={className}>
-          <Eye className="mr-1.5 h-3.5 w-3.5 text-primary" />
-          {buttonText}
-        </Button>
-      </SheetTrigger>
+    <Sheet open={isOpen} onOpenChange={setOpen}>
+      {!hideTrigger && (
+        <SheetTrigger asChild>
+          <Button variant="outline" size="sm" className={className}>
+            <Eye className="mr-1.5 h-3.5 w-3.5 text-primary" />
+            {buttonText}
+          </Button>
+        </SheetTrigger>
+      )}
 
       <SheetContent
         side="right"

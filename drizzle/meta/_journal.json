@@ -631,6 +631,13 @@
       "when": 1789561143909,
       "tag": "0090_modern_luminals",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1789668621065,
+      "tag": "0091_known_namorita",
+      "breakpoints": true
     }
   ]
 }

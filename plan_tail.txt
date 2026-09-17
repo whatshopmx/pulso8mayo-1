@@ -1,0 +1,69 @@
+﻿
+### Checkpoint: Unit Economics Impecable
+- [ ] La cascada P&L muestra visualmente el paso de ventas a EBITDA.
+- [ ] Las barras apiladas de Prime Cost soportan desbordes sin romper la maquetaciÃ³n.
+- [ ] Cero violaciones tipogrÃ¡ficas en la vista de economÃ­a unitaria.
+
+---
+
+### Phase 4: Despacho de 60 Segundos con WhatsApp & Cierre
+
+#### Task 7: Acciones Inline y Generador de WhatsApp en `ExecutiveDecisionDeck`
+- **DescripciÃ³n:** Incorporar botones de acciÃ³n operativa rÃ¡pida en cada tarjeta de decisiÃ³n:
+  1. BotÃ³n "Mandar WhatsApp a Gerente" que abre diÃ¡logo con mensaje pre-elaborado para enviar vÃ­a WhatsApp Web o API de Wasender.
+  2. BotÃ³n "Autorizar / Descartar" que permite marcar el Ã­tem como resuelto sin abandonar la cabina de mando.
+  3. Enlace secundario "Auditar Tienda" conservado como opciÃ³n de detalle forense.
+- **Acceptance criteria:**
+  - [ ] El director puede resolver o diferir un caso directamente desde la cabina con respuesta visual inmediata.
+  - [ ] El botÃ³n de WhatsApp arma automÃ¡ticamente el texto con la sucursal, la mÃ©trica desfasada y la recomendaciÃ³n.
+  - [ ] Se eleva el microtexto a 10px de la prioridad a 12px (`text-xs`).
+- **Verification:**
+  - [ ] `node .agents/skills/impeccable/scripts/detect.mjs --json components/dashboard/executive/executive-decision-deck.tsx` = 0 findings.
+  - [ ] Prueba interactiva del disparador de WhatsApp y resoluciÃ³n inline.
+- **Dependencies:** Checkpoint 1.
+- **Files likely touched:**
+  - `components/dashboard/executive/executive-decision-deck.tsx` [MODIFY]
+- **Estimated scope:** Medium (1-2 archivos).
+
+#### Task 8: Pulido del Copiloto, ErradicaciÃ³n de Errores TipogrÃ¡ficos y VerificaciÃ³n Final
+- **DescripciÃ³n:** Erradicar los 5 hallazgos de microtextos en `executive-copilot-card.tsx`, ajustar la altura y accesibilidad del campo de texto de consulta estratÃ©gica, ejecutar el detector global sobre toda la carpeta ejecutiva y correr una nueva sesiÃ³n de auditorÃ­a con `$impeccable critique`.
+- **Acceptance criteria:**
+  - [ ] Todos los microtextos en `executive-copilot-card.tsx` estÃ¡n en `text-xs`.
+  - [ ] `detect.mjs` sobre `components/dashboard/executive/` pasa con **0 findings** (cero violaciones de las 25 originales).
+  - [ ] `pnpm run build` compila con cÃ³digo de salida 0.
+  - [ ] Se ejecuta `$impeccable critique` registrando la subida de score en el histÃ³rico de snapshots.
+- **Verification:**
+  - [ ] `node .agents/skills/impeccable/scripts/detect.mjs --json components/dashboard/executive` = `[]`.
+  - [ ] `pnpm run build`.
+- **Dependencies:** Tasks 1 a 7.
+- **Files likely touched:**
+  - `components/dashboard/executive/executive-copilot-card.tsx` [MODIFY]
+- **Estimated scope:** Small (1 archivo).
+
+---
+
+### Checkpoint Final: AprobaciÃ³n y Trend Impeccable
+- [ ] Todas las tareas completadas y verificadas.
+- [ ] `detect.mjs` reporta 0 hallazgos en toda la cabina ejecutiva.
+- [ ] Suite de producciÃ³n compila limpia.
+- [ ] Trend actualizado en `.impeccable/critique/`.
+
+---
+
+## 5. Risks and Mitigations
+
+| Riesgo | Impacto | MitigaciÃ³n |
+|---|---|---|
+| Inconsistencia de estado al usar `history.replaceState` en Next.js App Router | Medio | Utilizar el hook nativo de Next.js `useRouter` con `{ scroll: false }` o sincronizaciÃ³n controlada en `useEffect` con fallback determinista. |
+| Sucursales con datos nulos o cero ventas en la grÃ¡fica Waterfall | Medio | Integrar valores base seguros (`safeSales`) con indicativo visual claro cuando se estÃ© operando con proyecciones estimadas. |
+| Disparador de WhatsApp bloqueado por pop-up blocker en navegadores | Bajo | Utilizar enlaces directos con target `_blank` (`window.open` o `<a href="https://wa.me/...">`) activados por gesto explÃ­cito de clic de usuario. |
+| Incompatibilidad de Recharts en renderizado responsivo mÃ³vil | Bajo | Emplear `ResponsiveContainer` con altura mÃ­nima fija (`min-h-[240px]`) y contenedor flex adaptable. |
+
+---
+
+## 6. Definition of Done
+1. **Zero Detector Findings**: `node .agents/skills/impeccable/scripts/detect.mjs --json components/dashboard/executive` devuelve `[]`.
+2. **Zero-Latency Tab Switch**: La navegaciÃ³n entre Cockpit, Economics y Liquidity no gatilla recargas de pÃ¡gina en el navegador.
+3. **P0/P1 Resueltos**: GrÃ¡fica de tesorerÃ­a 14D funcional con baseline cero; cascada PnL grÃ¡fica conectada; acciones de 60 segundos con WhatsApp disponibles.
+4. **Build Clean**: `pnpm run build` finaliza sin errores de TypeScript ni empaquetado.
+5. **AuditorÃ­a Impeccable**: Nueva ejecuciÃ³n de `$impeccable critique` muestra el incremento de calificaciÃ³n registrado en el histÃ³rico.
