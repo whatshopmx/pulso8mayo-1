@@ -1,7 +1,7 @@
 // lib/services/stock-count-service.ts
 import { db } from "@/lib/db";
-import { inventoryItems, inventoryBatches, inventoryMovements, workflowTemplates, workflowInstances, workflowInstanceSteps, users } from "@/lib/db/schema";
-import { eq, and, sql, desc, inArray, isNotNull } from "drizzle-orm";
+import { inventoryItems, inventoryBatches, workflowTemplates, workflowInstances, workflowInstanceSteps, users } from "@/lib/db/schema";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { InventoryService } from "./inventory-service";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { templateLibrary } from "@/templates";
@@ -35,7 +35,7 @@ export class StockCountService {
       .from(workflowTemplates)
       .where(and(
         eq(workflowTemplates.companyId, companyId),
-        eq(workflowTemplates.name, STOCK_COUNT_TEMPLATE_NAME),
+        inArray(workflowTemplates.name, [STOCK_COUNT_TEMPLATE_NAME, "📊 Conteo de Inventario"]),
         eq(workflowTemplates.active, true)
       ))
       .limit(1);
@@ -46,7 +46,7 @@ export class StockCountService {
 
     const [template] = await db.insert(workflowTemplates).values({
       companyId,
-      name: staticTemplate?.title || STOCK_COUNT_TEMPLATE_NAME,
+      name: STOCK_COUNT_TEMPLATE_NAME,
       description: staticTemplate?.description || "Conteo físico de inventario por categoría",
       category: staticTemplate?.category || "INVENTORY",
       steps: staticTemplate
@@ -86,9 +86,9 @@ export class StockCountService {
             eq(inventoryItems.active, true),
         ];
 
-        // Fase 4: por defecto solo se cuentan los SKUs de alto valor (80/20).
-        // Pasa false para "ver todos".
-        if (highOnlyValue !== false) {
+        // Fase 4: solo filtrar por alto valor si highOnlyValue es explícitamente true.
+        // Si no se especifica o es false, devuelve todos los artículos activos de la categoría.
+        if (highOnlyValue === true) {
             conditions.push(eq(inventoryItems.isHighValue, true));
         }
 
@@ -189,7 +189,7 @@ export class StockCountService {
       .where(and(
         eq(workflowInstances.branchId, branchId),
         eq(workflowInstances.status, "IN_PROGRESS"),
-        eq(workflowTemplates.name, STOCK_COUNT_TEMPLATE_NAME),
+        inArray(workflowTemplates.name, [STOCK_COUNT_TEMPLATE_NAME, "📊 Conteo de Inventario"]),
       ))
       .limit(1);
 
@@ -209,11 +209,15 @@ export class StockCountService {
     }
 
     const template = await this.getOrCreateTemplate(data.companyId);
-    const products = await this.getProductsWithStock(data.companyId, data.branchId, data.categoryValue, data.highOnlyValue);
+    const isHighOnly = data.highOnlyValue === true;
+    const products = await this.getProductsWithStock(data.companyId, data.branchId, data.categoryValue, isHighOnly);
 
-        if (products.length === 0) {
-            throw new Error("No products found for selected category");
-        }
+    if (products.length === 0) {
+      if (isHighOnly) {
+        throw new Error(`NO_PRODUCTS_FOUND: No se encontraron productos de alto valor en la categoría "${data.categoryValue}".`);
+      }
+      throw new Error(`NO_PRODUCTS_FOUND: No se encontraron productos para la categoría "${data.categoryValue}".`);
+    }
 
         const templateSteps = typeof template.steps === 'string' ? JSON.parse(template.steps) : template.steps;
         const steps = StockCountService.generateStockCountSteps(templateSteps, products, data.categoryValue);
@@ -229,7 +233,7 @@ export class StockCountService {
             data: {
                 category: data.categoryValue,
                 productCount: products.length,
-                highValueOnly: data.highOnlyValue !== false, // Fase 4
+                highValueOnly: isHighOnly,
                 startTime: new Date().toISOString(),
                 ...(staticTemplate?.aiConfig ? { aiConfig: staticTemplate.aiConfig } : {}),
                 ...(staticTemplate?.complianceConfig ? { complianceConfig: staticTemplate.complianceConfig } : {}),

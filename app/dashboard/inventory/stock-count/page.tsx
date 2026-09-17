@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { StockCountService } from "@/lib/services/stock-count-service";
 import { CATEGORIES } from "@/lib/inventory/constants";
 import { db } from "@/lib/db";
-import { branches, companies } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { branches, companies, inventoryItems } from "@/lib/db/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +32,10 @@ async function toggleBlindCountSetting(formData: FormData) {
 async function createStockCount(formData: FormData) {
   "use server";
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return;
+  if (!session?.user) return redirect("/sign-in");
+  if (!session.user.companyId) {
+    return redirect("/dashboard/inventory/stock-count?error=missing-company");
+  }
 
   const branchId = formData.get("branchId") as string;
   const category = formData.get("category") as string;
@@ -40,21 +43,19 @@ async function createStockCount(formData: FormData) {
     return redirect("/dashboard/inventory/stock-count?error=missing-fields");
   }
 
+  const highOnlyValue = formData.get("highValueOnly") === "true";
+
   // `redirect()` funciona lanzando NEXT_REDIRECT: si se llama dentro del try,
   // el propio catch se lo traga y el conteo recién creado termina en la
   // pantalla de error. Por eso aquí solo se resuelve el destino.
   let destino: string;
   try {
     const result = await StockCountService.createStockCountInstance({
-      companyId: session.user.companyId || "",
+      companyId: session.user.companyId,
       branchId,
       assigneeId: session.user.id,
       categoryValue: category,
-      // Un checkbox desmarcado NO viaja en el form: `get()` devuelve null. Con
-      // `!== "false"` eso daba `true` y el toggle "ver todos" no hacía nada.
-      // El checkbox lleva value="true", así que comparar contra "true" es lo
-      // que distingue marcado (true) de desmarcado (null).
-      highOnlyValue: formData.get("highValueOnly") === "true", // Fase 4
+      highOnlyValue,
     });
     destino = result.instance?.id
       ? `/dashboard/workflows/${result.instance.id}/execute`
@@ -65,16 +66,32 @@ async function createStockCount(formData: FormData) {
     const match = message.match(/ID:\s*([a-f0-9-]+)/i);
     if (match) {
       destino = `/dashboard/workflows/${match[1]}/execute`;
+    } else if (message.includes("NO_PRODUCTS_FOUND") || message.includes("No products found")) {
+      const params = new URLSearchParams({
+        error: "no-products",
+        category,
+        highOnlyValue: highOnlyValue ? "true" : "false",
+      });
+      destino = `/dashboard/inventory/stock-count?${params.toString()}`;
+    } else if (message.includes("Ya existe un conteo activo")) {
+      destino = "/dashboard/inventory/stock-count?error=active-count";
     } else {
       console.error("Stock count error:", error);
-      destino = "/dashboard/inventory/stock-count?error=create-failed";
+      destino = `/dashboard/inventory/stock-count?error=create-failed&msg=${encodeURIComponent(message.slice(0, 100))}`;
     }
   }
 
   redirect(destino);
 }
 
-export default async function StockCountPage(props: { searchParams?: Promise<{ error?: string }> }) {
+export default async function StockCountPage(props: {
+  searchParams?: Promise<{
+    error?: string;
+    category?: string;
+    highOnlyValue?: string;
+    msg?: string;
+  }>;
+}) {
     const searchParams = await props.searchParams;
     const errorType = searchParams?.error;
 
@@ -96,6 +113,45 @@ export default async function StockCountPage(props: { searchParams?: Promise<{ e
     const scopedBranch = userBranches.find((b) => b.id === scopedBranchId) ?? null;
 
     const history = await StockCountService.getStockCountHistory(companyId);
+
+    // Consultar categorías reales presentes en el inventario con sus conteos
+    const dbCategoryCounts = await db
+        .select({
+            category: inventoryItems.category,
+            totalCount: sql<number>`count(*)::int`,
+            highValueCount: sql<number>`count(case when ${inventoryItems.isHighValue} = true then 1 end)::int`,
+        })
+        .from(inventoryItems)
+        .where(and(eq(inventoryItems.companyId, companyId), eq(inventoryItems.active, true)))
+        .groupBy(inventoryItems.category);
+
+    const hasHighValueItems = dbCategoryCounts.some((c) => c.highValueCount > 0);
+
+    const dbCatMap = new Map(dbCategoryCounts.map((c) => [c.category, c]));
+
+    const availableCategories: Array<{ value: string; label: string; count: number; hasHighValue: boolean }> = [];
+
+    // Primero las categorías que tienen artículos registrados en la empresa
+    for (const c of dbCategoryCounts) {
+        availableCategories.push({
+            value: c.category,
+            label: `${c.category} (${c.totalCount} ${c.totalCount === 1 ? "artículo" : "artículos"}${c.highValueCount > 0 ? ` • ${c.highValueCount} alto valor` : ""})`,
+            count: c.totalCount,
+            hasHighValue: c.highValueCount > 0,
+        });
+    }
+
+    // Luego las categorías estándar que aún no tienen artículos (para compatibilidad de selección y tests)
+    for (const cat of CATEGORIES) {
+        if (!dbCatMap.has(cat.value)) {
+            availableCategories.push({
+                value: cat.value,
+                label: cat.label,
+                count: 0,
+                hasHighValue: false,
+            });
+        }
+    }
 
     const [company] = await db.select({
         blindStockCount: companies.blindStockCount
@@ -119,7 +175,14 @@ export default async function StockCountPage(props: { searchParams?: Promise<{ e
 
     const errorMessages: Record<string, string> = {
         "missing-fields": "Selecciona una sucursal y una categoría para iniciar el conteo.",
-        "create-failed": "Error al crear el conteo. Intenta de nuevo más tarde.",
+        "missing-company": "No se encontró una empresa asociada a tu sesión. Por favor inicia sesión nuevamente.",
+        "active-count": "Ya existe un conteo activo en progreso para esta sucursal. Complétalo o cancélalo en el historial antes de iniciar uno nuevo.",
+        "no-products": searchParams?.category
+            ? `No se encontraron productos disponibles en la categoría "${searchParams.category}" con los filtros aplicados.`
+            : "No se encontraron productos para contar en la categoría seleccionada.",
+        "create-failed": searchParams?.msg
+            ? `Error al crear el conteo: ${searchParams.msg}`
+            : "Error al crear el conteo. Intenta de nuevo más tarde.",
     };
 
     return (
@@ -133,7 +196,18 @@ export default async function StockCountPage(props: { searchParams?: Promise<{ e
             {errorType && errorMessages[errorType] && (
                 <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{errorMessages[errorType]}</AlertDescription>
+                    <div className="space-y-1">
+                        <AlertDescription className="font-medium">
+                            {errorMessages[errorType]}
+                        </AlertDescription>
+                        {errorType === "no-products" && (
+                            <p className="text-xs opacity-90">
+                                {searchParams?.highOnlyValue === "true"
+                                    ? "Sugerencia: Tenías activada la casilla \"Contar solo SKUs de alto valor\". Desmárcala para incluir todos los artículos de esta categoría o elige otra categoría con productos."
+                                    : "Sugerencia: Esta categoría no tiene productos registrados. Selecciona una categoría con existencias en el catálogo."}
+                            </p>
+                        )}
+                    </div>
                 </Alert>
             )}
 
@@ -188,26 +262,34 @@ export default async function StockCountPage(props: { searchParams?: Promise<{ e
                                         name="category"
                                         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                         required
+                                        defaultValue={searchParams?.category || ""}
                                     >
                                         <option value="">Seleccionar categoría</option>
-                                        {CATEGORIES.map((c) => (
+                                        {availableCategories.map((c) => (
                                             <option key={c.value} value={c.value}>{c.label}</option>
                                         ))}
                                     </select>
                                 </div>
 
-                                <div className="flex items-center gap-2 rounded-lg border bg-muted/10 p-3">
+                                <div className="flex items-start gap-3 rounded-lg border bg-muted/10 p-3">
                                     <input
                                         id="highValueOnly"
                                         type="checkbox"
                                         name="highValueOnly"
                                         value="true"
-                                        defaultChecked
-                                        className="h-4 w-4 shrink-0"
+                                        defaultChecked={hasHighValueItems}
+                                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-input text-primary focus:ring-primary"
                                     />
-                                    <label htmlFor="highValueOnly" className="text-sm text-muted-foreground">
-                                        Contar solo SKUs de alto valor (80% del costo — máx. 30). Desmarca para contar todos.
-                                    </label>
+                                    <div className="space-y-1">
+                                        <label htmlFor="highValueOnly" className="text-sm font-medium leading-none cursor-pointer">
+                                            Contar solo SKUs de alto valor (80/20 Pareto — máx. 30)
+                                        </label>
+                                        <p className="text-xs text-muted-foreground">
+                                            {hasHighValueItems
+                                                ? "Filtra automáticamente los artículos de mayor costo acumulado. Desmarca para auditar todo el catálogo de la categoría."
+                                                : "No hay productos marcados como alto valor en el catálogo. Mantén esta opción desmarcada para auditar todos los artículos."}
+                                        </p>
+                                    </div>
                                 </div>
 
                                 <Button type="submit" className="w-full mt-2">
@@ -252,15 +334,16 @@ export default async function StockCountPage(props: { searchParams?: Promise<{ e
                             <CardContent>
                                 <div className="space-y-3">
                                     {history.map((item) => {
-                                        const pendingApproval = item.status === "COMPLETED" && (item.data as any)?.adjustmentsStatus === "PENDING";
+                                        const itemData = (item.data ?? {}) as Record<string, unknown>;
+                                        const pendingApproval = item.status === "COMPLETED" && itemData.adjustmentsStatus === "PENDING";
                                         const content = (
                                             <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
                                                 <div className="flex flex-col gap-1">
                                                     <div className="font-medium">
-                                                        {(item.data as any)?.category || "Conteo de Inventario"}
+                                                        {(itemData.category as string) || "Conteo de Inventario"}
                                                     </div>
                                                     <div className="text-sm text-muted-foreground">
-                                                        {(item.data as any)?.productCount || 0} productos •{" "}
+                                                        {(itemData.productCount as number) || 0} productos •{" "}
                                                         {formatDate(item.completedAt)}
                                                     </div>
                                                 </div>

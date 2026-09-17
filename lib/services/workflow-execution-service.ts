@@ -38,11 +38,11 @@ export class WorkflowExecutionService {
         let steps = template.steps as unknown as WorkflowStep[];
 
         // 2. If Stock Count template, generate dynamic product steps
-        if (template.name === STOCK_COUNT_TEMPLATE_NAME) {
+        if (template.name === STOCK_COUNT_TEMPLATE_NAME || template.name === "📊 Conteo de Inventario") {
             const category = categoryValue || DEFAULT_CATEGORIES[0].value;
             const { StockCountService } = await import("./stock-count-service");
             const cid = companyId || (await db.query.users.findFirst({ where: eq(users.id, assigneeId || "") }))?.companyId || "";
-            const products = await StockCountService.getProductsWithStock(cid, branchId, category);
+            const products = await StockCountService.getProductsWithStock(cid, branchId, category, false);
             const templateSteps = template.steps as unknown as WorkflowStep[];
             steps = StockCountService.generateStockCountSteps(templateSteps, products, category);
         }
