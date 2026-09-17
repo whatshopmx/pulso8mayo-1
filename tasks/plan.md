@@ -1,104 +1,97 @@
-# Implementation Plan: Sistema Operativo de Red QSR (3 a 15 Sucursales) — Pulso HORECA
+# Implementation Plan: Executive Dashboard Refinement & Hardening (Executive OS)
 
-## Overview
-
-Transformación de la experiencia de administración y supervisión de Pulso HORECA para **grupos restauranteros de servicio rápido (QSR) de 3 a 15 sucursales**. 
-
-Reemplaza la arquitectura actual fragmentada de 4 dashboards desconectados y herramientas de BI genéricas (`/dashboard`, `/dashboard/executive`, `/dashboard/exceptions`, `/dashboard/analytics/branches`, `/dashboard/analytics`, `/dashboard/analytics/kpi-builder`, `/dashboard/analytics/trends`, `/dashboard/analytics/incidents`) por un **Sistema Operativo Multi-Unidad** articulado en torno a la trinchera diaria de un operador de cadena:
-1. **En Vivo (Live Command Center en `/dashboard`):** Semáforo de aperturas a tiempo, dotación de personal por turno, monitoreo de cadena de frío y venta acumulada.
-2. **Excepciones & Riesgos (`/dashboard/exceptions`):** Bandeja de triage clasificada por impacto directo (Dinero en caja/TPV, Inocuidad NOM-251, Mermas en horas pico y Personal).
-3. **Liga de Sucursales (`/dashboard/branches`):** Benchmarking peer-to-peer, Prime Cost comparativo (Food Cost % + Labor Cost %) y detección de inconsistencias entre tiendas.
-4. **Dirección & Unit Economics (`/dashboard/executive`):** Morning Brief diario de IA (7:00 AM), P&L operativo estimado por tienda y proyección de flujo a 14 días.
+**Fecha:** 17 de septiembre de 2026  
+**Objetivo:** Elevar el Executive Dashboard (`/dashboard/executive`) de una calificación de **22/40 (Acceptable)** a **>34/40 (Good/Excellent)** mediante interactividad en cliente con latencia cero, gráfica de flujo robusta, cascada financiera deductiva real, acciones inline de 60 segundos con WhatsApp y apego estricto al Design System de Pulso.  
+**Ruta:** `/dashboard/executive` (`?view=cockpit` · `?view=economics` · `?view=liquidity`)  
+**Auditoría previa:** `.impeccable/critique/2026-09-17T15-00-17Z__app-dashboard-executive-page-tsx.md`  
+**Referencia detallada:** `tasks/plan-executive-dashboard-refinement.md`
 
 ---
 
-## Architecture Decisions
+## 1. Overview
 
-1. **Unificación de Navegación en "Comando de Red":** Se reestructura `components/app-sidebar.tsx` eliminando la sección redundante de "Analítica" (5 subenlaces huérfanos). Se establecen 4 accesos claros que corresponden al ciclo de supervisión diario del operador QSR.
-2. **Depuración del "Síndrome de BI Genérico":** Se retira el constructor de KPIs manuales (`/dashboard/analytics/kpi-builder`) y el dashboard analítico abstracto (`/dashboard/analytics`). Los operadores QSR no formulan KPIs matemáticos; operan con guardrails estándar del sector (Food Cost, Labor Cost, Ticket Promedio, Cumplimiento de Apertura/Cierre, NOM-251).
-3. **Triage por Impacto de Negocio (GroupExceptionsService):** Las excepciones se categorizan formalmente en 4 dominios críticos para QSR: `DINERO` (caja, TPVs, fraudes), `INOCUIDAD` (NOM-251, frío, higiene), `ABASTO` (mermas anormales, rotación) y `PERSONAL` (asistencia y turnos clave). Cada ítem expone una acción directa resolutiva (WhatsApp, arqueo, transferencia).
-4. **Scorecard QSR y Prime Cost en Benchmarking:** Se enriquece `CrossBranchService` para calcular el Prime Cost combinado por tienda aprovechando los datos de ventas (`daily_sales_cuts`), insumos/recetas (`recipes`, `operating_expenses`) y horas laborales (`shift_logs`), permitiendo rankear qué sucursales operan en el rango objetivo (<60%).
-5. **Preservación Total de Datos y Retrocompatibilidad:** Ninguna tabla existente se destruye. Las URLs anteriores como `/dashboard/analytics/branches` se redirigen transparentemente o se mantienen como alias para no romper marcadores ni flujos existentes.
+El Executive Dashboard cuenta con un anclaje de negocio sobresaliente para dueños y directores de cadenas HORECA en México (3 a 15 sucursales): integra Prime Cost (comida + nómina ≤ 60%), calendario con hitos clave (SIPARE/IMSS día 17, nóminas quincenales 15/30) y el modelo causal del Executive Twin.
 
----
-
-## Task List
-
-### Fase 1: Consolidación de Navegación y Rutas
-
-- [ ] **Task 1:** Reestructuración de navegación en `app-sidebar.tsx` y creación de alias/ruta canónica `/dashboard/branches`.
-
-### Checkpoint 1: Navegación Limpia
-- [ ] La barra lateral muestra únicamente las 4 secciones operativas de Comando de Red.
-- [ ] No existen enlaces rotos; las rutas anteriores redirigen limpiamente.
-- [ ] `pnpm run build` compila sin errores.
+Sin embargo, la auditoría visual y de código de Impeccable evidenció 5 cuellos de botella críticos:
+1. **Latencia y parpadeo SSR**: Las 3 vistas cambian mediante enlaces `<Link>`, disparando 4 consultas a Postgres en cada clic en vez de alternar fluidamente en cliente.
+2. **Gráfica de tesorería colgada en estado de carga**: En la vista de liquidez, la proyección de caja muestra un contenedor punteado estático cuando faltan series, carece de eje cero (`y=0`) para insolvencia y redondea erróneamente las barras negativas.
+3. **Falsa cascada de P&L**: El componente `PnlExecutiveWaterfall` es una cuadrícula de 4 cajas estáticas en vez de una verdadera cascada escalonada de deducción de margen y EBITDA.
+4. **Fuga del flujo de 60 segundos**: La Cola de Decisiones expulsa al director hacia otras páginas para cualquier acción, en lugar de permitir despachos inline o alertas inmediatas por WhatsApp.
+5. **25 violaciones de la regla Label-Floor**: Microtextos a 10px y 11px ilegibles en tablets, clases inválidas (`py-0.2`) y colores utilitarios (`sky-500`, `indigo-500`, `#10b981`) fuera del sistema OKLCH de `DESIGN.md`.
 
 ---
 
-### Fase 2: Centro de Excepciones QSR & Triage de Riesgos
+## 2. Architecture & Design Decisions
 
-- [ ] **Task 2:** Clasificación por riesgo de negocio en `GroupExceptionsService` (Dinero, Inocuidad NOM, Mermas/Abasto, Personal).
-- [ ] **Task 3:** Rediseño UI del Centro de Excepciones (`/dashboard/exceptions`) con selector de impacto y acciones de resolución en 1 clic.
+### Decisión 1: Precarga Integral en Servidor + Coordinador de Pestañas en Cliente (`ExecutiveCockpitTabs`)
+- `page.tsx` entrega el paquete completo de datos (`company`, `twin`, `ranking`, `brief`) al componente cliente `ExecutiveCockpitTabs`.
+- Las 3 vistas se alternan con estado React en 0 ms. Se sincroniza la URL vía `window.history.replaceState` / shallow routing para mantener deep-linking permanente sin forzar peticiones RSC.
 
-### Checkpoint 2: Triage Operativo Activo
-- [ ] Un faltante de arqueo o alerta TPV se lista bajo "Dinero & Caja" con deep link al corte.
-- [ ] Una alerta de temperatura NOM-251 se lista bajo "Inocuidad" con acceso al registro del equipo.
-- [ ] Cada excepción permite detonar una acción sin perder el contexto.
+### Decisión 2: Despacho Operativo en 1 Clic con WhatsApp en la Cola de Decisiones
+- Cada ítem en `ExecutiveDecisionDeck` incluye disparador rápido de WhatsApp (web o Wasender) con texto pre-elaborado para el gerente de la sucursal, y resolución inline inmediata ("Autorizar", "Diferir 24h") con actualización optimista.
 
----
+### Decisión 3: Gráfico Waterfall Escalonado Financiero Interactivo
+- Transformar `PnlExecutiveWaterfall` en un gráfico de puente escalonado: Base Ventas ➔ -COGS ➔ Margen Bruto ➔ -Nómina ➔ Prime Margin (≤60%) ➔ -OpEx ➔ EBITDA, con tooltip de mayor fuga y acceso directo a `PnlAuditDrawer`.
 
-### Fase 3: Live Command Center ("El Pulso de Hoy")
-
-- [ ] **Task 4:** Servicio y endpoint de Pulso en Vivo (Apertura de tiendas, asistencia del turno, alertas rojas de servicio y venta acumulada).
-- [ ] **Task 5:** Rediseño del Home (`app/dashboard/page.tsx`) integrando la Matriz en Vivo de Sucursales y alertas prioritarias de rush.
-
-### Checkpoint 3: Comando en Vivo Operativo
-- [ ] El director de operaciones visualiza de un vistazo cuáles de las 3 a 15 sucursales abrieron a tiempo y completaron su checklist.
-- [ ] Las alertas rojas de servicio (frío, falta de cajero, desabasto) aparecen en la cabecera.
-- [ ] Se elimina la sobrecarga de pestañas abstractas en el Home.
+### Decisión 4: Erradicación de Violaciones Label-Floor y Tokenización OKLCH
+- Elevar todos los 25 microtextos de 10px y 11px a un mínimo de 12px (`text-xs`).
+- Reemplazar colores utilitarios por tokens semánticos de `DESIGN.md` (`chart-1`, `chart-2`, etc.).
+- Limitar el Operational Red a acentos sutiles (≤15%) en la pestaña activa.
 
 ---
 
-### Fase 4: Liga de Sucursales & Benchmarking Multi-Unidad
+## 3. Dependency Graph
 
-- [ ] **Task 6:** Cálculo de Scorecard QSR y Prime Cost (Food Cost % + Labor Cost %) en `CrossBranchService`.
-- [ ] **Task 7:** Rediseño de la pantalla de Benchmarking (`/dashboard/branches`) con ranking de consistencia, comparativa cruzada y ficha 360° por tienda.
+```
+Phase 1: Shell & Latency Elimination
+  ├── Task 1: Componente Cliente ExecutiveCockpitTabs con Shallow URL Sync
+  └── Task 2: Rediseño de Pestañas & Header (Operational Red ≤15% + Label Floor)
+         │
+         ▼
+Checkpoint 1: Cambio de vistas instantáneo (0ms) y URL sincronizada
 
-### Checkpoint 4: Benchmarking Multi-Unidad Completo
-- [ ] Las sucursales se ordenan según el Score QSR integral (Venta, Costos, NOM-251, Cuadre TPV).
-- [ ] El motor resalta discrepancias automáticas ("Sucursal A tiene 5% más Food Cost que Sucursal B").
-- [ ] El drill-down por tienda muestra la radiografía completa de la unidad.
+Phase 2: Hardening de Flujo de Caja (Liquidity)
+  ├── Task 3: Simulación de Contingencia en Cash Runway + Baseline Cero (y=0)
+  └── Task 4: Tokenización OKLCH y Erradicación de 11 Microtextos en Flujo 14D
+         │
+         ▼
+Checkpoint 2: Proyección de tesorería robusta ante cualquier estado de datos
 
----
+Phase 3: Unit Economics & Cascada Financiera
+  ├── Task 5: Rediseño a Waterfall Escalonado Deductivo en PnlExecutiveWaterfall
+  └── Task 6: Resiliencia de Escala >80% y Corrección de Tokens en PrimeCostStackCard
+         │
+         ▼
+Checkpoint 3: Visualización de margen deductivo en 5 segundos sin fuga de tokens
 
-### Fase 5: Dirección & Unit Economics (Executive Suite)
-
-- [ ] **Task 8:** Consolidación de `/dashboard/executive` con foco en Morning Brief diario, P&L operativo por tienda y proyección de flujo a 14 días.
-
-### Checkpoint 5: Vista de Dirección Validada
-- [ ] El dueño visualiza el Morning Brief matutino generado por el Executive Twin.
-- [ ] El P&L operativo compara ingresos, costo de alimentos, nómina y EBITDA tienda por tienda.
-- [ ] La proyección de caja a 14 días muestra la solvencia del grupo frente a pagos programados.
-
----
-
-### Fase 6: Retiro de Rutas Obsoletas y Pruebas de Integración
-
-- [ ] **Task 9:** Depuración de rutas obsoletas (`/analytics/kpi-builder`, `/analytics/trends`), redirecciones y verificación integral de build y tests.
-
----
-
-## Risks and Mitigations
-
-| Riesgo | Impacto | Mitigación |
-|---|---|---|
-| Faltante de datos de ventas en vivo si la sucursal no ha capturado el corte matutino | Medio | Mostrar estado "En turno / Esperando corte de cambio de turno" con badge informativo en lugar de marcarlo como venta en cero. |
-| Inconsistencia en recetas al calcular Food Cost teórico en sucursales nuevas | Medio | Clasificar la procedencia del dato como `ESTIMATED` (basado en compras/gastos de insumos) hasta que existan recetas y cortes vinculados. |
-| Resistencia del operador a cambios en los enlaces habituales | Bajo | Mantener redirecciones permanentes (`next.config.ts` o páginas delegadas) para que ningún enlace guardado falle. |
+Phase 4: Despacho de 60 Segundos con WhatsApp & Cierre
+  ├── Task 7: Acciones Inline y Generador de WhatsApp en ExecutiveDecisionDeck
+  └── Task 8: Pulido del Copiloto, Erradicación de Bugs de Sintaxis y Verificación detect.mjs
+         │
+         ▼
+Checkpoint 4: 0 Hallazgos en detector, suite compila limpia, re-evaluación de score
+```
 
 ---
 
-## Open Questions
+## 4. Task Breakdown
 
-1. **Prioridad de la pantalla de inicio:** ¿Prefieres que los administradores lleguen por defecto a "En Vivo" (`/dashboard`) o al "Morning Brief Ejecutivo" (`/dashboard/executive`)? (Recomendación: En Vivo para Directores de Operaciones; Morning Brief para Dueños/Socios).
-2. **Umbral de Alerta de Prime Cost:** ¿Establecer la meta de Prime Cost en 60% por defecto (estándar QSR en México) con alerta amarilla a partir del 62% y roja en 65%?
+### Phase 1: Shell & Latency Elimination
+- **Task 1:** Componente Cliente `ExecutiveCockpitTabs` con Shallow URL Sync. (Archivos: `components/dashboard/executive/executive-cockpit-tabs.tsx`, `app/dashboard/executive/page.tsx`).
+- **Task 2:** Rediseño de Pestañas & Header (Operational Red ≤15% + Label Floor). (Archivo: `components/dashboard/executive/executive-cockpit-header.tsx`).
+*Checkpoint 1:* Cambio instantáneo en cliente (0 ms), URL sincronizada, Operational Red contenido.
+
+### Phase 2: Hardening de Flujo de Caja (Liquidity)
+- **Task 3:** Resiliencia de Proyección en Cash Runway + Baseline Cero (`y=0`). (Archivo: `components/dashboard/executive/cash-runway-card.tsx`).
+- **Task 4:** Tokenización OKLCH y Erradicación de 11 Microtextos en `cash-runway-card.tsx`. (Archivo: `components/dashboard/executive/cash-runway-card.tsx`).
+*Checkpoint 2:* Gráfica de tesorería determinista y legible sin textos < 12px.
+
+### Phase 3: Unit Economics & Cascada Financiera
+- **Task 5:** Rediseño a Waterfall Escalonado Deductivo en `PnlExecutiveWaterfall`. (Archivo: `components/dashboard/executive/pnl-executive-waterfall.tsx`).
+- **Task 6:** Resiliencia de Escala >80% y Corrección de Tokens en `PrimeCostStackCard`. (Archivo: `components/dashboard/executive/prime-cost-stack-card.tsx`).
+*Checkpoint 3:* Cascada deductiva clara en 5 segundos y barras apiladas adaptables.
+
+### Phase 4: Despacho de 60 Segundos con WhatsApp & Cierre
+- **Task 7:** Acciones Inline y Generador de WhatsApp en `ExecutiveDecisionDeck`. (Archivo: `components/dashboard/executive/executive-decision-deck.tsx`).
+- **Task 8:** Pulido del Copiloto, Erradicación de Bugs de Sintaxis y Verificación `detect.mjs`. (Archivo: `components/dashboard/executive/executive-copilot-card.tsx`).
+*Checkpoint Final:* 0 hallazgos en detector, build sin errores y score >34/40 en Impeccable Critique.

@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
         const endDate = searchParams.get("endDate");
         const userId = searchParams.get("userId");
         const branchId = searchParams.get("branchId");
+        const simulationHoursRaw = searchParams.get("simulationHours");
+        const simulationHours = simulationHoursRaw ? parseInt(simulationHoursRaw, 10) : undefined;
 
         if (!startDate || !endDate) {
             return NextResponse.json(
@@ -35,18 +37,33 @@ export async function GET(req: NextRequest) {
             );
         }
 
+        const calcOptions = simulationHours ? { simulationWeeklyHours: simulationHours } : undefined;
+
         // If userId is provided, calculate for specific user
         if (userId) {
             const overtime = await LaborCalculator.calculateOvertime(
                 userId,
                 new Date(startDate),
-                new Date(endDate)
+                new Date(endDate),
+                calcOptions
             );
 
             const enriched = await enrichReportsWithCostAndCompliance([overtime]);
+            let baselineSummary = null;
+            if (simulationHours && simulationHours !== 48) {
+                const baselineOvertime = await LaborCalculator.calculateOvertime(
+                    userId,
+                    new Date(startDate),
+                    new Date(endDate),
+                    { simulationWeeklyHours: 48 }
+                );
+                const enrichedBaseline = await enrichReportsWithCostAndCompliance([baselineOvertime]);
+                baselineSummary = calculateSummary(enrichedBaseline);
+            }
+
             return NextResponse.json({
                 data: enriched,
-                summary: calculateSummary(enriched)
+                summary: calculateSummary(enriched, simulationHours, baselineSummary)
             });
         }
 
@@ -77,7 +94,8 @@ export async function GET(req: NextRequest) {
                 LaborCalculator.calculateOvertime(
                     user.id,
                     new Date(startDate),
-                    new Date(endDate)
+                    new Date(endDate),
+                    calcOptions
                 )
             )
         );
@@ -90,9 +108,27 @@ export async function GET(req: NextRequest) {
 
         const enrichedReports = await enrichReportsWithCostAndCompliance(filteredReports);
 
+        // If simulating a reform threshold (e.g. 46h, 44h, 40h), also compute 48h baseline for delta
+        let baselineSummary = null;
+        if (simulationHours && simulationHours !== 48) {
+            const baselineReports = await Promise.all(
+                allUsers.map(user =>
+                    LaborCalculator.calculateOvertime(
+                        user.id,
+                        new Date(startDate),
+                        new Date(endDate),
+                        { simulationWeeklyHours: 48 }
+                    )
+                )
+            );
+            const filteredBaseline = branchId ? baselineReports.filter(r => r.branchId === branchId) : baselineReports;
+            const enrichedBaseline = await enrichReportsWithCostAndCompliance(filteredBaseline);
+            baselineSummary = calculateSummary(enrichedBaseline);
+        }
+
         return NextResponse.json({
             data: enrichedReports,
-            summary: calculateSummary(enrichedReports)
+            summary: calculateSummary(enrichedReports, simulationHours, baselineSummary)
         });
     } catch (error) {
         console.error("Error fetching overtime report:", error);
@@ -138,7 +174,7 @@ async function enrichReportsWithCostAndCompliance(reports: any[]) {
     });
 }
 
-function calculateSummary(reports: any[]) {
+function calculateSummary(reports: any[], simulationHours?: number, baselineSummary?: any) {
     const totalEmployees = reports.length;
     const employeesWithOvertime = reports.filter(r => r.totalOvertimeMinutes > 0).length;
     const employeesExceedingLimit = reports.filter(r => r.lftStatus === "CRITICAL").length;
@@ -146,6 +182,27 @@ function calculateSummary(reports: any[]) {
     const totalEstimatedCostMXN = reports.reduce((sum, r) => sum + (r.estimatedCostMXN || 0), 0);
     const totalRegularMinutes = reports.reduce((sum, r) => sum + r.regularMinutes, 0);
     const totalOvertimeMinutes = reports.reduce((sum, r) => sum + r.totalOvertimeMinutes, 0);
+
+    let simulation: any = null;
+    if (simulationHours && simulationHours !== 48 && baselineSummary) {
+        const deltaCostMXN = Math.max(0, Math.round((totalEstimatedCostMXN - baselineSummary.totalEstimatedCostMXN) * 100) / 100);
+        const percentIncrease = baselineSummary.totalEstimatedCostMXN > 0
+            ? Math.round((deltaCostMXN / baselineSummary.totalEstimatedCostMXN) * 1000) / 10
+            : (totalEstimatedCostMXN > 0 ? 100 : 0);
+        const additionalOvertimeMinutes = Math.max(0, totalOvertimeMinutes - baselineSummary.totalOvertimeMinutes);
+
+        simulation = {
+            isSimulated: true,
+            simulationWeeklyHours: simulationHours,
+            baselineWeeklyHours: 48,
+            baselineCostMXN: baselineSummary.totalEstimatedCostMXN,
+            simulatedCostMXN: Math.round(totalEstimatedCostMXN * 100) / 100,
+            deltaCostMXN,
+            percentIncrease,
+            additionalOvertimeMinutes,
+            additionalOvertimeHours: Math.round((additionalOvertimeMinutes / 60) * 10) / 10
+        };
+    }
 
     return {
         totalEmployees,
@@ -162,6 +219,7 @@ function calculateSummary(reports: any[]) {
             nocturnal: reports.reduce((sum, r) => sum + r.overtimeMinutes.nocturnal, 0),
             holiday: reports.reduce((sum, r) => sum + r.overtimeMinutes.holiday, 0),
             weekly: reports.reduce((sum, r) => sum + r.overtimeMinutes.weekly, 0)
-        }
+        },
+        simulation
     };
 }

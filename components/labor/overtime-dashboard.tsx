@@ -1,8 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { format, parseISO } from "date-fns"
-import { es } from "date-fns/locale"
+import { format } from "date-fns"
 import {
     BarChart,
     Bar,
@@ -20,14 +19,12 @@ import {
     Clock,
     DollarSign,
     AlertCircle,
-    Calendar,
     Users,
     RefreshCw,
     Download,
     Search,
     ShieldAlert,
     ShieldCheck,
-    CheckCircle2,
     AlertTriangle,
     Layers,
     FileCheck,
@@ -72,6 +69,7 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
     const [summary, setSummary] = React.useState<any>(initialData?.summary || null)
     const [loading, setLoading] = React.useState(false)
     const [searchQuery, setSearchQuery] = React.useState("")
+    const [simulationHours, setSimulationHours] = React.useState<number>(48)
 
     // Fechas por defecto: Quincena en curso
     const getInitialDates = () => {
@@ -100,12 +98,15 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
     const [startDate, setStartDate] = React.useState(() => getInitialDates().start)
     const [endDate, setEndDate] = React.useState(() => getInitialDates().end)
 
-    const fetchReport = React.useCallback(async (start = startDate, end = endDate) => {
+    const fetchReport = React.useCallback(async (start = startDate, end = endDate, simHours = simulationHours) => {
         setLoading(true)
         try {
             const params = new URLSearchParams({ startDate: start, endDate: end })
             if (branchId) {
                 params.append("branchId", branchId)
+            }
+            if (simHours && simHours !== 48) {
+                params.append("simulationHours", String(simHours))
             }
             const response = await fetch(`/api/reports/overtime?${params.toString()}`)
             if (!response.ok) throw new Error("Error al cargar reporte")
@@ -118,12 +119,12 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
         } finally {
             setLoading(false)
         }
-    }, [startDate, endDate, branchId])
+    }, [startDate, endDate, branchId, simulationHours])
 
-    // Carga automática en montaje y ante cambios de periodo o sucursal
+    // Carga automática en montaje y ante cambios de periodo, sucursal o jornada simulada
     React.useEffect(() => {
-        fetchReport(startDate, endDate)
-    }, [fetchReport, startDate, endDate])
+        fetchReport(startDate, endDate, simulationHours)
+    }, [fetchReport, startDate, endDate, simulationHours])
 
     // Presets quincenales y mensuales
     const setPreset = (type: "this-fortnight" | "prev-fortnight" | "last-30") => {
@@ -195,7 +196,7 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
             "Diurnas (2x)",
             "Nocturnas (3x)",
             "Festivo (3x)",
-            "Semanales (2x)",
+            simulationHours !== 48 ? `Semanales (${simulationHours}h)` : "Semanales (2x)",
             "Total Overtime",
             "Costo Estimado MXN",
             "Estado LFT",
@@ -219,7 +220,10 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
         const url = URL.createObjectURL(blob)
         const link = document.createElement("a")
         link.setAttribute("href", url)
-        link.setAttribute("download", `horas-extras_${startDate}_${endDate}.csv`)
+        link.setAttribute(
+            "download",
+            `horas-extras_${startDate}_${endDate}${simulationHours !== 48 ? `_sim-${simulationHours}h` : ""}.csv`
+        )
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -348,6 +352,46 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
                                 </Button>
                             </div>
 
+                            {/* Selector de Jornada LFT / Simulador Reforma */}
+                            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-md border text-xs">
+                                <span className="text-muted-foreground px-1 font-medium flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    Jornada:
+                                </span>
+                                <Button
+                                    variant={simulationHours === 48 ? "secondary" : "ghost"}
+                                    size="sm"
+                                    className="h-6 px-2 text-xs font-mono"
+                                    onClick={() => setSimulationHours(48)}
+                                >
+                                    48h (Vigente)
+                                </Button>
+                                <Button
+                                    variant={simulationHours === 46 ? "secondary" : "ghost"}
+                                    size="sm"
+                                    className="h-6 px-2 text-xs font-mono"
+                                    onClick={() => setSimulationHours(46)}
+                                >
+                                    46h (2027)
+                                </Button>
+                                <Button
+                                    variant={simulationHours === 44 ? "secondary" : "ghost"}
+                                    size="sm"
+                                    className="h-6 px-2 text-xs font-mono"
+                                    onClick={() => setSimulationHours(44)}
+                                >
+                                    44h (2028)
+                                </Button>
+                                <Button
+                                    variant={simulationHours === 40 ? "secondary" : "ghost"}
+                                    size="sm"
+                                    className="h-6 px-2 text-xs font-mono"
+                                    onClick={() => setSimulationHours(40)}
+                                >
+                                    40h (2030)
+                                </Button>
+                            </div>
+
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <Input
                                     type="date"
@@ -369,6 +413,50 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
 
                 {/* TAB 1: ANALÍTICA Y DISTRIBUCIÓN LFT */}
                 <TabsContent value="analytics" className="space-y-6 pt-4">
+                    {/* Banner de Simulación de Reforma LFT */}
+                    {summary?.simulation?.isSimulated && (
+                        <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/10 p-4 text-xs sm:text-sm text-foreground space-y-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 font-semibold text-indigo-500">
+                                    <Layers className="h-4 w-4" />
+                                    <span>Simulador Presupuestal Reforma Laboral LFT (Jornada {simulationHours}h Semanales)</span>
+                                </div>
+                                <Badge variant="outline" className="border-indigo-500/30 text-indigo-500 font-mono text-[11px] self-start sm:self-auto">
+                                    Proyección Ley 40h Art. 123
+                                </Badge>
+                            </div>
+                            <p className="text-muted-foreground text-xs leading-relaxed">
+                                Evaluando el impacto financiero si tu restaurante redujera la jornada semanal ordinaria de <span className="font-semibold text-foreground">48h</span> a <span className="font-semibold text-foreground">{simulationHours}h</span> manteniendo los turnos y asistencia de tu plantilla actual.
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-indigo-500/15">
+                                <div>
+                                    <span className="text-[11px] text-muted-foreground block">Sobrecosto Estimado</span>
+                                    <span className="font-mono font-bold text-sm text-indigo-500">
+                                        +{formatCurrency(summary.simulation.deltaCostMXN)}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-[11px] text-muted-foreground block">Incremento en Nómina Extra</span>
+                                    <span className="font-mono font-bold text-sm text-indigo-500">
+                                        +{summary.simulation.percentIncrease}%
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-[11px] text-muted-foreground block">Horas Extras Nuevas</span>
+                                    <span className="font-mono font-bold text-sm">
+                                        +{summary.simulation.additionalOvertimeHours}h
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-[11px] text-muted-foreground block">Costo Total Proyectado</span>
+                                    <span className="font-mono font-bold text-sm">
+                                        {formatCurrency(summary.simulation.simulatedCostMXN)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Tarjetas KPI de Resumen */}
                     {loading && !summary ? (
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -391,8 +479,15 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
                                     <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
-                                        {formatCurrency(summary?.totalEstimatedCostMXN || 0)}
+                                    <div className="flex items-baseline gap-2 flex-wrap">
+                                        <span className="text-2xl font-bold font-mono tracking-tight text-foreground">
+                                            {formatCurrency(summary?.totalEstimatedCostMXN || 0)}
+                                        </span>
+                                        {summary?.simulation?.isSimulated && summary.simulation.deltaCostMXN > 0 && (
+                                            <Badge variant="outline" className="text-[11px] font-mono border-indigo-500/30 text-indigo-500">
+                                                +{formatCurrency(summary.simulation.deltaCostMXN)} vs 48h
+                                            </Badge>
+                                        )}
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1">
                                         {formatMinutes(summary?.totalOvertimeMinutes || 0)} acumuladas en el período
@@ -409,8 +504,15 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
                                     <Clock className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
-                                        {formatMinutes(summary?.totalOvertimeMinutes || 0)}
+                                    <div className="flex items-baseline gap-2 flex-wrap">
+                                        <span className="text-2xl font-bold font-mono tracking-tight text-foreground">
+                                            {formatMinutes(summary?.totalOvertimeMinutes || 0)}
+                                        </span>
+                                        {summary?.simulation?.isSimulated && summary.simulation.additionalOvertimeHours > 0 && (
+                                            <Badge variant="outline" className="text-[11px] font-mono border-indigo-500/30 text-indigo-500">
+                                                +{summary.simulation.additionalOvertimeHours}h por reforma
+                                            </Badge>
+                                        )}
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1">
                                         {summary?.totalRegularMinutes > 0
@@ -623,7 +725,9 @@ export function OvertimeDashboard({ branchId, userRole, initialData }: OvertimeD
                                             <TableHead className="text-right text-xs font-semibold">Diurnas (2x)</TableHead>
                                             <TableHead className="text-right text-xs font-semibold">Nocturnas (3x)</TableHead>
                                             <TableHead className="text-right text-xs font-semibold">Festivo (3x)</TableHead>
-                                            <TableHead className="text-right text-xs font-semibold">Semanales (2x)</TableHead>
+                                            <TableHead className="text-right text-xs font-semibold">
+                                                {simulationHours !== 48 ? `Semanales (${simulationHours}h)` : "Semanales (2x)"}
+                                            </TableHead>
                                             <TableHead className="text-right text-xs font-semibold">Total Overtime</TableHead>
                                             <TableHead className="text-right text-xs font-semibold">Costo Estimado</TableHead>
                                             <TableHead className="text-center text-xs font-semibold">Cumplimiento LFT</TableHead>

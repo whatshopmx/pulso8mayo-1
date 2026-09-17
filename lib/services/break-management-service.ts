@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { breakLogs, breakComplianceRules, breakReminderLogs, shiftSessions } from "@/lib/db/schema";
-import { eq, and, gte, lte, isNull, desc } from "drizzle-orm";
+import { eq, and, gte, lte, isNull } from "drizzle-orm";
 import { whatsappClient } from "@/lib/whatsapp/client-factory";
 
 export interface BreakComplianceConfig {
@@ -358,5 +358,72 @@ export class BreakManagementService {
         });
 
         return breaks as BreakSession[];
+    }
+
+    /**
+     * Auditoría de cumplimiento Ley Silla (Arts. 132 Fracc. V Bis y 133 Fracc. XVIII LFT)
+     * Verifica que colaboradores en turnos continuos hayan tenido pausas periódicas
+     * de descanso para mitigar fatiga por bipedestación prolongada en HORECA.
+     */
+    static async auditLeySillaCompliance(
+        branchId: string,
+        startDate: Date,
+        endDate: Date
+    ): Promise<{
+        totalSessions: number;
+        compliantSessions: number;
+        nonCompliantSessions: number;
+        complianceRate: number;
+        violations: Array<{
+            sessionId: string;
+            userId: string;
+            date: Date;
+            continuousWorkMinutes: number;
+            reason: string;
+        }>;
+    }> {
+        const sessions = await db.query.shiftSessions.findMany({
+            where: and(
+                eq(shiftSessions.branchId, branchId),
+                gte(shiftSessions.startedAt, startDate),
+                lte(shiftSessions.startedAt, endDate),
+                eq(shiftSessions.status, "COMPLETED")
+            )
+        });
+
+        let compliantCount = 0;
+        const violations: Array<{
+            sessionId: string;
+            userId: string;
+            date: Date;
+            continuousWorkMinutes: number;
+            reason: string;
+        }> = [];
+
+        for (const session of sessions) {
+            const validation = await this.validateBreakCompliance(session.id);
+            if (validation.isCompliant) {
+                compliantCount++;
+            } else {
+                violations.push({
+                    sessionId: session.id,
+                    userId: session.userId,
+                    date: new Date(session.startedAt),
+                    continuousWorkMinutes: session.totalWorkMinutes || 0,
+                    reason: validation.issues.join("; ") || "Incumplimiento de pausas periódicas (Ley Silla)"
+                });
+            }
+        }
+
+        const total = sessions.length;
+        const nonCompliant = total - compliantCount;
+
+        return {
+            totalSessions: total,
+            compliantSessions: compliantCount,
+            nonCompliantSessions: nonCompliant,
+            complianceRate: total > 0 ? Math.round((compliantCount / total) * 100) : 100,
+            violations
+        };
     }
 }

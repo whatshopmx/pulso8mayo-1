@@ -1,6 +1,12 @@
 import { db } from "@/lib/db";
 import { shiftSessions, users, branches, holidays } from "@/lib/db/schema";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
+import { LaborCalendarRulesService } from "./labor-calendar-rules";
+
+export interface CalculateOvertimeOptions {
+    simulationWeeklyHours?: number;
+    targetYear?: number;
+}
 
 export interface OvertimeRule {
     id: string;
@@ -19,6 +25,7 @@ export interface OvertimeCalculation {
     branchName: string;
     periodStart: Date;
     periodEnd: Date;
+    weeklyHoursThreshold: number; // LFT statutory or simulated weekly threshold (48, 46, 44, 40)
     regularMinutes: number;
     overtimeMinutes: {
         diurnal: number; // Horas extras diurnas (2x)
@@ -104,7 +111,6 @@ function toDayKey(value: Date | string): string {
 
 const NIGHT_SHIFT_START = 22; // 22:00
 const NIGHT_SHIFT_END = 6; // 06:00
-const MAX_WEEKLY_HOURS = 48;
 const MAX_DAILY_HOURS_DIURNAL = 8;
 const MAX_DAILY_HOURS_NOCTURNAL = 7;
 
@@ -115,7 +121,8 @@ export class LaborCalculator {
     static async calculateOvertime(
         userId: string,
         startDate: Date,
-        endDate: Date
+        endDate: Date,
+        options?: CalculateOvertimeOptions
     ): Promise<OvertimeCalculation> {
         // Get user data
         const user = await db.query.users.findFirst({
@@ -149,7 +156,12 @@ export class LaborCalculator {
         // salvo en domingo).
         const holidayDates = await this.loadHolidayDates(user.companyId);
 
-        // Group shift sessions by ISO week to calculate statutory weekly overtime (LFT Art. 68: 48h limit per week)
+        // Group shift sessions by ISO week to calculate statutory weekly overtime (LFT Art. 68)
+        // Resolve weekly limit dynamically via LaborCalendarRulesService or simulation options
+        const targetYear = options?.targetYear || startDate.getFullYear();
+        const rule = LaborCalendarRulesService.getRulesForYear(targetYear);
+        const weeklyLimitHours = options?.simulationWeeklyHours ?? rule.maxWeeklyHours;
+
         const weeklyMinutesMap = new Map<string, number>();
         const weeklyDailyOvertimeMap = new Map<string, number>();
         const sessionSummaries: ShiftSessionSummary[] = [];
@@ -178,13 +190,13 @@ export class LaborCalculator {
             weeklyDailyOvertimeMap.set(weekKey, (weeklyDailyOvertimeMap.get(weekKey) || 0) + dailyOvertimeInSession);
         }
 
-        // Calculate weekly overtime per week (only hours exceeding 48h not already counted in daily overtime or holiday)
+        // Calculate weekly overtime per week (only hours exceeding weeklyLimitHours not already counted in daily overtime or holiday)
         let totalWeekly = 0;
         for (const [weekKey, weekMinutes] of weeklyMinutesMap.entries()) {
-            if (weekMinutes > MAX_WEEKLY_HOURS * 60) {
-                const excessOver48h = weekMinutes - MAX_WEEKLY_HOURS * 60;
+            if (weekMinutes > weeklyLimitHours * 60) {
+                const excessOverWeeklyLimit = weekMinutes - weeklyLimitHours * 60;
                 const dailyOvertimeInWeek = weeklyDailyOvertimeMap.get(weekKey) || 0;
-                const netWeekly = Math.max(0, excessOver48h - dailyOvertimeInWeek);
+                const netWeekly = Math.max(0, excessOverWeeklyLimit - dailyOvertimeInWeek);
                 totalWeekly += netWeekly;
             }
         }
@@ -199,6 +211,7 @@ export class LaborCalculator {
             branchName: branch?.name || "N/A",
             periodStart: startDate,
             periodEnd: endDate,
+            weeklyHoursThreshold: weeklyLimitHours,
             regularMinutes: totalRegular,
             overtimeMinutes: {
                 diurnal: totalDiurnal,
