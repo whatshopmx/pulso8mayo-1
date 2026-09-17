@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { workflowInstances, workflowAssignments, workflowTemplates, users } from '@/lib/db/schema';
-import { eq, desc, and, gte, lte, sql, count } from 'drizzle-orm';
+import { workflowInstances, workflowAssignments, workflowTemplates, users, branches } from '@/lib/db/schema';
+import { eq, desc, and, gte, lte, sql, count, inArray } from 'drizzle-orm';
 import { subDays, startOfDay, format } from 'date-fns';
 
 export async function GET(request: NextRequest) {
@@ -23,8 +23,16 @@ export async function GET(request: NextRequest) {
       eq(workflowInstances.status, 'COMPLETED'),
       gte(workflowInstances.completedAt, startDate),
     ];
-    // @ts-ignore
-    if (branchId && branchId !== 'all') trendConditions.push(eq(workflowInstances.branchId, branchId));
+    if (branchId && branchId !== 'all') {
+      trendConditions.push(eq(workflowInstances.branchId, branchId));
+    } else if (companyId) {
+      trendConditions.push(
+        inArray(
+          workflowInstances.branchId,
+          db.select({ id: branches.id }).from(branches).where(eq(branches.companyId, companyId))
+        )
+      );
+    }
 
     const completionTrend = await db
       .select({
@@ -46,8 +54,16 @@ export async function GET(request: NextRequest) {
     const activeConditions = [
       sql`${workflowInstances.status} IN ('IN_PROGRESS', 'PENDING')`,
     ];
-    // @ts-ignore
-    if (branchId && branchId !== 'all') activeConditions.push(eq(workflowInstances.branchId, branchId));
+    if (branchId && branchId !== 'all') {
+      activeConditions.push(eq(workflowInstances.branchId, branchId));
+    } else if (companyId) {
+      activeConditions.push(
+        inArray(
+          workflowInstances.branchId,
+          db.select({ id: branches.id }).from(branches).where(eq(branches.companyId, companyId))
+        )
+      );
+    }
 
     const activeWorkflows = await db
       .select({
@@ -71,6 +87,12 @@ export async function GET(request: NextRequest) {
       eq(workflowAssignments.status, 'COMPLETED'),
       gte(workflowAssignments.completedAt, startDate),
     ];
+    if (companyId) {
+      leaderboardConditions.push(eq(users.companyId, companyId));
+    }
+    if (branchId && branchId !== 'all') {
+      leaderboardConditions.push(eq(workflowInstances.branchId, branchId));
+    }
 
     const leaderboard = await db
       .select({

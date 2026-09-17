@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { useBranches } from "@/hooks/queries/use-branches";
 
 export interface EmployeeFiltersState {
   department: string;
@@ -60,6 +61,8 @@ const statuses = [
 ];
 
 export function EmployeeFilters({ filters, onFilterChange }: EmployeeFiltersProps) {
+  const { data: branches = [] } = useBranches();
+
   const handleDepartmentChange = (value: string) => {
     onFilterChange({ ...filters, department: value === "all" ? "" : value });
   };
@@ -116,8 +119,11 @@ export function EmployeeFilters({ filters, onFilterChange }: EmployeeFiltersProp
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Branches</SelectItem>
-            {/* TODO: Fetch branches from API */}
-            <SelectItem value="matriz">Matriz</SelectItem>
+            {branches.map((branch) => (
+              <SelectItem key={branch.id} value={branch.id}>
+                {branch.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

@@ -15,19 +15,29 @@ interface ActiveFlow {
   dueIn: string;
 }
 
-export function ActiveWorkflowsList() {
+interface ActiveWorkflowsListProps {
+  branchId?: string;
+}
+
+export function ActiveWorkflowsList({ branchId }: ActiveWorkflowsListProps = {}) {
   const [activeFlows, setActiveFlows] = useState<ActiveFlow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/reports/stats')
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (branchId && branchId !== "all") {
+      params.set("branchId", branchId);
+    }
+    const query = params.toString();
+    fetch(query ? `/api/reports/stats?${query}` : "/api/reports/stats")
       .then(res => res.json())
       .then(data => {
         setActiveFlows(data.activeWorkflows || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [branchId]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-[300px] text-muted-foreground">Cargando...</div>;

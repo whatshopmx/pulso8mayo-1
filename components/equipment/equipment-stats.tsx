@@ -25,10 +25,14 @@ interface EquipmentStats {
   byType: Record<string, number>;
 }
 
-export function EquipmentStats() {
+interface EquipmentStatsProps {
+  branchId?: string | null;
+}
+
+export function EquipmentStats({ branchId: propBranchId }: EquipmentStatsProps = {}) {
   const { toast } = useToast();
   const { tenant } = useTenant();
-  const branchId = tenant?.branchId;
+  const effectiveBranchId = propBranchId !== undefined ? propBranchId : tenant?.branchId;
   const [stats, setStats] = useState<EquipmentStats>({
     total: 0,
     active: 0,
@@ -41,12 +45,15 @@ export function EquipmentStats() {
 
   useEffect(() => {
     fetchStats();
-  }, []);
+  }, [effectiveBranchId]);
 
   const fetchStats = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/equipment/stats");
+      const url = effectiveBranchId && effectiveBranchId !== "ALL"
+        ? `/api/equipment/stats?branchId=${effectiveBranchId}`
+        : "/api/equipment/stats";
+      const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch stats");
 
       const result = await response.json();

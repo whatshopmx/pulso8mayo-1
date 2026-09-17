@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { workflowInstances, workflowTemplates, branches, users, workflowInstanceSteps, incidents } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { startOfDay, endOfDay } from "date-fns";
 
 export async function GET(request: NextRequest) {
     try {
@@ -38,11 +39,11 @@ export async function GET(request: NextRequest) {
         }
 
         if (dateFrom) {
-            conditions.push(gte(workflowInstances.createdAt, new Date(dateFrom)));
+            conditions.push(gte(workflowInstances.createdAt, startOfDay(new Date(dateFrom))));
         }
 
         if (dateTo) {
-            conditions.push(lte(workflowInstances.createdAt, new Date(dateTo)));
+            conditions.push(lte(workflowInstances.createdAt, endOfDay(new Date(dateTo))));
         }
 
         // Fetch workflow audit trail
@@ -88,11 +89,11 @@ export async function GET(request: NextRequest) {
         }
 
         if (dateFrom) {
-            incidentConditions.push(gte(incidents.createdAt, new Date(dateFrom)));
+            incidentConditions.push(gte(incidents.createdAt, startOfDay(new Date(dateFrom))));
         }
 
         if (dateTo) {
-            incidentConditions.push(lte(incidents.createdAt, new Date(dateTo)));
+            incidentConditions.push(lte(incidents.createdAt, endOfDay(new Date(dateTo))));
         }
 
         const incidentLogs = await db.select({

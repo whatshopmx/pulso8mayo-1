@@ -257,8 +257,15 @@ function SalesDashboardPageContent() {
 
         {/* TAB 1: Analytics & KPIs */}
         <TabsContent value="analytics" className="space-y-6">
-          <FinancialKpiCards branchId={selectedBranch} />
-          <SalesDashboard branchId={selectedBranch} />
+          <FinancialKpiCards
+            branchId={selectedBranch}
+            dateRange={startDate ? { from: new Date(startDate), to: endDate ? new Date(endDate) : new Date(startDate) } : undefined}
+          />
+          <SalesDashboard
+            branchId={selectedBranch}
+            startDate={startDate}
+            endDate={endDate}
+          />
         </TabsContent>
 
         {/* TAB 2: Ingestion & Cuts List */}

@@ -9,20 +9,33 @@ interface CompletionDataPoint {
   rate: number;
 }
 
-export function CompletionRateChart() {
+interface CompletionRateChartProps {
+  branchId?: string;
+  period?: string;
+}
+
+export function CompletionRateChart({ branchId, period = "7d" }: CompletionRateChartProps) {
   const { theme } = useTheme();
   const [data, setData] = useState<CompletionDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/reports/stats')
+    setLoading(true);
+    const params = new URLSearchParams();
+    const days = period === "7d" ? "7" : period === "90d" ? "90" : "30";
+    params.set("days", days);
+    if (branchId && branchId !== "all") {
+      params.set("branchId", branchId);
+    }
+
+    fetch(`/api/reports/stats?${params.toString()}`)
       .then(res => res.json())
       .then(data => {
         setData(data.completionRate || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [branchId, period]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-[350px] text-muted-foreground">Cargando...</div>;

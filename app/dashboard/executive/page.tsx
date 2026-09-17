@@ -76,7 +76,7 @@ export default async function ExecutiveDashboardPage(props: PageProps) {
     laborCostPercent: ranking.networkAverageLaborCost > 0 ? ranking.networkAverageLaborCost : 28.4,
     freeCash14dCents: twin?.projectedCashFlowCents ?? 64800000,
     liquidityRisk: twin?.liquidityRisk ?? 22,
-    pendingDecisionsCount: (brief?.priorities?.length ?? 0) + (ranking.anomalies?.length ?? 0),
+    pendingDecisionsCount: (brief?.brief?.priorities?.length ?? 0) + (ranking.anomalies?.length ?? 0),
   };
 
   const cashFlowDays = (twin?.executiveState?.cashFlowProjection as CashFlowDay[]) ?? [];
@@ -97,7 +97,7 @@ export default async function ExecutiveDashboardPage(props: PageProps) {
       {currentView === "cockpit" && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <ExecutiveDecisionDeck
-            priorities={brief?.priorities}
+            priorities={brief?.brief?.priorities}
             anomalies={ranking.anomalies}
             companyId={companyId}
           />

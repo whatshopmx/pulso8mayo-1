@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, X, LayoutGrid, List } from "lucide-react";
 import { useSession } from "@/hooks/use-session";
+import { useBranch } from "@/lib/branch-context";
 import { toast } from "sonner";
 import { EmployeeCard } from "./employee-card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -36,6 +37,7 @@ export interface Employee {
 
 export default function EmployeeDirectory() {
   const { session } = useSession();
+  const { selectedBranchId } = useBranch();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -53,13 +55,22 @@ export default function EmployeeDirectory() {
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [filters, setFilters] = useState<EmployeeFiltersState>({
     department: "",
-    branch: "",
+    branch: selectedBranchId || "",
     status: "",
   });
 
   const companyId = session?.user?.companyId;
   const userRole = session?.user?.role;
   const canManageEmployees = userRole === "SUPER_ADMIN" || userRole === "ADMIN" || userRole === "GERENTE";
+
+  // Sync with header branch scope (AD-1)
+  useEffect(() => {
+    setFilters((prev) => ({
+      ...prev,
+      branch: selectedBranchId || "",
+    }));
+    setPage(1);
+  }, [selectedBranchId]);
 
   // Debounce search
   useEffect(() => {
@@ -85,6 +96,9 @@ export default function EmployeeDirectory() {
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (filters.department) params.set("department", filters.department);
       if (filters.status) params.set("status", filters.status);
+      if (filters.branch && filters.branch !== "all") {
+        params.set("branchId", filters.branch);
+      }
 
       const response = await fetch(`/api/employees?${params}`);
       if (response.ok) {
@@ -214,7 +228,7 @@ export default function EmployeeDirectory() {
               <LayoutGrid className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
-          {(search || filters.department || filters.status) && (
+          {(search || filters.department || filters.status || (filters.branch && filters.branch !== "all")) && (
             <Button variant="ghost" onClick={handleClearFilters}>
               <X className="mr-2 h-4 w-4" />
               Clear Filters

@@ -15,6 +15,7 @@ import { TrendingUp, Plus, Calendar, AlertCircle, ShoppingCart, RefreshCw, Loade
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import { useBranch } from "@/lib/branch-context";
 
 interface VarianceRow {
     itemId: string;
@@ -33,6 +34,7 @@ interface Recipe {
 }
 
 export default function InventoryReportsPage() {
+    const { selectedBranchId } = useBranch();
     const [reportRows, setReportRows] = useState<VarianceRow[]>([]);
     const [recipes, setRecipes] = useState<Recipe[]>([]);
     const [loadingReport, setLoadingReport] = useState(false);
@@ -64,14 +66,16 @@ export default function InventoryReportsPage() {
             .then(res => res.ok && res.json())
             .then(data => setRecipes(data || []))
             .catch(err => console.error(err));
-
-        fetchReport();
     }, []);
 
     const fetchReport = async () => {
+        if (!selectedBranchId) {
+            setReportRows([]);
+            return;
+        }
         setLoadingReport(true);
         try {
-            const res = await fetch(`/api/inventory/reports/variance?startDate=${startDate}&endDate=${endDate}`);
+            const res = await fetch(`/api/inventory/reports/variance?startDate=${startDate}&endDate=${endDate}&branchId=${selectedBranchId}`);
             const data = await res.json();
             if (res.ok) {
                 setReportRows(data.report || []);
@@ -85,6 +89,10 @@ export default function InventoryReportsPage() {
         }
     };
 
+    useEffect(() => {
+        fetchReport();
+    }, [startDate, endDate, selectedBranchId]);
+
     const handleSaveSale = async () => {
         if (!selectedRecipeId) {
             toast.error("Selecciona una receta/platillo");
@@ -97,6 +105,7 @@ export default function InventoryReportsPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    branchId: selectedBranchId || undefined,
                     sales: [{
                         recipeId: selectedRecipeId,
                         quantitySold: saleQty,
@@ -215,6 +224,7 @@ export default function InventoryReportsPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    branchId: selectedBranchId || undefined,
                     sales: csvRows.map(r => ({
                         recipeId: r.matchedRecipeId!,
                         quantitySold: r.quantity,
@@ -426,6 +436,12 @@ export default function InventoryReportsPage() {
                             {loadingReport ? (
                                 <div className="flex justify-center items-center py-12">
                                     <Loader2 className="w-8 h-8 animate-spin" />
+                                </div>
+                            ) : !selectedBranchId ? (
+                                <div className="text-center py-12 text-muted-foreground">
+                                    <AlertCircle className="w-12 h-12 mx-auto mb-4 text-amber-500 opacity-75" />
+                                    <p className="font-medium text-foreground">Selecciona una sucursal específica</p>
+                                    <p className="text-xs text-muted-foreground mt-1">El cálculo de mermas y variaciones requiere una sucursal en el selector superior.</p>
                                 </div>
                             ) : reportRows.length === 0 ? (
                                 <div className="text-center py-12 text-muted-foreground">

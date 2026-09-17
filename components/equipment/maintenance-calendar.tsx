@@ -36,10 +36,10 @@ interface MaintenanceEvent {
   isOverdue: boolean;
 }
 
-export function MaintenanceCalendar() {
+export function MaintenanceCalendar({ branchId: propBranchId }: { branchId?: string | null } = {}) {
   const { toast } = useToast();
   const { tenant } = useTenant();
-  const branchId = tenant?.branchId;
+  const branchId = propBranchId !== undefined ? propBranchId : tenant?.branchId;
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<MaintenanceEvent[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());

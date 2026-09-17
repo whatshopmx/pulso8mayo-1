@@ -54,6 +54,7 @@ import { MaintenanceCalendar } from "@/components/equipment/maintenance-calendar
 import { ComplianceServicesList } from "@/components/equipment/compliance-services-list";
 import { EquipmentAlerts } from "@/components/equipment/equipment-alerts";
 import { useToast } from "@/hooks/use-toast";
+import { useBranch } from "@/lib/branch-context";
 
 interface Equipment {
   id: string;
@@ -119,6 +120,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
 export default function EquipmentPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { selectedBranchId } = useBranch();
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -128,7 +130,7 @@ export default function EquipmentPage() {
 
   useEffect(() => {
     fetchEquipment();
-  }, [statusFilter, typeFilter]);
+  }, [statusFilter, typeFilter, selectedBranchId]);
 
   const fetchEquipment = async () => {
     try {
@@ -136,6 +138,7 @@ export default function EquipmentPage() {
       const params = new URLSearchParams();
       if (statusFilter && statusFilter !== "ALL") params.append("status", statusFilter);
       if (typeFilter && typeFilter !== "ALL") params.append("type", typeFilter);
+      if (selectedBranchId && selectedBranchId !== "ALL") params.append("branchId", selectedBranchId);
       
       const response = await fetch(`/api/equipment?${params}`);
       if (!response.ok) throw new Error("Failed to fetch equipment");
@@ -220,7 +223,7 @@ export default function EquipmentPage() {
         </TabsList>
 
         <TabsContent value="equipment" className="space-y-6">
-          <EquipmentStats />
+          <EquipmentStats branchId={selectedBranchId} />
 
           <Card>
             <CardHeader className="pb-4">
@@ -371,15 +374,15 @@ export default function EquipmentPage() {
         </TabsContent>
 
         <TabsContent value="calendar">
-          <MaintenanceCalendar />
+          <MaintenanceCalendar branchId={selectedBranchId} />
         </TabsContent>
 
         <TabsContent value="compliance">
-          <ComplianceServicesList />
+          <ComplianceServicesList branchId={selectedBranchId} />
         </TabsContent>
 
         <TabsContent value="alerts">
-          <EquipmentAlerts />
+          <EquipmentAlerts branchId={selectedBranchId} />
         </TabsContent>
       </Tabs>
     </PageContainer>

@@ -948,11 +948,18 @@ export class EquipmentService {
   /**
    * Get equipment statistics for dashboard
    */
-  async getEquipmentStats(branchId: string) {
+  async getEquipmentStats(branchId?: string | null, companyId?: string | null) {
+    const conditions = [];
+    if (branchId && branchId !== 'ALL' && branchId !== 'all') {
+      conditions.push(eq(branchEquipments.branchId, branchId));
+    } else if (companyId) {
+      conditions.push(eq(branchEquipments.companyId, companyId));
+    }
+
     const equipment = await db
       .select()
       .from(branchEquipments)
-      .where(eq(branchEquipments.branchId, branchId));
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
 
     const stats = {
       total: equipment.length,

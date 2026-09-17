@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { workflowInstanceSteps, workflowInstances, workflowTemplates, branches, users } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { resolveEvidenceUrl } from "@/lib/storage/scoped-evidence";
+import { startOfDay, endOfDay } from "date-fns";
 
 export async function GET(request: NextRequest) {
     try {
@@ -34,11 +35,11 @@ export async function GET(request: NextRequest) {
         }
 
         if (dateFrom) {
-            conditions.push(gte(workflowInstances.createdAt, new Date(dateFrom)));
+            conditions.push(gte(workflowInstances.createdAt, startOfDay(new Date(dateFrom))));
         }
 
         if (dateTo) {
-            conditions.push(lte(workflowInstances.createdAt, new Date(dateTo)));
+            conditions.push(lte(workflowInstances.createdAt, endOfDay(new Date(dateTo))));
         }
 
         if (search) {

@@ -9,19 +9,32 @@ interface EmployeeData {
   score: number;
 }
 
-export function EmployeeLeaderboard() {
+interface EmployeeLeaderboardProps {
+  branchId?: string;
+  period?: string;
+}
+
+export function EmployeeLeaderboard({ branchId, period = "7d" }: EmployeeLeaderboardProps = {}) {
   const [employees, setEmployees] = useState<EmployeeData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/reports/stats')
+    setLoading(true);
+    const params = new URLSearchParams();
+    const days = period === "7d" ? "7" : period === "90d" ? "90" : "30";
+    params.set("days", days);
+    if (branchId && branchId !== "all") {
+      params.set("branchId", branchId);
+    }
+
+    fetch(`/api/reports/stats?${params.toString()}`)
       .then(res => res.json())
       .then(data => {
         setEmployees(data.employeeLeaderboard || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [branchId, period]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-[300px] text-muted-foreground">Cargando...</div>;

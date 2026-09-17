@@ -68,17 +68,15 @@ const severityConfig: Record<string, { color: string; icon: React.ReactNode }> =
   },
 };
 
-export function EquipmentAlerts() {
+export function EquipmentAlerts({ branchId: propBranchId }: { branchId?: string | null } = {}) {
   const { toast } = useToast();
   const { tenant } = useTenant();
-  const branchId = tenant?.branchId;
+  const branchId = propBranchId !== undefined ? propBranchId : tenant?.branchId;
   const [alerts, setAlerts] = useState<EquipmentAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (branchId) {
-      fetchAlerts();
-    }
+    fetchAlerts();
   }, [branchId]);
 
   const fetchAlerts = async () => {

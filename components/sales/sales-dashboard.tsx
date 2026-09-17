@@ -17,9 +17,11 @@ import {
 interface SalesDashboardProps {
   /** Controlled branch filter — owned by the parent page so KPIs and charts share one selector. */
   branchId: string;
+  startDate?: string;
+  endDate?: string;
 }
 
-export function SalesDashboard({ branchId }: SalesDashboardProps) {
+export function SalesDashboard({ branchId, startDate, endDate }: SalesDashboardProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -31,6 +33,12 @@ export function SalesDashboard({ branchId }: SalesDashboardProps) {
       const url = new URL("/api/sales/analytics", window.location.origin);
       if (branchId !== "ALL") {
         url.searchParams.set("branchId", branchId);
+      }
+      if (startDate) {
+        url.searchParams.set("startDate", startDate);
+      }
+      if (endDate) {
+        url.searchParams.set("endDate", endDate);
       }
 
       const res = await fetch(url.toString());
@@ -51,7 +59,7 @@ export function SalesDashboard({ branchId }: SalesDashboardProps) {
   useEffect(() => {
     fetchAnalytics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branchId]);
+  }, [branchId, startDate, endDate]);
 
   const trend = data?.trend || [];
   const channelBreakdown = data?.channelBreakdown || [];

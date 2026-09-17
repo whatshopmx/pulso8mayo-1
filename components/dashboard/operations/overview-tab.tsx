@@ -15,7 +15,7 @@ export function OverviewTab({ branchId, period }: { branchId?: string; period?: 
                         <CardTitle>Workflow Completion Rate</CardTitle>
                     </CardHeader>
                     <CardContent className="pl-2">
-                        <CompletionRateChart />
+                        <CompletionRateChart branchId={branchId} period={period} />
                     </CardContent>
                 </Card>
                 <Card className="col-span-3">
@@ -23,7 +23,7 @@ export function OverviewTab({ branchId, period }: { branchId?: string; period?: 
                         <CardTitle>Active Workflows</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <ActiveWorkflowsList />
+                        <ActiveWorkflowsList branchId={branchId} />
                     </CardContent>
                 </Card>
             </div>
@@ -33,7 +33,7 @@ export function OverviewTab({ branchId, period }: { branchId?: string; period?: 
                         <CardTitle>Employee Leaderboard</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <EmployeeLeaderboard />
+                        <EmployeeLeaderboard branchId={branchId} period={period} />
                     </CardContent>
                 </Card>
                 <Card className="col-span-3">

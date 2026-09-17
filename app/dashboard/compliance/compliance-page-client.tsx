@@ -100,7 +100,7 @@ function SelectBranchNotice({
 /**
  * Live IMSS Overview Tab Component with real-time stats and direct action links.
  */
-function IMSSOverviewTab() {
+function IMSSOverviewTab({ branchId }: { branchId?: string | null } = {}) {
   const [stats, setStats] = useState<IMSSQuickStats>({
     totalEmployees: 0,
     pendingAltas: 0,
@@ -114,10 +114,11 @@ function IMSSOverviewTab() {
     const fetchStats = async () => {
       setLoading(true);
       try {
+        const query = branchId && branchId !== "all" && branchId !== "ALL" ? `?branchId=${branchId}` : "";
         const [altasRes, bajasRes, employeesRes] = await Promise.allSettled([
-          fetch("/api/imss/altas"),
-          fetch("/api/imss/bajas"),
-          fetch("/api/employees"),
+          fetch(`/api/imss/altas${query}`),
+          fetch(`/api/imss/bajas${query}`),
+          fetch(`/api/employees${query}`),
         ]);
 
         let pendingAltas = 0;
@@ -156,7 +157,7 @@ function IMSSOverviewTab() {
     };
 
     fetchStats();
-  }, []);
+  }, [branchId]);
 
   const complianceRate =
     stats.totalEmployees > 0
@@ -478,7 +479,7 @@ export function CompliancePageClient({ branches, companyId = "" }: CompliancePag
 
         {/* Tab 4: IMSS, Labor & SAT Hub */}
         <TabsContent value="imss" className="space-y-4">
-          <IMSSOverviewTab />
+          <IMSSOverviewTab branchId={selectedBranchId} />
         </TabsContent>
 
         {/* Tab 5: Integrated Payroll Export */}

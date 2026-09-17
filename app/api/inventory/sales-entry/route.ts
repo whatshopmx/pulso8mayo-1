@@ -7,6 +7,7 @@ import { z } from "zod";
 import { TheoreticalConsumptionService } from "@/lib/services/theoretical-consumption-service";
 
 const salesSchema = z.object({
+    branchId: z.string().uuid().optional(),
     sales: z.array(z.object({
         recipeId: z.string().uuid(),
         quantitySold: z.number().positive(),
@@ -18,15 +19,23 @@ const salesSchema = z.object({
 export async function POST(req: NextRequest) {
     try {
         const session = await getSession();
-        if (!session?.user?.id || !session?.user?.branchId) {
+        if (!session?.user?.id) {
             return NextResponse.json(
-                { error: "Unauthorized - User must be in a branch" },
+                { error: "Unauthorized" },
                 { status: 401 }
             );
         }
 
         const body = await req.json();
         const validated = salesSchema.parse(body);
+
+        const targetBranchId = validated.branchId || session.user.branchId;
+        if (!targetBranchId) {
+            return NextResponse.json(
+                { error: "Selecciona una sucursal para registrar ventas" },
+                { status: 400 }
+            );
+        }
 
         const saleDate = validated.saleDate ? new Date(validated.saleDate) : new Date();
 
@@ -35,7 +44,7 @@ export async function POST(req: NextRequest) {
 
             await db.insert(salesEntries).values({
                 companyId: session.user.companyId || "",
-                branchId: session.user.branchId,
+                branchId: targetBranchId,
                 recipeId: sale.recipeId,
                 quantitySold: sale.quantitySold.toFixed(2),
                 saleDate,
@@ -44,7 +53,7 @@ export async function POST(req: NextRequest) {
 
             await TheoreticalConsumptionService.consume({
                 companyId: session.user.companyId || "",
-                branchId: session.user.branchId,
+                branchId: targetBranchId,
                 recipeId: sale.recipeId,
                 quantitySold: sale.quantitySold,
                 saleDate,

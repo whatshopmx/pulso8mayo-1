@@ -50,6 +50,10 @@ export async function GET(req: NextRequest) {
             isNull(users.deletedAt),
         ];
 
+        if (branchId && branchId !== "all" && branchId !== "ALL") {
+            conditions.push(eq(users.branchId, branchId));
+        }
+
     const employees = await db
       .select({
         id: users.id,

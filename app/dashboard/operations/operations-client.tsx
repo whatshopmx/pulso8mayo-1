@@ -28,7 +28,11 @@ export default function OperationsClient() {
   })();
 
   useEffect(() => {
-    fetch('/api/reports/stats?days=30')
+    const params = new URLSearchParams({ days: "30" });
+    if (branchId && branchId !== "all") {
+      params.set("branchId", branchId);
+    }
+    fetch(`/api/reports/stats?${params.toString()}`)
       .then(res => res.json())
       .then(data => {
         setRecentWorkflows(data.activeWorkflows || []);

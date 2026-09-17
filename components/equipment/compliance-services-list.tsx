@@ -64,10 +64,10 @@ const frequencyLabels: Record<string, string> = Object.fromEntries(
   maintenanceFrequencies.map(f => [f.value, f.label])
 );
 
-export function ComplianceServicesList() {
+export function ComplianceServicesList({ branchId: propBranchId }: { branchId?: string | null } = {}) {
   const { toast } = useToast();
   const { tenant } = useTenant();
-  const branchId = tenant?.branchId;
+  const branchId = propBranchId !== undefined ? propBranchId : tenant?.branchId;
   const [services, setServices] = useState<ComplianceService[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -81,15 +81,16 @@ export function ComplianceServicesList() {
   });
 
   useEffect(() => {
-    if (branchId) {
-      fetchServices();
-    }
+    fetchServices();
   }, [branchId]);
 
   const fetchServices = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/compliance-services`);
+      const url = branchId && branchId !== "ALL"
+        ? `/api/compliance-services?branchId=${branchId}`
+        : `/api/compliance-services`;
+      const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch services");
 
       const result = await response.json();
