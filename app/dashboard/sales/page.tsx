@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { TpvBatchEntryModal } from "@/components/sales/tpv-batch-entry-modal";
 import { useToast } from "@/hooks/use-toast";
-import { statusBadgeClasses, formatCents } from "@/lib/utils";
+import { formatCents } from "@/lib/utils";
 import {
   computeCashVariance,
   cashVarianceToneClass,
@@ -202,14 +202,18 @@ function SalesDashboardPageContent() {
     fetchCuts();
   }, [fetchCuts]);
 
+  // Origen y turno son CATEGORÍAS, no veredictos: si van en verde/ámbar de
+  // semáforo, dejan de significar "ok"/"precaución" justo donde el módulo los
+  // necesita (los banners de varianza). El color semántico se reserva a los
+  // veredictos reales: cuadrado/faltante, validado/observación.
   const getSourceBadge = (source: SalesCut["source"]) => {
     switch (source) {
       case "UPLOAD":
-        return <Badge variant="outline" className={statusBadgeClasses("info")}>Archivo POS</Badge>;
+        return <Badge variant="outline" className="text-muted-foreground">Archivo POS</Badge>;
       case "WHATSAPP":
-        return <Badge variant="outline" className={statusBadgeClasses("success")}>WhatsApp</Badge>;
+        return <Badge variant="outline" className="text-muted-foreground">WhatsApp</Badge>;
       case "MANUAL_FORM":
-        return <Badge variant="outline" className={statusBadgeClasses("warning")}>Manual</Badge>;
+        return <Badge variant="outline" className="text-muted-foreground">Manual</Badge>;
     }
   };
 
@@ -516,9 +520,7 @@ function SalesDashboardPageContent() {
                             <TableCell>
                               <Badge
                                 variant="outline"
-                                className={`text-xs capitalize ${statusBadgeClasses(
-                                  cut.shift === "MATUTINO" ? "info" : cut.shift === "VESPERTINO" ? "warning" : "neutral"
-                                )}`}
+                                className="text-xs capitalize text-muted-foreground"
                               >
                                 {cut.shift.toLowerCase()}
                               </Badge>
@@ -555,12 +557,17 @@ function SalesDashboardPageContent() {
                                     <span className="text-muted-foreground/60">
                                       Diferencia: — (sin efectivo declarado)
                                     </span>
+                                  ) : arqueo.direction === "cuadrado" ? (
+                                    // El caso normal no se pinta: repetir un verde
+                                    // en cada fila entrena a ignorarlo. El color
+                                    // queda para la excepción que hay que ver.
+                                    <span className="text-muted-foreground">
+                                      Diferencia: ✓ cuadrado
+                                    </span>
                                   ) : (
                                     <span className={`font-semibold ${cashVarianceToneClass(arqueo.direction)}`}>
                                       Diferencia:{" "}
-                                      {arqueo.direction === "cuadrado"
-                                        ? "cuadrado"
-                                        : `${arqueo.varianceCents > 0 ? "+" : ""}${formatCents(arqueo.varianceCents)} (${arqueo.direction})`}
+                                      {`${arqueo.varianceCents > 0 ? "+" : ""}${formatCents(arqueo.varianceCents)} (${arqueo.direction})`}
                                     </span>
                                   )}
                                 </div>
@@ -586,7 +593,7 @@ function SalesDashboardPageContent() {
                                   ) : (
                                     <span
                                       className={`font-semibold ${
-                                        tpv.direction === "cuadrado" ? "text-success" : "text-warning-text"
+                                        tpv.direction === "cuadrado" ? "text-muted-foreground" : "text-warning-text"
                                       }`}
                                       title={tpvVarianceNote(tpv)}
                                     >
