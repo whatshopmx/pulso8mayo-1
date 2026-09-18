@@ -48,7 +48,7 @@ export default async function Page({
         <h2 className="text-sm font-semibold tracking-tight text-foreground mb-3">
           Salud Operativa por Áreas del Grupo
         </h2>
-        <Suspense fallback={<MetricCardSkeleton count={6} />}>
+        <Suspense fallback={<MetricCardSkeleton count={6} columns={3} />}>
           <SectionErrorBoundary>
             <GroupAreaOverview branch={selectedBranch} />
           </SectionErrorBoundary>
@@ -60,11 +60,11 @@ export default async function Page({
         <h2 className="text-sm font-semibold tracking-tight text-foreground mb-3">
           Bitácora en Tiempo Real de la Red
         </h2>
-        <Suspense fallback={<DataTableSkeleton columns={5} rows={5} />}>
+        <Suspense fallback={<DataTableSkeleton columns={6} rows={5} />}>
           {companyId ? (
             <RecentActivity companyId={companyId} branchId={selectedBranch} />
           ) : (
-            <DataTableSkeleton columns={5} rows={5} />
+            <DataTableSkeleton columns={6} rows={5} />
           )}
         </Suspense>
       </div>

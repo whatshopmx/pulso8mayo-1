@@ -253,10 +253,20 @@ export function MetricGrid({ children, columns = 4, className }: MetricGridProps
   return <div className={cn("grid gap-4", GRID_CLASSES[columns], className)}>{children}</div>;
 }
 
-/** Scaffold de carga para cuadrículas de MetricCard. */
-export function MetricCardSkeleton({ count = 4, className }: { count?: number; className?: string }) {
+/** Scaffold de carga para cuadrículas de MetricCard. `columns` debe espejar la
+ * cuadrícula real: un skeleton con distinto número de columnas produce salto de
+ * layout al hidratar. */
+export function MetricCardSkeleton({
+  count = 4,
+  columns = 4,
+  className,
+}: {
+  count?: number;
+  columns?: 2 | 3 | 4 | 5;
+  className?: string;
+}) {
   return (
-    <MetricGrid className={className}>
+    <MetricGrid columns={columns} className={className}>
       {Array.from({ length: count }).map((_, i) => (
         <MetricCard key={i} label="" value="" loading />
       ))}
