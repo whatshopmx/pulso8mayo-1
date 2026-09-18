@@ -476,7 +476,7 @@ export function FinancialKpiCards({ branchId, dateRange }: FinancialKpiCardsProp
             </div>
             <div className="w-full h-5 rounded-full overflow-hidden bg-muted flex text-xs font-medium leading-none">
               <div
-                className="h-full bg-chart-1 flex items-center justify-center text-white"
+                className="h-full bg-chart-3 flex items-center justify-center text-white"
                 style={{ width: `${cashPct}%` }}
                 aria-label={`Efectivo: ${cashPct}%`}
               >

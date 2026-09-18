@@ -244,7 +244,7 @@ function SalesDashboardPageContent() {
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             {/* "(M13)" era un código interno de módulo filtrado al h1: lo primero
                 que leía un gerente nuevo era jerga del backlog. */}
-            <Coins className="h-7 w-7 text-primary" /> Ventas y Cortes de Caja
+            <Coins className="h-7 w-7 text-muted-foreground" /> Ventas y Cortes de Caja
             {/* `button` en vez de `span`: un `title` sobre texto plano es
                 inalcanzable por teclado y lo ignora el lector de pantalla. */}
             <button
@@ -411,7 +411,7 @@ function SalesDashboardPageContent() {
             <CardHeader className="pb-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <Coins className="h-5 w-5 text-primary" /> Historial de Cortes Registrados
+                  <Coins className="h-5 w-5 text-muted-foreground" /> Historial de Cortes Registrados
                 </CardTitle>
 
                 {/* Los ocho controles que vivían aquí duplicaban el alcance del
@@ -678,7 +678,7 @@ function SalesDashboardPageContent() {
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-primary" /> Conciliación por Agregador
+                <BarChart3 className="h-5 w-5 text-muted-foreground" /> Conciliación por Agregador
               </CardTitle>
               <p className="text-sm text-muted-foreground">
                 Compara la venta reportada en los cortes contra la liquidación del agregador (que llega neta de comisión). Captura el monto liquidado para ver la varianza.

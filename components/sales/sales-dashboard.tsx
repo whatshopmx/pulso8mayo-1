@@ -67,6 +67,11 @@ export function SalesDashboard({ branchId, startDate, endDate }: SalesDashboardP
   const formatMXN = (cents: number) =>
     (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 
+  // Paleta categórica de charts: el rojo operacional se reserva a alertas y al
+  // CTA primario. La barra de cada canal se distingue por paleta, no por el
+  // mismo rojo con el que el módulo grita un faltante.
+  const CHANNEL_BAR_COLORS = ["bg-chart-3", "bg-chart-4", "bg-chart-2"];
+
   // El `dataKey` recibe NÚMEROS, no strings: `toFixed(2)` producía un dominio de
   // eje correcto pero un path `monotone` en NaN, y la gráfica salía en blanco
   // sobre datos que existían. El formato vive en el tooltip y en el eje, no en el dato.
@@ -229,7 +234,7 @@ export function SalesDashboard({ branchId, startDate, endDate }: SalesDashboardP
                   role="img"
                   aria-label="Desglose de ventas por canal"
                 >
-                  {channelBreakdown.map((item: any) => (
+                  {channelBreakdown.map((item: any, idx: number) => (
                     <div key={item.channel} className="space-y-1">
                       <div className="flex justify-between text-xs font-semibold">
                         <span>{item.channel}</span>
@@ -239,7 +244,7 @@ export function SalesDashboard({ branchId, startDate, endDate }: SalesDashboardP
                       </div>
                       <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-primary rounded-full transition-all"
+                          className={`h-full ${CHANNEL_BAR_COLORS[idx % CHANNEL_BAR_COLORS.length]} rounded-full transition-all`}
                           style={{ width: `${Math.min(item.percentage, 100)}%` }}
                         />
                       </div>
