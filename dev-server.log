@@ -215,3 +215,601 @@ $ next dev
 }
  GET /api/auth/get-session 200 in 227ms (compile: 8ms, proxy.ts: 6ms, render: 213ms)
  GET /api/workflows/today 200 in 791ms (compile: 10ms, proxy.ts: 247ms, render: 534ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 304ms (compile: 30ms, proxy.ts: 18ms, render: 256ms)
+ GET /api/notifications?limit=20 200 in 1055ms (compile: 28ms, proxy.ts: 350ms, render: 677ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 585ms (compile: 72ms, proxy.ts: 18ms, render: 494ms)
+✓ Finished filesystem cache database compaction in 22.8s
+✓ Finished writing to filesystem cache in 19.8s
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 913ms (compile: 26ms, proxy.ts: 18ms, render: 868ms)
+ GET /api/notifications?limit=20 200 in 1366ms (compile: 26ms, proxy.ts: 949ms, render: 391ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 1213ms (compile: 64ms, proxy.ts: 37ms, render: 1112ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 537ms (compile: 21ms, proxy.ts: 10ms, render: 507ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 770ms (compile: 16ms, proxy.ts: 13ms, render: 741ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 960ms (compile: 19ms, proxy.ts: 10ms, render: 931ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 986ms (compile: 30ms, proxy.ts: 12ms, render: 944ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 761ms (compile: 24ms, proxy.ts: 16ms, render: 722ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 584ms (compile: 21ms, proxy.ts: 9ms, render: 554ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 552ms (compile: 54ms, proxy.ts: 27ms, render: 470ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000002',
+  email: 'maria@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000002',
+  role: 'ADMIN'
+}
+ GET /api/auth/get-session 200 in 686ms (compile: 36ms, proxy.ts: 22ms, render: 628ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 1086ms (compile: 93ms, proxy.ts: 26ms, render: 967ms)
+○ Compiling /dashboard/sales ...
+ GET /dashboard/sales 200 in 22.2s (compile: 17.2s, proxy.ts: 1315ms, render: 3.6s)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 327ms (compile: 39ms, proxy.ts: 46ms, render: 242ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 938ms (compile: 22ms, proxy.ts: 67ms, render: 849ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 998ms (compile: 357ms, proxy.ts: 66ms, render: 575ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 1285ms (compile: 399ms, proxy.ts: 42ms, render: 845ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 1297ms (compile: 408ms, proxy.ts: 76ms, render: 812ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 1229ms (compile: 22ms, proxy.ts: 300ms, render: 907ms)
+ GET /api/notifications?limit=20 200 in 1856ms (compile: 100ms, proxy.ts: 1029ms, render: 727ms)
+ GET /api/branches 200 in 2.2s (compile: 111ms, proxy.ts: 1466ms, render: 610ms)
+○ Compiling /api/sales/analytics ...
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 520ms (compile: 39ms, proxy.ts: 45ms, render: 436ms)
+ GET /api/sales/analytics 200 in 8.4s (compile: 6.6s, proxy.ts: 1149ms, render: 597ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 507ms (compile: 66ms, proxy.ts: 21ms, render: 420ms)
+ GET /api/finance/kpis 200 in 11.2s (compile: 6.5s, proxy.ts: 1471ms, render: 3.1s)
+ GET /api/sales/analytics 200 in 2.8s (compile: 83ms, proxy.ts: 562ms, render: 2.1s)
+ GET /dashboard/sales 200 in 6.0s (compile: 4.2s, proxy.ts: 556ms, render: 1221ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 361ms (compile: 27ms, proxy.ts: 29ms, render: 305ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 368ms (compile: 78ms, proxy.ts: 22ms, render: 269ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 580ms (compile: 57ms, proxy.ts: 53ms, render: 470ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 720ms (compile: 106ms, proxy.ts: 145ms, render: 470ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 484ms (compile: 99ms, proxy.ts: 105ms, render: 280ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 502ms (compile: 81ms, proxy.ts: 98ms, render: 322ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 565ms (compile: 109ms, proxy.ts: 140ms, render: 316ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 567ms (compile: 101ms, proxy.ts: 168ms, render: 297ms)
+ GET /api/sales/analytics 200 in 1181ms (compile: 27ms, proxy.ts: 785ms, render: 369ms)
+ GET /api/notifications?limit=20 200 in 1369ms (compile: 16ms, proxy.ts: 917ms, render: 437ms)
+ GET /api/branches 200 in 1499ms (compile: 17ms, proxy.ts: 801ms, render: 680ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 450ms (compile: 9ms, proxy.ts: 11ms, render: 430ms)
+ GET /api/finance/kpis 200 in 1793ms (compile: 49ms, proxy.ts: 790ms, render: 953ms)
+ GET /api/sales/analytics 200 in 892ms (compile: 14ms, proxy.ts: 494ms, render: 384ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 276ms (compile: 13ms, proxy.ts: 13ms, render: 251ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 641ms (compile: 13ms, proxy.ts: 11ms, render: 618ms)
+ GET /api/sales/cuts? 200 in 2.6s (compile: 1758ms, proxy.ts: 802ms, render: 58ms)
+ GET /api/finance/kpis 200 in 1005ms (compile: 12ms, proxy.ts: 304ms, render: 689ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 856ms (compile: 40ms, proxy.ts: 18ms, render: 799ms)
+ GET /dashboard/sales 200 in 1921ms (compile: 27ms, proxy.ts: 895ms, render: 998ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 419ms (compile: 22ms, proxy.ts: 24ms, render: 373ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 415ms (compile: 76ms, proxy.ts: 34ms, render: 305ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 715ms (compile: 18ms, proxy.ts: 21ms, render: 676ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 745ms (compile: 41ms, proxy.ts: 42ms, render: 663ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 704ms (compile: 41ms, proxy.ts: 72ms, render: 591ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 755ms (compile: 60ms, proxy.ts: 43ms, render: 652ms)
+ GET /api/branches 200 in 1033ms (compile: 10ms, proxy.ts: 508ms, render: 515ms)
+ GET /api/notifications?limit=20 200 in 1357ms (compile: 10ms, proxy.ts: 786ms, render: 561ms)
+ GET /api/sales/analytics 200 in 1300ms (compile: 28ms, proxy.ts: 835ms, render: 436ms)
+ GET /api/sales/cuts? 200 in 1449ms (compile: 54ms, proxy.ts: 809ms, render: 585ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 243ms (compile: 14ms, proxy.ts: 9ms, render: 221ms)
+ GET /api/sales/analytics 200 in 549ms (compile: 14ms, proxy.ts: 266ms, render: 269ms)
+ GET /api/finance/kpis 200 in 1865ms (compile: 66ms, proxy.ts: 845ms, render: 954ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 622ms (compile: 20ms, proxy.ts: 15ms, render: 586ms)
+ GET /dashboard/sales 200 in 1759ms (compile: 18ms, proxy.ts: 653ms, render: 1088ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 508ms (compile: 89ms, proxy.ts: 22ms, render: 397ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 283ms (compile: 11ms, proxy.ts: 22ms, render: 251ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 886ms (compile: 87ms, proxy.ts: 65ms, render: 734ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 757ms (compile: 40ms, proxy.ts: 54ms, render: 663ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 821ms (compile: 39ms, proxy.ts: 66ms, render: 715ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 859ms (compile: 70ms, proxy.ts: 41ms, render: 748ms)
+ GET /api/notifications?limit=20 200 in 1711ms (compile: 7ms, proxy.ts: 1172ms, render: 532ms)
+ GET /api/sales/cuts? 200 in 1095ms (compile: 14ms, proxy.ts: 308ms, render: 772ms)
+ GET /api/branches 200 in 1648ms (compile: 12ms, proxy.ts: 936ms, render: 700ms)
+ GET /api/sales/analytics 200 in 1822ms (compile: 10ms, proxy.ts: 947ms, render: 865ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 351ms (compile: 13ms, proxy.ts: 14ms, render: 324ms)
+ GET /api/finance/kpis 200 in 2.5s (compile: 19ms, proxy.ts: 1033ms, render: 1421ms)
+ GET /api/sales/analytics 200 in 928ms (compile: 21ms, proxy.ts: 376ms, render: 532ms)
+✓ Finished filesystem cache database compaction in 44s
+✓ Finished writing to filesystem cache in 31.8s
+✓ Finished filesystem cache database compaction in 31.1s
+✓ Finished writing to filesystem cache in 29.2s
+[Auth API] No session found
+ GET /api/auth/get-session 401 in 340ms (compile: 162ms, proxy.ts: 37ms, render: 142ms)
+ GET /sign-in?callbackUrl=%2Fdashboard 200 in 1625ms (compile: 1037ms, render: 588ms)
+✓ Compiled in 3.3s
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 2.7s (compile: 92ms, proxy.ts: 29ms, render: 2.6s)
+ GET /dashboard 200 in 9.4s (compile: 2.0s, proxy.ts: 2.9s, render: 4.4s)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 304ms (compile: 60ms, proxy.ts: 43ms, render: 201ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 311ms (compile: 50ms, proxy.ts: 67ms, render: 194ms)
+ GET /api/notifications?limit=20 200 in 749ms (compile: 17ms, proxy.ts: 382ms, render: 350ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 188ms (compile: 11ms, proxy.ts: 9ms, render: 169ms)
+ GET /dashboard 200 in 4.5s (compile: 1887ms, proxy.ts: 210ms, render: 2.4s)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 259ms (compile: 28ms, proxy.ts: 22ms, render: 209ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 365ms (compile: 33ms, proxy.ts: 51ms, render: 281ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 389ms (compile: 53ms, proxy.ts: 26ms, render: 310ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 284ms (compile: 30ms, proxy.ts: 48ms, render: 205ms)
+ GET /api/notifications?limit=20 200 in 885ms (compile: 10ms, proxy.ts: 513ms, render: 361ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 191ms (compile: 11ms, proxy.ts: 9ms, render: 171ms)
+ GET /dashboard 200 in 5.2s (compile: 1876ms, proxy.ts: 214ms, render: 3.2s)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 573ms (compile: 197ms, proxy.ts: 96ms, render: 280ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 422ms (compile: 25ms, proxy.ts: 187ms, render: 210ms)
+ GET /api/notifications?limit=20 200 in 1044ms (compile: 16ms, proxy.ts: 641ms, render: 387ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 468ms (compile: 22ms, proxy.ts: 8ms, render: 438ms)
+ GET /dashboard 200 in 3.2s (compile: 381ms, proxy.ts: 493ms, render: 2.4s)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 222ms (compile: 17ms, proxy.ts: 30ms, render: 175ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 271ms (compile: 19ms, proxy.ts: 14ms, render: 238ms)
+ GET /api/notifications?limit=20 200 in 722ms (compile: 12ms, proxy.ts: 251ms, render: 460ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 2.1s (compile: 422ms, proxy.ts: 530ms, render: 1121ms)
+ GET /dashboard 200 in 21.2s (compile: 5.8s, proxy.ts: 2.2s, render: 13.2s)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 2.3s (compile: 1651ms, proxy.ts: 52ms, render: 605ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 2.8s (compile: 1996ms, proxy.ts: 205ms, render: 586ms)
+ GET /api/notifications?limit=20 200 in 3.5s (compile: 30ms, proxy.ts: 2.6s, render: 863ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 2.5s (compile: 716ms, proxy.ts: 353ms, render: 1412ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 1369ms (compile: 320ms, proxy.ts: 380ms, render: 670ms)
+[Auth API] Session retrieved: {
+  userId: 'u0000001-0000-4000-8000-000000000001',
+  email: 'carlos@pulso.mx',
+  companyId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  branchId: 'b1000001-0000-4000-8000-000000000003',
+  role: 'SUPER_ADMIN'
+}
+ GET /api/auth/get-session 200 in 852ms (compile: 87ms, proxy.ts: 348ms, render: 417ms)
+ GET /dashboard 200 in 22.0s (compile: 350ms, proxy.ts: 3.3s, render: 18.4s)
+ GET /api/notifications?limit=20 200 in 3.1s (compile: 356ms, proxy.ts: 1665ms, render: 1064ms)

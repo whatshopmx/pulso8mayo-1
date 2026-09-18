@@ -1,0 +1,277 @@
+{
+  "desktop": {
+    "label": "desktop",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "httpStatus": 200,
+    "url": "http://localhost:3000/dashboard",
+    "title": "Pulso - Plataforma de Gestión HORECA",
+    "mutation": true,
+    "metrics": {
+      "docHeight": 2356,
+      "docWidth": 1440,
+      "viewportH": 900,
+      "horizontalOverflow": false,
+      "scrollWidth": 1440,
+      "innerWidth": 1440,
+      "headings": [
+        {
+          "tag": "H1",
+          "text": "Comando de Red en Vivo",
+          "size": "24px",
+          "weight": "700"
+        },
+        {
+          "tag": "H2",
+          "text": "Pulso en Vivo del Turno",
+          "size": "16px",
+          "weight": "600"
+        },
+        {
+          "tag": "H3",
+          "text": "Matriz Operativa de Red (3 a 15 Sucursales)",
+          "size": "16px",
+          "weight": "600"
+        },
+        {
+          "tag": "H2",
+          "text": "Salud Operativa por Áreas del Grupo",
+          "size": "14px",
+          "weight": "600"
+        },
+        {
+          "tag": "H2",
+          "text": "Bitácora en Tiempo Real de la Red",
+          "size": "14px",
+          "weight": "600"
+        },
+        {
+          "tag": "H3",
+          "text": "Actividad Reciente",
+          "size": "18px",
+          "weight": "700"
+        }
+      ],
+      "namelessControls": [],
+      "focusable": 76,
+      "tinyText": [],
+      "tinyTextCount": 0,
+      "lowContrast": [],
+      "lowContrastCount": 0,
+      "shadowedCount": 2,
+      "shadowed": [
+        {
+          "cls": "rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0"
+        },
+        {
+          "cls": "rounded-xl border border-border bg-card shadow-xs overflow-hidden",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0"
+        }
+      ],
+      "animations": [
+        {
+          "cls": "animate-ping absolute inline-flex h-full w-full rounded-full bg-emeral",
+          "name": "ping",
+          "dur": "1s"
+        }
+      ],
+      "linkCount": 44,
+      "buttonCount": 30,
+      "inputCount": 2
+    },
+    "impLogs": [
+      "[startGroup] %c[impeccable] 35 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold"
+    ],
+    "consoleErrors": [],
+    "consoleCount": 42,
+    "consoleWarn": [],
+    "consoleErr": []
+  },
+  "mobile": {
+    "label": "mobile",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "httpStatus": 200,
+    "url": "http://localhost:3000/dashboard",
+    "title": "Pulso - Plataforma de Gestión HORECA",
+    "mutation": true,
+    "metrics": {
+      "docHeight": 4644,
+      "docWidth": 390,
+      "viewportH": 844,
+      "horizontalOverflow": false,
+      "scrollWidth": 390,
+      "innerWidth": 390,
+      "headings": [
+        {
+          "tag": "H1",
+          "text": "Comando de Red en Vivo",
+          "size": "20px",
+          "weight": "700"
+        },
+        {
+          "tag": "H2",
+          "text": "Pulso en Vivo del Turno",
+          "size": "16px",
+          "weight": "600"
+        },
+        {
+          "tag": "H3",
+          "text": "Matriz Operativa de Red (3 a 15 Sucursales)",
+          "size": "16px",
+          "weight": "600"
+        },
+        {
+          "tag": "H2",
+          "text": "Salud Operativa por Áreas del Grupo",
+          "size": "14px",
+          "weight": "600"
+        },
+        {
+          "tag": "H2",
+          "text": "Bitácora en Tiempo Real de la Red",
+          "size": "14px",
+          "weight": "600"
+        },
+        {
+          "tag": "H3",
+          "text": "Actividad Reciente",
+          "size": "18px",
+          "weight": "700"
+        }
+      ],
+      "namelessControls": [],
+      "focusable": 60,
+      "tinyText": [],
+      "tinyTextCount": 0,
+      "lowContrast": [],
+      "lowContrastCount": 0,
+      "shadowedCount": 2,
+      "shadowed": [
+        {
+          "cls": "rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0"
+        },
+        {
+          "cls": "rounded-xl border border-border bg-card shadow-xs overflow-hidden",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0"
+        }
+      ],
+      "animations": [
+        {
+          "cls": "animate-ping absolute inline-flex h-full w-full rounded-full bg-emeral",
+          "name": "ping",
+          "dur": "1s"
+        }
+      ],
+      "linkCount": 40,
+      "buttonCount": 18,
+      "inputCount": 2
+    },
+    "impLogs": [
+      "[startGroup] %c[impeccable] 34 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold"
+    ],
+    "consoleErrors": [
+      "Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\nhttps://react.dev/link/hydration-mismatch\n\n  ...\n    <RedirectErrorBoundary router={{...}}>\n      <InnerLayoutRouter url=\"/dashboard\" tree={[...]} params={{}} cacheNode={{...}} segmentPath={[...]} ...>\n        <SegmentViewNode type=\"layout\" pagePath=\"dashboard/...\">\n          <SegmentTrieNode>\n          <script>\n          <script>\n          <script>\n          <script>\n          <script>\n          <script>\n          <DashboardLayout>\n            <DashboardSessionProvider initialSession={{session:{...}, ...}}>\n              <BranchProvider initialBranchId={null} initialBranches={[...]} initialScopeChosen={false} ...>\n                <SidebarProvider>\n                  <TooltipProvider delayDuration={0}>\n                    <TooltipProvider data-slot=\"tooltip-pr...\" delayDuration={0}>\n                      <TooltipProviderProvider scope={undefined} isOpenDelayedRef={{current:true}} delayDuration={0} ...>\n+                       <div\n+                         data-slot=\"sidebar-wrapper\"\n+                         style={{--sidebar-width:\"16rem\",--sidebar-width-icon:\"3rem\"}}\n+                         className=\"group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full\"\n+                       >\n-                       <Suspense>\n      ...\n"
+    ],
+    "consoleCount": 41,
+    "consoleWarn": [],
+    "consoleErr": []
+  },
+  "wide": {
+    "label": "wide",
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "httpStatus": 200,
+    "url": "http://localhost:3000/dashboard",
+    "title": "Pulso - Plataforma de Gestión HORECA",
+    "mutation": true,
+    "metrics": {
+      "docHeight": 2282,
+      "docWidth": 1920,
+      "viewportH": 1080,
+      "horizontalOverflow": false,
+      "scrollWidth": 1920,
+      "innerWidth": 1920,
+      "headings": [
+        {
+          "tag": "H1",
+          "text": "Comando de Red en Vivo",
+          "size": "24px",
+          "weight": "700"
+        },
+        {
+          "tag": "H2",
+          "text": "Pulso en Vivo del Turno",
+          "size": "16px",
+          "weight": "600"
+        },
+        {
+          "tag": "H3",
+          "text": "Matriz Operativa de Red (3 a 15 Sucursales)",
+          "size": "16px",
+          "weight": "600"
+        },
+        {
+          "tag": "H2",
+          "text": "Salud Operativa por Áreas del Grupo",
+          "size": "14px",
+          "weight": "600"
+        },
+        {
+          "tag": "H2",
+          "text": "Bitácora en Tiempo Real de la Red",
+          "size": "14px",
+          "weight": "600"
+        },
+        {
+          "tag": "H3",
+          "text": "Actividad Reciente",
+          "size": "18px",
+          "weight": "700"
+        }
+      ],
+      "namelessControls": [],
+      "focusable": 76,
+      "tinyText": [],
+      "tinyTextCount": 0,
+      "lowContrast": [],
+      "lowContrastCount": 0,
+      "shadowedCount": 2,
+      "shadowed": [
+        {
+          "cls": "rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0"
+        },
+        {
+          "cls": "rounded-xl border border-border bg-card shadow-xs overflow-hidden",
+          "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0"
+        }
+      ],
+      "animations": [
+        {
+          "cls": "animate-ping absolute inline-flex h-full w-full rounded-full bg-emeral",
+          "name": "ping",
+          "dur": "1s"
+        }
+      ],
+      "linkCount": 44,
+      "buttonCount": 30,
+      "inputCount": 2
+    },
+    "impLogs": [
+      "[startGroup] %c[impeccable] 33 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold"
+    ],
+    "consoleErrors": [],
+    "consoleCount": 44,
+    "consoleWarn": [],
+    "consoleErr": []
+  }
+}

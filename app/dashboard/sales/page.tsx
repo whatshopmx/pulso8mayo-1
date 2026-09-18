@@ -21,7 +21,11 @@ import {
   BarChart3,
   FileSpreadsheet,
   CreditCard,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TpvBatchEntryModal } from "@/components/sales/tpv-batch-entry-modal";
 import { useToast } from "@/hooks/use-toast";
 import { formatCents } from "@/lib/utils";
@@ -119,6 +123,30 @@ function SalesDashboardPageContent() {
   const [cutsError, setCutsError] = useState<string | null>(null);
   const [selectedCutForBatches, setSelectedCutForBatches] = useState<string | null>(null);
 
+  /**
+   * Orden de la tabla (P2 #4). Antes no había ninguno: el banner decía "2 cortes
+   * con diferencia" y la gerente escaneaba 45 filas a mano para encontrarlos.
+   * El default de cada columna elige el lado útil: fecha/venta descendente,
+   * diferencia ascendente (el faltante más grande primero).
+   */
+  type CutSortKey = "date" | "total" | "variance";
+  const CUT_SORT_DEFAULT_DIR: Record<CutSortKey, "asc" | "desc"> = {
+    date: "desc",
+    total: "desc",
+    variance: "asc",
+  };
+  const [cutSort, setCutSort] = useState<{ key: CutSortKey; dir: "asc" | "desc" }>({
+    key: "date",
+    dir: "desc",
+  });
+  const toggleCutSort = (key: CutSortKey) => {
+    setCutSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: CUT_SORT_DEFAULT_DIR[key] },
+    );
+  };
+
   // Scope único para toda la página: sucursal desde el control del encabezado
   // (cookie) y rango de fechas desde la URL que ese mismo control escribe. Antes
   // esta pantalla llegaba a mostrar diez controles de alcance a la vez —dos en el
@@ -215,6 +243,60 @@ function SalesDashboardPageContent() {
       case "MANUAL_FORM":
         return <Badge variant="outline" className="text-muted-foreground">Manual</Badge>;
     }
+  };
+
+  /** Orden aplicado a la tabla; `null` en arqueo va siempre al final. */
+  const sortedCuts = useMemo(() => {
+    const dir = cutSort.dir === "asc" ? 1 : -1;
+    const varianceOf = (c: SalesCut) => computeCashVariance(c)?.varianceCents ?? null;
+    return [...cuts].sort((a, b) => {
+      let cmp = 0;
+      if (cutSort.key === "date") {
+        cmp = a.businessDate.localeCompare(b.businessDate);
+      } else if (cutSort.key === "total") {
+        cmp = a.totalSales - b.totalSales;
+      } else {
+        const va = varianceOf(a);
+        const vb = varianceOf(b);
+        if (va === null && vb === null) cmp = 0;
+        else if (va === null) return 1;
+        else if (vb === null) return -1;
+        else cmp = va - vb;
+      }
+      // Desempate estable por fecha para que el orden no baile entre renders.
+      if (cmp === 0) cmp = a.businessDate.localeCompare(b.businessDate);
+      return cmp * dir;
+    });
+  }, [cuts, cutSort]);
+
+  /** Encabezado ordenable con `aria-sort` y flecha de estado. */
+  const sortableHead = (key: CutSortKey, label: string, align: "left" | "right" = "left") => {
+    const active = cutSort.key === key;
+    return (
+      <TableHead
+        aria-sort={active ? (cutSort.dir === "asc" ? "ascending" : "descending") : "none"}
+        className={align === "right" ? "text-right" : undefined}
+      >
+        <button
+          type="button"
+          onClick={() => toggleCutSort(key)}
+          className={`inline-flex items-center gap-1 rounded-xs hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            active ? "text-foreground" : "text-muted-foreground"
+          }`}
+        >
+          {label}
+          {active ? (
+            cutSort.dir === "asc" ? (
+              <ArrowUp className="h-3 w-3" aria-hidden />
+            ) : (
+              <ArrowDown className="h-3 w-3" aria-hidden />
+            )
+          ) : (
+            <ArrowUpDown className="h-3 w-3 opacity-50" aria-hidden />
+          )}
+        </button>
+      </TableHead>
+    );
   };
 
   const scopeLabel = (() => {
@@ -464,31 +546,30 @@ function SalesDashboardPageContent() {
                   <Table>
                     <TableCaption className="sr-only">
                       Cortes de ventas registrados: fecha, sucursal, turno, canal, venta total,
-                      formas de pago, tickets, arqueo de caja, conciliación de terminal, origen del
-                      dato, estatus de validación y quién lo recibió.
+                      conciliación (formas de pago, arqueo de caja y terminal), tickets, origen del
+                      dato, estatus de validación y quién lo recibió. Las columnas fecha, venta
+                      total y conciliación se pueden ordenar.
                     </TableCaption>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
-                        <TableHead>Fecha</TableHead>
+                        {sortableHead("date", "Fecha")}
                         <TableHead>Sucursal</TableHead>
                         <TableHead>Turno</TableHead>
                         <TableHead>Canal</TableHead>
-                        <TableHead className="text-right">Venta Total</TableHead>
-                        <TableHead>Formas de Pago</TableHead>
+                        {sortableHead("total", "Venta Total", "right")}
+                        {/* Conciliación agrupa pagos, arqueo y terminal: los datos ya
+                            apilaban en vertical, y separarlos en tres columnas empujaba
+                            "Recibido por" fuera del viewport a 1280px. Ordenar por esta
+                            columna pone el faltante de caja más grande arriba. */}
+                        {sortableHead("variance", "Conciliación")}
                         <TableHead className="text-center">Tickets</TableHead>
-                        <TableHead>Arqueo efectivo</TableHead>
-                        {/* Fase 4: columna propia y no un renglón más del arqueo.
-                            La diferencia de tarjeta y la de efectivo se investigan
-                            distinto (una es el banco, la otra es la caja), así que
-                            comparten fila pero no celda. */}
-                        <TableHead>Terminal (TPV)</TableHead>
                         <TableHead>Origen</TableHead>
                         <TableHead>Estatus</TableHead>
                         <TableHead>Recibido por</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {cuts.map((cut) => {
+                      {sortedCuts.map((cut) => {
                         const paymentParts = [];
                         if (cut.cashSales !== null) paymentParts.push(`Efectivo: ${formatCents(cut.cashSales)}`);
                         if (cut.cardSales !== null) paymentParts.push(`Tarjeta: ${formatCents(cut.cardSales)}`);
@@ -534,99 +615,108 @@ function SalesDashboardPageContent() {
                               {formatCents(cut.totalSales)}
                             </TableCell>
                             <TableCell>
-                              {paymentParts.length > 0 ? (
-                                <div className="text-xs text-muted-foreground flex flex-col gap-0.5">
-                                  {paymentParts.map((p, idx) => (
-                                    <span key={idx}>{p}</span>
-                                  ))}
+                              <div className="flex flex-col gap-1.5 text-xs min-w-[200px]">
+                                {/* Formas de pago */}
+                                {paymentParts.length > 0 ? (
+                                  <div className="text-muted-foreground flex flex-col gap-0.5">
+                                    {paymentParts.map((p, idx) => (
+                                      <span key={idx}>{p}</span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/60">—</span>
+                                )}
+
+                                {/* Arqueo de efectivo. `countedCents` puede existir sin
+                                    contraparte declarada: hay conteo que mostrar pero
+                                    no diferencia. */}
+                                <div className="border-t pt-1.5">
+                                  {countedCents !== null ? (
+                                    <div className="flex flex-col">
+                                      <span className="text-muted-foreground">
+                                        Contado: {formatCents(countedCents)}
+                                      </span>
+                                      {arqueo === null ? (
+                                        <span className="text-muted-foreground/60">
+                                          Diferencia: — (sin efectivo declarado)
+                                        </span>
+                                      ) : arqueo.direction === "cuadrado" ? (
+                                        // El caso normal no se pinta: repetir un verde
+                                        // en cada fila entrena a ignorarlo. El color
+                                        // queda para la excepción que hay que ver.
+                                        <span className="text-muted-foreground">
+                                          Diferencia: ✓ cuadrado
+                                        </span>
+                                      ) : (
+                                        <span className={`font-semibold ${cashVarianceToneClass(arqueo.direction)}`}>
+                                          Diferencia:{" "}
+                                          {`${arqueo.varianceCents > 0 ? "+" : ""}${formatCents(arqueo.varianceCents)} (${arqueo.direction})`}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground/60">—</span>
+                                  )}
                                 </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground/60">—</span>
-                              )}
+
+                                {/* Terminal (TPV). `null` = sin conciliar, que no es
+                                    lo mismo que cuadrado en cero. */}
+                                <div className="border-t pt-1.5">
+                                  {cut.tpvDepositCents !== null ? (
+                                    <div className="flex flex-col">
+                                      <span className="text-muted-foreground">
+                                        Depósito: {formatCents(cut.tpvDepositCents)}
+                                      </span>
+                                      {cut.commissionCents !== null && (
+                                        <span className="text-muted-foreground">
+                                          Comisión: {formatCents(cut.commissionCents)}
+                                        </span>
+                                      )}
+                                      {tpv === null ? (
+                                        <span className="text-muted-foreground/60">
+                                          Diferencia: — (sin venta con tarjeta)
+                                        </span>
+                                      ) : (
+                                        <span
+                                          className={`font-semibold ${
+                                            tpv.direction === "cuadrado" ? "text-muted-foreground" : "text-warning-text"
+                                          }`}
+                                          title={tpvVarianceNote(tpv)}
+                                        >
+                                          Diferencia:{" "}
+                                          {tpv.direction === "cuadrado"
+                                            ? "conciliada"
+                                            : `${tpv.varianceCents > 0 ? "+" : ""}${formatCents(tpv.varianceCents)} (${tpv.direction})`}
+                                          {tpv.direction !== "cuadrado" && !tpv.commissionCaptured && (
+                                            <span className="block font-normal text-muted-foreground">
+                                              incluye la comisión, sin capturar
+                                            </span>
+                                          )}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : cut.cardSales !== null && cut.cardSales > 0 ? (
+                                    <span className="text-muted-foreground/60">Sin conciliar</span>
+                                  ) : (
+                                    <span className="text-muted-foreground/60">—</span>
+                                  )}
+                                </div>
+
+                                {cut.cardSales !== null && cut.cardSales > 0 && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs px-2.5 self-start"
+                                    onClick={() => setSelectedCutForBatches(cut.id)}
+                                  >
+                                    <CreditCard className="h-3 w-3 mr-1" />
+                                    Lotes TPV
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center text-sm font-medium">
                               {cut.ticketCount !== null ? cut.ticketCount : <span className="text-muted-foreground/60">—</span>}
-                            </TableCell>
-                            <TableCell>
-                              {countedCents !== null ? (
-                                <div className="flex flex-col text-xs">
-                                  <span className="text-muted-foreground">
-                                    Contado: {formatCents(countedCents)}
-                                  </span>
-                                  {arqueo === null ? (
-                                    <span className="text-muted-foreground/60">
-                                      Diferencia: — (sin efectivo declarado)
-                                    </span>
-                                  ) : arqueo.direction === "cuadrado" ? (
-                                    // El caso normal no se pinta: repetir un verde
-                                    // en cada fila entrena a ignorarlo. El color
-                                    // queda para la excepción que hay que ver.
-                                    <span className="text-muted-foreground">
-                                      Diferencia: ✓ cuadrado
-                                    </span>
-                                  ) : (
-                                    <span className={`font-semibold ${cashVarianceToneClass(arqueo.direction)}`}>
-                                      Diferencia:{" "}
-                                      {`${arqueo.varianceCents > 0 ? "+" : ""}${formatCents(arqueo.varianceCents)} (${arqueo.direction})`}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground/60">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {cut.tpvDepositCents !== null ? (
-                                <div className="flex flex-col text-xs">
-                                  <span className="text-muted-foreground">
-                                    Depósito: {formatCents(cut.tpvDepositCents)}
-                                  </span>
-                                  {cut.commissionCents !== null && (
-                                    <span className="text-muted-foreground">
-                                      Comisión: {formatCents(cut.commissionCents)}
-                                    </span>
-                                  )}
-                                  {tpv === null ? (
-                                    <span className="text-muted-foreground/60">
-                                      Diferencia: — (sin venta con tarjeta)
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className={`font-semibold ${
-                                        tpv.direction === "cuadrado" ? "text-muted-foreground" : "text-warning-text"
-                                      }`}
-                                      title={tpvVarianceNote(tpv)}
-                                    >
-                                      Diferencia:{" "}
-                                      {tpv.direction === "cuadrado"
-                                        ? "conciliada"
-                                        : `${tpv.varianceCents > 0 ? "+" : ""}${formatCents(tpv.varianceCents)} (${tpv.direction})`}
-                                      {tpv.direction !== "cuadrado" && !tpv.commissionCaptured && (
-                                        <span className="block font-normal text-muted-foreground">
-                                          incluye la comisión, sin capturar
-                                        </span>
-                                      )}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : cut.cardSales !== null && cut.cardSales > 0 ? (
-                                <span className="text-xs text-muted-foreground/60">
-                                  Sin conciliar
-                                </span>
-                              ) : (
-                                <span className="text-xs text-muted-foreground/60">—</span>
-                              )}
-                              {cut.cardSales !== null && cut.cardSales > 0 && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-xs px-2.5 mt-1.5 self-start"
-                                  onClick={() => setSelectedCutForBatches(cut.id)}
-                                >
-                                  <CreditCard className="h-3 w-3 mr-1" />
-                                  Lotes TPV
-                                </Button>
-                              )}
                             </TableCell>
                             <TableCell>{getSourceBadge(cut.source)}</TableCell>
                             <TableCell>
@@ -641,9 +731,18 @@ function SalesDashboardPageContent() {
                                   </span>
                                 )}
                                 {cut.validationNotes && (
-                                  <span className="text-xs text-muted-foreground max-w-[200px] leading-tight block">
-                                    {cut.validationNotes}
-                                  </span>
+                                  // `line-clamp-1` + tooltip: antes el texto se cortaba
+                                  // a media palabra sin rescate ("validado automáticament…").
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-xs text-muted-foreground max-w-[200px] leading-tight line-clamp-1 cursor-help">
+                                        {cut.validationNotes}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-72">
+                                      {cut.validationNotes}
+                                    </TooltipContent>
+                                  </Tooltip>
                                 )}
                               </div>
                             </TableCell>

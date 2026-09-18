@@ -1,0 +1,169 @@
+{
+  "base": "http://localhost:3000",
+  "pages": [
+    {
+      "label": "desktop-analytics-tab-default",
+      "url": "http://localhost:3000/dashboard/sales",
+      "pageOverflow": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "overflows": false
+      },
+      "smallTextBelow12": [
+        {
+          "text": "†",
+          "size": 9
+        },
+        {
+          "text": "†",
+          "size": 9
+        }
+      ],
+      "h1": "Ventas y Cortes de Caja?",
+      "tables": null,
+      "elementTops": [
+        {
+          "cls": "bg-card text-card-foreground flex flex-col gap-6 rounded-lg border py-6",
+          "top": 232
+        },
+        {
+          "cls": "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-",
+          "top": 257
+        },
+        {
+          "cls": "bg-card text-card-foreground flex flex-col gap-6 rounded-lg border py-6 lg:col-s",
+          "top": 871
+        },
+        {
+          "cls": "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-",
+          "top": 896
+        },
+        {
+          "cls": "bg-card text-card-foreground flex flex-col gap-6 rounded-lg border py-6",
+          "top": 871
+        },
+        {
+          "cls": "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-",
+          "top": 896
+        }
+      ],
+      "viewportH": 800
+    },
+    {
+      "label": "desktop-cuts-tab",
+      "url": "http://localhost:3000/dashboard/sales",
+      "pageOverflow": {
+        "scrollWidth": 1536,
+        "clientWidth": 1280,
+        "overflows": true
+      },
+      "smallTextBelow12": [],
+      "h1": "Ventas y Cortes de Caja?",
+      "tables": {
+        "count": 1,
+        "width": 1303,
+        "viewport": 1280
+      },
+      "elementTops": [
+        {
+          "cls": "bg-card text-card-foreground flex flex-col gap-6 rounded-lg border py-6",
+          "top": 292
+        },
+        {
+          "cls": "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-",
+          "top": 317
+        },
+        {
+          "cls": "[object SVGAnimatedString]",
+          "top": 464
+        },
+        {
+          "cls": "[object SVGAnimatedString]",
+          "top": 533
+        },
+        {
+          "cls": "[object SVGAnimatedString]",
+          "top": 602
+        },
+        {
+          "cls": "[object SVGAnimatedString]",
+          "top": 671
+        },
+        {
+          "cls": "[object SVGAnimatedString]",
+          "top": 740
+        },
+        {
+          "cls": "[object SVGAnimatedString]",
+          "top": 809
+        },
+        {
+          "cls": "[object SVGAnimatedString]",
+          "top": 878
+        },
+        {
+          "cls": "[object SVGAnimatedString]",
+          "top": 947
+        },
+        {
+          "cls": "[object SVGAnimatedString]",
+          "top": 1016
+        },
+        {
+          "cls": "[object SVGAnimatedString]",
+          "top": 1085
+        }
+      ],
+      "viewportH": 800
+    },
+    {
+      "label": "mobile-analytics",
+      "url": "http://localhost:3000/dashboard/sales",
+      "pageOverflow": {
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "overflows": false
+      },
+      "smallTextBelow12": [
+        {
+          "text": "†",
+          "size": 9
+        },
+        {
+          "text": "†",
+          "size": 9
+        }
+      ],
+      "h1": "Ventas y Cortes de Caja?",
+      "tables": null,
+      "elementTops": [
+        {
+          "cls": "bg-card text-card-foreground flex flex-col gap-6 rounded-lg border py-6",
+          "top": 300
+        },
+        {
+          "cls": "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-",
+          "top": 325
+        },
+        {
+          "cls": "bg-card text-card-foreground flex flex-col gap-6 rounded-lg border py-6 lg:col-s",
+          "top": 1009
+        },
+        {
+          "cls": "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-",
+          "top": 1034
+        },
+        {
+          "cls": "bg-card text-card-foreground flex flex-col gap-6 rounded-lg border py-6",
+          "top": 1427
+        },
+        {
+          "cls": "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-",
+          "top": 1452
+        }
+      ],
+      "viewportH": 844
+    }
+  ],
+  "consoleErrors": []
+}

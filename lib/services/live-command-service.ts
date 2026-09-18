@@ -7,8 +7,22 @@ import {
   incidents,
   workflowInstances,
 } from "@/lib/db/schema";
-import { and, eq, gte, inArray, sql, desc, or } from "drizzle-orm";
-import { startOfDay, endOfDay } from "date-fns";
+import { and, eq, gte, lte, inArray, notInArray, desc } from "drizzle-orm";
+import { businessDateIso, businessDayEnd, businessDayStart } from "@/lib/business-date";
+
+/**
+ * Status TERMINALES de un incidente: ya no requieren acción.
+ *
+ * Se define por exclusión a propósito. Enumerar los status abiertos a mano
+ * dejó fuera de este feed a `ESCALATED` (más urgente que `CONFIRMED`) y a
+ * `AWAITING_EXTERNAL` (bloqueado con terceros, sigue abierto), volviendo
+ * invisible para el banner de pulso al incidente más grave de la base.
+ * Ver incidentStatusEnum en lib/db/schema.ts.
+ *
+ * Dirección del fallo: si mañana se agrega un status nuevo, éste aparece en
+ * el feed por defecto. Preferimos mostrar de más que ocultar un FATAL.
+ */
+const TERMINAL_INCIDENT_STATUSES = ["RESOLVED"] as const;
 
 export interface BranchLiveStatus {
   branchId: string;
@@ -67,9 +81,12 @@ export const LiveCommandService = {
    * Obtiene el pulso operativo en tiempo real de la cadena de sucursales para el día de hoy.
    */
   async getLivePulse(companyId: string, targetBranchId?: string): Promise<LivePulseSummary> {
-    const todayStart = startOfDay(new Date());
-    const todayEnd = endOfDay(new Date());
-    const todayIsoDate = new Date().toISOString().slice(0, 10);
+    // Un solo calendario para toda la función: el día de negocio (zona MX).
+    // Antes `todayStart` era local y `todayIsoDate` era UTC, así que a partir
+    // de las 18:00 hora local la página pedía los cortes de venta de MAÑANA.
+    const todayStart = businessDayStart();
+    const todayEnd = businessDayEnd();
+    const todayIsoDate = businessDateIso();
 
     // 1. Obtener sucursales activas de la empresa
     const branchRows = await db
@@ -124,6 +141,7 @@ export const LiveCommandService = {
           and(
             inArray(shiftSessions.branchId, branchIds),
             gte(shiftSessions.startedAt, todayStart),
+            lte(shiftSessions.startedAt, todayEnd),
           ),
         )
         .catch(() => []),
@@ -142,6 +160,7 @@ export const LiveCommandService = {
           and(
             inArray(temperatureLogs.branchId, branchIds),
             gte(temperatureLogs.timestamp, todayStart),
+            lte(temperatureLogs.timestamp, todayEnd),
           ),
         )
         .orderBy(desc(temperatureLogs.timestamp))
@@ -165,7 +184,9 @@ export const LiveCommandService = {
         )
         .catch(() => []),
 
-      // Incidentes abiertos de hoy o no resueltos
+      // Incidentes abiertos de la red (cualquier status no terminal).
+      // No se filtra por fecha: un incidente sin resolver sigue siendo accionable
+      // aunque haya abierto ayer.
       db
         .select({
           id: incidents.id,
@@ -179,11 +200,7 @@ export const LiveCommandService = {
         .where(
           and(
             inArray(incidents.branchId, branchIds),
-            or(
-              eq(incidents.status, "DETECTED"),
-              eq(incidents.status, "IN_REMEDIATION"),
-              eq(incidents.status, "CONFIRMED"),
-            ),
+            notInArray(incidents.status, [...TERMINAL_INCIDENT_STATUSES]),
           ),
         )
         .orderBy(desc(incidents.createdAt))
@@ -204,6 +221,7 @@ export const LiveCommandService = {
           and(
             inArray(workflowInstances.branchId, branchIds),
             gte(workflowInstances.createdAt, todayStart),
+            lte(workflowInstances.createdAt, todayEnd),
           ),
         )
         .catch(() => []),

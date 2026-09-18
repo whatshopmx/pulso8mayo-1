@@ -1,0 +1,1 @@
+startGroup	%c[impeccable] 35 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold

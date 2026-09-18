@@ -1,0 +1,455 @@
+{
+  "globals": [
+    "impeccableDetect",
+    "impeccableDetectAsync",
+    "impeccableScan",
+    "impeccableScanAsync",
+    "impeccableMeasureHiddenText",
+    "impeccableCollectVisualContrastCandidates",
+    "impeccableAnalyzeVisualContrast",
+    "impeccableGetLastVisualContrastAnalyses"
+  ],
+  "globalDump": [
+    {
+      "g": "impeccableDetect",
+      "v": "unserializable"
+    },
+    {
+      "g": "impeccableDetectAsync",
+      "v": "unserializable"
+    },
+    {
+      "g": "impeccableScan",
+      "v": "unserializable"
+    },
+    {
+      "g": "impeccableScanAsync",
+      "v": "unserializable"
+    },
+    {
+      "g": "impeccableMeasureHiddenText",
+      "v": "unserializable"
+    },
+    {
+      "g": "impeccableCollectVisualContrastCandidates",
+      "v": "unserializable"
+    }
+  ],
+  "nodeCount": 69,
+  "nodes": [
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "layout property animation"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "layout property animation"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "layout property animation"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "layout property animation"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "content overflowing its container"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "content overflowing its container"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "layout property animation"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "layout property animation"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "layout property animation"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "layout property animation"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "line length too long"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "line length too long"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "content overflowing its container"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "content overflowing its container"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "content overflowing its container"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "content overflowing its container"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "content overflowing its container"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "content overflowing its container"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "cramped padding"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "cramped padding"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-visible",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-label",
+      "text": "✦ nested cards"
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "impeccable-overlay impeccable-banner",
+      "text": "layout property animation: transition: height\n◉\n×"
+    }
+  ]
+}
