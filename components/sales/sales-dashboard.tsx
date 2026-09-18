@@ -67,9 +67,12 @@ export function SalesDashboard({ branchId, startDate, endDate }: SalesDashboardP
   const formatMXN = (cents: number) =>
     (cents / 100).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 
+  // El `dataKey` recibe NÚMEROS, no strings: `toFixed(2)` producía un dominio de
+  // eje correcto pero un path `monotone` en NaN, y la gráfica salía en blanco
+  // sobre datos que existían. El formato vive en el tooltip y en el eje, no en el dato.
   const formattedTrend = trend.map((pt: any) => ({
     date: pt.date,
-    Venta: (pt.totalSalesCents / 100).toFixed(2),
+    Venta: pt.totalSalesCents / 100,
     Tickets: pt.ticketCount,
   }));
 
@@ -150,7 +153,13 @@ export function SalesDashboard({ branchId, startDate, endDate }: SalesDashboardP
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                       <XAxis dataKey="date" tickLine={false} style={{ fontSize: "12px" }} />
-                      <YAxis tickLine={false} style={{ fontSize: "12px" }} />
+                      <YAxis
+                        tickLine={false}
+                        style={{ fontSize: "12px" }}
+                        tickFormatter={(value: number) =>
+                          `$${value.toLocaleString("es-MX", { maximumFractionDigits: 0 })}`
+                        }
+                      />
                       <Tooltip
                         formatter={(value: any) => [`$${Number(value).toLocaleString("es-MX")}`, "Venta"]}
                         labelStyle={{ fontWeight: "bold" }}
@@ -179,7 +188,7 @@ export function SalesDashboard({ branchId, startDate, endDate }: SalesDashboardP
                     {formattedTrend.map((d: any) => (
                       <tr key={d.date}>
                         <td>{d.date}</td>
-                        <td>${d.Venta}</td>
+                        <td>${Number(d.Venta).toFixed(2)}</td>
                         <td>{d.Tickets}</td>
                       </tr>
                     ))}

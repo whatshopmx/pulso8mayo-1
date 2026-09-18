@@ -29,6 +29,26 @@ const STATUS_COLORS: Record<SemaphoreStatus, { bar: string; badge: string; label
 };
 
 /**
+ * Pisos de plausibilidad (P1 #2). Un semáforo solo certifica lo que la base de
+ * datos respalda: un food cost de 0.9% no es "saludable", es un cálculo sin
+ * consumo detrás. Las cotas separan lo operativo de lo imposible —no juzgan la
+ * gestión— y solo se aplican cuando la procedencia NO es una medición directa.
+ */
+const IMPLAUSIBLE_COST_FLOOR_PERCENT = 3;
+const IMPLAUSIBLE_MARGIN_CEILING_PERCENT = 95;
+/** ±200% en ventas casi siempre es base incomparable (alta/baja de sucursal), no tendencia. */
+const IMPLAUSIBLE_SALES_DELTA_PERCENT = 200;
+/** Más de 100 puntos porcentuales no es un movimiento: es un artefacto de base. */
+const IMPLAUSIBLE_DELTA_POINTS = 100;
+
+function isIndirectSource(source: LineSource): boolean {
+  return source !== "MEASURED";
+}
+
+const INSUFFICIENT_BADGE = statusBadgeClasses("neutral");
+const INSUFFICIENT_LABEL_SHORT = "Sin datos suficientes";
+
+/**
  * Marca de procedencia, con el mismo vocabulario que el P&L
  * (`components/finance/pnl-branch-table.tsx`): un número estimado nunca se
  * presenta con la misma tipografía que uno medido.
@@ -71,6 +91,19 @@ function DeltaBadge({
     return (
       <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
         <Minus className="w-3 h-3" aria-hidden /> sin cambio
+      </span>
+    );
+  }
+
+  // Magnitud antes que signo (P1 #2): un salto de cientos de puntos no es una
+  // tendencia, es un período anterior casi vacío. Se muestra, no se certifica.
+  if (Math.abs(deltaPoints) > IMPLAUSIBLE_DELTA_POINTS) {
+    return (
+      <span
+        className="text-xs text-muted-foreground"
+        title={`${deltaPoints > 0 ? "+" : "−"}${Math.abs(deltaPoints).toFixed(1)} puntos porcentuales: fuera del rango fiable`}
+      >
+        sin comparativa fiable
       </span>
     );
   }
@@ -190,6 +223,7 @@ export function FinancialKpiCards({ branchId, dateRange }: FinancialKpiCardsProp
     label: string,
     metric: KpiMetric,
     targetPercent: number,
+    insufficientLabel: string,
   ) => {
     const marker = SOURCE_MARKER[metric.source];
 
@@ -213,6 +247,15 @@ export function FinancialKpiCards({ branchId, dateRange }: FinancialKpiCardsProp
     const colors = STATUS_COLORS[metric.status ?? "OK"];
     const displayPct = Math.min(metric.percent, 100);
 
+    // Suficiencia ANTES de veredicto: con procedencia indirecta y un valor por
+    // debajo del piso operativo, el número no tiene consumo/asistencia detrás.
+    // Decir "Saludable" aquí es la mentira que rompe la confianza en cada
+    // badge verde de la plataforma.
+    const insufficient =
+      isIndirectSource(metric.source) && metric.percent < IMPLAUSIBLE_COST_FLOOR_PERCENT;
+    const barColor = insufficient ? "bg-muted-foreground/25" : colors.bar;
+    const badgeClass = insufficient ? INSUFFICIENT_BADGE : colors.badge;
+
     return (
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-2">
@@ -220,8 +263,8 @@ export function FinancialKpiCards({ branchId, dateRange }: FinancialKpiCardsProp
             {icon}
             {label}
           </span>
-          <div className="flex items-center gap-2">
-            <DeltaBadge deltaPoints={metric.deltaPoints} lowerIsBetter />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {!insufficient && <DeltaBadge deltaPoints={metric.deltaPoints} lowerIsBetter />}
             <span className="text-xs font-bold tabular-nums">
               {metric.percent}%
               {marker && (
@@ -242,8 +285,8 @@ export function FinancialKpiCards({ branchId, dateRange }: FinancialKpiCardsProp
                 </Tooltip>
               )}
             </span>
-            <span className={`text-xs px-1.5 py-0.5 rounded-full border ${colors.badge}`}>
-              {colors.label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full border ${badgeClass}`}>
+              {insufficient ? INSUFFICIENT_LABEL_SHORT : colors.label}
             </span>
           </div>
         </div>
@@ -251,7 +294,7 @@ export function FinancialKpiCards({ branchId, dateRange }: FinancialKpiCardsProp
             (compositor), nunca con width (layout thrash). */}
         <div className="relative h-2 rounded-full overflow-hidden bg-muted">
           <div
-            className={`absolute inset-y-0 left-0 w-full origin-left ${colors.bar} transition-transform duration-500 motion-reduce:transition-none`}
+            className={`absolute inset-y-0 left-0 w-full origin-left ${barColor} transition-transform duration-500 motion-reduce:transition-none`}
             style={{ transform: `scaleX(${displayPct / 100})` }}
           />
           <div
@@ -260,14 +303,21 @@ export function FinancialKpiCards({ branchId, dateRange }: FinancialKpiCardsProp
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          Objetivo del grupo: &lt;{targetPercent}%
+          {insufficient ? insufficientLabel : `Objetivo del grupo: <${targetPercent}%`}
         </p>
       </div>
     );
   };
 
-  const marginColors =
-    kpis.healthyMarginStatus === null ? null : STATUS_COLORS[kpis.healthyMarginStatus];
+  const marginInsufficient =
+    kpis.healthyMarginPercent !== null &&
+    isIndirectSource(kpis.weakestSource) &&
+    kpis.healthyMarginPercent > IMPLAUSIBLE_MARGIN_CEILING_PERCENT;
+  const marginColors = marginInsufficient
+    ? { bar: "bg-muted-foreground/25", badge: INSUFFICIENT_BADGE, label: INSUFFICIENT_LABEL_SHORT }
+    : kpis.healthyMarginStatus === null
+      ? null
+      : STATUS_COLORS[kpis.healthyMarginStatus];
 
   /** Nota al pie: solo los métodos que realmente aparecen arriba. */
   const footnotes: string[] = [];
@@ -304,17 +354,35 @@ export function FinancialKpiCards({ branchId, dateRange }: FinancialKpiCardsProp
           <span className="text-3xl font-bold text-foreground">
             {formatCents(kpis.totalSalesCents)}
           </span>
-          {kpis.salesDeltaPercent !== null && (
-            <span
-              className={`text-xs font-semibold tabular-nums ${
-                kpis.salesDeltaPercent >= 0 ? "text-success" : "text-destructive"
-              }`}
-              title={`Contra ${formatCents(kpis.previousTotalSalesCents)} del período anterior (${kpis.previousPeriod.startDate} a ${kpis.previousPeriod.endDate})`}
-            >
-              {kpis.salesDeltaPercent > 0 ? "+" : ""}
-              {kpis.salesDeltaPercent}% vs. período anterior
-            </span>
-          )}
+          {kpis.salesDeltaPercent !== null &&
+            (() => {
+              const delta = kpis.salesDeltaPercent as number;
+              const deltaTitle = `Contra ${formatCents(kpis.previousTotalSalesCents)} del período anterior (${kpis.previousPeriod.startDate} a ${kpis.previousPeriod.endDate})`;
+              // Magnitud antes que signo (P1 #2): +2851% no es buena noticia, es
+              // un período anterior casi vacío. El verde de éxito se reserva a
+              // lo que sí es comparable.
+              if (Math.abs(delta) > IMPLAUSIBLE_SALES_DELTA_PERCENT) {
+                return (
+                  <span
+                    className="text-xs font-medium text-muted-foreground"
+                    title={`${delta > 0 ? "+" : ""}${delta}% vs. período anterior · ${deltaTitle}`}
+                  >
+                    sin comparativa fiable
+                  </span>
+                );
+              }
+              return (
+                <span
+                  className={`text-xs font-semibold tabular-nums ${
+                    delta >= 0 ? "text-success" : "text-destructive"
+                  }`}
+                  title={deltaTitle}
+                >
+                  {delta > 0 ? "+" : ""}
+                  {delta}% vs. período anterior
+                </span>
+              );
+            })()}
         </div>
         {salesSummary && (
           <p className="text-xs text-muted-foreground">
@@ -337,12 +405,14 @@ export function FinancialKpiCards({ branchId, dateRange }: FinancialKpiCardsProp
             "Food Cost",
             kpis.foodCost,
             kpis.targets.foodCostTargetPercent,
+            "Sin datos de consumo suficientes para leer este porcentaje como salud.",
           )}
           {renderCostBar(
             <Users className="w-3.5 h-3.5" />,
             "Labor Cost",
             kpis.laborCost,
             kpis.targets.laborCostTargetPercent,
+            "Sin datos de asistencia suficientes para leer este porcentaje como salud.",
           )}
         </div>
 
@@ -369,15 +439,19 @@ export function FinancialKpiCards({ branchId, dateRange }: FinancialKpiCardsProp
           {kpis.healthyMarginPercent === null ? (
             <span className="text-sm text-muted-foreground">—</span>
           ) : (
-            <div className="flex items-center gap-2">
-              <DeltaBadge deltaPoints={kpis.healthyMarginDeltaPoints} lowerIsBetter={false} />
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {!marginInsufficient && (
+                <DeltaBadge deltaPoints={kpis.healthyMarginDeltaPoints} lowerIsBetter={false} />
+              )}
               <span
                 className={`text-sm font-bold tabular-nums ${
-                  kpis.healthyMarginStatus === "OK"
-                    ? "text-success"
-                    : kpis.healthyMarginStatus === "WARNING"
-                      ? "text-warning-text"
-                      : "text-destructive"
+                  marginInsufficient
+                    ? "text-muted-foreground"
+                    : kpis.healthyMarginStatus === "OK"
+                      ? "text-success"
+                      : kpis.healthyMarginStatus === "WARNING"
+                        ? "text-warning-text"
+                        : "text-destructive"
                 }`}
               >
                 {kpis.healthyMarginPercent}%

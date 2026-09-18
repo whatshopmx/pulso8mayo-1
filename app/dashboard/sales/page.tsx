@@ -32,6 +32,7 @@ import {
   tpvVarianceNote,
 } from "@/lib/sales/cash-variance";
 import { useBranches } from "@/hooks/queries/use-branches";
+import type { DateRange } from "@/components/finance/period-selector";
 import { useBranch } from "@/lib/branch-context";
 import Link from "next/link";
 
@@ -127,6 +128,27 @@ function SalesDashboardPageContent() {
   const searchParams = useSearchParams();
   const startDate = searchParams.get("startDate") ?? "";
   const endDate = searchParams.get("endDate") ?? "";
+
+  /**
+   * Ventana ÚNICA de la pantalla (P1 #3). La URL manda; si no trae fechas, se
+   * usa el rango que `/api/sales/cuts` aplicó de verdad —declarado ya en
+   * `cutsScope`— en vez de dejar que el KPI y la gráfica inventen cada uno su
+   * propio default. Antes, el mismo sustantivo "cortes" mostraba 93 y 45 en la
+   * misma URL, reconciliado solo por letra chica.
+   *
+   * Se memoíza sobre strings: `cutsScope` cambia de identidad en cada fetch y
+   * usarlo como dependencia dispararía ciclos.
+   */
+  const resolvedStartDate = startDate || cutsScope?.startDate || "";
+  const resolvedEndDate = endDate || cutsScope?.endDate || "";
+  const resolvedDateRange = useMemo<DateRange | undefined>(() => {
+    if (!resolvedStartDate) return undefined;
+    // `T00:00:00` local: `new Date("YYYY-MM-DD")` parsea en UTC y en México
+    // retrocede un día al volver a formatear con date-fns en el KPI.
+    const from = new Date(`${resolvedStartDate}T00:00:00`);
+    const to = new Date(`${resolvedEndDate || resolvedStartDate}T00:00:00`);
+    return { from, to };
+  }, [resolvedStartDate, resolvedEndDate]);
 
   // Fetch sales cuts
   const fetchCuts = useCallback(async () => {
@@ -259,12 +281,12 @@ function SalesDashboardPageContent() {
         <TabsContent value="analytics" className="space-y-6">
           <FinancialKpiCards
             branchId={selectedBranch}
-            dateRange={startDate ? { from: new Date(startDate), to: endDate ? new Date(endDate) : new Date(startDate) } : undefined}
+            dateRange={resolvedDateRange}
           />
           <SalesDashboard
             branchId={selectedBranch}
-            startDate={startDate}
-            endDate={endDate}
+            startDate={resolvedStartDate}
+            endDate={resolvedEndDate}
           />
         </TabsContent>
 
