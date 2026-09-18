@@ -23,12 +23,10 @@ import {
   AlertTriangle,
   MessageCircle,
   Store,
-  ExternalLink,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import type {
-  ExceptionDomain,
   ExceptionSeverity,
   GroupException,
   QsrRiskCategory,
@@ -256,7 +254,7 @@ export default function ExceptionsPage() {
             return (
               <Card
                 key={`${item.sourceTable}-${item.id}`}
-                className="hover:border-primary/40 transition-colors shadow-xs"
+                className="hover:border-primary/40 transition-colors"
               >
                 <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-1.5 min-w-0 flex-1">

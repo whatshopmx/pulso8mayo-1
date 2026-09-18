@@ -610,17 +610,17 @@ No modifican datos. `check-live-command-pulse.ts` es el más útil: verifica F0.
 - [x] Un solo calendario: `rg "toISOString\(\)\.slice\(0, 10\)" lib/services/live-command-service.ts` → 0 — ✅
 - [x] Tests de fecha de negocio (18:00 local) — ✅ 13/13
 - [ ] Cada bloque de datos expone su `dataAsOf` y la UI lo muestra
-- [ ] "Sin registro" y "fuera de rango" **no** comparten token
-- [ ] `rg "Math\.max\(activeStaff, 4\)"` → 0
-- [ ] `rg "lateCount: 0"` → 0
-- [ ] Banner y KPI de dotación **coinciden numéricamente** siempre
-- [ ] Ninguna combinación de estado malo produce verde
-- [ ] Severidad distinguible sin color (NVDA)
+- [x] "Sin registro" y "fuera de rango" **no** comparten token (`nom251: NOT_LOGGED` neutro)
+- [x] `rg "Math\.max\(activeStaff, 4\)"` → 0
+- [x] `rg "lateCount: 0"` → 0 (desde `shiftSessions.lateMinutes`)
+- [x] Banner y KPI de dotación **coinciden numéricamente** siempre (mismo `totalExpectedStaff`; `null` ⇒ "Sin dotación")
+- [x] Ninguna combinación de estado malo produce verde (banner = máquina de estados)
+- [x] Severidad distinguible sin color (glifo + `sr-only` en `area-card.tsx`)
 - [ ] Detector: `nested-cards` <8, `text-overflow` = 0
 - [ ] `axe` sin violaciones de contraste en `/dashboard` (claro + oscuro)
 - [ ] Skeletons sin salto de layout en carga fría
-- [ ] `rg "shadow-xs" app/dashboard components/dashboard` → 0
-- [ ] `pnpm run lint` y `pnpm run build` limpios
+- [x] `rg "shadow-xs" app/dashboard components/dashboard` → 0
+- [x] `pnpm run lint` y `pnpm run build` limpios
 - [ ] Cero solapamientos a 390×844
 
 **Comandos de verificación:**

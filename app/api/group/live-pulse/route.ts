@@ -1,6 +1,7 @@
 import { withTenantAuth } from "@/lib/api/with-auth";
 import { ApiHandler } from "@/lib/api/response";
 import { resolveBranchScope } from "@/lib/branch-scope";
+import { businessDateIso } from "@/lib/business-date";
 import { LiveCommandService } from "@/lib/services/live-command-service";
 
 /**
@@ -18,12 +19,12 @@ export const GET = withTenantAuth(async (req, { auth }) => {
 
   if (scope.kind === "NONE") {
     return ApiHandler.success({
-      businessDate: new Date().toISOString().slice(0, 10),
+      businessDate: businessDateIso(),
       totalBranches: 0,
       openBranchesCount: 0,
       openRatePercent: 0,
       staffActiveNow: 0,
-      staffAttendanceRate: 0,
+      staffAttendanceRate: null,
       salesTodayCents: 0,
       criticalAlertsCount: 0,
       branches: [],

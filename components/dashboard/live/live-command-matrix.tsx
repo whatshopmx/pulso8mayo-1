@@ -7,14 +7,11 @@ import {
   Store, 
   CheckCircle2, 
   Clock, 
-  AlertTriangle, 
   AlertOctagon, 
   ThermometerSnowflake, 
   Users, 
   DollarSign, 
-  ArrowUpRight, 
   Search, 
-  Filter,
   ExternalLink,
   ChevronRight
 } from "lucide-react";
@@ -42,7 +39,8 @@ export function LiveCommandMatrix({ branches }: LiveCommandMatrixProps) {
       // Filtro de solo incidencias
       if (filterMode === "ISSUES_ONLY") {
         const hasOpeningIssue = b.opening.status === "DELAYED";
-        const hasStaffIssue = b.staff.status !== "NORMAL";
+        // `UNKNOWN` = falta configuración de dotación, no una alerta operativa.
+        const hasStaffIssue = b.staff.status !== "NORMAL" && b.staff.status !== "UNKNOWN";
         const hasNomIssue = b.nom251.status !== "OK";
         const hasAlerts = b.activeAlerts.length > 0;
         return hasOpeningIssue || hasStaffIssue || hasNomIssue || hasAlerts;
@@ -56,7 +54,7 @@ export function LiveCommandMatrix({ branches }: LiveCommandMatrixProps) {
     return branches.filter((b) => {
       return (
         b.opening.status === "DELAYED" ||
-        b.staff.status !== "NORMAL" ||
+        (b.staff.status !== "NORMAL" && b.staff.status !== "UNKNOWN") ||
         b.nom251.status !== "OK" ||
         b.activeAlerts.length > 0
       );
@@ -64,7 +62,7 @@ export function LiveCommandMatrix({ branches }: LiveCommandMatrixProps) {
   }, [branches]);
 
   return (
-    <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
       {/* Barra de control y filtros */}
       <div className="p-4 sm:p-5 border-b border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20">
         <div>
@@ -86,6 +84,7 @@ export function LiveCommandMatrix({ branches }: LiveCommandMatrixProps) {
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="Buscar sucursal..."
+              aria-label="Buscar sucursal"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="h-8.5 text-xs pl-8 bg-background"
@@ -95,7 +94,8 @@ export function LiveCommandMatrix({ branches }: LiveCommandMatrixProps) {
           <div className="flex items-center rounded-lg border border-border/70 p-0.5 bg-background">
             <button
               onClick={() => setFilterMode("ALL")}
-              className={`px-3 py-1.5 min-h-[36px] text-xs font-medium rounded-md transition-all ${
+              aria-pressed={filterMode === "ALL"}
+              className={`px-3 py-1.5 min-h-[36px] text-xs font-medium rounded-md transition-colors ${
                 filterMode === "ALL"
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground"
@@ -105,7 +105,8 @@ export function LiveCommandMatrix({ branches }: LiveCommandMatrixProps) {
             </button>
             <button
               onClick={() => setFilterMode("ISSUES_ONLY")}
-              className={`px-3 py-1.5 min-h-[36px] text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${
+              aria-pressed={filterMode === "ISSUES_ONLY"}
+              className={`px-3 py-1.5 min-h-[36px] text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
                 filterMode === "ISSUES_ONLY"
                   ? "bg-destructive text-destructive-foreground"
                   : "text-muted-foreground hover:text-foreground"
@@ -246,13 +247,26 @@ export function LiveCommandMatrix({ branches }: LiveCommandMatrixProps) {
                             Faltantes
                           </Badge>
                         )}
+                        {b.staff.status === "UNKNOWN" && (
+                          <Badge variant="secondary" className="text-xs px-1.5 py-0 text-muted-foreground">
+                            Sin dotación
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs font-semibold text-foreground mt-1">
-                        {b.staff.activeCount} de {b.staff.expectedCount} activos
-                        {b.staff.lateCount > 0 && (
-                          <span className="text-warning-text text-xs font-normal ml-1">
-                            ({b.staff.lateCount} tarde)
+                        {b.staff.status === "UNKNOWN" ? (
+                          <span className="font-normal text-muted-foreground">
+                            Sin dotación configurada
                           </span>
+                        ) : (
+                          <>
+                            {b.staff.activeCount} de {b.staff.expectedCount} activos
+                            {b.staff.lateCount > 0 && (
+                              <span className="text-warning-text text-xs font-normal ml-1">
+                                ({b.staff.lateCount} tarde)
+                              </span>
+                            )}
+                          </>
                         )}
                       </p>
                     </div>
@@ -270,6 +284,11 @@ export function LiveCommandMatrix({ branches }: LiveCommandMatrixProps) {
                         )}
                         {b.nom251.status === "WARNING" && (
                           <Badge className="bg-warning/15 text-warning-text border-warning/30 text-xs px-1.5 py-0">
+                            Fuera de rango
+                          </Badge>
+                        )}
+                        {b.nom251.status === "NOT_LOGGED" && (
+                          <Badge variant="secondary" className="text-xs px-1.5 py-0 text-muted-foreground">
                             Sin registro
                           </Badge>
                         )}

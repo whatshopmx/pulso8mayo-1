@@ -5,6 +5,7 @@ import {
   temperatureLogs,
   dailySalesCuts,
   incidents,
+  plannedShifts,
   workflowInstances,
 } from "@/lib/db/schema";
 import { and, eq, gte, lte, inArray, notInArray, desc } from "drizzle-orm";
@@ -37,10 +38,12 @@ export interface BranchLiveStatus {
     activeCount: number;
     expectedCount: number;
     lateCount: number;
-    status: "NORMAL" | "WARNING" | "CRITICAL";
+    /** `UNKNOWN` = no hay turnos planificados publicados: no se puede calcular cobertura. */
+    status: "NORMAL" | "WARNING" | "CRITICAL" | "UNKNOWN";
   };
   nom251: {
-    status: "OK" | "WARNING" | "CRITICAL";
+    /** `NOT_LOGGED` = no hay lecturas del período. NO es lo mismo que "fuera de rango". */
+    status: "OK" | "WARNING" | "CRITICAL" | "NOT_LOGGED";
     lastTempCelsius: number | null;
     nonCompliantCount: number;
   };
@@ -61,7 +64,8 @@ export interface LivePulseSummary {
   openBranchesCount: number;
   openRatePercent: number;
   staffActiveNow: number;
-  staffAttendanceRate: number;
+  /** `null` = no hay dotación planificada; la UI debe decir "Sin dotación configurada", no "0%". */
+  staffAttendanceRate: number | null;
   salesTodayCents: number;
   criticalAlertsCount: number;
   branches: BranchLiveStatus[];
@@ -110,7 +114,7 @@ export const LiveCommandService = {
         openBranchesCount: 0,
         openRatePercent: 100,
         staffActiveNow: 0,
-        staffAttendanceRate: 100,
+        staffAttendanceRate: null,
         salesTodayCents: 0,
         criticalAlertsCount: 0,
         branches: [],
@@ -127,6 +131,7 @@ export const LiveCommandService = {
       salesCutRows,
       incidentRows,
       workflowRows,
+      plannedShiftRows,
     ] = await Promise.all([
       // Sesiones de personal iniciadas o programadas hoy
       db
@@ -135,6 +140,7 @@ export const LiveCommandService = {
           branchId: shiftSessions.branchId,
           status: shiftSessions.status,
           startedAt: shiftSessions.startedAt,
+          lateMinutes: shiftSessions.lateMinutes,
         })
         .from(shiftSessions)
         .where(
@@ -204,7 +210,6 @@ export const LiveCommandService = {
           ),
         )
         .orderBy(desc(incidents.createdAt))
-        .limit(15)
         .catch(() => []),
 
       // Workflows de hoy (para detectar hora de apertura)
@@ -222,6 +227,23 @@ export const LiveCommandService = {
             inArray(workflowInstances.branchId, branchIds),
             gte(workflowInstances.createdAt, todayStart),
             lte(workflowInstances.createdAt, todayEnd),
+          ),
+        )
+        .catch(() => []),
+
+      // Dotación planificada publicada para el día de negocio.
+      // `shift_date` es una fecha de negocio (texto YYYY-MM-DD): no sufre el
+      // desfase de zona que sí tienen las columnas timestamp.
+      db
+        .select({
+          branchId: plannedShifts.branchId,
+        })
+        .from(plannedShifts)
+        .where(
+          and(
+            inArray(plannedShifts.branchId, branchIds),
+            eq(plannedShifts.status, "PUBLISHED"),
+            eq(plannedShifts.shiftDate, todayIsoDate),
           ),
         )
         .catch(() => []),
@@ -263,6 +285,12 @@ export const LiveCommandService = {
       workflowsByBranch.set(w.branchId, list);
     }
 
+    // Denominador de dotación: turnos planificados publicados por sucursal.
+    const plannedCountByBranch = new Map<string, number>();
+    for (const p of plannedShiftRows) {
+      plannedCountByBranch.set(p.branchId, (plannedCountByBranch.get(p.branchId) ?? 0) + 1);
+    }
+
     let totalActiveStaff = 0;
     let totalSalesCents = 0;
     let openCount = 0;
@@ -298,16 +326,28 @@ export const LiveCommandService = {
         ? `Abrió tarde (${timeString} hrs)`
         : `Abrió a tiempo (${timeString} hrs)`;
 
-      // Personal:
+      // Personal: el esperado es la dotación planificada publicada, NO un
+      // reflejo del activo. El `Math.max` con la plantilla activa volvía el
+      // semáforo autorreferencial (nunca podía fallar hacia arriba).
       const activeStaff = bSessions.filter((s) => s.status === "ACTIVE" || s.status === "COMPLETED").length;
       totalActiveStaff += activeStaff;
-      const expectedStaff = Math.max(activeStaff, 4); // plantilla QSR estimada estándar por turno
-      const staffStatus = activeStaff >= expectedStaff ? "NORMAL" : activeStaff >= expectedStaff - 1 ? "WARNING" : "CRITICAL";
+      const expectedStaff = plannedCountByBranch.get(b.id) ?? 0;
+      const lateCount = bSessions.filter((s) => (s.lateMinutes ?? 0) > 0).length;
+      const staffStatus =
+        expectedStaff === 0
+          ? "UNKNOWN"
+          : activeStaff >= expectedStaff
+          ? "NORMAL"
+          : activeStaff >= expectedStaff - 1
+          ? "WARNING"
+          : "CRITICAL";
 
-      // NOM-251 y temperaturas:
+      // NOM-251 y temperaturas: "sin registro" es un hecho distinto de
+      // "fuera de rango" y no debe compartir el mismo ámbar.
       const nonCompliant = bTemps.filter((t) => t.isCompliant === false).length;
       const lastReading = bTemps[0]?.readingValue ?? null;
-      const nomStatus = nonCompliant > 0 ? "CRITICAL" : bTemps.length > 0 ? "OK" : "WARNING";
+      const nomStatus =
+        bTemps.length === 0 ? "NOT_LOGGED" : nonCompliant > 0 ? "CRITICAL" : "OK";
 
       // Ventas:
       const branchSales = bCuts.reduce((acc, c) => acc + (c.totalSales || 0), 0);
@@ -333,7 +373,7 @@ export const LiveCommandService = {
         staff: {
           activeCount: activeStaff,
           expectedCount: expectedStaff,
-          lateCount: 0,
+          lateCount,
           status: staffStatus,
         },
         nom251: {
@@ -349,10 +389,13 @@ export const LiveCommandService = {
       });
     }
 
-    // Alertas críticas de rush
+    // Alertas críticas de rush: el conteo es el total real; el `slice` es
+    // solo el recorte de display.
     const branchMap = new Map(branchRows.map((b) => [b.id, b.name]));
-    const rushAlerts = incidentRows
-      .filter((i) => i.severity === "CRITICAL" || i.severity === "FATAL")
+    const criticalAlerts = incidentRows.filter(
+      (i) => i.severity === "CRITICAL" || i.severity === "FATAL",
+    );
+    const rushAlerts = criticalAlerts
       .slice(0, 4)
       .map((i) => ({
         id: i.id,
@@ -366,7 +409,15 @@ export const LiveCommandService = {
 
     const totalBranches = branchRows.length;
     const openRatePercent = totalBranches > 0 ? Math.round((openCount / totalBranches) * 100) : 100;
-    const staffAttendanceRate = totalBranches > 0 ? Math.min(100, Math.round((totalActiveStaff / (totalBranches * 4)) * 100)) : 100;
+
+    // Un solo cálculo de asistencia: el mismo denominador que usa cada
+    // sucursal (dotación planificada publicada). Si no hay dotación, no hay
+    // tasa: `null` ⇒ la UI dice "Sin dotación configurada", nunca "0%".
+    const totalExpectedStaff = branchesLive.reduce((acc, b) => acc + b.staff.expectedCount, 0);
+    const staffAttendanceRate =
+      totalExpectedStaff > 0
+        ? Math.min(100, Math.round((totalActiveStaff / totalExpectedStaff) * 100))
+        : null;
 
     return {
       businessDate: todayIsoDate,
@@ -376,7 +427,7 @@ export const LiveCommandService = {
       staffActiveNow: totalActiveStaff,
       staffAttendanceRate,
       salesTodayCents: totalSalesCents,
-      criticalAlertsCount: rushAlerts.length,
+      criticalAlertsCount: criticalAlerts.length,
       branches: branchesLive,
       rushAlerts,
     };

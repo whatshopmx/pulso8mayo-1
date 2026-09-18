@@ -8,7 +8,8 @@ async function main() {
   console.log("businessDate        :", s.businessDate);
   console.log("totalBranches       :", s.totalBranches);
   console.log("openRatePercent     :", s.openRatePercent + "%");
-  console.log("staffAttendanceRate :", s.staffAttendanceRate + "%");
+  console.log("staffAttendanceRate :",
+    s.staffAttendanceRate === null ? "null (sin dotación planificada)" : s.staffAttendanceRate + "%");
   console.log("salesTodayCents     :", s.salesTodayCents);
   console.log("");
   console.log(">>> criticalAlertsCount :", s.criticalAlertsCount,
@@ -18,7 +19,7 @@ async function main() {
   console.log("");
   console.log(">>> semáforos por sucursal:");
   for (const b of s.branches) {
-    console.log(`      ${b.branchName.padEnd(9)} apertura=${b.opening.status.padEnd(8)} personal=${b.staff.status.padEnd(8)} (${b.staff.activeCount}/${b.staff.expectedCount}) nom251=${b.nom251.status.padEnd(8)} venta=${b.sales.totalCents}`);
+    console.log(`      ${b.branchName.padEnd(9)} apertura=${b.opening.status.padEnd(8)} personal=${b.staff.status.padEnd(8)} (${b.staff.activeCount}/${b.staff.expectedCount}, ${b.staff.lateCount} tarde) nom251=${b.nom251.status.padEnd(10)} venta=${b.sales.totalCents}`);
   }
 }
 main().catch(e => { console.error("ERR:", e.message, e.stack?.split("\n").slice(0,3).join("\n")); process.exit(1); });

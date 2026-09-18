@@ -6,11 +6,12 @@ import {
   shiftApprovals,
   shiftChangeRequests,
   inventoryAlerts,
+  inventoryItems,
   equipmentAlerts,
   branches,
   dailySalesCuts,
 } from "@/lib/db/schema";
-import { and, desc, eq, ne, inArray, or, sql } from "drizzle-orm";
+import { and, eq, ne, inArray, or, sql } from "drizzle-orm";
 
 /**
  * GroupExceptionsService — capa de lectura que unifica los sistemas de
@@ -405,6 +406,7 @@ export const GroupExceptionsService = {
           severity: inventoryAlerts.severity,
           status: inventoryAlerts.status,
           type: inventoryAlerts.type,
+          itemName: inventoryItems.name,
           detectedAt: inventoryAlerts.detectedAt,
           resolvedAt: inventoryAlerts.resolvedAt,
           resolvedBy: inventoryAlerts.resolvedBy,
@@ -412,6 +414,7 @@ export const GroupExceptionsService = {
         })
         .from(inventoryAlerts)
         .innerJoin(branches, eq(inventoryAlerts.branchId, branches.id))
+        .innerJoin(inventoryItems, eq(inventoryAlerts.itemId, inventoryItems.id))
         .where(
           and(
             eq(inventoryAlerts.companyId, companyId),
@@ -623,7 +626,9 @@ export const GroupExceptionsService = {
         branchId: r.branchId,
         branchName: r.branchName,
         severity: normalizeInventorySeverity(r.severity),
-        title: INVENTORY_ALERT_TITLES[r.type] ?? r.type,
+        // El título interpola el sujeto real: un mapa estático por tipo hacía
+        // que tres sucursales con stock bajo emitieran el mismo string.
+        title: `${INVENTORY_ALERT_TITLES[r.type] ?? r.type}${r.itemName ? `: ${r.itemName}` : ""}`,
         description: r.notes,
         status: r.status,
         assignedTo: r.resolvedBy,

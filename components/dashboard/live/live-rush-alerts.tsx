@@ -8,7 +8,6 @@ import {
   Users, 
   PackageX, 
   ArrowUpRight,
-  ShieldAlert,
   Clock
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +46,7 @@ export function LiveRushAlerts({ rushAlerts }: LiveRushAlertsProps) {
   }
 
   return (
-    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 sm:p-5 transition-all">
+    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 sm:p-5 transition-colors">
       <div className="flex items-center justify-between gap-2 border-b border-destructive/20 pb-3 mb-3">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-md bg-destructive/15 text-destructive">
