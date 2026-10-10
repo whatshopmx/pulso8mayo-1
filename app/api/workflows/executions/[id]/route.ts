@@ -7,6 +7,11 @@ import {
 } from "@/lib/services/workflow-execution-service";
 import { auth } from "@/lib/auth";
 import { emitWorkflowEvent } from "@/lib/websocket/workflow-handlers";
+import { isApiError } from "@/lib/api/error";
+import {
+    assertExecutionInScope,
+    requireExecutionAccess,
+} from "@/lib/workflows/execution-access";
 
 import { headers } from "next/headers";
 
@@ -28,12 +33,7 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth.api.getSession({
-            headers: await headers()
-        });
-        if (!session?.user?.id) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
+        const actor = await requireExecutionAccess('read');
 
         const executionId = (await params).id;
 
@@ -43,8 +43,22 @@ export async function GET(
             return new NextResponse("Execution not found", { status: 404 });
         }
 
+        // La carga por id no acota nada: la decisión va después, sobre la
+        // instancia real. `getExecution` devuelve la fila tal cual (incluye
+        // `branchId` y `assigneeId`), así que no hace falta volver a consultarla.
+        // "No existe" y "es de otra empresa" responden 404 en ambos casos, para
+        // que un id no sirva de sonda sobre el catálogo ajeno.
+        await assertExecutionInScope(actor, {
+            id: execution.id,
+            branchId: execution.branchId,
+            assigneeId: execution.assigneeId,
+        });
+
         return NextResponse.json(execution);
     } catch (error) {
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
         console.error("Error fetching execution:", error);
         return new NextResponse("Internal Server Error", { status: 500 });
     }

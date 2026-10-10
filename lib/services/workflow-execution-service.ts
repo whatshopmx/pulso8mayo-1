@@ -27,8 +27,22 @@ export class WorkflowExecutionService {
 
     static async createExecution(templateId: string, branchId: string, assigneeId: string | null = null, sessionId: string | null = null, categoryValue?: string, companyId?: string, dynamicCtx?: { purchaseId?: string }) {
         // 1. Get Template
+        //
+        // Cuando la ruta pasa `companyId`, la plantilla se busca **dentro** de
+        // esa empresa. Antes el filtro era sólo por id: quien llegara con un id
+        // de plantilla ajena arrancaba una ejecución de otro tenant, y la ruta
+        // que debería impedirlo tenía un `// TODO: Check permissions`.
+        //
+        // El parámetro es opcional a propósito: los caminos internos (jobs de
+        // Inngest) no tienen sesión y filtran por su propia cuenta. Quien tenga
+        // empresa, la pasa.
         const template = await db.query.workflowTemplates.findFirst({
-            where: eq(workflowTemplates.id, templateId)
+            where: companyId
+                ? and(
+                    eq(workflowTemplates.id, templateId),
+                    eq(workflowTemplates.companyId, companyId),
+                )
+                : eq(workflowTemplates.id, templateId),
         });
 
         if (!template) {
