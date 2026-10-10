@@ -7,6 +7,12 @@ import { hasDynamicSteps, resolveDynamicSteps } from "@/lib/workflows/dynamic-st
 import { templateLibrary } from "@/templates";
 import { inngest } from "@/lib/inngest/client";
 import { workflowInstanceCompleted } from "@/lib/inngest/events";
+import { isApiError } from "@/lib/api/error";
+import type { Role } from "@/lib/permissions";
+import {
+    assertExecutionInScope,
+    type ExecutionActor,
+} from "@/lib/workflows/execution-access";
 
 export type WorkflowReviewErrorCode =
     | "NOT_FOUND"
@@ -22,6 +28,27 @@ export class WorkflowReviewError extends Error {
         this.name = "WorkflowReviewError";
     }
 }
+
+/**
+ * Contexto de una escritura de paso. Explícito porque las dos entradas reales
+ * autorizan de forma distinta y la diferencia es fácil de perder (H02).
+ *
+ * - `session`: alguien con sesión. El servicio verifica el alcance de la
+ *   instancia antes de tocar el paso —empresa, sucursal y relación con el
+ *   ejecutor—, así que ningún punto de entrada puede editar por id solamente.
+ * - `link`: un enlace inteligente o público ya validado por
+ *   `SmartLinkService`. No se repite la verificación porque el contexto es el
+ *   token, no la sesión, pero tampoco es un bypass silencioso: quien lo usa tiene
+ *   que decirlo en la llamada.
+ *
+ * `performedBy` va en el contexto y no como `userId` suelto porque en un enlace
+ * no hay usuario: se guarda un identificador sintético (`smart_link:xxxxxxxx`) y
+ * eso es lo que queda en `completedBy`. Nombrarlo `userId` hacía creer que había
+ * una persona detrás.
+ */
+export type StepUpdateContext =
+    | { kind: "session"; actor: ExecutionActor; performedBy: string }
+    | { kind: "link"; performedBy: string };
 
 export class WorkflowExecutionService {
 
@@ -233,7 +260,7 @@ export class WorkflowExecutionService {
     static async reviewExecution(
         instanceId: string,
         data: { reviewStatus: 'APPROVED' | 'REJECTED'; reviewComment?: string },
-        reviewer: { userId: string; companyId: string }
+        reviewer: { userId: string; role: Role; companyId: string; branchId: string | null }
     ) {
         const instance = await db.query.workflowInstances.findFirst({
             where: eq(workflowInstances.id, instanceId),
@@ -243,14 +270,25 @@ export class WorkflowExecutionService {
             throw new WorkflowReviewError("NOT_FOUND", "No encontramos esta ejecución.");
         }
 
-        // La ejecución pertenece a la empresa del revisor sólo a través de su
-        // plantilla; workflow_instances no guarda company_id.
-        const template = await db.query.workflowTemplates.findFirst({
-            where: eq(workflowTemplates.id, instance.workflowTemplateId),
-        });
-
-        if (!template || template.companyId !== reviewer.companyId) {
-            throw new WorkflowReviewError("FORBIDDEN", "No tienes acceso a esta ejecución.");
+        // Alcance completo antes de tocar nada: empresa (vía la sucursal, porque
+        // la instancia no la guarda), sucursal del revisor y relación con la
+        // ejecución. Antes sólo se comparaba la empresa de la plantilla, con lo
+        // que un GERENTE de una sucursal podía aprobar el trabajo terminado de
+        // otra de la misma empresa.
+        //
+        // Se traduce el `ApiError` a `WorkflowReviewError` para que la ruta de
+        // revisión tenga un solo vocabulario de errores.
+        try {
+            await assertExecutionInScope(reviewer as ExecutionActor, {
+                id: instance.id,
+                branchId: instance.branchId,
+                assigneeId: instance.assigneeId,
+            });
+        } catch (error) {
+            if (isApiError(error)) {
+                throw new WorkflowReviewError("FORBIDDEN", error.message);
+            }
+            throw error;
         }
 
         if (instance.status !== "COMPLETED") {
@@ -297,9 +335,10 @@ export class WorkflowExecutionService {
         instanceId: string,
         stepId: string,
         data: { value?: any, evidenceUrl?: string, comment?: string, status?: 'COMPLETED' | 'SKIPPED' | 'FAILED' },
-        userId: string
+        ctx: StepUpdateContext
     ) {
         const now = new Date();
+        const userId = ctx.performedBy;
 
         // Check if AI verification is needed
         let aiAnalysis = null;
@@ -309,6 +348,22 @@ export class WorkflowExecutionService {
         const instance = await db.query.workflowInstances.findFirst({
             where: eq(workflowInstances.id, instanceId),
         });
+
+        if (!instance) {
+            throw new WorkflowReviewError("NOT_FOUND", "No encontramos esta ejecución.");
+        }
+
+        // Contexto de sesión: la instancia se comprueba contra empresa, sucursal
+        // y relación con el ejecutor ANTES de leer la plantilla y antes de
+        // escribir. Con contexto de enlace, `validateSmartLink` ya respondió por
+        // esta instancia y `performedBy` no es una persona sino un alias.
+        if (ctx.kind === "session") {
+            await assertExecutionInScope(ctx.actor, {
+                id: instance.id,
+                branchId: instance.branchId,
+                assigneeId: instance.assigneeId,
+            });
+        }
 
         if (instance) {
             const template = await db.query.workflowTemplates.findFirst({

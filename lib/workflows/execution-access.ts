@@ -35,7 +35,7 @@ import { requirePermissionApi } from "@/lib/rbac/abac";
 import type { Role } from "@/lib/permissions";
 
 /** Verbos de autorización sobre `workflows`. */
-export type ExecutionAction = "read" | "create";
+export type ExecutionAction = "read" | "create" | "update";
 
 /** Identidad autorizada, derivada de la sesión y sólo de la sesión. */
 export interface ExecutionActor {
@@ -129,6 +129,39 @@ export async function assertAssigneeAutorizado(
   const alcance = resolveBranchScope(actor.role, actor.branchId, null);
   if (alcance.kind === "NONE") throw rechazo();
   if (alcance.kind === "BRANCH" && asignado.branchId !== alcance.branchId) throw rechazo();
+}
+
+/**
+ * Roles que pueden revisar una ejecución.
+ *
+ * Revisar es un acto de aprobación sobre trabajo ya terminado, no ejecutar un
+ * paso. La matriz `workflows` no distingue las dos cosas —`EMPLEADO` puede
+ * `update`, que es justo lo que necesita para cumplir sus propios pasos—, así
+ * que usar `workflows:update` dejaría al empleado aprobando su propio trabajo.
+ *
+ * Esta lista traduce la regla que el propio esquema ya nombra: la columna de
+ * revisión es "Revisión del supervisor". `SUPERVISOR` entra; `EMPLEADO` y
+ * `READONLY` no. Es la lectura conservadora del producto, no una decisión
+ * inventada, y queda como decisión abierta en el plan (C15) para que quien
+ * define la política de revisión la confirme o la cambie.
+ */
+const ROLES_REVISION: Role[] = ["SUPER_ADMIN", "OWNER", "ADMIN", "GERENTE", "SUPERVISOR"];
+
+/**
+ * Puerta de revisión: permiso de `workflows` **y** rol de supervisory.
+ *
+ * Se compone de las dos mitades porque ninguna basta sola: `workflows:update`
+ * incluye al empleado, y el rol sin permiso no aprueba nada aunque sea
+ * gerencia de otra empresa.
+ */
+export async function requireReviewAccess(): Promise<ExecutionActor> {
+  const actor = await requireExecutionAccess("update");
+
+  if (!ROLES_REVISION.includes(actor.role)) {
+    throw ApiError.forbidden("Tu rol no puede revisar ejecuciones.");
+  }
+
+  return actor;
 }
 
 /** Campos de la instancia que necesita la decisión de alcance. */

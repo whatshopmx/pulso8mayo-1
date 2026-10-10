@@ -5,15 +5,13 @@ import {
     WorkflowReviewError,
     type WorkflowReviewErrorCode,
 } from "@/lib/services/workflow-execution-service";
-import { auth } from "@/lib/auth";
 import { emitWorkflowEvent } from "@/lib/websocket/workflow-handlers";
 import { isApiError } from "@/lib/api/error";
 import {
     assertExecutionInScope,
     requireExecutionAccess,
+    requireReviewAccess,
 } from "@/lib/workflows/execution-access";
-
-import { headers } from "next/headers";
 
 const reviewSchema = z.object({
     reviewStatus: z.enum(["APPROVED", "REJECTED"]),
@@ -70,13 +68,10 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth.api.getSession({
-            headers: await headers()
-        });
-
-        if (!session?.user?.id || !session.user.companyId) {
-            return NextResponse.json({ error: "Inicia sesión para continuar." }, { status: 401 });
-        }
+        // Revisar no es ejecutar. La puerta exige `workflows:update` **y** un rol
+        // de supervisory: con `workflows:update` solo, el EMPLEADO —que puede
+        // cumplir sus propios pasos— podría aprobar su propio trabajo.
+        const actor = await requireReviewAccess();
 
         const parsed = reviewSchema.safeParse(await req.json());
         if (!parsed.success) {
@@ -91,13 +86,13 @@ export async function PATCH(
         const updated = await WorkflowExecutionService.reviewExecution(
             executionId,
             parsed.data,
-            { userId: session.user.id, companyId: session.user.companyId }
+            actor
         );
 
         emitWorkflowEvent("execution_reviewed", {
             executionId,
             reviewStatus: parsed.data.reviewStatus,
-            reviewedBy: session.user.id,
+            reviewedBy: actor.userId,
             timestamp: new Date().toISOString(),
         });
 
@@ -108,6 +103,13 @@ export async function PATCH(
                 { error: error.message },
                 { status: REVIEW_ERROR_STATUS[error.code] }
             );
+        }
+
+        // El rechazo de la puerta (sin permiso, rol sin poder revisar) llega
+        // como ApiError: sin esto salía 500 y el operador veía "error interno"
+        // en vez de "tu rol no puede revisar".
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
         }
 
         console.error("Error reviewing execution:", error);

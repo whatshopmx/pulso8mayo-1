@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { WorkflowExecutionService } from "@/lib/services/workflow-execution-service";
-import { auth } from "@/lib/auth";
+import { WorkflowExecutionService, WorkflowReviewError, type WorkflowReviewErrorCode } from "@/lib/services/workflow-execution-service";
+import { isApiError } from "@/lib/api/error";
+import { requireExecutionAccess } from "@/lib/workflows/execution-access";
 import { emitWorkflowEvent } from "@/lib/websocket/workflow-handlers";
 import { StockCountService, STOCK_COUNT_TEMPLATE_NAME } from "@/lib/services/stock-count-service";
 import { db } from "@/lib/db";
@@ -15,21 +16,23 @@ const updateStepSchema = z.object({
   status: z.enum(['COMPLETED', 'SKIPPED', 'FAILED']).optional(),
 });
 
-import { headers } from "next/headers";
-
-// ...
+const REVIEW_ERROR_STATUS: Record<WorkflowReviewErrorCode, number> = {
+  NOT_FOUND: 404,
+  FORBIDDEN: 403,
+  NOT_REVIEWABLE: 409,
+  ALREADY_REVIEWED: 409,
+  COMMENT_REQUIRED: 400,
+};
 
 export async function PATCH(
     req: Request,
     { params }: { params: Promise<{ id: string; stepId: string }> }
 ) {
     try {
-        const session = await auth.api.getSession({
-            headers: await headers()
-        });
-        if (!session?.user?.id) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
+        // Permiso antes del cuerpo: `workflows:update` incluye al EMPLEADO, que
+        // es quien ejecuta sus pasos, y excluye a READONLY. El alcance de la
+        // instancia lo verifica el servicio, que es donde está el dato.
+        const actor = await requireExecutionAccess('update');
 
         const body = await req.json();
         const data = updateStepSchema.parse(body);
@@ -40,7 +43,7 @@ export async function PATCH(
       id, // Instance ID
       stepId,
       data,
-      session.user.id
+      { kind: 'session', actor, performedBy: actor.userId }
     );
 
     // Emit real-time event for step update
@@ -51,7 +54,7 @@ export async function PATCH(
       value: data.value,
       evidenceUrl: data.evidenceUrl,
       comment: data.comment,
-      performedBy: session.user.id,
+      performedBy: actor.userId,
       timestamp: new Date().toISOString(),
     });
 
@@ -62,7 +65,7 @@ export async function PATCH(
         emitWorkflowEvent("execution_completed", {
           executionId: id,
           completedAt: new Date().toISOString(),
-          performedBy: session.user.id,
+          performedBy: actor.userId,
         });
 
         // Check if this is a stock count workflow confirmation
@@ -73,7 +76,7 @@ export async function PATCH(
             .limit(1);
 
           if (template.length > 0 && template[0].name === STOCK_COUNT_TEMPLATE_NAME) {
-            await StockCountService.completeStockCount(id, session.user.id);
+            await StockCountService.completeStockCount(id, actor.userId);
           }
         }
       }
@@ -81,6 +84,17 @@ export async function PATCH(
 
     return NextResponse.json(updatedStep);
     } catch (error) {
+        // Un rechazo de alcance trae su status y su mensaje; convertirlo en 500
+        // lo volvería indistinguible de una caída.
+        if (error instanceof WorkflowReviewError) {
+            return NextResponse.json(
+                { error: error.message },
+                { status: REVIEW_ERROR_STATUS[error.code] }
+            );
+        }
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
         console.error("Error updating step:", error);
         return new NextResponse("Internal Server Error", { status: 500 });
     }

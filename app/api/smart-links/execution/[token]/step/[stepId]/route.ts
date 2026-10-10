@@ -36,7 +36,9 @@ export async function PATCH(
             context.link.instanceId,
             stepId,
             data,
-            userId
+            // El token ya se validó arriba: el contexto es el enlace, no la
+            // sesión, y `userId` es un alias sintético, no una persona.
+            { kind: "link", performedBy: userId }
         );
 
         // 3. Mark link as used IF the workflow is fully completed?

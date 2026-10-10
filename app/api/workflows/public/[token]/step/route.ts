@@ -41,7 +41,9 @@ export async function POST(
       linkData.instance.id,
       stepId,
       { value, evidenceUrl, comment, status },
-      performedBy
+      // `validateSmartLink` ya respondió por esta instancia: el contexto es el
+      // token, no la sesión, y `performedBy` no es una persona.
+      { kind: "link", performedBy }
     );
 
     // 3. Emit real-time event for step update
