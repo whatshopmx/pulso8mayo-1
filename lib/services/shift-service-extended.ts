@@ -8,6 +8,7 @@
 import { db } from "@/lib/db";
 import { plannedShifts } from "@/lib/db/schema";
 import { eq, and, between, sql, desc } from "drizzle-orm";
+import { resolveShiftScope, type ShiftActor } from "@/lib/labor/shift-access";
 import {
   Shift,
   ShiftFilters,
@@ -21,7 +22,7 @@ import { parseISO, startOfWeek, addWeeks, differenceInDays, format } from "date-
 
 // Extended interface for shift service with planned shifts operations
 export interface PlannedShiftService {
-  getPlannedShifts(filters: ShiftFilters): Promise<Shift[]>;
+  getPlannedShifts(actor: ShiftActor, filters: ShiftFilters): Promise<Shift[]>;
   createPlannedShift(data: CreateShiftInput): Promise<Shift>;
   updatePlannedShift(id: string, data: Partial<CreateShiftInput>): Promise<Shift>;
   deletePlannedShift(id: string): Promise<void>;
@@ -43,12 +44,32 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
 
   /**
    * Get planned shifts with filters
+   *
+   * El actor es obligatorio y va primero a propósito: sin él esta consulta es
+   * una puerta abierta a los turnos de todas las empresas, así que no se puede
+   * "olvidar" (H01). Lo construye `requireAuth()`, nunca el cuerpo de la
+   * petición.
+   *
+   * El alcance se resuelve con `lib/labor/shift-access.ts`: `BRANCH` añade el
+   * filtro de sucursal y `NONE` devuelve cero filas sin tocar la base. Un
+   * `GERENTE`/`SUPERVISOR` acotado sin sucursal asignada no debe caer en el
+   * `undefined` de "sin condiciones", que era como se leía la empresa entera.
    */
-  async getPlannedShifts(filters: ShiftFilters = {}): Promise<Shift[]> {
-    const conditions: (ReturnType<typeof eq> | ReturnType<typeof and> | ReturnType<typeof sql>)[] = [];
+  async getPlannedShifts(actor: ShiftActor, filters: ShiftFilters = {}): Promise<Shift[]> {
+    const alcance = resolveShiftScope(actor, filters.branchId);
 
-    if (filters.branchId) {
-      conditions.push(eq(plannedShifts.branchId, filters.branchId));
+    // `NONE` significa "no lees nada", no "filtra por nada". Un return temprano
+    // deja además la consulta fuera del log de consultas lentas.
+    if (alcance.kind === "NONE") return [];
+
+    const conditions: (ReturnType<typeof eq> | ReturnType<typeof and> | ReturnType<typeof sql>)[] = [
+      // Siempre primero: es la condición que ningún filtro del cliente puede
+      // quitar ni ampliar.
+      eq(plannedShifts.companyId, actor.companyId),
+    ];
+
+    if (alcance.kind === "BRANCH") {
+      conditions.push(eq(plannedShifts.branchId, alcance.branchId));
     }
 
     if (filters.employeeId) {
@@ -79,10 +100,8 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
       conditions.push(sql`${plannedShifts.status} IN (${sql.raw(statusPlaceholders)})`);
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
     const shifts = await db.query.plannedShifts.findMany({
-      where: whereClause,
+      where: and(...conditions),
       orderBy: [
         desc(plannedShifts.shiftDate),
         desc(plannedShifts.startTime),
