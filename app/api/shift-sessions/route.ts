@@ -1,14 +1,19 @@
 import { NextRequest } from "next/server";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
-import { requireTenant } from "@/lib/tenant-context";
 import { db } from "@/lib/db";
-import { shiftSessions, users, branches, plannedShifts, breakLogs, employeeProfiles } from "@/lib/db/schema";
+import { shiftSessions, users, plannedShifts, breakLogs, employeeProfiles } from "@/lib/db/schema";
 import { eq, and, gte, lte, inArray, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { parseISO, differenceInMinutes, format, addDays } from "date-fns";
 import { calculateOvertime, validateBreakCompliance, DEFAULT_COMPLIANCE_RULES } from "@/lib/labor-validation";
 import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
+import {
+    alcanceDeListado,
+    assertSesionOperable,
+    assertSucursalDestino,
+    requireAttendanceAccess,
+} from "@/lib/labor/attendance-scope";
 
 const createShiftSessionSchema = z.object({
     plannedShiftId: z.string().uuid().optional(),
@@ -40,12 +45,8 @@ const logBreakSchema = z.object({
 
 export async function GET(req: NextRequest) {
     try {
-        const tenant = await requireTenant();
-        
-        if (!tenant.id) {
-            return ApiHandler.success([]);
-        }
-        
+        const actor = await requireAttendanceAccess();
+
         const searchParams = req.nextUrl.searchParams;
         const branchId = searchParams.get("branchId");
         const userId = searchParams.get("userId");
@@ -53,13 +54,16 @@ export async function GET(req: NextRequest) {
         const end = searchParams.get("end");
         const status = searchParams.get("status");
 
-        const conditions = [];
-        
-        if (branchId) {
-            conditions.push(eq(shiftSessions.branchId, branchId));
-        }
-        
+        // La empresa va **siempre** en la consulta, filtres o no. Antes
+        // `requireTenant()` devolvía el tenant y esta función lo ignoraba: sin
+        // filtros devolvía las sesiones de todas las empresas, y con un
+        // `userId` ajeno bastaba una id adivinada (H02).
+        const conditions = [await alcanceDeListado(actor, branchId)];
+
         if (userId) {
+            // No se rechaza el id ajeno: simplemente no coincide con ninguna fila
+            // ya acotada por empresa. Un 403 confirmaría que ese empleado tiene
+            // sesión en alguna parte.
             conditions.push(eq(shiftSessions.userId, userId));
         }
         
@@ -76,7 +80,7 @@ export async function GET(req: NextRequest) {
         }
 
         const sessions = await db.query.shiftSessions.findMany({
-            where: conditions.length > 0 ? and(...conditions) : undefined,
+            where: and(...conditions),
             orderBy: [desc(shiftSessions.startedAt)],
             limit: 500,
         });
@@ -122,11 +126,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
-        const tenant = await requireTenant();
-        
-        if (!tenant.id) {
-            return ApiHandler.error(ApiError.forbidden("Company not assigned to user"));
-        }
+        const actor = await requireAttendanceAccess();
 
         const body = await req.json();
         
@@ -142,24 +142,24 @@ export async function POST(req: NextRequest) {
         const validatedSessions = [];
         
         for (const sessionData of data) {
+            // El empleado tiene que ser de esta empresa. `user_id` es texto
+            // contra `users.id` y `users.company_id` es nullable: sin este
+            // filtro se podía abrir la sesión de un empleado de otra empresa —
+            //que existe, sólo que no es tuya— y su presencia contaría en la
+            // asistencia de esta sucursal.
             const user = await db.query.users.findFirst({
-                where: eq(users.id, sessionData.userId),
+                where: and(
+                    eq(users.id, sessionData.userId),
+                    eq(users.companyId, actor.companyId)
+                ),
             });
 
             if (!user) {
                 return ApiHandler.error(ApiError.notFound(`Usuario no encontrado: ${sessionData.userId}`));
             }
 
-            const branch = await db.query.branches.findFirst({
-                where: and(
-                    eq(branches.id, sessionData.branchId),
-                    eq(branches.companyId, tenant.id!)
-                ),
-            });
-
-            if (!branch) {
-                return ApiHandler.error(ApiError.forbidden("Sucursal no encontrada"));
-            }
+            // Alcance del actor y pertenencia de la sucursal a la empresa.
+            await assertSucursalDestino(actor, sessionData.branchId);
 
             validatedSessions.push({
                 ...sessionData,
@@ -185,11 +185,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
     try {
-        const tenant = await requireTenant();
-        
-        if (!tenant.id) {
-            return ApiHandler.error(ApiError.forbidden("Company not assigned to user"));
-        }
+        const actor = await requireAttendanceAccess();
 
         const body = await req.json();
         const data = updateShiftSessionSchema.parse(body);
@@ -201,6 +197,14 @@ export async function PUT(req: NextRequest) {
         if (!existing) {
             return ApiHandler.error(ApiError.notFound("Sesión no encontrada"));
         }
+
+        // Consultar por id no acota: la fila cargada puede ser de otra sucursal
+        // o de otra empresa. La decisión va sobre la sesión real, antes de
+        // calcular horas extra, cumplimiento o notificaciones (H02).
+        await assertSesionOperable(actor, {
+            id: existing.id,
+            branchId: existing.branchId,
+        });
 
         const updateData: any = { ...data };
         
@@ -239,8 +243,15 @@ export async function PUT(req: NextRequest) {
 
         const [updated] = await db.update(shiftSessions)
             .set(updateData)
-            .where(eq(shiftSessions.id, data.id))
+            .where(and(
+                eq(shiftSessions.id, data.id),
+                eq(shiftSessions.branchId, existing.branchId)
+            ))
             .returning();
+
+        if (!updated) {
+            return ApiHandler.error(ApiError.notFound("Sesión no encontrada"));
+        }
 
         // Check if status changed to NO_SHOW to dispatch absence notifications
         if (updated.status === "NO_SHOW" && existing.status !== "NO_SHOW") {
