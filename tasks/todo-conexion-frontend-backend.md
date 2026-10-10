@@ -18,7 +18,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 - [x] [C02 — Autorizar las escrituras de turnos](plan-conexion-frontend-backend.md#c02) — depende de C01.
 - [x] [C03 — Unificar autorización de plantillas](plan-conexion-frontend-backend.md#c03) — depende de C00.
 - [x] [C04 — Acotar creación y lectura de ejecuciones](plan-conexion-frontend-backend.md#c04) — depende de C03.
-- [ ] [C05 — Autorizar actualización y revisión de pasos](plan-conexion-frontend-backend.md#c05) — depende de C04.
+- [x] [C05 — Autorizar actualización y revisión de pasos](plan-conexion-frontend-backend.md#c05) — depende de C04.
 - [ ] [C06 — Acotar consultas de sesiones y descansos](plan-conexion-frontend-backend.md#c06) — depende de C00.
 - [ ] [C07 — Verificar pertenencia al cambiar costeo](plan-conexion-frontend-backend.md#c07) — depende de C00.
 
@@ -96,6 +96,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 | C02 | Completada | 2026-10-10 | `4b49c8c` | `tests/unit/shifts/write-scope.test.ts` (16). Crear/editar/borrar/publicar/duplicar rechazan destino ajeno antes de escribir | El planificador (H03) manda empleados y sucursales ficticios: ahora la escritura se rechaza en vez de colarse. Lo resuelve C08 |
 | C03 | Completada | 2026-10-10 | `f0c5499` | `tests/unit/workflows/template-access.test.ts` (13) sobre las funciones reales de la ruta corta y la política compartida | Falta V2 del borrado desde el administrador y el caso de plantillas globales; C36 inventaría consumidores antes de retirar la ruta corta |
 | C04 | Completada | 2026-10-10 | `361a3b3` | `tests/unit/workflows/execution-access.test.ts` (27): puerta, alcance y status HTTP de las dos rutas | Falta V2 de inicio y consulta válidos en navegador. C05 sigue abierta: la actualización de pasos llega al servicio sin alcance |
+| C05 | Completada | 2026-10-10 | `ceea6c7` | `tests/unit/workflows/step-access.test.ts` (19): paso por sesión vs por token, y revisión por rol y sucursal | **Decisión pendiente:** qué roles revisan. Se implementó la lectura conservadora de "revisión del supervisor" (SUPERVISOR+); falta que el negocio la confirme en C15. Falta V2 del recorrido ejecutar/revisar |
 | C03 | Pendiente | — | — | No ejecutada | — |
 | C04 | Pendiente | — | — | No ejecutada | — |
 | C05 | Pendiente | — | — | No ejecutada | — |
@@ -141,6 +142,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 - [ ] Valores, vigencia y tratamiento de periodos cerrados de parámetros financieros/laborales definidos en C14.
 - [ ] Política de horario, urgencias y zona horaria definida en C33.
 - [ ] Consumidores externos y eventos pendientes del executor anterior verificados en C36/C37.
+- [ ] **Quién revisa un workflow.** C05 implementó la lectura conservadora de la columna del esquema ("Revisión del supervisor"): `SUPERVISOR` y gerencia, excluyendo `EMPLEADO` y `READONLY`. La matriz `workflows` no distingue revisar de ejecutar, así que hace falta una decisión explícita del negocio; hasta entonces la regla vive en `requireReviewAccess` (`lib/workflows/execution-access.ts`).
 
 ## Cierre
 
