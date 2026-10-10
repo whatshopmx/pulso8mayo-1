@@ -11,6 +11,35 @@ vi.mock("@/lib/db", () => {
   };
 });
 
+/**
+ * Cadena de consulta que es a la vez encadenable y *promesa*.
+ *
+ * Dos razones por las que el arnés anterior se quedó corto:
+ *
+ * 1. `getLivePulse` termina varias consultas con `.catch(() => [])` para que un
+ *    fallo de una fuente no tumbe el semáforo entero. Un objeto plano no tiene
+ *    `catch`, y la suite moría con `.catch is not a function` en
+ *    `live-command-service.ts:213`. Esta cadena implementa `then`/`catch`, así
+ *    que sirve tanto para el `Promise.allSettled` como para el `.catch()`.
+ * 2. `plannedShifts` se añadió como séptima consulta y el arnés, que fijaba
+ *    datos por número de `select`, seguía devolviendo una cadena distinta para
+ *    cada índice. Aquí el orden se declara una vez, junto a los datos.
+ */
+function cadenaDeSelect(valor: unknown) {
+  const promesa = Promise.resolve(valor);
+  const cadena: Record<string, unknown> = {
+    then: (...args: unknown[]) => promesa.then(...(args as never[])),
+    catch: (...args: unknown[]) => promesa.catch(...(args as never[])),
+    finally: (...args: unknown[]) => promesa.finally(...(args as never[])),
+  };
+
+  for (const metodo of ["from", "where", "orderBy", "limit", "innerJoin", "leftJoin", "groupBy", "having"]) {
+    cadena[metodo] = () => cadena;
+  }
+
+  return cadena;
+}
+
 describe("LiveCommandService (Centro de Comando QSR En Vivo)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -47,68 +76,21 @@ describe("LiveCommandService (Centro de Comando QSR En Vivo)", () => {
       { id: "wf-2", branchId: "b-2", status: "COMPLETED", createdAt: new Date("2026-09-16T11:45:00Z"), completedAt: new Date("2026-09-16T11:55:00Z") },
     ];
 
+    // El orden importa y es el de `getLivePulse`: sucursales, sesiones,
+    // temperaturas, cortes, incidentes, workflows de hoy, dotación publicada.
+    const respuestas = [
+      branchesData,
+      sessionData,
+      tempData,
+      salesData,
+      incidentData,
+      workflowData,
+      [], // plannedShifts publicados: este escenario no los usa
+    ];
+
     let selectCount = 0;
     vi.mocked(db.select).mockImplementation(() => {
-      selectCount++;
-      if (selectCount === 1) {
-        // branches query
-        return {
-          from: () => ({
-            where: vi.fn().mockResolvedValue(branchesData),
-          }),
-        } as any;
-      }
-      if (selectCount === 2) {
-        // sessions query
-        return {
-          from: () => ({
-            where: vi.fn().mockResolvedValue(sessionData),
-          }),
-        } as any;
-      }
-      if (selectCount === 3) {
-        // temps query
-        return {
-          from: () => ({
-            where: () => ({
-              orderBy: vi.fn().mockResolvedValue(tempData),
-            }),
-          }),
-        } as any;
-      }
-      if (selectCount === 4) {
-        // sales cuts query
-        return {
-          from: () => ({
-            where: vi.fn().mockResolvedValue(salesData),
-          }),
-        } as any;
-      }
-      if (selectCount === 5) {
-        // incidents query
-        return {
-          from: () => ({
-            where: () => ({
-              orderBy: () => ({
-                limit: vi.fn().mockResolvedValue(incidentData),
-              }),
-            }),
-          }),
-        } as any;
-      }
-      if (selectCount === 6) {
-        // workflows query
-        return {
-          from: () => ({
-            where: vi.fn().mockResolvedValue(workflowData),
-          }),
-        } as any;
-      }
-      return {
-        from: () => ({
-          where: vi.fn().mockResolvedValue([]),
-        }),
-      } as any;
+      return cadenaDeSelect(respuestas[selectCount++] ?? []);
     });
 
     const pulse = await LiveCommandService.getLivePulse("company-1");
