@@ -150,7 +150,9 @@ describe("GroupExceptionsService (QSR Multi-Unit Risk Triage)", () => {
     let callCount = 0;
     vi.mocked(db.select).mockImplementation(() => {
       const currentIdx = callCount++;
-      return cadenaDeSelect(responses[currentIdx] || []);
+      // `as never`: la cadena simulada no es un `PgSelectBuilder`; sin el cast
+      // TypeScript señala el arnés, que es justamente lo que se está simulando.
+      return cadenaDeSelect(responses[currentIdx] || []) as never;
     });
 
     const exceptions = await GroupExceptionsService.listOpen("company-1");
@@ -200,7 +202,7 @@ describe("GroupExceptionsService (QSR Multi-Unit Risk Triage)", () => {
     vi.mocked(db.select).mockImplementation(() => {
       const currentIdx = callCount++;
       const currentResponse = currentIdx === 6 ? inventoryOnly : [];
-      return cadenaDeSelect(currentResponse);
+      return cadenaDeSelect(currentResponse) as never;
     });
 
     const abastoExceptions = await GroupExceptionsService.listOpen("company-1", {

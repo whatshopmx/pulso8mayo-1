@@ -15,21 +15,23 @@ una regresión de la tarea que lo volvió a tocar.
 | --- | --- | --- | --- |
 | Lint | `pnpm run lint` | 2422 problemas: **0 errores**, 2422 warnings | Verde con deuda de warnings |
 | Build | `pnpm run build` | Compila y emite el árbol de rutas completo | Verde |
-| Unitarias | `pnpm run test:unit` | 54 archivos: 51 pasan, 3 fallan. 667 pruebas: 662 pasan, 1 skip, 1 todo | **Rojo preexistente** |
+| Unitarias | `pnpm run test:unit` | Línea base: 54 archivos, 3 fallan. Actual: **57 archivos, 719 pruebas en verde** | **Verde** |
 
-### Fallos preexistentes (no tocar salvo tarea propia)
+### Fallos preexistentes — resueltos el 10 de octubre de 2026
 
-Ninguno tiene relación con turnos, workflows, configuración ni notificaciones:
+Los tres eran arneses desalineados con el código, no defectos de dominio. Se
+arreglaron **sin tocar los servicios que el stack trace señalaba**:
 
-| Archivo | Fallo | Dónde |
-| --- | --- | --- |
-| `lib/services/__tests__/tmp-probe-service-order-routes.test.ts` | No carga (0 tests) | Import del módulo bajo prueba |
-| `lib/services/__tests__/group-exceptions-service.test.ts` | 2 pruebas: `TypeError` en la cadena `db…where()` simulada | `lib/services/group-exceptions-service.ts:417` |
-| `lib/services/__tests__/live-command-service.test.ts` | 1 prueba: `.catch is not a function` sobre un thenable simulado | `lib/services/live-command-service.ts:213` |
+| Archivo | Síntoma | Causa real | Resolución |
+| --- | --- | --- | --- |
+| `lib/services/__tests__/group-exceptions-service.test.ts` | `innerJoin(...).innerJoin is not a function` (señalaba `group-exceptions-service.ts:417`) | El arnés devolvía `innerJoin() → { where }`: un solo nivel. El servicio encadena dos joins, correctamente | Cadena simulada que encadena N joins y resuelve sólo en `where` (`4240d44`) |
+| `lib/services/__tests__/live-command-service.test.ts` | `.catch is not a function` (señalaba `live-command-service.ts:213`) | El arnés devolvía objetos planos; el servicio termina consultas con `.catch(() => [])`. Además fijaba datos por índice y la séptima consulta (`plannedShifts`) no estaba contemplada | Cadena encadenable **y** promise-like, con los datos declarados en el orden de `getLivePulse` (`28aa333`) |
+| `lib/services/__tests__/tmp-probe-service-order-routes.test.ts` | `No test found in suite` | Sonda temporal sin un solo `it()`: sólo `beforeEach`/`afterEach` insertando en la base real. Nunca lo tuvo desde que entró en `ae20558`; ese mismo commit borró sus hermanos (`tmp-probe-pw.config.ts`, `scripts/tmp-check.cjs`) y la olvidó | Retirada |
 
-Los tres son arneses de prueba desalineados con el código, no defectos de
-dominio. Se anotan aquí para que una tarea posterior no los lea como regressions
-suyas ni los "arregle" de paso.
+**Lección que queda registrada:** los tres fallos apuntaban a `lib/services/…` y
+no al arnés, porque el `TypeError` se produce en el archivo que *consume* el
+simulacro. Un stack trace que señala el servicio no basta para culparlo, y por
+eso el arreglo no toca una línea del dominio.
 
 **Nota de runner:** no hubo bloqueos del lanzador ni de la base de datos en esta
 ejecución. La auditoría original sí los tuvo; esta línea base sí corrió, y por eso

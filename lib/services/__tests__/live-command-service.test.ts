@@ -90,7 +90,9 @@ describe("LiveCommandService (Centro de Comando QSR En Vivo)", () => {
 
     let selectCount = 0;
     vi.mocked(db.select).mockImplementation(() => {
-      return cadenaDeSelect(respuestas[selectCount++] ?? []);
+      // `as never`: la cadena simulada no es un `PgSelectBuilder`; sin el cast
+      // TypeScript señala el arnés, que es justamente lo que se está simulando.
+      return cadenaDeSelect(respuestas[selectCount++] ?? []) as never;
     });
 
     const pulse = await LiveCommandService.getLivePulse("company-1");
