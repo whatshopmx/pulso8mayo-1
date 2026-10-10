@@ -5,6 +5,7 @@
 
 import { ShiftTemplate, Shift, BulkShiftOperation, ApplyTemplateResult, TemplatePreview } from "@/lib/types/shifts";
 import { plannedShiftService } from "./shift-service-extended";
+import type { ShiftActor } from "@/lib/labor/shift-access";
 import { addDays, format, parseISO, startOfWeek, getDay, eachDayOfInterval, isSameDay } from "date-fns";
 
 // Predefined templates
@@ -61,8 +62,18 @@ export const SHIFT_TYPE_SCHEDULES = {
 export class ShiftTemplateService {
   /**
    * Apply a bulk shift operation to create multiple shifts
+   *
+   * El actor se propaga a `createPlannedShift`, que es donde se decide la
+   * empresa y el alcance. Este recorrido todavía no tiene contrato de sucursal
+   * ni de rol en `BulkShiftOperation` —los mandaba vacíos y los escribía— así
+   * que cada turno sale rechazado por la puerta de destino hasta que C11/C12
+   * definan esos dos valores. Rechazar es el comportamiento correcto para una
+   * operación sin destino; lo que no es correcto es escribir filas vacías.
    */
-  async applyBulkOperation(operation: BulkShiftOperation): Promise<ApplyTemplateResult> {
+  async applyBulkOperation(
+    actor: ShiftActor,
+    operation: BulkShiftOperation
+  ): Promise<ApplyTemplateResult> {
     const created: Shift[] = [];
     const failed: { date: string; error: string }[] = [];
 
@@ -79,8 +90,8 @@ export class ShiftTemplateService {
     for (const date of dates) {
       for (const employeeId of operation.employeeIds) {
         try {
-          const shift = await plannedShiftService.createPlannedShift({
-            companyId: (operation as any).companyId || "",
+          const shift = await plannedShiftService.createPlannedShift(actor, {
+            companyId: actor.companyId,
             userId: employeeId,
             branchId: "", // Will be determined by context
             role: "", // Will be determined by context
@@ -167,12 +178,13 @@ export class ShiftTemplateService {
    * Create a shift from a template
    */
   async createShiftFromTemplate(
+    actor: ShiftActor,
     template: ShiftTemplate,
     date: Date,
     employeeId: string
   ): Promise<Shift> {
-    return plannedShiftService.createPlannedShift({
-      companyId: (template as any).companyId || "",
+    return plannedShiftService.createPlannedShift(actor, {
+      companyId: actor.companyId,
       userId: employeeId,
       branchId: template.branchId,
       role: template.role,

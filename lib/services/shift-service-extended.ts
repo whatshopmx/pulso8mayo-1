@@ -6,9 +6,16 @@
  */
 
 import { db } from "@/lib/db";
-import { plannedShifts } from "@/lib/db/schema";
+import { plannedShifts, users } from "@/lib/db/schema";
 import { eq, and, between, sql, desc } from "drizzle-orm";
-import { resolveShiftScope, type ShiftActor } from "@/lib/labor/shift-access";
+import { assertBranchOfCompany } from "@/lib/branch-scope";
+import { ApiError } from "@/lib/api/error";
+import {
+  assertCanAccessShifts,
+  assertShiftScopeCoversBranch,
+  resolveShiftScope,
+  type ShiftActor,
+} from "@/lib/labor/shift-access";
 import {
   Shift,
   ShiftFilters,
@@ -23,12 +30,12 @@ import { parseISO, startOfWeek, addWeeks, differenceInDays, format } from "date-
 // Extended interface for shift service with planned shifts operations
 export interface PlannedShiftService {
   getPlannedShifts(actor: ShiftActor, filters: ShiftFilters): Promise<Shift[]>;
-  createPlannedShift(data: CreateShiftInput): Promise<Shift>;
-  updatePlannedShift(id: string, data: Partial<CreateShiftInput>): Promise<Shift>;
-  deletePlannedShift(id: string): Promise<void>;
-  bulkCreateShifts(inputs: CreateShiftInput[]): Promise<BulkCreateResult>;
-  publishShifts(shiftIds: string[]): Promise<void>;
-  duplicateShifts(shiftIds: string[], options: DuplicateOptions): Promise<Shift[]>;
+  createPlannedShift(actor: ShiftActor, data: CreateShiftInput): Promise<Shift>;
+  updatePlannedShift(actor: ShiftActor, id: string, data: Partial<CreateShiftInput>): Promise<Shift>;
+  deletePlannedShift(actor: ShiftActor, id: string): Promise<void>;
+  bulkCreateShifts(actor: ShiftActor, inputs: CreateShiftInput[]): Promise<BulkCreateResult>;
+  publishShifts(actor: ShiftActor, shiftIds: string[]): Promise<void>;
+  duplicateShifts(actor: ShiftActor, shiftIds: string[], options: DuplicateOptions): Promise<Shift[]>;
   validateShift(shift: Shift, existingShifts: Shift[]): Promise<{ isValid: boolean; violations: LFTViolation[] }>;
 }
 
@@ -134,12 +141,76 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
   }
 
   /**
-   * Create a planned shift
+   * Verifica que un empleado pertenezca a la empresa del actor antes de asignarle
+   * un turno.
+   *
+   * `planned_shifts.user_id` es texto contra `users.id` y `users.company_id` es
+   * nullable: una fila de turno puede apuntar a un empleado de otra empresa, de
+   * una que se borró o de nadie. La llave foránea no lo impide —el empleado
+   * existe, sólo que no es tuyo—, así que sin esta comprobación un turno escrito
+   * con un `userId` ajeno expone la jornada de otro tenant en este planificador
+   * y, al publicar, le manda su turno.
+   *
+   * El mensaje no distingue "no es tuyo" de "no existe": confirmarle a quien
+   * prueba ids qué empleados tienen las demás empresas ya es filtrar. Mismo
+   * criterio que `assertBranchOfCompany` (`lib/branch-scope.ts:128`).
    */
-  async createPlannedShift(data: CreateShiftInput): Promise<Shift> {
+  private async assertEmployeeOfCompany(companyId: string, userId: string): Promise<void> {
+    const rechazo = () =>
+      ApiError.badRequest(
+        "El empleado seleccionado no existe para esta empresa. Recarga el catálogo e inténtalo de nuevo."
+      );
+
+    if (!userId) throw rechazo();
+
+    const [row] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, userId), eq(users.companyId, companyId)))
+      .limit(1);
+
+    if (!row) throw rechazo();
+  }
+
+  /**
+   * Puerta de escritura de un destino: sesión con permiso, sucursal dentro del
+   * alcance y sucursal y empleado de esta empresa.
+   *
+   * Se ejecuta **antes** de cualquier escritura, y también antes del chequeo de
+   * solapamiento, para que un rechazo no deje ni una fila ni una lectura
+   * lateral de los turnos de otro tenant.
+   */
+  private async assertDestinoAutorizado(
+    actor: ShiftActor,
+    destino: { branchId: string; userId: string }
+  ): Promise<void> {
+    assertCanAccessShifts(actor);
+
+    const alcance = resolveShiftScope(actor, destino.branchId);
+    assertShiftScopeCoversBranch(alcance, destino.branchId);
+
+    await assertBranchOfCompany(actor.companyId, destino.branchId);
+    await this.assertEmployeeOfCompany(actor.companyId, destino.userId);
+  }
+
+  /**
+   * Create a planned shift
+   *
+   * El `companyId` del cuerpo **no se usa**: la fila se escribe con el de la
+   * sesión (H01). `CreateShiftInput` lo exige por compatibilidad con el tipo que
+   * ya viaja desde el planificador, donde todavía llega vacío — un dato que no
+   * se valida ni se persiste no es una entrada.
+   */
+  async createPlannedShift(actor: ShiftActor, data: CreateShiftInput): Promise<Shift> {
+    await this.assertDestinoAutorizado(actor, {
+      branchId: data.branchId,
+      userId: data.userId,
+    });
+
     // Check for overlapping shifts
     const existingShifts = await db.query.plannedShifts.findMany({
       where: and(
+        eq(plannedShifts.companyId, actor.companyId),
         eq(plannedShifts.userId, data.userId),
         eq(plannedShifts.shiftDate, data.shiftDate),
         sql`${plannedShifts.status} != 'CANCELLED'`
@@ -161,7 +232,7 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
     const [shift] = await db
       .insert(plannedShifts)
       .values({
-        companyId: data.companyId,
+        companyId: actor.companyId,
         userId: data.userId,
         branchId: data.branchId,
         role: data.role,
@@ -188,10 +259,75 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
   /**
    * Update a planned shift
    */
+  /**
+   * Carga los turnos que el actor puede tocar y falla si alguno no le corresponde.
+   *
+   * Es la pieza que faltaba en las rutas por ID: `update`, `delete`, `publish` y
+   * `duplicate` consultaban **sólo** por `id`, así que con el id de otro turno
+   * cualquiera escribía sobre el turno de otra empresa o de otra sucursal (H01).
+   *
+   * Falla cerrada y en bloque: si de 12 ids uno es ajeno, no se toca ninguno.
+   * Publicar la mitad de un lote y dejar la otra mitad parada no es un estado
+   * que el operador pueda entender ni corregir desde la pantalla.
+   */
+  private async cargarTurnosOperables(
+    actor: ShiftActor,
+    ids: string[]
+  ): Promise<Array<{ id: string; branchId: string; userId: string }>> {
+    assertCanAccessShifts(actor);
+
+    const alcance = resolveShiftScope(actor, null);
+    if (alcance.kind === "NONE") {
+      throw ApiError.forbidden(
+        "Tu usuario no tiene una sucursal asignada, así que no puede modificar turnos. Pide que te asignen una."
+      );
+    }
+
+    const turnos = await db.query.plannedShifts.findMany({
+      where: and(
+        eq(plannedShifts.companyId, actor.companyId),
+        sql`${plannedShifts.id} IN (${sql.join(ids.map((id) => sql`${id}`))})`
+      ),
+    });
+
+    // Cada id debe corresponder a una fila de esta empresa: si sobran ids, los
+    // que sobran no son operables por quien pregunta.
+    if (turnos.length !== ids.length) {
+      throw ApiError.notFound("Alguno de los turnos no existe.");
+    }
+
+    for (const turno of turnos) {
+      assertShiftScopeCoversBranch(alcance, turno.branchId);
+    }
+
+    return turnos.map((turno) => ({
+      id: turno.id,
+      branchId: turno.branchId,
+      userId: turno.userId,
+    }));
+  }
+
+  /**
+   * Update a planned shift
+   *
+   * El turno debe pertenecer a la empresa del actor y a su alcance. Si la
+   * edición mueve el turno a otra sucursal o a otro empleado, ese destino se
+   * vuelve a validar con la misma puerta que usa la creación.
+   */
   async updatePlannedShift(
+    actor: ShiftActor,
     id: string,
     data: Partial<CreateShiftInput>
   ): Promise<Shift> {
+    const [turno] = await this.cargarTurnosOperables(actor, [id]);
+
+    if (data.branchId || data.userId) {
+      await this.assertDestinoAutorizado(actor, {
+        branchId: data.branchId ?? turno.branchId,
+        userId: data.userId ?? turno.userId,
+      });
+    }
+
     const [shift] = await db
       .update(plannedShifts)
       .set({
@@ -205,11 +341,11 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
         ...(data.status && { status: data.status }),
         updatedAt: new Date(),
       })
-      .where(eq(plannedShifts.id, id))
+      .where(and(eq(plannedShifts.id, id), eq(plannedShifts.companyId, actor.companyId)))
       .returning();
 
     if (!shift) {
-      throw new Error('Turno no encontrado');
+      throw ApiError.notFound('Turno no encontrado');
     }
 
     return {
@@ -227,20 +363,27 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
   /**
    * Delete a planned shift
    */
-  async deletePlannedShift(id: string): Promise<void> {
-    await db.delete(plannedShifts).where(eq(plannedShifts.id, id));
+  async deletePlannedShift(actor: ShiftActor, id: string): Promise<void> {
+    await this.cargarTurnosOperables(actor, [id]);
+
+    // El `company_id` se repite en el WHERE aunque la carga ya lo haya
+    // comprobado: si entre la carga y el borrado otra cosa escribiera la misma
+    // tabla, el borrado sigue acotado a la empresa de quien preguntó.
+    await db
+      .delete(plannedShifts)
+      .where(and(eq(plannedShifts.id, id), eq(plannedShifts.companyId, actor.companyId)));
   }
 
   /**
    * Bulk create shifts
    */
-  async bulkCreateShifts(inputs: CreateShiftInput[]): Promise<BulkCreateResult> {
+  async bulkCreateShifts(actor: ShiftActor, inputs: CreateShiftInput[]): Promise<BulkCreateResult> {
     const created: Shift[] = [];
     const failed: { input: CreateShiftInput; error: string }[] = [];
 
     for (const input of inputs) {
       try {
-        const shift = await this.createPlannedShift(input);
+        const shift = await this.createPlannedShift(actor, input);
         created.push(shift);
       } catch (error) {
         failed.push({
@@ -255,30 +398,52 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
 
   /**
    * Publish shifts
+   *
+   * Publicar es lo que hace que un turno deje de ser un borrador y llegue al
+   * empleado, así que es la escritura con más consecuencia del módulo. Valida el
+   * lote completo antes de tocar uno solo.
    */
-  async publishShifts(shiftIds: string[]): Promise<void> {
+  async publishShifts(actor: ShiftActor, shiftIds: string[]): Promise<void> {
     if (shiftIds.length === 0) return;
-    
+
+    await this.cargarTurnosOperables(actor, shiftIds);
+
     await db
       .update(plannedShifts)
       .set({
         status: 'PUBLISHED',
         updatedAt: new Date(),
       })
-      .where(sql`${plannedShifts.id} IN (${sql.join(shiftIds.map(id => sql`${id}`))})`);
+      .where(
+        and(
+          eq(plannedShifts.companyId, actor.companyId),
+          sql`${plannedShifts.id} IN (${sql.join(shiftIds.map(id => sql`${id}`))})`
+        )
+      );
   }
 
   /**
    * Duplicate shifts to another week
+   *
+   * Duplicar reescribe `companyId` desde la fila original, así que un turno
+   * ajeno crearía un turno de la empresa ajena en el planificador de quien pide.
+   * Por eso el lote se carga y se valida con la misma puerta de las demás
+   * escrituras, y cada copia vuelve a pasar por `createPlannedShift`.
    */
   async duplicateShifts(
+    actor: ShiftActor,
     shiftIds: string[],
     options: DuplicateOptions
   ): Promise<Shift[]> {
     if (shiftIds.length === 0) return [];
 
+    await this.cargarTurnosOperables(actor, shiftIds);
+
     const existingShifts = await db.query.plannedShifts.findMany({
-      where: sql`${plannedShifts.id} IN (${sql.join(shiftIds.map(id => sql`${id}`))})`,
+      where: and(
+        eq(plannedShifts.companyId, actor.companyId),
+        sql`${plannedShifts.id} IN (${sql.join(shiftIds.map(id => sql`${id}`))})`
+      ),
     });
 
     // Filter by employee IDs if provided
@@ -314,7 +479,7 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
       };
 
       try {
-        const newShift = await this.createPlannedShift(shiftData);
+        const newShift = await this.createPlannedShift(actor, shiftData);
         newShifts.push(newShift);
       } catch {
         // Skip shifts that couldn't be created (e.g., due to conflicts)

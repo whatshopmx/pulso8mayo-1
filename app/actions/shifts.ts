@@ -51,7 +51,7 @@ export async function getShifts(filters: ShiftFilters = {}): Promise<Shift[]> {
 }
 
 export async function createShift(data: CreateShiftInput): Promise<Shift> {
-  const result = await plannedShiftService.createPlannedShift(data);
+  const result = await plannedShiftService.createPlannedShift(await actorDeSesion(), data);
   revalidatePath("/dashboard/labor/shifts");
   return result;
 }
@@ -60,18 +60,18 @@ export async function updateShift(
   id: string,
   data: Partial<CreateShiftInput>
 ): Promise<Shift> {
-  const result = await plannedShiftService.updatePlannedShift(id, data);
+  const result = await plannedShiftService.updatePlannedShift(await actorDeSesion(), id, data);
   revalidatePath("/dashboard/labor/shifts");
   return result;
 }
 
 export async function deleteShift(id: string): Promise<void> {
-  await plannedShiftService.deletePlannedShift(id);
+  await plannedShiftService.deletePlannedShift(await actorDeSesion(), id);
   revalidatePath("/dashboard/labor/shifts");
 }
 
 export async function publishShifts(shiftIds: string[]): Promise<void> {
-  await plannedShiftService.publishShifts(shiftIds);
+  await plannedShiftService.publishShifts(await actorDeSesion(), shiftIds);
   revalidatePath("/dashboard/labor/shifts");
 }
 
@@ -79,9 +79,11 @@ export async function duplicateShifts(
   shiftIds: string[],
   targetWeekStart: Date
 ): Promise<Shift[]> {
-  const result = await plannedShiftService.duplicateShifts(shiftIds, {
-    targetWeekStart,
-  });
+  const result = await plannedShiftService.duplicateShifts(
+    await actorDeSesion(),
+    shiftIds,
+    { targetWeekStart }
+  );
   revalidatePath("/dashboard/labor/shifts");
   return result;
 }
@@ -106,7 +108,7 @@ export async function getTemplatesForBranch(
 export async function applyBulkOperation(
   operation: BulkShiftOperation
 ): Promise<ApplyTemplateResult> {
-  const result = await shiftTemplateService.applyBulkOperation(operation);
+  const result = await shiftTemplateService.applyBulkOperation(await actorDeSesion(), operation);
   revalidatePath("/dashboard/labor/shifts");
   return result;
 }
