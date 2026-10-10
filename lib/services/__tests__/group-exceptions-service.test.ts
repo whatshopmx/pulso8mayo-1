@@ -11,6 +11,31 @@ vi.mock("@/lib/db", () => {
   };
 });
 
+/**
+ * Cadena de consulta que admite tantas uniones encadenadas como use el
+ * servicio.
+ *
+ * Antes el arnés devolvía `innerJoin()` → `{ where }`, o sea un solo nivel:
+ * cuando `listOpen` añadió un segundo join a la consulta de inventario
+ * (`incidents → branches → inventoryItems`), la prueba terminó con
+ * `innerJoin(...).innerJoin is not a function`. El código estaba bien; el
+ * simulacro se quedó corto, y su shortness se veía como un fallo de producción.
+ *
+ * Aquí cada método devuelve la misma cadena y sólo `where` resuelve, así que
+ * el número de joins deja de ser parte del contrato del simulacro.
+ */
+function cadenaDeSelect(respuesta: unknown) {
+  const cadena: Record<string, unknown> = {};
+  const avanzar = () => cadena;
+
+  for (const metodo of ["from", "innerJoin", "leftJoin", "rightJoin", "orderBy", "limit", "groupBy", "having"]) {
+    cadena[metodo] = avanzar;
+  }
+  cadena.where = vi.fn().mockResolvedValue(respuesta);
+
+  return cadena;
+}
+
 describe("GroupExceptionsService (QSR Multi-Unit Risk Triage)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -125,17 +150,7 @@ describe("GroupExceptionsService (QSR Multi-Unit Risk Triage)", () => {
     let callCount = 0;
     vi.mocked(db.select).mockImplementation(() => {
       const currentIdx = callCount++;
-      const currentResponse = responses[currentIdx] || [];
-      return {
-        from: () => ({
-          innerJoin: () => ({
-            where: vi.fn().mockResolvedValue(currentResponse),
-          }),
-          leftJoin: () => ({
-            where: vi.fn().mockResolvedValue(currentResponse),
-          }),
-        }),
-      } as any;
+      return cadenaDeSelect(responses[currentIdx] || []);
     });
 
     const exceptions = await GroupExceptionsService.listOpen("company-1");
@@ -185,16 +200,7 @@ describe("GroupExceptionsService (QSR Multi-Unit Risk Triage)", () => {
     vi.mocked(db.select).mockImplementation(() => {
       const currentIdx = callCount++;
       const currentResponse = currentIdx === 6 ? inventoryOnly : [];
-      return {
-        from: () => ({
-          innerJoin: () => ({
-            where: vi.fn().mockResolvedValue(currentResponse),
-          }),
-          leftJoin: () => ({
-            where: vi.fn().mockResolvedValue(currentResponse),
-          }),
-        }),
-      } as any;
+      return cadenaDeSelect(currentResponse);
     });
 
     const abastoExceptions = await GroupExceptionsService.listOpen("company-1", {
