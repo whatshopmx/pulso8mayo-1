@@ -16,7 +16,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 
 - [x] [C01 — Acotar la lectura de turnos](plan-conexion-frontend-backend.md#c01) — depende de C00.
 - [x] [C02 — Autorizar las escrituras de turnos](plan-conexion-frontend-backend.md#c02) — depende de C01.
-- [ ] [C03 — Unificar autorización de plantillas](plan-conexion-frontend-backend.md#c03) — depende de C00.
+- [x] [C03 — Unificar autorización de plantillas](plan-conexion-frontend-backend.md#c03) — depende de C00.
 - [ ] [C04 — Acotar creación y lectura de ejecuciones](plan-conexion-frontend-backend.md#c04) — depende de C03.
 - [ ] [C05 — Autorizar actualización y revisión de pasos](plan-conexion-frontend-backend.md#c05) — depende de C04.
 - [ ] [C06 — Acotar consultas de sesiones y descansos](plan-conexion-frontend-backend.md#c06) — depende de C00.
@@ -94,6 +94,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 | C00 | Completada | 2026-10-10 | `927c241` | V0: lint 0 errores (2422 warnings), build OK, test:unit 662/667 con 3 fallos preexistentes ajenos a esta conexión. Matriz de 12 hallazgos y de rol/empresa/sucursal, más `tests/fixtures/tenant-isolation.ts` | Sin V2 (no hay cambios de comportamiento todavía) |
 | C01 | Completada | 2026-10-10 | `7305267` | `tests/unit/shifts/shift-access.test.ts` (16) + `read-scope.test.ts` (9), `pnpm exec vitest run tests/unit/shifts/`. WHERE revisado con `PgDialect.sqlToQuery` | Queda el camino HTTP `app/api/shifts/route.ts`, que tiene su propia validación: lo unifica C09 |
 | C02 | Completada | 2026-10-10 | `4b49c8c` | `tests/unit/shifts/write-scope.test.ts` (16). Crear/editar/borrar/publicar/duplicar rechazan destino ajeno antes de escribir | El planificador (H03) manda empleados y sucursales ficticios: ahora la escritura se rechaza en vez de colarse. Lo resuelve C08 |
+| C03 | Completada | 2026-10-10 | `f0c5499` | `tests/unit/workflows/template-access.test.ts` (13) sobre las funciones reales de la ruta corta y la política compartida | Falta V2 del borrado desde el administrador y el caso de plantillas globales; C36 inventaría consumidores antes de retirar la ruta corta |
 | C03 | Pendiente | — | — | No ejecutada | — |
 | C04 | Pendiente | — | — | No ejecutada | — |
 | C05 | Pendiente | — | — | No ejecutada | — |
