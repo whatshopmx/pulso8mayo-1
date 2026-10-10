@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { workflowTemplates } from '@/lib/db/schema';
-import { and, eq } from 'drizzle-orm';
-import { requirePermissionApi } from '@/lib/rbac/abac';
 import { PlaybookService } from '@/lib/services/playbook-service';
+import {
+    cargarPlantillaDeEmpresa,
+    plantillaDeEmpresa,
+    requireTemplateAccess,
+} from '@/lib/workflows/template-access';
 
 /**
  * PATCH /api/templates/[id] — guardado del editor del Builder.
@@ -28,27 +31,13 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { user } = await requirePermissionApi('workflows', 'update');
-        const companyId = user.companyId;
-        if (!companyId) {
-            return NextResponse.json({ error: 'Company context required' }, { status: 400 });
-        }
-
+        const actor = await requireTemplateAccess('update');
         const { id } = await params;
         const body = await request.json();
         const { name, steps, description, scope, branchIds, expectedUpdatedAt } = body;
 
         if (expectedUpdatedAt) {
-            const current = await db.query.workflowTemplates.findFirst({
-                where: and(
-                    eq(workflowTemplates.id, id),
-                    eq(workflowTemplates.companyId, companyId)
-                ),
-            });
-
-            if (!current) {
-                return NextResponse.json({ error: 'Template not found' }, { status: 404 });
-            }
+            const current = await cargarPlantillaDeEmpresa(actor, id);
 
             // Se compara en milisegundos: el driver devuelve Date (ms) y el
             // cliente reenvía el ISO que le dimos, mientras que la columna
@@ -75,10 +64,7 @@ export async function PATCH(
                 description: description || undefined,
                 updatedAt: new Date()
             })
-            .where(and(
-                eq(workflowTemplates.id, id),
-                eq(workflowTemplates.companyId, companyId)
-            ))
+            .where(plantillaDeEmpresa(id, actor.companyId))
             .returning();
 
         if (!updated.length) {
@@ -91,12 +77,12 @@ export async function PATCH(
         if (scope === 'company') {
             publication = await PlaybookService.publish(
                 id,
-                companyId,
+                actor.companyId,
                 Array.isArray(branchIds) ? branchIds : null,
-                { userId: user.id }
+                { userId: actor.userId }
             );
         } else if (scope === 'branch') {
-            await PlaybookService.unpublish(id, companyId);
+            await PlaybookService.unpublish(id, actor.companyId);
             publication = { scope: 'branch', publishedBranchIds: [] };
         }
 

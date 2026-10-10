@@ -153,13 +153,22 @@ export function TemplateManager({ userTemplates }: TemplateManagerProps) {
                 method: 'DELETE',
             });
 
-            if (!res.ok) throw new Error("Failed to delete template");
+            if (!res.ok) {
+                // El mensaje del servidor dice por qué (permiso, plantilla de
+                // otra empresa). "Error al eliminar" no lo decía y dejaba al
+                // operador sin forma de distinguir un 403 de un id equiviado.
+                const detalle = await res
+                    .json()
+                    .then((cuerpo: { error?: string }) => cuerpo?.error)
+                    .catch(() => null);
+                throw new Error(detalle || `No se pudo eliminar la plantilla (${res.status}).`);
+            }
 
             toast.success("Plantilla eliminada");
             router.refresh();
         } catch (error) {
             console.error(error);
-            toast.error("Error al eliminar la plantilla");
+            toast.error(error instanceof Error ? error.message : "Error al eliminar la plantilla");
         } finally {
             setDeleting(null);
         }
