@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getShifts,
   createShift,
@@ -39,24 +39,37 @@ export function useShifts(filters: ShiftFilters = {}): UseShiftsReturn {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const latestRequest = useRef(0);
+  const filterKey = JSON.stringify(filters);
+  const [resolvedFilters, setResolvedFilters] = useState<string | null>(null);
 
   const fetchShifts = useCallback(async () => {
+    const requestId = ++latestRequest.current;
     setIsLoading(true);
     setIsError(false);
     setError(null);
     try {
-      const data = await getShifts(filters);
+      const data = await getShifts(JSON.parse(filterKey) as ShiftFilters);
+      if (requestId !== latestRequest.current) return;
       setShifts(data);
     } catch (err) {
+      if (requestId !== latestRequest.current) return;
       setIsError(true);
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
-      setIsLoading(false);
+      if (requestId === latestRequest.current) {
+        setResolvedFilters(filterKey);
+        setIsLoading(false);
+      }
     }
-  }, [JSON.stringify(filters)]);
+  }, [filterKey]);
 
   useEffect(() => {
+    const requestCounter = latestRequest;
     fetchShifts();
+    // Las acciones no admiten AbortSignal: ignorar las lecturas anteriores
+    // impide exportar un filtro viejo y actualizar una vista desmontada.
+    return () => { requestCounter.current++; };
   }, [fetchShifts]);
 
   const handleCreate = useCallback(
@@ -128,10 +141,10 @@ export function useShifts(filters: ShiftFilters = {}): UseShiftsReturn {
   );
 
   return {
-    shifts,
-    isLoading,
-    isError,
-    error,
+    shifts: resolvedFilters === filterKey ? shifts : [],
+    isLoading: isLoading || resolvedFilters !== filterKey,
+    isError: resolvedFilters === filterKey && isError,
+    error: resolvedFilters === filterKey ? error : null,
     createShift: handleCreate,
     updateShift: handleUpdate,
     deleteShift: handleDelete,

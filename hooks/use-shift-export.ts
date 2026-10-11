@@ -7,7 +7,7 @@
 
 import { useState, useCallback } from "react";
 import { Shift, ShiftExportData } from "@/lib/types";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 
 export type ExportFormat = "csv" | "excel" | "pdf";
 
@@ -22,6 +22,26 @@ export interface UseShiftExportReturn {
   exportToPDF: (shifts: Shift[], options?: ExportOptions) => void;
   isExporting: boolean;
   lastExport: { format: ExportFormat; count: number } | null;
+}
+
+/** Serializa sólo los turnos autorizados que entrega la vista del planificador. */
+export function buildShiftCsv(shifts: Shift[], includeHeaders = true): string {
+  if (shifts.length === 0) throw new Error("No hay turnos para exportar");
+
+  const cell = (value: string | undefined) => {
+    let text = value ?? "";
+    // Las hojas de cálculo interpretan estos prefijos incluso entre comillas.
+    if (/^[\s]*[=+@-]/.test(text) || /^[\t\r\n]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
+  const rows = shifts.map((shift) => [
+    shift.userName, shift.branchName, shift.role, shift.shiftDate,
+    shift.startTime, shift.endTime, shift.status, shift.notes,
+  ].map(cell).join(","));
+  if (includeHeaders) {
+    rows.unshift("Empleado,Sucursal,Rol,Fecha,Hora Inicio,Hora Fin,Estado,Notas");
+  }
+  return `\uFEFF${rows.join("\r\n")}`;
 }
 
 export function useShiftExport(): UseShiftExportReturn {
@@ -46,30 +66,21 @@ export function useShiftExport(): UseShiftExportReturn {
     const link = document.createElement("a");
     link.href = url;
     link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    try {
+      document.body.appendChild(link);
+      link.click();
+    } finally {
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
   };
 
   const exportToCSV = useCallback(
     (shifts: Shift[], options: ExportOptions = {}) => {
       setIsExporting(true);
       try {
-        const data = convertToExportData(shifts);
         const { filename = `turnos_${format(new Date(), "yyyy-MM-dd")}.csv`, includeHeaders = true } = options;
-
-        const headers = includeHeaders
-          ? ["Empleado", "Rol", "Fecha", "Hora Inicio", "Hora Fin", "Estado", "Notas"].join(",")
-          : "";
-
-        const rows = data.map((row) =>
-          [row.employee, row.role, row.date, row.startTime, row.endTime, row.status, row.notes || ""].join(",")
-        );
-
-        const csvContent = includeHeaders ? [headers, ...rows].join("\n") : rows.join("\n");
-
-        downloadFile(csvContent, filename, "text/csv;charset=utf-8;");
+        downloadFile(buildShiftCsv(shifts, includeHeaders), filename, "text/csv;charset=utf-8;");
         setLastExport({ format: "csv", count: shifts.length });
       } finally {
         setIsExporting(false);

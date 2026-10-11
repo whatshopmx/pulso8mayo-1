@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Estado: plan preparado; implementación pendiente.
+Fecha: 10 de octubre de 2026. Actualización: 11 de octubre de 2026. Estado: C00–C10 implementadas con límites de verificación registrados en el seguimiento. C11–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -361,13 +361,19 @@ Reutilizar la política de validación al guardar desde acciones, API y operacio
 
 Conectar el botón Exportar al formato ya previsto y a los filtros/alcance efectivos.
 
+**Subtareas de implementación (11-10-2026):** C10.1 — CSV utilizable y pruebas de formato/descarga; C10.2 — conectar la descarga a la semana y filtros de la matriz, con estados de vacío/error y comprobación en navegador. Se reutiliza `useShiftExport` y la lectura autorizada de C01; el formato expuesto será CSV. Cada subtarea conserva los criterios de C10.
+
+C10.3 — impedir que lecturas fuera de orden sustituyan los turnos del filtro actual y comprobarlo con respuestas controladas en navegador. Es necesario para que el archivo corresponda al filtro visible; se acota a `useShifts` y a la prueba de descarga.
+
 **Criterios de aceptación:**
 
-- [ ] Exportar produce un archivo utilizable con los turnos visibles del periodo.
-- [ ] No incluye empleados o sucursales fuera del alcance autorizado.
-- [ ] Vacío y fallo de exportación tienen respuesta visible; el botón no es inerte.
+- [x] Exportar produce un archivo utilizable con los turnos visibles del periodo.
+- [x] No incluye empleados o sucursales fuera del alcance autorizado.
+- [x] Vacío y fallo de exportación tienen respuesta visible; el botón no es inerte.
 
 **Verificación:** V2: descargar y verificar contenido, periodo y filtros.
+
+**Evidencia (11-10-2026):** [C10 — Exportación del planificador](../docs/audits/2026-10-11-shifts-export.md). Siete pruebas de navegador con acciones simuladas, nueve casos unitarios de CSV, suite unitaria 870 aprobadas (una omitida y un TODO), build aprobado y lint enfocado sin errores ni warnings. No acredita los recorridos de creación/recarga de C08 ni los de excepciones de C09.
 
 **Archivos probables:**
 

@@ -1,6 +1,6 @@
 # Seguimiento — conexión entre frontend y backend
 
-Fecha: 10 de octubre de 2026. Estado inicial: todas las tareas pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 11 de octubre de 2026. Estado: C00–C10 implementadas; C11–C40 pendientes. Los recorridos de navegador aún no comprobados se conservan explícitos en la evidencia.
 
 Plan: [plan de implementación](plan-conexion-frontend-backend.md). Origen: [auditoría](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md).
 
@@ -28,7 +28,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 
 - [x] [C08 — Cargar empleados y sucursales reales en el planificador](plan-conexion-frontend-backend.md#c08) — depende de C01, C02.
 - [x] [C09 — Aplicar una política de validación de turnos](plan-conexion-frontend-backend.md#c09) — depende de C02, C08.
-- [ ] [C10 — Completar exportación de turnos](plan-conexion-frontend-backend.md#c10) — depende de C08.
+- [x] [C10 — Completar exportación de turnos](plan-conexion-frontend-backend.md#c10) — depende de C08. Evidencia: [exportación CSV](../docs/audits/2026-10-11-shifts-export.md).
 - [ ] [C11 — Aplicar plantillas de turnos válidas](plan-conexion-frontend-backend.md#c11) — depende de C09.
 - [ ] [C12 — Completar asignación masiva de turnos](plan-conexion-frontend-backend.md#c12) — depende de C11.
 
@@ -89,6 +89,8 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 
 ## Evidencia de ejecución
 
+Las filas conservan la evidencia y los pendientes de cada corte histórico. C10 registra la validación del 11-10-2026; no sustituye las verificaciones anteriores que siguen sin ejecutarse. El estado vigente de tareas aparece en las listas de cada fase.
+
 | ID | Estado | Fecha | Cambio/commit | Verificación y resultado | Pendientes/decisión |
 | --- | --- | --- | --- | --- | --- |
 | C00 | Completada | 2026-10-10 | `927c241` | V0: lint 0 errores (2422 warnings), build OK, test:unit 662/667 con 3 fallos preexistentes ya resueltos en `4240d44` y `28aa333` (hoy 719/719 en verde). Matriz de 12 hallazgos y de rol/empresa/sucursal, más `tests/fixtures/tenant-isolation.ts` | Sin V2 (todavía no hay cambios de comportamiento) |
@@ -97,15 +99,11 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 | C03 | Completada | 2026-10-10 | `f0c5499` | `tests/unit/workflows/template-access.test.ts` (13) sobre las funciones reales de la ruta corta y la política compartida | Falta V2 del borrado desde el administrador y el caso de plantillas globales; C36 inventaría consumidores antes de retirar la ruta corta |
 | C04 | Completada | 2026-10-10 | `361a3b3` | `tests/unit/workflows/execution-access.test.ts` (27): puerta, alcance y status HTTP de las dos rutas | Falta V2 de inicio y consulta válidos en navegador. C05 sigue abierta: la actualización de pasos llega al servicio sin alcance |
 | C05 | Completada | 2026-10-10 | `ceea6c7`, `f701068`, `f354519` | `tests/unit/workflows/step-access.test.ts` (26): paso por sesión vs por token, revisión por rol y sucursal, auto-revisión contra responsable y autoría, y la excepción que la abre | **Decisión pendiente:** qué roles revisan. Se implementó la lectura conservadora de "revisión del supervisor" (SUPERVISOR+); falta que el negocio la confirme en C15. La auto-revisión se cierra con excepción auditada (`policy_overrides`): **falta la pantalla** para concederla, la puerta de servidor ya existe. Falta V2 del recorrido ejecutar/revisar |
-| C03 | Pendiente | — | — | No ejecutada | — |
-| C04 | Pendiente | — | — | No ejecutada | — |
-| C05 | Pendiente | — | — | No ejecutada | — |
 | C06 | Completada | 2026-10-10 | `a241f7b` | `tests/unit/labor/session-scope.test.ts` (16). SQL revisado con `PgDialect`; el filtro de empresa se comprueba dentro del subselect de `branches` | Sin V2: no se reprodujo en navegador |
 | C07 | Completada | 2026-10-10 | `008b04f` | `tests/unit/inventory/costing-config-access.test.ts` (8) sobre el `PATCH` real, con `CostingService` simulado para observar si se llega a llamarlo | Sin V2. El `GET` ya filtraba por empresa y no se tocó |
 | C08 | Completada | 2026-10-10 | `c93007b`, `6430cad` | `tests/unit/labor/scheduler-catalog.test.ts` (16) sobre la consulta real; tsc, build y `test:unit` 796/796 | **Sin V2**: falta el recorrido en navegador (crear, recargar y comprobar persistencia en dos empresas), que es lo único que verificaría que la pantalla y el servidor cuentan la misma historia. Los roles salen de `employee_profiles.position` + roles ya usados: si nadie tiene puesto capturado, el selector queda vacío a propósito |
 | C09 | Completada | 2026-10-10 | `9a07d93`, `980002f`, `a449b16`, `6134b90`, `41232a4` | `tests/unit/labor/business-validation.test.ts` (29) para la política y los marcadores, 8 casos en `write-scope.test.ts` para el servicio autoritativo, `shift-overrides-action.test.ts` (10) para la puerta. tsc limpio, build OK, `test:unit` 861/863 | **Decisión tomada (10-10):** la jornada de 8 h bloquea y su salida es una excepción auditada, con acción, pantalla y reintento de guardado. **Sin verificar:** que el botón funcione en navegador (V2), igual que el resto de la Fase 2. Notado y fuera de alcance: `lft-conflict-detector.ts` y `labor-validation.ts` traen sus propios límites para asistencia |
-| C09 | Pendiente | — | — | No ejecutada | — |
-| C10 | Pendiente | — | — | No ejecutada | — |
+| C10 | Completada | 2026-10-11 | C10.1–C10.3; [evidencia](../docs/audits/2026-10-11-shifts-export.md) | CSV conectado a semana/filtros; 9 casos unitarios de formato y 7 pruebas en Chromium de descarga, filtros, dos respuestas de empresa, vacío/error/reintento y respuestas tardías. Suite: 870 aprobadas, 1 omitida, 1 TODO; build OK; lint enfocado 0 errores/0 warnings | El navegador usa acciones simuladas; el alcance del servidor se respalda con las pruebas de C01/C08. No verifica creación/recarga de C08 ni excepciones de C09. C11 es el siguiente pendiente |
 | C11 | Pendiente | — | — | No ejecutada | — |
 | C12 | Pendiente | — | — | No ejecutada | — |
 | C13 | Pendiente | — | — | No ejecutada | — |

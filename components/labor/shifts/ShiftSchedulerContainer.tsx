@@ -8,7 +8,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertTriangle,
   Calendar,
-  Download,
   Users,
   Copy,
   FileSpreadsheet,
@@ -16,7 +15,7 @@ import {
   Building2,
 } from "lucide-react";
 import { WeeklyMatrixView } from "./WeeklyMatrixView";
-import { useShiftValidation, useShiftExport, useSchedulerCatalog } from "@/hooks";
+import { useShiftValidation, useSchedulerCatalog } from "@/hooks";
 
 /**
  * Planificador de turnos.
@@ -35,16 +34,12 @@ import { useShiftValidation, useShiftExport, useSchedulerCatalog } from "@/hooks
  * - **Sin alcance**: tu rol está acotado a sucursal y no tienes ninguna
  *   asignada. Es un dato pendiente de tu cuenta, no un empresa vacía.
  *
- * La exportación y las pestañas de plantillas/asignación masiva siguen fuera de
- * alcance (C10, C11 y C12): sus botones no prometen nada mientras no estén
- * conectados.
+ * La exportación vive en la matriz para compartir semana y filtros. Las
+ * pestañas de plantillas/asignación masiva siguen pendientes (C11 y C12).
  */
 export function ShiftSchedulerContainer() {
   const [activeTab, setActiveTab] = useState("weekly");
   const { conflictSummary } = useShiftValidation();
-  // El botón de exportar sigue desconectado (C10): se deja visible y
-  // deshabilitado con su etiqueta, en vez de un botón que no hace nada.
-  useShiftExport();
   const {
     branches,
     employees,
@@ -78,10 +73,6 @@ export function ShiftSchedulerContainer() {
               </AlertDescription>
             </Alert>
           )}
-          <Button variant="outline" disabled>
-            <Download className="h-4 w-4 mr-2" />
-            Exportar (próximamente)
-          </Button>
         </div>
       </div>
 
