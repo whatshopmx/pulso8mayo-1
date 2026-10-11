@@ -15,7 +15,7 @@
  * NOTE on `tenant_keys.encrypted_dek`: stored as the output of `pgp_sym_encrypt(dek, KEK)`
  * (lib/crypto). It is opaque `bytea` to Postgres; the KEK never enters the DB.
  */
-import { pgTable, text, timestamp, boolean, uuid, jsonb, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, jsonb, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { companies, branches } from "./core";
 import { users } from "./auth";
@@ -107,3 +107,65 @@ export const paymentApprovals = pgTable("payment_approvals", {
   executedAt: timestamp("executed_at"),
   notes: text("notes"),
 });
+/**
+ * Excepciones autorizadas a una política, con rastro (C09/C05).
+ *
+ * Una regla que el sistema aplica necesita una salida real para los casos
+ * legítimos: un turno de 10 horas en temporada alta, un dueño que revisa su
+ * propia operación porque no hay nadie más. Sin tabla, esas salidas sólo
+ * existen de dos maneras peores: nadie puede hacerlo (se bloquea la operación)
+ * o se hace sin dejar rastro (un `if (esOwner) return` en el código).
+ *
+ * Por eso es una tabla y no un parámetro: **la excepción es un acto
+ * administrativo**, con motivo, actor y momento. Un parámetro en el cuerpo de
+ * la petición no se puede auditar ni explicar seis meses después.
+ *
+ * Alcance deliberadamente genérico (`domain` + `rule`) en lugar de una tabla
+ * por política: las dos excepciones que existen hoy —validación de turnos y
+ * auto-revisión de workflows— comparten ciclo de vida (se concede, caduca,
+ * se explica). Dos tablas idénticas derivarían; si algún día una necesita
+ * campos propios, esa es la hora de partirla.
+ */
+export const policyOverrides = pgTable("policy_overrides", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+
+  /** Dueño de la excepción. Sin él, un id de otra empresa bastaría para invocar. */
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  /** Sucursal a la que aplica, cuando la política sea por sucursal. */
+  branchId: uuid("branch_id").references(() => branches.id),
+
+  /** 'SHIFT_VALIDATION' | 'WORKFLOW_REVIEW' */
+  domain: text("domain").notNull(),
+  /** Regla concreta que se salta: 'MAX_DAILY_HOURS', 'SELF_REVIEW', ... */
+  rule: text("rule").notNull(),
+  /** Recurso afectado, como texto porque cada dominio tiene su id (uuid o texto). */
+  resourceType: text("resource_type").notNull(),
+  resourceId: text("resource_id").notNull(),
+
+  /** Quién concedió la excepción y por qué. Sin motivo no hay excepción. */
+  grantedBy: text("granted_by").notNull(),
+  reason: text("reason").notNull(),
+
+  grantedAt: timestamp("granted_at").defaultNow().notNull(),
+  /**
+   * Caducidad opcional. `null` = sin caducidad.
+   *
+   * Existe porque una excepción permanente es una política nueva disfrazada:
+   * lo que se concede por una temporada alta no debería seguir ahí en marzo.
+   */
+  expiresAt: timestamp("expires_at"),
+
+  /** Si alguien la deja de usar, se marca en vez de borrarse: el rastro es el dato. */
+  revokedAt: timestamp("revoked_at"),
+  revokedBy: text("revoked_by"),
+  revokedReason: text("revoked_reason"),
+}, (table) => ({
+  /** Una excepción por recurso y regla: volver a concederla es revocarla y abrir otra. */
+  overrideUnico: uniqueIndex("policy_override_unico").on(
+    table.companyId,
+    table.domain,
+    table.rule,
+    table.resourceType,
+    table.resourceId
+  ),
+}));
