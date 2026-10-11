@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Shift, CreateShiftInput, SHIFT_TYPES, ShiftTypeKey } from "@/lib/types";
+import { mencionaRegla, sinMarcadores } from "@/lib/labor/shift-rules";
+import { concederExcepcionJornada, puedeAutorizarExcepciones } from "@/app/actions/shift-overrides";
 import { format } from "date-fns";
 
 interface ShiftEditorDialogProps {
@@ -54,6 +56,12 @@ export function ShiftEditorDialog({
   const [shiftType, setShiftType] = useState<ShiftTypeKey | "CUSTOM">("MATUTINO");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Excepción de jornada: por qué se rechazó, si este usuario puede levantarla y
+  // el motivo que está escribiendo.
+  const [puedeAutorizar, setPuedeAutorizar] = useState(false);
+  const [motivoExcepcion, setMotivoExcepcion] = useState("");
+  const [autorizando, setAutorizando] = useState(false);
+  const [errorAutorizacion, setErrorAutorizacion] = useState<string | null>(null);
 
   useEffect(() => {
     if (shift) {
@@ -74,7 +82,27 @@ export function ShiftEditorDialog({
       }));
     }
     setSaveError(null);
+    setMotivoExcepcion("");
+    setErrorAutorizacion(null);
   }, [shift, selectedDate, isOpen]);
+
+  // Se pregunta una sola vez al abrir: el botón de autorización sólo aparece si
+  // va a funcionar. Un botón que promete y devuelve 403 no es un control de
+  // acceso, es una trampa con texto.
+  useEffect(() => {
+    if (!isOpen) return;
+    let vigente = true;
+    void puedeAutorizarExcepciones()
+      .then((puede) => {
+        if (vigente) setPuedeAutorizar(puede);
+      })
+      .catch(() => {
+        if (vigente) setPuedeAutorizar(false);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [isOpen]);
 
   /**
    * Un turno sin empleado, sucursal u rol no se manda.
@@ -113,10 +141,41 @@ export function ShiftEditorDialog({
     } catch (error) {
       // El diálogo se queda abierto con el motivo: cerrarlo al fallar hacía
       // perder todo lo capturado y obliga a reconstruir el turno.
-      setSaveError(
-        error instanceof Error ? error.message : "No se pudo guardar el turno."
+      setSaveError(error instanceof Error ? error.message : "No se pudo guardar el turno.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * Autoriza la excepción y reintenta el guardado.
+   *
+   * El reintento es la parte que importa: levantar la excepción sin volver a
+   * guardar dejaría al operador con un turno que "ya debería existir" y una
+   * pantalla que no lo muestra. O se guarda, o no se autorizó nada.
+   */
+  const handleAutorizarExcepcion = async () => {
+    if (motivoExcepcion.trim().length < 10 || autorizando) return;
+
+    setAutorizando(true);
+    setErrorAutorizacion(null);
+    try {
+      await concederExcepcionJornada({
+        userId: formData.userId,
+        shiftDate: formData.shiftDate,
+        reason: motivoExcepcion,
+      });
+
+      setSaveError(null);
+      setIsSaving(true);
+      await onSave(formData);
+      onClose();
+    } catch (error) {
+      setErrorAutorizacion(
+        error instanceof Error ? error.message : "No se pudo autorizar la excepción."
       );
     } finally {
+      setAutorizando(false);
       setIsSaving(false);
     }
   };
@@ -137,7 +196,50 @@ export function ShiftEditorDialog({
 
           {saveError && (
             <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {saveError}
+              {/* El marcador de regla no se muestra: `sinMarcadores` lo quita
+                  y deja el texto que el operador puede entender. */}
+              {sinMarcadores(saveError)}
+            </div>
+          )}
+
+          {saveError && mencionaRegla(saveError, "MAX_DAILY_HOURS") && (
+            <div className="rounded-md border px-3 py-3 space-y-3">
+              <div className="text-sm">
+                <p className="font-medium">Este turno excede la jornada de 8 horas.</p>
+                <p className="text-muted-foreground mt-1">
+                  {puedeAutorizar
+                    ? "Puedes autorizar la excepción: quedará registrada con tu nombre, el motivo y la fecha, y se puede revocar después."
+                    : "Necesitas que el propietario de la empresa autorice la excepción. Queda registrada con su nombre y el motivo."}
+                </p>
+              </div>
+
+              {puedeAutorizar && (
+                <div className="space-y-2">
+                  <Label htmlFor="motivo-excepcion" className="text-sm">
+                    Motivo de la excepción
+                  </Label>
+                  <Input
+                    id="motivo-excepcion"
+                    value={motivoExcepcion}
+                    onChange={(e) => setMotivoExcepcion(e.target.value)}
+                    placeholder="Ej. Temporada alta con cierre doble los sábados."
+                    maxLength={200}
+                  />
+                  {errorAutorizacion && (
+                    <p role="alert" className="text-sm text-destructive">
+                      {sinMarcadores(errorAutorizacion)}
+                    </p>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleAutorizarExcepcion}
+                    disabled={motivoExcepcion.trim().length < 10 || autorizando || isSaving}
+                  >
+                    {autorizando ? "Autorizando…" : "Autorizar excepción y guardar"}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">

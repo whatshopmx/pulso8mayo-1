@@ -8,7 +8,7 @@ import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { addDays, parseISO, format, isWithinInterval, startOfWeek } from "date-fns";
 import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
-import { evaluarTurno, evaluarTurnos, type TurnoAValidar } from "@/lib/labor/shift-rules";
+import { evaluarTurno, evaluarTurnos, mensajesConRegla, type TurnoAValidar } from "@/lib/labor/shift-rules";
 import { veredictoDeTurno } from "@/lib/labor/shift-overrides";
 
 // Schema para crear un turno individual
@@ -234,11 +234,7 @@ export async function POST(req: NextRequest) {
             );
 
             if (!veredictoFinal.valido) {
-                return ApiHandler.error(
-                    ApiError.badRequest(
-                        veredictoFinal.errores.map((e) => e.mensaje).join(" ")
-                    )
-                );
+                return ApiHandler.error(ApiError.badRequest(mensajesConRegla(veredictoFinal.errores)));
             }
 
             validatedShifts.push({
@@ -350,10 +346,9 @@ export async function PUT(req: NextRequest) {
                 if (!veredicto.valido) {
                     return ApiHandler.error(
                         ApiError.badRequest(
-                            veredicto.errores
-                                .map((e) => e.mensaje)
-                                .filter((m) => !m.includes("consecutivos"))
-                                .join(" ") || "El cambio de horario no cumple la política de turnos."
+                            mensajesConRegla(
+                            veredicto.errores.filter((e) => e.regla !== "MAX_CONSECUTIVE_DAYS")
+                        ) || "El cambio de horario no cumple la política de turnos."
                         )
                     );
                 }

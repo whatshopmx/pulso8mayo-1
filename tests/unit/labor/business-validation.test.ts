@@ -3,9 +3,13 @@ import { describe, it, expect } from "vitest";
 import {
   SHIFT_RULES,
   aLftViolations,
+  aplicarExcepciones,
   duracionMinutos,
   evaluarTurno,
   evaluarTurnos,
+  mencionaRegla,
+  mensajesConRegla,
+  sinMarcadores,
   type TurnoAValidar,
 } from "@/lib/labor/shift-rules";
 import { shiftValidationService } from "@/lib/services/shift-validation-service";
@@ -253,5 +257,70 @@ describe("la fachada y la política dicen lo mismo", () => {
     expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe("error");
     expect(warnings).toEqual([]);
+  });
+});
+describe("marcadores de regla en el mensaje de rechazo", () => {
+  it("el mensaje nombra la regla para que la pantalla sepa qué autorizar", () => {
+    // Las propiedades de un Error no sobreviven a un server action: el marcador
+    // en el texto es la única señal que llega al navegador.
+    const resultado = evaluarTurno(turno({ startTime: "07:00", endTime: "16:00" }));
+    const mensaje = mensajesConRegla(resultado.errores);
+
+    expect(mensaje).toContain("[MAX_DAILY_HOURS]");
+    expect(mencionaRegla(mensaje, "MAX_DAILY_HOURS")).toBe(true);
+  });
+
+  it("un solapamiento nombra su propia regla, no la de la jornada", () => {
+    const resultado = evaluarTurno(
+      turno({ startTime: "14:00", endTime: "22:00" }),
+      [turno({ id: "previo", startTime: "07:00", endTime: "15:00" })]
+    );
+    const mensaje = mensajesConRegla(resultado.errores);
+
+    expect(mencionaRegla(mensaje, "SHIFT_OVERLAP")).toBe(true);
+    expect(mencionaRegla(mensaje, "MAX_DAILY_HOURS")).toBe(false);
+  });
+
+  it("quitar los marcadores deja texto legible", () => {
+    const legible = sinMarcadores(
+      "[MAX_DAILY_HOURS] Turno de 9.0 horas: excede la jornada de 8 horas."
+    );
+
+    expect(legible).toBe("Turno de 9.0 horas: excede la jornada de 8 horas.");
+  });
+
+  it("la excepción de la jornada levanta su regla y sólo la suya", () => {
+    const soloJornada = aplicarExcepciones(
+      evaluarTurno(turno({ startTime: "07:00", endTime: "16:00" })),
+      new Map([["MAX_DAILY_HOURS", "Temporada alta con cierre doble."]])
+    );
+
+    expect(soloJornada.valido).toBe(true);
+    expect(soloJornada.errores).toEqual([]);
+    // No desaparece: queda a la vista que se salvó y por qué.
+    expect(soloJornada.advertencias[0].mensaje).toContain("cierre doble");
+  });
+
+  it("una excepción de la jornada no levanta un solapamiento", () => {
+    const conDos = evaluarTurno(
+      turno({ id: "a", startTime: "07:00", endTime: "16:00" }),
+      [turno({ id: "previo", startTime: "14:00", endTime: "18:00" })]
+    );
+    const resultado = aplicarExcepciones(
+      conDos,
+      new Map([["MAX_DAILY_HOURS", "Temporada alta con cierre doble."]])
+    );
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.errores.map((e) => e.regla)).toEqual(["SHIFT_OVERLAP"]);
+  });
+
+  it("sin excepción, el mismo veredicto bloquea", () => {
+    const resultado = aplicarExcepciones(
+      evaluarTurno(turno({ startTime: "07:00", endTime: "16:00" })),
+      new Map()
+    );
+
+    expect(resultado.valido).toBe(false);
   });
 });

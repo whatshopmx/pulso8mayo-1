@@ -465,3 +465,31 @@ export function aplicarExcepciones(
 
   return { valido: errores.length === 0, errores, advertencias };
 }
+
+/**
+ * Mensajes de rechazo con la regla nombrada entre corchetes.
+ *
+ * `[MAX_DAILY_HOURS] Turno de 10.0 horas: excede la jornada de 8 horas.`
+ *
+ * Existe porque la excepción necesita que la pantalla sepa **qué** regla se
+ * incumplió antes de ofrecer "autorizar excepción". Las propiedades de un
+ * `Error` no sobreviven a la serialización de un server action, así que la
+ * opción honesta es un marcador estable en el texto, no un campo invisible que
+ * funciona en desarrollo y se pierde en producción.
+ *
+ * `sinMarcadores` lo quita para mostrarlo: un código de regla en medio de la
+ * pantalla es ruido, y en un `toast` es ilegible.
+ */
+export function mensajesConRegla(errores: InfraccionTurno[]): string {
+  return errores.map((e) => `[${e.regla}] ${e.mensaje}`).join(" ");
+}
+
+/** Quita los marcadores de regla para mostrar el texto al operador. */
+export function sinMarcadores(mensaje: string): string {
+  return mensaje.replace(/\[[A-Z_]+\]\s*/g, "");
+}
+
+/** ¿El mensaje corresponde a esta regla? Base de `mensajesConRegla`. */
+export function mencionaRegla(mensaje: string, regla: ReglaDeTurno): boolean {
+  return mensaje.includes(`[${regla}]`);
+}

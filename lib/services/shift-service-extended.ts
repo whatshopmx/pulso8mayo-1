@@ -26,7 +26,7 @@ import {
   LFTViolationType,
 } from "@/lib/types/shifts";
 import { parseISO, startOfWeek, addWeeks, addDays, differenceInDays, format } from "date-fns";
-import { evaluarTurno } from "@/lib/labor/shift-rules";
+import { evaluarTurno, mensajesConRegla } from "@/lib/labor/shift-rules";
 import { veredictoDeTurno } from "@/lib/labor/shift-overrides";
 
 // Extended interface for shift service with planned shifts operations
@@ -275,7 +275,9 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
     );
 
     if (!veredictoFinal.valido) {
-      throw ApiError.badRequest(veredictoFinal.errores.map((e) => e.mensaje).join(" "));
+      // El marcador de regla viaja en el mensaje para que la pantalla sepa qué
+      // authorizing antes de ofrecerlo (ver `mensajesConRegla`).
+      throw ApiError.badRequest(mensajesConRegla(veredictoFinal.errores));
     }
 
     const [shift] = await db
