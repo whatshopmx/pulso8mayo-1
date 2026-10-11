@@ -9,6 +9,7 @@ import { z } from "zod";
 import { addDays, parseISO, format, isWithinInterval, startOfWeek } from "date-fns";
 import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
 import { evaluarTurno, evaluarTurnos, type TurnoAValidar } from "@/lib/labor/shift-rules";
+import { veredictoDeTurno } from "@/lib/labor/shift-overrides";
 
 // Schema para crear un turno individual
 const createShiftSchema = z.object({
@@ -224,10 +225,18 @@ export async function POST(req: NextRequest) {
                 turnosDelEmpleado
             );
 
-            if (!veredicto.valido) {
+            // La jornada de 8 h bloquea; la excepción auditada es la salida.
+            const veredictoFinal = await veredictoDeTurno(
+                tenant.id!,
+                veredicto,
+                shiftData.userId,
+                shiftData.shiftDate
+            );
+
+            if (!veredictoFinal.valido) {
                 return ApiHandler.error(
                     ApiError.badRequest(
-                        veredicto.errores.map((e) => e.mensaje).join(" ")
+                        veredictoFinal.errores.map((e) => e.mensaje).join(" ")
                     )
                 );
             }
@@ -331,7 +340,12 @@ export async function PUT(req: NextRequest) {
                     },
                 ];
 
-                const veredicto = evaluarTurnos(candidatos);
+                const veredicto = await veredictoDeTurno(
+                    tenant.id!,
+                    evaluarTurnos(candidatos),
+                    existing.userId,
+                    existing.shiftDate
+                );
 
                 if (!veredicto.valido) {
                     return ApiHandler.error(

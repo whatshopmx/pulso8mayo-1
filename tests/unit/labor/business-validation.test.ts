@@ -68,15 +68,19 @@ describe("evaluarTurno — límites y su severidad", () => {
     expect(resultado.errores[0].mensaje).toContain("12 horas");
   });
 
-  it("una jornada de 8 horas es advertencia, no bloqueo", () => {
-    // La decisión: la UI bloqueaba a 8h y el servidor aceptaba hasta 12. Unificar
-    // en bloqueante cambiaría qué acepta el sistema sin que nadie lo decidiera.
+  it("una jornada de más de 8 horas bloquea", () => {
+    // C09.1 lo dejó en advertencia porque cambiar qué acepta el sistema es
+    // decisión del negocio. El negocio lo confirmó: ahora bloquea, y su salida
+    // es la excepción auditada, no el silencio.
     const resultado = evaluarTurno(turno({ startTime: "07:00", endTime: "16:00" }));
 
-    expect(resultado.valido).toBe(true);
-    expect(resultado.errores).toEqual([]);
-    expect(resultado.advertencias).toHaveLength(1);
-    expect(resultado.advertencias[0].mensaje).toContain("8 horas");
+    expect(resultado.valido).toBe(false);
+    expect(resultado.errores.map((e) => e.regla)).toContain("MAX_DAILY_HOURS");
+    expect(resultado.errores[0].mensaje).toContain("8 horas");
+  });
+
+  it("exactamente 8 horas no bloquea: el límite es 'más de'", () => {
+    expect(evaluarTurno(turno({ startTime: "07:00", endTime: "15:00" })).valido).toBe(true);
   });
 
   it("un turno nocturno que cruza medianoche no se toma por inválido", () => {
@@ -211,16 +215,16 @@ describe("evaluarTurnos — el conjunto", () => {
 });
 
 describe("la fachada y la política dicen lo mismo", () => {
-  it("la jornada de 8 horas avisa, no invalida", () => {
-    // Antes la fachada devolvía `errors` con 8 h y la API las aceptaba: la
-    // pantalla marcaba en rojo lo que el servidor guardaba sin pestañear.
+  it("la fachada también bloquea la jornada larga", () => {
+    // La pantalla y el servidor tienen que decir lo mismo; ahora que la jornada
+    // bloquea, la pantalla lo bloquea y no lo marca en rojo "por si acaso".
     const resultado = shiftValidationService.validateShift(
       shiftCompleto({ startTime: "07:00", endTime: "16:00" })
     );
 
-    expect(resultado.isValid).toBe(true);
-    expect(resultado.errors).toEqual([]);
-    expect(resultado.warnings).toHaveLength(1);
+    expect(resultado.isValid).toBe(false);
+    expect(resultado.errors.map((e) => e.type)).toContain("DAILY_HOURS");
+    expect(resultado.warnings).toEqual([]);
   });
 
   it("un solapamiento sí se ve como error en la pantalla", () => {
@@ -246,7 +250,8 @@ describe("la fachada y la política dicen lo mismo", () => {
       evaluarTurno(turno({ startTime: "07:00", endTime: "16:00" }))
     );
 
-    expect(errors.every((e) => e.severity === "error")).toBe(true);
-    expect(warnings.every((w) => w.severity === "warning")).toBe(true);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe("error");
+    expect(warnings).toEqual([]);
   });
 });

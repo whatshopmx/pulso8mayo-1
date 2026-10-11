@@ -26,16 +26,24 @@
  * | Límite | Valor | Regla | Dónde vivía antes | Estado |
  * | --- | --- | --- | --- | --- |
  * | Duración del turno | 12 h | Bloqueante | API + `labor-validation.ts` + `docs/SISTEMA_TURNOS.md` | Confirmado por el sistema |
- * | Jornada diaria | 8 h | **Advertencia** | `shift-validation-service` (bloqueante) | **Discrepa**: la UI bloqueaba y el servidor aceptaba |
+ * | Jornada diaria | 8 h | Bloqueante | `shift-validation-service` | **Confirmado por el negocio** (10-10-2026) |
  * | Semana | 48 h | Bloqueante | `shift-validation-service` | Confirmado por el sistema |
  * | Descanso entre jornadas | 8 h | **Advertencia** | `shift-validation-service` | Confirmado por el sistema |
  * | Días consecutivos | 6 | Bloqueante | `shift-validation-service` | Confirmado por el sistema |
  *
- * La jornada diaria queda como advertencia a propósito: con ella bloqueante, un
- * turno de 9 horas que hoy acepta la API pasaría a rechazarse, y eso es una
- * decisión de negocio —y posiblemente legal— que este módulo no tiene por qué
- * tomar en silencio. Lo que hace es dejar de fingir que la pantalla y el
- * servidor dicen lo mismo.
+ * ## La jornada diaria pasó de advertencia a bloqueante
+ *
+ * C09.1 la dejó en advertencia a propósito, porque bloquear cambiaría qué acepta
+ * el sistema y esa decisión era del negocio. El negocio la confirmó el 10 de
+ * octubre de 2026: un turno de más de 8 horas ya no se guarda solo.
+ *
+ * La salida no es un `if` en el código: es `policy_overrides` (`SHIFT_VALIDATION`
+ * / `MAX_DAILY_HOURS`), que se concede con motivo, la concede `OWNER` o
+ * `SUPER_ADMIN`, y deja la fila explicando por qué aquel turno quedó fuera de la regla.
+ *
+ * Cada infracción lleva además su `regla`, porque antes cuatro fallos distintos
+ * compartían el tipo `DAILY_HOURS` y una excepción para la jornada habría
+ * perdonado también un turno de 14 horas.
  */
 
 import { parseISO, startOfWeek, differenceInDays } from "date-fns";
@@ -45,7 +53,7 @@ import type { LFTViolation, LFTViolationType } from "@/lib/types/shifts";
 export const SHIFT_RULES = {
   /** Duración máxima de un turno. Bloqueante. */
   MAX_SHIFT_MINUTES: 12 * 60,
-  /** Jornada diaria recomendada. Advertencia mientras el negocio no la confirme. */
+  /** Jornada diaria máxima. Bloqueante desde la confirmación del negocio. */
   MAX_DAILY_MINUTES: 8 * 60,
   /** Semana máxima. Bloqueante. */
   MAX_WEEKLY_MINUTES: 48 * 60,
@@ -62,8 +70,31 @@ export const SHIFT_RULES = {
  * propio idioma— para que esta política hable de "bloqueante" y "advertencia",
  * que es la distinción que de verdad decide si algo se guarda.
  */
+/**
+ * Regla concreta que se incumplió.
+ *
+ * `tipo` agrupaba cuatro fallos distintos bajo `DAILY_HOURS` —turno de más de 12
+ * horas, hora mal formada, fin antes que inicio y jornada de 8 horas—, y con la
+ * jornada bloqueante esaagrupación impedía_EXCEPTION una de ellas sin las otras:
+ * una excepción para "jornada de 8 h" habría perdonado también un turno de 14.
+ *
+ * `regla` es lo que una excepción nombra; `tipo` sigue siendo lo que la
+ * interfaz conoce para pintar.
+ */
+export type ReglaDeTurno =
+  | "MALFORMED_TIME"
+  | "END_BEFORE_START"
+  | "MAX_SHIFT_MINUTES"
+  | "MAX_DAILY_HOURS"
+  | "SHIFT_OVERLAP"
+  | "WEEKLY_HOURS"
+  | "REST_PERIOD"
+  | "MAX_CONSECUTIVE_DAYS";
+
 export interface InfraccionTurno {
   tipo: LFTViolationType;
+  /** Regla concreta, la que nombra una excepción. */
+  regla: ReglaDeTurno;
   bloqueante: boolean;
   mensaje: string;
   shiftId: string;
@@ -138,6 +169,7 @@ export function evaluarTurno(
       errores: [
         {
           tipo: "DAILY_HOURS",
+          regla: "MALFORMED_TIME",
           bloqueante: true,
           mensaje: "La hora del turno no tiene el formato HH:mm.",
           shiftId: candidato.id,
@@ -154,6 +186,7 @@ export function evaluarTurno(
   if (duracion === 0 && !cruzaMedianoche(candidato.startTime, candidato.endTime)) {
     errores.push({
       tipo: "DAILY_HOURS",
+      regla: "END_BEFORE_START",
       bloqueante: true,
       mensaje: "La hora de fin debe ser posterior a la hora de inicio.",
       shiftId: candidato.id,
@@ -161,17 +194,20 @@ export function evaluarTurno(
   } else if (duracion > SHIFT_RULES.MAX_SHIFT_MINUTES) {
     errores.push({
       tipo: "DAILY_HOURS",
+      regla: "MAX_SHIFT_MINUTES",
       bloqueante: true,
       mensaje: `El turno de ${(duracion / 60).toFixed(1)} horas excede el límite de ${SHIFT_RULES.MAX_SHIFT_MINUTES / 60} horas.`,
       shiftId: candidato.id,
     });
   }
 
-  // Jornada diaria — advertencia mientras el negocio no la confirme.
+  // Jornada diaria — bloqueante desde que el negocio la confirmó (10-10-2026).
+  // Antes era advertencia; su salida es una excepción auditada, no un silencio.
   if (duracion > SHIFT_RULES.MAX_DAILY_MINUTES) {
-    advertencias.push({
+    errores.push({
       tipo: "DAILY_HOURS",
-      bloqueante: false,
+      regla: "MAX_DAILY_HOURS",
+      bloqueante: true,
       mensaje: `Turno de ${(duracion / 60).toFixed(1)} horas: excede la jornada de ${SHIFT_RULES.MAX_DAILY_MINUTES / 60} horas.`,
       shiftId: candidato.id,
     });
@@ -198,6 +234,7 @@ export function evaluarTurno(
   if (solapado) {
     errores.push({
       tipo: "SHIFT_OVERLAP",
+      regla: "SHIFT_OVERLAP",
       bloqueante: true,
       mensaje: "El empleado ya tiene un turno que se solapa con este horario.",
       shiftId: candidato.id,
@@ -216,6 +253,7 @@ export function evaluarTurno(
   if (minutosSemana + duracion > SHIFT_RULES.MAX_WEEKLY_MINUTES) {
     errores.push({
       tipo: "WEEKLY_HOURS",
+      regla: "WEEKLY_HOURS",
       bloqueante: true,
       mensaje: "El empleado excedería el límite semanal de 48 horas.",
       shiftId: candidato.id,
@@ -278,6 +316,7 @@ function descansoInsuficiente(
     if (descanso < SHIFT_RULES.MIN_REST_MINUTES) {
       return {
         tipo: "REST_PERIOD",
+        regla: "REST_PERIOD",
         bloqueante: false,
         mensaje: `Descanso de ${Math.floor(descanso / 60)}h entre jornadas: el mínimo es de ${SHIFT_RULES.MIN_REST_MINUTES / 60} horas.`,
         shiftId: candidato.id,
@@ -321,6 +360,7 @@ function diasConsecutivos(turnos: TurnoAValidar[]): InfraccionTurno[] {
       if (consecutivos > SHIFT_RULES.MAX_CONSECUTIVE_DAYS) {
         errores.push({
           tipo: "DAILY_HOURS",
+          regla: "MAX_CONSECUTIVE_DAYS",
           bloqueante: true,
           mensaje: `Más de ${SHIFT_RULES.MAX_CONSECUTIVE_DAYS} días consecutivos de trabajo.`,
           shiftId: ordenadas[i].id,
@@ -374,4 +414,54 @@ export function aLftViolations(resultado: ResultadoValidacion): {
       shiftId: i.shiftId,
     })),
   };
+}
+
+/**
+ * ¿Puede perdonarse esta infracción por una excepción?
+ *
+ * Regla por regla, nunca "si hay excepción, pasa todo": una excepción para la
+ * jornada de 8 horas no puede perdonar un solapamiento ni una semana de 48.
+ * Sólo las reglas **bloqueantes** admiten excepción; una excepción para una
+ * advertencia no tiene sentido porque no había nada que desbloquear.
+ */
+function esExcepcionable(infraccion: InfraccionTurno): boolean {
+  return infraccion.bloqueante;
+}
+
+/**
+ * Aplica las excepciones concedidas a un veredicto de la política.
+ *
+ * La política sigue siendo pura —no toca la base—: quien la llama resuelve
+ * primero qué excepciones hay vigentes y se las pasa. Así la misma función
+ * sirve para un turno guardado, para la vista previa del editor y para una
+ * edición, sin tres lecturas distintas de la tabla.
+ *
+ * Las infracciones excusadas no desaparecen: se devuelven como advertencias,
+ * con el motivo si viene. Una pantalla que dice "esto se salvó por una
+ * excepción" es la diferencia entre un registro explicable y uno que parece
+ * un descuido.
+ */
+export function aplicarExcepciones(
+  resultado: ResultadoValidacion,
+  concedidas: Map<ReglaDeTurno, string>
+): ResultadoValidacion {
+  const errores: InfraccionTurno[] = [];
+  const advertencias: InfraccionTurno[] = [...resultado.advertencias];
+
+  for (const infraccion of resultado.errores) {
+    const motivo = concedidas.get(infraccion.regla);
+
+    if (motivo === undefined || !esExcepcionable(infraccion)) {
+      errores.push(infraccion);
+      continue;
+    }
+
+    advertencias.push({
+      ...infraccion,
+      bloqueante: false,
+      mensaje: `${infraccion.mensaje} Autorizado como excepción: ${motivo}`,
+    });
+  }
+
+  return { valido: errores.length === 0, errores, advertencias };
 }

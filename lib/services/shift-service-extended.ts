@@ -27,6 +27,7 @@ import {
 } from "@/lib/types/shifts";
 import { parseISO, startOfWeek, addWeeks, addDays, differenceInDays, format } from "date-fns";
 import { evaluarTurno } from "@/lib/labor/shift-rules";
+import { veredictoDeTurno } from "@/lib/labor/shift-overrides";
 
 // Extended interface for shift service with planned shifts operations
 export interface PlannedShiftService {
@@ -263,8 +264,18 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
       existentes
     );
 
-    if (!veredicto.valido) {
-      throw ApiError.badRequest(veredicto.errores.map((e) => e.mensaje).join(" "));
+    // La política bloquea la jornada de 8 h; la salida es una excepción
+    // auditada, no un `if` con el nombre de un jefe. Aquí se decide una sola vez
+    // para que la acción, la API y este servicio no consulten la tabla cada uno.
+    const veredictoFinal = await veredictoDeTurno(
+      actor.companyId,
+      veredicto,
+      data.userId,
+      data.shiftDate
+    );
+
+    if (!veredictoFinal.valido) {
+      throw ApiError.badRequest(veredictoFinal.errores.map((e) => e.mensaje).join(" "));
     }
 
     const [shift] = await db

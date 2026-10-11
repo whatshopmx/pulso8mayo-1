@@ -3,6 +3,10 @@ import { PgDialect } from "drizzle-orm/pg-core";
 
 import { db } from "@/lib/db";
 import { plannedShiftService } from "@/lib/services/shift-service-extended";
+import {
+  hayExcepcionVigente,
+  historialDeExcepcion,
+} from "@/lib/security/policy-overrides";
 import { ApiError } from "@/lib/api/error";
 import {
   EMPLEADO_A_1,
@@ -39,6 +43,17 @@ vi.mock("@/lib/db", () => ({
     delete: vi.fn(),
   },
 }));
+
+// La tabla de excepciones se simula entera: lo que se prueba aquí es que el
+// servicio **consulta** la excepción correcta y respeta la respuesta.
+vi.mock("@/lib/security/policy-overrides", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/security/policy-overrides")>();
+  return {
+    ...real,
+    hayExcepcionVigente: vi.fn(),
+    historialDeExcepcion: vi.fn(),
+  };
+});
 
 const dialect = new PgDialect();
 
@@ -116,6 +131,9 @@ const TURNO_B = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(db.query.plannedShifts.findMany).mockResolvedValue([]);
+  // Sin excepción por defecto: el comportamiento normal es la política.
+  vi.mocked(hayExcepcionVigente).mockResolvedValue(false);
+  vi.mocked(historialDeExcepcion).mockResolvedValue([] as never);
 });
 
 describe("createPlannedShift — la empresa sale de la sesión", () => {
@@ -217,11 +235,45 @@ describe("createPlannedShift — la política de turnos es la autoridad (C09)", 
     expect(insert.values).not.toHaveBeenCalled();
   });
 
-  it("acepta un turno de 9 horas: la jornada de 8 es advertencia, no bloqueo", async () => {
-    // La decisión conservadora de C09.1: bloquear aquí cambiaría qué acepta el
-    // sistema sin que el negocio lo hubiera decidido.
+  it("rechaza un turno de 9 horas: la jornada de 8 h ya bloquea", async () => {
+    // C09.1 lo dejó en advertencia porque cambiar qué acepta el sistema es
+    // decisión del negocio. El negocio lo confirmó: ahora bloquea.
+    encadenarSelectPorVez(existe(SUCURSAL_A_1), existe(EMPLEADO_A_1));
+    const insert = encadenarInsert([filaDeShift()]);
+
+    await expect(
+      plannedShiftService.createPlannedShift(
+        actor(adminA),
+        turnoDeEmpresaA({ startTime: "07:00", endTime: "16:00" })
+      )
+    ).rejects.toBeInstanceOf(ApiError);
+
+    expect(insert.values).not.toHaveBeenCalled();
+  });
+
+  it("con una excepción auditada, el mismo turno de 9 horas sí se guarda", async () => {
     encadenarSelectPorVez(existe(SUCURSAL_A_1), existe(EMPLEADO_A_1));
     encadenarInsert([filaDeShift()]);
+    // Excepción viva para ese empleado en esa fecha de negocio.
+    vi.mocked(hayExcepcionVigente).mockResolvedValue(true);
+    vi.mocked(historialDeExcepcion).mockResolvedValue([
+      {
+        id: "override-1",
+        companyId: adminA.companyId,
+        branchId: null,
+        domain: "SHIFT_VALIDATION",
+        rule: "MAX_DAILY_HOURS",
+        resourceType: "employee_day",
+        resourceId: `${EMPLEADO_A_1}:2026-03-16`,
+        grantedBy: adminA.id,
+        reason: "Temporada alta con cierre doble",
+        grantedAt: new Date("2026-10-01T00:00:00.000Z"),
+        expiresAt: null,
+        revokedAt: null,
+        revokedBy: null,
+        revokedReason: null,
+      },
+    ] as never);
 
     await expect(
       plannedShiftService.createPlannedShift(
@@ -229,6 +281,49 @@ describe("createPlannedShift — la política de turnos es la autoridad (C09)", 
         turnoDeEmpresaA({ startTime: "07:00", endTime: "16:00" })
       )
     ).resolves.toBeDefined();
+
+    // Y se pregunta por la empresa y el día del turno, no por un id suelto.
+    expect(hayExcepcionVigente).toHaveBeenCalledWith(
+      adminA.companyId,
+      expect.objectContaining({
+        domain: "SHIFT_VALIDATION",
+        rule: "MAX_DAILY_HOURS",
+        resourceId: `${EMPLEADO_A_1}:2026-03-16`,
+      })
+    );
+  });
+
+  it("una excepción de otra empresa no abre la jornada", async () => {
+    encadenarSelectPorVez(existe(SUCURSAL_A_1), existe(EMPLEADO_A_1));
+    const insert = encadenarInsert([filaDeShift()]);
+    vi.mocked(hayExcepcionVigente).mockResolvedValue(false);
+
+    await expect(
+      plannedShiftService.createPlannedShift(
+        actor(adminA),
+        turnoDeEmpresaA({ startTime: "07:00", endTime: "16:00" })
+      )
+    ).rejects.toBeInstanceOf(ApiError);
+
+    expect(insert.values).not.toHaveBeenCalled();
+  });
+
+  it("la excepción de la jornada no perdona un turno de más de 12 horas", async () => {
+    // La política decide por regla: una excepción para MAX_DAILY_HOURS no puede
+    // perdonar MAX_SHIFT_MINUTES, que es otro límite con otro motivo.
+    encadenarSelectPorVez(existe(SUCURSAL_A_1), existe(EMPLEADO_A_1));
+    const insert = encadenarInsert([filaDeShift()]);
+    vi.mocked(hayExcepcionVigente).mockResolvedValue(true);
+    vi.mocked(historialDeExcepcion).mockResolvedValue([] as never);
+
+    await expect(
+      plannedShiftService.createPlannedShift(
+        actor(adminA),
+        turnoDeEmpresaA({ startTime: "06:00", endTime: "19:00" })
+      )
+    ).rejects.toBeInstanceOf(ApiError);
+
+    expect(insert.values).not.toHaveBeenCalled();
   });
 
   it("compara horas de verdad, no como cadenas", async () => {
