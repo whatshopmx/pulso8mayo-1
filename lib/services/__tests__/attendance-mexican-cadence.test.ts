@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { getServiceShift } from "@/components/labor/attendance-report"
+import { getMexicanPresetDates } from "@/lib/labor/quincena-presets"
 
 describe("Mexican Restaurant Operational Cadence & Shift Classification", () => {
     it("classifies morning opening shifts (Apertura: 06:00 - 11:59)", () => {
@@ -26,10 +27,15 @@ describe("Mexican Restaurant Operational Cadence & Shift Classification", () => 
     })
 })
 
+/**
+ * La aritmética de quincenas es pura y se importa del módulo que la contiene,
+ * no del componente de React que la usaba. Importar el componente metía en la
+ * prueba `next/navigation`, gráficas y resumen de asistencia detrás, y el fallo
+ * intermitente que se veía en la corrida completa venía de ese grafo, no de las
+ * fechas.
+ */
 describe("Mexican Payroll Quincena Cutoffs (LFT Cadence)", () => {
-    // Import dynamically or directly from dashboard
-    it("calculates 1st quincena correctly (Days 1 to 15)", async () => {
-        const { getMexicanPresetDates } = await import("@/components/labor/attendance-dashboard")
+    it("calculates 1st quincena correctly (Days 1 to 15)", () => {
         const midFirstQuincena = new Date(2026, 8, 10) // 10 Sept 2026
         const result = getMexicanPresetDates("esta-quincena", undefined, undefined, midFirstQuincena)
 
@@ -38,8 +44,7 @@ describe("Mexican Payroll Quincena Cutoffs (LFT Cadence)", () => {
         expect(result.label).toContain("1ª Quincena")
     })
 
-    it("calculates 2nd quincena correctly (Days 16 to end of month)", async () => {
-        const { getMexicanPresetDates } = await import("@/components/labor/attendance-dashboard")
+    it("calculates 2nd quincena correctly (Days 16 to end of month)", () => {
         const midSecondQuincena = new Date(2026, 8, 22) // 22 Sept 2026 (Sept has 30 days)
         const result = getMexicanPresetDates("esta-quincena", undefined, undefined, midSecondQuincena)
 
@@ -48,8 +53,7 @@ describe("Mexican Payroll Quincena Cutoffs (LFT Cadence)", () => {
         expect(result.label).toContain("2ª Quincena")
     })
 
-    it("calculates quincena anterior when in 1st quincena (previous month 16-end)", async () => {
-        const { getMexicanPresetDates } = await import("@/components/labor/attendance-dashboard")
+    it("calculates quincena anterior when in 1st quincena (previous month 16-end)", () => {
         const earlySept = new Date(2026, 8, 5) // 5 Sept 2026 -> previous quincena is August 16-31
         const result = getMexicanPresetDates("quincena-anterior", undefined, undefined, earlySept)
 
