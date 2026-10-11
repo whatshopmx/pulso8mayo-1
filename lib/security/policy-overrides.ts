@@ -63,11 +63,24 @@ export interface GrantOverrideInput extends OverrideTarget {
 const ROLES_CONCEDEN: Role[] = ["OWNER", "SUPER_ADMIN"];
 
 export function assertPuedeConcederExcepcion(role: Role): void {
-  if (!ROLES_CONCEDEN.includes(role)) {
+  if (!puedeConcederExcepcion(role)) {
     throw ApiError.forbidden(
       "Sólo el propietario de la empresa puede autorizar una excepción a una política."
     );
   }
+}
+
+/**
+ * Predicado para los llamadores que tienen el tipo estrecho de rol.
+ *
+ * Conviven dos tipos de rol en el proyecto: `Role` (`lib/permissions.ts`) sale
+ * del enum de la base e incluye `OWNER`; `UserRole` (`lib/rbac/permissions.ts`)
+ * no lo incluye. Quien lee la sesión con `requireTenantAuth` recibe `UserRole`, y
+ * comparar contra `"OWNER"` ahí no compila —aunque un dueño sí exista y sí pueda
+ *—por lo que el predicado acepta texto y el estrechamiento queda aquí, escrito.
+ */
+export function puedeConcederExcepcion(role: string): boolean {
+  return ROLES_CONCEDEN.includes(role as Role);
 }
 
 /** Motivo obligatorio y legible: una razón de un carácter no es una razón. */
