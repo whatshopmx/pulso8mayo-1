@@ -52,6 +52,37 @@ export type StepUpdateContext =
 
 export class WorkflowExecutionService {
 
+    /**
+     * ¿El revisor tiene relación con el trabajo que va a aprobar?
+     *
+     * Dos señales, y basta con una:
+     *
+     * 1. Es el responsable de la ejecución. Asignarse el trabajo y después
+     *    certificarlo es la forma más común de auto-revisión.
+     * 2. Registró al menos un paso. Un `SUPERVISOR` que ejecutó la operación de
+     *    la tarde y la aprueba mañana está haciendo lo mismo, aunque la
+     *    instancia no lleve su nombre como responsable.
+     *
+     * Se consulta un solo paso porque la pregunta es "¿participó?", no
+     * "cuántos": el primer `findFirst` que encuentra ya responde que sí.
+     */
+    private static async reviewerTrabajoEn(
+        instance: { id: string; assigneeId: string | null },
+        reviewerId: string
+    ): Promise<boolean> {
+        if (instance.assigneeId === reviewerId) return true;
+
+        const paso = await db.query.workflowInstanceSteps.findFirst({
+            where: and(
+                eq(workflowInstanceSteps.instanceId, instance.id),
+                eq(workflowInstanceSteps.completedBy, reviewerId)
+            ),
+            columns: { id: true },
+        });
+
+        return Boolean(paso);
+    }
+
     static async createExecution(templateId: string, branchId: string, assigneeId: string | null = null, sessionId: string | null = null, categoryValue?: string, companyId?: string, dynamicCtx?: { purchaseId?: string }) {
         // 1. Get Template
         //
@@ -289,6 +320,21 @@ export class WorkflowExecutionService {
                 throw new WorkflowReviewError("FORBIDDEN", error.message);
             }
             throw error;
+        }
+
+        // Separación de funciones: quien hizo el trabajo no lo aprueba.
+        //
+        // El alcance anterior responde "¿puede este usuario ver esta
+        // ejecución?" y no "¿la hizo?". Con las dos capas, un ADMIN al que le
+        // asignan su propia ejecución podía revisarla y publicarla como
+        // aprobada sin que nadie más la mirara. Se comprueba contra el
+        // responsable y contra la autoría de los pasos, porque "no fui yo quien
+        // la hizo" no es lo mismo que "nadie la hizo por mí".
+        if (await this.reviewerTrabajoEn(instance, reviewer.userId)) {
+            throw new WorkflowReviewError(
+                "FORBIDDEN",
+                "No puedes revisar una ejecución en la que participaste. Pide a otra persona de la gerencia que la revise."
+            );
         }
 
         if (instance.status !== "COMPLETED") {

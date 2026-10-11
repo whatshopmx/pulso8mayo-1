@@ -39,7 +39,7 @@ vi.mock("@/lib/db", () => ({
     query: {
       workflowInstances: { findFirst: vi.fn() },
       workflowTemplates: { findFirst: vi.fn() },
-      workflowInstanceSteps: { findMany: vi.fn() },
+      workflowInstanceSteps: { findMany: vi.fn(), findFirst: vi.fn() },
     },
   },
 }));
@@ -371,6 +371,86 @@ describe("reviewExecution — el alcance es empresa, sucursal y relación", () =
         actor(adminA)
       )
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("reviewExecution — nadie revisa su propio trabajo", () => {
+  beforeEach(() => {
+    // Por defecto: el revisor no registró ningún paso.
+    vi.mocked(db.query.workflowInstanceSteps.findFirst).mockResolvedValue(undefined as never);
+  });
+
+  it("el responsable de la ejecución no puede revisarla", async () => {
+    vi.mocked(db.query.workflowInstances.findFirst).mockResolvedValue(
+      instancia({ assigneeId: supervisorA2.id }) as never
+    );
+    encadenarSelect([{ id: SUCURSAL_A_1 }]);
+
+    await expect(
+      WorkflowExecutionService.reviewExecution(
+        INSTANCIA,
+        { reviewStatus: "APPROVED" },
+        actor(supervisorA2)
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("quien registró un paso tampoco puede revisarla, aunque no sea el responsable", async () => {
+    vi.mocked(db.query.workflowInstances.findFirst).mockResolvedValue(
+      instancia({ assigneeId: empleadoA1.id }) as never
+    );
+    encadenarSelect([{ id: SUCURSAL_A_1 }]);
+    vi.mocked(db.query.workflowInstanceSteps.findFirst).mockResolvedValue({
+      id: "paso-1",
+    } as never);
+
+    await expect(
+      WorkflowExecutionService.reviewExecution(
+        INSTANCIA,
+        { reviewStatus: "APPROVED" },
+        actor(supervisorA2)
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("el alcance se comprueba antes que la auto-revisión", async () => {
+    // Al revés, el mensaje le diría a un gerente de otra sucursal que no
+    // puede revisar "porque participó", que no es lo que pasó y sí le da
+    // información sobre quién la hizo.
+    vi.mocked(db.query.workflowInstances.findFirst).mockResolvedValue(
+      instancia({ branchId: SUCURSAL_A_2, assigneeId: supervisorA2.id }) as never
+    );
+    encadenarSelect([{ id: SUCURSAL_A_1 }]);
+
+    await expect(
+      WorkflowExecutionService.reviewExecution(
+        INSTANCIA,
+        { reviewStatus: "APPROVED" },
+        actor(supervisorA2)
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("otra persona de la gerencia sí puede revisarla", async () => {
+    vi.mocked(db.query.workflowInstances.findFirst).mockResolvedValue(
+      instancia({
+        branchId: SUCURSAL_A_2,
+        assigneeId: empleadoA1.id,
+        status: "COMPLETED",
+      }) as never
+    );
+    encadenarSelect([{ id: SUCURSAL_A_1 }]);
+    const update = cortarEnUpdate();
+
+    await expect(
+      WorkflowExecutionService.reviewExecution(
+        INSTANCIA,
+        { reviewStatus: "APPROVED" },
+        actor(supervisorA2)
+      )
+    ).rejects.toThrow("__corte__");
+
+    expect(update.set).toHaveBeenCalledTimes(1);
   });
 });
 
