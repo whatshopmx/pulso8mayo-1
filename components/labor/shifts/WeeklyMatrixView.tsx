@@ -13,10 +13,9 @@ interface WeeklyMatrixViewProps {
   branches: { id: string; name: string }[];
   roles: string[];
   employees: { id: string; name: string }[];
-  companyId?: string;
 }
 
-export function WeeklyMatrixView({ branches, roles, employees, companyId }: WeeklyMatrixViewProps) {
+export function WeeklyMatrixView({ branches, roles, employees }: WeeklyMatrixViewProps) {
   const [filters, setFilters] = useState<ShiftFilters>({});
   const [editingShift, setEditingShift] = useState<Shift | undefined>();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -42,6 +41,8 @@ export function WeeklyMatrixView({ branches, roles, employees, companyId }: Week
     setIsEditorOpen(true);
   };
 
+  // El error sube al diálogo, que se queda abierto con el motivo: cerrarlo al
+  // fallar hacía perder todo lo capturado (C08).
   const handleSave = async (data: Parameters<typeof createShift>[0]) => {
     if (editingShift) {
       await updateShift(editingShift.id, data);
@@ -66,7 +67,6 @@ export function WeeklyMatrixView({ branches, roles, employees, companyId }: Week
       endTime: shift.endTime,
       notes: shift.notes || undefined,
       status: "DRAFT",
-      companyId: shift.companyId,
     });
   };
 
@@ -147,7 +147,6 @@ export function WeeklyMatrixView({ branches, roles, employees, companyId }: Week
         branches={branches}
         roles={roles}
         selectedDate={selectedDate}
-        companyId={companyId || ""}
       />
     </div>
   );

@@ -24,8 +24,7 @@ import { format } from "date-fns";
 interface ShiftEditorDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: CreateShiftInput) => void;
-  companyId: string;
+  onSave: (data: CreateShiftInput) => void | Promise<void>;
   shift?: Shift;
   employees: { id: string; name: string }[];
   branches: { id: string; name: string }[];
@@ -51,9 +50,10 @@ export function ShiftEditorDialog({
     startTime: "09:00",
     endTime: "17:00",
     status: "DRAFT",
-    companyId: "",
   });
   const [shiftType, setShiftType] = useState<ShiftTypeKey | "CUSTOM">("MATUTINO");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (shift) {
@@ -66,7 +66,6 @@ export function ShiftEditorDialog({
         endTime: shift.endTime,
         notes: shift.notes,
         status: (shift.status === "DRAFT" || shift.status === "PUBLISHED") ? shift.status : "DRAFT",
-        companyId: shift.companyId,
       });
     } else if (selectedDate) {
       setFormData((prev) => ({
@@ -74,7 +73,21 @@ export function ShiftEditorDialog({
         shiftDate: format(selectedDate, "yyyy-MM-dd"),
       }));
     }
+    setSaveError(null);
   }, [shift, selectedDate, isOpen]);
+
+  /**
+   * Un turno sin empleado, sucursal u rol no se manda.
+   *
+   * Antes el formulario se enviaba siempre y el `companyId` salía vacío
+   * porque el contenedor no lo tenía. Con C02 el servidor rechaza el destino,
+   * pero el operador veía un error genérico por algo que el formulario ya sabía:
+   * le faltan tres campos. Deshabilitar es la versión honesta de esa validación.
+   */
+  const faltaAlgo =
+    !formData.userId || !formData.branchId || !formData.role || !formData.shiftDate;
+  const sinOpcionesParaElegir =
+    employees.length === 0 || branches.length === 0 || roles.length === 0;
 
   const handleShiftTypeChange = (type: ShiftTypeKey | "CUSTOM") => {
     setShiftType(type);
@@ -88,10 +101,24 @@ export function ShiftEditorDialog({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
-    onClose();
+    if (faltaAlgo || isSaving) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await onSave(formData);
+      onClose();
+    } catch (error) {
+      // El diálogo se queda abierto con el motivo: cerrarlo al fallar hacía
+      // perder todo lo capturado y obliga a reconstruir el turno.
+      setSaveError(
+        error instanceof Error ? error.message : "No se pudo guardar el turno."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -101,6 +128,18 @@ export function ShiftEditorDialog({
           <DialogTitle>{shift ? "Editar Turno" : "Nuevo Turno"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {sinOpcionesParaElegir && (
+            <p className="text-sm text-destructive">
+              Falta información para construir el turno: la empresa necesita
+              personal, sucursales y roles registrados.
+            </p>
+          )}
+
+          {saveError && (
+            <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {saveError}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Empleado</Label>
@@ -210,10 +249,20 @@ export function ShiftEditorDialog({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
               Cancelar
             </Button>
-            <Button type="submit">Guardar</Button>
+            <Button
+              type="submit"
+              disabled={faltaAlgo || sinOpcionesParaElegir || isSaving}
+              title={
+                faltaAlgo
+                  ? "Elige empleado, sucursal, rol y fecha"
+                  : undefined
+              }
+            >
+              {isSaving ? "Guardando…" : "Guardar"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -60,9 +60,13 @@ export interface ShiftFilters {
 
 /**
  * Input for creating a new shift
+ *
+ * `companyId` es opcional y **no lo manda el cliente**: desde C02 lo escribe el
+ * servidor con el de la sesión. Sigue en el tipo porque `Shift` (lo que se
+ * devuelve al leer) sí lo tiene, y quitarlo del todo rompería ese contrato.
  */
 export interface CreateShiftInput {
-  companyId: string
+  companyId?: string
   userId: string
   branchId: string
   role: string
