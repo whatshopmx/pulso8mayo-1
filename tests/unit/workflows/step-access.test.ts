@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { db } from "@/lib/db";
 import { requirePermissionApi } from "@/lib/rbac/abac";
+import { hayExcepcionVigente } from "@/lib/security/policy-overrides";
 import { requireReviewAccess } from "@/lib/workflows/execution-access";
 import { PATCH as updateStepRoute } from "@/app/api/workflows/executions/[id]/steps/[stepId]/route";
 import { PATCH as reviewRoute } from "@/app/api/workflows/executions/[id]/route";
@@ -43,6 +44,11 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
+
+vi.mock("@/lib/security/policy-overrides", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/security/policy-overrides")>();
+  return { ...real, hayExcepcionVigente: vi.fn() };
+});
 
 vi.mock("@/lib/rbac/abac", () => ({ requirePermissionApi: vi.fn() }));
 
@@ -376,8 +382,9 @@ describe("reviewExecution — el alcance es empresa, sucursal y relación", () =
 
 describe("reviewExecution — nadie revisa su propio trabajo", () => {
   beforeEach(() => {
-    // Por defecto: el revisor no registró ningún paso.
+    // Por defecto: el revisor no registró ningún paso y no hay excepción.
     vi.mocked(db.query.workflowInstanceSteps.findFirst).mockResolvedValue(undefined as never);
+    vi.mocked(hayExcepcionVigente).mockResolvedValue(false);
   });
 
   it("el responsable de la ejecución no puede revisarla", async () => {
@@ -431,15 +438,16 @@ describe("reviewExecution — nadie revisa su propio trabajo", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("otra persona de la gerencia sí puede revisarla", async () => {
+  it("con una excepción concedida, el propio autor puede revisarla", async () => {
     vi.mocked(db.query.workflowInstances.findFirst).mockResolvedValue(
       instancia({
         branchId: SUCURSAL_A_2,
-        assigneeId: empleadoA1.id,
+        assigneeId: supervisorA2.id,
         status: "COMPLETED",
       }) as never
     );
-    encadenarSelect([{ id: SUCURSAL_A_1 }]);
+    encadenarSelect([{ id: SUCURSAL_A_2 }]);
+    vi.mocked(hayExcepcionVigente).mockResolvedValue(true);
     const update = cortarEnUpdate();
 
     await expect(
@@ -450,6 +458,41 @@ describe("reviewExecution — nadie revisa su propio trabajo", () => {
       )
     ).rejects.toThrow("__corte__");
 
+    // La excepción se consulta para esa ejecución y en la empresa del revisor:
+    // una excepción de otra empresa no abriría nada.
+    expect(hayExcepcionVigente).toHaveBeenCalledWith(
+      supervisorA2.companyId,
+      expect.objectContaining({
+        domain: "WORKFLOW_REVIEW",
+        rule: "SELF_REVIEW",
+        resourceType: "workflow_instance",
+        resourceId: INSTANCIA,
+      })
+    );
+    expect(update.set).toHaveBeenCalledTimes(1);
+  });
+
+  it("otro autor puede revisarla sin necesidad de excepción", async () => {
+    vi.mocked(db.query.workflowInstances.findFirst).mockResolvedValue(
+      instancia({
+        branchId: SUCURSAL_A_2,
+        assigneeId: empleadoA1.id,
+        status: "COMPLETED",
+      }) as never
+    );
+    encadenarSelect([{ id: SUCURSAL_A_2 }]);
+    const update = cortarEnUpdate();
+
+    await expect(
+      WorkflowExecutionService.reviewExecution(
+        INSTANCIA,
+        { reviewStatus: "APPROVED" },
+        actor(supervisorA2)
+      )
+    ).rejects.toThrow("__corte__");
+
+    // Sin auto-revisión no hay ni una consulta extra a excepciones.
+    expect(hayExcepcionVigente).not.toHaveBeenCalled();
     expect(update.set).toHaveBeenCalledTimes(1);
   });
 });

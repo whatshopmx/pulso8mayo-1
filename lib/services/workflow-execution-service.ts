@@ -13,6 +13,7 @@ import {
     assertExecutionInScope,
     type ExecutionActor,
 } from "@/lib/workflows/execution-access";
+import { hayExcepcionVigente } from "@/lib/security/policy-overrides";
 
 export type WorkflowReviewErrorCode =
     | "NOT_FOUND"
@@ -330,11 +331,25 @@ export class WorkflowExecutionService {
         // aprobada sin que nadie más la mirara. Se comprueba contra el
         // responsable y contra la autoría de los pasos, porque "no fui yo quien
         // la hizo" no es lo mismo que "nadie la hizo por mí".
+        //
+        // La excepción existe porque hay operaciones donde no hay nadie más: un
+        // dueño solo no podría cerrar nada. Se concede con motivo, la concede
+        // OWNER o SUPER_ADMIN, y queda registrada — así el caso raro es
+        // auditable en lugar de ser un `if` en el código.
         if (await this.reviewerTrabajoEn(instance, reviewer.userId)) {
-            throw new WorkflowReviewError(
-                "FORBIDDEN",
-                "No puedes revisar una ejecución en la que participaste. Pide a otra persona de la gerencia que la revise."
-            );
+            const excepcion = await hayExcepcionVigente(reviewer.companyId, {
+                domain: "WORKFLOW_REVIEW",
+                rule: "SELF_REVIEW",
+                resourceType: "workflow_instance",
+                resourceId: instance.id,
+            });
+
+            if (!excepcion) {
+                throw new WorkflowReviewError(
+                    "FORBIDDEN",
+                    "No puedes revisar una ejecución en la que participaste. Pide a otra persona de la gerencia que la revise."
+                );
+            }
         }
 
         if (instance.status !== "COMPLETED") {
