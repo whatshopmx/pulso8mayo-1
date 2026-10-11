@@ -19,10 +19,10 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 - [x] [C03 — Unificar autorización de plantillas](plan-conexion-frontend-backend.md#c03) — depende de C00.
 - [x] [C04 — Acotar creación y lectura de ejecuciones](plan-conexion-frontend-backend.md#c04) — depende de C03.
 - [x] [C05 — Autorizar actualización y revisión de pasos](plan-conexion-frontend-backend.md#c05) — depende de C04.
-- [ ] [C06 — Acotar consultas de sesiones y descansos](plan-conexion-frontend-backend.md#c06) — depende de C00.
-- [ ] [C07 — Verificar pertenencia al cambiar costeo](plan-conexion-frontend-backend.md#c07) — depende de C00.
+- [x] [C06 — Acotar consultas de sesiones y descansos](plan-conexion-frontend-backend.md#c06) — depende de C00.
+- [x] [C07 — Verificar pertenencia al cambiar costeo](plan-conexion-frontend-backend.md#c07) — depende de C00.
 
-- [ ] Puerta de fase: aceptación y verificación registradas; build/lint y regresiones pertinentes revisados.
+- [x] Puerta de fase: aceptación y verificación registradas; build/lint y regresiones pertinentes revisados. `lint` 0 errores · `build` OK · `test:unit` 789/789 (61 archivos). Las siete entradas revisadas de la Fase 1 preguntas por empresa, alcance de sucursal y permiso; `workflow_instances`, `shift_sessions` y `workflow_instance_steps` no guardan empresa y se acotan por `branch_id`, lo cual queda fijado en pruebas.
 
 ## Fase 2 — Planificador de turnos con datos reales
 
@@ -100,8 +100,8 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 | C03 | Pendiente | — | — | No ejecutada | — |
 | C04 | Pendiente | — | — | No ejecutada | — |
 | C05 | Pendiente | — | — | No ejecutada | — |
-| C06 | Pendiente | — | — | No ejecutada | — |
-| C07 | Pendiente | — | — | No ejecutada | — |
+| C06 | Completada | 2026-10-10 | `a241f7b` | `tests/unit/labor/session-scope.test.ts` (16). SQL revisado con `PgDialect`; el filtro de empresa se comprueba dentro del subselect de `branches` | Sin V2: no se reprodujo en navegador |
+| C07 | Completada | 2026-10-10 | `008b04f` | `tests/unit/inventory/costing-config-access.test.ts` (8) sobre el `PATCH` real, con `CostingService` simulado para observar si se llega a llamarlo | Sin V2. El `GET` ya filtraba por empresa y no se tocó |
 | C08 | Pendiente | — | — | No ejecutada | — |
 | C09 | Pendiente | — | — | No ejecutada | — |
 | C10 | Pendiente | — | — | No ejecutada | — |
