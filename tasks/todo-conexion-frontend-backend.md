@@ -26,7 +26,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 
 ## Fase 2 — Planificador de turnos con datos reales
 
-- [ ] [C08 — Cargar empleados y sucursales reales en el planificador](plan-conexion-frontend-backend.md#c08) — depende de C01, C02.
+- [x] [C08 — Cargar empleados y sucursales reales en el planificador](plan-conexion-frontend-backend.md#c08) — depende de C01, C02.
 - [ ] [C09 — Aplicar una política de validación de turnos](plan-conexion-frontend-backend.md#c09) — depende de C02, C08.
 - [ ] [C10 — Completar exportación de turnos](plan-conexion-frontend-backend.md#c10) — depende de C08.
 - [ ] [C11 — Aplicar plantillas de turnos válidas](plan-conexion-frontend-backend.md#c11) — depende de C09.
@@ -102,7 +102,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 | C05 | Pendiente | — | — | No ejecutada | — |
 | C06 | Completada | 2026-10-10 | `a241f7b` | `tests/unit/labor/session-scope.test.ts` (16). SQL revisado con `PgDialect`; el filtro de empresa se comprueba dentro del subselect de `branches` | Sin V2: no se reprodujo en navegador |
 | C07 | Completada | 2026-10-10 | `008b04f` | `tests/unit/inventory/costing-config-access.test.ts` (8) sobre el `PATCH` real, con `CostingService` simulado para observar si se llega a llamarlo | Sin V2. El `GET` ya filtraba por empresa y no se tocó |
-| C08 | Pendiente | — | — | No ejecutada | — |
+| C08 | Completada | 2026-10-10 | `c93007b`, `6430cad` | `tests/unit/labor/scheduler-catalog.test.ts` (16) sobre la consulta real; tsc, build y `test:unit` 796/796 | **Sin V2**: falta el recorrido en navegador (crear, recargar y comprobar persistencia en dos empresas), que es lo único que verificaría que la pantalla y el servidor cuentan la misma historia. Los roles salen de `employee_profiles.position` + roles ya usados: si nadie tiene puesto capturado, el selector queda vacío a propósito |
 | C09 | Pendiente | — | — | No ejecutada | — |
 | C10 | Pendiente | — | — | No ejecutada | — |
 | C11 | Pendiente | — | — | No ejecutada | — |
