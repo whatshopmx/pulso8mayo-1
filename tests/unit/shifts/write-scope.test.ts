@@ -184,6 +184,68 @@ describe("createPlannedShift — la empresa sale de la sesión", () => {
   });
 });
 
+describe("createPlannedShift — la política de turnos es la autoridad (C09)", () => {
+  it("rechaza un turno que se solapa con uno existente", async () => {
+    encadenarSelectPorVez(existe(SUCURSAL_A_1), existe(EMPLEADO_A_1));
+    // El empleado ya tiene 07:00–15:00 ese día.
+    vi.mocked(db.query.plannedShifts.findMany).mockResolvedValue([
+      { ...filaDeShift(), id: "3000000-0000-4000-8000-000000000099", startTime: "07:00", endTime: "15:00" },
+    ] as never);
+    const insert = encadenarInsert([filaDeShift()]);
+
+    await expect(
+      plannedShiftService.createPlannedShift(
+        actor(adminA),
+        turnoDeEmpresaA({ startTime: "14:00", endTime: "22:00" })
+      )
+    ).rejects.toBeInstanceOf(ApiError);
+
+    expect(insert.values).not.toHaveBeenCalled();
+  });
+
+  it("rechaza un turno de más de 12 horas", async () => {
+    encadenarSelectPorVez(existe(SUCURSAL_A_1), existe(EMPLEADO_A_1));
+    const insert = encadenarInsert([filaDeShift()]);
+
+    await expect(
+      plannedShiftService.createPlannedShift(
+        actor(adminA),
+        turnoDeEmpresaA({ startTime: "06:00", endTime: "19:00" })
+      )
+    ).rejects.toBeInstanceOf(ApiError);
+
+    expect(insert.values).not.toHaveBeenCalled();
+  });
+
+  it("acepta un turno de 9 horas: la jornada de 8 es advertencia, no bloqueo", async () => {
+    // La decisión conservadora de C09.1: bloquear aquí cambiaría qué acepta el
+    // sistema sin que el negocio lo hubiera decidido.
+    encadenarSelectPorVez(existe(SUCURSAL_A_1), existe(EMPLEADO_A_1));
+    encadenarInsert([filaDeShift()]);
+
+    await expect(
+      plannedShiftService.createPlannedShift(
+        actor(adminA),
+        turnoDeEmpresaA({ startTime: "07:00", endTime: "16:00" })
+      )
+    ).resolves.toBeDefined();
+  });
+
+  it("compara horas de verdad, no como cadenas", async () => {
+    // El servicio anterior comparaba "07:00" < "9:00": en texto "9" > "0", así
+    // que un turno de 9 a.m. se solapaba con uno de 7 a.m. sin solaparse.
+    encadenarSelectPorVez(existe(SUCURSAL_A_1), existe(EMPLEADO_A_1));
+    encadenarInsert([filaDeShift()]);
+
+    await expect(
+      plannedShiftService.createPlannedShift(
+        actor(adminA),
+        turnoDeEmpresaA({ startTime: "09:00", endTime: "13:00" })
+      )
+    ).resolves.toBeDefined();
+  });
+});
+
 describe("updatePlannedShift — el turno se carga dentro del alcance", () => {
   it("rechaza el turno de otra empresa sin ejecutar el UPDATE", async () => {
     // La carga acotada a la empresa no encuentra el id: 404 antes de escribir.

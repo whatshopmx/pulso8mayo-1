@@ -25,7 +25,8 @@ import {
   LFTViolation,
   LFTViolationType,
 } from "@/lib/types/shifts";
-import { parseISO, startOfWeek, addWeeks, differenceInDays, format } from "date-fns";
+import { parseISO, startOfWeek, addWeeks, addDays, differenceInDays, format } from "date-fns";
+import { evaluarTurno } from "@/lib/labor/shift-rules";
 
 // Extended interface for shift service with planned shifts operations
 export interface PlannedShiftService {
@@ -173,6 +174,37 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
   }
 
   /**
+   * Turnos que la política necesita para juzgar a uno nuevo: el día, la semana
+   * y el día anterior. Acotados por empresa y por empleado.
+   */
+  private async turnosParaValidar(
+    companyId: string,
+    userId: string,
+    shiftDate: string
+  ): Promise<Array<{ id: string; userId: string; shiftDate: string; startTime: string; endTime: string; status: string | null }>> {
+    const semana = startOfWeek(parseISO(shiftDate), { weekStartsOn: 1 });
+    const desde = format(addDays(semana, -1), "yyyy-MM-dd");
+    const hasta = format(addDays(semana, 7), "yyyy-MM-dd");
+
+    return db.query.plannedShifts.findMany({
+      where: and(
+        eq(plannedShifts.companyId, companyId),
+        eq(plannedShifts.userId, userId),
+        sql`${plannedShifts.shiftDate} >= ${desde}`,
+        sql`${plannedShifts.shiftDate} <= ${hasta}`
+      ),
+      columns: {
+        id: true,
+        userId: true,
+        shiftDate: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+      },
+    });
+  }
+
+  /**
    * Puerta de escritura de un destino: sesión con permiso, sucursal dentro del
    * alcance y sucursal y empleado de esta empresa.
    *
@@ -207,26 +239,32 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
       userId: data.userId,
     });
 
-    // Check for overlapping shifts
-    const existingShifts = await db.query.plannedShifts.findMany({
-      where: and(
-        eq(plannedShifts.companyId, actor.companyId),
-        eq(plannedShifts.userId, data.userId),
-        eq(plannedShifts.shiftDate, data.shiftDate),
-        sql`${plannedShifts.status} != 'CANCELLED'`
-      ),
-    });
+    // Reglas de negocio con la política compartida (C09).
+    //
+    // Antes este servicio comparaba cadenas: `data.startTime < existing.endTime`
+    // con "07:00" y "9:00" ordena mal porque "9" > "0" en texto. Y sólo miraba
+    // el solapamiento del mismo día: la semana, el descanso y los 12 horas los
+    // comprobaba la API, que es otro camino de escritura.
+    const existentes = await this.turnosParaValidar(
+      actor.companyId,
+      data.userId,
+      data.shiftDate
+    );
 
-    const hasOverlap = existingShifts.some((existing) => {
-      const existingStart = existing.startTime;
-      const existingEnd = existing.endTime;
-      return (
-        (data.startTime < existingEnd && data.endTime > existingStart)
-      );
-    });
+    const veredicto = evaluarTurno(
+      {
+        id: `nuevo:${data.userId}:${data.shiftDate}`,
+        userId: data.userId,
+        shiftDate: data.shiftDate,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        status: "DRAFT",
+      },
+      existentes
+    );
 
-    if (hasOverlap) {
-      throw new Error('El empleado ya tiene un turno programado que se solapa con este horario');
+    if (!veredicto.valido) {
+      throw ApiError.badRequest(veredicto.errores.map((e) => e.mensaje).join(" "));
     }
 
     const [shift] = await db

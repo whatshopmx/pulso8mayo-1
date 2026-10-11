@@ -6,8 +6,9 @@ import { db } from "@/lib/db";
 import { plannedShifts, users, branches } from "@/lib/db/schema";
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { addDays, parseISO, format, isWithinInterval } from "date-fns";
+import { addDays, parseISO, format, isWithinInterval, startOfWeek } from "date-fns";
 import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
+import { evaluarTurno, evaluarTurnos, type TurnoAValidar } from "@/lib/labor/shift-rules";
 
 // Schema para crear un turno individual
 const createShiftSchema = z.object({
@@ -31,6 +32,45 @@ const bulkCreateShiftsSchema = z.array(z.object({
     role: z.string(),
     notes: z.string().optional(),
 }));
+
+/**
+ * Turnos existentes que la política necesita para juzgar a uno nuevo.
+ *
+ * Es la ventana que mira cada regla: el día del turno (solapamiento), la semana
+ * (máximo semanal) y el día anterior (descanso). Se acota por **empresa** y no
+ * sólo por empleado: los turnos de otro tenant no son un límite de esta agenda
+ * y leerlos para descartarlos sería una fuga por el lado contrario.
+ *
+ * `shift_date` es texto `YYYY-MM-DD`, así que el rango se compara como fecha de
+ * negocio: los timestamps de zona horaria no aplican aquí.
+ */
+async function turnosParaValidar(
+    companyId: string,
+    referencia: { userId: string; shiftDate: string }
+): Promise<TurnoAValidar[]> {
+    const semana = startOfWeek(parseISO(referencia.shiftDate), { weekStartsOn: 1 });
+    const desde = format(addDays(semana, -1), "yyyy-MM-dd");
+    const hasta = format(addDays(semana, 7), "yyyy-MM-dd");
+
+    const filas = await db
+        .select({
+            id: plannedShifts.id,
+            userId: plannedShifts.userId,
+            shiftDate: plannedShifts.shiftDate,
+            startTime: plannedShifts.startTime,
+            endTime: plannedShifts.endTime,
+            status: plannedShifts.status,
+        })
+        .from(plannedShifts)
+        .where(and(
+            eq(plannedShifts.companyId, companyId),
+            eq(plannedShifts.userId, referencia.userId),
+            gte(plannedShifts.shiftDate, desde),
+            lte(plannedShifts.shiftDate, hasta)
+        ));
+
+    return filas;
+}
 
 /**
  * GET /api/shifts
@@ -164,58 +204,32 @@ export async function POST(req: NextRequest) {
                 return ApiHandler.error(ApiError.forbidden("Sucursal no encontrada o no pertenece a tu compañía"));
             }
 
-            // 3. Validar que endTime > startTime (para turnos del mismo día)
-            const startHour = parseInt(shiftData.startTime.replace(":", ""));
-            const endHour = parseInt(shiftData.endTime.replace(":", ""));
-            
-            // Permitir turnos nocturnos que cruzan medianoche (ej: 23:00 - 07:00)
-            if (startHour > endHour && startHour < 2000) {
-                // Turno nocturno válido (ej: 23:00 - 07:00)
-            } else if (startHour >= endHour) {
-                return ApiHandler.error(ApiError.badRequest("La hora de fin debe ser posterior a la hora de inicio"));
-            }
+            // 3-5. Reglas de negocio: una sola política (C09).
+            //
+            // Antes esta ruta tenía su propio juego —fin posterior al inicio con
+            // excepción nocturna, 12 horas máximas y solapamiento— mientras la
+            // pantalla usaba otro (8/48/8 horas) y el servicio de escritura un
+            // tercero. Ahora las tres preguntan a `lib/labor/shift-rules.ts` y
+            // contestan lo mismo.
+            const turnosDelEmpleado = await turnosParaValidar(tenant.id!, shiftData);
+            const veredicto = evaluarTurno(
+                {
+                    id: `nuevo:${shiftData.userId}:${shiftData.shiftDate}`,
+                    userId: shiftData.userId,
+                    shiftDate: shiftData.shiftDate,
+                    startTime: shiftData.startTime,
+                    endTime: shiftData.endTime,
+                    status: "DRAFT",
+                },
+                turnosDelEmpleado
+            );
 
-            // 4. Validar que el turno no exceda 12 horas (límite legal)
-            const startMinutes = (Math.floor(startHour / 100) * 60) + (startHour % 100);
-            let endMinutes = (Math.floor(endHour / 100) * 60) + (endHour % 100);
-            
-            if (startHour > endHour) {
-                // Turno nocturno
-                endMinutes += (24 * 60);
-            }
-            
-            const hoursDiff = (endMinutes - startMinutes) / 60;
-
-            if (hoursDiff > 12) {
+            if (!veredicto.valido) {
                 return ApiHandler.error(
-                    ApiError.badRequest(`El turno de ${hoursDiff.toFixed(1)} horas excede el límite legal de 12 horas`)
+                    ApiError.badRequest(
+                        veredicto.errores.map((e) => e.mensaje).join(" ")
+                    )
                 );
-            }
-
-            // 5. Verificar conflictos con turnos existentes del mismo usuario en la misma fecha
-            const existingShifts = await db.query.plannedShifts.findMany({
-                where: and(
-                    eq(plannedShifts.userId, shiftData.userId),
-                    eq(plannedShifts.shiftDate, shiftData.shiftDate)
-                ),
-            });
-
-            for (const existing of existingShifts) {
-                if (existing.status === "CANCELLED") continue;
-
-                const existingStart = parseInt(existing.startTime.replace(":", ""));
-                const existingEnd = parseInt(existing.endTime.replace(":", ""));
-                const newStart = startHour;
-                const newEnd = endHour;
-
-                // Verificar superposición
-                const hasOverlap = !(newEnd <= existingStart || newStart >= existingEnd);
-                
-                if (hasOverlap) {
-                    return ApiHandler.error(
-                        ApiError.badRequest(`Conflicto: El usuario ya tiene un turno de ${existing.startTime} a ${existing.endTime} ese día`)
-                    );
-                }
             }
 
             validatedShifts.push({
@@ -296,32 +310,37 @@ export async function PUT(req: NextRequest) {
                 return ApiHandler.error(ApiError.forbidden("No tienes permiso para modificar este turno"));
             }
 
-            // Aplicar validaciones si se actualizan horas
+            // Si cambian las horas, la misma política que decide la creación.
+            // Antes el `PUT` repetía el parche de 12 horas con su propio
+            // `parseInt("07:00")` → 7, y no miraba solapamiento ni semana.
             if (update.startTime || update.endTime) {
                 const startTime = update.startTime || existing.startTime;
                 const endTime = update.endTime || existing.endTime;
+                const candidatos = [
+                    ...(await turnosParaValidar(tenant.id!, {
+                        userId: existing.userId,
+                        shiftDate: existing.shiftDate,
+                    })),
+                    {
+                        id: existing.id,
+                        userId: existing.userId,
+                        shiftDate: existing.shiftDate,
+                        startTime,
+                        endTime,
+                        status: existing.status,
+                    },
+                ];
 
-                const startHour = parseInt(startTime.replace(":", ""));
-                const endHour = parseInt(endTime.replace(":", ""));
+                const veredicto = evaluarTurnos(candidatos);
 
-                if (startHour > endHour && startHour < 2000) {
-                    // Turno nocturno válido
-                } else if (startHour >= endHour) {
-                    return ApiHandler.error(ApiError.badRequest("La hora de fin debe ser posterior a la hora de inicio"));
-                }
-
-                const startMinutes = (Math.floor(startHour / 100) * 60) + (startHour % 100);
-                let endMinutes = (Math.floor(endHour / 100) * 60) + (endHour % 100);
-                
-                if (startHour > endHour) {
-                    endMinutes += (24 * 60);
-                }
-                
-                const hoursDiff = (endMinutes - startMinutes) / 60;
-
-                if (hoursDiff > 12) {
+                if (!veredicto.valido) {
                     return ApiHandler.error(
-                        ApiError.badRequest(`El turno de ${hoursDiff.toFixed(1)} horas excede el límite legal de 12 horas`)
+                        ApiError.badRequest(
+                            veredicto.errores
+                                .map((e) => e.mensaje)
+                                .filter((m) => !m.includes("consecutivos"))
+                                .join(" ") || "El cambio de horario no cumple la política de turnos."
+                        )
                     );
                 }
             }
