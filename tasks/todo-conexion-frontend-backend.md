@@ -27,7 +27,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 ## Fase 2 — Planificador de turnos con datos reales
 
 - [x] [C08 — Cargar empleados y sucursales reales en el planificador](plan-conexion-frontend-backend.md#c08) — depende de C01, C02.
-- [ ] [C09 — Aplicar una política de validación de turnos](plan-conexion-frontend-backend.md#c09) — depende de C02, C08.
+- [x] [C09 — Aplicar una política de validación de turnos](plan-conexion-frontend-backend.md#c09) — depende de C02, C08.
 - [ ] [C10 — Completar exportación de turnos](plan-conexion-frontend-backend.md#c10) — depende de C08.
 - [ ] [C11 — Aplicar plantillas de turnos válidas](plan-conexion-frontend-backend.md#c11) — depende de C09.
 - [ ] [C12 — Completar asignación masiva de turnos](plan-conexion-frontend-backend.md#c12) — depende de C11.
@@ -103,6 +103,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 | C06 | Completada | 2026-10-10 | `a241f7b` | `tests/unit/labor/session-scope.test.ts` (16). SQL revisado con `PgDialect`; el filtro de empresa se comprueba dentro del subselect de `branches` | Sin V2: no se reprodujo en navegador |
 | C07 | Completada | 2026-10-10 | `008b04f` | `tests/unit/inventory/costing-config-access.test.ts` (8) sobre el `PATCH` real, con `CostingService` simulado para observar si se llega a llamarlo | Sin V2. El `GET` ya filtraba por empresa y no se tocó |
 | C08 | Completada | 2026-10-10 | `c93007b`, `6430cad` | `tests/unit/labor/scheduler-catalog.test.ts` (16) sobre la consulta real; tsc, build y `test:unit` 796/796 | **Sin V2**: falta el recorrido en navegador (crear, recargar y comprobar persistencia en dos empresas), que es lo único que verificaría que la pantalla y el servidor cuentan la misma historia. Los roles salen de `employee_profiles.position` + roles ya usados: si nadie tiene puesto capturado, el selector queda vacío a propósito |
+| C09 | Completada | 2026-10-10 | `9a07d93`, `980002f` | `tests/unit/labor/business-validation.test.ts` (22) para la política + 4 casos en `write-scope.test.ts` para el servicio autoritativo. tsc limpio, build OK | **Decisión pendiente:** la jornada diaria de 8 h quedó como advertencia para no cambiar qué acepta el sistema; si el negocio la confirma pasa a bloqueante (el cambio rompe la suite a propósito). **Las excepciones autorizadas con auditoría NO existen**: no hay tabla que las registre y añadirla es una migración aditiva que el plan somete a revisión aparte. Notado y fuera de alcance: `lib/services/lft-conflict-detector.ts` y `lib/labor-validation.ts` traen sus propios límites (descanso de 12 h, turno de 12 h) para asistencia, no para crear turnos |
 | C09 | Pendiente | — | — | No ejecutada | — |
 | C10 | Pendiente | — | — | No ejecutada | — |
 | C11 | Pendiente | — | — | No ejecutada | — |
@@ -143,6 +144,8 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 - [ ] Política de horario, urgencias y zona horaria definida en C33.
 - [ ] Consumidores externos y eventos pendientes del executor anterior verificados en C36/C37.
 - [ ] **Quién revisa un workflow.** C05 implementó la lectura conservadora de la columna del esquema ("Revisión del supervisor"): `SUPERVISOR` y gerencia, excluyendo `EMPLEADO` y `READONLY`. La matriz `workflows` no distingue revisar de ejecutar, así que hace falta una decisión explícita del negocio; hasta entonces la regla vive en `requireReviewAccess` (`lib/workflows/execution-access.ts`).
+- [ ] **Límites de turno: jornada diaria y excepciones.** C09 unificó los tres juegos de reglas en `lib/labor/shift-rules.ts` y dejó constancia de su procedencia. Quedan dos decisiones: (1) si la jornada de 8 horas pasa de advertencia a bloqueante; (2) si existen excepciones autorizadas y con qué auditoría, porque hoy no hay ninguna y añadirla exige migración aditiva revisada.
+- [ ] **Unificar los límites de asistencia con los de turnos.** `lft-conflict-detector.ts` y `labor-validation.ts` usan descanso mínimo de 12 h y turno de 12 h, mientras la política de turnos usa 8 h. Son dominios distintos —check-in contra planificado— y no se tocaron en C09; si deben coincidir, es una decisión que aplicar a ambos a la vez.
 
 ## Cierre
 
