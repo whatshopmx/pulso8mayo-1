@@ -20,7 +20,15 @@ import {
 
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/tenant-context";
-import type { ShiftActor } from "@/lib/labor/shift-access";
+import { resolveShiftScope, type ShiftActor } from "@/lib/labor/shift-access";
+import { db } from "@/lib/db";
+import {
+  branches,
+  employeeProfiles,
+  plannedShifts,
+  users,
+} from "@/lib/db/schema";
+import { and, eq, isNull } from "drizzle-orm";
 
 /**
  * Identidad del actor, tomada de la sesión y sólo de la sesión.
@@ -39,6 +47,110 @@ async function actorDeSesion(): Promise<ShiftActor> {
     role: user.role,
     companyId: user.companyId ?? "",
     branchId: user.branchId ?? null,
+  };
+}
+
+/**
+ * Catálogo que necesita el planificador: sucursales, empleados y roles.
+ *
+ * `roles` son los puestos que **ya existen en la empresa**: los `position` de
+ * los empleados en alcance más los roles que ya usan sus turnos. No es una
+ * lista inventada en el componente —que era lo que ofrecía antes— ni un
+ * catálogo cerrado: si nadie tiene puesto capturado, la lista sale vacía y el
+ * operador lo ve, en vez de elegir un rol que nadie ocupa.
+ *
+ * `sinAlcance` distingue "no hay nada" de "no tienes sucursal asignada". Las
+ * dos listas vacías se ven igual en la pantalla, y una de ellas significa que
+ * hay un dato pendiente en la cuenta del usuario.
+ */
+export interface SchedulerCatalog {
+  branches: { id: string; name: string }[];
+  employees: {
+    id: string;
+    name: string;
+    position: string | null;
+    branchId: string | null;
+  }[];
+  roles: string[];
+  /** `true` cuando el rol está acotado a sucursal y no tiene ninguna asignada. */
+  sinAlcance: boolean;
+}
+
+/**
+ * Sucursales y empleados reales dentro del alcance de la sesión (H03).
+ *
+ * El contenedor del planificador traía tres arrays ficticios y los pintaba como
+ * conteos reales; la matriz los pasaba al editor, que los guardaba contra una
+ * escritura de verdad. Con C02 el servidor ya rechaza esos ids, así que la
+ * pantalla tenía que dejar de inventarlos.
+ *
+ * Empresa y alcance salen de `actorDeSesion()`: el navegador no puede ampliar
+ * ni desbordar lo que ve.
+ */
+export async function getSchedulerCatalog(): Promise<SchedulerCatalog> {
+  const actor = await actorDeSesion();
+  const alcance = resolveShiftScope(actor, null);
+
+  if (alcance.kind === "NONE") {
+    return { branches: [], employees: [], roles: [], sinAlcance: true };
+  }
+
+  const sucursales = await db
+    .select({ id: branches.id, name: branches.name })
+    .from(branches)
+    .where(
+      alcance.kind === "BRANCH"
+        ? eq(branches.id, alcance.branchId)
+        : eq(branches.companyId, actor.companyId)
+    )
+    .orderBy(branches.name);
+
+  const empleados = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      branchId: users.branchId,
+      position: employeeProfiles.position,
+      isActive: employeeProfiles.isActive,
+    })
+    .from(users)
+    .leftJoin(employeeProfiles, eq(employeeProfiles.userId, users.id))
+    .where(
+      and(
+        eq(users.companyId, actor.companyId),
+        isNull(users.deletedAt),
+        alcance.kind === "BRANCH" ? eq(users.branchId, alcance.branchId) : undefined
+      )
+    )
+    .orderBy(users.name);
+
+  // Los roles que la empresa ya usa: los puestos capturados más los que aparecen
+  // en sus turnos. Sin esto habría que inventar la lista en el componente, que
+  // es justo lo que se vino a corregir.
+  const rolesUsados = await db
+    .selectDistinct({ role: plannedShifts.role })
+    .from(plannedShifts)
+    .where(eq(plannedShifts.companyId, actor.companyId));
+
+  const roles = [
+    ...new Set(
+      [
+        ...empleados.map((e) => e.position?.trim() ?? ""),
+        ...rolesUsados.map((r) => r.role?.trim() ?? ""),
+      ].filter((rol) => rol.length > 0)
+    ),
+  ].sort((a, b) => a.localeCompare(b, "es"));
+
+  return {
+    branches: sucursales,
+    employees: empleados.map((e) => ({
+      id: e.id,
+      name: e.name ?? e.id,
+      position: e.position,
+      branchId: e.branchId,
+    })),
+    roles,
+    sinAlcance: false,
   };
 }
 
