@@ -1,0 +1,252 @@
+import { describe, it, expect } from "vitest";
+
+import {
+  SHIFT_RULES,
+  aLftViolations,
+  duracionMinutos,
+  evaluarTurno,
+  evaluarTurnos,
+  type TurnoAValidar,
+} from "@/lib/labor/shift-rules";
+import { shiftValidationService } from "@/lib/services/shift-validation-service";
+import { shiftCompleto } from "../../fixtures/tenant-isolation";
+
+/**
+ * C09.1 — una sola política de validación de turnos (H08).
+ *
+ * Estas pruebas fijan la política y, sobre todo, sus **bordes**, porque la
+ * decisión que se tomó fue deliberadamente conservadora: la jornada de 8 horas
+ * es advertencia y no bloqueante, para no cambiar qué acepta el sistema sin
+ * una decisión de negocio. Si alguien la sube a bloqueante, el cambio tiene que
+ * romper aquí a propósito.
+ *
+ * También fijan la equivalencia entre la fachada que consume la interfaz y la
+ * política: la pantalla y el servidor deben decir lo mismo, que era el agujero.
+ */
+
+const BASE = {
+  id: "turno-1",
+  userId: "user-1",
+  shiftDate: "2026-03-16", // lunes
+  startTime: "07:00",
+  endTime: "15:00",
+  status: "DRAFT",
+};
+
+function turno(overrides: Partial<TurnoAValidar> = {}): TurnoAValidar {
+  return { ...BASE, ...overrides };
+}
+
+describe("duracionMinutos", () => {
+  it("mide un turno del mismo día", () => {
+    expect(duracionMinutos("07:00", "15:00")).toBe(480);
+  });
+
+  it("mide el cruce de medianoche", () => {
+    expect(duracionMinutos("23:00", "07:00")).toBe(480);
+  });
+
+  it("una hora igual a la otra es cero, no 24 horas", () => {
+    expect(duracionMinutos("09:00", "09:00")).toBe(0);
+  });
+});
+
+describe("evaluarTurno — límites y su severidad", () => {
+  it("un turno normal no se queja de nada", () => {
+    const resultado = evaluarTurno(turno());
+
+    expect(resultado.valido).toBe(true);
+    expect(resultado.errores).toEqual([]);
+    expect(resultado.advertencias).toEqual([]);
+  });
+
+  it("más de 12 horas bloquea, con el mensaje que ya conocía la API", () => {
+    const resultado = evaluarTurno(turno({ startTime: "06:00", endTime: "19:00" }));
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.errores[0].tipo).toBe("DAILY_HOURS");
+    expect(resultado.errores[0].mensaje).toContain("12 horas");
+  });
+
+  it("una jornada de 8 horas es advertencia, no bloqueo", () => {
+    // La decisión: la UI bloqueaba a 8h y el servidor aceptaba hasta 12. Unificar
+    // en bloqueante cambiaría qué acepta el sistema sin que nadie lo decidiera.
+    const resultado = evaluarTurno(turno({ startTime: "07:00", endTime: "16:00" }));
+
+    expect(resultado.valido).toBe(true);
+    expect(resultado.errores).toEqual([]);
+    expect(resultado.advertencias).toHaveLength(1);
+    expect(resultado.advertencias[0].mensaje).toContain("8 horas");
+  });
+
+  it("un turno nocturno que cruza medianoche no se toma por inválido", () => {
+    const resultado = evaluarTurno(turno({ startTime: "23:00", endTime: "07:00" }));
+
+    expect(resultado.valido).toBe(true);
+    expect(resultado.errores).toEqual([]);
+  });
+
+  it("hora de fin igual a la de inicio bloquea", () => {
+    const resultado = evaluarTurno(turno({ startTime: "09:00", endTime: "09:00" }));
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.errores[0].mensaje).toContain("posterior");
+  });
+
+  it("una hora mal formada bloquea en vez de compararse como número", () => {
+    const resultado = evaluarTurno(turno({ startTime: "7", endTime: "15:00" }));
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.errores[0].mensaje).toContain("HH:mm");
+  });
+});
+
+describe("evaluarTurno — solapamiento, semana y descanso", () => {
+  it("solapa con un turno del mismo empleado y día", () => {
+    const resultado = evaluarTurno(
+      turno({ startTime: "14:00", endTime: "22:00" }),
+      [turno({ id: "previo", startTime: "07:00", endTime: "15:00" })]
+    );
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.errores.map((e) => e.tipo)).toContain("SHIFT_OVERLAP");
+  });
+
+  it("no solapa con un turno del mismo empleado en otro día", () => {
+    const resultado = evaluarTurno(turno(), [
+      turno({ id: "previo", shiftDate: "2026-03-17" }),
+    ]);
+
+    expect(resultado.valido).toBe(true);
+  });
+
+  it("no solapa con un turno de otro empleado", () => {
+    const resultado = evaluarTurno(turno(), [
+      turno({ id: "otro", userId: "user-2", startTime: "10:00", endTime: "12:00" }),
+    ]);
+
+    expect(resultado.valido).toBe(true);
+  });
+
+  it("un turno CANCELLED no bloquea nada", () => {
+    const resultado = evaluarTurno(
+      turno({ startTime: "14:00", endTime: "22:00" }),
+      [turno({ id: "previo", startTime: "07:00", endTime: "15:00", status: "CANCELLED" })]
+    );
+
+    expect(resultado.valido).toBe(true);
+  });
+
+  it("exceder la semana bloquea", () => {
+    const lunes = turno({ id: "lun", shiftDate: "2026-03-16", startTime: "06:00", endTime: "18:00" });
+    const martes = turno({ id: "mar", shiftDate: "2026-03-17", startTime: "06:00", endTime: "18:00" });
+    const miercoles = turno({ id: "mie", shiftDate: "2026-03-18" });
+
+    // 6 turnos de 12 h en la semana = 72 h; el séptimo turno ya no cabe.
+    const existentes = Array.from({ length: 5 }, (_, i) => ({
+      ...lunes,
+      id: `previo-${i}`,
+      shiftDate: `2026-03-${16 + i}`,
+    }));
+
+    const resultado = evaluarTurno(miercoles, [...existentes, martes]);
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.errores.map((e) => e.tipo)).toContain("WEEKLY_HOURS");
+    void lunes;
+  });
+
+  it("descanso corto entre jornadas es advertencia, no bloqueo", () => {
+    // El día anterior acaba a las 22:00 y hoy empieza a las 07:00: 9 h de
+    // descanso, por encima del mínimo, así que no avisa.
+    const conDescanso = evaluarTurno(turno(), [
+      turno({ id: "previo", shiftDate: "2026-03-15", startTime: "14:00", endTime: "22:00" }),
+    ]);
+    expect(conDescanso.advertencias).toEqual([]);
+
+    // Acaba a las 23:00 → 8 h exactas: el mínimo se cumple, no avisa.
+    const justo = evaluarTurno(turno(), [
+      turno({ id: "previo", shiftDate: "2026-03-15", startTime: "15:00", endTime: "23:00" }),
+    ]);
+    expect(justo.advertencias).toEqual([]);
+
+    // Acaba a las 23:30 → 7.5 h: avisa.
+    const corto = evaluarTurno(turno(), [
+      turno({ id: "previo", shiftDate: "2026-03-15", startTime: "15:30", endTime: "23:30" }),
+    ]);
+    expect(corto.valido).toBe(true);
+    expect(corto.advertencias[0].tipo).toBe("REST_PERIOD");
+  });
+});
+
+describe("evaluarTurnos — el conjunto", () => {
+  it("detecta días consecutivos por encima de 6", () => {
+    const siete = Array.from({ length: 7 }, (_, i) =>
+      turno({ id: `d${i}`, shiftDate: `2026-03-${16 + i}` })
+    );
+
+    const resultado = evaluarTurnos(siete);
+
+    expect(resultado.valido).toBe(false);
+    expect(resultado.errores.map((e) => e.mensaje).join(" ")).toContain("consecutivos");
+  });
+
+  it("no cuenta días consecutivos entre empleados distintos", () => {
+    const lista = Array.from({ length: 7 }, (_, i) =>
+      turno({ id: `d${i}`, userId: `user-${i}`, shiftDate: `2026-03-${16 + i}` })
+    );
+
+    expect(evaluarTurnos(lista).valido).toBe(true);
+  });
+
+  it("no duplica la misma infracción", () => {
+    const resultado = evaluarTurnos([
+      turno({ id: "a", startTime: "07:00", endTime: "15:00" }),
+      turno({ id: "b", startTime: "10:00", endTime: "18:00" }),
+    ]);
+
+    const mensajes = resultado.errores.map((e) => `${e.tipo}-${e.shiftId}`);
+    expect(new Set(mensajes).size).toBe(mensajes.length);
+  });
+});
+
+describe("la fachada y la política dicen lo mismo", () => {
+  it("la jornada de 8 horas avisa, no invalida", () => {
+    // Antes la fachada devolvía `errors` con 8 h y la API las aceptaba: la
+    // pantalla marcaba en rojo lo que el servidor guardaba sin pestañear.
+    const resultado = shiftValidationService.validateShift(
+      shiftCompleto({ startTime: "07:00", endTime: "16:00" })
+    );
+
+    expect(resultado.isValid).toBe(true);
+    expect(resultado.errors).toEqual([]);
+    expect(resultado.warnings).toHaveLength(1);
+  });
+
+  it("un solapamiento sí se ve como error en la pantalla", () => {
+    const resultado = shiftValidationService.validateShift(
+      shiftCompleto({ id: "nuevo", startTime: "14:00", endTime: "22:00" }),
+      [shiftCompleto({ id: "previo", startTime: "07:00", endTime: "15:00" })]
+    );
+
+    expect(resultado.isValid).toBe(false);
+    expect(resultado.errors.map((e) => e.type)).toContain("SHIFT_OVERLAP");
+  });
+
+  it("los límites reexportados siguen siendo los de la política", () => {
+    expect(SHIFT_RULES.MAX_SHIFT_MINUTES / 60).toBe(12);
+    expect(SHIFT_RULES.MAX_DAILY_MINUTES / 60).toBe(8);
+    expect(SHIFT_RULES.MAX_WEEKLY_MINUTES / 60).toBe(48);
+    expect(SHIFT_RULES.MIN_REST_MINUTES / 60).toBe(8);
+    expect(SHIFT_RULES.MAX_CONSECUTIVE_DAYS).toBe(6);
+  });
+
+  it("la traducción al tipo de la interfaz conserva bloqueante/advertencia", () => {
+    const { errors, warnings } = aLftViolations(
+      evaluarTurno(turno({ startTime: "07:00", endTime: "16:00" }))
+    );
+
+    expect(errors.every((e) => e.severity === "error")).toBe(true);
+    expect(warnings.every((w) => w.severity === "warning")).toBe(true);
+  });
+});
