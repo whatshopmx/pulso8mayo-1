@@ -1,6 +1,6 @@
 # Seguimiento — conexión entre frontend y backend
 
-Fecha: 10 de octubre de 2026. Actualización: 12 de octubre de 2026. Estado: C00–C13 implementadas; C14–C40 pendientes. Los recorridos de navegador aún no comprobados se conservan explícitos en la evidencia.
+Fecha: 10 de octubre de 2026. Actualización: 12 de octubre de 2026. Estado: C00–C14 implementadas; C15–C40 pendientes. Los recorridos de navegador aún no comprobados se conservan explícitos en la evidencia.
 
 Plan: [plan de implementación](plan-conexion-frontend-backend.md). Origen: [auditoría](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md).
 
@@ -37,7 +37,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 ## Fase 3 — Configuración que produce efectos
 
 - [x] [C13 — Conservar valores y errores de configuración](plan-conexion-frontend-backend.md#c13) — depende de C00. Evidencia: [configuración ida y vuelta](../docs/audits/2026-10-12-operating-config-roundtrip.md).
-- [ ] [C14 — Exponer parámetros consumidos que faltan en la interfaz](plan-conexion-frontend-backend.md#c14) — depende de C13.
+- [x] [C14 — Exponer parámetros consumidos que faltan en la interfaz](plan-conexion-frontend-backend.md#c14) — depende de C13. Evidencia: [parámetros consumidos](../docs/audits/2026-10-12-parametros-consumidos.md). Dividida en C14.1–C14.3 antes de implementar.
 - [ ] [C15 — Definir el contrato de cada política operativa](plan-conexion-frontend-backend.md#c15) — depende de C13.
 - [ ] [C16 — Aplicar política de estructura de compras](plan-conexion-frontend-backend.md#c16) — depende de C15.
 - [ ] [C17 — Aplicar política de producción de alimentos](plan-conexion-frontend-backend.md#c17) — depende de C15.
@@ -107,7 +107,7 @@ Las filas conservan la evidencia y los pendientes de cada corte histórico. C10 
 | C11 | Completada | 2026-10-11 | C11.1–C11.3; [evidencia](../docs/audits/2026-10-11-plantillas-turnos.md) | `tests/unit/shifts/template-apply.test.ts` (22) y `template-actions.test.ts` (12) sobre servicio, política y acciones reales; `tests/e2e/shifts-template.spec.ts` (8) y `shifts-bulk.spec.ts` (4) en Chromium. Suite 903 aprobadas, 1 omitida, 1 TODO; 19/19 de navegador; build OK; tsc limpio | **Atomicidad decidida por elemento**, no por lote: cada turno se guarda en su propia transacción con `pg_advisory_xact_lock` por empresa y empleado. El bloqueo se prueba con un adaptador que emula la semántica de PostgreSQL, no contra una base real con dos procesos. Las plantillas siguen siendo las cuatro constantes, sin persistencia por empresa. Los recorridos de workflows de C04/C05 y la excepción de C09 desde su propia pantalla siguen sin verificarse en navegador |
 | C12 | Completada (por C11) | 2026-10-11 | [evidencia de C11](../docs/audits/2026-10-11-plantillas-turnos.md) | Destino obligatorio (contrato Zod + catálogo autorizado), atomicidad por elemento declarada, rechazo de duplicados por repetición y por concurrencia, y resultado visible por fila en la pestaña. Puerta de fase de la Fase 2 cerrada el 12-10-2026 | Criterios verificados dentro del bloque C11 y sin recorrido propio pendiente; la verificación de cierre (lint/build/suite/navegador) queda en la fila de la puerta |
 | C13 | Completada | 2026-10-12 | C13.1–C13.3; [evidencia](../docs/audits/2026-10-12-operating-config-roundtrip.md) | `tests/unit/company/config-roundtrip.test.ts` (21) sobre la ruta real y el mapeo; `tests/e2e/operating-config.spec.ts` (11) en Chromium con `GET`/`PUT` controlados. Suite: 924 aprobadas, 1 omitida, 1 TODO; build OK; lint 0 errores (2386 warnings; los 2 de archivos de C13 son preexistentes) | **Sin V2 real con Next/auth:** el navegador usa respuestas simuladas; la autorización queda en los casos unitarios de sesión/permiso. Vigencia y periodos cerrados no se tocan (decisión de C14). Los defaults de módulo para empresa sin fila se conservan |
-| C14 | Pendiente | — | — | No ejecutada | — |
+| C14 | Completada (C14.1–C14.3) | 2026-10-12 | `17c1436`, `a3dd639`, `1ec2c81`; [evidencia](../docs/audits/2026-10-12-parametros-consumidos.md) | 38 casos unitarios (14 de efecto por parámetro sobre su consumidor real, 14 de historial, 10 de contrato) y 4 de navegador nuevas; suite 962 aprobadas, 1 omitida, 1 TODO; 34/34 en Chromium; build y tsc limpios. Migración 0093 aditiva aplicada y comprobada contra la base | **Sin V2 real con Next/auth** (el navegador usa respuestas simuladas; la autorización queda en unitarias). El historial es de mejor esfuerzo y no tiene pantalla. **Vigencia definida, no resuelta:** los KPI recalculan en vivo y `getPnLSnapshots` no tiene consumidores, así que cambiar un parámetro reinterpreta el pasado; los efectos históricos quedan para C29–C31 |
 | C15 | Pendiente | — | — | No ejecutada | — |
 | C16 | Pendiente | — | — | No ejecutada | — |
 | C17 | Pendiente | — | — | No ejecutada | — |
@@ -138,7 +138,7 @@ Las filas conservan la evidencia y los pendientes de cada corte histórico. C10 
 ## Decisiones pendientes
 
 - [ ] Contratos de las siete dimensiones y caja chica registrados en C15.
-- [ ] Valores, vigencia y tratamiento de periodos cerrados de parámetros financieros/laborales definidos en C14. La preservación de cero/null ya está cerrada en C13; lo que falta es el contrato de vigencia.
+- [x] **Valores, vigencia y tratamiento de periodos cerrados de parámetros financieros/laborales.** **Decidido el 12-10-2026 en C14:** IVA, carga patronal, ISN y umbral de merma se aplican desde su guardado a todas las lecturas, incluidos los periodos cerrados, y no hay vigencia por fecha. Se verificó que `isPeriodClosed` sólo bloquea escrituras y que `getPnLSnapshots` no tiene consumidores; el snapshot congela el P&L al cerrar pero ninguna vista lo lee. Habilitar efectos históricos requiere conectar esas lecturas y una vigencia por fecha con migración, ambas de C29–C31. Contrato por parámetro en [docs/operating-policy-contracts.md](../docs/operating-policy-contracts.md).
 - [ ] Política de horario, urgencias y zona horaria definida en C33.
 - [ ] Consumidores externos y eventos pendientes del executor anterior verificados en C36/C37.
 - [ ] **Quién revisa un workflow.** C05 implementó la lectura conservadora de la columna del esquema ("Revisión del supervisor"): `SUPERVISOR` y gerencia, excluyendo `EMPLEADO` y `READONLY`. La matriz `workflows` no distingue revisar de ejecutar, así que hace falta una decisión explícita del negocio; hasta entonces la regla vive en `requireReviewAccess` (`lib/workflows/execution-access.ts`). La auto-revisión (`f701068`) se cierra con una excepción auditada en `policy_overrides` (`f354519`), concedible sólo por `OWNER`/`SUPER_ADMIN` — `ADMIN` no, aunque administre la empresa, y esa exclusión también está por confirmar. Falta la pantalla que concede la excepción.

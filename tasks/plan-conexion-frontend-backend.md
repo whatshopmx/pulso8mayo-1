@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 12 de octubre de 2026. Estado: C00–C13 implementadas con límites de verificación registrados en el seguimiento; C12 se cierra con la entrega de C11. C14–C40 pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 12 de octubre de 2026. Estado: C00–C14 implementadas con límites de verificación registrados en el seguimiento; C12 se cierra con la entrega de C11. C15–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -503,11 +503,15 @@ Añadir IVA, carga laboral, impuesto estatal y umbral de merma al contrato autor
 
 **Criterios de aceptación:**
 
-- [ ] Los cuatro parámetros se pueden consultar, editar y recargar con unidades y rangos explícitos.
-- [ ] Solo el rol definido puede modificarlos y queda historial de actor y cambio.
-- [ ] Un caso controlado demuestra el efecto de cada parámetro; se define vigencia y tratamiento de periodos cerrados antes de habilitar efectos históricos.
+- [x] Los cuatro parámetros se pueden consultar, editar y recargar con unidades y rangos explícitos.
+- [x] Solo el rol definido puede modificarlos y queda historial de actor y cambio.
+- [x] Un caso controlado demuestra el efecto de cada parámetro; se define vigencia y tratamiento de periodos cerrados antes de habilitar efectos históricos.
 
 **Verificación:** V1 de contrato y efectos en consumidores; V2 de edición/recarga. Si la vigencia requiere migración, separarla antes de ampliar esta tarea.
+
+**Evidencia (12-10-2026):** [C14 — Parámetros consumidos sin editor](../docs/audits/2026-10-12-parametros-consumidos.md). 38 casos unitarios de las tres subtareas (14 de efecto por parámetro sobre su consumidor real, 14 de historial, 10 de contrato) y 4 pruebas de navegador nuevas; suite unitaria 962 aprobadas (una omitida y un TODO), 34/34 en Chromium, build y tsc limpios. Límites: el navegador usa respuestas simuladas, el historial es de mejor esfuerzo y no tiene pantalla, y la vigencia quedó **definida y no resuelta** —los KPIs recalculan en vivo y `getPnLSnapshots` no tiene consumidores, así que los efectos históricos esperan a C29–C31.
+
+**Desglose ejecutado (12-10-2026):** C14.1 contrato y formulario (`17c1436`); C14.2 historial de actor y cambio, con migración aditiva 0093 aplicada y comprobada en la base (`a3dd639`); C14.3 efectos y vigencia (`1ec2c81`).
 
 **Archivos probables:**
 
