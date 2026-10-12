@@ -21,6 +21,8 @@ interface CostTargetsSectionProps {
   foodPairInvalid: boolean;
   laborPairInvalid: boolean;
   marginPairInvalid: boolean;
+  /** Error del servidor por campo, ya traducido al nombre del input (C13). */
+  errors?: Record<string, string>;
 }
 
 export function CostTargetsSection({
@@ -29,6 +31,7 @@ export function CostTargetsSection({
   foodPairInvalid,
   laborPairInvalid,
   marginPairInvalid,
+  errors = {},
 }: CostTargetsSectionProps) {
   return (
     <Card>
@@ -55,6 +58,8 @@ export function CostTargetsSection({
           invalid={foodPairInvalid}
           invalidMessage="En costos, el umbral de precaución debe ser mayor o igual al objetivo para permitir la zona amarilla antes del semáforo rojo."
           isHigherBetter={false}
+          targetError={errors.foodTarget}
+          warnError={errors.foodWarn}
         />
 
         <TargetPair
@@ -70,6 +75,8 @@ export function CostTargetsSection({
           invalid={laborPairInvalid}
           invalidMessage="En costos, el umbral de precaución debe ser mayor o igual al objetivo para permitir la zona amarilla."
           isHigherBetter={false}
+          targetError={errors.laborTarget}
+          warnError={errors.laborWarn}
         />
 
         <TargetPair
@@ -85,6 +92,8 @@ export function CostTargetsSection({
           invalid={marginPairInvalid}
           invalidMessage="En margen, el piso de precaución debe ser menor o igual al objetivo: valores superiores indican mayor rentabilidad."
           isHigherBetter={true}
+          targetError={errors.marginTarget}
+          warnError={errors.marginWarn}
         />
       </CardContent>
     </Card>
@@ -104,6 +113,8 @@ interface TargetPairProps {
   invalid: boolean;
   invalidMessage: string;
   isHigherBetter: boolean;
+  targetError?: string;
+  warnError?: string;
 }
 
 function TargetPair({
@@ -119,8 +130,12 @@ function TargetPair({
   invalid,
   invalidMessage,
   isHigherBetter,
+  targetError,
+  warnError,
 }: TargetPairProps) {
   const errorId = `${idPrefix}-error`;
+  const targetErrorId = `${idPrefix}Target-error`;
+  const warnErrorId = `${idPrefix}Warn-error`;
   const tVal = Math.min(100, Math.max(0, parseFloat(targetValue) || 0));
   const wVal = Math.min(100, Math.max(0, parseFloat(warnValue) || 0));
 
@@ -146,12 +161,18 @@ function TargetPair({
               value={targetValue}
               onChange={(e) => onTargetChange(e.target.value)}
               className="pr-8 text-sm font-medium"
-              required
+              aria-invalid={!!targetError}
+              aria-describedby={targetError ? targetErrorId : undefined}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
               %
             </span>
           </div>
+          {targetError && (
+            <p id={targetErrorId} role="alert" className="text-xs text-destructive">
+              {targetError}
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">
@@ -168,14 +189,18 @@ function TargetPair({
               value={warnValue}
               onChange={(e) => onWarnChange(e.target.value)}
               className="pr-8 text-sm font-medium"
-              required
-              aria-invalid={invalid}
-              aria-describedby={invalid ? errorId : undefined}
+              aria-invalid={!!warnError}
+              aria-describedby={warnError ? warnErrorId : invalid ? errorId : undefined}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
               %
             </span>
           </div>
+          {warnError && (
+            <p id={warnErrorId} role="alert" className="text-xs text-destructive">
+              {warnError}
+            </p>
+          )}
         </div>
       </div>
 

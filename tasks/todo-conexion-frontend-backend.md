@@ -1,6 +1,6 @@
 # Seguimiento — conexión entre frontend y backend
 
-Fecha: 10 de octubre de 2026. Actualización: 11 de octubre de 2026. Estado: C00–C11 implementadas; C12–C40 pendientes. Los recorridos de navegador aún no comprobados se conservan explícitos en la evidencia.
+Fecha: 10 de octubre de 2026. Actualización: 12 de octubre de 2026. Estado: C00–C13 implementadas; C14–C40 pendientes. Los recorridos de navegador aún no comprobados se conservan explícitos en la evidencia.
 
 Plan: [plan de implementación](plan-conexion-frontend-backend.md). Origen: [auditoría](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md).
 
@@ -36,7 +36,7 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 
 ## Fase 3 — Configuración que produce efectos
 
-- [ ] [C13 — Conservar valores y errores de configuración](plan-conexion-frontend-backend.md#c13) — depende de C00.
+- [x] [C13 — Conservar valores y errores de configuración](plan-conexion-frontend-backend.md#c13) — depende de C00. Evidencia: [configuración ida y vuelta](../docs/audits/2026-10-12-operating-config-roundtrip.md).
 - [ ] [C14 — Exponer parámetros consumidos que faltan en la interfaz](plan-conexion-frontend-backend.md#c14) — depende de C13.
 - [ ] [C15 — Definir el contrato de cada política operativa](plan-conexion-frontend-backend.md#c15) — depende de C13.
 - [ ] [C16 — Aplicar política de estructura de compras](plan-conexion-frontend-backend.md#c16) — depende de C15.
@@ -106,7 +106,7 @@ Las filas conservan la evidencia y los pendientes de cada corte histórico. C10 
 | C10 | Completada | 2026-10-11 | C10.1–C10.3; [evidencia](../docs/audits/2026-10-11-shifts-export.md) | CSV conectado a semana/filtros; 9 casos unitarios de formato y 7 pruebas en Chromium de descarga, filtros, dos respuestas de empresa, vacío/error/reintento y respuestas tardías. Suite: 870 aprobadas, 1 omitida, 1 TODO; build OK; lint enfocado 0 errores/0 warnings | El navegador usa acciones simuladas; el alcance del servidor se respalda con las pruebas de C01/C08. No verifica creación/recarga de C08 ni excepciones de C09. C11 es el siguiente pendiente |
 | C11 | Completada | 2026-10-11 | C11.1–C11.3; [evidencia](../docs/audits/2026-10-11-plantillas-turnos.md) | `tests/unit/shifts/template-apply.test.ts` (22) y `template-actions.test.ts` (12) sobre servicio, política y acciones reales; `tests/e2e/shifts-template.spec.ts` (8) y `shifts-bulk.spec.ts` (4) en Chromium. Suite 903 aprobadas, 1 omitida, 1 TODO; 19/19 de navegador; build OK; tsc limpio | **Atomicidad decidida por elemento**, no por lote: cada turno se guarda en su propia transacción con `pg_advisory_xact_lock` por empresa y empleado. El bloqueo se prueba con un adaptador que emula la semántica de PostgreSQL, no contra una base real con dos procesos. Las plantillas siguen siendo las cuatro constantes, sin persistencia por empresa. Los recorridos de workflows de C04/C05 y la excepción de C09 desde su propia pantalla siguen sin verificarse en navegador |
 | C12 | Cubierta por C11 | 2026-10-11 | [evidencia de C11](../docs/audits/2026-10-11-plantillas-turnos.md) | Destino obligatorio (contrato Zod + catálogo autorizado), atomicidad por elemento declarada, rechazo de duplicados por repetición y por concurrencia, y resultado visible por fila en la pestaña | Marcar al cerrar la puerta de fase: sus criterios se verificaron dentro del bloque C11 y no tienen recorrido propio pendiente |
-| C13 | Pendiente | — | — | No ejecutada | — |
+| C13 | Completada | 2026-10-12 | C13.1–C13.3; [evidencia](../docs/audits/2026-10-12-operating-config-roundtrip.md) | `tests/unit/company/config-roundtrip.test.ts` (21) sobre la ruta real y el mapeo; `tests/e2e/operating-config.spec.ts` (11) en Chromium con `GET`/`PUT` controlados. Suite: 924 aprobadas, 1 omitida, 1 TODO; build OK; lint 0 errores (2386 warnings; los 2 de archivos de C13 son preexistentes) | **Sin V2 real con Next/auth:** el navegador usa respuestas simuladas; la autorización queda en los casos unitarios de sesión/permiso. Vigencia y periodos cerrados no se tocan (decisión de C14). Los defaults de módulo para empresa sin fila se conservan |
 | C14 | Pendiente | — | — | No ejecutada | — |
 | C15 | Pendiente | — | — | No ejecutada | — |
 | C16 | Pendiente | — | — | No ejecutada | — |
@@ -138,7 +138,7 @@ Las filas conservan la evidencia y los pendientes de cada corte histórico. C10 
 ## Decisiones pendientes
 
 - [ ] Contratos de las siete dimensiones y caja chica registrados en C15.
-- [ ] Valores, vigencia y tratamiento de periodos cerrados de parámetros financieros/laborales definidos en C14.
+- [ ] Valores, vigencia y tratamiento de periodos cerrados de parámetros financieros/laborales definidos en C14. La preservación de cero/null ya está cerrada en C13; lo que falta es el contrato de vigencia.
 - [ ] Política de horario, urgencias y zona horaria definida en C33.
 - [ ] Consumidores externos y eventos pendientes del executor anterior verificados en C36/C37.
 - [ ] **Quién revisa un workflow.** C05 implementó la lectura conservadora de la columna del esquema ("Revisión del supervisor"): `SUPERVISOR` y gerencia, excluyendo `EMPLEADO` y `READONLY`. La matriz `workflows` no distingue revisar de ejecutar, así que hace falta una decisión explícita del negocio; hasta entonces la regla vive en `requireReviewAccess` (`lib/workflows/execution-access.ts`). La auto-revisión (`f701068`) se cierra con una excepción auditada en `policy_overrides` (`f354519`), concedible sólo por `OWNER`/`SUPER_ADMIN` — `ADMIN` no, aunque administre la empresa, y esa exclusión también está por confirmar. Falta la pantalla que concede la excepción.

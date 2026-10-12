@@ -26,6 +26,7 @@ export async function startShiftsBrowserServer() {
     },
     resolve: { alias: [
       { find: /^@\/hooks$/, replacement: "\0test-hooks" },
+      { find: /^@\/hooks\/use-toast$/, replacement: "\0test-toast" },
       { find: "@/app/actions/shifts", replacement: "\0test-actions" },
       { find: "@", replacement: root },
     ] },
@@ -36,6 +37,8 @@ export async function startShiftsBrowserServer() {
         if (id.startsWith("\0test-")) return id;
         if (id === "./ShiftEditorDialog") return "\0test-editor";
         if (id === "/shifts-test-entry.tsx") return "\0test-entry";
+        if (id === "/config-test-entry.tsx") return "\0test-config-entry";
+        if (id === "/config-test-page.tsx") return "\0test-config-page";
       },
       load(id: string) {
         if (id === "\0test-hooks") return `
@@ -44,6 +47,20 @@ export async function startShiftsBrowserServer() {
           export { useShiftExport } from '/hooks/use-shift-export.ts';
           export { useSchedulerCatalog } from '/hooks/use-scheduler-catalog.ts';
           export const useShiftValidation = () => ({ conflictSummary: { hasConflicts: false, errorCount: 0 } });
+        `;
+        if (id === "\0test-toast") return `
+          export const useToast = () => {
+            const avisos = [];
+            return {
+              toast: (aviso) => {
+                const nodo = document.createElement('div');
+                nodo.setAttribute('role', 'alert');
+                nodo.dataset.tone = aviso.variant === 'destructive' ? 'error' : 'ok';
+                nodo.textContent = aviso.title + '. ' + (aviso.description ?? '');
+                document.body.appendChild(nodo);
+              },
+            };
+          };
         `;
         if (id === "\0test-editor") return "export const ShiftEditorDialog = () => null;";
         if (id === "\0test-actions") return `
@@ -71,12 +88,25 @@ export async function startShiftsBrowserServer() {
           import { ShiftSchedulerContainer } from '/components/labor/shifts/ShiftSchedulerContainer.tsx';
           createRoot(document.getElementById('root')).render(React.createElement(ShiftSchedulerContainer));
         `;
+        if (id === "\0test-config-page") return `
+          export { default } from '/app/dashboard/company/operating-config/page.tsx';
+        `;
+        if (id === "\0test-config-entry") return `
+          import React from 'react';
+          import { createRoot } from 'react-dom/client';
+          import OperatingConfigPage from '/config-test-page.tsx';
+          createRoot(document.getElementById('root')).render(React.createElement(OperatingConfigPage));
+        `;
       },
       configureServer(devServer: { middlewares: { use: (handler: unknown) => void } }) {
         devServer.middlewares.use((req: { url: string }, res: { setHeader: (name: string, value: string) => void; end: (body: string) => void }, next: () => void) => {
-          if (req.url !== "/") return next();
-          res.setHeader("Content-Type", "text/html");
-          res.end('<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module" src="/shifts-test-entry.tsx"></script></body></html>');
+          if (req.url === "/" || req.url === "/config") {
+            res.setHeader("Content-Type", "text/html");
+            const entrada = req.url === "/config" ? "/config-test-entry.tsx" : "/shifts-test-entry.tsx";
+            res.end(`<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module" src="${entrada}"></script></body></html>`);
+            return;
+          }
+          next();
         });
       },
     }],

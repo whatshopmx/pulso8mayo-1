@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 11 de octubre de 2026. Estado: C00–C11 implementadas con límites de verificación registrados en el seguimiento; C12 se cierra con la entrega de C11. C13–C40 pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 12 de octubre de 2026. Estado: C00–C13 implementadas con límites de verificación registrados en el seguimiento; C12 se cierra con la entrega de C11. C14–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -470,11 +470,13 @@ Corregir inicialización y serialización para preservar cero, null y valores gu
 
 **Criterios de aceptación:**
 
-- [ ] Guardar y recargar preserva cero, null y límites existentes según su contrato.
-- [ ] Un GET fallido muestra error/reintento y no permite sobrescribir con defaults aparentes.
-- [ ] PUT valida unidades y rangos y devuelve errores por campo.
+- [x] Guardar y recargar preserva cero, null y límites existentes según su contrato.
+- [x] Un GET fallido muestra error/reintento y no permite sobrescribir con defaults aparentes.
+- [x] PUT valida unidades y rangos y devuelve errores por campo.
 
 **Verificación:** V1 de ida y vuelta y V2 de carga fallida/recuperación.
+
+**Evidencia (12-10-2026):** [C13 — Conservar valores y errores de configuración](../docs/audits/2026-10-12-operating-config-roundtrip.md). 21 casos unitarios sobre la ruta real y el mapeo en `lib/company/operating-config-values.ts`; 11 pruebas de Chromium con `GET`/`PUT` controlados; suite unitaria 924 aprobadas (una omitida y un TODO), build aprobado y lint sin errores. Límites: el navegador no ejecuta Next/auth —la autorización queda en los casos unitarios—, y vigencia/periodos cerrados siguen pendientes en C14.
 
 **Archivos probables:**
 

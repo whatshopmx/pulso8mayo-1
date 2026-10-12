@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, type FormEvent } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { DEFAULT_FINANCIAL_TARGETS } from "@/lib/services/financial-kpi-types";
 import {
   OperatingConfigPresets,
   type OperatingPreset,
@@ -20,99 +19,68 @@ import {
   type CostTargetsValues,
 } from "@/components/company/cost-targets-section";
 import { OperatingConfigStickyBar } from "@/components/company/operating-config-sticky-bar";
+import {
+  camposInvalidos,
+  cuerpoDeConfiguracion,
+  erroresPorCampo,
+  valoresIniciales,
+  type OperatingConfigValues,
+} from "@/lib/company/operating-config-values";
 
-export interface OperatingConfigValues {
-  purchasingStructure?: string;
-  foodProduction?: string;
-  treasuryModel?: string;
-  supplierPayment?: string;
-  managerAutonomy?: string;
-  payrollDispersion?: string;
-  tenantType?: string;
-  managerAuthLimitCents?: number | null;
-  doubleApprovalThresholdCents?: number | null;
-  pettyCashLimitCents?: number | null;
-  emergencyPurchaseCapCents?: number | null;
-  courtesyWasteMonthlyCapCents?: number | null;
-  foodCostTargetPercent?: string | null;
-  foodCostWarnPercent?: string | null;
-  laborCostTargetPercent?: string | null;
-  laborCostWarnPercent?: string | null;
-  healthyMarginTargetPercent?: string | null;
-  healthyMarginWarnPercent?: string | null;
-}
+export type { OperatingConfigValues };
 
 interface OperatingConfigFormProps {
   initialConfig: OperatingConfigValues | null;
   onSuccess?: () => void;
 }
 
+/** Campo del servidor → input del formulario que lo captura. */
+const UMBRAL_POR_CAMPO: Record<string, keyof FinancialThresholdsValues> = {
+  managerAuthLimitCents: "managerAuthLimit",
+  doubleApprovalThresholdCents: "doubleApprovalThreshold",
+  pettyCashLimitCents: "pettyCashLimit",
+  emergencyPurchaseCapCents: "emergencyCap",
+  courtesyWasteMonthlyCapCents: "courtesyWasteCap",
+};
+
+const PORCENTAJE_POR_CAMPO: Record<string, keyof CostTargetsValues> = {
+  foodCostTargetPercent: "foodTarget",
+  foodCostWarnPercent: "foodWarn",
+  laborCostTargetPercent: "laborTarget",
+  laborCostWarnPercent: "laborWarn",
+  healthyMarginTargetPercent: "marginTarget",
+  healthyMarginWarnPercent: "marginWarn",
+};
+
 export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfigFormProps) {
   const { toast } = useToast();
+  // Un solo lugar donde se decide qué se muestra: `initialConfig` null significa
+  // "sin fila", y la página sólo monta el formulario tras una carga exitosa.
+  const inicial = useMemo(() => valoresIniciales(initialConfig), [initialConfig]);
 
-  // Helper para resolver estado inicial consistente
-  const getInitialDimensions = useCallback((): OperatingDimensionsValues => ({
-    purchasingStructure: initialConfig?.purchasingStructure || "CENTRALIZADA",
-    foodProduction: initialConfig?.foodProduction || "IN_SITU",
-    treasuryModel: initialConfig?.treasuryModel || "CUENTA_UNICA",
-    supplierPayment: initialConfig?.supplierPayment || "CENTRALIZADO",
-    managerAutonomy: initialConfig?.managerAutonomy || "MEDIA",
-    payrollDispersion: initialConfig?.payrollDispersion || "CONSOLIDADA",
-    tenantType: initialConfig?.tenantType || "GRUPO_PROPIO",
-  }), [initialConfig]);
-
-  const getInitialThresholds = useCallback((): FinancialThresholdsValues => ({
-    managerAuthLimit: ((initialConfig?.managerAuthLimitCents || 100000) / 100).toString(),
-    doubleApprovalThreshold: ((initialConfig?.doubleApprovalThresholdCents || 1000000) / 100).toString(),
-    pettyCashLimit: ((initialConfig?.pettyCashLimitCents || 500000) / 100).toString(),
-    emergencyCap: initialConfig?.emergencyPurchaseCapCents
-      ? (initialConfig.emergencyPurchaseCapCents / 100).toString()
-      : "",
-    courtesyWasteCap: initialConfig?.courtesyWasteMonthlyCapCents
-      ? (initialConfig.courtesyWasteMonthlyCapCents / 100).toString()
-      : "",
-  }), [initialConfig]);
-
-  const getInitialCostTargets = useCallback((): CostTargetsValues => ({
-    foodTarget: String(
-      initialConfig?.foodCostTargetPercent ?? DEFAULT_FINANCIAL_TARGETS.foodCostTargetPercent
-    ),
-    foodWarn: String(
-      initialConfig?.foodCostWarnPercent ?? DEFAULT_FINANCIAL_TARGETS.foodCostWarnPercent
-    ),
-    laborTarget: String(
-      initialConfig?.laborCostTargetPercent ?? DEFAULT_FINANCIAL_TARGETS.laborCostTargetPercent
-    ),
-    laborWarn: String(
-      initialConfig?.laborCostWarnPercent ?? DEFAULT_FINANCIAL_TARGETS.laborCostWarnPercent
-    ),
-    marginTarget: String(
-      initialConfig?.healthyMarginTargetPercent ??
-        DEFAULT_FINANCIAL_TARGETS.healthyMarginTargetPercent
-    ),
-    marginWarn: String(
-      initialConfig?.healthyMarginWarnPercent ??
-        DEFAULT_FINANCIAL_TARGETS.healthyMarginWarnPercent
-    ),
-  }), [initialConfig]);
-
-  // Estados del formulario
-  const [dimensions, setDimensions] = useState<OperatingDimensionsValues>(getInitialDimensions);
-  const [thresholds, setThresholds] = useState<FinancialThresholdsValues>(getInitialThresholds);
-  const [costTargets, setCostTargets] = useState<CostTargetsValues>(getInitialCostTargets);
+  const [dimensions, setDimensions] = useState<OperatingDimensionsValues>(inicial.dimensions);
+  const [thresholds, setThresholds] = useState<FinancialThresholdsValues>(inicial.thresholds);
+  const [costTargets, setCostTargets] = useState<CostTargetsValues>(inicial.costTargets);
   const [loading, setLoading] = useState(false);
+  const [errores, setErrores] = useState<Record<string, string>>({});
 
-  // Manejadores de cambios
+  const estado = useMemo(
+    () => ({ dimensions, thresholds, costTargets }),
+    [dimensions, thresholds, costTargets]
+  );
+
   const handleDimensionChange = (key: keyof OperatingDimensionsValues, value: string) => {
     setDimensions((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleThresholdChange = (key: keyof FinancialThresholdsValues, value: string) => {
     setThresholds((prev) => ({ ...prev, [key]: value }));
+    setErrores((prev) => Object.fromEntries(Object.entries(prev).filter(([campo]) => UMBRAL_POR_CAMPO[campo] !== key)));
   };
 
   const handleCostTargetChange = (key: keyof CostTargetsValues, value: string) => {
     setCostTargets((prev) => ({ ...prev, [key]: value }));
+    setErrores((prev) => Object.fromEntries(Object.entries(prev).filter(([campo]) => PORCENTAJE_POR_CAMPO[campo] !== key)));
   };
 
   const handleApplyPreset = (preset: OperatingPreset) => {
@@ -124,9 +92,10 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
   };
 
   const handleReset = () => {
-    setDimensions(getInitialDimensions());
-    setThresholds(getInitialThresholds());
-    setCostTargets(getInitialCostTargets());
+    setDimensions(inicial.dimensions);
+    setThresholds(inicial.thresholds);
+    setCostTargets(inicial.costTargets);
+    setErrores({});
     toast({
       title: "Cambios descartados",
       description: "Se han restaurado los valores originales.",
@@ -140,68 +109,59 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
   const marginPairInvalid = num(costTargets.marginWarn) > num(costTargets.marginTarget);
   const percentPairsInvalid = foodPairInvalid || laborPairInvalid || marginPairInvalid;
 
-  // Detección de modificaciones (isDirty)
-  const isDirty = useMemo(() => {
-    const initDim = getInitialDimensions();
-    const initThresh = getInitialThresholds();
-    const initTargets = getInitialCostTargets();
+  const invalidos = useMemo(() => camposInvalidos(estado), [estado]);
+  const isDirty = useMemo(
+    () =>
+      JSON.stringify(estado) !== JSON.stringify(inicial),
+    [estado, inicial]
+  );
 
-    const dimChanged = Object.keys(dimInitMatch(dimensions, initDim)).some((k) => {
-      const key = k as keyof OperatingDimensionsValues;
-      return dimensions[key] !== initDim[key];
-    });
+  /**
+   * Los errores del servidor vienen con el nombre de la columna; el formulario
+   * los muestra junto al input que la captura. Un solo mapa por sección evita
+   * repetir la traducción en cada campo.
+   */
+  const erroresDeUmbral = useMemo(() => {
+    const salida: Record<string, string> = {};
+    for (const [columna, mensaje] of Object.entries(errores)) {
+      const input = UMBRAL_POR_CAMPO[columna];
+      if (input) salida[input] = mensaje;
+    }
+    return salida;
+  }, [errores]);
 
-    const threshChanged = Object.keys(threshInitMatch(thresholds, initThresh)).some((k) => {
-      const key = k as keyof FinancialThresholdsValues;
-      return thresholds[key] !== initThresh[key];
-    });
+  const erroresDePorcentaje = useMemo(() => {
+    const salida: Record<string, string> = {};
+    for (const [columna, mensaje] of Object.entries(errores)) {
+      const input = PORCENTAJE_POR_CAMPO[columna];
+      if (input) salida[input] = mensaje;
+    }
+    return salida;
+  }, [errores]);
 
-    const targetsChanged = Object.keys(targetsInitMatch(costTargets, initTargets)).some((k) => {
-      const key = k as keyof CostTargetsValues;
-      return costTargets[key] !== initTargets[key];
-    });
-
-    return dimChanged || threshChanged || targetsChanged;
-  }, [dimensions, thresholds, costTargets, getInitialDimensions, getInitialThresholds, getInitialCostTargets]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (percentPairsInvalid) return;
+  async function guardar(event: FormEvent) {
+    event.preventDefault();
+    if (percentPairsInvalid || invalidos.length || loading) return;
     setLoading(true);
+    setErrores({});
 
     try {
-      const body = {
-        purchasingStructure: dimensions.purchasingStructure,
-        foodProduction: dimensions.foodProduction,
-        treasuryModel: dimensions.treasuryModel,
-        supplierPayment: dimensions.supplierPayment,
-        managerAutonomy: dimensions.managerAutonomy,
-        payrollDispersion: dimensions.payrollDispersion,
-        tenantType: dimensions.tenantType,
-        managerAuthLimitCents: Math.round(parseFloat(thresholds.managerAuthLimit || "0") * 100),
-        doubleApprovalThresholdCents: Math.round(parseFloat(thresholds.doubleApprovalThreshold || "0") * 100),
-        pettyCashLimitCents: Math.round(parseFloat(thresholds.pettyCashLimit || "0") * 100),
-        emergencyPurchaseCapCents:
-          thresholds.emergencyCap.trim() === "" ? null : Math.round(parseFloat(thresholds.emergencyCap) * 100),
-        courtesyWasteMonthlyCapCents:
-          thresholds.courtesyWasteCap.trim() === "" ? null : Math.round(parseFloat(thresholds.courtesyWasteCap) * 100),
-        foodCostTargetPercent: parseFloat(costTargets.foodTarget),
-        foodCostWarnPercent: parseFloat(costTargets.foodWarn),
-        laborCostTargetPercent: parseFloat(costTargets.laborTarget),
-        laborCostWarnPercent: parseFloat(costTargets.laborWarn),
-        healthyMarginTargetPercent: parseFloat(costTargets.marginTarget),
-        healthyMarginWarnPercent: parseFloat(costTargets.marginWarn),
-      };
-
       const res = await fetch("/api/company/operating-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(cuerpoDeConfiguracion(estado)),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error?.message || data.error || "Error al actualizar configuración.");
+        const porCampo = erroresPorCampo(data?.error?.details);
+        if (Object.keys(porCampo).length) {
+          setErrores(porCampo);
+          throw new Error(
+            `Revisa ${Object.keys(porCampo).length === 1 ? "el campo marcado" : "los campos marcados"}: ${Object.values(porCampo)[0]}`
+          );
+        }
+        throw new Error(data?.error?.message || data?.error || "Error al actualizar configuración.");
       }
 
       toast({
@@ -219,10 +179,10 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 pb-20">
+    <form onSubmit={guardar} className="space-y-8 pb-20" noValidate>
       {/* 1 Clic Archetype Presets */}
       <OperatingConfigPresets onApplyPreset={handleApplyPreset} disabled={loading} />
 
@@ -230,7 +190,11 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
       <OperatingDimensionsSection values={dimensions} onChange={handleDimensionChange} />
 
       {/* Financial Thresholds & Approval Policies */}
-      <FinancialThresholdsSection values={thresholds} onChange={handleThresholdChange} />
+      <FinancialThresholdsSection
+        values={thresholds}
+        onChange={handleThresholdChange}
+        errors={erroresDeUmbral}
+      />
 
       {/* Cost KPI Targets with Spectrum Gauges */}
       <CostTargetsSection
@@ -239,26 +203,21 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
         foodPairInvalid={foodPairInvalid}
         laborPairInvalid={laborPairInvalid}
         marginPairInvalid={marginPairInvalid}
+        errors={erroresDePorcentaje}
       />
 
       {/* Persistent Sticky Action Bar */}
       <OperatingConfigStickyBar
         isDirty={isDirty}
         loading={loading}
-        disabled={percentPairsInvalid}
+        disabled={percentPairsInvalid || invalidos.length > 0}
+        disabledMessage={
+          invalidos.length
+            ? `Corrige ${invalidos.length} ${invalidos.length === 1 ? "campo" : "campos"} antes de guardar.`
+            : undefined
+        }
         onReset={handleReset}
       />
     </form>
   );
-}
-
-// Helpers para comparación de tipos
-function dimInitMatch(a: OperatingDimensionsValues, b: OperatingDimensionsValues) {
-  return a;
-}
-function threshInitMatch(a: FinancialThresholdsValues, b: FinancialThresholdsValues) {
-  return a;
-}
-function targetsInitMatch(a: CostTargetsValues, b: CostTargetsValues) {
-  return a;
 }

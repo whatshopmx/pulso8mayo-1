@@ -5,6 +5,16 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { DollarSign, ShieldAlert, Wallet, Sparkles, AlertCircle } from "lucide-react";
 
+/** Aviso del servidor junto al input que lo provocó (C13). */
+function ErrorDeCampo({ id, mensaje }: { id: string; mensaje?: string }) {
+  if (!mensaje) return null;
+  return (
+    <p id={id} role="alert" className="text-xs text-destructive">
+      {mensaje}
+    </p>
+  );
+}
+
 export interface FinancialThresholdsValues {
   managerAuthLimit: string;
   doubleApprovalThreshold: string;
@@ -16,12 +26,16 @@ export interface FinancialThresholdsValues {
 interface FinancialThresholdsSectionProps {
   values: FinancialThresholdsValues;
   onChange: (key: keyof FinancialThresholdsValues, value: string) => void;
+  /** Error del servidor por campo, ya traducido al nombre del input. */
+  errors?: Record<string, string>;
 }
 
 export function FinancialThresholdsSection({
   values,
   onChange,
+  errors = {},
 }: FinancialThresholdsSectionProps) {
+  const mensajeDe = (campo: keyof FinancialThresholdsValues) => errors[campo];
   return (
     <Card>
       <CardHeader>
@@ -56,12 +70,14 @@ export function FinancialThresholdsSection({
               value={values.managerAuthLimit}
               onChange={(e) => onChange("managerAuthLimit", e.target.value)}
               className="pl-7 pr-12 text-sm font-medium"
-              required
+              aria-invalid={!!mensajeDe("managerAuthLimit")}
+              aria-describedby={mensajeDe("managerAuthLimit") ? "managerAuthLimit-error" : undefined}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
               MXN
             </span>
           </div>
+          <ErrorDeCampo id="managerAuthLimit-error" mensaje={mensajeDe("managerAuthLimit")} />
           <p className="text-xs text-muted-foreground leading-tight">
             Gastos por debajo de este monto pueden ser autorizados directamente por el gerente de sucursal (siempre requiriendo firma de un segundo usuario).
           </p>
@@ -89,12 +105,14 @@ export function FinancialThresholdsSection({
               value={values.doubleApprovalThreshold}
               onChange={(e) => onChange("doubleApprovalThreshold", e.target.value)}
               className="pl-7 pr-12 text-sm font-medium"
-              required
+              aria-invalid={!!mensajeDe("doubleApprovalThreshold")}
+              aria-describedby={mensajeDe("doubleApprovalThreshold") ? "doubleApprovalThreshold-error" : undefined}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
               MXN
             </span>
           </div>
+          <ErrorDeCampo id="doubleApprovalThreshold-error" mensaje={mensajeDe("doubleApprovalThreshold")} />
           <p className="text-xs text-muted-foreground leading-tight">
             Montos a partir de este valor escalan obligatoriamente para firma y visto bueno de Dirección General o Dueño del grupo.
           </p>
@@ -122,12 +140,14 @@ export function FinancialThresholdsSection({
               value={values.pettyCashLimit}
               onChange={(e) => onChange("pettyCashLimit", e.target.value)}
               className="pl-7 pr-12 text-sm font-medium"
-              required
+              aria-invalid={!!mensajeDe("pettyCashLimit")}
+              aria-describedby={mensajeDe("pettyCashLimit") ? "pettyCashLimit-error" : undefined}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
               MXN
             </span>
           </div>
+          <ErrorDeCampo id="pettyCashLimit-error" mensaje={mensajeDe("pettyCashLimit")} />
           <p className="text-xs text-muted-foreground leading-tight">
             Monto máximo asignado al fondo revolvente de cada unidad para compras imprevistas y gastos menores en efectivo.
           </p>
@@ -156,11 +176,14 @@ export function FinancialThresholdsSection({
               onChange={(e) => onChange("emergencyCap", e.target.value)}
               placeholder="Sin límite fijado"
               className="pl-7 pr-12 text-sm font-medium"
+              aria-invalid={!!mensajeDe("emergencyCap")}
+              aria-describedby={mensajeDe("emergencyCap") ? "emergencyPurchaseCap-error" : undefined}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
               MXN
             </span>
           </div>
+          <ErrorDeCampo id="emergencyPurchaseCap-error" mensaje={mensajeDe("emergencyCap")} />
           <p className="text-xs text-muted-foreground leading-tight">
             Acumulado mensual permitido de compras urgentes por sucursal. Al alcanzar este límite, las órdenes de emergencia quedan bloqueadas hasta el siguiente ciclo.
           </p>
@@ -189,11 +212,14 @@ export function FinancialThresholdsSection({
               onChange={(e) => onChange("courtesyWasteCap", e.target.value)}
               placeholder="Sin límite fijado"
               className="pl-7 pr-12 text-sm font-medium"
+              aria-invalid={!!mensajeDe("courtesyWasteCap")}
+              aria-describedby={mensajeDe("courtesyWasteCap") ? "courtesyWasteCap-error" : undefined}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
               MXN
             </span>
           </div>
+          <ErrorDeCampo id="courtesyWasteCap-error" mensaje={mensajeDe("courtesyWasteCap")} />
           <p className="text-xs text-muted-foreground leading-tight">
             Presupuesto mensual consolidado para mermas operativas por consumo de colaboradores y atenciones a comensales. Al superarlo, toda merma posterior requiere visto bueno de Dirección.
           </p>

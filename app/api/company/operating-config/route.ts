@@ -28,24 +28,35 @@ import {
  */
 
 const dimensionEnums = {
-  purchasingStructure: z.enum(["CENTRALIZADA", "POR_SUCURSAL", "HIBRIDO"]),
-  foodProduction: z.enum(["IN_SITU", "COCINA_CENTRAL", "MIXTO"]),
-  treasuryModel: z.enum(["CUENTA_UNICA", "CUENTA_POR_SUCURSAL", "MIXTO"]),
-  supplierPayment: z.enum(["CENTRALIZADO", "POR_SUCURSAL", "HIBRIDO"]),
-  managerAutonomy: z.enum(["ALTA", "MEDIA", "BAJA"]),
-  payrollDispersion: z.enum(["CONSOLIDADA", "POR_RAZON_SOCIAL", "MIXTO"]),
-  tenantType: z.enum(["GRUPO_PROPIO", "MIXTO_FRANQUICIAS"]),
+  purchasingStructure: z.enum(["CENTRALIZADA", "POR_SUCURSAL", "HIBRIDO"], { error: "Elige una estructura de compras." }),
+  foodProduction: z.enum(["IN_SITU", "COCINA_CENTRAL", "MIXTO"], { error: "Elige un modelo de producción de alimentos." }),
+  treasuryModel: z.enum(["CUENTA_UNICA", "CUENTA_POR_SUCURSAL", "MIXTO"], { error: "Elige un modelo de tesorería." }),
+  supplierPayment: z.enum(["CENTRALIZADO", "POR_SUCURSAL", "HIBRIDO"], { error: "Elige una política de pago a proveedores." }),
+  managerAutonomy: z.enum(["ALTA", "MEDIA", "BAJA"], { error: "Elige un nivel de autonomía del gerente." }),
+  payrollDispersion: z.enum(["CONSOLIDADA", "POR_RAZON_SOCIAL", "MIXTO"], { error: "Elige una política de dispersión de nómina." }),
+  tenantType: z.enum(["GRUPO_PROPIO", "MIXTO_FRANQUICIAS"], { error: "Elige un tipo de empresa." }),
 } as const;
 
-/** Umbrales monetarios en centavos; `null` significa "sin tope". */
-const thresholdSchema = z.number().int().min(0).nullable();
+/**
+ * Umbrales monetarios en centavos; `null` significa "sin tope".
+ *
+ * Los mensajes nombran la unidad porque el contrato habla de centavos y el
+ * formulario de pesos: un entero Rechazado tiene que decir si se esperaba un
+ * número entero de centavos, no "expected integer".
+ */
+const thresholdSchema = z
+  .number({ error: "Escribe un monto o déjalo vacío para quitar el tope." })
+  .int("El monto debe enviarse en centavos, sin decimales.")
+  .min(0, "El monto no puede ser negativo.")
+  .max(2147483647, "El monto no puede superar 2147483647 centavos.")
+  .nullable();
 
 /**
  * Porcentaje objetivo. Se recibe como número (el formulario captura "30.5") y
  * se persiste como `numeric(5,2)`, que Drizzle escribe desde string.
  */
 const percentSchema = z
-  .number()
+  .number({ error: "Escribe un porcentaje entre 0 y 100." })
   .min(0, "El porcentaje no puede ser negativo.")
   .max(100, "El porcentaje no puede ser mayor a 100.");
 
@@ -120,15 +131,11 @@ export async function GET() {
     }
 
     const config = await getTenantOperatingConfig(tenant.id);
-    const [companyRow] = await db
-      .select({ courtesyWasteMonthlyCapCents: companies.courtesyWasteMonthlyCapCents })
-      .from(companies)
-      .where(eq(companies.id, tenant.id))
-      .limit(1);
+    const courtesyWaste = await leerCourtesyWaste(tenant.id);
 
     return ApiHandler.success({
       ...config,
-      courtesyWasteMonthlyCapCents: companyRow?.courtesyWasteMonthlyCapCents ?? null,
+      courtesyWasteMonthlyCapCents: courtesyWaste,
     });
   } catch (error) {
     return ApiHandler.error(error);
@@ -154,6 +161,18 @@ export async function PUT(req: NextRequest) {
 
     if (Object.keys(data).length === 0) {
       throw ApiError.badRequest("No se enviaron campos para actualizar.");
+    }
+
+    // Al actualizar sólo un extremo, comprobar el par efectivo antes de escribir.
+    const pairFields = PERCENT_FIELDS.filter((field) => field !== "mermaVarianceThresholdPct");
+    if (pairFields.some((field) => data[field] !== undefined)) {
+      const current = await getTenantOperatingConfig(tenant.id);
+      const effective: Record<string, number> = {};
+      for (const field of pairFields) {
+        if (data[field] !== undefined) effective[field] = data[field];
+        else if (current[field] !== null && current[field] !== undefined) effective[field] = Number(current[field]);
+      }
+      updateConfigSchema.parse(effective);
     }
 
     if (data.courtesyWasteMonthlyCapCents !== undefined) {
@@ -202,11 +221,28 @@ export async function PUT(req: NextRequest) {
       ...dimensions,
       ...percents,
     });
+    // El tope de cortesías vive en `companies`, no en la fila de configuración:
+    // se responde con lo que quedó, no con lo que pidió el formulario. Antes
+    // devolvía `undefined` cuando se acababa de quitar el tope, que no es lo que
+    // se guardó.
+    const courtesyWaste =
+      data.courtesyWasteMonthlyCapCents !== undefined
+        ? data.courtesyWasteMonthlyCapCents
+        : await leerCourtesyWaste(tenant.id);
     return ApiHandler.success({
       ...updated,
-      courtesyWasteMonthlyCapCents: data.courtesyWasteMonthlyCapCents ?? undefined,
+      courtesyWasteMonthlyCapCents: courtesyWaste,
     });
   } catch (error) {
     return ApiHandler.error(error);
   }
+}
+
+async function leerCourtesyWaste(companyId: string): Promise<number | null> {
+  const [row] = await db
+    .select({ courtesyWasteMonthlyCapCents: companies.courtesyWasteMonthlyCapCents })
+    .from(companies)
+    .where(eq(companies.id, companyId))
+    .limit(1);
+  return row?.courtesyWasteMonthlyCapCents ?? null;
 }

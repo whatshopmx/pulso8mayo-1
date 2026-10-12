@@ -9,6 +9,8 @@ interface OperatingConfigStickyBarProps {
   loading: boolean;
   disabled: boolean;
   onReset: () => void;
+  /** Por qué no se puede guardar todavía; se nombra el campo cuando se puede. */
+  disabledMessage?: string;
 }
 
 export function OperatingConfigStickyBar({
@@ -16,6 +18,7 @@ export function OperatingConfigStickyBar({
   loading,
   disabled,
   onReset,
+  disabledMessage = "Corrige las inconsistencias en los objetivos de costo para guardar.",
 }: OperatingConfigStickyBarProps) {
   return (
     <div
@@ -82,9 +85,9 @@ export function OperatingConfigStickyBar({
       </div>
 
       {disabled && isDirty && (
-        <div className="w-full sm:hidden flex items-center gap-1.5 text-xs text-destructive">
-          <AlertCircle className="w-3 h-3" />
-          <span>Corrige las inconsistencias en los objetivos de costo para guardar.</span>
+        <div role="status" className="w-full flex items-center gap-1.5 text-xs text-destructive">
+          <AlertCircle className="h-3 w-3" />
+          <span>{disabledMessage}</span>
         </div>
       )}
     </div>
