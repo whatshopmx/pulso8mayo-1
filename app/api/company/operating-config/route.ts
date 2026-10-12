@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { companies } from "@/lib/db/schema";
+import { configChangeLogs, companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import { hasPermission } from "@/lib/permissions";
+import { diferenciasDeConfig, type ConfigChange } from "@/lib/company/config-change-log";
 import {
   getTenantOperatingConfig,
   upsertTenantOperatingConfig,
@@ -186,16 +187,27 @@ export async function PUT(req: NextRequest) {
       throw ApiError.badRequest("No se enviaron campos para actualizar.");
     }
 
+    // El valor anterior se lee una vez y sirve para dos cosas: validar los pares
+    // de semáforo y cerrar el historial de C14.2. Antes sólo se leía cuando
+    // venía un par, así que no había forma de saber qué cambió.
+    const anterior = await getTenantOperatingConfig(tenant.id);
+
     // Al actualizar sólo un extremo, comprobar el par efectivo antes de escribir.
     if (PAIR_FIELDS.some((field) => data[field] !== undefined)) {
-      const current = await getTenantOperatingConfig(tenant.id);
       const effective: Record<string, number> = {};
       for (const field of PAIR_FIELDS) {
         if (data[field] !== undefined) effective[field] = data[field];
-        else if (current[field] !== null && current[field] !== undefined) effective[field] = Number(current[field]);
+        else if (anterior[field] !== null && anterior[field] !== undefined) effective[field] = Number(anterior[field]);
       }
       updateConfigSchema.parse(effective);
     }
+
+    // El tope de cortesías vive en `companies`: su valor anterior también es
+    // parte del historial, y se lee antes de sobrescribirlo.
+    const courtesyAnterior =
+      data.courtesyWasteMonthlyCapCents !== undefined
+        ? await leerCourtesyWaste(tenant.id)
+        : undefined;
 
     if (data.courtesyWasteMonthlyCapCents !== undefined) {
       await db
@@ -252,6 +264,14 @@ export async function PUT(req: NextRequest) {
       ...dimensions,
       ...percents,
     });
+
+    // C14.2 — una fila por campo que realmente cambió, con actor y valores.
+    const cambios = diferenciasDeConfig(anterior as Record<string, unknown>, data as Record<string, unknown>, {
+      anterior: courtesyAnterior ?? null,
+      nuevo: data.courtesyWasteMonthlyCapCents,
+    });
+    await registrarCambios(tenant.id, user.id, cambios);
+
     // El tope de cortesías vive en `companies`, no en la fila de configuración:
     // se responde con lo que quedó, no con lo que pidió el formulario. Antes
     // devolvía `undefined` cuando se acababa de quitar el tope, que no es lo que
@@ -276,4 +296,27 @@ async function leerCourtesyWaste(companyId: string): Promise<number | null> {
     .where(eq(companies.id, companyId))
     .limit(1);
   return row?.courtesyWasteMonthlyCapCents ?? null;
+}
+
+/**
+ * El historial se escribe como el resto de las auditorías del módulo: nunca
+ * rompe la petición ya autorizada y guardada. Un fallo aquí se reporta en el
+ * log; perder una fila de rastro no debe convertirse en un "no pude guardar"
+ * cuando la configuración sí quedó escrita.
+ */
+async function registrarCambios(companyId: string, userId: string, cambios: ConfigChange[]): Promise<void> {
+  if (cambios.length === 0) return;
+  try {
+    await db.insert(configChangeLogs).values(
+      cambios.map((cambio) => ({
+        companyId,
+        userId,
+        fieldName: cambio.campo,
+        oldValue: cambio.anterior,
+        newValue: cambio.nuevo,
+      }))
+    );
+  } catch (error) {
+    console.error("[operating-config] No se pudo registrar el historial de cambios:", error);
+  }
 }

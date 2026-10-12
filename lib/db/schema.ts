@@ -3321,6 +3321,29 @@ export const tenantOperatingConfig = pgTable("tenant_operating_config", {
     tenantOperatingConfigCompanyUnique: uniqueIndex("tenant_operating_config_company_unique").on(table.companyId),
 }));
 
+/**
+ * C14.2 — historial de actor y cambio de la configuración del grupo.
+ *
+ * Una fila por campo modificado en un PUT: quién lo cambió, cuándo, y de qué
+ * valor a qué valor. Antes, un cambio de IVA o de carga patronal quedaba
+ * borrado: la fila conservaba sólo el valor final, y nadie podía explicar por
+ * qué un mes cerraba 2 puntos más barato.
+ *
+ * Sin FK a `users`: el actor se referencia por id como en `data_access_logs`,
+ * y un usuario eliminado no debe impedir consultar su propio rastro.
+ */
+export const configChangeLogs = pgTable("config_change_logs", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    userId: text("user_id").notNull(),
+    fieldName: text("field_name").notNull(),
+    oldValue: jsonb("old_value"),
+    newValue: jsonb("new_value"),
+    performedAt: timestamp("performed_at").defaultNow().notNull(),
+}, (table) => ({
+    configChangeLogsCompanyTimeIdx: index("config_change_logs_company_time_idx").on(table.companyId, table.performedAt),
+}));
+
 // ---------------------------------------------------------------------------
 // M16: Pagos y Gastos / Caja Chica (T34)
 // ---------------------------------------------------------------------------
