@@ -7,7 +7,8 @@ import { hasDynamicSteps, resolveDynamicSteps } from "@/lib/workflows/dynamic-st
 import { templateLibrary } from "@/templates";
 import { inngest } from "@/lib/inngest/client";
 import { workflowInstanceCompleted } from "@/lib/inngest/events";
-import { isApiError } from "@/lib/api/error";
+import { ApiError, isApiError } from "@/lib/api/error";
+import { normalizeStockCount } from "@/lib/workflows/stock-count-grid";
 import type { Role } from "@/lib/permissions";
 import {
     assertExecutionInScope,
@@ -108,7 +109,7 @@ export class WorkflowExecutionService {
             throw new Error("Workflow template not found");
         }
 
-        let steps = template.steps as unknown as WorkflowStep[];
+        let steps = (typeof template.steps === 'string' ? JSON.parse(template.steps) : template.steps) as WorkflowStep[];
 
         // 2. If Stock Count template, generate dynamic product steps
         if (template.name === STOCK_COUNT_TEMPLATE_NAME || template.name === "📊 Conteo de Inventario") {
@@ -116,7 +117,7 @@ export class WorkflowExecutionService {
             const { StockCountService } = await import("./stock-count-service");
             const cid = companyId || (await db.query.users.findFirst({ where: eq(users.id, assigneeId || "") }))?.companyId || "";
             const products = await StockCountService.getProductsWithStock(cid, branchId, category, false);
-            const templateSteps = template.steps as unknown as WorkflowStep[];
+            const templateSteps = steps;
             steps = StockCountService.generateStockCountSteps(templateSteps, products, category);
         }
 
@@ -134,6 +135,12 @@ export class WorkflowExecutionService {
             steps = await resolveDynamicSteps(steps, { companyId: cid, purchaseId: dynamicCtx?.purchaseId });
         }
 
+        const countSteps = steps.filter(s => s.type === 'STOCK_COUNT');
+        if (countSteps.length) {
+            const { StockCountService } = await import('./stock-count-service');
+            steps = await StockCountService.resolveCountSteps(steps, companyId || template.companyId || '', branchId);
+        }
+
         const instanceValues = {
             workflowTemplateId: template.id,
             branchId: branchId,
@@ -145,6 +152,11 @@ export class WorkflowExecutionService {
             // Contexto de lanzamiento que los extractores necesitan al completar:
             // p.ej. la recepción v3 necesita saber contra qué OC registró.
             ...(dynamicCtx?.purchaseId ? { data: { purchaseId: dynamicCtx.purchaseId } } : {}),
+            ...(countSteps.length ? { data: {
+                ...(dynamicCtx?.purchaseId ? { purchaseId: dynamicCtx.purchaseId } : {}),
+                stockCountGrid: true,
+                categories: countSteps.map(s => s.config.category),
+            } } : {}),
             ...(template.name === STOCK_COUNT_TEMPLATE_NAME ? {
                 category: categoryValue || DEFAULT_CATEGORIES[0].value,
                 productCount: steps.filter(s => s.id.startsWith("count-")).length,
@@ -253,12 +265,18 @@ export class WorkflowExecutionService {
         });
 
         let isBlindCount = false;
-        if (template && template.name === STOCK_COUNT_TEMPLATE_NAME && template.companyId) {
+        if (template && (template.name === STOCK_COUNT_TEMPLATE_NAME || (instance.data as { stockCountGrid?: boolean })?.stockCountGrid) && template.companyId) {
             const company = await db.query.companies.findFirst({
                 where: eq(companies.id, template.companyId)
             });
             isBlindCount = company?.blindStockCount || false;
         }
+
+        const rawDefinitions = typeof template?.steps === 'string' ? JSON.parse(template.steps) : template?.steps;
+        const definitions = Array.isArray(rawDefinitions) ? rawDefinitions as WorkflowStep[] : [];
+        const orderedSteps = [...steps].sort((a, b) =>
+            (a.stepOrder ?? definitions.findIndex(d => d.id === a.stepId)) - (b.stepOrder ?? definitions.findIndex(d => d.id === b.stepId)));
+        const executionDefinitions = orderedSteps.map(s => s.definition ?? definitions.find(d => d.id === s.stepId)).filter(Boolean);
 
         return {
             ...instance,
@@ -275,7 +293,7 @@ export class WorkflowExecutionService {
             })),
             assignee,
             branch,
-            template,
+            template: template ? { ...template, steps: executionDefinitions.length ? executionDefinitions : definitions } : null,
             blindCount: isBlindCount
         };
     }
@@ -395,7 +413,7 @@ export class WorkflowExecutionService {
     static async updateStep(
         instanceId: string,
         stepId: string,
-        data: { value?: any, evidenceUrl?: string, comment?: string, status?: 'COMPLETED' | 'SKIPPED' | 'FAILED' },
+        data: { value?: any, evidenceUrl?: string, comment?: string, status?: 'COMPLETED' | 'SKIPPED' | 'FAILED' | 'IN_PROGRESS' },
         ctx: StepUpdateContext
     ) {
         const now = new Date();
@@ -432,8 +450,34 @@ export class WorkflowExecutionService {
             });
 
             if (template) {
-                const steps = template.steps as unknown as WorkflowStep[];
+                const steps = (typeof template.steps === 'string' ? JSON.parse(template.steps) : template.steps) as WorkflowStep[];
                 currentStepDef = steps.find(s => s.id === stepId);
+            }
+        }
+
+        {
+            const savedStep = await db.query.workflowInstanceSteps.findFirst({
+                where: and(eq(workflowInstanceSteps.instanceId, instanceId), eq(workflowInstanceSteps.stepId, stepId)),
+            });
+            currentStepDef = savedStep?.definition ?? currentStepDef;
+            if (currentStepDef?.type === 'STOCK_COUNT') {
+                if (instance.status === 'COMPLETED' || savedStep?.status === 'COMPLETED') {
+                    throw ApiError.conflict('Este conteo ya fue enviado a revisión.');
+                }
+                if (!savedStep || !Array.isArray(currentStepDef.config?.rows)) {
+                    throw ApiError.badRequest('No encontramos los productos y lotes de este conteo.');
+                }
+                if (data.status === 'SKIPPED' || data.status === 'FAILED') {
+                    throw ApiError.badRequest('Completa todos los productos y lotes antes de enviar el conteo.');
+                }
+                try {
+                    data = { ...data, value: JSON.stringify(normalizeStockCount(
+                        currentStepDef.config.rows, data.value ?? savedStep.value,
+                        data.status === 'COMPLETED',
+                    )) };
+                } catch (error) {
+                    throw ApiError.badRequest(error instanceof Error ? error.message : 'Conteo inválido.');
+                }
             }
         }
 
@@ -739,6 +783,10 @@ export class WorkflowExecutionService {
                     await WorkflowActionRunner.runCompletionActions(instanceId, userId || instance.assigneeId || "");
                 } catch (error) {
                     console.error("[WorkflowExecution] Error running completion actions:", error);
+                }
+                if ((instance.data as { stockCountGrid?: boolean })?.stockCountGrid) {
+                    const { StockCountService } = await import('./stock-count-service');
+                    await StockCountService.completeStockCount(instanceId, userId || instance.assigneeId || '');
                 }
             }
 

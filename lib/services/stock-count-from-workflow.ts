@@ -31,6 +31,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { roundQty } from "./stock-count-service";
+import { normalizeStockCount, stockCountTotals, type StockCountRow } from "@/lib/workflows/stock-count-grid";
 import { localDateString } from "@/lib/workflows/today";
 import { createChildLogger } from "@/lib/logger";
 
@@ -153,12 +154,19 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
       .select({
         stepId: workflowInstanceSteps.stepId,
         value: workflowInstanceSteps.value,
+        definition: workflowInstanceSteps.definition,
       })
       .from(workflowInstanceSteps)
       .where(eq(workflowInstanceSteps.instanceId, instanceId));
 
     const parsedByItem = new Map<string, ParsedCount>();
     for (const step of rawSteps) {
+      const definition = step.definition as { type?: string; config?: { rows?: StockCountRow[] } } | null;
+      if (definition?.type === 'STOCK_COUNT') {
+        const count = normalizeStockCount(definition.config?.rows ?? [], step.value, true);
+        for (const total of stockCountTotals(count)) parsedByItem.set(total.itemId, { ...total, evidenceUrl: null });
+        continue;
+      }
       const parsed = parseCountStep(step);
       // Si el mismo ítem apareciera dos veces, gana el último paso: el único
       // de la tabla es por (instancia, ítem) y no admite dos filas.

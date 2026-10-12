@@ -1,7 +1,7 @@
 export type StepCategory =
  | 'TEXT' | 'NUMBER' | 'YESNO' | 'SELECT' | 'PHOTO'
  | 'CHECKBOX' | 'TIME' | 'TIMER' | 'SIGNATURE' | 'LOCATION'
- | 'AUDIO' | 'VIDEO' | 'INFO' | 'DATE';
+ | 'AUDIO' | 'VIDEO' | 'INFO' | 'DATE' | 'STOCK_COUNT';
 
 export type BuilderStepType =
  | 'text' | 'number' | 'yes_no' | 'multiple_choice' | 'photo' | 'checklist'
@@ -13,9 +13,10 @@ export type BuilderStepType =
  | 'SignatureField' | 'TimeField' | 'CheckboxField' | 'ChecklistField'
  | 'TextField' | 'NumberField' | 'PhotoField' | 'TemperatureField'
  | 'GPSLocationField' | 'OPSLocationField' | 'YesNo' | 'Heading'
- | 'TimerField';
+ | 'TimerField' | 'STOCK_COUNT';
 
 export const STEP_TYPE_TO_CATEGORY: Record<string, StepCategory> = {
+  'STOCK_COUNT': 'STOCK_COUNT',
   'text': 'TEXT', 'Text': 'TEXT', 'TextField': 'TEXT', 'Textarea': 'TEXT', 'textarea': 'TEXT',
   'TEXT': 'TEXT',
 
@@ -63,6 +64,7 @@ export function getStepCategory(type: string): StepCategory {
 }
 
 export const STEP_TYPE_TO_EXECUTOR_TYPE: Record<string, string> = {
+  'STOCK_COUNT': 'STOCK_COUNT',
   'text': 'TEXT', 'Text': 'TEXT', 'TextField': 'TEXT', 'Textarea': 'TEXT', 'textarea': 'TEXT',
   'number': 'NUMBER', 'Number': 'NUMBER', 'NumberField': 'NUMBER', 'TemperatureField': 'NUMBER',
   'yes_no': 'SELECT', 'YesNo': 'SELECT',
@@ -94,6 +96,7 @@ export function normalizeOptions(options: any): string[] {
 }
 
 export const STEP_TYPE_DISPLAY: Record<string, string> = {
+  'STOCK_COUNT': 'Conteo de inventario',
   'text': 'Text Input', 'Text': 'Text Input', 'TextField': 'Text Input', 'Textarea': 'Text Area', 'textarea': 'Text Area',
   'TEXT': 'Text Input',
   'number': 'Number', 'Number': 'Number', 'NumberField': 'Number', 'TemperatureField': 'Temperature',

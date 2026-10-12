@@ -1,7 +1,9 @@
 // lib/services/stock-count-service.ts
 import { db } from "@/lib/db";
-import { inventoryItems, inventoryBatches, workflowTemplates, workflowInstances, workflowInstanceSteps, users } from "@/lib/db/schema";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { inventoryItems, inventoryBatches, workflowTemplates, workflowInstances, workflowInstanceSteps, users, branches } from "@/lib/db/schema";
+import { eq, and, sql, desc, asc, inArray } from "drizzle-orm";
+import { ApiError } from "@/lib/api/error";
+import { normalizeStockCount, stockCountTotals, stockCountRowKey, type StockCountRow } from "@/lib/workflows/stock-count-grid";
 import { InventoryService } from "./inventory-service";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { templateLibrary } from "@/templates";
@@ -25,6 +27,51 @@ export function roundQty(n: number): number {
 }
 
 export class StockCountService {
+  static async getCountRows(companyId: string, branchId: string, category: string, highValueOnly = false): Promise<StockCountRow[]> {
+    const branch = await db.query.branches.findFirst({
+      where: and(eq(branches.id, branchId), eq(branches.companyId, companyId)),
+      columns: { id: true },
+    });
+    if (!branch) throw ApiError.badRequest('La sucursal no pertenece a tu empresa.');
+    const rows = await db.select({
+      itemId: inventoryItems.id, name: inventoryItems.name, sku: inventoryItems.sku,
+      unit: inventoryItems.unit, batchId: inventoryBatches.id,
+      lotNumber: inventoryBatches.lotNumber, expirationDate: inventoryBatches.expirationDate,
+      quantity: inventoryBatches.currentQuantity,
+    }).from(inventoryItems).leftJoin(inventoryBatches, and(
+      eq(inventoryBatches.itemId, inventoryItems.id), eq(inventoryBatches.branchId, branchId),
+      eq(inventoryBatches.status, 'AVAILABLE'),
+    )).where(and(
+      eq(inventoryItems.companyId, companyId), eq(inventoryItems.active, true),
+      eq(inventoryItems.category, category),
+      highValueOnly ? eq(inventoryItems.isHighValue, true) : undefined,
+    )).orderBy(asc(inventoryItems.name), asc(inventoryBatches.expirationDate), asc(inventoryBatches.id));
+    return rows.map(r => ({
+      itemId: r.itemId, batchId: r.batchId, name: r.name, sku: r.sku || '', unit: r.unit || 'UNIT',
+      lotNumber: r.lotNumber, expirationDate: r.expirationDate ? new Date(r.expirationDate).toISOString().slice(0, 10) : null,
+      systemQuantity: roundQty(Number(r.quantity ?? 0)),
+    }));
+  }
+
+  static async resolveCountSteps(steps: any[], companyId: string, branchId: string): Promise<any[]> {
+    const seen = new Set<string>();
+    const resolved = [];
+    for (const step of steps) {
+      if (step.type !== 'STOCK_COUNT') { resolved.push(step); continue; }
+      const category = step.config?.category;
+      if (typeof category !== 'string' || !category.trim()) throw ApiError.badRequest('Selecciona una categoría para el conteo.');
+      const rows = await this.getCountRows(companyId, branchId, category, step.config?.highValueOnly === true);
+      if (!rows.length) throw ApiError.badRequest(`No hay productos activos para contar en "${category}".`);
+      for (const row of rows) {
+        const key = stockCountRowKey(row);
+        if (seen.has(key)) throw ApiError.badRequest('Las categorías del conteo incluyen productos y lotes repetidos.');
+        seen.add(key);
+      }
+      resolved.push({ ...step, required: true, config: { ...step.config, rows } });
+    }
+    return resolved;
+  }
+
   static getCategoryName(categoryValue: string): string {
     const cat = DEFAULT_CATEGORIES.find(c => c.value === categoryValue);
     return cat?.name || categoryValue;
@@ -275,14 +322,26 @@ export class StockCountService {
         });
 
         if (!instance) throw new Error("Instance not found");
+        const instanceData = instance.data as Record<string, unknown> || {};
+        if (instance.status === 'COMPLETED' && instanceData.stockCountGrid && instanceData.results) {
+            return { instanceId, results: instanceData.results };
+        }
         if (instance.status === "COMPLETED") throw new Error("Already completed");
 
         const steps = await db.select()
             .from(workflowInstanceSteps)
             .where(eq(workflowInstanceSteps.instanceId, instanceId));
 
-        const instanceData = instance.data as Record<string, unknown> || {};
+        const gridSteps = steps.filter(s => (s.definition as { type?: string } | null)?.type === 'STOCK_COUNT');
+        if (gridSteps.length && steps.some(s => s.status !== 'COMPLETED' && s.status !== 'SKIPPED')) {
+            throw new Error('Hay pasos pendientes antes de enviar el conteo a revisión.');
+        }
+        const gridRows = gridSteps.flatMap(s => {
+            const definition = s.definition as { config: { rows: StockCountRow[] } };
+            return normalizeStockCount(definition.config.rows, s.value, true).rows;
+        });
 
+        if (!gridSteps.length) {
         const confirmStep = steps.find(s => s.stepId === "confirm-count" || s.stepId === "paso-10");
         const confirmValue = confirmStep?.value as string | null;
         if (!confirmValue) {
@@ -297,6 +356,7 @@ export class StockCountService {
         if (!isConfirmed) {
             throw new Error("Count not confirmed");
         }
+        }
 
   const results: Array<{
     itemId: string;
@@ -307,7 +367,13 @@ export class StockCountService {
     isAlert: boolean;
   }> = [];
 
-        for (const step of steps) {
+        for (const count of stockCountTotals({ kind: 'stock_count', rows: gridRows })) {
+            const variance = roundQty(count.countedQuantity - count.systemQuantity);
+            const variancePercent = count.systemQuantity > 0 ? Math.abs(variance) / count.systemQuantity * 100 : (count.countedQuantity > 0 ? 100 : 0);
+            results.push({ itemId: count.itemId, systemQuantity: count.systemQuantity, physicalQuantity: count.countedQuantity,
+                variance, variancePercent: Math.round(variancePercent * 100) / 100, isAlert: variancePercent > 10 });
+        }
+        for (const step of gridSteps.length ? [] : steps) {
             if (step.stepId.startsWith("count-")) {
                 const stepValue = step.value as string | null;
                 const stepData = stepValue ? JSON.parse(stepValue) : {};
@@ -334,6 +400,7 @@ export class StockCountService {
             }
         }
 
+    const lotResults = gridRows.map(r => ({ ...r, physicalQuantity: r.countedQuantity!, variance: roundQty(r.countedQuantity! - r.systemQuantity) }));
     await db.update(workflowInstances)
       .set({
         status: "COMPLETED",
@@ -342,9 +409,12 @@ export class StockCountService {
         data: {
           ...instanceData,
           results,
+          ...(gridSteps.length ? { stockCountGrid: true, lotResults, productCount: results.length,
+            category: gridSteps.map(s => (s.definition as { config: { category: string } }).config.category).join(', '),
+          } : {}),
           // Adjustments are NOT applied here: they require explicit approval
           // from the results page (see applyStockCountAdjustments).
-          adjustmentsStatus: results.some(r => r.variance !== 0) ? "PENDING" : "NONE",
+          adjustmentsStatus: (gridSteps.length ? lotResults : results).some(r => r.variance !== 0) ? "PENDING" : "NONE",
           completedAt: new Date().toISOString(),
         },
       })
@@ -415,6 +485,7 @@ export class StockCountService {
         if (instance.status !== "COMPLETED") throw new Error("Count not completed");
 
         const instanceData = instance.data as Record<string, any> || {};
+        if (instanceData.stockCountGrid) return this.applyLotAdjustments(instanceId, userId);
         const adjustmentsStatus = instanceData.adjustmentsStatus as string | undefined;
 
         // Legacy counts (completed before approval flow) already had adjustments applied.
@@ -463,9 +534,53 @@ export class StockCountService {
         return { instanceId, applied, alreadyApplied: false };
     }
 
+  private static async applyLotAdjustments(instanceId: string, userId: string) {
+    return db.transaction(async tx => {
+      const [instance] = await tx.select().from(workflowInstances)
+        .where(eq(workflowInstances.id, instanceId)).for('update');
+      if (!instance || instance.status !== 'COMPLETED') throw ApiError.conflict('El conteo todavía no está completo.');
+      const data = instance.data as { adjustmentsStatus: string; lotResults: (StockCountRow & { physicalQuantity: number; variance: number })[] };
+      if (data.adjustmentsStatus !== 'PENDING') return { instanceId, applied: 0, alreadyApplied: true };
+      const changes = data.lotResults.filter(r => r.variance !== 0);
+      const batchIds = changes.map(r => r.batchId).filter((id): id is string => !!id);
+      const batches = batchIds.length ? await tx.select().from(inventoryBatches).where(and(
+        inArray(inventoryBatches.id, batchIds), eq(inventoryBatches.branchId, instance.branchId),
+        eq(inventoryBatches.status, 'AVAILABLE'),
+      )).for('update') : [];
+      const byId = new Map(batches.map(b => [b.id, b]));
+      // Validate every lot before any movement; the whole approval shares one transaction.
+      for (const row of changes) {
+        if (!row.batchId) continue;
+        const batch = byId.get(row.batchId);
+        if (!batch || batch.itemId !== row.itemId || Number(batch.currentQuantity) + row.variance < 0) {
+          throw ApiError.conflict('Un lote contado cambió o ya no está disponible. Realiza un nuevo conteo antes de ajustar.');
+        }
+      }
+      for (const row of changes) {
+        let batchId = row.batchId;
+        if (!batchId) {
+          const [created] = await tx.insert(inventoryBatches).values({
+            itemId: row.itemId, branchId: instance.branchId, currentQuantity: '0', initialQuantity: '0',
+            status: 'AVAILABLE', lotNumber: `SC-${instanceId.slice(0, 8)}`, receivedAt: new Date(),
+          }).returning();
+          batchId = created.id;
+        }
+        await InventoryService.recordMovement({
+          branchId: instance.branchId, itemId: row.itemId, batchId, type: 'ADJUSTMENT', quantityChange: row.variance,
+          performedBy: userId, referenceId: instanceId,
+          reason: `Conteo por lote: sistema=${row.systemQuantity}, físico=${row.physicalQuantity}`,
+        }, tx);
+      }
+      await tx.update(workflowInstances).set({ data: {
+        ...data, adjustmentsStatus: 'APPLIED', adjustmentsAppliedAt: new Date().toISOString(), adjustmentsAppliedBy: userId,
+      } }).where(eq(workflowInstances.id, instanceId));
+      return { instanceId, applied: changes.length, alreadyApplied: false };
+    });
+  }
+
   static async getStockCountHistory(companyId: string, branchId?: string) {
     const conditions: any[] = [
-      sql`${workflowTemplates.name} = ${STOCK_COUNT_TEMPLATE_NAME}`,
+      sql`(${workflowTemplates.name} = ${STOCK_COUNT_TEMPLATE_NAME} OR ${workflowInstances.data}->>'stockCountGrid' = 'true')`,
     ];
 
     if (branchId) {
@@ -545,7 +660,8 @@ export class StockCountService {
 
     const totalProducts = enrichedResults.length;
     const alertCount = enrichedResults.filter(r => r.isAlert).length;
-    const totalAdjustments = enrichedResults.filter(r => r.variance !== 0).length;
+    const lotResults = (instanceData.lotResults || []) as (StockCountRow & { physicalQuantity: number; variance: number })[];
+    const totalAdjustments = instanceData.stockCountGrid ? lotResults.filter(r => r.variance !== 0).length : enrichedResults.filter(r => r.variance !== 0).length;
 
     // Legacy counts completed before the approval flow applied adjustments immediately.
     const rawStatus = instanceData.adjustmentsStatus as string | undefined;
@@ -561,6 +677,7 @@ export class StockCountService {
       createdAt: instance.createdAt,
       templateName: template?.name || "",
       results: enrichedResults,
+      lotResults,
       summary: { totalProducts, alertCount, totalAdjustments },
       adjustmentsStatus,
     };

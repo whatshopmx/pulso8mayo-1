@@ -4,13 +4,14 @@ import { SmartLinkService } from "@/lib/services/smart-link-service";
 import { WorkflowExecutionService } from "@/lib/services/workflow-execution-service";
 import { emitWorkflowEvent } from "@/lib/websocket/workflow-handlers";
 import { z } from "zod";
+import { isApiError } from "@/lib/api/error";
 
 const updateStepSchema = z.object({
     stepId: z.string(),
     value: z.any().optional(),
     evidenceUrl: z.string().optional(), // Can contain single URL or JSON stringified array
     comment: z.string().optional(),
-    status: z.enum(['COMPLETED', 'SKIPPED', 'FAILED']),
+    status: z.enum(['COMPLETED', 'SKIPPED', 'FAILED', 'IN_PROGRESS']),
 });
 
 export async function POST(
@@ -73,6 +74,9 @@ export async function POST(
     return NextResponse.json(result);
 
     } catch (error) {
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
         console.error("Error updating public workflow step:", error);
         if (error instanceof z.ZodError) {
             return new NextResponse("Invalid input", { status: 400 });

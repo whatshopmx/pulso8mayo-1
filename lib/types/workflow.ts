@@ -1,7 +1,7 @@
 export type WorkflowStepType =
  | "TEXT" | "NUMBER" | "SELECT" | "PHOTO" | "CHECKBOX"
  | "DATE" | "INFO" | "SIGNATURE"
- | "YESNO" | "TIME" | "TIMER" | "LOCATION" | "AUDIO" | "VIDEO" | "ENTITY_SELECT";
+ | "YESNO" | "TIME" | "TIMER" | "LOCATION" | "AUDIO" | "VIDEO" | "ENTITY_SELECT" | "STOCK_COUNT";
 
 export interface AIVerification {
   enabled: boolean;

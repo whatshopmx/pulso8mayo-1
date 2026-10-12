@@ -13,7 +13,7 @@ const updateStepSchema = z.object({
   value: z.any().optional(),
   evidenceUrl: z.string().optional(),
   comment: z.string().optional(),
-  status: z.enum(['COMPLETED', 'SKIPPED', 'FAILED']).optional(),
+  status: z.enum(['COMPLETED', 'SKIPPED', 'FAILED', 'IN_PROGRESS']).optional(),
 });
 
 const REVIEW_ERROR_STATUS: Record<WorkflowReviewErrorCode, number> = {
