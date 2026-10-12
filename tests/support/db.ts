@@ -2425,7 +2425,13 @@ export async function seedSalesCutConIva(opts: {
   return rows[0].id as string;
 }
 
-/** Configura la tasa de IVA y el factor de carga patronal del inquilino. */
+/**
+ * Configura la tasa de IVA y el factor de carga patronal del inquilino.
+ *
+ * Además de la fila, registra el cambio en `config_change_logs`: desde C14.3
+ * los motores leen el parámetro vigente al cierre del periodo, y un cambio
+ * escrito sólo en la fila sería invisible para un periodo recién consultado.
+ */
 export async function setTenantFinanceConfig(
   companyId: string,
   opts: {
@@ -2439,23 +2445,42 @@ export async function setTenantFinanceConfig(
     VALUES (${companyId})
     ON CONFLICT (company_id) DO NOTHING
   `;
+  const registrar = async (campo: string, valor: string | null, actual: string | null) => {
+    if (actual === valor) return;
+    await sql`
+      INSERT INTO config_change_logs (company_id, user_id, field_name, old_value, new_value)
+      VALUES (${companyId}, ${"tests"}, ${campo}, ${actual}, ${valor})
+    `;
+  };
   if (opts.vatRatePercent !== undefined) {
     await sql`
       UPDATE tenant_operating_config SET vat_rate_percent = ${opts.vatRatePercent}
       WHERE company_id = ${companyId}
     `;
+    const previa = await sql`
+      SELECT vat_rate_percent FROM tenant_operating_config WHERE company_id = ${companyId} LIMIT 1
+    `;
+    await registrar("vatRatePercent", opts.vatRatePercent, previa[0]?.vat_rate_percent ?? null);
   }
   if (opts.laborBurdenFactorPercent !== undefined) {
     await sql`
       UPDATE tenant_operating_config SET labor_burden_factor_percent = ${opts.laborBurdenFactorPercent}
       WHERE company_id = ${companyId}
     `;
+    const previa = await sql`
+      SELECT labor_burden_factor_percent FROM tenant_operating_config WHERE company_id = ${companyId} LIMIT 1
+    `;
+    await registrar("laborBurdenFactorPercent", opts.laborBurdenFactorPercent, previa[0]?.labor_burden_factor_percent ?? null);
   }
   if (opts.payrollStateTaxPercent !== undefined) {
     await sql`
       UPDATE tenant_operating_config SET payroll_state_tax_percent = ${opts.payrollStateTaxPercent}
       WHERE company_id = ${companyId}
     `;
+    const previa = await sql`
+      SELECT payroll_state_tax_percent FROM tenant_operating_config WHERE company_id = ${companyId} LIMIT 1
+    `;
+    await registrar("payrollStateTaxPercent", opts.payrollStateTaxPercent, previa[0]?.payroll_state_tax_percent ?? null);
   }
 }
 

@@ -20,7 +20,7 @@ Se exposición porque los motores ya los leían sin que existiera forma de edita
 | **Alcance** | Grupo (empresa), no sucursal |
 | **Permiso** | `settings/update` (administrador, owner, super admin) |
 | **Consumidores** | `resolveSalesBase` (`lib/services/sales-base.ts`), que la comparten P&L, KPI financiero, costo laboral y comisiones |
-| **Aplicación** | En cada lectura, sobre el periodo que se está consultando |
+| **Aplicación** | En cada lectura, con el valor vigente al cierre del periodo (ver abajo) |
 | **Excepciones** | El IVA capturado por corte (`tax_amount`) manda siempre sobre la tasa: la base medida no se reestima |
 
 El valor por defecto (16) es **un supuesto**, no un cálculo: no todos los inquilinos venden al 16%. Por eso la tasa es editable y su apagado es una decisión legítima.
@@ -35,7 +35,7 @@ El valor por defecto (16) es **un supuesto**, no un cálculo: no todos los inqui
 | **Alcance** | Grupo |
 | **Permiso** | `settings/update` |
 | **Consumidores** | `buildLaborBurden` (`lib/services/labor-burden.ts`) → ratio cargado en `labor-cost-service.ts` |
-| **Aplicación** | En cada lectura del KPI de nómina |
+| **Aplicación** | En cada lectura del KPI de nómina, con el valor vigente al cierre del periodo |
 
 No es un cálculo de IMSS: es un factor que pone la cifra medida en el mismo orden de magnitud que el objetivo de industria, que sí viene cargado. La interfaz lo dice así y no promete más.
 
@@ -62,38 +62,33 @@ Se suma al factor patronal. Si sólo hay ISN capturado, el total es ese ISN.
 | **Alcance** | Grupo |
 | **Permiso** | `settings/update` |
 | **Consumidores** | Conteo de inventario (`stock-count-from-workflow.ts`) → fila en `inventory_waste` con origen `diferencia_conteo` |
-| **Aplicación** | En cada cierre de conteo, con el valor vigente en ese momento |
+| **Aplicación** | En cada cierre de conteo, con el umbral vigente en la fecha del conteo |
 | **Excepciones** | El sobrante nunca genera merma, con cualquier umbral |
 
 El conteo no mueve stock: la merma automática registra la diferencia y la aprobación humana sigue siendo el único punto que escribe ajustes.
 
-## Vigencia y periodos cerrados (decisión de C14.3)
+## Vigencia y periodos cerrados (decisión de C14.3, implementada)
 
-El criterio de C14 pide definir la vigencia **antes** de habilitar efectos históricos. Esto es lo que hace el código hoy, verificado, y lo que se decide:
+**Un periodo se calcula con los parámetros que estaban vigentes al cerrarse.** Cada parámetro se resuelve con el último cambio anterior al cierre del periodo, tomado de `config_change_logs`, que ya registra cada cambio con su fecha. El corte es el último instante del día final en UTC (`cierreDelPeriodo`).
 
-**Los cuatro parámetros se aplican desde su guardado a todas las lecturas posteriores, incluidos los periodos ya cerrados.** No hay vigencia por fecha.
+Consecuencia práctica: cambiar el IVA hoy **no mueve los meses que ya cerraron**; sólo el periodo en curso cambia cuando se edita un parámetro.
 
-El motivo es que los consumidores calculan en vivo: `financial-kpi-service` y `cross-branch-service` agregan `daily_sales_cuts` y `inventory_*` en cada consulta y aplican la configuración vigente en ese momento. No consultan `financial_periods` ni `pnl_snapshots`. Cambiar el IVA hoy cambia cómo se lee el mes pasado.
+Cómo queda repartido:
 
-Dos hechos verificados en el código sostienen este hallazgo:
+- **Lectura con fecha** — P&L (`pnl-service`), KPI financiero (`financial-kpi-service`), costo laboral (`labor-cost-service`) y conteo de merma (`stock-count-from-workflow`) pasan el cierre de su periodo a `getVatRatePercent`, `getLaborBurden` y `parametrosVigentesEn`.
+- **Lectura sin fecha** — sigue devolviendo el valor actual, sin consultas extra. Es lo que usan los caminos que no tienen periodo (catálogos, configuración).
 
-- `isPeriodClosed` se usa sólo para **rechazar escrituras** en periodos cerrados (`app/api/sales/cuts/route.ts`, `expense-service.ts`), no para fijar lecturas.
-- `getPnLSnapshots` **no tiene consumidores**: `closeFinancialPeriod` congela el P&L al cerrar, y ninguna vista lo vuelve a leer. El snapshot es un archivo, no una fuente de verdad vigente.
+Tres decisiones de diseño que conviene no romper:
 
-Consecuencias aceptadas y sus límites:
+1. **La vigencia no tiene tabla propia.** `config_change_logs` es la fuente; si algún día esa tabla pierde un registro, el parámetro cae al valor actual y la lectura no falla.
+2. **Si el historial no se puede leer** —una base sin la migración aplicada, un fallo puntual— se usa el valor actual en vez de propagating error. Un tablero vacío es peor que un tablero con el valor vigente.
+3. **Sin historial previo, el valor de la fila es el vigente.** El primer cambio registrado es el que separa "valor original" de "valores que se fueron substituyendo".
 
-1. Un cambio de parámetro reinterpreta los periodos abiertos ya mostrados. Es visible en los números y ahora queda registrado en `config_change_logs` (C14.2), que es lo que permite explicarlo.
-2. Los KPIs calculados en vivo no distinguen "así se vio en su momento" de "así se ve hoy". La procedencia declarada en la nota de cada renglón (`DERIVED`, `GROSS_DECLARED`, `DERIVED` en nómina) es lo que sostiene hoy esa diferencia.
-3. El snapshot congelado de un periodo cerrado **sí** conserva los valores con los que se cerró, porque guarda `lines` completo. Por eso puede servir de fuente histórica cuando se implemente su lectura.
+Lo que sigue sin cubrirse:
 
-### Qué queda pendiente, y por qué no se activa aquí
-
-Habilitar efectos históricos de verdad —que un periodo cerrado siga mostrando los números con los que se cerró— requiere dos cosas que no existen y que no caben en esta tarea:
-
-- **Que las vistas lean el snapshot cerrado.** Hoy `getPnLSnapshots` no tiene llamadores; conectarlo cambia el comportamiento de varias pantallas y pertenece al bloque de métricas consistentes ([C29](tasks/plan-conexion-frontend-backend.md#c29)–[C31](tasks/plan-conexion-frontend-backend.md#c31)).
-- **Vigencia por fecha del parámetro**, para que un periodo se calcule con la tasa que estaba vigente al cerrarse. Eso exige una tabla de histórico con vigencia y una migración, no sólo un parámetro.
-
-Mientras tanto, la postura es la honesta: los números en vivo son números con la configuración vigente, y el historial de cambios dice quién cambió qué.
+- `getPnLSnapshots` continúa sin consumidores. El P&L congelado al cerrar el periodo es un archivo que ninguna vista lee; la vigencia por fecha de los parámetros es la que impide hoy la reescritura del pasado en los cálculos. Conectar esas lecturas sigue siendo trabajo de C29–C31.
+- La consulta de vigencia cuesta **una** consulta extra por lectura con fecha (`distinct on (field_name)` sobre el índice `config_change_logs_param_idx`), no una por parámetro.
+- Los objetivos de semáforo y los umbrales monetarios no tienen vigencia: se leen siempre del valor actual, porque calibran el objetivo contra el que se compara, no un hecho del periodo.
 
 ## Cómo se verifica un parámetro
 

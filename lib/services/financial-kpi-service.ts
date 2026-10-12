@@ -36,6 +36,7 @@ import { getVatRatePercent, resolveSalesBase } from "@/lib/services/sales-base";
 import type { SalesBase } from "@/lib/services/sales-base";
 import { getLaborBurden } from "@/lib/services/labor-burden";
 import { weakestOf } from "@/lib/services/pnl-types";
+import { cierreDelPeriodo } from "@/lib/company/period-close";
 import { costStatus, marginStatus } from "@/lib/services/financial-kpi-types";
 import type { LineSource } from "@/lib/services/pnl-types";
 import type { FinancialKPIsResult, KpiMetric } from "@/lib/services/financial-kpi-types";
@@ -169,7 +170,9 @@ async function aggregatePeriod(
       .where(and(...salesConditions)),
     getFoodCostByBranch(companyId, startDay, endDay),
     getLaborCostByBranch(companyId, startDay, endDay),
-    getVatRatePercent(companyId),
+    // C14.3 — con la tasa vigente al cierre del periodo: cambiar el IVA hoy no
+    // debe cambiar cómo se leyó un mes que ya terminó.
+    getVatRatePercent(companyId, cierreDelPeriodo(endDay)),
   ]);
 
   // Ambos servicios devuelven todas las sucursales de la company; el filtro por
@@ -239,7 +242,7 @@ export async function calculateFinancialKPIs(
 
   const [targets, burden, current, previous] = await Promise.all([
     getFinancialTargets(filter.companyId),
-    getLaborBurden(filter.companyId),
+    getLaborBurden(filter.companyId, cierreDelPeriodo(endDay)),
     aggregatePeriod(filter.companyId, filter.branchId, startDay, endDay),
     aggregatePeriod(filter.companyId, filter.branchId, prevStartDay, prevEndDay),
   ]);

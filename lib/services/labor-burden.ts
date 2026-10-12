@@ -24,6 +24,7 @@
 import { db } from "@/lib/db";
 import { tenantOperatingConfig } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { parametrosVigentesEn } from "@/lib/company/operating-params-vigencia";
 
 export interface LaborBurden {
   /** Carga patronal capturada por el grupo, en %. `null` = no configurada. */
@@ -39,8 +40,19 @@ export interface LaborBurden {
   nota: string;
 }
 
-/** Lee el factor de carga patronal del inquilino. */
-export async function getLaborBurden(companyId: string): Promise<LaborBurden> {
+/**
+ * Lee el factor de carga patronal del inquilino.
+ *
+ * `vigenteAl` es el cierre del periodo que se está calculando (C14.3): sin él
+ * se lee el valor de ahora, con él el que estaba vigente en esa fecha, para que
+ * cambiar la carga no reescriba meses ya cerrados.
+ */
+export async function getLaborBurden(companyId: string, vigenteAl?: Date | string): Promise<LaborBurden> {
+  if (vigenteAl) {
+    const parametros = await parametrosVigentesEn(companyId, vigenteAl);
+    return buildLaborBurden(toPct(parametros.laborBurdenFactorPercent), toPct(parametros.payrollStateTaxPercent));
+  }
+
   const [row] = await db
     .select({
       factor: tenantOperatingConfig.laborBurdenFactorPercent,

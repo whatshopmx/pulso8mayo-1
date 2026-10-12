@@ -1,0 +1,1 @@
+CREATE INDEX "config_change_logs_param_idx" ON "config_change_logs" USING btree ("company_id","field_name","performed_at");

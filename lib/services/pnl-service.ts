@@ -48,6 +48,7 @@ import { getFoodCostByBranch } from "@/lib/services/food-cost-service";
 import { getLaborCostByBranch } from "@/lib/services/labor-cost-service";
 import { getCommissionsByBranch } from "@/lib/services/commission-service";
 import { getVatRatePercent, resolveSalesBase } from "@/lib/services/sales-base";
+import { cierreDelPeriodo } from "@/lib/company/period-close";
 import {
   SECTOR_FOOD_COST_PERCENT,
   SECTOR_LABOR_COST_PERCENT,
@@ -182,8 +183,9 @@ export async function getPnLByBranch(
   ]);
 
   // Una sola lectura de la tasa para todo el grupo: es configuración del
-  // inquilino, no de la sucursal.
-  const vatRatePercent = await getVatRatePercent(companyId);
+  // inquilino, no de la sucursal. Con la tasa vigente al cierre del periodo
+  // (C14.3), para que el P&L de un mes ya cerrado no cambie hoy.
+  const vatRatePercent = await getVatRatePercent(companyId, cierreDelPeriodo(endDay));
 
   const salesByBranch = new Map(salesRows.map((r) => [r.branchId, r]));
   const expenseByBranch = new Map(expenseRows.map((r) => [r.branchId, r]));

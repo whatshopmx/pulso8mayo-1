@@ -3342,6 +3342,9 @@ export const configChangeLogs = pgTable("config_change_logs", {
     performedAt: timestamp("performed_at").defaultNow().notNull(),
 }, (table) => ({
     configChangeLogsCompanyTimeIdx: index("config_change_logs_company_time_idx").on(table.companyId, table.performedAt),
+    // C14.3 — la vigencia se resuelve con "el último cambio de este campo
+    // anterior a esta fecha"; este índice es el que la hace barata.
+    configChangeLogsParamIdx: index("config_change_logs_param_idx").on(table.companyId, table.fieldName, table.performedAt),
 }));
 
 // ---------------------------------------------------------------------------

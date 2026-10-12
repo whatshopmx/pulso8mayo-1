@@ -31,6 +31,7 @@
 import { db } from "@/lib/db";
 import { tenantOperatingConfig } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { parametrosVigentesEn } from "@/lib/company/operating-params-vigencia";
 
 /** De dónde salió la base contra la que se dividen los porcentajes. */
 export type SalesBaseKind =
@@ -56,22 +57,36 @@ export interface SalesBase {
   note: string;
 }
 
-/** Tasa de IVA del inquilino, o `null` si apagó la estimación. */
-export async function getVatRatePercent(companyId: string): Promise<number | null> {
-  const [row] = await db
-    .select({ vatRatePercent: tenantOperatingConfig.vatRatePercent })
-    .from(tenantOperatingConfig)
-    .where(eq(tenantOperatingConfig.companyId, companyId))
-    .limit(1);
+/**
+ * Tasa de IVA del inquilino, o `null` si apagó la estimación.
+ *
+ * `vigenteAl` es el cierre del periodo que se está calculando (C14.3). Sin él
+ * se lee el valor de ahora; con él se lee el que estaba vigente en esa fecha,
+ * para que cambiar el IVA no reescriba meses ya cerrados.
+ */
+export async function getVatRatePercent(companyId: string, vigenteAl?: Date | string): Promise<number | null> {
+  const tasa = async (): Promise<string | null | undefined> => {
+    if (!vigenteAl) {
+      const [row] = await db
+        .select({ vatRatePercent: tenantOperatingConfig.vatRatePercent })
+        .from(tenantOperatingConfig)
+        .where(eq(tenantOperatingConfig.companyId, companyId))
+        .limit(1);
+      return row?.vatRatePercent;
+    }
+    const parametros = await parametrosVigentesEn(companyId, vigenteAl);
+    return parametros.vatRatePercent;
+  };
+
+  const raw = await tasa();
 
   // Sin fila de configuración se usa el default del esquema (16). Un inquilino
   // que nunca abrió la pantalla de configuración no debería quedarse sin base
   // neta por omisión: la tasa general es la conducta razonable, y la nota la
   // declara igual.
-  if (!row) return 16;
+  if (raw === undefined) return 16;
 
-  const raw = row.vatRatePercent;
-  if (raw === null || raw === undefined) return null;
+  if (raw === null) return null;
 
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 ? n : null;

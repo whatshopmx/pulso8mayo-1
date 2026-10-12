@@ -17,6 +17,7 @@
 // `StockCountService.applyStockCountAdjustments`, que exige aprobación humana.
 
 import { db } from "@/lib/db";
+import { parametrosVigentesEn } from "@/lib/company/operating-params-vigencia";
 import {
   workflowInstances,
   workflowInstanceSteps,
@@ -27,7 +28,6 @@ import {
   inventoryBatches,
   stockCounts,
   inventoryWaste,
-  tenantOperatingConfig,
 } from "@/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { roundQty } from "./stock-count-service";
@@ -266,6 +266,7 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
       })),
       itemsById,
       recordedBy: countedBy,
+      countDate,
     });
   } catch (error) {
     logger.error({ instanceId, err: String(error) }, "Error persistiendo el conteo");
@@ -305,6 +306,11 @@ export function excedeUmbralMerma(variancePct: number, thresholdPct: number): bo
   return Math.abs(variancePct) > thresholdPct;
 }
 
+/** El umbral vigente al cierre del día del conteo. */
+function conteoCierre(countDate: string): Date {
+  return new Date(`${countDate.slice(0, 10)}T23:59:59.999Z`);
+}
+
 async function maybeCreateMermaFromVariance(params: {
   instanceId: string;
   companyId: string;
@@ -312,13 +318,16 @@ async function maybeCreateMermaFromVariance(params: {
   counts: { itemId: string; counted: number; system: number }[];
   itemsById: Map<string, { unit: string | null; averageCost: number | null }>;
   recordedBy: string | null;
+  /** Fecha del conteo (`count_date`): define qué umbral estaba vigente. */
+  countDate?: string;
 }): Promise<void> {
   const { instanceId, companyId, branchId, counts, itemsById, recordedBy } = params;
+  const countDate = params.countDate ?? new Date().toISOString().slice(0, 10);
 
-  const cfg = await db.query.tenantOperatingConfig.findFirst({
-    where: eq(tenantOperatingConfig.companyId, companyId),
-  });
-  const thresholdPct = umbralMermaDeConfig(cfg?.mermaVarianceThresholdPct);
+  // C14.3 — el umbral vigente cuando se cerró el conteo, no el de hoy: un
+  // conteo viejo no se reinterpreta porque alguien ajustó el umbral después.
+  const parametros = await parametrosVigentesEn(companyId, conteoCierre(countDate));
+  const thresholdPct = umbralMermaDeConfig(parametros.mermaVarianceThresholdPct);
 
   const wasteRows: (typeof inventoryWaste.$inferInsert)[] = [];
   for (const c of counts) {

@@ -37,6 +37,7 @@ import {
 import { and, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { getVatRatePercent, resolveSalesBase } from "@/lib/services/sales-base";
 import { getLaborBurden } from "@/lib/services/labor-burden";
+import { cierreDelPeriodo } from "@/lib/company/period-close";
 import type {
   BranchLaborCost,
   BranchLaborRatio,
@@ -575,10 +576,11 @@ export async function getLaborCostRatioByBranch(
   ]);
 
   // Configuración del grupo, leída una sola vez: la tasa de IVA para la base y
-  // el factor de carga patronal para el ratio cargado.
+  // el factor de carga patronal para el ratio cargado. Ambas con los valores
+  // vigentes al cierre del periodo (C14.3), no con los de hoy.
   const [vatRatePercent, burden] = await Promise.all([
-    getVatRatePercent(companyId),
-    getLaborBurden(companyId),
+    getVatRatePercent(companyId, cierreDelPeriodo(endDay)),
+    getLaborBurden(companyId, cierreDelPeriodo(endDay)),
   ]);
 
   const salesByBranch = new Map(salesRows.map((r) => [r.branchId, r]));
