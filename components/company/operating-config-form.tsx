@@ -18,12 +18,14 @@ import {
   CostTargetsSection,
   type CostTargetsValues,
 } from "@/components/company/cost-targets-section";
+import { FiscalParamsSection } from "@/components/company/fiscal-params-section";
 import { OperatingConfigStickyBar } from "@/components/company/operating-config-sticky-bar";
 import {
   camposInvalidos,
   cuerpoDeConfiguracion,
   erroresPorCampo,
   valoresIniciales,
+  type FiscalParamsValues,
   type OperatingConfigValues,
 } from "@/lib/company/operating-config-values";
 
@@ -52,6 +54,14 @@ const PORCENTAJE_POR_CAMPO: Record<string, keyof CostTargetsValues> = {
   healthyMarginWarnPercent: "marginWarn",
 };
 
+/** C14 — columna fiscal → input del formulario. */
+const FISCAL_POR_CAMPO: Record<string, "vatRate" | "laborBurden" | "stateTax" | "mermaThreshold"> = {
+  vatRatePercent: "vatRate",
+  laborBurdenFactorPercent: "laborBurden",
+  payrollStateTaxPercent: "stateTax",
+  mermaVarianceThresholdPct: "mermaThreshold",
+};
+
 export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfigFormProps) {
   const { toast } = useToast();
   // Un solo lugar donde se decide qué se muestra: `initialConfig` null significa
@@ -61,12 +71,13 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
   const [dimensions, setDimensions] = useState<OperatingDimensionsValues>(inicial.dimensions);
   const [thresholds, setThresholds] = useState<FinancialThresholdsValues>(inicial.thresholds);
   const [costTargets, setCostTargets] = useState<CostTargetsValues>(inicial.costTargets);
+  const [fiscal, setFiscal] = useState(inicial.fiscal);
   const [loading, setLoading] = useState(false);
   const [errores, setErrores] = useState<Record<string, string>>({});
 
   const estado = useMemo(
-    () => ({ dimensions, thresholds, costTargets }),
-    [dimensions, thresholds, costTargets]
+    () => ({ dimensions, thresholds, costTargets, fiscal }),
+    [dimensions, thresholds, costTargets, fiscal]
   );
 
   const handleDimensionChange = (key: keyof OperatingDimensionsValues, value: string) => {
@@ -83,6 +94,11 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
     setErrores((prev) => Object.fromEntries(Object.entries(prev).filter(([campo]) => PORCENTAJE_POR_CAMPO[campo] !== key)));
   };
 
+  const handleFiscalChange = (key: keyof FiscalParamsValues, value: string) => {
+    setFiscal((prev) => ({ ...prev, [key]: value }));
+    setErrores((prev) => Object.fromEntries(Object.entries(prev).filter(([campo]) => FISCAL_POR_CAMPO[campo] !== key)));
+  };
+
   const handleApplyPreset = (preset: OperatingPreset) => {
     setDimensions(preset.dimensions);
     toast({
@@ -95,6 +111,7 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
     setDimensions(inicial.dimensions);
     setThresholds(inicial.thresholds);
     setCostTargets(inicial.costTargets);
+    setFiscal(inicial.fiscal);
     setErrores({});
     toast({
       title: "Cambios descartados",
@@ -134,6 +151,15 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
     const salida: Record<string, string> = {};
     for (const [columna, mensaje] of Object.entries(errores)) {
       const input = PORCENTAJE_POR_CAMPO[columna];
+      if (input) salida[input] = mensaje;
+    }
+    return salida;
+  }, [errores]);
+
+  const erroresDeFiscal = useMemo(() => {
+    const salida: Record<string, string> = {};
+    for (const [columna, mensaje] of Object.entries(errores)) {
+      const input = FISCAL_POR_CAMPO[columna];
       if (input) salida[input] = mensaje;
     }
     return salida;
@@ -205,6 +231,9 @@ export function OperatingConfigForm({ initialConfig, onSuccess }: OperatingConfi
         marginPairInvalid={marginPairInvalid}
         errors={erroresDePorcentaje}
       />
+
+      {/* C14 — parámetros que los motores ya consumían */}
+      <FiscalParamsSection values={fiscal} onChange={handleFiscalChange} errors={erroresDeFiscal} />
 
       {/* Persistent Sticky Action Bar */}
       <OperatingConfigStickyBar

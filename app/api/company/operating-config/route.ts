@@ -60,6 +60,16 @@ const percentSchema = z
   .min(0, "El porcentaje no puede ser negativo.")
   .max(100, "El porcentaje no puede ser mayor a 100.");
 
+/**
+ * Parámetro fiscal/laboral/merma: porcentaje que además admite `null`, que no
+ * es "cero" sino un estado distinto con su propio efecto en el consumidor
+ * (C14): `vatRatePercent` null apaga la estimación de venta neta,
+ * `laborBurdenFactorPercent`/`payrollStateTaxPercent` null dejan la nómina
+ * bruta sin semáforo cargado, y `mermaVarianceThresholdPct` null hace que el
+ * conteo use el 5% del sistema.
+ */
+const nullablePercentSchema = percentSchema.nullable();
+
 const updateConfigSchema = z
   .object({
     ...dimensionEnums,
@@ -74,7 +84,12 @@ const updateConfigSchema = z
     laborCostWarnPercent: percentSchema,
     healthyMarginTargetPercent: percentSchema,
     healthyMarginWarnPercent: percentSchema,
-    mermaVarianceThresholdPct: percentSchema,
+    // C14 — parámetros que los motores ya consumían sin editor. El vacío del
+    // formulario viaja como `null` explícito, nunca como 0 ni como ausente.
+    mermaVarianceThresholdPct: nullablePercentSchema,
+    vatRatePercent: nullablePercentSchema,
+    laborBurdenFactorPercent: nullablePercentSchema,
+    payrollStateTaxPercent: nullablePercentSchema,
   })
   .partial()
   .superRefine((data, ctx) => {
@@ -112,15 +127,23 @@ const updateConfigSchema = z
     }
   });
 
-/** Campos `numeric` que Drizzle persiste como string. */
-const PERCENT_FIELDS = [
+/** Semáforos cuyo par objetivo/precaución debe validarse juntos. */
+const PAIR_FIELDS = [
   "foodCostTargetPercent",
   "foodCostWarnPercent",
   "laborCostTargetPercent",
   "laborCostWarnPercent",
   "healthyMarginTargetPercent",
   "healthyMarginWarnPercent",
+] as const;
+
+/** Campos `numeric` que Drizzle persiste como string (o `null` explícito). */
+const PERCENT_FIELDS = [
+  ...PAIR_FIELDS,
   "mermaVarianceThresholdPct",
+  "vatRatePercent",
+  "laborBurdenFactorPercent",
+  "payrollStateTaxPercent",
 ] as const;
 
 export async function GET() {
@@ -164,11 +187,10 @@ export async function PUT(req: NextRequest) {
     }
 
     // Al actualizar sólo un extremo, comprobar el par efectivo antes de escribir.
-    const pairFields = PERCENT_FIELDS.filter((field) => field !== "mermaVarianceThresholdPct");
-    if (pairFields.some((field) => data[field] !== undefined)) {
+    if (PAIR_FIELDS.some((field) => data[field] !== undefined)) {
       const current = await getTenantOperatingConfig(tenant.id);
       const effective: Record<string, number> = {};
-      for (const field of pairFields) {
+      for (const field of PAIR_FIELDS) {
         if (data[field] !== undefined) effective[field] = data[field];
         else if (current[field] !== null && current[field] !== undefined) effective[field] = Number(current[field]);
       }
@@ -197,6 +219,9 @@ export async function PUT(req: NextRequest) {
       healthyMarginTargetPercent,
       healthyMarginWarnPercent,
       mermaVarianceThresholdPct,
+      vatRatePercent,
+      laborBurdenFactorPercent,
+      payrollStateTaxPercent,
       courtesyWasteMonthlyCapCents: _c,
       ...dimensions
     } = data;
@@ -210,11 +235,17 @@ export async function PUT(req: NextRequest) {
       healthyMarginTargetPercent,
       healthyMarginWarnPercent,
       mermaVarianceThresholdPct,
+      vatRatePercent,
+      laborBurdenFactorPercent,
+      payrollStateTaxPercent,
     };
     for (const field of PERCENT_FIELDS) {
       const value = incoming[field];
-      // Dos decimales fijos: evita que la columna reciba notación exponencial.
-      if (value !== undefined) percents[field] = value.toFixed(2);
+      if (value === undefined) continue;
+      // `null` significa "apagado/sin capturar" y se persiste tal cual; sólo un
+      // número se fija a dos decimales para que la columna no reciba notación
+      // exponencial.
+      percents[field] = value === null ? null : value.toFixed(2);
     }
 
     const updated = await upsertTenantOperatingConfig(tenant.id, {

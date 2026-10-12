@@ -495,6 +495,12 @@ Corregir inicialización y serialización para preservar cero, null y valores gu
 
 Añadir IVA, carga laboral, impuesto estatal y umbral de merma al contrato autorizado y su formulario, reutilizando consumidores existentes.
 
+**Subtareas de implementación (12-10-2026):** el recorrido toca la ruta PUT, el mapeo ida y vuelta, el formulario, una sección nueva, una migración aditiva para el historial y pruebas — más de cinco archivos — así que se divide antes de implementar, con los mismos criterios de aceptación:
+
+- C14.1 — contrato y formulario: el PUT acepta `vatRatePercent`, `laborBurdenFactorPercent` y `payrollStateTaxPercent` con `null` explícito (además de `mermaVarianceThresholdPct`, ya admitido), y una sección nueva los expone con unidad, rango y semántica de vacío; ida y vuelta con V1 y V2.
+- C14.2 — historial de actor y cambio: tabla aditiva `config_change_logs` y un registro por campo en el PUT; V1 sobre la ruta real.
+- C14.3 — efectos y vigencia: un caso controlado por parámetro sobre su consumidor y `docs/operating-policy-contracts.md` con la decisión de vigencia y periodos cerrados.
+
 **Criterios de aceptación:**
 
 - [ ] Los cuatro parámetros se pueden consultar, editar y recargar con unidades y rangos explícitos.

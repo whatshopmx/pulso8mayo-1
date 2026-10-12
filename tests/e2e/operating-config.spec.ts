@@ -28,6 +28,11 @@ const CONFIG = {
   laborCostWarnPercent: "32.00",
   healthyMarginTargetPercent: "45.00",
   healthyMarginWarnPercent: "35.00",
+  // C14.1 — parámetros con estado null real.
+  vatRatePercent: "8.00",
+  laborBurdenFactorPercent: null,
+  payrollStateTaxPercent: "3.00",
+  mermaVarianceThresholdPct: "2.50",
 };
 
 const erroresDe = (page: Page) => {
@@ -218,5 +223,76 @@ test("descartar devuelve los valores guardados, no los de módulo", async ({ pag
   await page.getByRole("button", { name: "Descartar Cambios" }).click();
   await expect(page.getByLabel("Fondo Fijo de Caja Chica por Sucursal")).toHaveValue("0");
   expect(fixture.enviados).toEqual([]);
+  expect(fixture.errores).toEqual([]);
+});
+
+/* ── C14.1 — los cuatro parámetros fiscales/nómina/merma ─────────────── */
+
+test("los cuatro parámetros muestran lo guardado, incluido el null como vacío", async ({ page }) => {
+  const fixture = await abrir(page);
+  await expect(page.getByLabel("Tasa de IVA estimada")).toHaveValue("8");
+  // null se ve vacío, no como 0 ni como el default 16 del módulo.
+  await expect(page.getByLabel("Carga patronal sobre nómina bruta")).toHaveValue("");
+  await expect(page.getByLabel("Impuesto estatal sobre nóminas (ISN)")).toHaveValue("3");
+  await expect(page.getByLabel("Umbral de varianza para merma automática")).toHaveValue("2.5");
+  // Cada campo declara qué significa su vacío junto al input.
+  await expect(page.getByText("Vacío = no estimar")).toBeVisible();
+  await expect(page.getByText("Vacío = sin factor")).toBeVisible();
+  expect(fixture.errores).toEqual([]);
+});
+
+test("editar un parámetro lo guarda, lo recarga y lo mantiene", async ({ page }) => {
+  const fixture = await abrir(page);
+  await page.getByLabel("Tasa de IVA estimada").fill("16");
+  await page.getByLabel("Carga patronal sobre nómina bruta").fill("25.5");
+  await guardar(page);
+  expect(fixture.enviados[0]).toMatchObject({ vatRatePercent: 16, laborBurdenFactorPercent: 25.5, payrollStateTaxPercent: 3, mermaVarianceThresholdPct: 2.5 });
+
+  await page.reload();
+  await expect(page.getByLabel("Tasa de IVA estimada")).toHaveValue("16");
+  await expect(page.getByLabel("Carga patronal sobre nómina bruta")).toHaveValue("25.5");
+  expect(fixture.errores).toEqual([]);
+});
+
+test("vaciar un parámetro lo guarda como null, no como cero ni como default", async ({ page }) => {
+  const fixture = await abrir(page, { ...CONFIG, vatRatePercent: "16.00" });
+  await expect(page.getByLabel("Tasa de IVA estimada")).toHaveValue("16");
+  await page.getByLabel("Tasa de IVA estimada").fill("");
+  await guardar(page);
+  expect(fixture.enviados[0]).toMatchObject({ vatRatePercent: null });
+
+  await page.reload();
+  // El null persistido vuelve a verse vacío: el viaje es estable.
+  await expect(page.getByLabel("Tasa de IVA estimada")).toHaveValue("");
+  expect(fixture.errores).toEqual([]);
+});
+
+test("un parámetro fuera de rango se rechaza en servidor y el error nombra su campo", async ({ page }) => {
+  const fixture = await abrir(page);
+  await page.route("**/api/company/operating-config", (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({ json: { success: true, data: CONFIG } })
+      : route.fulfill({
+          status: 400,
+          json: {
+            success: false,
+            error: {
+              message: "Validation Error",
+              details: { formErrors: [], fieldErrors: { vatRatePercent: ["El porcentaje no puede ser mayor a 100."] } },
+            },
+          },
+        })
+  );
+  await page.getByLabel("Tasa de IVA estimada").fill("150");
+  await guardar(page);
+
+  const vat = page.getByLabel("Tasa de IVA estimada");
+  await expect(vat).toHaveAttribute("aria-invalid", "true");
+  // La descripción accesible concatena hint y error: ambos deben estar enlazados.
+  await expect(vat).toHaveAttribute("aria-describedby", /vatRate-hint vatRate-error/);
+  await expect(page.locator("#vatRate-error")).toHaveText("El porcentaje no puede ser mayor a 100.");
+  await expect(page.getByRole("alert").filter({ hasText: "mayor a 100" }).first()).toBeVisible();
+  // El rechazo no borra lo escrito: el operador corrige sobre su propio valor.
+  await expect(vat).toHaveValue("150");
   expect(fixture.errores).toEqual([]);
 });

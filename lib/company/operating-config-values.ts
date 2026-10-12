@@ -35,6 +35,11 @@ export interface OperatingConfigValues {
   laborCostWarnPercent?: string | null;
   healthyMarginTargetPercent?: string | null;
   healthyMarginWarnPercent?: string | null;
+  // C14 — parámetros que los motores ya consumían sin editor.
+  vatRatePercent?: string | null;
+  laborBurdenFactorPercent?: string | null;
+  payrollStateTaxPercent?: string | null;
+  mermaVarianceThresholdPct?: string | null;
 }
 
 export interface OperatingDimensionsValues {
@@ -64,10 +69,28 @@ export interface CostTargetsValues {
   marginWarn: string;
 }
 
+/**
+ * Parámetros fiscales/laborales/merma (C14). El vacío NO es un default: es el
+ * estado `null` con su propio efecto en el consumidor, y por eso no reutiliza
+ * `percentAPorcentajeEntero` — ese helper convierte `null` en el fallback, que
+ * aquí sería mentir (vaciar el IVA apagaría la estimación, no la pondría en 16).
+ */
+export interface FiscalParamsValues {
+  /** Tasa de IVA estimada (%). Vacío = `null` = no estimar, base bruta. */
+  vatRate: string;
+  /** Carga patronal sobre bruto (%). Vacío = `null` = nómina bruta. */
+  laborBurden: string;
+  /** ISN estatal (%). Vacío = `null` = no se suma. */
+  stateTax: string;
+  /** Umbral de varianza de conteo (%). Vacío = `null` = 5% del sistema. */
+  mermaThreshold: string;
+}
+
 export interface OperatingConfigFormState {
   dimensions: OperatingDimensionsValues;
   thresholds: FinancialThresholdsValues;
   costTargets: CostTargetsValues;
+  fiscal: FiscalParamsValues;
 }
 
 /** Defaults de módulo para una empresa sin fila; coinciden con el servicio. */
@@ -113,6 +136,20 @@ function percentAPorcentajeEntero(raw: string | number | null | undefined, fallb
   return Number.isFinite(parsed) ? String(parsed) : String(fallback);
 }
 
+/**
+ * `numeric(5,2)` a texto de input para un parámetro con estado `null` real.
+ *
+ * `null` guardado → vacío (el estado apagado se muestra apagado);
+ * `undefined` → `porDefecto` (la empresa no tiene fila o el campo nunca se
+ * escribió); cualquier otro valor se normaliza a número sin caer a defaults.
+ */
+function percentONulo(raw: string | number | null | undefined, porDefecto: string): string {
+  if (raw === null) return "";
+  if (raw === undefined || raw === "") return porDefecto;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? String(parsed) : porDefecto;
+}
+
 export function valoresIniciales(config: OperatingConfigValues | null): OperatingConfigFormState {
   const value = <T,>(guardado: T, porDefecto: T): T =>
     guardado === null || guardado === undefined ? porDefecto : guardado;
@@ -149,6 +186,14 @@ export function valoresIniciales(config: OperatingConfigValues | null): Operatin
       marginTarget: percentAPorcentajeEntero(config?.healthyMarginTargetPercent, DEFAULT_FINANCIAL_TARGETS.healthyMarginTargetPercent),
       marginWarn: percentAPorcentajeEntero(config?.healthyMarginWarnPercent, DEFAULT_FINANCIAL_TARGETS.healthyMarginWarnPercent),
     },
+    fiscal: {
+      // Los defaults coinciden con `DEFAULT_TENANT_OPERATING_CONFIG`: IVA 16 y
+      // merma 5; carga e ISN no tienen default porque son captura del grupo.
+      vatRate: percentONulo(config?.vatRatePercent, "16"),
+      laborBurden: percentONulo(config?.laborBurdenFactorPercent, ""),
+      stateTax: percentONulo(config?.payrollStateTaxPercent, ""),
+      mermaThreshold: percentONulo(config?.mermaVarianceThresholdPct, "5"),
+    },
   };
 }
 
@@ -169,16 +214,27 @@ export interface ConfigBody {
   laborCostWarnPercent: number;
   healthyMarginTargetPercent: number;
   healthyMarginWarnPercent: number;
+  vatRatePercent: number | null;
+  laborBurdenFactorPercent: number | null;
+  payrollStateTaxPercent: number | null;
+  mermaVarianceThresholdPct: number | null;
 }
 
 export function cuerpoDeConfiguracion(state: OperatingConfigFormState): ConfigBody {
-  const { dimensions, thresholds, costTargets } = state;
+  const { dimensions, thresholds, costTargets, fiscal } = state;
   const porcentaje = (raw: string) => {
     // `Number("")` es 0, no NaN: un objetivo vacío se guardaría como cero
     // justo cuando el operador quería quitarlo, y "sin objetivo" no existe en
     // el contrato — se escribe explícitamente.
     const trimmed = raw.trim();
     if (trimmed === "") return NaN;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  };
+  /** Vacío = `null` apagado; texto no numérico = `NaN` bloquea el guardado. */
+  const porcentajeONulo = (raw: string): number | null => {
+    const trimmed = raw.trim();
+    if (trimmed === "") return null;
     const parsed = Number(trimmed);
     return Number.isFinite(parsed) ? parsed : NaN;
   };
@@ -195,6 +251,10 @@ export function cuerpoDeConfiguracion(state: OperatingConfigFormState): ConfigBo
     laborCostWarnPercent: porcentaje(costTargets.laborWarn),
     healthyMarginTargetPercent: porcentaje(costTargets.marginTarget),
     healthyMarginWarnPercent: porcentaje(costTargets.marginWarn),
+    vatRatePercent: porcentajeONulo(fiscal.vatRate),
+    laborBurdenFactorPercent: porcentajeONulo(fiscal.laborBurden),
+    payrollStateTaxPercent: porcentajeONulo(fiscal.stateTax),
+    mermaVarianceThresholdPct: porcentajeONulo(fiscal.mermaThreshold),
   };
 }
 
