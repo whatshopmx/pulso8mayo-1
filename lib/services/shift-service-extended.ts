@@ -26,13 +26,14 @@ import {
   LFTViolationType,
 } from "@/lib/types/shifts";
 import { parseISO, startOfWeek, addWeeks, addDays, differenceInDays, format } from "date-fns";
-import { evaluarTurno, mensajesConRegla } from "@/lib/labor/shift-rules";
+import { evaluarTurno, mensajesConRegla, type TurnoAValidar } from "@/lib/labor/shift-rules";
 import { veredictoDeTurno } from "@/lib/labor/shift-overrides";
 
 // Extended interface for shift service with planned shifts operations
 export interface PlannedShiftService {
   getPlannedShifts(actor: ShiftActor, filters: ShiftFilters): Promise<Shift[]>;
   createPlannedShift(actor: ShiftActor, data: CreateShiftInput): Promise<Shift>;
+  validatePlannedShift(actor: ShiftActor, data: CreateShiftInput, additional?: TurnoAValidar[]): Promise<string[]>;
   updatePlannedShift(actor: ShiftActor, id: string, data: Partial<CreateShiftInput>): Promise<Shift>;
   deletePlannedShift(actor: ShiftActor, id: string): Promise<void>;
   bulkCreateShifts(actor: ShiftActor, inputs: CreateShiftInput[]): Promise<BulkCreateResult>;
@@ -45,6 +46,7 @@ export interface PlannedShiftService {
  * Service for managing planned shifts
  */
 export class PlannedShiftServiceImpl implements PlannedShiftService {
+  constructor(private readonly writer: Pick<typeof db, "select" | "query" | "insert"> = db) {}
   // LFT Limits (Mexico) - in minutes
   private static readonly DAILY_HOURS_LIMIT = 8 * 60; // 8 hours in minutes
   private static readonly WEEKLY_HOURS_LIMIT = 48 * 60; // 48 hours in minutes
@@ -165,7 +167,7 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
 
     if (!userId) throw rechazo();
 
-    const [row] = await db
+    const [row] = await this.writer
       .select({ id: users.id })
       .from(users)
       .where(and(eq(users.id, userId), eq(users.companyId, companyId)))
@@ -187,7 +189,7 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
     const desde = format(addDays(semana, -1), "yyyy-MM-dd");
     const hasta = format(addDays(semana, 7), "yyyy-MM-dd");
 
-    return db.query.plannedShifts.findMany({
+    return this.writer.query.plannedShifts.findMany({
       where: and(
         eq(plannedShifts.companyId, companyId),
         eq(plannedShifts.userId, userId),
@@ -234,7 +236,8 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
    * ya viaja desde el planificador, donde todavía llega vacío — un dato que no
    * se valida ni se persiste no es una entrada.
    */
-  async createPlannedShift(actor: ShiftActor, data: CreateShiftInput): Promise<Shift> {
+  /** Misma puerta para vista previa y escritura; `additional` sólo simula el lote. */
+  async validatePlannedShift(actor: ShiftActor, data: CreateShiftInput, additional: TurnoAValidar[] = []): Promise<string[]> {
     await this.assertDestinoAutorizado(actor, {
       branchId: data.branchId,
       userId: data.userId,
@@ -261,7 +264,7 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
         endTime: data.endTime,
         status: "DRAFT",
       },
-      existentes
+      [...existentes, ...additional]
     );
 
     // La política bloquea la jornada de 8 h; la salida es una excepción
@@ -280,7 +283,13 @@ export class PlannedShiftServiceImpl implements PlannedShiftService {
       throw ApiError.badRequest(mensajesConRegla(veredictoFinal.errores));
     }
 
-    const [shift] = await db
+    return veredictoFinal.advertencias.map((warning) => warning.mensaje);
+  }
+
+  async createPlannedShift(actor: ShiftActor, data: CreateShiftInput): Promise<Shift> {
+    await this.validatePlannedShift(actor, data);
+
+    const [shift] = await this.writer
       .insert(plannedShifts)
       .values({
         companyId: actor.companyId,

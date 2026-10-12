@@ -20,9 +20,12 @@ export async function startShiftsBrowserServer() {
         "lucide-react", "tailwind-merge",
       ],
     },
-    server: { host: "127.0.0.1", port: 0 },
+    server: {
+      host: "127.0.0.1", port: 0,
+      watch: { ignored: ["**/.next/**", "**/.tmp/**", "**/test-results/**"] },
+    },
     resolve: { alias: [
-      { find: "@/hooks", replacement: "\0test-hooks" },
+      { find: /^@\/hooks$/, replacement: "\0test-hooks" },
       { find: "@/app/actions/shifts", replacement: "\0test-actions" },
       { find: "@", replacement: root },
     ] },
@@ -44,13 +47,20 @@ export async function startShiftsBrowserServer() {
         `;
         if (id === "\0test-editor") return "export const ShiftEditorDialog = () => null;";
         if (id === "\0test-actions") return `
-          async function read(url) {
-            const response = await fetch(url);
+          async function read(url, init) {
+            const response = await fetch(url, init);
             if (!response.ok) throw new Error('Error de carga simulado');
             return response.json();
           }
+          const operationUrl = (path, operation) =>
+            path + '?operation=' + encodeURIComponent(JSON.stringify(operation));
           export const getShifts = (filters) => read('/fixture/shifts?filters=' + encodeURIComponent(JSON.stringify(filters)));
           export const getSchedulerCatalog = () => read('/fixture/catalog');
+          export const getDefaultTemplates = () => read('/fixture/templates');
+          export const previewBulkOperation = (operation) =>
+            read(operationUrl('/fixture/template-preview', operation));
+          export const applyBulkOperation = (operation) =>
+            read(operationUrl('/fixture/template-apply', operation), { method: 'POST' });
           const noWrites = () => { throw new Error('Esta prueba no permite escrituras'); };
           export const createShift = noWrites, updateShift = noWrites, deleteShift = noWrites,
             publishShifts = noWrites, duplicateShifts = noWrites;

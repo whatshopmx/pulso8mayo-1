@@ -3,16 +3,39 @@
  * Manages shift templates and bulk operations
  */
 
-import { ShiftTemplate, Shift, BulkShiftOperation, ApplyTemplateResult, TemplatePreview } from "@/lib/types/shifts";
-import { plannedShiftService } from "./shift-service-extended";
-import type { ShiftActor } from "@/lib/labor/shift-access";
-import { addDays, format, parseISO, startOfWeek, getDay, eachDayOfInterval, isSameDay } from "date-fns";
+import { ShiftTemplate, Shift, BulkShiftOperation, ApplyTemplateResult, TemplatePreview, type CreateShiftInput } from "@/lib/types/shifts";
+import { plannedShiftService, PlannedShiftServiceImpl } from "./shift-service-extended";
+import { db } from "@/lib/db";
+import { sql } from "drizzle-orm";
+import { resolveShiftScope, assertShiftScopeCoversBranch, type ShiftActor } from "@/lib/labor/shift-access";
+import type { TurnoAValidar } from "@/lib/labor/shift-rules";
+import { ApiError } from "@/lib/api/error";
+import { z } from "zod";
+import { differenceInCalendarDays, format, parseISO, getDay, eachDayOfInterval, isValid } from "date-fns";
+
+const date = z.string().refine((value) => {
+  const parsed = parseISO(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && isValid(parsed) && format(parsed, "yyyy-MM-dd") === value;
+}, "Usa una fecha válida en formato AAAA-MM-DD.");
+const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Usa una hora válida en formato HH:mm.");
+const operationSchema = z.object({
+  branchId: z.string().trim().min(1, "Selecciona una sucursal."),
+  role: z.string().trim().min(1, "Selecciona un rol."),
+  employeeIds: z.array(z.string().trim().min(1)).min(1, "Selecciona al menos un empleado."),
+  startDate: date, endDate: date,
+  pattern: z.enum(["daily", "weekly", "custom"]),
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
+  shiftType: z.enum(["MATUTINO", "VESPERTINO", "NOCTURNO", "MIXTO", "CUSTOM"]),
+  customStartTime: time.optional(), customEndTime: time.optional(),
+}).refine((value) => value.startDate <= value.endDate, "La fecha final debe ser igual o posterior a la inicial.")
+  .refine((value) => value.pattern !== "custom" || !!value.daysOfWeek?.length, "Selecciona días para el patrón personalizado.")
+  .refine((value) => value.shiftType !== "CUSTOM" || (!!value.customStartTime && !!value.customEndTime), "Indica las dos horas del turno.");
 
 // Predefined templates
 export const DEFAULT_TEMPLATES: Omit<ShiftTemplate, "id" | "createdAt" | "updatedAt">[] = [
   {
     name: "Restaurante Completo",
-    description: "2 Cocineros, 2 Meseros, 1 Cajero, 1 Limpieza",
+    description: "Horario de 07:00 a 15:00 todos los días; selecciona el personal y rol.",
     branchId: "",
     role: "COCINERO",
     startTime: "07:00",
@@ -22,7 +45,7 @@ export const DEFAULT_TEMPLATES: Omit<ShiftTemplate, "id" | "createdAt" | "update
   },
   {
     name: "Turno Mañana",
-    description: "1 Cocinero, 1 Mesero, 1 Cajero (7:00-15:00)",
+    description: "Horario de 07:00 a 15:00 de lunes a viernes.",
     branchId: "",
     role: "COCINERO",
     startTime: "07:00",
@@ -32,7 +55,7 @@ export const DEFAULT_TEMPLATES: Omit<ShiftTemplate, "id" | "createdAt" | "update
   },
   {
     name: "Turno Tarde",
-    description: "1 Cocinero, 1 Mesero, 1 Cajero (15:00-23:00)",
+    description: "Horario de 15:00 a 23:00 de lunes a sábado.",
     branchId: "",
     role: "COCINERO",
     startTime: "15:00",
@@ -42,7 +65,7 @@ export const DEFAULT_TEMPLATES: Omit<ShiftTemplate, "id" | "createdAt" | "update
   },
   {
     name: "Fin de Semana",
-    description: "Personal reducido con seguridad",
+    description: "Horario de 10:00 a 22:00 los fines de semana; requiere excepción de jornada.",
     branchId: "",
     role: "MESERO",
     startTime: "10:00",
@@ -63,50 +86,33 @@ export class ShiftTemplateService {
   /**
    * Apply a bulk shift operation to create multiple shifts
    *
-   * El actor se propaga a `createPlannedShift`, que es donde se decide la
-   * empresa y el alcance. Este recorrido todavía no tiene contrato de sucursal
-   * ni de rol en `BulkShiftOperation` —los mandaba vacíos y los escribía— así
-   * que cada turno sale rechazado por la puerta de destino hasta que C11/C12
-   * definan esos dos valores. Rechazar es el comportamiento correcto para una
-   * operación sin destino; lo que no es correcto es escribir filas vacías.
+   * Resultado por empleado/fecha. Cada elemento pasa por la puerta de escritura
+   * vigente; un rechazo no revierte los válidos ni escribe ese elemento.
    */
   async applyBulkOperation(
     actor: ShiftActor,
     operation: BulkShiftOperation
   ): Promise<ApplyTemplateResult> {
     const created: Shift[] = [];
-    const failed: { date: string; error: string }[] = [];
-
-    const startDate = parseISO(operation.startDate);
-    const endDate = parseISO(operation.endDate);
-
-    // Generate dates based on pattern
-    const dates = this.generateDates(startDate, endDate, operation.pattern, operation.daysOfWeek);
-
-    // Determine shift times
-    const { startTime, endTime } = this.getShiftTimes(operation.shiftType, operation.customStartTime, operation.customEndTime);
-
-    // Create shifts for each employee and date
-    for (const date of dates) {
-      for (const employeeId of operation.employeeIds) {
-        try {
-          const shift = await plannedShiftService.createPlannedShift(actor, {
-            companyId: actor.companyId,
-            userId: employeeId,
-            branchId: "", // Will be determined by context
-            role: "", // Will be determined by context
-            shiftDate: format(date, "yyyy-MM-dd"),
-            startTime,
-            endTime,
-            status: "DRAFT",
-          });
-          created.push(shift);
-        } catch (error) {
-          failed.push({
-            date: format(date, "yyyy-MM-dd"),
-            error: error instanceof Error ? error.message : "Unknown error",
-          });
-        }
+    const failed: ApplyTemplateResult["failed"] = [];
+    for (const input of this.inputs(actor, operation)) {
+      try {
+        const shift = await db.transaction(async (tx) => {
+          // Serializa aplicaciones de lote del mismo empleado, incluso entre
+          // procesos. La lectura de conflictos y el insert usan esta transacción.
+          // PostgreSQL libera el bloqueo al confirmar o revertir el elemento:
+          // https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS
+          const key = JSON.stringify(["shift-batch", actor.companyId, input.userId]);
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`);
+          return new PlannedShiftServiceImpl(tx).createPlannedShift(actor, input);
+        });
+        created.push(shift);
+      } catch (error) {
+        failed.push({
+          date: input.shiftDate,
+          employeeId: input.userId,
+          error: error instanceof Error ? error.message : "Error desconocido",
+        });
       }
     }
 
@@ -116,19 +122,44 @@ export class ShiftTemplateService {
   /**
    * Preview what shifts would be created by a bulk operation
    */
-  previewBulkOperation(operation: BulkShiftOperation): TemplatePreview[] {
-    const startDate = parseISO(operation.startDate);
-    const endDate = parseISO(operation.endDate);
-    const dates = this.generateDates(startDate, endDate, operation.pattern, operation.daysOfWeek);
-    const { startTime, endTime } = this.getShiftTimes(operation.shiftType, operation.customStartTime, operation.customEndTime);
+  async previewBulkOperation(actor: ShiftActor, operation: BulkShiftOperation): Promise<TemplatePreview[]> {
+    const accepted: TurnoAValidar[] = [];
+    const preview: TemplatePreview[] = [];
+    for (const input of this.inputs(actor, operation)) {
+      const row: TemplatePreview = {
+        date: input.shiftDate, employeeId: input.userId, branchId: input.branchId,
+        role: input.role, startTime: input.startTime, endTime: input.endTime,
+        employeeCount: 1, canApply: false, warnings: [],
+      };
+      try {
+        row.warnings = await plannedShiftService.validatePlannedShift(actor, input, accepted);
+        row.canApply = true;
+        accepted.push({ ...input, id: `preview:${input.userId}:${input.shiftDate}` });
+      } catch (error) {
+        row.error = error instanceof Error ? error.message : "Error desconocido";
+      }
+      preview.push(row);
+    }
+    return preview;
+  }
 
-    return dates.map((date) => ({
-      date: format(date, "yyyy-MM-dd"),
-      startTime,
-      endTime,
-      role: "COCINERO", // Default role
-      employeeCount: operation.employeeIds.length,
-    }));
+  private inputs(actor: ShiftActor, request: BulkShiftOperation): CreateShiftInput[] {
+    const parsed = operationSchema.safeParse(request);
+    if (!parsed.success) throw ApiError.badRequest(parsed.error.issues.map((issue) => issue.message).join(" "));
+    const operation = parsed.data;
+    assertShiftScopeCoversBranch(resolveShiftScope(actor, operation.branchId), operation.branchId);
+    const start = parseISO(operation.startDate), end = parseISO(operation.endDate);
+    // Límites de tamaño de petición, no límites de jornada.
+    if (differenceInCalendarDays(end, start) > 30) throw ApiError.badRequest("Aplica hasta 31 días por solicitud.");
+    const dates = this.generateDates(start, end, operation.pattern, operation.daysOfWeek);
+    const employeeIds = [...new Set(operation.employeeIds)];
+    if (!dates.length) throw ApiError.badRequest("La plantilla no tiene días en el periodo seleccionado.");
+    if (dates.length * employeeIds.length > 500) throw ApiError.badRequest("Aplica hasta 500 turnos por solicitud.");
+    const times = this.getShiftTimes(operation.shiftType, operation.customStartTime, operation.customEndTime);
+    return dates.flatMap((date) => employeeIds.map((userId) => ({
+      companyId: actor.companyId, userId, branchId: operation.branchId, role: operation.role,
+      shiftDate: format(date, "yyyy-MM-dd"), ...times, status: "DRAFT" as const,
+    })));
   }
 
   /**

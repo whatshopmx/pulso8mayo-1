@@ -120,6 +120,8 @@ export interface WeeklySchedule {
  * Bulk operation for creating multiple shifts
  */
 export interface BulkShiftOperation {
+  branchId: string
+  role: string
   employeeIds: string[]
   startDate: string
   endDate: string
@@ -204,13 +206,18 @@ export interface DuplicateOptions {
  */
 export interface ApplyTemplateResult {
   created: Shift[]
-  failed: { date: string; error: string }[]
+  failed: { date: string; employeeId: string; error: string }[]
 }
 
 /**
  * Preview of a template application
  */
 export interface TemplatePreview {
+  employeeId: string
+  branchId: string
+  canApply: boolean
+  error?: string
+  warnings: string[]
   date: string
   startTime: string
   endTime: string

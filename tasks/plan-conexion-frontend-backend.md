@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 11 de octubre de 2026. Estado: C00–C10 implementadas con límites de verificación registrados en el seguimiento. C11–C40 pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 11 de octubre de 2026. Estado: C00–C11 implementadas con límites de verificación registrados en el seguimiento; C12 se cierra con la entrega de C11. C13–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -383,9 +383,9 @@ C10.3 — impedir que lecturas fuera de orden sustituyan los turnos del filtro a
 
 #### Punto de control C08–C10
 
-- [ ] Criterios del bloque verificados con resultados registrados.
-- [ ] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
-- [ ] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
+- [x] Criterios del bloque verificados con resultados registrados.
+- [x] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
+- [x] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
 
 <a id="c11"></a>
 
@@ -397,11 +397,23 @@ Completar vista previa y aplicación de una plantilla con empleados, sucursal y 
 
 **Criterios de aceptación:**
 
-- [ ] La vista previa permite identificar turnos a crear y conflictos antes de confirmar.
-- [ ] La aplicación respeta permisos, alcance y validación común sin IDs vacíos.
-- [ ] Se informa qué se aplicó y qué se rechazó; la recarga refleja el resultado persistido.
+- [x] La vista previa permite identificar turnos a crear y conflictos antes de confirmar.
+- [x] La aplicación respeta permisos, alcance y validación común sin IDs vacíos.
+- [x] Se informa qué se aplicó y qué se rechazó; la recarga refleja el resultado persistido.
 
 **Verificación:** V1 de conflictos y V2 de vista previa/aplicación; definir atomicidad antes de escribir.
+
+**Corte de implementación C11 (11-10-2026):** resultado por empleado y fecha, en orden cronológico. Cada elemento se autoriza y valida de nuevo al guardar; los válidos persisten y los rechazados no escriben. La vista previa simula los elementos aceptados del lote sin escribir. No reserva cupos ni garantiza que el estado no cambie antes de confirmar.
+
+- C11.1: contrato de destino y resultado; vista previa autorizada y validación compartida con la escritura; pruebas V1.
+- C11.2: pestaña de plantillas con catálogo real, selección explícita de sucursal/rol/empleados, confirmación y resultados; V2.
+- C11.3: regresiones, build/lint y evidencia, incluyendo los límites de adaptadores simulados.
+
+**Decisiones (11-10-2026):** atomicidad **por elemento**, no por lote —cada turno se guarda en su propia transacción con `pg_advisory_xact_lock` por empresa y empleado, de modo que reintentar un lote parcial es seguro—. `MAX_DAILY_HOURS` no es una excepción del lote: la jornada larga se rechaza elemento a elemento como en la creación manual.
+
+**Evidencia (11-10-2026):** [C11 — Plantillas de turnos y asignación masiva](../docs/audits/2026-10-11-plantillas-turnos.md). 34 casos unitarios sobre el servicio, la política y las acciones reales; 12 pruebas de Chromium (8 de plantillas, 4 de asignación masiva); suite 903 aprobadas (una omitida y un TODO), build aprobado y tsc limpio. Los límites —adaptador que emula el bloqueo, plantillas sin persistencia, recorridos de workflows sin verificar— quedan en la evidencia.
+
+**Cubierto por C11:** los tres criterios de [C12](#c12) se cumplen dentro de este bloque.
 
 **Archivos probables:**
 
@@ -436,9 +448,11 @@ Conectar una operación masiva explícita con validación de cada destino y resu
 
 #### Punto de control C11–C12
 
-- [ ] Criterios del bloque verificados con resultados registrados.
-- [ ] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
-- [ ] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
+- [x] Criterios del bloque verificados con resultados registrados.
+- [x] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
+- [x] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
+
+**Cierre de C12 (11-10-2026):** sus tres criterios se verificaron dentro de [C11](#c11): destino obligatorio por contrato y catálogo, atomicidad por elemento declarada y respetada frente a conflictos, y rechazo de duplicados con resultado real visible. No se abre un recorrido aparte; la puerta de fase de la Fase 2 queda pendiente de registrar.
 
 **Puerta de fase:** revisar build/lint y regresiones pertinentes; conservar evidencia de la entrega indicada al inicio.
 

@@ -29,6 +29,7 @@ import {
   users,
 } from "@/lib/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
+import { ApiError } from "@/lib/api/error";
 
 /**
  * Identidad del actor, tomada de la sesión y sólo de la sesión.
@@ -88,7 +89,10 @@ export interface SchedulerCatalog {
  * ni desbordar lo que ve.
  */
 export async function getSchedulerCatalog(): Promise<SchedulerCatalog> {
-  const actor = await actorDeSesion();
+  return schedulerCatalogFor(await actorDeSesion());
+}
+
+async function schedulerCatalogFor(actor: ShiftActor): Promise<SchedulerCatalog> {
   const alcance = resolveShiftScope(actor, null);
 
   if (alcance.kind === "NONE") {
@@ -220,7 +224,9 @@ export async function getTemplatesForBranch(
 export async function applyBulkOperation(
   operation: BulkShiftOperation
 ): Promise<ApplyTemplateResult> {
-  const result = await shiftTemplateService.applyBulkOperation(await actorDeSesion(), operation);
+  const actor = await actorDeSesion();
+  await assertTemplateCatalog(actor, operation);
+  const result = await shiftTemplateService.applyBulkOperation(actor, operation);
   revalidatePath("/dashboard/labor/shifts");
   return result;
 }
@@ -228,7 +234,19 @@ export async function applyBulkOperation(
 export async function previewBulkOperation(
   operation: BulkShiftOperation
 ): Promise<TemplatePreview[]> {
-  return shiftTemplateService.previewBulkOperation(operation);
+  const actor = await actorDeSesion();
+  await assertTemplateCatalog(actor, operation);
+  return shiftTemplateService.previewBulkOperation(actor, operation);
+}
+
+/** El destino debe seguir en el catálogo autorizado al previsualizar y guardar. */
+async function assertTemplateCatalog(actor: ShiftActor, operation: BulkShiftOperation): Promise<void> {
+  const catalog = await schedulerCatalogFor(actor);
+  if (!operation || !catalog.branches.some((branch) => branch.id === operation.branchId) ||
+      !catalog.roles.includes(operation.role) || !Array.isArray(operation.employeeIds) ||
+      !operation.employeeIds.length || !operation.employeeIds.every((id) => catalog.employees.some((employee) => employee.id === id))) {
+    throw ApiError.badRequest("Selecciona sucursal, rol y empleados de tu catálogo vigente. Recarga e inténtalo de nuevo.");
+  }
 }
 
 

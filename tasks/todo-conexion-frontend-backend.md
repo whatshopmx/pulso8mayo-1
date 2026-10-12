@@ -1,6 +1,6 @@
 # Seguimiento — conexión entre frontend y backend
 
-Fecha: 10 de octubre de 2026. Actualización: 11 de octubre de 2026. Estado: C00–C10 implementadas; C11–C40 pendientes. Los recorridos de navegador aún no comprobados se conservan explícitos en la evidencia.
+Fecha: 10 de octubre de 2026. Actualización: 11 de octubre de 2026. Estado: C00–C11 implementadas; C12–C40 pendientes. Los recorridos de navegador aún no comprobados se conservan explícitos en la evidencia.
 
 Plan: [plan de implementación](plan-conexion-frontend-backend.md). Origen: [auditoría](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md).
 
@@ -29,8 +29,8 @@ Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar p
 - [x] [C08 — Cargar empleados y sucursales reales en el planificador](plan-conexion-frontend-backend.md#c08) — depende de C01, C02.
 - [x] [C09 — Aplicar una política de validación de turnos](plan-conexion-frontend-backend.md#c09) — depende de C02, C08.
 - [x] [C10 — Completar exportación de turnos](plan-conexion-frontend-backend.md#c10) — depende de C08. Evidencia: [exportación CSV](../docs/audits/2026-10-11-shifts-export.md).
-- [ ] [C11 — Aplicar plantillas de turnos válidas](plan-conexion-frontend-backend.md#c11) — depende de C09.
-- [ ] [C12 — Completar asignación masiva de turnos](plan-conexion-frontend-backend.md#c12) — depende de C11.
+- [x] [C11 — Aplicar plantillas de turnos válidas](plan-conexion-frontend-backend.md#c11) — depende de C09. Evidencia: [plantillas de turnos](../docs/audits/2026-10-11-plantillas-turnos.md).
+- [ ] [C12 — Completar asignación masiva de turnos](plan-conexion-frontend-backend.md#c12) — depende de C11. Los criterios se cumplen dentro de C11; queda cerrar la puerta de fase.
 
 - [ ] Puerta de fase: aceptación y verificación registradas; build/lint y regresiones pertinentes revisados.
 
@@ -104,8 +104,8 @@ Las filas conservan la evidencia y los pendientes de cada corte histórico. C10 
 | C08 | Completada | 2026-10-10 | `c93007b`, `6430cad` | `tests/unit/labor/scheduler-catalog.test.ts` (16) sobre la consulta real; tsc, build y `test:unit` 796/796 | **Sin V2**: falta el recorrido en navegador (crear, recargar y comprobar persistencia en dos empresas), que es lo único que verificaría que la pantalla y el servidor cuentan la misma historia. Los roles salen de `employee_profiles.position` + roles ya usados: si nadie tiene puesto capturado, el selector queda vacío a propósito |
 | C09 | Completada | 2026-10-10 | `9a07d93`, `980002f`, `a449b16`, `6134b90`, `41232a4` | `tests/unit/labor/business-validation.test.ts` (29) para la política y los marcadores, 8 casos en `write-scope.test.ts` para el servicio autoritativo, `shift-overrides-action.test.ts` (10) para la puerta. tsc limpio, build OK, `test:unit` 861/863 | **Decisión tomada (10-10):** la jornada de 8 h bloquea y su salida es una excepción auditada, con acción, pantalla y reintento de guardado. **Sin verificar:** que el botón funcione en navegador (V2), igual que el resto de la Fase 2. Notado y fuera de alcance: `lft-conflict-detector.ts` y `labor-validation.ts` traen sus propios límites para asistencia |
 | C10 | Completada | 2026-10-11 | C10.1–C10.3; [evidencia](../docs/audits/2026-10-11-shifts-export.md) | CSV conectado a semana/filtros; 9 casos unitarios de formato y 7 pruebas en Chromium de descarga, filtros, dos respuestas de empresa, vacío/error/reintento y respuestas tardías. Suite: 870 aprobadas, 1 omitida, 1 TODO; build OK; lint enfocado 0 errores/0 warnings | El navegador usa acciones simuladas; el alcance del servidor se respalda con las pruebas de C01/C08. No verifica creación/recarga de C08 ni excepciones de C09. C11 es el siguiente pendiente |
-| C11 | Pendiente | — | — | No ejecutada | — |
-| C12 | Pendiente | — | — | No ejecutada | — |
+| C11 | Completada | 2026-10-11 | C11.1–C11.3; [evidencia](../docs/audits/2026-10-11-plantillas-turnos.md) | `tests/unit/shifts/template-apply.test.ts` (22) y `template-actions.test.ts` (12) sobre servicio, política y acciones reales; `tests/e2e/shifts-template.spec.ts` (8) y `shifts-bulk.spec.ts` (4) en Chromium. Suite 903 aprobadas, 1 omitida, 1 TODO; 19/19 de navegador; build OK; tsc limpio | **Atomicidad decidida por elemento**, no por lote: cada turno se guarda en su propia transacción con `pg_advisory_xact_lock` por empresa y empleado. El bloqueo se prueba con un adaptador que emula la semántica de PostgreSQL, no contra una base real con dos procesos. Las plantillas siguen siendo las cuatro constantes, sin persistencia por empresa. Los recorridos de workflows de C04/C05 y la excepción de C09 desde su propia pantalla siguen sin verificarse en navegador |
+| C12 | Cubierta por C11 | 2026-10-11 | [evidencia de C11](../docs/audits/2026-10-11-plantillas-turnos.md) | Destino obligatorio (contrato Zod + catálogo autorizado), atomicidad por elemento declarada, rechazo de duplicados por repetición y por concurrencia, y resultado visible por fila en la pestaña | Marcar al cerrar la puerta de fase: sus criterios se verificaron dentro del bloque C11 y no tienen recorrido propio pendiente |
 | C13 | Pendiente | — | — | No ejecutada | — |
 | C14 | Pendiente | — | — | No ejecutada | — |
 | C15 | Pendiente | — | — | No ejecutada | — |
@@ -143,6 +143,7 @@ Las filas conservan la evidencia y los pendientes de cada corte histórico. C10 
 - [ ] Consumidores externos y eventos pendientes del executor anterior verificados en C36/C37.
 - [ ] **Quién revisa un workflow.** C05 implementó la lectura conservadora de la columna del esquema ("Revisión del supervisor"): `SUPERVISOR` y gerencia, excluyendo `EMPLEADO` y `READONLY`. La matriz `workflows` no distingue revisar de ejecutar, así que hace falta una decisión explícita del negocio; hasta entonces la regla vive en `requireReviewAccess` (`lib/workflows/execution-access.ts`). La auto-revisión (`f701068`) se cierra con una excepción auditada en `policy_overrides` (`f354519`), concedible sólo por `OWNER`/`SUPER_ADMIN` — `ADMIN` no, aunque administre la empresa, y esa exclusión también está por confirmar. Falta la pantalla que concede la excepción.
 - [x] **Límites de turno: jornada diaria y excepciones.** **Decidido el 10-10-2026:** la jornada de 8 h bloquea y la salida es una excepción auditada (`policy_overrides`, `SHIFT_VALIDATION`/`MAX_DAILY_HOURS`), concedible sólo por `OWNER`/`SUPER_ADMIN` con motivo y caducidad opcional. Cerrado en `a449b16` (política), `6134b90` (acción) y `41232a4` (pantalla con reintento de guardado). Cada infracción lleva su `regla` porque cuatro fallos compartían `DAILY_HOURS`, y el mensaje de rechazo nombra la regla entre corchetes porque las propiedades de un `Error` no sobreviven a un server action.
+- [x] **Atomicidad de la aplicación por lotes de turnos.** **Decidido el 11-10-2026:** resultado por elemento, no todo-o-nada. Cada turno se guarda en su propia transacción con `pg_advisory_xact_lock` por empresa y empleado, así que un rechazo no revierte los válidos y reintentar un lote parcial es seguro. Evidencia en [C11](../docs/audits/2026-10-11-plantillas-turnos.md).
 - [ ] **Unificar los límites de asistencia con los de turnos.** `lft-conflict-detector.ts` y `labor-validation.ts` usan descanso mínimo de 12 h y turno de 12 h, mientras la política de turnos usa 8 h. Son dominios distintos —check-in contra planificado— y no se tocaron en C09; si deben coincidir, es una decisión que aplicar a ambos a la vez.
 
 ## Cierre

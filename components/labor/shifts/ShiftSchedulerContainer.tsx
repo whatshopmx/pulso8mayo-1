@@ -15,6 +15,7 @@ import {
   Building2,
 } from "lucide-react";
 import { WeeklyMatrixView } from "./WeeklyMatrixView";
+import { ShiftTemplatePlanner } from "./ShiftTemplatePlanner";
 import { useShiftValidation, useSchedulerCatalog } from "@/hooks";
 
 /**
@@ -35,7 +36,7 @@ import { useShiftValidation, useSchedulerCatalog } from "@/hooks";
  *   asignada. Es un dato pendiente de tu cuenta, no un empresa vacía.
  *
  * La exportación vive en la matriz para compartir semana y filtros. Las
- * pestañas de plantillas/asignación masiva siguen pendientes (C11 y C12).
+ * plantillas y la asignación masiva se aplican con catálogo real.
  */
 export function ShiftSchedulerContainer() {
   const [activeTab, setActiveTab] = useState("weekly");
@@ -172,10 +173,10 @@ export function ShiftSchedulerContainer() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="weekly">Vista Semanal</TabsTrigger>
-          <TabsTrigger value="templates" disabled>
+          <TabsTrigger value="templates" disabled={!puedePlanificar}>
             Plantillas
           </TabsTrigger>
-          <TabsTrigger value="bulk" disabled>
+          <TabsTrigger value="bulk" disabled={!puedePlanificar}>
             Asignación Masiva
           </TabsTrigger>
         </TabsList>
@@ -199,29 +200,11 @@ export function ShiftSchedulerContainer() {
         </TabsContent>
 
         <TabsContent value="templates" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Plantillas de Turnos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Plantillas predefinidas para turnos recurrentes.
-              </p>
-            </CardContent>
-          </Card>
+          {puedePlanificar && <ShiftTemplatePlanner branches={branches} roles={roles} employees={employees} onViewShifts={() => setActiveTab("weekly")} />}
         </TabsContent>
 
         <TabsContent value="bulk" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Asignación Masiva</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Crea múltiples turnos para varios empleados a la vez.
-              </p>
-            </CardContent>
-          </Card>
+          {puedePlanificar && <ShiftTemplatePlanner mode="bulk" branches={branches} roles={roles} employees={employees} onViewShifts={() => setActiveTab("weekly")} />}
         </TabsContent>
       </Tabs>
     </div>
