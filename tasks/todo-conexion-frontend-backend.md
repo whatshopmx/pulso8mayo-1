@@ -2,7 +2,7 @@
 
 Fecha: 10 de octubre de 2026. Actualización: 12 de octubre de 2026. Estado: C00–C14 implementadas; C15–C40 pendientes. Los recorridos de navegador aún no comprobados se conservan explícitos en la evidencia.
 
-Plan: [plan de implementación](plan-conexion-frontend-backend.md). Origen: [auditoría](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md).
+Plan: [plan de implementación](plan-conexion-frontend-backend.md). Origen: [auditoría](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Handoff de sesión: [handoff-conexion-frontend-backend.md](handoff-conexion-frontend-backend.md).
 
 Marcar una tarea solo cuando cumpla sus criterios y tenga evidencia. Registrar por ID: estado, fecha, cambio/commit, pruebas, resultado y límites pendientes. Los criterios completos están en el plan. No usar un bloqueo de pruebas como evidencia de éxito.
 
