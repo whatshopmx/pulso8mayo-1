@@ -433,9 +433,9 @@ Conectar una operación masiva explícita con validación de cada destino y resu
 
 **Criterios de aceptación:**
 
-- [ ] No se generan turnos con sucursal o rol vacíos.
-- [ ] La política de todo-o-nada o resultado por elemento está definida y se respeta frente a conflictos.
-- [ ] Repetir una solicitud no crea duplicados accidentales y el usuario ve el resultado real.
+- [x] No se generan turnos con sucursal o rol vacíos.
+- [x] La política de todo-o-nada o resultado por elemento está definida y se respeta frente a conflictos.
+- [x] Repetir una solicitud no crea duplicados accidentales y el usuario ve el resultado real.
 
 **Verificación:** V1 de operaciones masivas con conflicto/duplicado y V2 desde la pestaña activa.
 
@@ -452,7 +452,9 @@ Conectar una operación masiva explícita con validación de cada destino y resu
 - [x] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
 - [x] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
 
-**Cierre de C12 (11-10-2026):** sus tres criterios se verificaron dentro de [C11](#c11): destino obligatorio por contrato y catálogo, atomicidad por elemento declarada y respetada frente a conflictos, y rechazo de duplicados con resultado real visible. No se abre un recorrido aparte; la puerta de fase de la Fase 2 queda pendiente de registrar.
+**Cierre de C12 (11-10-2026):** sus tres criterios se verificaron dentro de [C11](#c11): destino obligatorio por contrato y catálogo, atomicidad por elemento declarada y respetada frente a conflictos, y rechazo de duplicados con resultado real visible. No se abre un recorrido aparte.
+
+**Puerta de fase de la Fase 2 (12-10-2026):** `lint` 0 errores (2386 warnings), `build` OK, `test:unit` 924/924 (69 archivos) y 30/30 pruebas de navegador de la configuración aislada (11 de C13, 19 de turnos de C10–C12). Los límites de V2 de C08 y de la excepción de C09 siguen declarados en el [seguimiento](todo-conexion-frontend-backend.md).
 
 **Puerta de fase:** revisar build/lint y regresiones pertinentes; conservar evidencia de la entrega indicada al inicio.
 
