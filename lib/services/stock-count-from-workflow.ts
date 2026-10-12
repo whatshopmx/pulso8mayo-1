@@ -283,6 +283,28 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
  * una fila de `inventory_waste`. Idempotente por el único parcial
  * `(workflow_instance_id, item_id, origin)` con `onConflictDoNothing` (A9).
  */
+/**
+ * C14.3 — el umbral de merma del conteo, en una parte sin base de datos.
+ *
+ * El porcentaje venía leído de la configuración y aplicado en el bucle, sin
+ * ninguna forma de comprobar qué hace con cada valor. Ahora la regla se puede
+ * probar sola, y de paso `null` deja de significar "5" por sorpresa: dice lo
+ * mismo que dice la interfaz.
+ */
+export function umbralMermaDeConfig(guardado: string | null | undefined): number {
+  if (guardado === null || guardado === undefined || guardado === "") return 5;
+  const n = Number(guardado);
+  return Number.isFinite(n) && n >= 0 ? n : 5;
+}
+
+/** ¿La varianza de un conteo supera el umbral y debe generar merma? */
+export function excedeUmbralMerma(variancePct: number, thresholdPct: number): boolean {
+  // Sin stock calculado no hay porcentaje que medir, y el sobrante nunca
+  // genera merma: sobrante es un error de conteo, no una pérdida.
+  if (variancePct >= 0) return false;
+  return Math.abs(variancePct) > thresholdPct;
+}
+
 async function maybeCreateMermaFromVariance(params: {
   instanceId: string;
   companyId: string;
@@ -296,17 +318,14 @@ async function maybeCreateMermaFromVariance(params: {
   const cfg = await db.query.tenantOperatingConfig.findFirst({
     where: eq(tenantOperatingConfig.companyId, companyId),
   });
-  const thresholdPct = cfg?.mermaVarianceThresholdPct
-    ? Number(cfg.mermaVarianceThresholdPct)
-    : 5;
+  const thresholdPct = umbralMermaDeConfig(cfg?.mermaVarianceThresholdPct);
 
   const wasteRows: (typeof inventoryWaste.$inferInsert)[] = [];
   for (const c of counts) {
     if (c.system <= 0) continue; // sin stock calculado no hay % que medir
 
     const variancePct = ((c.counted - c.system) / c.system) * 100;
-    if (variancePct >= 0) continue; // sobrante nunca genera merma
-    if (Math.abs(variancePct) <= thresholdPct) continue; // dentro de tolerancia
+    if (!excedeUmbralMerma(variancePct, thresholdPct)) continue;
 
     const missing = c.system - c.counted; // faltante, positivo
     if (missing <= 0) continue;
