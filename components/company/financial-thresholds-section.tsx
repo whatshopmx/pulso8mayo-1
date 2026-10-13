@@ -3,7 +3,42 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { DollarSign, ShieldAlert, Wallet, Sparkles, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { DollarSign, ShieldAlert, Wallet, Sparkles, AlertCircle, Check, Info } from "lucide-react";
+import { ETIQUETA_CLASIFICACION, politicaPorInput } from "@/lib/company/operating-policy-catalog";
+
+/**
+ * C15 — un umbral y una promesa no son lo mismo.
+ *
+ * Cuatro de los cinco topes de esta tarjeta cambian decisiones: los revisó
+ * `rolExigidoPorMonto`, `validateEmergencyCap` y la aprobación de merma. El
+ * fondo de caja chica no lo lee nadie —`petty-cash-service` trabaja con el
+ * monto que el operador escribe en cada movimiento— y su texto decía
+ * «monto máximo asignado al fondo revolvente», que suena a tope y no lo es.
+ *
+ * El distintivo sale del catálogo, no de esta tarjeta: si mañana el fondo pasa
+ * a consumirse, el texto se actualiza en un solo lugar y no en dos.
+ */
+function EstadoDePolitica({ input }: { input: keyof FinancialThresholdsValues }) {
+  const clasificacion = politicaPorInput(input)?.clasificacion ?? "descriptiva";
+  return (
+    <Badge
+      variant="secondary"
+      className={
+        clasificacion === "aplicada"
+          ? "ml-auto shrink-0 text-xs py-0 px-1.5 font-normal tracking-tight gap-1 bg-primary/15 text-primary border-primary/20"
+          : "ml-auto shrink-0 text-xs py-0 px-1.5 font-normal tracking-tight gap-1 bg-muted text-muted-foreground"
+      }
+    >
+      {clasificacion === "aplicada" ? (
+        <Check className="h-3 w-3" aria-hidden="true" />
+      ) : (
+        <Info className="h-3 w-3" aria-hidden="true" />
+      )}
+      {ETIQUETA_CLASIFICACION[clasificacion]}
+    </Badge>
+  );
+}
 
 /** Aviso del servidor junto al input que lo provocó (C13). */
 function ErrorDeCampo({ id, mensaje }: { id: string; mensaje?: string }) {
@@ -43,20 +78,22 @@ export function FinancialThresholdsSection({
           <DollarSign className="w-5 h-5 text-foreground" /> Umbrales Financieros y Políticas de Aprobación
         </CardTitle>
         <CardDescription className="text-xs">
-          Establece los topes de autorización de gasto por rol y los límites de seguridad financiera para todas las unidades.
+          Los campos marcados «Se aplica hoy» cambian autorizaciones o límites de envío.
+          Caja chica documenta un monto; su fondo se administra por sucursal.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Límite Gerente */}
         <div className="space-y-2 p-3.5 rounded-lg bg-muted/20 border border-border/60">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="p-1 rounded bg-muted text-muted-foreground">
               <ShieldAlert className="w-3.5 h-3.5" />
             </div>
             <Label htmlFor="managerAuthLimit" className="text-xs font-semibold">
               Límite de Autonomía de Gerente
             </Label>
+            <EstadoDePolitica input="managerAuthLimit" />
           </div>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
@@ -79,19 +116,22 @@ export function FinancialThresholdsSection({
           </div>
           <ErrorDeCampo id="managerAuthLimit-error" mensaje={mensajeDe("managerAuthLimit")} />
           <p className="text-xs text-muted-foreground leading-tight">
-            Gastos por debajo de este monto pueden ser autorizados directamente por el gerente de sucursal (siempre requiriendo firma de un segundo usuario).
+            Gastos por debajo de este monto los autoriza un gerente de sucursal. Aplica cuando la empresa no
+            capturó una regla de autorización para ese monto, y siempre lo resuelve alguien distinto de quien
+            lo registró, salvo el dueño y el super administrador.
           </p>
         </div>
 
         {/* Umbral Dirección General */}
         <div className="space-y-2 p-3.5 rounded-lg bg-muted/20 border border-border/60">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="p-1 rounded bg-muted text-muted-foreground">
               <Sparkles className="w-3.5 h-3.5" />
             </div>
             <Label htmlFor="doubleApprovalThreshold" className="text-xs font-semibold">
               Umbral Autorización Dirección General
             </Label>
+            <EstadoDePolitica input="doubleApprovalThreshold" />
           </div>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
@@ -114,19 +154,22 @@ export function FinancialThresholdsSection({
           </div>
           <ErrorDeCampo id="doubleApprovalThreshold-error" mensaje={mensajeDe("doubleApprovalThreshold")} />
           <p className="text-xs text-muted-foreground leading-tight">
-            Montos a partir de este valor escalan obligatoriamente para firma y visto bueno de Dirección General o Dueño del grupo.
+            Desde este monto el gasto exige la firma del dueño del grupo. No es doble firma: el sistema tiene un
+            aprobador por gasto. Aplica cuando no hay una regla de autorización para ese monto.
+            También aporta un umbral a la detección de fraccionamiento.
           </p>
         </div>
 
         {/* Fondo Caja Chica */}
         <div className="space-y-2 p-3.5 rounded-lg bg-muted/20 border border-border/60">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="p-1 rounded bg-muted text-muted-foreground">
               <Wallet className="w-3.5 h-3.5" />
             </div>
             <Label htmlFor="pettyCashLimit" className="text-xs font-semibold">
               Fondo Fijo de Caja Chica por Sucursal
             </Label>
+            <EstadoDePolitica input="pettyCashLimit" />
           </div>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
@@ -149,19 +192,22 @@ export function FinancialThresholdsSection({
           </div>
           <ErrorDeCampo id="pettyCashLimit-error" mensaje={mensajeDe("pettyCashLimit")} />
           <p className="text-xs text-muted-foreground leading-tight">
-            Monto máximo asignado al fondo revolvente de cada unidad para compras imprevistas y gastos menores en efectivo.
+            Monto de referencia del grupo. Hoy no limita aperturas, reposiciones ni gastos y no cambia
+            fondos existentes. Vacío, cero y un monto positivo son descripciones; cada fondo conserva
+            el efectivo entregado y su propio umbral de reposición.
           </p>
         </div>
 
         {/* Tope Mensual Compras de Emergencia */}
         <div className="space-y-2 p-3.5 rounded-lg bg-muted/20 border border-border/60">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="p-1 rounded bg-muted text-muted-foreground">
               <AlertCircle className="w-3.5 h-3.5" />
             </div>
             <Label htmlFor="emergencyPurchaseCap" className="text-xs font-semibold">
               Tope Mensual Compras de Emergencia
             </Label>
+            <EstadoDePolitica input="emergencyCap" />
           </div>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
@@ -185,19 +231,22 @@ export function FinancialThresholdsSection({
           </div>
           <ErrorDeCampo id="emergencyPurchaseCap-error" mensaje={mensajeDe("emergencyCap")} />
           <p className="text-xs text-muted-foreground leading-tight">
-            Acumulado mensual permitido de compras urgentes por sucursal. Al alcanzar este límite, las órdenes de emergencia quedan bloqueadas hasta el siguiente ciclo.
+            Acumulado mensual permitido de compras urgentes por sucursal. Sólo se consulta en documentos
+            marcados como emergencia: si el acumulado más la orden supera el tope, el envío se rechaza. Las órdenes
+            normales no pasan por aquí, sino por presupuesto y centro de costo.
           </p>
         </div>
 
         {/* Tope Mensual Cortesías y Personal */}
         <div className="space-y-2 p-3.5 rounded-lg bg-muted/20 border border-border/60 md:col-span-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="p-1 rounded bg-muted text-muted-foreground">
               <DollarSign className="w-3.5 h-3.5" />
             </div>
             <Label htmlFor="courtesyWasteCap" className="text-xs font-semibold">
               Tope Mensual de Cortesías y Consumo de Personal (Grupo Completo)
             </Label>
+            <EstadoDePolitica input="courtesyWasteCap" />
           </div>
           <div className="relative max-w-md">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
@@ -221,7 +270,9 @@ export function FinancialThresholdsSection({
           </div>
           <ErrorDeCampo id="courtesyWasteCap-error" mensaje={mensajeDe("courtesyWasteCap")} />
           <p className="text-xs text-muted-foreground leading-tight">
-            Presupuesto mensual consolidado para mermas operativas por consumo de colaboradores y atenciones a comensales. Al superarlo, toda merma posterior requiere visto bueno de Dirección.
+            Presupuesto mensual consolidado para mermas por consumo de colaboradores y atenciones a
+            comensales. Hasta el tope aprueba un gerente; al superarlo se requiere administrador o superior.
+            Sólo aplica a esas dos clases de merma. Una merma sin costo conocido no escala por monto.
           </p>
         </div>
       </CardContent>

@@ -6,16 +6,35 @@
  * pattern as cross-branch-service). Companies created before the T41 hook
  * (or without a row for any reason) lazily resolve to Case-A defaults.
  *
- * Consumers of these dimensions:
- *  - purchase-order-service (T43): managerAutonomy=BAJA forces PO approval.
- *  - cross-branch-service (T43): tenantType=MIXTO_FRANQUICIAS excludes
- *    franchise branches from group consolidation.
- *  - M16 expense authorization (future): managerAuthLimitCents /
- *    pettyCashLimitCents thresholds.
- *  - M17 segregation of duties (future, T55): doubleApprovalThresholdCents
- *    and the STRICT/DOUBLE_APPROVAL/LOG_ONLY mode derived from
- *    managerAutonomy.
- *  - M15 fiscal (future, T47): payrollDispersion picks the CFDI issuer(s).
+ * **Consumers, verified field by field in C15** — this header used to announce
+ * consumers that never existed (`purchase-order-service` reading
+ * `managerAutonomy`, `cross-branch-service` reading `tenantType`), which is
+ * exactly the defect [H04](docs/audits/2026-10-10-backend-frontend-wiring-audit.md)
+ * describes. The authoritative list now lives in
+ * `lib/company/operating-policy-catalog.ts`. Static contract tests detect
+ * references that require reviewing the catalog; runtime effects still need
+ * verification against the consumer.
+ *
+ *  - `purchasingStructure`, `foodProduction`, `treasuryModel`, `supplierPayment`,
+ *    `payrollDispersion`: **descriptive**. Stored and displayed; no service reads
+ *    them. C16–C21 define an effect or keep the descriptive contract.
+ *  - `managerAutonomy`: **pending**. `rolExigidoPorMonto` builds the expense
+ *    ladder from the two money thresholds and ignores it. C20 needs a business
+ *    decision on what each level means.
+ *  - `tenantType`: **pending**. Franchise isolation is real but keys off
+ *    `branches.ownershipType` in `lib/rbac/`, not off this column. C22 decides
+ *    whether this column derives branch ownership or stays a declaration.
+ *  - `managerAuthLimitCents` / `doubleApprovalThresholdCents`: applied via
+ *    `rolExigidoPorMonto` (`lib/expenses/approval-policy.ts`) and, for the
+ *    second, `umbralesDeAutorizacion` in `control-interno-service`. This service
+ *    is where the ladder gets the values.
+ *  - `emergencyPurchaseCapCents`: applied via `validateEmergencyCap`
+ *    (`lib/services/budget-service.ts`), which queries the table directly.
+ *  - `pettyCashLimitCents`: **descriptive**. `petty-cash-service` uses each
+ *    fund's own `fund_amount` and `low_threshold`. C23 decides what this is.
+ *  - Fiscal/labor/waste params (`vatRatePercent`, `laborBurdenFactorPercent`,
+ *    `payrollStateTaxPercent`, `mermaVarianceThresholdPct`): applied, with
+ *    `vigencia` by period resolved from `config_change_logs` (C14.3).
  */
 
 import { db } from "@/lib/db";

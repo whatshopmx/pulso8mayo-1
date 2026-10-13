@@ -296,3 +296,82 @@ test("un parámetro fuera de rango se rechaza en servidor y el error nombra su c
   await expect(vat).toHaveValue("150");
   expect(fixture.errores).toEqual([]);
 });
+
+/* C15 — la clasificación no debe prometer reglas ni romper persistencia. */
+const DIMENSIONES = [
+  { campo: "purchasingStructure", etiqueta: "Estructura de Compras", estado: "Descriptiva", opciones: ["Centralizada", "Por Sucursal", "Híbrido"], valores: ["CENTRALIZADA", "POR_SUCURSAL", "HIBRIDO"] },
+  { campo: "foodProduction", etiqueta: "Producción de Alimentos", estado: "Descriptiva", opciones: ["In Situ", "Comisariato Central", "Mixto / Ensamble"], valores: ["IN_SITU", "COCINA_CENTRAL", "MIXTO"] },
+  { campo: "treasuryModel", etiqueta: "Modelo de Tesorería", estado: "Descriptiva", opciones: ["Cuenta Única", "Por Sucursal", "Mixto"], valores: ["CUENTA_UNICA", "CUENTA_POR_SUCURSAL", "MIXTO"] },
+  { campo: "supplierPayment", etiqueta: "Pago a Proveedores", estado: "Descriptiva", opciones: ["Centralizado", "Por Sucursal", "Híbrido"], valores: ["CENTRALIZADO", "POR_SUCURSAL", "HIBRIDO"] },
+  { campo: "payrollDispersion", etiqueta: "Dispersión de Nómina", estado: "Descriptiva", opciones: ["Consolidada", "Por Razón Social", "Mixto"], valores: ["CONSOLIDADA", "POR_RAZON_SOCIAL", "MIXTO"] },
+  { campo: "managerAutonomy", etiqueta: "Autonomía del Gerente de Sucursal", estado: "Pendiente de decisión", opciones: ["Alta", "Media", "Baja"], valores: ["ALTA", "MEDIA", "BAJA"] },
+  { campo: "tenantType", etiqueta: "Tipo de Estructura del Grupo", estado: "Pendiente de decisión", opciones: ["Grupo Propio (100% Unidades Corporativas)", "Mixto con Franquiciatarios"], valores: ["GRUPO_PROPIO", "MIXTO_FRANQUICIAS"] },
+] as const;
+
+test("cada dimensión declara su estado y caja chica distingue descripción de regla aplicada", async ({ page }) => {
+  const fixture = await abrir(page);
+  for (const dimension of DIMENSIONES) {
+    const grupo = page.getByRole("radiogroup", { name: dimension.etiqueta, exact: true });
+    await expect(grupo.locator("..").getByText(dimension.estado, { exact: true })).toBeVisible();
+    await expect(grupo).toHaveAccessibleDescription(dimension.estado === "Descriptiva"
+      ? "Se guarda y describe cómo opera el grupo. Ningún servicio lo lee hoy para decidir nada."
+      : "Se guarda como descripción. Falta definir su efecto; hoy no cambia permisos ni restricciones.");
+  }
+  const caja = page.getByLabel("Fondo Fijo de Caja Chica por Sucursal").locator("..").locator("..");
+  await expect(caja.getByText("Descriptiva", { exact: true })).toBeVisible();
+  await expect(caja).toContainText("Hoy no limita aperturas, reposiciones ni gastos");
+  const gerente = page.getByLabel("Límite de Autonomía de Gerente").locator("..").locator("..");
+  await expect(gerente.getByText("Se aplica hoy", { exact: true })).toBeVisible();
+  expect(fixture.errores).toEqual([]);
+});
+
+test("todos los valores de las siete dimensiones sobreviven al guardado y recarga", async ({ page }) => {
+  const fixture = await abrir(page);
+  for (const dimension of DIMENSIONES) {
+    for (let i = 0; i < dimension.valores.length; i++) {
+      const grupo = page.getByRole("radiogroup", { name: dimension.etiqueta, exact: true });
+      // El nombre incluye la descripción: «Consolidada» también aparece en
+      // la opción Mixto. Anclar el título evita seleccionar ambas opciones.
+      const opcion = grupo.getByRole("radio", { name: new RegExp(`^${dimension.opciones[i].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} `) });
+      await opcion.click();
+      // Un valor ya seleccionado no requiere escritura.
+      if (await page.getByRole("button", { name: "Guardar Configuración" }).isEnabled()) {
+        await guardar(page);
+        expect(fixture.enviados.at(-1)?.[dimension.campo]).toBe(dimension.valores[i]);
+      }
+      await page.reload();
+      await expect(opcion).toHaveAttribute("aria-checked", "true");
+      await expect(grupo.locator("..").getByText(dimension.estado, { exact: true })).toBeVisible();
+    }
+  }
+  expect(fixture.errores).toEqual([]);
+});
+
+test("las dimensiones se seleccionan con flechas y conservan el foco", async ({ page }) => {
+  const fixture = await abrir(page);
+  const grupo = page.getByRole("radiogroup", { name: "Estructura de Compras", exact: true });
+  const hibrido = grupo.getByRole("radio", { name: "Híbrido" });
+  const centralizada = grupo.getByRole("radio", { name: "Centralizada" });
+  await hibrido.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(centralizada).toBeFocused();
+  await expect(centralizada).toHaveAttribute("aria-checked", "true");
+  await expect(centralizada).toHaveAttribute("tabindex", "0");
+  await expect(hibrido).toHaveAttribute("tabindex", "-1");
+  await page.keyboard.press("ArrowLeft");
+  await expect(hibrido).toBeFocused();
+  await expect(hibrido).toHaveAttribute("aria-checked", "true");
+  expect(fixture.errores).toEqual([]);
+});
+
+test("los estados de política caben en móvil, tablet y escritorio", async ({ page }) => {
+  const fixture = await abrir(page);
+  for (const width of [320, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const grupo = page.getByRole("radiogroup", { name: "Tipo de Estructura del Grupo", exact: true });
+    await grupo.scrollIntoViewIfNeeded();
+    await expect(grupo.locator("..").getByText("Pendiente de decisión", { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
+  expect(fixture.errores).toEqual([]);
+});

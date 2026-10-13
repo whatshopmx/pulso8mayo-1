@@ -2,8 +2,31 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { UtensilsCrossed, Landmark, ShieldCheck, Check } from "lucide-react";
+import { UtensilsCrossed, Landmark, ShieldCheck, Check, Info, CircleHelp, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  EXPLICACION_CLASIFICACION,
+  ETIQUETA_CLASIFICACION,
+  politicaPorCampo,
+  type ClasificacionPolitica,
+} from "@/lib/company/operating-policy-catalog";
+
+/**
+ * C15 — las siete dimensiones se guardan, pero ninguna gobierna la operación hoy.
+ *
+ * La tarjeta antes promete en su encabezado «enrutar autorizaciones,
+ * consolidar reportes y gobernar sucursales» y cada opción lleva un distintivo
+ * que insinúa el efecto («Control Estricto», «Visibilidad Total»). Ninguna de
+ * esas frases era cierta: el catálogo verificó campo por campo que ningún
+ * servicio lee estas columnas. Ahora cada dimensión declara su estado con el
+ * catálogo como única fuente, y la opción describe el modelo declarado sin
+ * prometer una regla que nadie aplica.
+ */
+const ICONO_CLASIFICACION: Record<ClasificacionPolitica, typeof Info> = {
+  aplicada: Check,
+  descriptiva: Info,
+  pendiente: CircleHelp,
+};
 
 export interface OperatingDimensionsValues {
   purchasingStructure: string;
@@ -37,7 +60,7 @@ const OPERATING_GROUPS: {
 }[] = [
   {
     title: "Operación y Alimentos",
-    description: "Define el flujo de abasto y el modelo de preparación culinaria en cocina.",
+    description: "Describe el flujo de abasto y la preparación de alimentos del grupo.",
     icon: UtensilsCrossed,
     dimensions: [
       {
@@ -94,7 +117,7 @@ const OPERATING_GROUPS: {
   },
   {
     title: "Tesorería y Dispersión de Pagos",
-    description: "Determina las cuentas bancarias de cobro, pago y nómina del personal.",
+    description: "Describe cómo el grupo organiza sus cuentas, pagos y nómina.",
     icon: Landmark,
     dimensions: [
       {
@@ -118,7 +141,7 @@ const OPERATING_GROUPS: {
             value: "MIXTO",
             title: "Mixto",
             impactBadge: "Híbrido",
-            desc: "Cuentas operativas locales con barrido automático al corporativo.",
+            desc: "Cuentas operativas locales combinadas con una cuenta concentradora del grupo.",
           },
         ],
       },
@@ -156,19 +179,19 @@ const OPERATING_GROUPS: {
             value: "CONSOLIDADA",
             title: "Consolidada",
             impactBadge: "Una sola corrida",
-            desc: "Todo el grupo se dispersa en un único lote corporativo.",
+            desc: "El grupo declara una sola corrida de nómina para todas sus sucursales.",
           },
           {
             value: "POR_RAZON_SOCIAL",
             title: "Por Razón Social",
             impactBadge: "Por Empresa / Sucursal",
-            desc: "Dispersiones separadas por entidad legal o franquicia.",
+            desc: "El grupo declara corridas separadas por entidad legal o franquicia.",
           },
           {
             value: "MIXTO",
             title: "Mixto",
             impactBadge: "Esquema Dividido",
-            desc: "Nómina fija consolidada con propinas e incentivos locales.",
+            desc: "El grupo declara nómina fija consolidada con propinas e incentivos locales.",
           },
         ],
       },
@@ -176,7 +199,7 @@ const OPERATING_GROUPS: {
   },
   {
     title: "Gobernanza y Estructura del Grupo",
-    description: "Establece los niveles de delegación y el esquema societario.",
+    description: "Describe la delegación de decisiones y la propiedad de las sucursales.",
     icon: ShieldCheck,
     dimensions: [
       {
@@ -187,45 +210,71 @@ const OPERATING_GROUPS: {
           {
             value: "ALTA",
             title: "Alta",
-            impactBadge: "Mayor Agilidad",
-            desc: "Aprobación directa de compras ordinarias dentro de presupuesto.",
+            impactBadge: "Decide el gerente",
+            desc: "El grupo describe al gerente de sucursal como quien decide las compras ordinarias.",
           },
           {
             value: "MEDIA",
             title: "Media",
-            impactBadge: "Catálogo Acotado",
-            desc: "Aprobación sujeta a catálogo autorizado y límite monetario.",
+            impactBadge: "Catálogo acotado",
+            desc: "El grupo describe al gerente sujeto a catálogo autorizado y límite monetario.",
           },
           {
             value: "BAJA",
             title: "Baja",
-            impactBadge: "Control Estricto",
-            desc: "Toda orden o gasto requiere visto bueno de corporativo.",
+            impactBadge: "Visto bueno corporativo",
+            desc: "El grupo describe toda orden o gasto con visto bueno de corporativo.",
           },
         ],
       },
       {
         id: "tenantType",
-        label: "Tipo de Estructura de Tenant",
+        label: "Tipo de Estructura del Grupo",
         description: "Esquema de propiedad y aislamiento de información del grupo.",
         options: [
           {
             value: "GRUPO_PROPIO",
             title: "Grupo Propio (100% Unidades Corporativas)",
-            impactBadge: "Visibilidad Total",
-            desc: "Todas las sucursales pertenecen a la misma entidad de negocio.",
+            impactBadge: "Unidades propias",
+            desc: "El grupo declara que todas sus sucursales son de la misma entidad de negocio.",
           },
           {
             value: "MIXTO_FRANQUICIAS",
             title: "Mixto con Franquiciatarios",
-            impactBadge: "Segregación Franquicia",
-            desc: "Aislamiento de información financiera entre franquiciatarios.",
+            impactBadge: "Con franquiciatarios",
+            desc: "El grupo declara franquiciatarios en la red. El aislamiento de información se marca sucursal por sucursal, no desde aquí.",
           },
         ],
       },
     ],
   },
 ];
+
+/**
+ * Estado de una política, tal como lo declara el catálogo de C15. El texto
+ * largo vive en `EXPLICACION_CLASIFICACION` para que la definición viva en un
+ * solo sitio y la prueba pueda contarla.
+ */
+function ClasificacionBadge({ clasificacion }: { clasificacion: ClasificacionPolitica }) {
+  const Icono = ICONO_CLASIFICACION[clasificacion];
+  const esAplicada = clasificacion === "aplicada";
+  return (
+    <Badge
+      variant="secondary"
+      className={cn(
+        "text-xs py-0 px-1.5 font-normal tracking-tight gap-1 shrink-0",
+        esAplicada
+          ? "bg-primary/15 text-primary border-primary/20"
+          : clasificacion === "pendiente"
+            ? "bg-muted text-foreground border-border"
+            : "bg-muted text-muted-foreground"
+      )}
+    >
+      <Icono className="h-3 w-3" aria-hidden="true" />
+      {ETIQUETA_CLASIFICACION[clasificacion]}
+    </Badge>
+  );
+}
 
 interface OperatingDimensionsSectionProps {
   values: OperatingDimensionsValues;
@@ -243,8 +292,21 @@ export function OperatingDimensionsSection({
           <UtensilsCrossed className="w-5 h-5 text-foreground" /> Dimensiones Estructurales del Modelo Operativo
         </CardTitle>
         <CardDescription className="text-xs">
-          Define la arquitectura funcional del grupo para enrutar autorizaciones, consolidar reportes y gobernar sucursales.
+          Estas selecciones documentan cómo opera el grupo. Hoy no cambian permisos, aprobaciones,
+          movimientos de inventario ni pagos. Cada campo indica su estado.
         </CardDescription>
+        <dl className="mt-3 grid grid-cols-1 xl:grid-cols-3 gap-3">
+          {(Object.keys(ETIQUETA_CLASIFICACION) as ClasificacionPolitica[]).map((clasificacion) => (
+            <div key={clasificacion} className="flex items-start gap-1.5">
+              <dt className="shrink-0">
+                <ClasificacionBadge clasificacion={clasificacion} />
+              </dt>
+              <dd className="text-xs text-muted-foreground leading-tight pt-0.5">
+                {EXPLICACION_CLASIFICACION[clasificacion]}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </CardHeader>
 
       <CardContent className="space-y-8">
@@ -266,6 +328,8 @@ export function OperatingDimensionsSection({
                 {group.dimensions.map((dim) => {
                   const currentValue = values[dim.id];
                   const isWide = dim.options.length === 2;
+                  const politica = politicaPorCampo(dim.id);
+                  const clasificacion = politica?.clasificacion ?? "descriptiva";
 
                   return (
                     <div
@@ -275,16 +339,27 @@ export function OperatingDimensionsSection({
                         dim.id === "tenantType" && "lg:col-span-2"
                       )}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <label className="text-xs font-semibold text-foreground">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span id={`${dim.id}-label`} className="text-xs font-semibold text-foreground">
                           {dim.label}
-                        </label>
+                        </span>
+                        <ClasificacionBadge clasificacion={clasificacion} />
                       </div>
                       <p className="text-xs text-muted-foreground">{dim.description}</p>
+                      <p id={`${dim.id}-estado`} className="text-xs text-muted-foreground">
+                        {EXPLICACION_CLASIFICACION[clasificacion]}
+                      </p>
+                      {clasificacion === "pendiente" && politica?.decisionPendiente && (
+                        <p className="text-xs text-muted-foreground flex items-start gap-1.5 leading-normal">
+                          <Clock className="h-3 w-3 mt-0.5 shrink-0" aria-hidden="true" />
+                          <span>{politica.decisionPendiente}</span>
+                        </p>
+                      )}
 
                       <div
                         role="radiogroup"
-                        aria-label={dim.label}
+                        aria-labelledby={`${dim.id}-label`}
+                        aria-describedby={`${dim.id}-estado`}
                         className={cn(
                           "grid gap-2 pt-1.5",
                           isWide
@@ -292,7 +367,7 @@ export function OperatingDimensionsSection({
                             : "grid-cols-1 sm:grid-cols-3"
                         )}
                       >
-                        {dim.options.map((opt) => {
+                        {dim.options.map((opt, optionIndex) => {
                           const isSelected = currentValue === opt.value;
                           return (
                             <button
@@ -300,11 +375,22 @@ export function OperatingDimensionsSection({
                               type="button"
                               role="radio"
                               aria-checked={isSelected}
+                              tabIndex={isSelected || (!dim.options.some((o) => o.value === currentValue) && optionIndex === 0) ? 0 : -1}
                               onClick={() => onChange(dim.id, opt.value)}
+                              onKeyDown={(event) => {
+                                const step = ["ArrowRight", "ArrowDown"].includes(event.key) ? 1
+                                  : ["ArrowLeft", "ArrowUp"].includes(event.key) ? -1 : 0;
+                                if (!step) return;
+                                event.preventDefault();
+                                const nextIndex = (optionIndex + step + dim.options.length) % dim.options.length;
+                                onChange(dim.id, dim.options[nextIndex].value);
+                                const radios = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+                                radios?.[nextIndex]?.focus();
+                              }}
                               className={cn(
                                 "group text-left p-2.5 rounded-md border text-xs transition-all relative flex flex-col justify-between focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
                                 isSelected
-                                  ? "bg-card border-primary ring-1 ring-primary/30 shadow-xs"
+                                  ? "bg-card border-primary ring-1 ring-primary/30"
                                   : "bg-background/60 border-border/70 hover:bg-card hover:border-border text-muted-foreground"
                               )}
                             >

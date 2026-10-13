@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 
@@ -7,17 +8,21 @@ export async function startShiftsBrowserServer() {
   const resolveFromVitest = createRequire(require.resolve("vitest/package.json"));
   const { createServer } = await import(pathToFileURL(resolveFromVitest.resolve("vite")).href);
   const root = path.resolve(__dirname, "../..").replace(/\\/g, "/");
+  let configStyles: string | undefined;
   const server = await createServer({
     configFile: false,
     root,
+    cacheDir: path.join(root, ".tmp", `browser-vite-${process.pid}`),
+    // Los estilos se compilan en un proceso sin los hooks ESM de Playwright.
+    css: { postcss: { plugins: [] } },
     optimizeDeps: {
       entries: [],
       include: [
         "react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime",
         "@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-label",
-        "@radix-ui/react-select", "@radix-ui/react-slot", "@radix-ui/react-tabs", "radix-ui",
+        "@radix-ui/react-select", "@radix-ui/react-slot", "@radix-ui/react-tabs", "@radix-ui/react-switch", "radix-ui",
         "class-variance-authority", "clsx", "date-fns", "date-fns/locale",
-        "lucide-react", "tailwind-merge",
+        "lucide-react", "tailwind-merge", "@tanstack/react-query", "sonner",
       ],
     },
     server: {
@@ -39,8 +44,21 @@ export async function startShiftsBrowserServer() {
         if (id === "/shifts-test-entry.tsx") return "\0test-entry";
         if (id === "/config-test-entry.tsx") return "\0test-config-entry";
         if (id === "/config-test-page.tsx") return "\0test-config-page";
+        if (id === "/config-test.css") return "\0test-config.css";
       },
       load(id: string) {
+        if (id === "\0test-config.css") {
+          configStyles ??= execFileSync(process.execPath, ["-e", `
+            const { readFileSync } = require('node:fs');
+            const { createRequire } = require('node:module');
+            const plugin = require('@tailwindcss/postcss');
+            const postcss = createRequire(require.resolve('@tailwindcss/postcss'))('postcss');
+            postcss([plugin()]).process(readFileSync('app/globals.css', 'utf8'), { from: 'app/globals.css' })
+              .then(result => process.stdout.write(result.css))
+              .catch(error => { console.error(error); process.exitCode = 1; });
+          `], { cwd: root, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
+          return configStyles;
+        }
         if (id === "\0test-hooks") return `
           export { useShifts } from '/hooks/use-shifts.ts';
           export { useWeeklySchedule } from '/hooks/use-weekly-schedule.ts';
@@ -92,10 +110,15 @@ export async function startShiftsBrowserServer() {
           export { default } from '/app/dashboard/company/operating-config/page.tsx';
         `;
         if (id === "\0test-config-entry") return `
+          import '/config-test.css';
           import React from 'react';
           import { createRoot } from 'react-dom/client';
+          import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
           import OperatingConfigPage from '/config-test-page.tsx';
-          createRoot(document.getElementById('root')).render(React.createElement(OperatingConfigPage));
+          const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+          createRoot(document.getElementById('root')).render(
+            React.createElement(QueryClientProvider, { client }, React.createElement(OperatingConfigPage))
+          );
         `;
       },
       configureServer(devServer: { middlewares: { use: (handler: unknown) => void } }) {

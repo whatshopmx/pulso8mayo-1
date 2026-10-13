@@ -1,6 +1,6 @@
 # Contratos de política operativa
 
-Fecha: 12 de octubre de 2026. Seguimiento: [C14](tasks/plan-conexion-frontend-backend.md#c14).
+Fecha: 13 de octubre de 2026. Seguimiento: [C14](../tasks/plan-conexion-frontend-backend.md#c14) y [C15](../tasks/plan-conexion-frontend-backend.md#c15).
 
 Este documento fija el contrato de cada parámetro que un operador puede cambiar desde la pantalla de **Modelo Operativo**: qué unidad usa, qué rango admite, qué significa su estado vacío, quién lo lee y desde cuándo aplica.
 
@@ -102,6 +102,84 @@ Cada parámetro de esta página tiene una prueba que lo pasa por la función que
 4. Añadir el caso controlado que lo pase por su consumidor real.
 5. Declararlo aquí antes de que alguien lo lea.
 
-## Pendiente de C15
+## Catálogo de dimensiones y caja chica (C15)
 
-Esta página cubre hoy los cuatro parámetros de C14. [C15](tasks/plan-conexion-frontend-backend.md#c15) añade aquí el catálogo de las siete dimensiones y el límite de caja chica, con su clasificación entre política aplicada y descripción honesta.
+El catálogo que consume la interfaz está en [`lib/company/operating-policy-catalog.ts`](../lib/company/operating-policy-catalog.ts). C15 describe el comportamiento actual; las decisiones de C16–C23 siguen abiertas. Ninguna de las siete dimensiones cambia hoy permisos, aprobaciones, agrupaciones de nómina, visibilidad o movimientos de inventario.
+
+La pantalla distingue tres estados:
+
+- **Se aplica hoy:** un consumidor usa el valor para decidir. En esta sección corresponde a los cuatro umbrales monetarios descritos abajo.
+- **Descriptiva:** se guarda y se recupera al abrir configuración. No restringe la operación. Puede tener una decisión de negocio abierta para una futura aplicación.
+- **Pendiente de decisión:** se guarda como descripción; existe un recorrido relacionado, pero falta acordar cómo esta dimensión lo modificaría. Hoy tampoco aplica una restricción.
+
+### Contrato común de las siete dimensiones
+
+| Aspecto | Contrato |
+| --- | --- |
+| Alcance | Empresa/grupo seleccionado en sesión; no configuración individual por sucursal |
+| Escritura | `PUT /api/company/operating-config`, con sesión y permiso `settings/update` |
+| Valores | Sólo los enums de la tabla siguiente; `null` y cadena vacía se rechazan |
+| Campo omitido | Se conserva el valor anterior; no significa borrar ni volver al default |
+| Empresa sin fila | `getTenantOperatingConfig` devuelve los defaults de módulo; el primer guardado crea la fila |
+| Aplicación actual | Persistencia y presentación del valor; la actualización invalida la caché de configuración |
+| Vigencia | No hay efecto por periodo ni transición de documentos históricos; la selección no reescribe compras, pagos, fondos ni propiedad de sucursales |
+| Excepciones | Los permisos y políticas existentes de cada recorrido siguen aplicando; ninguna selección los evita |
+
+Cada valor de la tabla queda **clasificado como descriptivo en su comportamiento actual**, incluidos los campos cuyo estado de interfaz es «Pendiente de decisión». Para todos ellos: dado un valor válido y permiso de configuración, cuando se guarda y se recarga, entonces vuelve la misma selección; no se deduce un efecto operativo de su nombre.
+
+| Campo | Valores y default | Estado en UI | Consumidor operativo actual y límites |
+| --- | --- | --- | --- |
+| `purchasingStructure` | `CENTRALIZADA` (default), `POR_SUCURSAL`, `HIBRIDO` | Descriptiva | Ninguno. No cambia quién solicita, aprueba o emite una compra. El tope de emergencias y la matriz de aprobación son independientes. |
+| `foodProduction` | `IN_SITU` (default), `COCINA_CENTRAL`, `MIXTO` | Descriptiva | Ninguno. No crea abastecimientos, traspasos ni movimientos de recetas/inventario. El umbral de merma automática es independiente. |
+| `treasuryModel` | `CUENTA_UNICA` (default), `CUENTA_POR_SUCURSAL`, `MIXTO` | Descriptiva | Ninguno. No elige cuentas ni limita preparación, aprobación o liquidación de corridas de tesorería. |
+| `supplierPayment` | `CENTRALIZADO` (default), `POR_SUCURSAL`, `HIBRIDO` | Descriptiva | Ninguno. No programa pagos ni modifica el método capturado del proveedor. |
+| `payrollDispersion` | `CONSOLIDADA` (default), `POR_RAZON_SOCIAL`, `MIXTO` | Descriptiva | Ninguno. No agrupa corridas, exportaciones o recibos ni activa pagos automáticos. |
+| `managerAutonomy` | `ALTA`, `MEDIA` (default), `BAJA` | Pendiente de decisión | No hay consumidor de esta columna. La aprobación de gastos usa reglas y montos en `rolExigidoPorMonto`; elegir `ALTA` no concede más autoridad. |
+| `tenantType` | `GRUPO_PROPIO` (default), `MIXTO_FRANQUICIAS` | Pendiente de decisión | No hay consumidor de esta columna. La visibilidad de franquicias depende de `branches.ownershipType` en `lib/rbac/abac.ts` y `lib/rbac/branch-visibility.ts`. La selección no cambia ese atributo. |
+
+### `pettyCashLimitCents` — monto de referencia de caja chica
+
+| Aspecto | Contrato |
+| --- | --- |
+| Unidad y rango | Centavos enteros MXN, 0–2,147,483,647; la pantalla captura pesos |
+| Alcance y permiso | Declaración del grupo; `settings/update` para editar |
+| Estado en UI | Descriptiva |
+| `null` | Sin monto declarado. No elimina ni modifica fondos; no representa una política de «sin tope» aplicada |
+| `0` | Cero declarado. No cierra fondos ni impide aperturas, reposiciones o gastos |
+| Positivo | Monto de referencia declarado. No es un máximo de apertura, de reposición o por gasto |
+| Default sin fila | 500,000 centavos ($5,000 MXN) como declaración; no entrega efectivo ni crea un fondo |
+| Consumidor y momento | Ningún consumidor operativo. Se guarda y se recupera al cargar configuración |
+| Fondos existentes | Conservan `fund_amount`, saldo y `low_threshold`; `openFund` registra el efectivo explícitamente entregado y `registerOutflow` exige saldo suficiente |
+| Excepciones | El umbral de reposición del fondo y la autorización de gastos pertenecen a contratos separados |
+
+Los tres estados (`null`, `0`, positivo) son descriptivos. Cambiarlos no modifica efectivo ni autoriza un gasto. C23 debe decidir su relación con apertura/reposición y los fondos existentes antes de imponer una restricción.
+
+### Decisiones pendientes por dimensión
+
+| Tarea | Decisión necesaria antes de activar efectos |
+| --- | --- |
+| C16 — Compras | Quién solicita, aprueba y emite por modalidad; categorías delegables a sucursal y tratamiento de emergencias. Confirmar si continúa descriptiva. |
+| C17 — Producción | Cocina abastecedora, sucursales receptoras, responsables y movimientos de envío/recepción. Confirmar si continúa descriptiva. |
+| C18 — Tesorería | Cuentas permitidas, responsables de preparación/aprobación/liquidación y excepciones por modalidad. No hay una restricción acordada. |
+| C19 — Proveedores | Reparto de facturas entre corporativo y sucursal, programación/aprobación e idempotencia. Confirmar si continúa descriptiva. |
+| C20 — Autonomía | Relación de cada nivel con roles, montos y escalada de compras/gastos; preservar una sola política de autorización. |
+| C21 — Nómina | Descripción o agrupación de exportación; entidad legal y responsables. No interpretar la selección como autorización para enviar dinero. |
+| C22 — Tipo de grupo | Si sólo declara propiedad o fija el atributo de sucursales nuevas; quién captura `ownershipType` y cómo tratar sucursales existentes. |
+| C23 — Caja chica | Fondo máximo, máximo por gasto o límite de aprobación; reposición, excepciones y fondos existentes. Confirmar si continúa descriptiva. |
+
+Estas decisiones no bloquean los parámetros de C14 ni las reglas monetarias ya aplicadas. La decisión de quién revisa workflows de C05 y la excepción de auto-revisión siguen abiertas: no se resuelven mediante `managerAutonomy`.
+
+### Cuatro umbrales monetarios que sí se aplican
+
+Comparten permiso `settings/update`, captura en pesos y almacenamiento en centavos enteros de 0 a 2,147,483,647 o `null`. Se leen con el valor actual, sin vigencia por periodo. Los casos siguientes describen la regla consumida, no conceden permisos al usuario.
+
+| Campo y consumidor | Dado/cuando/entonces | Excepciones y alcance |
+| --- | --- | --- |
+| `managerAuthLimitCents` → `rolExigidoPorMonto` en `lib/expenses/approval-policy.ts`, usado por `expense-service.ts` | Dado `null`, si el gasto no alcanza el umbral del dueño, exige `GERENTE`. Dado `0`, todo gasto no negativo exige al menos `ADMIN`. Dado un tope positivo, por debajo exige `GERENTE`; desde el tope exige `ADMIN`, salvo escalada a `OWNER`. | Grupo. Una regla explícita de autorización que cubre el monto prevalece. La segregación de funciones y los controles de acceso siguen aplicando. |
+| `doubleApprovalThresholdCents` → `rolExigidoPorMonto`; `umbralesDeAutorizacion` en `control-interno-service.ts` | Dado `null`, no escala al dueño por este umbral. Dado `0`, todo gasto no negativo exige `OWNER`. Dado un umbral positivo, desde ese monto exige `OWNER`. | No es doble firma: hay un aprobador por gasto. Una regla explícita prevalece en gastos. Control interno añade un umbral positivo a la detección de fraccionamiento; no añade `0` ni `null`. |
+| `emergencyPurchaseCapCents` → `validateEmergencyCap`/`evaluateEmergencyCap` en `budget-service.ts`; envío de órdenes de compra y servicio | Dado `null`, no bloquea por acumulado. Dado `0`, un documento positivo se rechaza si el total excede cero. Dado un tope positivo, acumulado + documento igual al tope se permite; mayor se rechaza con 400. | Tope del grupo atribuido por sucursal y mes de creación del documento. Sólo `EMERGENCIA`; matriz, cotizaciones y demás requisitos siguen aplicando. La lectura del tope no garantiza atomicidad de envíos concurrentes. |
+| `courtesyWasteMonthlyCapCents` → `evaluateApproval` en `lib/inventory/waste-approval.ts`, usado por la ruta de aprobación de merma | Dado `null`, exige `GERENTE` sin escalar por monto. Dado `0`, un costo positivo que rebasa el acumulado exige `ADMIN`. Dado un tope positivo, hasta el tope exige `GERENTE`; al superarlo exige `ADMIN`. | Vive en `companies`. Acumulado aprobado de `STAFF`/`COURTESY` de todo el grupo. `thisLossCents === null` no escala por monto. Los controles de existencia, estado y stock de la ruta son independientes. |
+
+### Verificación de C15
+
+La prueba del catálogo contrasta valores con el `PUT`, referencias declaradas con sus archivos y ausencia de referencias en servicios/rutas de las entradas descriptivas. Es una comprobación estática: una referencia textual no demuestra efecto de ejecución y un escáner no detecta todos los accesos dinámicos. La inspección de los consumidores fija la semántica anterior; las pruebas de navegador comprueban clasificación, selección y guardado/recarga con respuestas controladas. El resultado y sus límites se registran en la [evidencia de C15](audits/2026-10-13-operating-policy-catalog.md).
