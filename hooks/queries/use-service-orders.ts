@@ -333,6 +333,64 @@ export function useSaveApprovalMatrix(docType: "OC" | "OS") {
   });
 }
 
+// ── Controles de solicitud y emisión (C16.2) ──
+
+export type DelegationAction = "REQUEST" | "EMIT";
+export type DelegationScope = "COMPANY" | "BRANCH" | "CATEGORY";
+
+export interface DelegationRule {
+  id?: string;
+  action: DelegationAction;
+  scope: DelegationScope;
+  branchId: string | null;
+  category: string | null;
+  requiredRole: string;
+  active: boolean;
+}
+
+export interface DelegationSummary {
+  REQUEST: { reglas: DelegationRule[]; descripcion: string };
+  EMIT: { reglas: DelegationRule[]; descripcion: string };
+}
+
+/**
+ * Controles de quién solicita y quién emite (ADMIN+, igual que la matriz).
+ *
+ * El servidor devuelve además una descripción legible por acción: con ella la
+ * tarjeta puede decir qué pasa hoy sin tener que reinterpretar las reglas en el
+ * cliente, que es donde una copia de la política se vuelve falsa.
+ */
+export function usePurchaseDelegation() {
+  return useQuery({
+    queryKey: ["service-orders", "delegacion-compras"],
+    queryFn: async () => {
+      const res = await fetch("/api/purchase-delegation");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Error al cargar los controles de compras");
+      return data as DelegationSummary;
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+/** Reemplaza los controles de UNA acción. Los errores del servidor llegan como excepción. */
+export function useSavePurchaseDelegation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ accion, reglas }: { accion: DelegationAction; reglas: DelegationRule[] }) => {
+      const res = await fetch("/api/purchase-delegation", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: accion, rules: reglas }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Error al guardar los controles de compras");
+      return data as DelegationSummary & { warnings: string[] };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service-orders", "delegacion-compras"] }),
+  });
+}
+
 // ── Catálogos auxiliares ──
 
 export function useCostCenters(includeInactive = false) {

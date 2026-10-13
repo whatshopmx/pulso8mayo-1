@@ -15,6 +15,22 @@ test.beforeAll(async () => { harness = await startShiftsBrowserServer(); });
 test.afterAll(async () => { await harness?.server.close(); });
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/approval-matrix*", (route) => route.fulfill({ json: { rules: [] } }));
+  // C16.2.3: los controles de delegación y el catálogo de sucursales del
+  // selector por alcance. El valor de aquí es «empresa sin controles»; las
+  // pruebas de la sección de controles vuelven a enrutar lo que necesitan.
+  await page.route("**/api/purchase-delegation*", (route) =>
+    route.fulfill({
+      json: {
+        REQUEST: { reglas: [], descripcion: "Sin controles: decide el permiso de inventario vigente." },
+        EMIT: { reglas: [], descripcion: "Sin controles: decide el permiso de inventario vigente." },
+      },
+    }),
+  );
+  await page.route("**/api/branches*", (route) =>
+    route.fulfill({
+      json: { success: true, data: [{ id: "a1000001-0000-4000-8000-000000000001", name: "P centro" }] },
+    }),
+  );
 });
 
 const CONFIG = {
@@ -457,5 +473,242 @@ test("la matriz de compras con reglas cabe en los cuatro tamaños de pantalla", 
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
   await matriz.screenshot({ path: ".tmp/c16-approvals-desktop.png" });
+  expect(fixture.errores).toEqual([]);
+});
+
+
+/* ── C16.2.3 — controles de solicitud y emisión ── */
+
+const controles = (page: Page) => page.getByRole("region", { name: "Quién solicita y quién emite" });
+
+const SIN_CONTROLES = {
+  REQUEST: { reglas: [], descripcion: "Sin controles: decide el permiso de inventario vigente." },
+  EMIT: { reglas: [], descripcion: "Sin controles: decide el permiso de inventario vigente." },
+};
+
+test("la tarjeta dice que sin reglas decide el permiso vigente, no que cualquiera puede", async ({ page }) => {
+  const fixture = await abrir(page);
+  const seccion = controles(page);
+  await expect(seccion.getByText(/Sin controles: decide el permiso de inventario vigente/)).toHaveCount(2);
+  await expect(seccion).toContainText("no es una puerta abierta, es ausencia de política");
+  await expect(seccion).toContainText("no concede permisos");
+  await expect(seccion.getByRole("button", { name: "Guardar controles de solicitar" })).toBeDisabled();
+  await expect(seccion.getByRole("button", { name: "Guardar controles de emitir" })).toBeDisabled();
+  expect(fixture.errores).toEqual([]);
+});
+
+test("una regla por sucursal guarda, recarga y muestra su efecto", async ({ page }) => {
+  let respuesta = SIN_CONTROLES;
+  const enviados: Record<string, unknown>[] = [];
+  await page.route("**/api/purchase-delegation*", async (route) => {
+    if (route.request().method() === "PUT") {
+      const body = route.request().postDataJSON();
+      enviados.push(body);
+      respuesta = {
+        ...SIN_CONTROLES,
+        [body.action]: {
+          reglas: body.rules,
+          descripcion: "GERENTE puede solicitar en la sucursal a1000001-0000-4000-8000-000000000001",
+        },
+      };
+    }
+    return route.fulfill({ json: respuesta });
+  });
+
+  const fixture = await abrir(page);
+  const seccion = controles(page);
+  await seccion.getByRole("button", { name: "Agregar regla" }).first().click();
+  await seccion.getByLabel("Regla 1: alcance").first().click();
+  await page.getByRole("option", { name: "Una sucursal" }).click();
+  await seccion.getByLabel("Regla 1: sucursal").first().click();
+  await page.getByRole("option", { name: "P centro" }).click();
+  await seccion.getByRole("button", { name: "Guardar controles de solicitar" }).click();
+
+  await expect(seccion.getByRole("status").first()).toContainText("1 reglas");
+  expect(enviados).toEqual([
+    {
+      action: "REQUEST",
+      rules: [
+        expect.objectContaining({
+          action: "REQUEST",
+          scope: "BRANCH",
+          branchId: "a1000001-0000-4000-8000-000000000001",
+          requiredRole: "GERENTE",
+          active: true,
+        }),
+      ],
+    },
+  ]);
+  expect(fixture.enviados).toEqual([]);
+
+  await page.reload();
+  await expect(seccion.getByLabel("Regla 1: alcance").first()).toHaveText("Una sucursal");
+  await expect(seccion.getByLabel("Regla 1: sucursal").first()).toHaveText("P centro");
+  await expect(seccion.getByLabel("Regla 1: rol").first()).toHaveText("GERENTE");
+  await expect(seccion.getByRole("button", { name: "Guardar controles de solicitar" })).toBeDisabled();
+  expect(fixture.errores).toEqual([]);
+});
+
+test("cada acción se guarda por separado: emitir no toca lo de solicitar", async ({ page }) => {
+  const acciones: string[] = [];
+  let deSolicitud: Array<Record<string, unknown>> = [];
+  await page.route("**/api/purchase-delegation*", async (route) => {
+    if (route.request().method() === "PUT") {
+      const body = route.request().postDataJSON();
+      acciones.push(body.action);
+      if (body.action === "REQUEST") deSolicitud = body.rules;
+    }
+    return route.fulfill({
+      json: {
+        REQUEST: { reglas: deSolicitud, descripcion: "ADMIN puede solicitar en toda la empresa" },
+        EMIT: { reglas: [], descripcion: "Sin controles: decide el permiso de inventario vigente." },
+        warnings: [],
+      },
+    });
+  });
+
+  const fixture = await abrir(page);
+  const seccion = controles(page);
+
+  await seccion.getByRole("button", { name: "Agregar regla" }).first().click();
+  await seccion.getByLabel("Regla 1: rol").first().click();
+  await page.getByRole("option", { name: "ADMIN", exact: true }).click();
+  await seccion.getByRole("button", { name: "Guardar controles de solicitar" }).click();
+  await expect(seccion.getByRole("status").first()).toContainText("guardados");
+
+  await seccion.getByRole("button", { name: "Agregar regla" }).nth(1).click();
+  await seccion.getByLabel("Regla 1: rol").nth(1).click();
+  await page.getByRole("option", { name: "OWNER", exact: true }).click();
+  await seccion.getByRole("button", { name: "Guardar controles de emitir" }).click();
+
+  expect(acciones).toEqual(["REQUEST", "EMIT"]);
+  await page.reload();
+  await expect(seccion.getByLabel("Regla 1: rol").first()).toHaveText("ADMIN");
+  expect(fixture.errores).toEqual([]);
+});
+
+test("un rechazo del servidor conserva el borrador y muestra el motivo", async ({ page }) => {
+  let intentos = 0;
+  await page.route("**/api/purchase-delegation*", (route) => {
+    if (route.request().method() !== "PUT") return route.fulfill({ json: SIN_CONTROLES });
+    intentos++;
+    return intentos === 1
+      ? route.fulfill({
+          status: 400,
+          json: { error: "Alguna de las sucursales no pertenece a esta empresa." },
+        })
+      : route.fulfill({ json: { ...SIN_CONTROLES, warnings: [] } });
+  });
+
+  const fixture = await abrir(page);
+  const seccion = controles(page);
+  await seccion.getByRole("button", { name: "Agregar regla" }).first().click();
+  await seccion.getByLabel("Regla 1: alcance").first().click();
+  await page.getByRole("option", { name: "Una sucursal" }).click();
+  await seccion.getByLabel("Regla 1: sucursal").first().click();
+  await page.getByRole("option", { name: "P centro" }).click();
+  await seccion.getByRole("button", { name: "Guardar controles de solicitar" }).click();
+
+  await expect(seccion.getByRole("alert").first()).toContainText("no pertenece a esta empresa");
+  await expect(seccion.getByLabel("Regla 1: sucursal").first()).toHaveText("P centro");
+  await seccion.getByRole("button", { name: "Guardar controles de solicitar" }).click();
+  await expect(seccion.getByRole("status").first()).toContainText("guardados");
+  expect(intentos).toBe(2);
+  expect(fixture.errores).toEqual([]);
+});
+
+test("una regla sin destino no llega al servidor", async ({ page }) => {
+  const enviados: unknown[] = [];
+  await page.route("**/api/purchase-delegation*", async (route) => {
+    if (route.request().method() === "PUT") enviados.push(route.request().postDataJSON());
+    return route.fulfill({ json: SIN_CONTROLES });
+  });
+
+  const fixture = await abrir(page);
+  const seccion = controles(page);
+  await seccion.getByRole("button", { name: "Agregar regla" }).first().click();
+  await seccion.getByLabel("Regla 1: alcance").first().click();
+  await page.getByRole("option", { name: "Una sucursal" }).click();
+  await seccion.getByRole("button", { name: "Guardar controles de solicitar" }).click();
+
+  await expect(seccion.getByRole("alert").first()).toContainText("Elige la sucursal");
+  expect(enviados).toEqual([]);
+  expect(fixture.errores).toEqual([]);
+});
+
+test("una carga rechazada no monta reglas vacías y recupera al reintentar", async ({ page }) => {
+  let intentos = 0;
+  await page.route("**/api/purchase-delegation*", (route) => {
+    intentos++;
+    return intentos === 1
+      ? route.fulfill({
+          status: 403,
+          json: { error: "Sólo ADMIN o rol superior puede consultar los controles de compras" },
+        })
+      : route.fulfill({
+          json: {
+            REQUEST: { reglas: [], descripcion: "Sin controles: decide el permiso de inventario vigente." },
+            EMIT: {
+              reglas: [
+                {
+                  id: "e1",
+                  action: "EMIT",
+                  scope: "CATEGORY",
+                  branchId: null,
+                  category: "ABARROTES",
+                  requiredRole: "ADMIN",
+                  active: true,
+                },
+              ],
+              descripcion: "ADMIN puede emitir en la categoría ABARROTES",
+            },
+          },
+        });
+  });
+
+  const fixture = await abrir(page);
+  const seccion = controles(page);
+  await expect(seccion).toContainText("Sólo ADMIN o rol superior");
+  await expect(seccion.getByRole("button", { name: "Guardar controles de solicitar" })).toHaveCount(0);
+  // Hay un reintento por acción: el de solicitud es el primero.
+  await seccion.getByRole("button", { name: "Reintentar controles" }).first().click();
+  await expect(seccion.getByLabel("Regla 1: categoría").last()).toHaveValue("ABARROTES");
+  await expect(seccion.getByLabel("Regla 1: rol").last()).toHaveText("ADMIN");
+  expect(fixture.errores).toEqual([]);
+});
+
+test("los avisos de cobertura se muestran y no bloquean el guardado", async ({ page }) => {
+  await page.route("**/api/purchase-delegation*", async (route) =>
+    route.request().method() === "PUT"
+      ? route.fulfill({
+          json: {
+            ...SIN_CONTROLES,
+            warnings: [
+              "Dos reglas activas cubren toda la empresa con roles distintos (ADMIN y GERENTE): se aplica la más permisiva.",
+            ],
+          },
+        })
+      : route.fulfill({ json: SIN_CONTROLES }),
+  );
+
+  const fixture = await abrir(page);
+  const seccion = controles(page);
+  await seccion.getByRole("button", { name: "Agregar regla" }).first().click();
+  await seccion.getByRole("button", { name: "Guardar controles de solicitar" }).click();
+  await expect(seccion).toContainText("Dos reglas activas cubren toda la empresa");
+  await expect(seccion).toContainText("Se guardaron igual: son avisos, no errores");
+  expect(fixture.errores).toEqual([]);
+});
+
+test("los controles de compras caben en los cuatro tamaños de pantalla", async ({ page }) => {
+  const fixture = await abrir(page);
+  const seccion = controles(page);
+  for (const width of [320, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await seccion.scrollIntoViewIfNeeded();
+    await expect(seccion.getByRole("button", { name: "Agregar regla" }).first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
+  await seccion.screenshot({ path: ".tmp/c16-delegacion-desktop.png" });
   expect(fixture.errores).toEqual([]);
 });
