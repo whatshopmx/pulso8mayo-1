@@ -41,6 +41,10 @@ const eslintConfig = defineConfig([
     // - reportes de Playwright (assets JS minificados)
     // - skills de agentes instaladas como archivos sueltos
     ".worktrees/**",
+    // Scripts de sondeo de una sesión (no código del repo): los `.cjs` de
+    // aquí no matchean el glob de eslint-config-next y el bloque de reglas de
+    // arriba rompe la carga de la config entera.
+    ".tmp/**",
     "playwright-report/**",
     "test-results/**",
     ".agents/**",
