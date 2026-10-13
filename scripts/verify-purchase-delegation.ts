@@ -16,8 +16,6 @@
 import { config } from "dotenv";
 import { eq, inArray } from "drizzle-orm";
 import type { ApiError as ApiErrorTipo } from "@/lib/api/error";
-import type { PurchaseOrderService as ServicioOC } from "@/lib/services/purchase-order-service";
-import type { evaluarDelegacion as EvaluarDelegacion } from "@/lib/purchasing/delegation-policy";
 
 /**
  * El módulo de base de datos lee `DATABASE_URL` al importarse, así que el
@@ -37,9 +35,8 @@ const SUFIJO = Date.now().toString(36);
 let fallos = 0;
 let comprobaciones = 0;
 
-/** Tipos de lo que se importa dentro de `main`. */
+/** Tipo del esquema, que se importa dentro de `main`. */
 type Esquema = typeof import("@/lib/db/schema");
-type Base = typeof import("@/lib/db")["db"];
 
 async function cargarDependencias() {
   const { db } = await import("@/lib/db");
@@ -50,7 +47,6 @@ async function cargarDependencias() {
   return { db, esquema, PurchaseOrderService, ...politica, ApiError };
 }
 
-type Dependencias = Awaited<ReturnType<typeof cargarDependencias>>;
 
 function comprobar(condicion: unknown, mensaje: string) {
   comprobaciones += 1;
