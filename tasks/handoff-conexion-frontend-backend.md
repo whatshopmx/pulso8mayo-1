@@ -20,7 +20,6 @@ Este documento es para empezar una sesión nueva sin releer veinte archivos. **L
 **C00–C15 completadas. C16 en curso: C16.1–C16.2.3 hechos, falta C16.3. C17–C40 pendientes.** El trabajo de la sesión está commiteado; quedan sin commitear los archivos de `stock-count` y dos pruebas suyas, que son de otra línea de trabajo (conteos por categoría y lote).
 
 ```
-3334278 Seguimiento: C16 con controles de solicitud y emisión, abierta en C16.3
 7ec3d72 C16.2.3: la empresa elige quién solicita y quién emite, y lo ve
 6b77f18 C16.2.2: solicitar y emitir con control de delegación y pertenencia verificada
 2054b8f C16.2.1: los controles de solicitud y emisión se configuran y se resuelven
@@ -44,7 +43,8 @@ Este es el apartado que más caro sale perder. Las tareas están marcadas, pero 
 | C14.3 | `getPnLSnapshots` **no tiene consumidores**. La vigencia por fecha ya impide reescribir el pasado en los cálculos, pero el P&L congelado al cerrar sigue siendo un archivo que ninguna vista lee. Conectarlo es de C29–C31. |
 | C15 | La comprobación del catálogo es **textual**: comprueba que cada política aplicada nombre un símbolo declarado y que las descriptivas no aparezcan fuera de las rutas exentas. No pasa el valor por su consumidor —no hay efecto nuevo que pasar, C15 no aplica nada— y no detecta accesos dinámicos. El riesgo que queda: si un servicio deja de leer un umbral, la prueba de «aplicada» sigue verde hasta que alguien actualice el catálogo a mano. |
 | C16.1 | Las cuatro pruebas de navegador interceptan `api/approval-matrix`; la matriz se guarda contra respuestas simuladas, sin Postgres. Lo que sí quedó comprobado contra el código real es que la promesa corregida es cierta: `validateMatrixRules` emite «quedarán sin cadena y no podrán enviarse» y `purchase-order-service` rechaza con «El monto no está cubierto por la matriz de autorización». C16.3 tiene que verificar el recorrido con dos empresas. |
-| C16.2 | **El aislamiento por empresa se comprobó sobre el SQL, no en runtime:** la prueba renderiza cada `where` con `PgDialect` y exige `company_id`. Cubre la consulta, no la ejecución. Nadie ha visto en el navegador que un supervisor reciba un 403 al emitir, ni que una orden de otra empresa devuelva 404. |
+| C16.2 | **El recorrido se verificó contra la base real en C16.3**, pero por servicio: llamadas directas a `PurchaseOrderService`, sin capa HTTP ni sesión. Nadie ha visto el 403 al emitir en una pantalla, y el recorrido de compras no tiene V2 con Next y autenticación. |
+| C16.2 | `scripts/verify-purchase-delegation.ts` **siembra y borra en la base compartida de Neon.** Los nombres llevan la marca `C16.3 verificación` y la limpieza va en un `finally`, pero una interrupción deja empresas de prueba que el script no alcanza a borrar: hay que limpiarlas a mano. El orden importa —los controles se borran antes que la empresa por la FK— y ya costó un intento. |
 | C16.2 | La categoría del artículo es texto libre (`inventory_items.category`), así que las reglas por categoría comparan texto normalizado y un artículo sin categoría no queda cubierto. Si el negocio quiere un catálogo de categorías, es otra tarea. |
 | C16.2 | Al aplicar el control se cerraron huecos previos de este recorrido: las transiciones buscaban la orden sólo por id y crear aceptaba sucursal, proveedor, solicitud y artículos del cuerpo sin comprobarlos. Quien mantenga ese recorrido debe seguir pasando `companyId` y el rol del actor: los parámetros son obligatorios, no opcionales, a propósito. |
 
@@ -117,27 +117,26 @@ El plan define cuatro verificaciones. Cada tarea declara cuál usa:
 | Los responsables de comprar se configuran de forma explícita; la modalidad no concede permisos | 13-10 | Evidencia de C16.2 |
 | Sin reglas de delegación no hay control adicional (decide el permiso vigente), no una puerta abierta | 13-10 | Evidencia de C16.2 |
 | Los montos no forman parte de los controles de solicitud y emisión: son de la matriz y de C20 | 13-10 | Evidencia de C16.2 |
+| Sin ninguna regla, una sucursal conserva el comportamiento previo; con reglas pero sin cobertura se rechaza nombrando la sucursal | 13-10 | C16.3 contra la base real |
 | Con varias reglas que cubren, gana la más permisiva que el actor alcance; la diferencia avisa, no bloquea | 13-10 | Evidencia de C16.2 |
 
 **Pendientes de decisión** (condicionan C16–C23, no bloquean el trabajo): quién revisa un workflow; si la exclusión de `ADMIN` en `policy_overrides` se confirma; las ocho decisiones por dimensión que C15 escribió (compras, producción, tesorería, pagos, autonomía, nómina, tipo de grupo y caja chica); horario, urgencias y zona horaria de notificaciones; consumidores externos del executor anterior.
 
-## 8. Siguiente paso — C16.3
+## 8. Siguiente paso — C17
 
-**C16 — Aplicar política de estructura de compras** (H04 · depende de C15 ✅), con C16.1, C16.2.1, C16.2.2 y C16.2.3 implementados.
+**C16 quedó completa.** El recorrido de compras tiene responsables configurables, los aplica en servidor y está verificado con dos empresas contra la base real.
 
-Criterios de aceptación de C16 y lo que falta:
-- [ ] **La opción elegida determina las decisiones** —resuelto por decisión: la modalidad es `descriptiva` y las decisiones las determinan los controles explícitos. Anotar la decisión y cerrarlo aquí.
-- [x] **Las entradas alternativas no evitan la política** —cerrado en C16.2.2.
-- [ ] **Casos para cada valor y excepción; las compras históricas no cambian** —falta confirmarlo sobre órdenes ya enviadas.
+Lo primero para C17 —política de producción de alimentos (`foodProduction`, hoy `descriptiva`)— es lo mismo que en compras: **leer qué hace hoy el recorrido y decidir si se activa o se queda descriptiva**. El catálogo dice que ningún servicio de producción, recetas o inventario lee la columna, así que hay dos salidas honestas:
 
-**Qué es C16.3, en concreto:**
-1. Recorrer **solicitud → envío a aprobación → aprobación por matriz → emisión** con **dos empresas** y comprobar que los controles de una no alcanzan a la otra: misma ruta, mismo id de orden ajeno, misma sucursal ajena.
-2. Comprobar que **reconfigurar los controles no altera** órdenes ya emitidas ni solicitudes abiertas: la regla se lee al intentar, no se graba en el documento.
-3. Cerrar la pregunta de negocio que sigue abierta: **si una compra de emergencia puede saltarse algún control** (y con qué condición). Está escrita como la única decisión pendiente de `purchasingStructure` en el catálogo y en el contrato.
+1. **Aplicarla** en un recorrido real de producción o abastecimiento —cocina que abastece a qué sucursal, quién lo autoriza, qué movimientos registran el envío y la recepción— con la regla de no crear un segundo motor de movimientos.
+2. **Dejarla descriptiva** y hacer que la interfaz lo diga, como se hizo con la modalidad de compras: el trabajo es texto honesto más una prueba que no lo deje volver a prometer algo que no ocurre.
 
-**Cómo verificarlo:** aquí sí hace falta la base real. Las pruebas unitarias simulan `db` y la comprobación de pertenencia se hizo sobre el SQL; una ejecución con dos empresas es lo que falta. Opciones: un spec de Playwright con `playwright.config.ts` (el que usa la base real y `auth.setup`), o un script de `tsx` con el cliente de Neon que siembre dos empresas y recorra el servicio. Lo segundo es más rápido y no depende de la sesión de navegador.
+Lo que C17 **no** puede hacer: deducir reglas de `IN_SITU`/`COCINA_CENTRAL`/`MIXTO` por el nombre del valor, ni activar abastecimientos sin comprobar que el recorrido elegido no duplica movimientos de inventario.
 
-**Lo que ya está:** `lib/purchasing/delegation-policy.ts` (resolución pura + carga), `purchase-order-service` (guardas y aplicación), `GET`/`PUT /api/purchase-delegation`, la sección de Configuración operativa y la evidencia en [C16](../docs/audits/2026-10-13-estructura-compras.md).
+Antes de escribir código conviene responder dos preguntas del catálogo:
+- **¿Existe una cocina central de verdad en el producto hoy?** Si no, la opción 2 es la honesta y C17 es corta.
+- **¿Quién recibe el envío?** Si lo recibe la sucursal, el alcance por sucursal ya existe (`branches`) y la regla no necesita tabla nueva.
+
 
 ## 9. Después de C16
 

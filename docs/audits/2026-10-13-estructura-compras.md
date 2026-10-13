@@ -1,6 +1,6 @@
 # C16 — Política de estructura de compras
 
-Fecha: 13 de octubre de 2026. Seguimiento: [C16](../tasks/plan-conexion-frontend-backend.md#c16). Cierra los cortes C16.1 (matriz de aprobadores), C16.2.1 (contrato y almacenamiento), C16.2.2 (solicitud y emisión con pertenencia verificada) y C16.2.3 (interfaz). **C16.3 sigue pendiente**: falta comprobar el recorrido completo con dos empresas.
+Fecha: 13 de octubre de 2026. Seguimiento: [C16](../tasks/plan-conexion-frontend-backend.md#c16). Cierra los cortes C16.1 (matriz de aprobadores), C16.2.1 (contrato y almacenamiento), C16.2.2 (solicitud y emisión con pertenencia verificada), C16.2.3 (interfaz) y **C16.3 (recorrido con dos empresas contra la base real)**.
 
 ## Investigación y alcance
 
@@ -38,14 +38,14 @@ Tres huecos tenían que cerrarse **antes** de poder aplicar cualquier política,
 | `pnpm run test:unit` | 83 archivos; **1073** aprobadas, 1 omitida y 1 TODO. |
 | Migración 0095 | Aditiva: dos enums, una tabla, FK a `companies` y dos índices. Aplicada con `db:migrate` tras comprobar el journal (`se aplicarían: ['0095_square_gladiator']`) y verificada en la base real: tabla, enums, índices, inserción, lectura y borrado de filas de prueba. |
 | `pnpm exec tsc --noEmit` · `pnpm exec eslint` de los archivos tocados · `pnpm run build` | Limpios; el lint sin errores y sin warnings nuevos. |
+| `npx tsx scripts/verify-purchase-delegation.ts` (C16.3) | **22/22 contra la base real.** Siembra dos empresas, tres sucursales, dos proveedores y dos artículos; recorre solicitud → orden → aprobación → emisión con los controles puestos, comprueba cada rechazo y borra todo al terminar. Detalle abajo. |
 
 Límites, declarados:
 
 - **Sin V2 contra el servidor real.** El recorrido en navegador intercepta `GET`/`PUT` y `GET /api/branches`; no ejecuta Next, autenticación ni Postgres. La autorización (`ADMIN` + `settings:update`), la validación y el aislamiento por empresa quedan en pruebas unitarias sobre las rutas y el servicio reales.
-- **El aislamiento se comprueba sobre el SQL, no en runtime.** La prueba renderiza cada `where` con `PgDialect` y exige `company_id` en las consultas de la orden: un mock que devuelve filas pasaría igual con o sin filtro, pero una ejecución real con dos empresas sigue sin ejercitarse —eso es C16.3.
 - **La categoría del artículo es texto libre.** La comparación normaliza mayúsculas y espacios porque no existe catálogo de categorías; un artículo sin categoría no queda cubierto por reglas de categoría y el rechazo lo dice. Si el negocio quiere un catálogo, es otra tarea.
-- **Sin V2 del recorrido de compras.** Nadie ha visto todavía, en el navegador, que un supervisor reciba un 403 al emitir ni que un sistema no pueda emitir; la evidencia de esa parte es la del servicio real, no la de una pantalla.
-- **C16.3 pendiente.** El recorrido completo —solicitud, aprobación por matriz y emisión— con dos empresas y la conservación de órdenes ya enviadas sigue sin verificarse.
+- **C16.3 no ejercita la pantalla de compras.** El recorrido verificado es el del servicio contra la base real, con llamadas directas: nadie ha hecho clic en «emitir» en el navegador ni ha visto el 403 en pantalla. El V2 de esta tarea sigue siendo el de la configuración (controles), con respuestas controladas.
+- **El script de verificación siembra y borra en la base compartida de Neon.** Escribe con nombres marcados (`C16.3 verificación`) y limpia en un `finally`; si se interrumpe, quedan empresas de prueba que `scripts/verify-purchase-delegation.ts` no alcanza a borrar y hay que hacerlo a mano. La primera ejecución dejó dos: se limpiaron y el orden de borrado quedó corregido (los controles van antes que la empresa, por la FK).
 
 ## Decisiones registradas
 
@@ -53,4 +53,25 @@ Límites, declarados:
 - **Sin reglas no significa «cualquiera puede».** Significa que esta política no añade nada y sigue decidiendo el permiso de inventario vigente. No hay siembra perezosa como en la matriz, porque una regla sembrada concede permisos que nadie eligió; la tarjeta lo dice con esas palabras.
 - **La excepción es la más permisiva, no la más restrictiva.** Con dos reglas que cubren lo mismo, gana la que el actor alcanza si es más permisiva; la diferencia se avisa, no se bloquea, y el operador puede dejar una sola regla si quería dos niveles.
 - **Los montos no entran aquí.** Pertenecen a la matriz de la C16.1 y a la autonomía del gerente de C20. Añadirlos a estos controles sería un segundo contrato con el mismo consumidor.
-- **Sin cobertura se rechaza y se nombra el hueco.** Igual que en la matriz: lo que no cubre una regla activa no se improvisa, y el mensaje dice qué falta para que el operador sepa qué escribir.
+- **Sin cobertura se rechaza y se nombra el hueco.** Igual que en la matriz: lo que no cubre una regla activa no se improvisa, y el mensaje dice qué falta para que el operador sepa qué escribir. Con la base real se comprobó la diferencia que importa: **sin ninguna regla** una sucursal conserva el comportamiento previo, y **con reglas pero sin una que la cubra** se rechaza nombrando la sucursal.
+
+## C16.3 — recorrido con dos empresas contra la base real
+
+Qué comprueba `scripts/verify-purchase-delegation.ts`, y por qué hacía falta: las pruebas unitarias simulan `db`, y la pertenencia se había verificado renderizando el SQL con `PgDialect`. Eso demuestra que la consulta lleva `company_id`, no que el recorrido se comporte bien con dos empresas de verdad.
+
+| Comprobación | Resultado |
+| --- | --- |
+| Sin reglas configuradas, un supervisor puede crear la orden | ✓ y el veredicto dice `sin_controles`, no «permitido» a secas |
+| Con un control que exige `ADMIN` en la sucursal, un gerente recibe 403 | ✓ y el mensaje nombra el mínimo: «GERENTE no alcanza ningún control de delegación que cubra la sucursal …: el mínimo es ADMIN» |
+| El rechazo no dejó una segunda orden escrita | ✓ una sola orden en la empresa |
+| Una sucursal que ninguna regla cubre | ✓ 403 nombrando la sucursal; y al añadir una regla de empresa, las dos sucursales vuelven a funcionar |
+| Un admin que alcanza el control sí puede solicitar | ✓ |
+| Sucursal, artículo, proveedor y solicitud de otra empresa | ✓ los cuatro se rechazan; la solicitud de A queda `PENDING` cuando se intenta convertir desde B |
+| Emisión: un gerente no emite la orden de su sucursal | ✓ 403 y **el estado sigue `APPROVED`**: el rechazo no toca la orden |
+| Emisión: un admin que alcanza el control | ✓ la orden queda `SENT` |
+| La orden de A desde la sesión de B | ✓ 404, no un rechazo de permisos |
+| Endurecer el control después de emitir | ✓ la orden sigue `SENT` y conserva su `sentAt`: la regla se lee al intentar, no se graba en el documento |
+| Los controles de A sobre operaciones de B | ✓ B sigue sin controles |
+| Limpieza | ✓ no quedó ninguna empresa de la verificación |
+
+**Lo que este recorrido no cubre.** La orden llegó a `APPROVED` escribiéndolo directamente: la matriz de la C16.1 es la que aprueba y tiene sus propias pruebas. Tampoco pasa por la capa HTTP ni por la sesión —el recorrido es del servicio con la base real—, así que el 403 que vería el operador en pantalla sigue sin comprobarse en navegador.
