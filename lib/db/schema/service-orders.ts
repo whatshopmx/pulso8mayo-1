@@ -157,6 +157,49 @@ export const approvalMatrixRules = pgTable("approval_matrix_rules", {
   approvalMatrixRulesCompanyIdx: index("approval_matrix_rules_company_idx").on(table.companyId, table.docType),
 }));
 
+// ── Controles de solicitud y emisión de compras (C16.2) ──
+//
+// Quién puede *solicitar* (crear requisición u orden en borrador) y quién puede
+// *emitir* (enviar la orden aprobada al proveedor). Es distinto de la matriz de
+// autorización, que decide quién aprueba. Estas reglas NO llevan montos: los
+// montos pertenecen a la matriz (C16.1) y a la autonomía del gerente (C20).
+//
+// El alcance declara a QUIÉN se le concede la acción, nunca qué modalidad de
+// compras se declara: `purchasingStructure` sigue siendo descriptiva y no
+// concede permisos (catálogo de C15).
+export const purchaseDelegationActionEnum = pgEnum("purchase_delegation_action", [
+  "REQUEST", // Solicitar: requisición u orden en borrador
+  "EMIT",    // Emitir: enviar la orden aprobada al proveedor
+]);
+
+export const purchaseDelegationScopeEnum = pgEnum("purchase_delegation_scope", [
+  "COMPANY",  // Toda la empresa
+  "BRANCH",   // Una sucursal (branch_id obligatorio)
+  "CATEGORY", // Una categoría de artículo (category obligatorio, texto libre)
+]);
+
+export const purchaseDelegationRules = pgTable("purchase_delegation_rules", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+
+  action: purchaseDelegationActionEnum("action").notNull(),
+  scope: purchaseDelegationScopeEnum("scope").notNull(),
+  branchId: uuid("branch_id"),     // Sólo con scope = BRANCH
+  category: text("category"),      // Sólo con scope = CATEGORY; texto de inventory_items.category
+  requiredRole: text("required_role").notNull(), // Rol mínimo que alcanza para la acción
+  active: boolean("active").default(true).notNull(),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  purchaseDelegationCompanyIdx: index("purchase_delegation_rules_company_idx").on(
+    table.companyId, table.action
+  ),
+  purchaseDelegationBranchIdx: index("purchase_delegation_rules_branch_idx").on(
+    table.companyId, table.branchId
+  ),
+}));
+
 export const approvalRequests = pgTable("approval_requests", {
   id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
 

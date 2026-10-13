@@ -1,6 +1,6 @@
 # Contratos de política operativa
 
-Fecha: 13 de octubre de 2026. Seguimiento: [C14](../tasks/plan-conexion-frontend-backend.md#c14) y [C15](../tasks/plan-conexion-frontend-backend.md#c15).
+Fecha: 13 de octubre de 2026. Seguimiento: [C14](../tasks/plan-conexion-frontend-backend.md#c14), [C15](../tasks/plan-conexion-frontend-backend.md#c15) y [C16](../tasks/plan-conexion-frontend-backend.md#c16).
 
 Este documento fija el contrato de cada parámetro que un operador puede cambiar desde la pantalla de **Modelo Operativo**: qué unidad usa, qué rango admite, qué significa su estado vacío, quién lo lee y desde cuándo aplica.
 
@@ -158,7 +158,7 @@ Los tres estados (`null`, `0`, positivo) son descriptivos. Cambiarlos no modific
 
 | Tarea | Decisión necesaria antes de activar efectos |
 | --- | --- |
-| C16 — Compras | Quién solicita, aprueba y emite por modalidad; categorías delegables a sucursal y tratamiento de emergencias. Confirmar si continúa descriptiva. |
+| C16 — Compras | **Resuelto el 13-10-2026 (C16.2).** Los responsables se configuran de forma explícita —matriz de aprobación para quién aprueba, controles de delegación para quién solicita y emite— y la modalidad no concede permisos. Sigue abierta una pregunta: si una compra de emergencia puede saltarse algún control, y con qué condición. |
 | C17 — Producción | Cocina abastecedora, sucursales receptoras, responsables y movimientos de envío/recepción. Confirmar si continúa descriptiva. |
 | C18 — Tesorería | Cuentas permitidas, responsables de preparación/aprobación/liquidación y excepciones por modalidad. No hay una restricción acordada. |
 | C19 — Proveedores | Reparto de facturas entre corporativo y sucursal, programación/aprobación e idempotencia. Confirmar si continúa descriptiva. |
@@ -179,6 +179,27 @@ Comparten permiso `settings/update`, captura en pesos y almacenamiento en centav
 | `doubleApprovalThresholdCents` → `rolExigidoPorMonto`; `umbralesDeAutorizacion` en `control-interno-service.ts` | Dado `null`, no escala al dueño por este umbral. Dado `0`, todo gasto no negativo exige `OWNER`. Dado un umbral positivo, desde ese monto exige `OWNER`. | No es doble firma: hay un aprobador por gasto. Una regla explícita prevalece en gastos. Control interno añade un umbral positivo a la detección de fraccionamiento; no añade `0` ni `null`. |
 | `emergencyPurchaseCapCents` → `validateEmergencyCap`/`evaluateEmergencyCap` en `budget-service.ts`; envío de órdenes de compra y servicio | Dado `null`, no bloquea por acumulado. Dado `0`, un documento positivo se rechaza si el total excede cero. Dado un tope positivo, acumulado + documento igual al tope se permite; mayor se rechaza con 400. | Tope del grupo atribuido por sucursal y mes de creación del documento. Sólo `EMERGENCIA`; matriz, cotizaciones y demás requisitos siguen aplicando. La lectura del tope no garantiza atomicidad de envíos concurrentes. |
 | `courtesyWasteMonthlyCapCents` → `evaluateApproval` en `lib/inventory/waste-approval.ts`, usado por la ruta de aprobación de merma | Dado `null`, exige `GERENTE` sin escalar por monto. Dado `0`, un costo positivo que rebasa el acumulado exige `ADMIN`. Dado un tope positivo, hasta el tope exige `GERENTE`; al superarlo exige `ADMIN`. | Vive en `companies`. Acumulado aprobado de `STAFF`/`COURTESY` de todo el grupo. `thisLossCents === null` no escala por monto. Los controles de existencia, estado y stock de la ruta son independientes. |
+
+### Controles de solicitud y emisión de compras (C16.2)
+
+La primera política que el proyecto aplica a partir de una decisión escrita aquí. Vive en `purchase_delegation_rules` (`lib/purchasing/delegation-policy.ts`), se configura en Configuración operativa y se aplica en el recorrido de compras. Queda registrada en el catálogo como `aplicada` con su consumidor: un control que el contrato no menciona sería el defecto de H04 al revés, código aplicando una regla que nadie escribió.
+
+| Aspecto | Contrato |
+| --- | --- |
+| Qué decide | Quién puede **solicitar** (crear requisición u orden en borrador) y quién puede **emitir** (enviar la orden aprobada al proveedor). No decide quién aprueba: eso es la matriz de la C16.1 |
+| Valores | Una regla por acción (`REQUEST`/`EMIT`), alcance (`COMPANY`/`BRANCH`/`CATEGORY`), rol exigido y `active` |
+| Coherencia | `BRANCH` exige sucursal; `CATEGORY` exige la categoría del artículo; `COMPANY` no admite ninguna de las dos. Una sucursal que no sea de la empresa se rechaza al guardar |
+| Alcance | Empresa de la sesión; `branchId` nunca viene del cuerpo del `PUT` |
+| Permiso | `settings:update` **y** rol `ADMIN` o superior |
+| Sin reglas | No hay control adicional y decide el permiso de inventario vigente. Es el comportamiento previo a C16.2, no una puerta abierta por omisión: no hay siembra perezosa como en la matriz, porque aquí una regla concede permisos |
+| Con reglas | Hace falta al menos una regla activa que cubra la operación y cuyo rol exigido alcance al actor. Varias reglas que cubren: gana la más permisiva que el actor alcance |
+| Sin cobertura | Si las reglas existen y ninguna cubre la sucursal o la categoría, se rechaza nombrando el hueco. No se imputa la regla más cercana |
+| Actor de sistema | Puede dejar un borrador —una sugerencia del PAR— y nunca emitir, con controles o sin ellos |
+| Montos | No se consultan aquí: pertenecen a la matriz (C16.1) y a la autonomía del gerente (C20) |
+| Vigencia | Se leen al intentar la acción. Cambiar un control no reescribe solicitudes ni órdenes ya emitidas |
+| Excepciones | La matriz de aprobación, el presupuesto, el tope de emergencias y la transición de estados siguen aplicando; ningún control los evita |
+
+Casos que la tabla no cubre, y por qué: la categoría del artículo es texto libre (`inventory_items.category`), así que la comparación normaliza mayúsculas y espacios y **no** puede exigir un catálogo que no existe; un artículo sin categoría no queda cubierto por reglas de categoría. Dos reglas activas sobre el mismo ámbito se permiten con aviso, porque la más permisiva gana y la otra queda muerta: es confuso de leer, no roto.
 
 ### Verificación de C15
 

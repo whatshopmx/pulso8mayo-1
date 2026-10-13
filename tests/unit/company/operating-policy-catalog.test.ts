@@ -119,6 +119,16 @@ describe("catálogo de políticas operativas — forma", () => {
     expect(umbrales).toHaveLength(5);
   });
 
+  it("registra los controles de compras de C16.2 como política aplicada", () => {
+    // C16.2 cambió una línea del recorrido: hay una política que el código
+    // aplica. Dejarla fuera del catálogo sería el mismo defecto que H04
+    // mencionado al revés —código que aplica una regla que el contrato no
+    // menciona—, así que su presencia y su consumidor se comprueban aquí.
+    const controles = CATALOGO_OPERATIVO.filter((p) => p.seccion === "control");
+    expect(controles.map((p) => p.campo)).toEqual(["purchase_delegation_rules"]);
+    expect(controles[0].clasificacion).toBe("aplicada");
+  });
+
   it("no repite campo ni input, y los dos se localizan", () => {
     const campos = CATALOGO_OPERATIVO.map((p) => p.campo);
     const inputs = CATALOGO_OPERATIVO.map((p) => p.input);
@@ -176,12 +186,13 @@ describe("catálogo de políticas operativas — forma", () => {
 describe("catálogo de políticas operativas — aplicada contra el consumidor real", () => {
   const aplicadas = CATALOGO_OPERATIVO.filter((p) => p.clasificacion === "aplicada");
 
-  it("cubre los cuatro umbrales que el código sí lee", () => {
+  it("cubre los umbrales que el código sí lee y los controles de C16.2", () => {
     expect(aplicadas.map((p) => p.campo).sort()).toEqual([
       "courtesyWasteMonthlyCapCents",
       "doubleApprovalThresholdCents",
       "emergencyPurchaseCapCents",
       "managerAuthLimitCents",
+      "purchase_delegation_rules",
     ]);
   });
 
@@ -308,7 +319,6 @@ describe("catálogo de políticas operativas — pendientes", () => {
       "managerAutonomy", "payrollDispersion", "tenantType", "pettyCashLimitCents",
     ].sort());
   });
-
   it("ninguna pendiente bloquea una política que sí se aplica hoy", () => {
     // El criterio de C15: las decisiones abiertas se registran por dimensión y
     // no impiden que las políticas definidas sigan valiendo.
@@ -360,7 +370,7 @@ describe("catálogo de políticas operativas — los valores que la pantalla ofr
 
   it("el formulario guarda cada input contra el campo que el catálogo declara", () => {
     const fuente = leer("lib/company/operating-config-values.ts");
-    for (const politica of CATALOGO_OPERATIVO) {
+    for (const politica of CATALOGO_OPERATIVO.filter((p) => p.seccion !== "control")) {
       // El mapeo de ida y vuelta usa el nombre del input para los umbrales y
       // el de la columna para las dimensiones; los dos tienen que aparecer.
       expect(
@@ -398,7 +408,7 @@ describe("catálogo de políticas operativas — parámetros de C14 y resumen", 
     const resumen = resumenDePoliticas();
     const total = Object.values(resumen).reduce((a, b) => a + b, 0);
     expect(total).toBe(CATALOGO_OPERATIVO.length);
-    expect(resumen.aplicada).toBe(4);
+    expect(resumen.aplicada).toBe(5);
     expect(resumen.descriptiva).toBe(6);
     expect(resumen.pendiente).toBe(2);
   });

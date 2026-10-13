@@ -70,7 +70,8 @@ export interface PoliticaOperativa {
   campo: string;
   /** `id` del input que lo captura, para que la UI no adivine. */
   input: string;
-  seccion: "dimension" | "umbral";
+  /** `dimension` = una de las siete; `umbral` = money; `control` = C16.2. */
+  seccion: "dimension" | "umbral" | "control";
   grupo: string;
   etiqueta: string;
   /** Unidad en la que se captura y en la que se guarda. */
@@ -99,13 +100,96 @@ export interface PoliticaOperativa {
 }
 
 /**
- * Las siete dimensiones + los cinco umbrales monetarios de la pantalla.
+ * Las siete dimensiones, los cinco umbrales monetarios y los controles de
+ * solicitud y emisión de compras.
  *
  * El orden es el de la pantalla: operador y alimentos, tesorería, gobernanza,
- * y después los umbrales que sí tienen regla. Cada entrada se verificó contra
- * el consumidor que la lee —o contra la ausencia de consumidor— no contra el
- * nombre del campo.
+ * umbrales que sí tienen regla, y al final los controles de C16.2 —que no son
+ * una dimensión ni un umbral, sino la política que sí gobierna el recorrido de
+ * compras—. Cada entrada se verificó contra el consumidor que la lee —o contra
+ * la ausencia de consumidor— y no contra el nombre del campo.
  */
+/**
+ * Los controles de solicitud y emisión de compras. Entró al catálogo en C16.2
+ * porque es la primera política que el proyecto aplica a partir de una decisión
+ * escrita aquí: declararla `aplicada` con su consumidor es lo que impide que
+ * vuelva a ser una descripción con Código detrás (el defecto de H04, al revés).
+ */
+export const CONTROLES_DE_DELEGACION: PoliticaOperativa = {
+  campo: "purchase_delegation_rules",
+  input: "delegacionCompras",
+  seccion: "control",
+  grupo: "Controles de compras",
+  etiqueta: "Solicitud y emisión",
+  unidad: "Una regla por acción, alcance y rol",
+  alcance: "Grupo, por acción y por sucursal o categoría. ADMIN o superior para editarlos.",
+  permiso: "settings/update",
+  clasificacion: "aplicada",
+  consumidor: {
+    archivo: "lib/purchasing/delegation-policy.ts",
+    simbolo: "evaluarDelegacion",
+    decide:
+      "Si quien solicita una compra o emite una orden puede hacerlo en esa " +
+      "sucursal y categoría, según los controles que la empresa configuró.",
+  },
+  consumidores: [
+    {
+      archivo: "lib/purchasing/delegation-policy.ts",
+      simbolo: "resolverDelegacion",
+      decide: "Decisión pura: reglas activas contra la operación, sin base de datos.",
+    },
+    {
+      archivo: "lib/purchasing/delegation-policy.ts",
+      simbolo: "reemplazarReglasDeDelegacion",
+      decide: "Guarda los controles de una acción en transacción.",
+    },
+  ],
+  aplicacion:
+    "Al crear una requisición o una orden en borrador (solicitud) y al enviar " +
+    "una orden aprobada al proveedor (emisión). Lee el valor vigente en el " +
+    "momento del intento; cambiar un control no reescribe compras pasadas.",
+  excepciones:
+    "Sin reglas configuradas no hay control adicional y decide el permiso de " +
+    "inventario vigente: es el comportamiento previo a C16.2, no una puerta " +
+    "abierta por omisión. Un actor de sistema puede dejar un borrador pero " +
+    "nunca emitir. La matriz de autorización de la C16.1 sigue decidiendo quién " +
+    "aprueba, y los montos no se consultan aquí.",
+  vacio:
+    "Sin reglas la acción conserva el permiso vigente. `branchId` y `category` " +
+    "sólo existen según el alcance: `COMPANY` no lleva ninguno, `BRANCH` " +
+    "exige sucursal y `CATEGORY` exige la categoría del artículo.",
+  valores: [
+    {
+      valor: "REQUEST",
+      titulo: "Solicitar",
+      caso: {
+        dado: "la empresa no configuró controles de solicitud",
+        cuando: "alguien con `inventory:create` crea una requisición u orden en borrador",
+        entonces: "se crea: no hay control adicional y el permiso vigente decide",
+      },
+    },
+    {
+      valor: "REQUEST",
+      titulo: "Solicitar con regla",
+      caso: {
+        dado: "hay un control activo para la sucursal o la categoría",
+        cuando: "crea la solicitud alguien cuyo rol alcanza el exigido",
+        entonces: "se crea; si el rol no alcanza o ninguna regla cubre, se rechaza nombrando el mínimo o el hueco",
+      },
+    },
+    {
+      valor: "EMIT",
+      titulo: "Emitir",
+      caso: {
+        dado: "un control exige `ADMIN` para emitir en esa sucursal",
+        cuando: "se envía al proveedor una orden aprobada",
+        entonces: "sólo `ADMIN` o superior la emite; por debajo se rechaza antes de cambiar el estado",
+      },
+    },
+  ],
+};
+
+/** Catálogo que consumen la interfaz y las pruebas, con los controles de C16.2 al final. */
 export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
   // ── Operación y alimentos ──────────────────────────────────────────────
   {
@@ -120,8 +204,9 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
     clasificacion: "descriptiva",
     consumidor: null,
     aplicacion:
-      "Se lee al abrir la pantalla de configuración, y en ningún otro lugar. " +
-      "No hay un recorrido de compras que la consulte.",
+      "Se lee al abrir la pantalla de configuración. Ningún servicio la lee, " +
+      "tampoco los controles de delegación de C16.2: los responsables de " +
+      "comprar se configuran aparte y esta columna no concede permisos.",
     excepciones:
       "El tope mensual de compras de emergencia (`emergencyPurchaseCapCents`) " +
       "sí bloquea, pero no depende de esta dimensión: aplica igual con cualquiera de los tres valores.",
@@ -144,8 +229,10 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
       },
     ],
     decisionPendiente:
-      "Falta definir quién solicita, aprueba y emite compras en cada modalidad, " +
-      "qué categorías puede comprar una sucursal y cómo se autorizan las emergencias.",
+      "Decidido el 13-10-2026: los responsables se configuran de forma explícita " +
+      "y esta modalidad no concede permisos ni los deduce (controles de " +
+      "solicitud y emisión, C16.2). Sigue abierta una sola pregunta: si una " +
+      "compra de emergencia puede saltarse algún control, y con qué condición.",
   },
   {
     campo: "foodProduction",
@@ -623,6 +710,9 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
       "`fund_amount`, `low_threshold` y el umbral de gastos— y este no es ninguno. " +
       "También falta definir reposiciones, excepciones y tratamiento de fondos existentes.",
   },
+  // Los controles de C16.2 van al final: son política aplicada, no una de las
+  // trece entradas de la pantalla que revisó C15, y su editor vive aparte.
+  CONTROLES_DE_DELEGACION,
 ];
 
 /** Los cuatro parámetros fiscales/laborales/merma de C14, para cerrar la pantalla. */

@@ -577,6 +577,25 @@ Implementar el contrato de purchasingStructure en un recorrido de solicitud/apro
 - **C16.2 — Solicitud, emisión y delegación:** definir y conectar controles configurables por empresa para estas acciones y para sucursales/categorías; respetar RBAC, presupuestos, emergencias y entradas alternativas. No inferirlos de CENTRALIZADA/POR_SUCURSAL/HIBRIDO.
 - **C16.3 — Verificación del recorrido:** comprobar la matriz guardada en la solicitud y aprobación reales con dos empresas y conservar las decisiones de órdenes ya enviadas. C16 permanece abierta hasta cerrar el recorrido completo.
 
+**Investigación de C16.2 (13-10-2026) — el recorrido y lo que le falta.** El camino es: solicitud (`POST /api/inventory/purchase-orders` con `type=requisition` → `createRequisition`, o `type=po` → `createPO` en borrador) → envío a aprobación (`submitForApproval`, que ya valida matriz, presupuesto y tope de emergencias) → aprobación por niveles → **emisión** (`action: "send"` → `sendPO`). El recorrido tiene tres huecos que hay que cerrar antes de poder aplicar cualquier política:
+
+1. **Escrituras sin empresa verificada.** `sendPO` y las demás transiciones de estado buscan la orden por id sin comprobar de qué empresa es; el `PATCH` acepta `items` y cambios de detalle por el mismo camino. Crear una solicitud o una orden acepta un `branchId` del cuerpo sin comprobar que sea de la empresa, y un `requisitionId` de otra empresa que además se marca `CONVERTED`. Sin esto, una política de delegación decidiría sobre una sucursal u orden que el actor no controla.
+2. **No hay control de responsable.** Sólo `inventory:create` para solicitar y `inventory:update` para emitir. La matriz OC decide quién *aprueba*, no quién *solicita* ni quién *emite*.
+3. **Entrada alternativa.** `suggested-order-service.generatePurchaseOrders` crea borradores con `requestedBy: 'system'`. No alcanza al proveedor —para eso hay que pasar por matriz y emisión—, pero tiene que quedar nombrada como tal en la política, no saltársela.
+
+**Semántica elegida (13-10-2026).** Los controles se configuran explícitamente por empresa y acción; la modalidad (`purchasingStructure`) **no** concede permisos ni los deduce. Es la continuación de la decisión de producto de C16.1 y de la clasificación `descriptiva` del catálogo de C15: la modalidad sigue siendo una descripción, y lo que gobierna es el control explícito.
+
+- Sin reglas para la acción: **no hay control adicional** y el RBAC vigente sigue decidiendo (`basis: "sin_controles"`). No hay semilla perezosa como en la matriz: sembrar concedería permisos que nadie eligió.
+- Con reglas: la operación necesita **al menos una regla activa que la cubra** y cuyo rol exigido alcance el rol del actor (`basis: "regla"`); si las reglas existen y ninguna cubre la sucursal o la categoría, se rechaza nombrando el hueco (`basis: "sin_cobertura"`). Coherente con la matriz: lo que no cubre una regla no se improvisa.
+- Un actor de sistema (`role: null`) puede crear borradores —una sugerencia del PAR—, nunca emitir.
+- Los montos **no** forman parte de estos controles: pertenecen a la matriz de la C16.1 y a la autonomía del gerente de C20. Se documenta para que nadie los busque aquí.
+
+**Cortes de C16.2 antes de implementar (13-10-2026):** el recorrido completo toca esquema, política, servicio, dos rutas, la entrada alternativa, la interfaz y sus pruebas —más de cinco archivos—, así que se divide con los mismos criterios de aceptación de C16:
+
+- **C16.2.1 — Contrato y almacenamiento:** tabla aditiva `purchase_delegation_rules` con su enum de acción y de alcance, `lib/purchasing/delegation-policy.ts` con la resolución pura y su cargador, `GET`/`PUT /api/purchase-delegation` con permiso `settings/update` y ADMIN+, y el contrato escrito. V1 de la política y de la ruta real. No cambia ningún camino de escritura todavía.
+- **C16.2.2 — Solicitud y emisión con pertenencia verificada:** `purchase-order-service` verifica sucursal, proveedor y solicitud antes de escribir y acota por empresa las transiciones; aplica el control de delegación en solicitud y emisión; `suggested-order-service` declara su actor de sistema. V1 sobre los caminos reales, con rechazo sin escritura parcial.
+- **C16.2.3 — Interfaz de los controles:** sección de solicitud y emisión en Configuración operativa con guardado, error y recarga, y V2 en Chromium con el efecto visible (qué pasa hoy sin controles y qué pasa con cada regla).
+
 **Criterios de aceptación:**
 
 - [ ] La opción elegida determina exactamente las decisiones del recorrido definidas en C15.
