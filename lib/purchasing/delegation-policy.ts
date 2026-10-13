@@ -1,6 +1,6 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { purchaseDelegationRules } from "@/lib/db/schema";
+import { inventoryItems, purchaseDelegationRules } from "@/lib/db/schema";
 import { assertBranchOfCompany } from "@/lib/branch-scope";
 import { APPROVER_ROLES_HIERARCHY, roleIsAtLeast } from "@/lib/permissions";
 
@@ -272,6 +272,26 @@ export async function cargarReglasDeDelegacion(
     requiredRole: f.requiredRole,
     active: f.active,
   }));
+}
+
+/**
+ * Categorías de los artículos de una operación, para los controles por
+ * categoría. Falla cerrada también aquí: si la consulta no responde, el servicio
+ * llama con una lista vacía y el resultado sería un rechazo por hueco que no
+ * nombra la causa real, así que el error sube en lugar de disfrazarse.
+ */
+export async function categoriasDeArticulos(itemIds: string[]): Promise<string[]> {
+  if (itemIds.length === 0) return [];
+  const filas = await db
+    .selectDistinct({ category: inventoryItems.category })
+    .from(inventoryItems)
+    .where(
+      and(
+        inArray(inventoryItems.id, itemIds),
+        or(isNull(inventoryItems.category), ne(inventoryItems.category, "")),
+      ),
+    );
+  return filas.map((f) => f.category).filter((c): c is string => Boolean(c));
 }
 
 /** Veredicto con las reglas ya leídas: es lo que llaman los caminos de escritura. */

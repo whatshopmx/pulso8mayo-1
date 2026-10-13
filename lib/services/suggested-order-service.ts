@@ -76,11 +76,20 @@ export class SuggestedOrderService {
     return suggestions.filter(s => s.suggestedQty > 0);
   }
 
+  /**
+   * Genera órdenes en borrador desde las sugerencias del PAR (C16.2).
+   *
+   * Es la entrada alternativa del recorrido y no se salta el control: declara
+   * el rol del actor y pasa por la misma verificación de solicitud. Si el rol
+   * viene vacío es un job sin sesión, y entonces el actor es de sistema: puede
+   * dejar el borrador y no puede emitir, que es justo lo que hace esta función.
+   */
   static async generatePurchaseOrders(
     companyId: string,
     branchId: string,
     suggestedItems: Array<{ itemId: string; suggestedQty: number }>,
-    userId?: string
+    userId?: string,
+    actorRole?: string | null
   ) {
     if (suggestedItems.length === 0) return [];
 
@@ -111,6 +120,7 @@ export class SuggestedOrderService {
         branchId,
         supplierId,
         requestedBy: userId || 'system',
+        actorRole: userId ? actorRole ?? null : null,
         items: poItems,
         notes: 'Orden generada automáticamente por sistema de sugerencias PAR',
       });

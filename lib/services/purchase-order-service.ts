@@ -6,6 +6,8 @@ import { ApiError } from "@/lib/api/error";
 import { nextFolio } from "./folio-generator";
 import { createApprovalRequests, resolveApprovalChain } from "./approval-matrix-service";
 import { checkBudgetAvailability, validateEmergencyCap } from "./budget-service";
+import { assertBranchOfCompany } from "@/lib/branch-scope";
+import { categoriasDeArticulos, evaluarDelegacion } from "@/lib/purchasing/delegation-policy";
 
 type POStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SENT' | 'PARTIALLY_RECEIVED' | 'CLOSED' | 'CANCELLED';
 type POItemStatus = 'PENDING' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
@@ -92,10 +94,40 @@ export class PurchaseOrderService {
 
   // --- Requisitions ---
 
+  /**
+   * Aplica el control de delegación de C16.2 o lanza con su motivo.
+   *
+   * Falla antes de cualquier escritura y el mensaje es el que construyó la
+   * política: nombra el rol mínimo o el hueco de cobertura. El 403 distingue
+   * «no le corresponde» de un 400 de datos, para que la UI ofrezca pedir
+   * autorización en el primer caso y corregir el formulario en el segundo.
+   */
+  private static async exigirDelegacion(
+    companyId: string,
+    accion: "REQUEST" | "EMIT",
+    contexto: { role: string | null; branchId: string | null; categories: string[] },
+  ) {
+    const veredicto = await evaluarDelegacion(companyId, { action: accion, ...contexto });
+    if (!veredicto.allowed) {
+      throw new ApiError(veredicto.reason, 403);
+    }
+    return veredicto;
+  }
+
+  /**
+   * Alta de solicitud (C16.2).
+   *
+   * El `branchId` viene del cuerpo, así que se comprueba contra la empresa antes
+   * de escribir, y el actor declara su rol para que el control pueda decidir.
+   * Los dos rechazos ocurren antes de la transacción: no queda una requisición a
+   * medias ni un folio consumido.
+   */
   static async createRequisition(data: {
     companyId: string;
     branchId: string;
     requestedBy: string;
+    /** Rol del actor; `null` = sistema, que sólo puede dejar borradores. */
+    actorRole: string | null;
     notes?: string;
     dateRequired?: Date;
     items: Array<{
@@ -104,6 +136,13 @@ export class PurchaseOrderService {
       notes?: string;
     }>;
   }) {
+    await assertBranchOfCompany(data.companyId, data.branchId);
+    await PurchaseOrderService.exigirDelegacion(data.companyId, "REQUEST", {
+      role: data.actorRole,
+      branchId: data.branchId,
+      categories: await categoriasDeArticulos(data.items.map((i) => i.itemId)),
+    });
+
     return await db.transaction(async (tx) => {
       const reqNumber = await this.generateRequisitionNumber(data.companyId);
       const [req] = await tx.insert(requisitions).values({
@@ -150,11 +189,21 @@ export class PurchaseOrderService {
 
   // --- Purchase Orders ---
 
+  /**
+   * Alta de orden en borrador (C16.2).
+   *
+   * Verifica que sucursal, artículos, proveedor y solicitud son de esta empresa
+   * antes de calcular o escribir nada. `requisitionId` era el caso más grave: una
+   * solicitud de otra empresa quedaba marcada `CONVERTED` sin comprobar nada, y
+   * los artículos ajenos traían su tasa de impuesto a la orden.
+   */
   static async createPO(data: {
     companyId: string;
     branchId: string;
     supplierId: string;
     requestedBy: string;
+    /** Rol del actor; `null` = sistema (sugerencias del PAR), sólo borrador. */
+    actorRole: string | null;
     requisitionId?: string;
     dateRequired?: Date;
     expectedDeliveryDate?: Date;
@@ -167,18 +216,51 @@ export class PurchaseOrderService {
       notes?: string;
     }>;
   }) {
-    const tx = db;
-    const poNumber = await this.generatePONumber(data.companyId);
+    await assertBranchOfCompany(data.companyId, data.branchId);
 
-    // Fetch product details for tax rates
-    const itemIds = data.items.map(i => i.itemId);
-    const dbItems = itemIds.length > 0 ? await tx.select({
+    const itemIds = data.items.map((i) => i.itemId);
+    const dbItems = itemIds.length > 0 ? await db.select({
       id: inventoryItems.id,
       taxRate: inventoryItems.taxRate,
       iepsRate: inventoryItems.iepsRate,
     })
-      .from(inventoryItems)
-      .where(inArray(inventoryItems.id, itemIds)) : [];
+    .from(inventoryItems)
+    .where(and(inArray(inventoryItems.id, itemIds), eq(inventoryItems.companyId, data.companyId))) : [];
+    if (dbItems.length !== itemIds.length) {
+      throw new ApiError(
+        "Alguno de los artículos no existe para esta empresa. Recarga el catálogo e inténtalo de nuevo.",
+        400,
+      );
+    }
+
+    const [proveedor] = await db
+      .select({ id: suppliers.id })
+      .from(suppliers)
+      .where(and(eq(suppliers.id, data.supplierId), eq(suppliers.companyId, data.companyId)))
+      .limit(1);
+    if (!proveedor) {
+      throw new ApiError("El proveedor no existe para esta empresa.", 400);
+    }
+
+    if (data.requisitionId) {
+      const [solicitud] = await db
+        .select({ id: requisitions.id })
+        .from(requisitions)
+        .where(and(eq(requisitions.id, data.requisitionId), eq(requisitions.companyId, data.companyId)))
+        .limit(1);
+      if (!solicitud) {
+        throw new ApiError("La solicitud no existe para esta empresa.", 400);
+      }
+    }
+
+    await PurchaseOrderService.exigirDelegacion(data.companyId, "REQUEST", {
+      role: data.actorRole,
+      branchId: data.branchId,
+      categories: await categoriasDeArticulos(itemIds),
+    });
+
+    const tx = db;
+    const poNumber = await this.generatePONumber(data.companyId);
 
     const dbItemsMap = new Map(dbItems.map(i => [i.id, i]));
 
@@ -396,16 +478,25 @@ export class PurchaseOrderService {
     return { orders: rows, total: countResult?.total ?? 0, limit, offset };
   }
 
-  static async updatePO(id: string, data: Partial<typeof purchaseOrders.$inferInsert>, userId: string) {
-    const current = await db.query.purchaseOrders.findFirst({ where: eq(purchaseOrders.id, id) });
-    if (!current) throw new Error("PO not found");
+  static async updatePO(
+    id: string,
+    data: Partial<typeof purchaseOrders.$inferInsert>,
+    userId: string,
+    companyId: string,
+  ) {
+    const [current] = await db
+      .select()
+      .from(purchaseOrders)
+      .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.companyId, companyId)))
+      .limit(1);
+    if (!current) throw new ApiError('Orden de compra no encontrada', 404);
     if (!['DRAFT', 'REJECTED'].includes(current.status)) {
       throw new Error("Solo se pueden editar POs en estado Borrador o Rechazado");
     }
 
     const [updated] = await db.update(purchaseOrders)
       .set({ ...data, updatedAt: new Date() })
-      .where(eq(purchaseOrders.id, id))
+      .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.companyId, companyId)))
       .returning();
 
     AuditService.logInventoryAction({
@@ -429,9 +520,13 @@ export class PurchaseOrderService {
     orderedQuantity: number;
     unitCost: number;
     notes?: string;
-  }>, userId: string) {
-    const po = await db.query.purchaseOrders.findFirst({ where: eq(purchaseOrders.id, poId) });
-    if (!po) throw new Error("PO not found");
+  }>, userId: string, companyId: string) {
+    const [po] = await db
+      .select()
+      .from(purchaseOrders)
+      .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.companyId, companyId)))
+      .limit(1);
+    if (!po) throw new ApiError('Orden de compra no encontrada', 404);
     if (!['DRAFT', 'REJECTED'].includes(po.status)) {
       throw new Error("Solo se pueden editar items en POs en Borrador o Rechazado");
     }
@@ -650,12 +745,13 @@ export class PurchaseOrderService {
    * ¿Tiene esta OC requests PENDING de la matriz? Si sí, ya no se aprueba/rechaza
    * directo: manda a la bandeja (segregación de niveles de la matriz §4).
    */
-  private static async assertNotMatrixManaged(id: string) {
+  private static async assertNotMatrixManaged(id: string, companyId: string) {
     const [req] = await db
       .select({ id: approvalRequests.id })
       .from(approvalRequests)
       .where(
         and(
+          eq(approvalRequests.companyId, companyId),
           eq(approvalRequests.docType, 'OC'),
           eq(approvalRequests.docId, id),
           eq(approvalRequests.status, 'PENDING'),
@@ -670,50 +766,87 @@ export class PurchaseOrderService {
     }
   }
 
-  static async approvePO(id: string, approvedBy: string) {
-    await this.assertNotMatrixManaged(id);
-    const po = await this.transitionStatus(id, 'APPROVED', approvedBy);
+  static async approvePO(id: string, approvedBy: string, companyId: string) {
+    await this.assertNotMatrixManaged(id, companyId);
+    const po = await this.transitionStatus(id, 'APPROVED', approvedBy, companyId);
     await db.update(purchaseOrders)
       .set({ approvedBy, approvedAt: new Date() })
-      .where(eq(purchaseOrders.id, id));
+      .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.companyId, companyId)));
     return po;
   }
 
-  static async rejectPO(id: string, rejectedBy: string, reason: string) {
-    await this.assertNotMatrixManaged(id);
-    const po = await this.transitionStatus(id, 'REJECTED', rejectedBy);
+  static async rejectPO(id: string, rejectedBy: string, reason: string, companyId: string) {
+    await this.assertNotMatrixManaged(id, companyId);
+    const po = await this.transitionStatus(id, 'REJECTED', rejectedBy, companyId);
     await db.update(purchaseOrders)
       .set({ approvedBy: rejectedBy, approvedAt: new Date(), rejectionReason: reason })
-      .where(eq(purchaseOrders.id, id));
+      .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.companyId, companyId)));
     return po;
   }
 
-  static async sendPO(id: string, userId: string) {
-    return this.transitionStatus(id, 'SENT', userId);
+  /**
+   * Emisión: enviar la orden aprobada al proveedor (C16.2).
+   *
+   * Es el único camino que compromete a la empresa con un tercero, así que es el
+   * que protege el control de acción `EMIT`. La decisión se toma antes de tocar
+   * el estado: un rechazo deja la orden exactamente como estaba.
+   */
+  static async sendPO(id: string, userId: string, companyId: string, actorRole: string | null) {
+    const [po] = await db
+      .select()
+      .from(purchaseOrders)
+      .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.companyId, companyId)))
+      .limit(1);
+    if (!po) throw new ApiError('Orden de compra no encontrada', 404);
+
+    const items = await db
+      .select({ itemId: purchaseOrderItems.itemId })
+      .from(purchaseOrderItems)
+      .where(eq(purchaseOrderItems.poId, id));
+
+    await this.exigirDelegacion(companyId, 'EMIT', {
+      role: actorRole,
+      branchId: po.branchId,
+      categories: await categoriasDeArticulos(items.map((i) => i.itemId)),
+    });
+
+    return this.transitionStatus(id, 'SENT', userId, companyId);
   }
 
-  static async closePO(id: string, userId: string) {
+  static async closePO(id: string, userId: string, companyId: string) {
     const po = await this.getPO(id);
     if (!po) throw new Error("PO not found");
+    if (po.companyId !== companyId) throw new ApiError('Orden de compra no encontrada', 404);
 
     const allReceived = po.items.every(item =>
       item.status === 'RECEIVED' || item.receivedQuantity >= item.orderedQuantity
     );
     const targetStatus: POStatus = allReceived ? 'CLOSED' : 'PARTIALLY_RECEIVED';
-    return this.transitionStatus(id, targetStatus, userId);
+    return this.transitionStatus(id, targetStatus, userId, companyId);
   }
 
-  static async cancelPO(id: string, userId: string, reason: string) {
-    const po = await this.transitionStatus(id, 'CANCELLED', userId);
+  static async cancelPO(id: string, userId: string, reason: string, companyId: string) {
+    const po = await this.transitionStatus(id, 'CANCELLED', userId, companyId);
     await db.update(purchaseOrders)
       .set({ cancelledAt: new Date(), cancellationReason: reason })
-      .where(eq(purchaseOrders.id, id));
+      .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.companyId, companyId)));
     return po;
   }
 
-  private static async transitionStatus(id: string, newStatus: POStatus, userId: string) {
-    const po = await db.query.purchaseOrders.findFirst({ where: eq(purchaseOrders.id, id) });
-    if (!po) throw new Error("PO not found");
+  /**
+   * Cambio de estado acotado a la empresa (C16.2).
+   *
+   * Antes buscaba la orden sólo por id: un `PATCH` con el id de otra empresa
+   * cambiaba su estado y lo auditaba como si fuera de esta. El id del cliente
+   * nunca se acepta sin la empresa de la sesión al lado.
+   */
+  private static async transitionStatus(id: string, newStatus: POStatus, userId: string, companyId: string) {
+    const [po] = await db
+      .select()
+      .from(purchaseOrders)
+      .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.companyId, companyId)))
+      .limit(1);
+    if (!po) throw new ApiError('Orden de compra no encontrada', 404);
 
     await this.validateTransition(po.status as POStatus, newStatus);
 
@@ -725,7 +858,7 @@ export class PurchaseOrderService {
         ...(newStatus === 'CLOSED' || newStatus === 'PARTIALLY_RECEIVED' ? { receivedAt: new Date() } : {}),
         ...(newStatus === 'CANCELLED' ? { cancelledAt: new Date() } : {}),
       })
-      .where(eq(purchaseOrders.id, id))
+      .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.companyId, companyId)))
       .returning();
 
     AuditService.logInventoryAction({

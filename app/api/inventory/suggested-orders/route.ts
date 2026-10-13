@@ -69,7 +69,10 @@ export async function POST(req: NextRequest) {
       session.user.companyId || "",
       branchId,
       items,
-      session.user.id
+      session.user.id,
+      // El rol viaja para que el control de solicitud de C16.2 decida igual
+      // que en la pantalla de órdenes, en vez de assuming que aquí puede.
+      role,
     );
 
     return NextResponse.json({ orders, count: orders.length });

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { PurchaseOrderService } from "@/lib/services/purchase-order-service";
 import { hasPermission } from "@/lib/permissions";
+import { isApiError } from "@/lib/api/error";
 
 const createPOSchema = z.object({
   supplierId: z.string().uuid(),
@@ -102,6 +103,7 @@ export async function POST(req: NextRequest) {
         companyId: tenant.id!,
         branchId: data.branchId,
         requestedBy: user.id,
+        actorRole: user.role,
         notes: data.notes,
         dateRequired: data.dateRequired ? new Date(data.dateRequired) : undefined,
         items: data.items,
@@ -115,6 +117,7 @@ export async function POST(req: NextRequest) {
       branchId: body.branchId || tenant.branchId!,
       supplierId: data.supplierId,
       requestedBy: user.id,
+      actorRole: user.role,
       requisitionId: data.requisitionId,
       dateRequired: data.dateRequired ? new Date(data.dateRequired) : undefined,
       expectedDeliveryDate: data.expectedDeliveryDate ? new Date(data.expectedDeliveryDate) : undefined,
@@ -132,6 +135,13 @@ export async function POST(req: NextRequest) {
         { error: "Datos inválidos", details: error.issues },
         { status: 400 }
       );
+    }
+
+    // Un rechazo de delegación (403) y una pertenencia que no cuadra (400) son
+    // mensajes que la UI debe mostrar, no un 500: son la respuesta del
+    // recorrido cuando alguien no tiene competencia para la operación.
+    if (isApiError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
 
     return NextResponse.json(

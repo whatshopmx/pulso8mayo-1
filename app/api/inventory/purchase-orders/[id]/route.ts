@@ -56,7 +56,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
-    const tenant = await requireTenant();
+    const empresa = await requireTenant();
     const { user } = await requireAuth();
 
     if (!hasPermission(user.role, 'inventory', 'update')) {
@@ -74,23 +74,33 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         case 'submit':
           // Flujo matriz OC/OS (Task 6): scoping por tenant + validaciones de
           // presupuesto/emergencias + folio real en transacción.
-          return NextResponse.json(await PurchaseOrderService.submitForApproval(id, user.id, tenant.id ?? undefined));
+          return NextResponse.json(
+            await PurchaseOrderService.submitForApproval(id, user.id, empresa.id ?? undefined),
+          );
         case 'approve':
-          return NextResponse.json(await PurchaseOrderService.approvePO(id, user.id));
+          return NextResponse.json(await PurchaseOrderService.approvePO(id, user.id, empresa.id!));
         case 'reject':
           if (!rejectionReason) {
             return NextResponse.json({ error: "Se requiere motivo de rechazo" }, { status: 400 });
           }
-          return NextResponse.json(await PurchaseOrderService.rejectPO(id, user.id, rejectionReason));
+          return NextResponse.json(
+            await PurchaseOrderService.rejectPO(id, user.id, rejectionReason, empresa.id!),
+          );
         case 'send':
-          return NextResponse.json(await PurchaseOrderService.sendPO(id, user.id));
+          // Emisión (C16.2): la empresa y el rol salen de la sesión, nunca del
+          // cuerpo, y el control se aplica antes de cambiar el estado.
+          return NextResponse.json(
+            await PurchaseOrderService.sendPO(id, user.id, empresa.id!, user.role),
+          );
         case 'close':
-          return NextResponse.json(await PurchaseOrderService.closePO(id, user.id));
+          return NextResponse.json(await PurchaseOrderService.closePO(id, user.id, empresa.id!));
         case 'cancel':
           if (!cancellationReason) {
             return NextResponse.json({ error: "Se requiere motivo de cancelación" }, { status: 400 });
           }
-          return NextResponse.json(await PurchaseOrderService.cancelPO(id, user.id, cancellationReason));
+          return NextResponse.json(
+            await PurchaseOrderService.cancelPO(id, user.id, cancellationReason, empresa.id!),
+          );
         default:
           return NextResponse.json({ error: "Acción no válida" }, { status: 400 });
       }
@@ -99,7 +109,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     // Update PO items
     if (body.items) {
       const { items } = updateItemsSchema.parse(body);
-      const updatedItems = await PurchaseOrderService.updatePOItems(id, items, user.id);
+      const updatedItems = await PurchaseOrderService.updatePOItems(id, items, user.id, empresa.id!);
       return NextResponse.json({ items: updatedItems });
     }
 
@@ -114,7 +124,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     if (Object.keys(updateData).length > 0) {
-      const updated = await PurchaseOrderService.updatePO(id, updateData as Record<string, unknown>, user.id);
+      const updated = await PurchaseOrderService.updatePO(
+        id,
+        updateData as Record<string, unknown>,
+        user.id,
+        empresa.id!,
+      );
       return NextResponse.json(updated);
     }
 
