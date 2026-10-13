@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PurchasingApprovalsSection } from "@/components/company/purchasing-approvals-section";
 import {
   OperatingConfigForm,
   type OperatingConfigValues,
@@ -86,7 +87,10 @@ export default function OperatingConfigPage() {
           </Button>
         </div>
       ) : (
-        <OperatingConfigForm initialConfig={config} onSuccess={() => void cargar()} />
+        <>
+          <OperatingConfigForm initialConfig={config} onSuccess={() => void cargar()} />
+          <PurchasingApprovalsSection />
+        </>
       )}
     </div>
   );

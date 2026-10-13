@@ -72,8 +72,9 @@ const ROLE_OPTIONS = Object.entries(APPROVER_ROLES_HIERARCHY)
  * traslape con la misma secuencia es rechazado por el API (error inline);
  * huecos entre rangos llegan como warnings no bloqueantes.
  */
-export function ApprovalMatrixEditor() {
-  const [docType, setDocType] = useState<DocType>("OS");
+export function ApprovalMatrixEditor({ documentType }: { documentType?: DocType } = {}) {
+  const [selectedDocType, setDocType] = useState<DocType>("OS");
+  const docType = documentType ?? selectedDocType;
   const query = useApprovalMatrix(docType);
   const saveMutation = useSaveApprovalMatrix(docType);
 
@@ -81,6 +82,8 @@ export function ApprovalMatrixEditor() {
   // (sin useEffect de sincronización ni cascadas de render).
   const [draft, setDraft] = useState<MatrixRowDraft[] | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
   const rows: MatrixRowDraft[] =
     draft ?? (query.data?.rules ?? []).map(ruleToRow);
@@ -99,10 +102,13 @@ export function ApprovalMatrixEditor() {
   };
 
   const save = async () => {
+    setSaveError(null);
+    setSavedMessage(null);
     const rules: MatrixRule[] = [];
     for (const row of rows) {
       const converted = rowToRule(row);
       if ("error" in converted) {
+        setSaveError(converted.error);
         toast.error(converted.error);
         return;
       }
@@ -113,10 +119,12 @@ export function ApprovalMatrixEditor() {
       setDraft(null);
       // Los huecos son legítimos pero deben anunciarse (no bloquean).
       setWarnings(result.warnings ?? []);
+      setSavedMessage(`Matriz ${docType} guardada (${result.rules.length} reglas)`);
       toast.success(`Matriz ${docType} guardada (${result.rules.length} reglas)`);
     } catch (err) {
       // Traslapes y datos inválidos llegan aquí con el mensaje del API.
       setWarnings([]);
+      setSaveError(err instanceof Error ? err.message : "Error al guardar");
       toast.error(err instanceof Error ? err.message : "Error al guardar");
     }
   };
@@ -126,6 +134,8 @@ export function ApprovalMatrixEditor() {
     setDocType(next);
     setDraft(null);
     setWarnings([]);
+    setSaveError(null);
+    setSavedMessage(null);
   };
 
   const dirty = draft !== null;
@@ -133,11 +143,12 @@ export function ApprovalMatrixEditor() {
   return (
     <div className="space-y-4">
       {/* Selector de tipo de documento */}
-      <div className="flex items-center gap-1 rounded-lg border p-1 w-fit">
+      {!documentType && <div className="flex items-center gap-1 rounded-lg border p-1 w-fit">
         {(["OS", "OC"] as DocType[]).map((t) => (
           <button
             key={t}
             type="button"
+            disabled={saveMutation.isPending}
             onClick={() => switchDocType(t)}
             aria-pressed={docType === t}
             className={`px-3 py-1 text-sm rounded-md transition-colors ${
@@ -147,7 +158,10 @@ export function ApprovalMatrixEditor() {
             {t === "OS" ? "Órdenes de Servicio" : "Órdenes de Compra"}
           </button>
         ))}
-      </div>
+      </div>}
+
+      {saveError && <Alert variant="destructive"><AlertDescription role="alert">{saveError}</AlertDescription></Alert>}
+      {savedMessage && <p role="status" className="text-sm text-muted-foreground">{savedMessage}</p>}
 
       {query.isLoading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
@@ -158,6 +172,7 @@ export function ApprovalMatrixEditor() {
           <TriangleAlert className="h-4 w-4" />
           <AlertDescription>
             {query.error instanceof Error ? query.error.message : "No se pudo cargar la matriz."}
+            <Button variant="outline" size="sm" className="ml-2" onClick={() => void query.refetch()}>Reintentar matriz</Button>
           </AlertDescription>
         </Alert>
       ) : (
@@ -169,7 +184,7 @@ export function ApprovalMatrixEditor() {
                 <ul className="list-disc pl-4 space-y-0.5">
                   {warnings.map((w, i) => <li key={i}>{w}</li>)}
                 </ul>
-                <p className="mt-1">Los montos dentro de un hueco usarán la cadena de autorización default.</p>
+                <p className="mt-1">Los montos sin una regla activa que los cubra no podrán enviarse a aprobación.</p>
               </AlertDescription>
             </Alert>
           )}
@@ -178,16 +193,17 @@ export function ApprovalMatrixEditor() {
           <div className="hidden md:grid md:grid-cols-12 gap-2 px-1">
             <span className="col-span-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Mínimo (MXN)</span>
             <span className="col-span-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Máximo (MXN)</span>
-            <span className="col-span-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Rol aprobador</span>
-            <span className="col-span-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">Cotiz.</span>
+            <span className={`${docType === "OC" ? "col-span-4" : "col-span-3"} text-xs font-medium text-muted-foreground uppercase tracking-wide`}>Rol aprobador</span>
+            {docType === "OS" && <span className="col-span-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">Cotiz.</span>}
             <span className="col-span-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">Secuencia</span>
             <span className="col-span-2 text-xs font-medium text-muted-foreground uppercase tracking-wide text-center">Activa</span>
           </div>
 
-          <div className="space-y-2">
+          <fieldset className="space-y-2" disabled={saveMutation.isPending}>
             {rows.length === 0 && (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                Sin reglas. Agrega una que cubra desde $0 para habilitar el flujo de autorización.
+                Sin matriz personalizada. Al enviar la primera orden se creará la matriz predeterminada.
+                Agrega reglas para elegir los aprobadores de tu empresa.
               </p>
             )}
             {rows.map((row, i) => (
@@ -208,8 +224,8 @@ export function ApprovalMatrixEditor() {
                   aria-label={`Regla ${i + 1}: monto máximo`}
                   className="md:col-span-2"
                 />
-                <Select value={row.requiredRole} onValueChange={(v) => updateRow(i, { requiredRole: v })}>
-                  <SelectTrigger aria-label={`Regla ${i + 1}: rol aprobador`} className="md:col-span-3">
+                <Select disabled={saveMutation.isPending} value={row.requiredRole} onValueChange={(v) => updateRow(i, { requiredRole: v })}>
+                  <SelectTrigger aria-label={`Regla ${i + 1}: rol aprobador`} className={docType === "OC" ? "md:col-span-4" : "md:col-span-3"}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -218,13 +234,13 @@ export function ApprovalMatrixEditor() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Input
+                {docType === "OS" && <Input
                   inputMode="numeric"
                   value={row.minQuotesStr}
                   onChange={(e) => updateRow(i, { minQuotesStr: e.target.value.replace(/[^0-9]/g, "") })}
                   aria-label={`Regla ${i + 1}: cotizaciones mínimas`}
                   className="md:col-span-1"
-                />
+                />}
                 <Input
                   inputMode="numeric"
                   value={row.sequenceStr}
@@ -250,7 +266,7 @@ export function ApprovalMatrixEditor() {
                 </div>
               </div>
             ))}
-          </div>
+          </fieldset>
 
           <p className="text-xs text-muted-foreground">
             Multi-nivel: dos reglas con rangos traslapados y secuencias distintas crean una cadena acumulativa
@@ -258,18 +274,18 @@ export function ApprovalMatrixEditor() {
           </p>
 
           <div className="flex flex-wrap gap-2 pt-2 border-t">
-            <Button variant="outline" size="sm" onClick={addRow}>
+            <Button variant="outline" size="sm" onClick={addRow} disabled={saveMutation.isPending}>
               <Plus className="h-4 w-4 mr-1.5" /> Agregar regla
             </Button>
             {dirty && (
-              <Button variant="ghost" size="sm" onClick={() => { setDraft(null); setWarnings([]); }}>
+              <Button variant="ghost" size="sm" disabled={saveMutation.isPending} onClick={() => { setDraft(null); setWarnings([]); setSaveError(null); setSavedMessage(null); }}>
                 <RotateCcw className="h-4 w-4 mr-1.5" /> Descartar cambios
               </Button>
             )}
             <div className="ml-auto">
               <Button size="sm" onClick={save} disabled={saveMutation.isPending || !dirty}>
                 {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Save className="h-4 w-4 mr-1.5" />}
-                Guardar cambios
+                {documentType === "OC" ? "Guardar matriz de compras" : "Guardar cambios"}
               </Button>
             </div>
           </div>

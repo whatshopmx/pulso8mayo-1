@@ -13,6 +13,9 @@ import { startShiftsBrowserServer } from "../support/shifts-browser-server";
 let harness: Awaited<ReturnType<typeof startShiftsBrowserServer>>;
 test.beforeAll(async () => { harness = await startShiftsBrowserServer(); });
 test.afterAll(async () => { await harness?.server.close(); });
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/approval-matrix*", (route) => route.fulfill({ json: { rules: [] } }));
+});
 
 const CONFIG = {
   purchasingStructure: "HIBRIDO",
@@ -373,5 +376,86 @@ test("los estados de política caben en móvil, tablet y escritorio", async ({ p
     await expect(grupo.locator("..").getByText("Pendiente de decisión", { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
+  expect(fixture.errores).toEqual([]);
+});
+
+const REGLA_COMPRA = { id: "regla-oc", amountMin: 0, amountMax: 100000, requiredRole: "GERENTE", minQuotes: 1, sequence: 1, active: true };
+
+test("la empresa elige aprobador y rango desde configuración y la matriz sobrevive al recargar", async ({ page }) => {
+  let rules = [REGLA_COMPRA];
+  const enviados: Record<string, unknown>[] = [];
+  await page.route("**/api/approval-matrix*", async (route) => {
+    if (route.request().method() === "PUT") {
+      const body = route.request().postDataJSON();
+      enviados.push(body);
+      rules = body.rules;
+    }
+    return route.fulfill({ json: { rules, warnings: [] } });
+  });
+  const fixture = await abrir(page);
+  const matriz = page.getByRole("region", { name: "Aprobaciones de compras" });
+  await matriz.getByLabel("Regla 1: monto máximo").fill("2500");
+  await matriz.getByRole("combobox", { name: "Regla 1: rol aprobador" }).click();
+  await page.getByRole("option", { name: "OWNER", exact: true }).click();
+  await matriz.getByRole("button", { name: "Guardar matriz de compras" }).click();
+  await expect(matriz.getByRole("status")).toContainText("Matriz OC guardada");
+  expect(enviados).toEqual([{ docType: "OC", rules: [expect.objectContaining({ amountMin: 0, amountMax: 250000, requiredRole: "OWNER", sequence: 1 })] }]);
+  expect(fixture.enviados).toEqual([]);
+  await page.reload();
+  await expect(matriz.getByLabel("Regla 1: monto máximo")).toHaveValue("2500");
+  await expect(matriz.getByRole("combobox", { name: "Regla 1: rol aprobador" })).toHaveText("OWNER");
+  await expect(matriz.getByRole("button", { name: "Guardar matriz de compras" })).toBeDisabled();
+  expect(fixture.errores).toEqual([]);
+});
+
+test("el rechazo de matriz conserva el borrador y permite reintentar con advertencias de cobertura", async ({ page }) => {
+  let intentos = 0;
+  await page.route("**/api/approval-matrix*", async (route) => {
+    if (route.request().method() !== "PUT") return route.fulfill({ json: { rules: [REGLA_COMPRA] } });
+    intentos++;
+    if (intentos === 1) return route.fulfill({ status: 400, json: { error: "Revisa los rangos de aprobación." } });
+    return route.fulfill({ json: { rules: route.request().postDataJSON().rules, warnings: ["Hay montos sin cobertura."] } });
+  });
+  const fixture = await abrir(page);
+  const matriz = page.getByRole("region", { name: "Aprobaciones de compras" });
+  await matriz.getByLabel("Regla 1: monto máximo").fill("3000");
+  await matriz.getByRole("button", { name: "Guardar matriz de compras" }).click();
+  // El `Alert` y su descripción declaran ambos `role="alert"`.
+  await expect(matriz.getByRole("alert").first()).toContainText("Revisa los rangos");
+  await expect(matriz.getByLabel("Regla 1: monto máximo")).toHaveValue("3000");
+  await matriz.getByRole("button", { name: "Guardar matriz de compras" }).click();
+  await expect(matriz.getByRole("status")).toContainText("Matriz OC guardada");
+  await expect(matriz).toContainText("Los montos sin una regla activa que los cubra no podrán enviarse a aprobación.");
+  expect(fixture.errores).toEqual([]);
+});
+
+test("una carga rechazada de matriz no permite guardar reglas vacías y recupera al reintentar", async ({ page }) => {
+  let intentos = 0;
+  await page.route("**/api/approval-matrix*", (route) => {
+    intentos++;
+    if (intentos === 1) return route.fulfill({ status: 403, json: { error: "Solo ADMIN o rol superior puede editar la matriz." } });
+    return route.fulfill({ json: { rules: [REGLA_COMPRA] } });
+  });
+  const fixture = await abrir(page);
+  const matriz = page.getByRole("region", { name: "Aprobaciones de compras" });
+  await expect(matriz).toContainText("Solo ADMIN o rol superior");
+  await expect(matriz.getByRole("button", { name: "Guardar matriz de compras" })).toHaveCount(0);
+  await matriz.getByRole("button", { name: "Reintentar matriz" }).click();
+  await expect(matriz.getByLabel("Regla 1: monto máximo")).toHaveValue("1000");
+  await expect(matriz.getByRole("button", { name: "Guardar matriz de compras" })).toBeDisabled();
+  expect(fixture.errores).toEqual([]);
+});
+
+test("la matriz de compras con reglas cabe en los cuatro tamaños de pantalla", async ({ page }) => {
+  await page.route("**/api/approval-matrix*", (route) => route.fulfill({ json: { rules: [REGLA_COMPRA] } }));
+  const fixture = await abrir(page);
+  const matriz = page.getByRole("region", { name: "Aprobaciones de compras" });
+  for (const width of [320, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await matriz.scrollIntoViewIfNeeded();
+    await expect(matriz.getByLabel("Regla 1: monto máximo")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
+  await matriz.screenshot({ path: ".tmp/c16-approvals-desktop.png" });
   expect(fixture.errores).toEqual([]);
 });
