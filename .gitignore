@@ -59,3 +59,6 @@ next-env.d.ts
 
 # artefactos temporales de verificacion manual
 /tests/tmp-verify/
+
+# capturas y sondas de las sesiones de agente (ver eslint.config.mjs)
+/.tmp/
