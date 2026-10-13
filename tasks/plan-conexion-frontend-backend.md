@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 12 de octubre de 2026. Estado: C00–C14 implementadas con límites de verificación registrados en el seguimiento; C12 se cierra con la entrega de C11. C15–C40 pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 13 de octubre de 2026. Estado: C00–C15 implementadas con límites de verificación registrados en el seguimiento; C12 se cierra con la entrega de C11. C16–C40 pendientes, con C16.1 implementado dentro de C16.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -529,13 +529,25 @@ Añadir IVA, carga laboral, impuesto estatal y umbral de merma al contrato autor
 
 Crear un catálogo de las siete dimensiones y caja chica: valores, comportamiento esperado, alcance, consumidor, permiso, momento de aplicación y excepciones.
 
+**Subtareas de implementación (13-10-2026):** el borrador local ya abarca más de cinco archivos y se completa en tres cortes antes de ampliar su alcance:
+
+- **C15.1 — Catálogo y consumidores:** revisar `lib/company/operating-policy-catalog.ts`, sus pruebas, `lib/services/tenant-config-service.ts` y el contrato en `docs/operating-policy-contracts.md`. Registrar decisiones por dimensión y los límites reales de los cuatro umbrales aplicados.
+- **C15.2 — Promesas de la interfaz:** completar las secciones de dimensiones y umbrales, y verificar sus estados y guardado/recarga en `tests/e2e/operating-config.spec.ts`. Cargar los estilos reales en `tests/support/shifts-browser-server.ts` para comprobar el diseño adaptable, además del DOM. Los valores descriptivos conservan su contrato de persistencia (cuatro archivos en este corte).
+- **C15.3 — Evidencia y seguimiento:** registrar resultados y límites en la auditoría de C15, este plan, el seguimiento y el handoff. C16–C23 conservan sus decisiones de negocio pendientes.
+
 **Criterios de aceptación:**
 
-- [ ] Cada valor tiene un caso dado/cuando/entonces o queda clasificado como descriptivo.
-- [ ] La UI distingue aplicada, descriptiva y pendiente sin prometer restricciones inexistentes.
-- [ ] Las decisiones de negocio pendientes se identifican por dimensión y no bloquean las políticas ya definidas.
+- [x] Cada valor tiene un caso dado/cuando/entonces o queda clasificado como descriptivo.
+- [x] La UI distingue aplicada, descriptiva y pendiente sin prometer restricciones inexistentes.
+- [x] Las decisiones de negocio pendientes se identifican por dimensión y no bloquean las políticas ya definidas.
 
 **Verificación:** Revisión de catálogo contra UI y servicios; no inferir reglas solo del nombre del campo.
+
+**Corte de implementación (13-10-2026):** C15 no cambia comportamiento —es catálogo y promesas de interfaz—. El catálogo `lib/company/operating-policy-catalog.ts` clasifica trece entradas —siete dimensiones, cinco umbrales y el de caja chica— y la prueba lo ata al árbol de código: cada `aplicada` nombra un consumidor cuyo símbolo está declarado, y cada `descriptiva` no aparece fuera de esquema, API, formulario y semillas. Resultado: cuatro `aplicada` (los dos de autorización de gastos, el de emergencias y el de merma de cortesías), seis `descriptiva` (cinco dimensiones más caja chica) y dos `pendiente` (`managerAutonomy`, `tenantType`). Se corrigieron cuatro promesas falsas de la pantalla, entre ellas la doble firma que el producto no ejecuta y el «monto máximo» de caja chica que no limita nada.
+
+**Evidencia (13-10-2026):** [C15 — Catálogo de políticas operativas](../docs/audits/2026-10-13-operating-policy-catalog.md). 23 casos unitarios del catálogo y 4 pruebas de Chromium; suite 1019 aprobadas (una omitida y un TODO), 42/42 en la configuración aislada, build y tsc limpios. Límites: el navegador intercepta `GET`/`PUT` sin Next ni autenticación, y el escáner del catálogo es textual —no demuestra efecto de ejecución, sólo que nadie declara el consumidor—.
+
+**Desglose ejecutado (13-10-2026):** catálogo y contrato (`c153cc7`); C16.1, que reutiliza el catálogo para exponer la matriz de aprobadores OC y no altera ninguna dimensión, queda en `3b0742d` y se registra en la fila de C16.
 
 **Archivos probables:**
 
@@ -545,9 +557,9 @@ Crear un catálogo de las siete dimensiones y caja chica: valores, comportamient
 
 #### Punto de control C13–C15
 
-- [ ] Criterios del bloque verificados con resultados registrados.
-- [ ] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
-- [ ] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
+- [x] Criterios del bloque verificados con resultados registrados.
+- [ ] Recorrido válido y rechazo autorizado comprobados cuando correspondan. La autorización de la pantalla sigue en pruebas unitarias sobre la ruta real: no hay recorrido con Next y Postgres para esta página.
+- [x] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
 
 <a id="c16"></a>
 
@@ -556,6 +568,14 @@ Crear un catálogo de las siete dimensiones y caja chica: valores, comportamient
 **Hallazgos:** H04. **Dependencias:** C15. **Tamaño:** M.
 
 Implementar el contrato de purchasingStructure en un recorrido de solicitud/aprobación de compra; si es descriptivo, ajustar su promesa en UI.
+
+**Decisión de producto (13-10-2026):** el usuario pide que cada empresa elija sus responsables desde Configuración operativa; no necesita fijar una matriz universal durante esta sesión. Se reutiliza la matriz OC existente para roles aprobadores, rangos y niveles. La modalidad declarada no concede permisos por sí sola.
+
+**Cortes antes de implementar:**
+
+- **C16.1 — Aprobadores configurables:** integrar el editor OC existente en Configuración operativa con guardado propio, errores y recarga. Corregir la promesa sobre rangos sin cobertura; comprobar el recorrido con respuestas controladas. Cinco archivos: sección nueva, página, editor existente, soporte de navegador y spec.
+- **C16.2 — Solicitud, emisión y delegación:** definir y conectar controles configurables por empresa para estas acciones y para sucursales/categorías; respetar RBAC, presupuestos, emergencias y entradas alternativas. No inferirlos de CENTRALIZADA/POR_SUCURSAL/HIBRIDO.
+- **C16.3 — Verificación del recorrido:** comprobar la matriz guardada en la solicitud y aprobación reales con dos empresas y conservar las decisiones de órdenes ya enviadas. C16 permanece abierta hasta cerrar el recorrido completo.
 
 **Criterios de aceptación:**
 
