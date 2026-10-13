@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { CameraCapture } from "@/components/shared/camera-capture";
 import { usePhotoUpload } from "@/components/shared/use-photo-upload";
+import { StockCountGrid, type StockCountGridHandle } from "@/components/inventory/stock-count-grid";
+import { normalizeStockCount, type StockCountRow } from "@/lib/workflows/stock-count-grid";
 
 function StockCountConfirmSummary({ steps, onConfirm, value, blindCount }: { steps: WorkflowStepData[]; onConfirm: (val: string) => void; value: string; blindCount?: boolean }) {
   const countSteps = steps.filter(s => s.stepId.startsWith("count-") && s.value);
@@ -164,7 +166,12 @@ export function WorkflowExecutor({
   onComplete,
   className
 }: WorkflowExecutorProps) {
-  const [currentStepIndex, setCurrentStepIndex] = React.useState(0);
+   const [currentStepIndex, setCurrentStepIndex] = React.useState(() => {
+     const index = execution.template.steps.findIndex(step => !execution.steps.some(saved => saved.stepId === step.id && ['COMPLETED', 'SKIPPED'].includes(saved.status)));
+     return Math.max(index, 0);
+   });
+   const countGridRef = React.useRef<StockCountGridHandle>(null);
+   const [completedCounts, setCompletedCounts] = React.useState<string[]>([]);
   const [stepData, setStepData] = React.useState<Record<string, any>>({});
   const [evidenceFiles, setEvidenceFiles] = React.useState<File[]>([]);
   const [uploading, setUploading] = React.useState(false);
@@ -189,7 +196,8 @@ export function WorkflowExecutor({
     }
   };
 
-  const handlePrevious = () => {
+  const handlePrevious = async () => {
+    try { await countGridRef.current?.flush(); } catch { toast.error('Guarda el borrador antes de cambiar de categoría'); return; }
     if (currentStepIndex > 0) {
       setCurrentStepIndex(currentStepIndex - 1);
       setAIVerification(null);
@@ -225,8 +233,9 @@ export function WorkflowExecutor({
 
     setSubmitting(true);
     try {
+      await countGridRef.current?.flush();
       let evidenceUrl = currentStepInstance?.evidenceUrl || null;
-      const value = stepData[currentStep.id] || null;
+      const value = stepData[currentStep.id] ?? currentStepInstance?.value ?? null;
 
       // Upload files if present
       if (evidenceFiles.length > 0) {
@@ -269,6 +278,7 @@ export function WorkflowExecutor({
       }
 
       toast.success('Paso completado exitosamente');
+      if (currentStep.type === 'STOCK_COUNT') setCompletedCounts(previous => [...previous, currentStep.id]);
 
       // Notify parent
       onStepComplete?.(currentStep.id, result);
@@ -304,6 +314,19 @@ export function WorkflowExecutor({
     const stepValue = stepData[step.id] || currentStepInstance?.value;
 
     switch (step.type) {
+      case 'STOCK_COUNT': {
+        const completed = completedCounts.includes(step.id) || currentStepInstance?.status === 'COMPLETED';
+        return <StockCountGrid key={step.id} ref={countGridRef} rows={step.config?.rows as StockCountRow[] || []} value={stepValue}
+          blindCount={execution.blindCount} readOnly={completed || submitting}
+          onChange={next => setStepData(previous => ({ ...previous, [step.id]: next }))}
+          onSave={!completed ? async next => {
+            const response = await fetch(`/api/workflows/executions/${execution.id}/steps/${step.id}`, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ value: next, status: 'IN_PROGRESS' }),
+            });
+            if (!response.ok) throw new Error('No se pudo guardar el borrador');
+          } : undefined} />;
+      }
       case 'TEXT':
         return (
           <Textarea
@@ -688,6 +711,10 @@ const getStepIcon = (type: string) => {
 
   const isStepCompleteable = () => {
     if (!currentStep) return false;
+    if (currentStep.type === 'STOCK_COUNT') {
+      if (completedCounts.includes(currentStep.id) || currentStepInstance?.status === 'COMPLETED') return false;
+      try { normalizeStockCount(currentStep.config?.rows as StockCountRow[] || [], stepData[currentStep.id] ?? currentStepInstance?.value, true); return true; } catch { return false; }
+    }
  if (currentStep.type === 'INFO') return true;
 
  const value = stepData[currentStep.id] || currentStepInstance?.value;
@@ -766,7 +793,9 @@ const getStepIcon = (type: string) => {
               return (
                 <button
                   key={step.id}
-                  onClick={() => {
+                  disabled={submitting}
+                  onClick={async () => {
+                    try { await countGridRef.current?.flush(); } catch { toast.error('Guarda el borrador antes de cambiar de categoría'); return; }
                     setCurrentStepIndex(index);
                     setAIVerification(null);
                   }}

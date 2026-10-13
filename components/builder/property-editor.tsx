@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Trash2, Plus, Info, HelpCircle } from 'lucide-react';
 import { LogicRule, RuleAction } from './builder-context';
 import { LogicRuleCard } from './logic-rule-card';
+import { useStockCountCategories } from './stock-count-wizard';
 import { STEP_ACTION_TYPES, getStepActionType } from '@/lib/workflow-actions';
 import {
     AlertDialog,
@@ -35,6 +36,7 @@ import {
 export function PropertyEditor() {
     const { steps, selectedStepId, updateStep, removeStep } = useBuilder();
     const step = steps.find(s => s.id === selectedStepId);
+    const countCatalog = useStockCountCategories(step?.type === 'STOCK_COUNT');
 
     if (!step) {
         return (
@@ -91,7 +93,7 @@ export function PropertyEditor() {
                     </div>
                 )}
 
-                {!(getStepCategory(step.type) === 'INFO' || getStepCategory(step.type) === 'PHOTO' || getStepCategory(step.type) === 'SIGNATURE' || getStepCategory(step.type) === 'LOCATION' || getStepCategory(step.type) === 'TIMER') && (
+                {!(getStepCategory(step.type) === 'STOCK_COUNT' || getStepCategory(step.type) === 'INFO' || getStepCategory(step.type) === 'PHOTO' || getStepCategory(step.type) === 'SIGNATURE' || getStepCategory(step.type) === 'LOCATION' || getStepCategory(step.type) === 'TIMER') && (
                     <div className="space-y-2">
                         <Label>Valor por Defecto</Label>
                         <Input
@@ -102,6 +104,15 @@ export function PropertyEditor() {
                     </div>
                 )}
 
+                {step.type === 'STOCK_COUNT' && <div className="space-y-2">
+                    <Label htmlFor="count-category">Categoría de inventario</Label>
+                    <select id="count-category" value={step.config?.category || ''} disabled={countCatalog.loading} className="h-11 w-full rounded-md border bg-background px-3 text-sm" onChange={event => updateStep(step.id, { required: true, config: { category: event.target.value } })}>
+                        <option value="">Selecciona una categoría</option>
+                        {countCatalog.categories.map(item => <option key={item.category} value={item.category} disabled={steps.some(other => other.id !== step.id && other.type === 'STOCK_COUNT' && other.config?.category === item.category)}>{item.category} ({item.productCount})</option>)}
+                    </select>
+                    {countCatalog.error && <p role="alert" className="text-xs text-destructive">{countCatalog.error}<Button variant="link" size="sm" onClick={countCatalog.retry}>Reintentar</Button></p>}
+                    <p className="text-xs text-muted-foreground">Incluye todos los productos activos y lotes disponibles de la sucursal. Cada cantidad es obligatoria; los ajustes requieren revisión.</p>
+                </div>}
                 <div className="space-y-2">
                     <Label>Categoría</Label>
                     <Input
@@ -148,7 +159,7 @@ export function PropertyEditor() {
                     )}
                 </div>
 
-                {getStepCategory(step.type) !== 'INFO' && (
+                {getStepCategory(step.type) !== 'INFO' && step.type !== 'STOCK_COUNT' && (
                     <div className="flex items-center justify-between rounded-lg border p-3">
                         <Label className="cursor-pointer" htmlFor="req-switch">Obligatorio</Label>
                         <Switch
@@ -159,7 +170,7 @@ export function PropertyEditor() {
                     </div>
                 )}
 
-                {getStepCategory(step.type) !== 'INFO' && (
+                {getStepCategory(step.type) !== 'INFO' && step.type !== 'STOCK_COUNT' && (
                     <div className="flex items-center justify-between rounded-lg border p-3">
                         <Label className="cursor-pointer" htmlFor="readonly-switch">Solo Lectura</Label>
                         <Switch

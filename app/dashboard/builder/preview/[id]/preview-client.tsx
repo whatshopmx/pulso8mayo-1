@@ -8,6 +8,7 @@ import { ArrowLeft, Smartphone, Monitor, AlertTriangle, CheckCircle2, Clock, Map
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { getStepCategory, normalizeOptions, STEP_TYPE_DISPLAY } from '@/lib/workflow-type-map';
+import { StockCountGrid } from '@/components/inventory/stock-count-grid';
 
 interface WorkflowTemplate {
   id: string;
@@ -218,6 +219,7 @@ export function PreviewClient({ template }: PreviewClientProps) {
  {(() => {
  if (!currentStep) return null;
  const cat = getStepCategory(currentStep.type);
+ if (cat === 'STOCK_COUNT') return <div className="space-y-3"><p className="text-sm font-medium">Categoría: {currentStep.config?.category || 'Sin configurar'}</p><StockCountGrid rows={[]} readOnly /></div>;
 
  if (cat === 'PHOTO' || cat === 'VIDEO') {
   return (

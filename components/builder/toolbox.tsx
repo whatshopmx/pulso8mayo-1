@@ -5,6 +5,8 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Type, Hash, CheckSquare, Camera, List, ToggleLeft, Clock, Thermometer, PenTool, MapPin, Hourglass, Video, Mic, Info } from 'lucide-react';
 import { useBuilder, StepType } from './builder-context';
+import { StockCountWizard } from './stock-count-wizard';
+import { ClipboardList } from 'lucide-react';
 
 const tools: { type: StepType; label: string; icon: React.ReactNode }[] = [
     { type: 'instruction', label: 'Instrucción', icon: <Info className="w-4 h-4 mr-2" /> },
@@ -25,11 +27,13 @@ const tools: { type: StepType; label: string; icon: React.ReactNode }[] = [
 
 export function Toolbox() {
     const { addStep } = useBuilder();
+    const [countWizardOpen, setCountWizardOpen] = React.useState(false);
 
     return (
         <div className="w-64 border-r bg-muted/20 p-4 space-y-4">
             <h3 className="font-medium text-sm text-muted-foreground mb-4">Componentes</h3>
             <div className="grid gap-2">
+                <Button variant="secondary" className="justify-start" onClick={() => setCountWizardOpen(true)}><ClipboardList className="mr-2 h-4 w-4" />Conteo de inventario</Button>
                 {tools.map((tool) => (
                     <Button
                         key={tool.type}
@@ -42,6 +46,7 @@ export function Toolbox() {
                     </Button>
                 ))}
             </div>
+            <StockCountWizard open={countWizardOpen} onClose={() => setCountWizardOpen(false)} />
             <div className="mt-8 p-4 bg-muted border border-border rounded text-xs text-muted-foreground">
                 <p>Haz clic para agregarlos al final del flujo de trabajo.</p>
             </div>

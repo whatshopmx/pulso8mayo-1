@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, X, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ResolvedReviewStep } from "@/lib/workflows/step-definitions";
+import { readStockCount } from "@/lib/workflows/stock-count-grid";
 
 /**
  * Muestra *lo que el operador registró*, interpretado según el tipo del paso.
@@ -95,6 +96,13 @@ export function StepValue({ step, className }: StepValueProps) {
   }
 
   switch (step.type) {
+    case "STOCK_COUNT": {
+      const count = readStockCount(step.value);
+      if (!count) break;
+      return <div className="overflow-x-auto rounded-lg border"><table className="w-full text-sm"><thead className="bg-muted/30"><tr><th scope="col" className="p-2 text-left">Producto / lote</th><th scope="col" className="p-2 text-right">Sistema</th><th scope="col" className="p-2 text-right">Conteo</th><th scope="col" className="p-2 text-right">Diferencia</th></tr></thead>
+        <tbody className="divide-y">{count.rows.map(row => <tr key={`${row.itemId}:${row.batchId}`}><td className="p-2"><p>{row.name}</p><p className="text-xs text-muted-foreground">{row.lotNumber || 'Sin lote'} · {row.unit}</p></td><td className="p-2 text-right tabular-nums">{row.systemQuantity}</td><td className="p-2 text-right tabular-nums">{row.countedQuantity ?? 'Pendiente'}</td><td className="p-2 text-right tabular-nums">{row.countedQuantity === null ? '—' : Math.round((row.countedQuantity - row.systemQuantity) * 10000) / 10000}</td></tr>)}</tbody>
+      </table></div>;
+    }
     case "YESNO": {
       const raw = String(answer).trim().toUpperCase();
       const yes = raw === "SI" || raw === "SÍ" || raw === "YES" || raw === "TRUE";

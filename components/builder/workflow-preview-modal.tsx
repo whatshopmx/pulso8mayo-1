@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { WorkflowStep as BuilderWorkflowStep } from "@/components/builder/builder-context";
 import { getStepCategory, normalizeOptions, STEP_TYPE_DISPLAY } from "@/lib/workflow-type-map";
 import { Badge } from "@/components/ui/badge";
+import { StockCountGrid } from "@/components/inventory/stock-count-grid";
 
 interface WorkflowPreviewModalProps {
  open: boolean;
@@ -52,6 +53,7 @@ function StepField({ step, value, onChange, evidenceUrl, onEvidenceChange, check
         if (fileInputRef.current) fileInputRef.current.value = "";
     }, [evidenceUrl, onEvidenceChange]);
 
+ if (cat === 'STOCK_COUNT') return <div className="space-y-3"><p className="text-sm font-medium">Categoría: {step.config?.category || 'Sin configurar'}</p><StockCountGrid rows={[]} readOnly /></div>;
  if (cat === 'INFO') {
  if (step.type === 'Separator') {
  return <Separator className="my-2" />;
@@ -338,7 +340,7 @@ export function WorkflowPreviewModal({ open, onClose, steps, title }: WorkflowPr
 
     const canAdvance = (() => {
         if (!currentStep?.required) return true;
-        if (stepCategory === 'INFO') return true;
+        if (stepCategory === 'INFO' || stepCategory === 'STOCK_COUNT') return true;
         if (stepCategory === 'PHOTO') return evidenceUrl.length > 0;
         if (stepCategory === 'CHECKBOX') return Object.values(checkboxValues).some(Boolean);
         return !!value;

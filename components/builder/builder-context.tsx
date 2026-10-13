@@ -113,6 +113,7 @@ interface BuilderContextType {
   steps: WorkflowStep[];
   selectedStepId: string | null;
   addStep: (type: StepType) => void;
+  addStockCountSteps: (categories: string[]) => void;
   updateStep: (id: string, updates: Partial<WorkflowStep>) => void;
   removeStep: (id: string) => void;
   selectStep: (id: string | null) => void;
@@ -209,6 +210,19 @@ export function BuilderProvider({ children, initialSteps = [], initialMeta }: { 
         setSteps(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
     };
 
+    const addStockCountSteps = (categories: string[]) => {
+        const existing = new Set(steps.filter(step => step.type === 'STOCK_COUNT').map(step => step.config?.category));
+        const additions: WorkflowStep[] = [...new Set(categories)].filter(category => category && !existing.has(category)).map(category => ({
+            id: uuidv4(), type: 'STOCK_COUNT', title: `Conteo · ${category}`, required: true,
+            description: 'Registra la cantidad física de cada producto y lote. El conteo quedará pendiente de revisión.',
+            config: { category },
+        }));
+        if (!additions.length) return;
+        pushHistory(steps);
+        setSteps(previous => [...previous, ...additions]);
+        setSelectedStepId(additions[0].id);
+    };
+
     const removeStep = (id: string) => {
         pushHistory(steps);
         setSteps(prev => prev.filter(s => s.id !== id));
@@ -233,7 +247,7 @@ export function BuilderProvider({ children, initialSteps = [], initialMeta }: { 
     };
 
   return (
-    <BuilderContext.Provider value={{ steps, selectedStepId, addStep, updateStep, removeStep, selectStep, moveStep, undo, redo, canUndo, canRedo, templateMeta, updateTemplateMeta }}>
+    <BuilderContext.Provider value={{ steps, selectedStepId, addStep, addStockCountSteps, updateStep, removeStep, selectStep, moveStep, undo, redo, canUndo, canRedo, templateMeta, updateTemplateMeta }}>
       {children}
     </BuilderContext.Provider>
   );

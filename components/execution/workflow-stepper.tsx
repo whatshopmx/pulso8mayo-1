@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { CameraCapture } from "@/components/shared/camera-capture";
 import { usePhotoUpload } from "@/components/shared/use-photo-upload";
 import { useAudioRecorder } from "@/components/shared/use-audio-recorder";
+import { StockCountGrid, type StockCountGridHandle } from "@/components/inventory/stock-count-grid";
+import { normalizeStockCount, type StockCountRow } from "@/lib/workflows/stock-count-grid";
 
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,7 +26,7 @@ interface WorkflowStep {
     id: string;
     title: string;
     description: string;
-    type: 'TEXT' | 'NUMBER' | 'SELECT' | 'CHECKBOX' | 'DATE' | 'INFO' | 'SIGNATURE' | 'PHOTO' | 'TIMER' | 'VIDEO' | 'AUDIO' | 'LOCATION' | 'ENTITY_SELECT';
+    type: 'TEXT' | 'NUMBER' | 'SELECT' | 'CHECKBOX' | 'DATE' | 'INFO' | 'SIGNATURE' | 'PHOTO' | 'TIMER' | 'VIDEO' | 'AUDIO' | 'LOCATION' | 'ENTITY_SELECT' | 'STOCK_COUNT';
     config?: Record<string, unknown>;
     required?: boolean;
     metadata?: Record<string, any> & { entityType?: "purchase_order" | "invoice" };
@@ -37,6 +39,7 @@ interface WorkflowInstance {
     assignedTo: string;
     createdAt: string;
     completedAt?: string;
+    blindCount?: boolean;
 }
 
 interface WorkflowStepExecution {
@@ -160,6 +163,9 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
     // All hooks MUST be called before any conditional returns
     // Form State
     const [value, setValue] = useState("");
+    const countGridRef = useRef<StockCountGridHandle>(null);
+    const countDrafts = useRef<Record<string, string>>({});
+    const [completedCounts, setCompletedCounts] = useState<string[]>([]);
     const [evidenceUrl, setEvidenceUrl] = useState<string | string[]>("");
     const [loading, setLoading] = useState(false);
     const [aiFeedback, setAiFeedback] = useState<{ passed: boolean; reason?: string } | null>(null);
@@ -186,11 +192,16 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
     }>({ active: false });
 
     // Get current step definition — fallback to first step if stepper.state.current is null
-    const currentStepDef = steps.find((s) => s.id === stepper.state.current?.id) || steps[0];
+    const currentStepDef = steps.find((s) => s.id === stepper.state.current?.data.id) || steps[0];
+    const countCompleted = completedCounts.includes(currentStepDef.id) || existingSteps.some(step => step.stepId === currentStepDef.id && step.status === 'COMPLETED');
+    useEffect(() => {
+        if (currentStepDef.type !== 'STOCK_COUNT') return;
+        setValue(countDrafts.current[currentStepDef.id] ?? existingSteps.find(step => step.stepId === currentStepDef.id)?.value ?? "");
+    }, [currentStepDef.id, currentStepDef.type, existingSteps]);
 
     // Auto-save effect
     const performAutoSave = useCallback(async () => {
-        if (!currentStepDef || mode !== 'execution' || !hasUnsavedChanges) return;
+        if (!currentStepDef || currentStepDef.type === 'STOCK_COUNT' || mode !== 'execution' || !hasUnsavedChanges) return;
 
         setHasUnsavedChanges(false);
         try {
@@ -296,14 +307,18 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
     // Progress calculation
     const progress = useMemo(() => {
         const total = steps.length;
-        const currentIdx = steps.findIndex((s) => s.id === stepper.state.current?.id);
+        const currentIdx = steps.findIndex((s) => s.id === stepper.state.current?.data.id);
         return total > 0 ? ((currentIdx) / total) * 100 : 0;
-    }, [stepper.state.current?.id, steps]);
+    }, [stepper.state.current?.data.id, steps]);
 
     // Validation: can the current step be submitted?
     const canSubmit = useMemo(() => {
         if (!currentStepDef) return false;
         const type = currentStepDef.type;
+        if (type === 'STOCK_COUNT') {
+            if (mode === 'preview' || countCompleted) return true;
+            try { normalizeStockCount(currentStepDef.config?.rows as StockCountRow[] || [], value, true); return true; } catch { return false; }
+        }
         if (type === 'INFO') return true;
         if (type === 'CHECKBOX') {
             const items = currentStepDef.config?.options || currentStepDef.config?.items || [];
@@ -314,11 +329,12 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
             return Array.isArray(evidenceUrl) ? evidenceUrl.length > 0 : !!evidenceUrl;
         }
         return !!value || !!evidenceUrl;
-    }, [currentStepDef, value, evidenceUrl, checkboxValues]);
+    }, [currentStepDef, value, evidenceUrl, checkboxValues, mode, countCompleted]);
 
     // Validation function
     const validateCurrentStep = () => {
         if (!currentStepDef) return false;
+        if (currentStepDef.type === 'STOCK_COUNT') return canSubmit;
         if (!currentStepDef.required) return true;
         
         if (currentStepDef.type === 'CHECKBOX') {
@@ -487,6 +503,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
     }
 
     const handleNext = async () => {
+        if (currentStepDef.type === 'STOCK_COUNT' && countCompleted && !stepper.state.isLast) { stepper.navigation.next(); return; }
         // Validate required fields before proceeding
         if (!validateCurrentStep()) {
             toast.error("Por favor completa todos los campos requeridos antes de continuar");
@@ -516,6 +533,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
         }
 
         try {
+            await countGridRef.current?.flush();
             let submitValue = value;
             if (currentStepDef.type === 'ENTITY_SELECT' && value === 'none') {
                 submitValue = "";
@@ -588,6 +606,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
             }
 
             toast.success("Paso completado");
+            if (currentStepDef.type === 'STOCK_COUNT') setCompletedCounts(previous => [...previous, currentStepDef.id]);
             setValue("");
             setEvidenceUrl("");
             setCheckboxValues({});
@@ -625,10 +644,10 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
         toast.info("Corrige el problema e intenta de nuevo.");
     };
 
-    const currentIdx = steps.findIndex((s: any) => s.id === (stepper.state.current?.id || steps[0]?.id));
+    const currentIdx = steps.findIndex((s: any) => s.id === (stepper.state.current?.data.id || steps[0]?.id));
 
     return (
-        <div className="max-w-md mx-auto p-4 space-y-6">
+        <div className={`${currentStepDef.type === 'STOCK_COUNT' ? 'max-w-4xl' : 'max-w-md'} mx-auto p-4 space-y-6`}>
             {/* Progress */}
             <div className="space-y-2">
                 <div className="flex justify-between text-sm text-muted-foreground">
@@ -643,7 +662,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
                 {steps.map((s: any) => {
                     const existing = existingSteps.find((es: any) => es.stepId === s.id);
                     const isCompleted = existing?.status === 'COMPLETED';
-                    const isCurrent = s.id === (stepper.state.current?.id || steps[0]?.id);
+                    const isCurrent = s.id === (stepper.state.current?.data.id || steps[0]?.id);
                     return (
                         <div
                             key={s.id}
@@ -657,7 +676,7 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
                 })}
             </div>
 
-            <Card className="border-2 shadow-lg relative overflow-hidden">
+            <Card className="relative overflow-hidden shadow-none">
                 {/* Remediation Overlay */}
                 {remediation.active && (
                     <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
@@ -683,6 +702,19 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <Separator />
+                    {currentStepDef.type === 'STOCK_COUNT' && <StockCountGrid
+                        key={currentStepDef.id} ref={countGridRef}
+                        rows={currentStepDef.config?.rows as StockCountRow[] || []} value={value}
+                        blindCount={instance.blindCount} readOnly={countCompleted || loading || mode === 'preview'}
+                        onChange={next => { countDrafts.current[currentStepDef.id] = next; setValue(next); }}
+                        onSave={mode === 'execution' && !countCompleted ? async next => {
+                            const response = await fetch(token ? `/api/workflows/public/${token}/step` : `/api/workflows/executions/${executionId}/steps/${currentStepDef.id}`, {
+                                method: token ? 'POST' : 'PATCH', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ stepId: currentStepDef.id, value: next, status: 'IN_PROGRESS' }),
+                            });
+                            if (!response.ok) throw new Error('No se pudo guardar el borrador');
+                        } : undefined}
+                    />}
 
                     {/* ===== TEXT ===== */}
                     {currentStepDef.type === 'TEXT' && (
@@ -1123,12 +1155,12 @@ function StepperContent({ useStepper, steps, initialStep, token, executionId, ex
 
                 </CardContent>
                 <CardFooter className="flex justify-between gap-3">
-                    <Button variant="ghost" onClick={stepper.navigation.prev} disabled={stepper.state.isFirst}>
+                    <Button variant="ghost" onClick={async () => { try { await countGridRef.current?.flush(); stepper.navigation.prev(); } catch { toast.error('Guarda el borrador antes de cambiar de categoría'); } }} disabled={loading || stepper.state.isFirst}>
                         Atrás
                     </Button>
                     <Button onClick={handleNext} disabled={loading || !canSubmit} className="flex-1">
                         {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
-                        {stepper.state.isLast ? "Completar Workflow" : "Siguiente Paso"} <ArrowRight className="ml-2 h-4 w-4" />
+                        {stepper.state.isLast ? (currentStepDef.type === 'STOCK_COUNT' ? "Guardar para revisión" : "Completar Workflow") : "Siguiente Paso"} <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                 </CardFooter>
             </Card>
