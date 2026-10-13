@@ -20,8 +20,9 @@ Este documento es para empezar una sesión nueva sin releer veinte archivos. **L
 **C00–C15 completadas. C16 en curso: C16.1–C16.2.3 hechos, falta C16.3. C17–C40 pendientes.** El trabajo de la sesión está commiteado; quedan sin commitear los archivos de `stock-count` y dos pruebas suyas, que son de otra línea de trabajo (conteos por categoría y lote).
 
 ```
-bee5b7e C16.2.3: la empresa elige quién solicita y quién emite, y lo ve
-7a4114a C16.2.2: solicitar y emitir con control de delegación y pertenencia verificada
+3334278 Seguimiento: C16 con controles de solicitud y emisión, abierta en C16.3
+7ec3d72 C16.2.3: la empresa elige quién solicita y quién emite, y lo ve
+6b77f18 C16.2.2: solicitar y emitir con control de delegación y pertenencia verificada
 2054b8f C16.2.1: los controles de solicitud y emisión se configuran y se resuelven
 3b0742d C16.1: la matriz de aprobadores de compras se edita desde Configuración operativa
 c153cc7 C15: cada política operativa dice lo que hace hoy, no lo que sugiere
