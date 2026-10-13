@@ -17,16 +17,17 @@ Este documento es para empezar una sesión nueva sin releer veinte archivos. **L
 
 ## 2. Estado al handing-off
 
-**C00–C15 completadas. C16 en curso con C16.1 implementado. C16.2–C40 pendientes.** El trabajo de la sesión está commiteado; quedan sin commitear los archivos de `stock-count` y dos pruebas suyas, que son de otra línea de trabajo (conteos por categoría y lote).
+**C00–C15 completadas. C16 en curso: C16.1–C16.2.3 hechos, falta C16.3. C17–C40 pendientes.** El trabajo de la sesión está commiteado; quedan sin commitear los archivos de `stock-count` y dos pruebas suyas, que son de otra línea de trabajo (conteos por categoría y lote).
 
 ```
+bee5b7e C16.2.3: la empresa elige quién solicita y quién emite, y lo ve
+7a4114a C16.2.2: solicitar y emitir con control de delegación y pertenencia verificada
+2054b8f C16.2.1: los controles de solicitud y emisión se configuran y se resuelven
 3b0742d C16.1: la matriz de aprobadores de compras se edita desde Configuración operativa
 c153cc7 C15: cada política operativa dice lo que hace hoy, no lo que sugiere
-5695b4f lint: los scripts de sondeo de .tmp no rompen la configuración de ESLint
-175edaa feat: capture category and lot counts with a workflow wizard
 ```
 
-Puertas de fase cerradas: Fase 0, Fase 1 y **Fase 2** (12-10-2026). La Fase 3 sigue abierta: C15 está dentro pero la puerta se cierra al terminar C23.
+Puertas de fase cerradas: Fase 0, Fase 1 y **Fase 2** (12-10-2026). La Fase 3 sigue abierta: C16 cierra el bloque de compras y faltan C17–C23.
 
 ## 3. Lo que NO está verificado — no dar por hecho
 
@@ -42,6 +43,9 @@ Este es el apartado que más caro sale perder. Las tareas están marcadas, pero 
 | C14.3 | `getPnLSnapshots` **no tiene consumidores**. La vigencia por fecha ya impide reescribir el pasado en los cálculos, pero el P&L congelado al cerrar sigue siendo un archivo que ninguna vista lee. Conectarlo es de C29–C31. |
 | C15 | La comprobación del catálogo es **textual**: comprueba que cada política aplicada nombre un símbolo declarado y que las descriptivas no aparezcan fuera de las rutas exentas. No pasa el valor por su consumidor —no hay efecto nuevo que pasar, C15 no aplica nada— y no detecta accesos dinámicos. El riesgo que queda: si un servicio deja de leer un umbral, la prueba de «aplicada» sigue verde hasta que alguien actualice el catálogo a mano. |
 | C16.1 | Las cuatro pruebas de navegador interceptan `api/approval-matrix`; la matriz se guarda contra respuestas simuladas, sin Postgres. Lo que sí quedó comprobado contra el código real es que la promesa corregida es cierta: `validateMatrixRules` emite «quedarán sin cadena y no podrán enviarse» y `purchase-order-service` rechaza con «El monto no está cubierto por la matriz de autorización». C16.3 tiene que verificar el recorrido con dos empresas. |
+| C16.2 | **El aislamiento por empresa se comprobó sobre el SQL, no en runtime:** la prueba renderiza cada `where` con `PgDialect` y exige `company_id`. Cubre la consulta, no la ejecución. Nadie ha visto en el navegador que un supervisor reciba un 403 al emitir, ni que una orden de otra empresa devuelva 404. |
+| C16.2 | La categoría del artículo es texto libre (`inventory_items.category`), así que las reglas por categoría comparan texto normalizado y un artículo sin categoría no queda cubierto. Si el negocio quiere un catálogo de categorías, es otra tarea. |
+| C16.2 | Al aplicar el control se cerraron huecos previos de este recorrido: las transiciones buscaban la orden sólo por id y crear aceptaba sucursal, proveedor, solicitud y artículos del cuerpo sin comprobarlos. Quien mantenga ese recorrido debe seguir pasando `companyId` y el rol del actor: los parámetros son obligatorios, no opcionales, a propósito. |
 
 ## 4. Estado de la base de datos
 
@@ -109,24 +113,30 @@ El plan define cuatro verificaciones. Cada tarea declara cuál usa:
 | Los objetivos de semáforo y umbrales no tienen vigencia a propósito | 12-10 | Evidencia de C14.3 |
 | El historial de configuración es de mejor esfuerzo, nunca rompe el guardado | 12-10 | Evidencia de C14.2 |
 | Cada política se clasifica por lo que el código hace hoy; `managerAutonomy` y `tenantType` quedan `pendiente`, no `descriptiva` | 13-10 | Evidencia de C15 |
+| Los responsables de comprar se configuran de forma explícita; la modalidad no concede permisos | 13-10 | Evidencia de C16.2 |
+| Sin reglas de delegación no hay control adicional (decide el permiso vigente), no una puerta abierta | 13-10 | Evidencia de C16.2 |
+| Los montos no forman parte de los controles de solicitud y emisión: son de la matriz y de C20 | 13-10 | Evidencia de C16.2 |
+| Con varias reglas que cubren, gana la más permisiva que el actor alcance; la diferencia avisa, no bloquea | 13-10 | Evidencia de C16.2 |
 
 **Pendientes de decisión** (condicionan C16–C23, no bloquean el trabajo): quién revisa un workflow; si la exclusión de `ADMIN` en `policy_overrides` se confirma; las ocho decisiones por dimensión que C15 escribió (compras, producción, tesorería, pagos, autonomía, nómina, tipo de grupo y caja chica); horario, urgencias y zona horaria de notificaciones; consumidores externos del executor anterior.
 
-## 8. Siguiente paso — C16.2
+## 8. Siguiente paso — C16.3
 
-**C16 — Aplicar política de estructura de compras** (H04 · depende de C15 ✅ · tamaño M), con **C16.1 ya implementado** (`3b0742d`).
+**C16 — Aplicar política de estructura de compras** (H04 · depende de C15 ✅), con C16.1, C16.2.1, C16.2.2 y C16.2.3 implementados.
 
-Criterios de aceptación de C16 (ninguno cerrado todavía):
-- [ ] La opción elegida determina exactamente las decisiones del recorrido definidas en C15.
-- [ ] Las entradas alternativas de ese recorrido no evitan la política y el resultado llega a la UI.
-- [ ] Hay casos para cada valor y excepción autorizada; no se alteran compras históricas implícitamente.
+Criterios de aceptación de C16 y lo que falta:
+- [ ] **La opción elegida determina las decisiones** —resuelto por decisión: la modalidad es `descriptiva` y las decisiones las determinan los controles explícitos. Anotar la decisión y cerrarlo aquí.
+- [x] **Las entradas alternativas no evitan la política** —cerrado en C16.2.2.
+- [ ] **Casos para cada valor y excepción; las compras históricas no cambian** —falta confirmarlo sobre órdenes ya enviadas.
 
-**Lo que sigue, en orden:**
+**Qué es C16.3, en concreto:**
+1. Recorrer **solicitud → envío a aprobación → aprobación por matriz → emisión** con **dos empresas** y comprobar que los controles de una no alcanzan a la otra: misma ruta, mismo id de orden ajeno, misma sucursal ajena.
+2. Comprobar que **reconfigurar los controles no altera** órdenes ya emitidas ni solicitudes abiertas: la regla se lee al intentar, no se graba en el documento.
+3. Cerrar la pregunta de negocio que sigue abierta: **si una compra de emergencia puede saltarse algún control** (y con qué condición). Está escrita como la única decisión pendiente de `purchasingStructure` en el catálogo y en el contrato.
 
-1. **C16.2 — solicitud, emisión y delegación.** Definir y conectar los controles configurables por empresa para solicitar y emitir compras, y para sucursales y categorías; respetar RBAC, presupuestos, emergencias y entradas alternativas. **No inferirlos de `CENTRALIZADA`/`POR_SUCURSAL`/`HIBRIDO`.** El plan deja escrito que la modalidad declarada no concede permisos por sí sola, y el catálogo de C15 dice que la dimensión no tiene consumidor: crear el consumidor es parte de esta subtarea.
-2. **C16.3 — verificación del recorrido.** Comprobar la matriz y los controles guardados en la solicitud y la aprobación reales con dos empresas, y conservar las decisiones de las órdenes ya enviadas.
+**Cómo verificarlo:** aquí sí hace falta la base real. Las pruebas unitarias simulan `db` y la comprobación de pertenencia se hizo sobre el SQL; una ejecución con dos empresas es lo que falta. Opciones: un spec de Playwright con `playwright.config.ts` (el que usa la base real y `auth.setup`), o un script de `tsx` con el cliente de Neon que siembre dos empresas y recorra el servicio. Lo segundo es más rápido y no depende de la sesión de navegador.
 
-**Contrato de C15 que hay que respetar:** la decisión de negocio de compras sigue abierta en el catálogo (campo `decisionPendiente` de `purchasingStructure`) y en `docs/operating-policy-contracts.md`. Si se implementa un efecto, hay que actualizar la clasificación del catálogo a `aplicada` con su consumidor, o su prueba de ausencia fallará — eso es intencional.
+**Lo que ya está:** `lib/purchasing/delegation-policy.ts` (resolución pura + carga), `purchase-order-service` (guardas y aplicación), `GET`/`PUT /api/purchase-delegation`, la sección de Configuración operativa y la evidencia en [C16](../docs/audits/2026-10-13-estructura-compras.md).
 
 ## 9. Después de C16
 

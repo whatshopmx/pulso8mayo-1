@@ -598,19 +598,21 @@ Implementar el contrato de purchasingStructure en un recorrido de solicitud/apro
 
 **Criterios de aceptación:**
 
-- [ ] La opción elegida determina exactamente las decisiones del recorrido definidas en C15.
-- [ ] Las entradas alternativas de ese recorrido no evitan la política y el resultado llega a la UI.
-- [ ] Hay casos para cada valor y excepción autorizada; no se alteran compras históricas implícitamente.
+- [ ] La opción elegida determina exactamente las decisiones del recorrido definidas en C15. **Resuelto por decisión (13-10-2026):** la opción elegida no determina ninguna —la modalidad es `descriptiva`— y las decisiones las determinan los controles explícitos de C16.2.1. Cierra en C16.3 con la decisión anotada, no antes.
+- [x] Las entradas alternativas de ese recorrido no evitan la política y el resultado llega a la UI. Las sugerencias del PAR declaran su rol y pasan por el mismo control; un actor de sistema puede dejar borrador pero no emitir. El 403 nombra el rol mínimo o el hueco, y la tarjeta de configuración lo muestra.
+- [ ] Hay casos para cada valor y excepción autorizada; no se alteran compras históricas implícitamente. Hay casos por acción, alcance y rol; falta el recorrido con dos empresas y la confirmación de que las órdenes ya enviadas no cambian al reconfigurar.
 
 **Verificación:** V1 de decisiones y V2 de una compra bajo dos configuraciones; implementación supeditada al contrato de C15.
 
+**Ejecutado (13-10-2026):** C16.1 (matriz OC en Configuración operativa), C16.2.1 (contrato, tabla y ruta), C16.2.2 (solicitud y emisión con pertenencia verificada) y C16.2.3 (interfaz). **Falta C16.3.** Evidencia: [C16 — Política de estructura de compras](../docs/audits/2026-10-13-estructura-compras.md) — 53 casos unitarios y 8 pruebas de Chromium, suite 1073 aprobadas, 50/50 en la configuración aislada, migración 0095 aplicada y comprobada en la base real.
+
 **Archivos probables:**
 
-- `lib/services/tenant-config-service.ts`
-- `Consumidor de compras identificado en C00`
-- `Entrada de servidor de ese recorrido`
-- `components/company/operating-dimensions-section.tsx`
-- `Prueba de política de compras (nueva)`
+- `lib/purchasing/delegation-policy.ts`
+- `lib/services/purchase-order-service.ts`
+- `app/api/purchase-delegation/route.ts`
+- `components/company/purchasing-delegation-section.tsx`
+- `tests/unit/purchasing/` y `tests/e2e/operating-config.spec.ts`
 
 <a id="c17"></a>
 
