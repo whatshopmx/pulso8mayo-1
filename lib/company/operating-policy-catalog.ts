@@ -246,8 +246,13 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
     clasificacion: "descriptiva",
     consumidor: null,
     aplicacion:
-      "Se lee al abrir la pantalla de configuración. Ningún servicio de producción, " +
-      "recetas o inventario lee la columna.",
+      "Se lee al abrir la pantalla de configuración. Ningún servicio lee la columna " +
+      "para decidir nada: el recorrido que describe —producción por sucursal y " +
+      "envíos entre sucursales— funciona igual con cualquier valor. La producción " +
+      "registra órdenes contra una sucursal y descuenta sus lotes por FEFO " +
+      "(`production_orders.branchId`, `recordProduction`); el envío entre " +
+      "cocinas son transferencias de inventario (solicitud, aprobación, envío y " +
+      "recepción), que mueven el stock sin duplicarlo.",
     excepciones:
       "El conteo de inventario genera merma automática con su propio umbral " +
       "(`mermaVarianceThresholdPct`), que no depende de esta dimensión.",
@@ -258,8 +263,12 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
       { valor: "MIXTO", titulo: "Mixto / Ensamble", caso: null },
     ],
     decisionPendiente:
-      "Falta definir qué cocina abastece a cada sucursal, quién autoriza la producción " +
-      "y qué movimientos registran el envío y la recepción sin duplicar inventario.",
+      "Decidido el 13-10-2026: la dimensión sigue descriptiva porque el producto " +
+      "no tiene cocinas designadas —ninguna sucursal está marcada como comisariato— " +
+      "y aplicarla deduciendo reglas de IN_SITU/COCINA_CENTRAL/MIXTO sería repetir " +
+      "H04. El recorrido que describe ya existe y C17 lo dejó con empresa verificada " +
+      "en servidor (producción y transferencias). Lo que falta para aplicarla: decidir " +
+      "qué cocina abastece a cada sucursal y quién autoriza ese envío.",
   },
 
   // ── Tesorería y dispersión de pagos ─────────────────────────────────────
