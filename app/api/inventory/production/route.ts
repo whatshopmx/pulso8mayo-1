@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { enforceBranchScope } from "@/lib/branch-scope";
+import { enforceBranchScope, assertBranchOfCompany } from "@/lib/branch-scope";
 import type { Role } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { productionOrders, productionResults, productionIngredients, recipes, inventoryItems, inventoryBatches } from "@/lib/db/schema";
@@ -8,6 +8,7 @@ import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { ProductionService } from "@/lib/services/production-service";
 import { expandRecipeLeaves, produceRecipeWithFefo, loadItemInfo, type LeafCache } from "@/lib/services/recipe-production";
+import { isApiError } from "@/lib/api/error";
 
 const createOrderSchema = z.object({
     recipeId: z.string().min(1),
@@ -49,10 +50,28 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "branchId requerido" }, { status: 400 });
         }
 
+        // C17.2 — la sucursal de la consulta es de esta empresa. Para los roles
+        // que ven todas las sucursales, `enforceBranchScope` devuelve el id que
+        // venga en la query sin comprobarlo: sin esta guarda, el listado de
+        // órdenes —y la vista previa, que descuenta lote a lote de la sucursal—
+        // leían las de otra empresa.
+        await assertBranchOfCompany(session.user.companyId, branchId);
+
         // Vista previa de asignación FEFO para una receta y cantidad
         const isPreview = searchParams.get("preview") === "true";
         const previewRecipeId = searchParams.get("recipeId");
         if (isPreview && previewRecipeId) {
+            // C17.2 — la receta del preview es de la empresa: sin esto, un
+            // `recipeId` ajeno devolvía la estructura de la receta foránea
+            // (insumos y cantidades) en la vista previa de esta empresa.
+            const [previewRecipe] = await db
+                .select({ id: recipes.id })
+                .from(recipes)
+                .where(and(eq(recipes.id, previewRecipeId), eq(recipes.companyId, session.user.companyId)))
+                .limit(1);
+            if (!previewRecipe) {
+                return NextResponse.json({ error: "Receta no encontrada" }, { status: 404 });
+            }
             const quantity = parseFloat(searchParams.get("quantity") || "1") || 1;
             const cache: LeafCache = new Map();
             const leaves = await expandRecipeLeaves(previewRecipeId, quantity, cache);
@@ -132,6 +151,12 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: true, orders });
     } catch (error) {
         console.error("Get production orders error:", error);
+        // C17.2 — la guarda de sucursal lanza `ApiError`: sin traducirla, una
+        // sucursal ajena llegaba al cliente como 500, que dice «falló el
+        // servidor» cuando lo que pasó es que la sucursal no es de esta empresa.
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
         return NextResponse.json({ error: "Error al obtener órdenes" }, { status: 500 });
     }
 }
@@ -151,6 +176,12 @@ export async function POST(req: NextRequest) {
         if (!branchId) {
             return NextResponse.json({ error: "Selecciona una sucursal para registrar producción" }, { status: 400 });
         }
+
+        // C17.2 — la sucursal del cuerpo es de esta empresa: ni la orden, ni la
+        // producción (que descuenta lotes de ella) pueden dirigirse a la de
+        // otra. El servicio vuelve a comprobarlo para quien llame sin pasar por
+        // esta ruta —la hoja de producción diaria y los workflows—.
+        await assertBranchOfCompany(session.user.companyId, branchId);
 
         if (action === "record") {
             const validated = recordProductionSchema.parse(body);
@@ -238,6 +269,9 @@ export async function POST(req: NextRequest) {
         console.error("Create production order error:", error);
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: "Datos inválidos", details: error.issues }, { status: 400 });
+        }
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
         }
         return NextResponse.json({ error: "Error al crear orden" }, { status: 500 });
     }

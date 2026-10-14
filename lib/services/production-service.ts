@@ -1,9 +1,10 @@
 import { db } from "@/lib/db";
 import {
     productionOrders, productionResults, productionIngredients,
-    inventoryBatches, inventoryItems, inventoryMovements, recipes, recipeItems, salesEntries,
+    inventoryBatches, inventoryItems, inventoryMovements, recipes, recipeItems, salesEntries, branches,
 } from "@/lib/db/schema";
-import { eq, and, gte, sql, sum, desc } from "drizzle-orm";
+import { eq, and, gte, sql, sum, desc, inArray } from "drizzle-orm";
+import { ApiError } from "@/lib/api/error";
 import type { DbExecutor } from "./fefo-allocator";
 
 export interface ProductionSuggestion {
@@ -27,6 +28,13 @@ export class ProductionService {
         notes?: string;
         createdBy: string;
     }) {
+        // C17.2 — la sucursal que produce y la receta tienen que ser de la
+        // empresa. Sin la primera, un admin pasaba el id de una sucursal ajena
+        // y la orden quedaba con `company_id` de esta empresa y `branch_id` de
+        // la otra: una fila que ningún filtro por empresa deshace, porque la
+        // escribió esta sesión.
+        await assertBranchOfCompany(db, data.companyId, data.branchId);
+        await assertRecipeOfCompany(db, data.companyId, data.recipeId);
         const [order] = await db.insert(productionOrders).values(data).returning();
         return order;
     }
@@ -81,6 +89,34 @@ export class ProductionService {
             missing: number;
             unit: string;
         }[] = [];
+
+        // C17.2 — antes de escribir nada: la receta es de la empresa y los
+        // lotes explícitos son de la sucursal que produce. El camino de
+        // ingredientes manuales no corre dentro de una transacción, así que un
+        // rechazo en mitad del bucle de descuento dejaría lotes descontados a
+        // medias — la comprobación va antes del primer insert.
+        //
+        // Un lote de otra sucursal no es faltante (eso es merma de stock
+        // propio): es una escritura que no debería ocurrir, y se rechaza
+        // nombrando el lote. Que el lote no exista sigue siendo shortfall, que
+        // es el contrato T16 que el camino FEFO ya usa.
+        await assertBranchOfCompany(q, data.companyId, data.branchId);
+        await assertRecipeOfCompany(q, data.companyId, data.recipeId);
+        const batchIds = ingredients
+            .map((ing) => ing.batchId)
+            .filter((id): id is string => Boolean(id));
+        if (batchIds.length > 0) {
+            const lotes = await q
+                .select({ id: inventoryBatches.id, branchId: inventoryBatches.branchId })
+                .from(inventoryBatches)
+                .where(inArray(inventoryBatches.id, batchIds));
+            const ajeno = lotes.find((lote) => lote.branchId !== data.branchId);
+            if (ajeno) {
+                throw ApiError.badRequest(
+                    `El lote ${ajeno.id} no pertenece a la sucursal ${data.branchId}: la producción sólo descuenta lotes propios.`
+                );
+            }
+        }
 
         // Task 4 (§6.4) — ventana de retención en línea. El vencimiento sale de
         // `now()` del servidor, no del reloj del proceso: `production_date` usa
@@ -275,5 +311,62 @@ export class ProductionService {
         return suggestions
             .filter(s => s.suggestedQuantity > 0)
             .sort((a, b) => b.suggestedQuantity - a.suggestedQuantity);
+    }
+}
+
+/**
+ * C17.2 — la receta tiene que ser de la empresa que produce.
+ *
+ * `recipes` no guarda sucursal: la receta es del grupo y se produce en la
+ * sucursal que la registra. Sin esta guarda, un `recipeId` de otra empresa
+ * creaba órdenes y registraba producciones contra recetas ajenas — y
+ * `getOrders` devolvía el nombre de esa receta ajena en la pantalla de la
+ * víctima, porque el join es por id.
+ */
+/**
+ * C17.2 — la sucursal que produce es de la empresa.
+ *
+ * `production_orders` y `production_results` guardan las dos cosas —empresa y
+ * sucursal— y nadie las contrastaba: `enforceBranchScope` devuelve la sucursal
+ * del cuerpo tal cual para los roles que ven toda la empresa. Con una sucursal
+ * ajena, la producción descontaba lotes de la otra empresa (que es donde
+ * estaban) y escribía el movimiento con la empresa de esta.
+ *
+ * Va por `executor` y no por el `db` global para que, dentro de la transacción
+ * de `produceRecipeWithFefo`, lea con el mismo ejecutor que va a escribir.
+ */
+async function assertBranchOfCompany(
+    executor: DbExecutor,
+    companyId: string,
+    branchId: string,
+): Promise<void> {
+    const [row] = await executor
+        .select({ id: branches.id })
+        .from(branches)
+        .where(and(eq(branches.id, branchId), eq(branches.companyId, companyId)))
+        .limit(1);
+
+    if (!row) {
+        throw ApiError.badRequest(
+            "La sucursal seleccionada no existe para esta empresa. Recarga el catálogo e inténtalo de nuevo."
+        );
+    }
+}
+
+async function assertRecipeOfCompany(
+    executor: DbExecutor,
+    companyId: string,
+    recipeId: string,
+): Promise<void> {
+    const [recipe] = await executor
+        .select({ id: recipes.id })
+        .from(recipes)
+        .where(and(eq(recipes.id, recipeId), eq(recipes.companyId, companyId)))
+        .limit(1);
+
+    if (!recipe) {
+        throw ApiError.badRequest(
+            `La receta ${recipeId} no existe para esta empresa. Recarga el catálogo de recetas e inténtalo de nuevo.`
+        );
     }
 }
