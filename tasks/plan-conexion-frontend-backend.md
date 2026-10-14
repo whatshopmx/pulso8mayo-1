@@ -622,13 +622,29 @@ Implementar el contrato de purchasingStructure en un recorrido de solicitud/apro
 
 Conectar foodProduction al recorrido de producción/abastecimiento definido o tratarla como descripción de la operación.
 
+**Investigación de C17 (13-10-2026) — el recorrido existe y sus huecos también.** El producto ya tiene el recorrido que la dimensión describe, y no hace falta uno nuevo:
+
+1. **Producción por sucursal.** `production_orders` lleva `branchId` y `recordProduction` descuenta los insumos de los lotes **de esa misma sucursal** (FEFO con `FOR UPDATE`). La receta es de la empresa (`recipes.companyId`) y se produce en el sucursal concreto donde se registra.
+2. **Abastecimiento entre sucursales = transferencias.** `inventory_transfers` ya modela el envío de una cocina a otra: solicitud → aprobación → envío (`shipTransfer` descuenta por FEFO en el origen y registra `TRANSFER` negativo) → recepción (`receiveTransfer` crea el lote destino heredando folio/vencimiento y registra `TRANSFER` positivo). Mueve stock, no lo duplica; es el motor que usaría un comisariato, y el plan prohíbe crear un segundo.
+3. **No existe «cocina central» como entidad.** Ninguna columna designa a una sucursal como comisariato; `IN_SITU`/`COCINA_CENTRAL`/`MIXTO` no gobierna ninguna de estas rutas. Aplicar la dimensión deduciendo reglas del nombre del valor sería repetir H04.
+4. **El recorrido tiene huecos de alcance, los mismos que C16 cerró en compras.** `POST /api/inventory/transfers` no comprueba que `toBranchId` ni los artículos pertenezcan a la empresa; `PATCH /api/inventory/transfers/[id]` busca la transferencia sólo por id, sin empresa ni rol, así que cualquier usuario autenticado de otra empresa puede aprobar, enviar o recibir una transferencia ajena. En producción, `createOrder` acepta `recipeId` ajeno y `recordProduction` con ingredientes explícitos descuenta `batchId` sin comprobar sucursal ni empresa — puede descontar lotes de otra empresa. El catálogo lo dice desde C15: la política sólo puede aplicarse donde el servidor verifica de quién es lo que decide.
+
+**Decisión de producto (13-10-2026):** `foodProduction` sigue siendo `descriptiva` — nadie ha definido qué cocina abastece a cada sucursal ni quién autoriza, y deducirlo del nombre del valor sería el defecto que C15 clasificó. Lo que C17 sí hace es dejar el recorrido que la dimensión describe con empresa verificada en servidor (producción y transferencias), que es el criterio 2 de aceptación, y fijar en el catálogo qué faltaría para aplicarla.
+
+**Cortes antes de implementar:**
+
+- **C17.1 — Contrato honesto:** la entrada de `foodProduction` del catálogo queda escrita contra el recorrido real (producción por sucursal + transferencias como envío) y estrecha su decisión pendiente a lo que de verdad falta. Sin cambio de clasificación.
+- **C17.2 — Producción con empresa verificada:** `createOrder` y `recordProduction` comprueban receta de la empresa y lote de la sucursal antes de escribir; rechazo sin descuento parcial.
+- **C17.3 — Transferencias con empresa verificada:** creación acota destino, artículos y lotes a la empresa; listado y transiciones acotan la transferencia por empresa y exigen el lado coherente con lo que la interfaz muestra (el destino aprueba o rechaza, el origen envía, el destino recibe).
+- **C17.4 — Recorrido controlado:** un caso con dos empresas demuestra el envío completo sin duplicar movimientos (un `TRANSFER` negativo en origen, un positivo en destino) y el rechazo de lo ajeno.
+
 **Criterios de aceptación:**
 
-- [ ] Cada valor produce el comportamiento especificado o una etiqueta descriptiva honesta.
-- [ ] El alcance de cocina/sucursal se verifica en servidor y las excepciones están definidas.
-- [ ] Un caso controlado demuestra el efecto sin duplicar movimientos de inventario.
+- [x] Cada valor produce el comportamiento especificado o una etiqueta descriptiva honesta. `foodProduction` sigue `descriptiva` con el contrato escrito contra el recorrido real (C17.1) y la decisión pendiente reducida a lo que falta; evidencia en [C17](../docs/audits/2026-10-13-produccion-alimentos.md).
+- [x] El alcance de cocina/sucursal se verifica en servidor y las excepciones están definidas. Producción y transferencias acotan empresa, sucursal, receta, artículos y lotes antes de escribir (C17.2, C17.3). Las excepciones que quedan: quien tenga `inventory:update` y vea toda la empresa opera en cualquier sucursal de su empresa; y un lote de otra sucursal se rechaza en vez de tratarse como faltante —el faltante sigue siendo merma por lote insuficiente—.
+- [x] Un caso controlado demuestra el efecto sin duplicar movimientos de inventario. C17.4 contra la base real: dos empresas, envío completo con exactamente un `TRANSFER` negativo en origen y uno positivo en destino, un lote destino, y el rechazo de lo ajeno sin escribir.
 
-**Verificación:** V1 de reglas y V2 del recorrido de producción identificado; no crear un segundo motor de movimientos.
+**Verificación ejecutada (13-10-2026):** V1 — `tests/unit/inventory/transfer-scope.test.ts` (17) y `tests/unit/inventory/production-scope.test.ts` (11) sobre servicio y ruta reales. V2 — `tests/e2e/transfers-scope.spec.ts` (5) en Chromium con la pantalla real y la API interceptada; **el recorrido en navegador encontró un hueco que la V1 no podía ver**: una transferencia `APPROVED` no salía en ninguna pestaña, así que el origen no tenía cómo enviarla. Se añadió «Por Enviar» y hay prueba que lo fija. V3/base real — `scripts/verify-food-production-scope.ts`, 41/41. Suite completa 1101 unitarias, 55/55 en navegador, `tsc` y `build` limpios, `lint` 0 errores. Límites declarados en la [evidencia](../docs/audits/2026-10-13-produccion-alimentos.md): sin V2 de la pantalla de producción y sin responsabilidades configurables para transferencias.
 
 **Archivos probables:**
 
