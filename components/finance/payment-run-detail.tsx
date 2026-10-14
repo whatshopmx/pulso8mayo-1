@@ -52,6 +52,8 @@ import {
   SettlePaymentRunItemDialog,
   type SettleableRunItem,
 } from "./settle-payment-run-item-dialog";
+import { useSession } from "@/hooks/use-session";
+import { pasosDeCorrida, type PasoCorrida } from "@/lib/treasury/disbursement-policy";
 
 const STATUS_CONFIG: Record<
   string,
@@ -98,6 +100,12 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const router = useRouter();
+  // C18 — la pantalla calcula los mismos veredictos que el servidor, con el
+  // mismo módulo. Antes los botones dependían sólo del estado: un GERENTE veía
+  // «Aprobar Corrida (Firma)» y el clic volvía con un 403. El botón sigue
+  // visible —para que se lea por qué no— pero desactivado con el motivo.
+  const { session } = useSession();
+  const rol = (session?.user?.role ?? null) as never;
 
   // Estado para modal de liquidación individual
   const [settleItem, setSettleItem] = useState<SettleableRunItem | null>(null);
@@ -212,6 +220,29 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
     };
   }, [items]);
 
+  /**
+   * Veredictos de la corrida para el rol de la sesión. Se calculan una vez y
+   * los leen todos los botones: si el servidor va a rechazar un paso, el botón
+   * está desactivado y con su motivo en el `title`.
+   *
+   * Va antes de las salidas tempranas porque es un hook: calcularlo después
+   * rompería la regla de hooks en cuanto la primera carga devuelva datos.
+   */
+  const veredictos = useMemo(() => {
+    const mapa = new Map<PasoCorrida, { permitido: boolean; motivo?: string }>();
+    for (const paso of pasosDeCorrida(run?.status as never, rol, {
+      esPreparador: run?.preparedBy === session?.user?.id,
+      pendientes: summary.pending,
+    })) {
+      mapa.set(paso.paso, paso);
+    }
+    return (paso: PasoCorrida) =>
+      mapa.get(paso) ?? { permitido: false, motivo: "Este paso no aplica al estado actual." };
+  }, [run?.status, run?.preparedBy, session?.user?.id, rol, summary.pending]);
+
+  const puedeOperar = veredictos("SOLICITAR").permitido || veredictos("CANCELAR").permitido;
+  const puedeLiquidar = veredictos("LIQUIDAR").permitido;
+
   if (isLoading) {
     return <Skeleton className="h-[400px] w-full" />;
   }
@@ -301,7 +332,8 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                 <Button
                   size="sm"
                   onClick={() => updateStatus("PENDING_APPROVAL")}
-                  disabled={isUpdating}
+                  disabled={isUpdating || !veredictos("SOLICITAR").permitido}
+                  title={veredictos("SOLICITAR").motivo ?? undefined}
                 >
                   {isUpdating ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -315,7 +347,8 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                 <Button
                   size="sm"
                   onClick={() => updateStatus("APPROVED")}
-                  disabled={isUpdating}
+                  disabled={isUpdating || !veredictos("APROBAR").permitido}
+                  title={veredictos("APROBAR").motivo ?? undefined}
                 >
                   {isUpdating ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -329,7 +362,8 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                 <Button
                   size="sm"
                   onClick={() => updateStatus("PROCESSING")}
-                  disabled={isUpdating}
+                  disabled={isUpdating || !veredictos("DISPERSAR").permitido}
+                  title={veredictos("DISPERSAR").motivo ?? undefined}
                 >
                   {isUpdating ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -343,17 +377,13 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                 <Button
                   size="sm"
                   onClick={() => updateStatus("COMPLETED")}
-                  disabled={isUpdating || summary.pending > 0}
+                  disabled={isUpdating || !veredictos("CERRAR").permitido}
                   className={
                     summary.pending === 0
                       ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                       : ""
                   }
-                  title={
-                    summary.pending > 0
-                      ? `Faltan ${summary.pending} partidas por liquidar`
-                      : "Cerrar la corrida"
-                  }
+                  title={veredictos("CERRAR").motivo ?? "Cerrar la corrida"}
                 >
                   {isUpdating ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -373,7 +403,8 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                       variant="outline"
                       size="sm"
                       className="text-destructive hover:bg-destructive/10 border-destructive/30"
-                      disabled={isUpdating}
+                      disabled={isUpdating || !veredictos("CANCELAR").permitido}
+                      title={veredictos("CANCELAR").motivo ?? undefined}
                     >
                       <Ban className="mr-2 h-4 w-4" />
                       Cancelar Corrida
@@ -463,7 +494,7 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
               <h3 className="text-base font-semibold">
                 Ítems de la Corrida ({items.length})
               </h3>
-              {run.status === "DRAFT" && (
+              {run.status === "DRAFT" && puedeOperar && (
                 <AddPaymentRunItemModal
                   runId={runId}
                   branchId={run.branchId}
@@ -595,6 +626,14 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                           {isSettlementEligible && (
                             <TableCell className="text-right whitespace-nowrap">
                               <div className="inline-flex gap-1.5 justify-end">
+                                {!puedeLiquidar && (
+                                  <span
+                                    className="text-[11px] text-muted-foreground italic self-center max-w-[240px] text-right"
+                                    title={veredictos("LIQUIDAR").motivo}
+                                  >
+                                    {veredictos("LIQUIDAR").motivo}
+                                  </span>
+                                )}
                                 {settlementStatus === "PENDING" && (
                                   <>
                                     <Button
@@ -602,6 +641,8 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                                       variant="outline"
                                       className="h-7 text-xs border-emerald-600/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10"
                                       onClick={() => openSettleDialog(item, "CONFIRM")}
+                                      disabled={!puedeLiquidar}
+                                      title={veredictos("LIQUIDAR").motivo ?? undefined}
                                     >
                                       <CheckCircle2 className="h-3 w-3 mr-1" />
                                       Confirmar
@@ -611,6 +652,8 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                                       variant="ghost"
                                       className="h-7 text-xs text-destructive hover:bg-destructive/10"
                                       onClick={() => openSettleDialog(item, "REJECT")}
+                                      disabled={!puedeLiquidar}
+                                      title={veredictos("LIQUIDAR").motivo ?? undefined}
                                     >
                                       <XCircle className="h-3 w-3 mr-1" />
                                       Rechazar
@@ -623,7 +666,12 @@ export function PaymentRunDetail({ runId }: { runId: string }) {
                                     variant="outline"
                                     className="h-7 text-xs border-amber-600/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
                                     onClick={() => openSettleDialog(item, "CONFIRM")}
-                                    title="Corregir a pago confirmado con comprobante"
+                                    disabled={!puedeLiquidar}
+                                    title={
+                                      puedeLiquidar
+                                        ? "Corregir a pago confirmado con comprobante"
+                                        : (veredictos("LIQUIDAR").motivo ?? undefined)
+                                    }
                                   >
                                     <RotateCcw className="h-3 w-3 mr-1" />
                                     Corregir

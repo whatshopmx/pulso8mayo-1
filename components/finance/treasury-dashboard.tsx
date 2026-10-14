@@ -48,6 +48,8 @@ import {
 import { toast } from "sonner";
 import { CreatePaymentRunModal } from "./create-payment-run-modal";
 import { CreateRecurringContractModal } from "./create-recurring-contract-modal";
+import { useSession } from "@/hooks/use-session";
+import { filtroDeRol } from "@/lib/treasury/disbursement-policy";
 
 const STATUS_CONFIG: Record<
   string,
@@ -132,6 +134,13 @@ function getDueDateUrgency(dateStr: string) {
 
 export function TreasuryDashboard() {
   const [data, setData] = useState<{ paymentRuns: any[]; recurringContracts: any[] } | null>(null);
+  // C18 — bajar el layout SPEI entrega las CLABEs en claro del grupo. La ruta lo
+  // exige con `requireRoleApi` desde antes; el botón se calcula con el mismo
+  // filtro para que quien no puede no lo vea activo y lea por qué.
+  const { session } = useSession();
+  const veredictoDescarga = filtroDeRol("DESCARGAR", {
+    role: (session?.user?.role ?? null) as never,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -526,11 +535,12 @@ export function TreasuryDashboard() {
                         };
                         const urgency = getDueDateUrgency(run.runDate);
                         const isDownloadable =
-                          run.status === "APPROVED" ||
-                          run.status === "PROCESSING" ||
-                          run.status === "COMPLETED" ||
-                          run.status === "EXECUTED" ||
-                          run.status === "PAID";
+                          (run.status === "APPROVED" ||
+                            run.status === "PROCESSING" ||
+                            run.status === "COMPLETED" ||
+                            run.status === "EXECUTED" ||
+                            run.status === "PAID") &&
+                          veredictoDescarga.permitido;
 
                         return (
                           <TableRow key={run.id} className="hover:bg-muted/50 transition-colors group">
@@ -590,7 +600,8 @@ export function TreasuryDashboard() {
                                 title={
                                   isDownloadable
                                     ? "Descargar el archivo de dispersión SPEI de esta corrida"
-                                    : "La corrida debe estar aprobada para descargar el layout SPEI"
+                                    : (veredictoDescarga.motivo ??
+                                      "La corrida debe estar aprobada para descargar el layout SPEI")
                                 }
                                 aria-label={`Descargar layout SPEI para ${run.title}`}
                                 onClick={() => downloadLayout(run.id, run.title)}

@@ -9,6 +9,7 @@ export default defineConfig({
     "shifts-bulk.spec.ts",
     "operating-config.spec.ts",
     "transfers-scope.spec.ts",
+    "treasury-authorization.spec.ts",
   ],
   workers: 1,
   timeout: 120_000,

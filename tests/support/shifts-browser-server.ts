@@ -44,6 +44,10 @@ export async function startShiftsBrowserServer() {
       // `next/link` y `next/navigation` no corren fuera de Next: se sustituyen
       // por lo mínimo que la página usa de ellos.
       { find: /^@\/lib\/branch-context$/, replacement: "\0test-branch-context" },
+      // C18 — la pantalla de la corrida pregunta el rol de la sesión para no
+      // ofrecer lo que el servidor va a rechazar; en la prueba el rol lo
+      // inyecta la página, sin llamada a la API de auth.
+      { find: /^@\/hooks\/use-session$/, replacement: "\0test-use-session" },
       { find: /^next\/link$/, replacement: "\0test-next-link" },
       { find: /^next\/navigation$/, replacement: "\0test-next-navigation" },
       { find: "@", replacement: root },
@@ -55,6 +59,7 @@ export async function startShiftsBrowserServer() {
         if (id.startsWith("\0test-")) return id;
         if (id === "./ShiftEditorDialog") return "\0test-editor";
         if (id === "/transfers-test-entry.tsx") return "\0test-transfers-entry";
+        if (id === "/treasury-test-entry.tsx") return "\0test-treasury-entry";
         if (id === "/shifts-test-entry.tsx") return "\0test-entry";
         if (id === "/config-test-entry.tsx") return "\0test-config-entry";
         if (id === "/config-test-page.tsx") return "\0test-config-page";
@@ -120,6 +125,23 @@ export async function startShiftsBrowserServer() {
           export function getBranchCookieHeader() { return 'p_branch_id'; }
           export const BRANCH_COOKIE_NAME = 'p_branch_id';
         `;
+        if (id === "\0test-use-session") return `
+          export function useSession() {
+            const actor = window.__actorPrueba ?? {};
+            return {
+              session: { user: { id: actor.id ?? 'user-1', role: actor.role ?? null } },
+              loading: false,
+              error: null,
+              refresh: () => {},
+            };
+          }
+          export function useRequireAuth() {
+            return { session: null, loading: false, isAuthenticated: false };
+          }
+          export function useRequireRole() {
+            return { session: null, loading: false, hasAccess: false };
+          }
+        `;
         if (id === "\0test-next-link") return `
           import React from 'react';
           export default function Link({ href, children, ...resto }) {
@@ -167,6 +189,20 @@ export async function startShiftsBrowserServer() {
             )
           );
         `;
+        if (id === "\0test-treasury-entry") return `
+          import React from 'react';
+          import { createRoot } from 'react-dom/client';
+          import { PaymentRunDetail } from '/components/finance/payment-run-detail.tsx';
+          import { Toaster } from 'sonner';
+          createRoot(document.getElementById('root')).render(
+            React.createElement(
+              React.Fragment,
+              null,
+              React.createElement(PaymentRunDetail, { runId: window.__corridaPrueba }),
+              React.createElement(Toaster, { position: 'top-right' })
+            )
+          );
+        `;
         if (id === "\0test-actions") return `
           async function read(url, init) {
             const response = await fetch(url, init);
@@ -209,11 +245,12 @@ export async function startShiftsBrowserServer() {
       },
       configureServer(devServer: { middlewares: { use: (handler: unknown) => void } }) {
         devServer.middlewares.use((req: { url: string }, res: { setHeader: (name: string, value: string) => void; end: (body: string) => void }, next: () => void) => {
-          if (req.url === "/" || req.url === "/config" || req.url === "/transfers") {
+          if (req.url === "/" || req.url === "/config" || req.url === "/transfers" || req.url === "/tesoreria") {
             res.setHeader("Content-Type", "text/html");
             const entrada =
               req.url === "/config" ? "/config-test-entry.tsx"
               : req.url === "/transfers" ? "/transfers-test-entry.tsx"
+              : req.url === "/tesoreria" ? "/treasury-test-entry.tsx"
               : "/shifts-test-entry.tsx";
             res.end(`<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module" src="${entrada}"></script></body></html>`);
             return;
