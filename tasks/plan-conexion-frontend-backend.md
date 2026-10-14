@@ -662,13 +662,41 @@ Conectar foodProduction al recorrido de producción/abastecimiento definido o tr
 
 Conectar treasuryModel al alcance de autorización/ejecución de una operación de tesorería definida.
 
+**Investigación de C18 (13-10-2026) — la operación ya existe; el filtro, no.** La dimensión no gobierna nada hoy, pero la operación de tesorería que describe —la corrida de pago— está construida y es la única que mueve dinero del producto:
+
+```
+preparar   POST /api/finance/treasury                    → createPaymentRun + addItemToRun
+autorizar  PATCH /api/finance/treasury/runs/[id]/status   → DRAFT → PENDING_APPROVAL → APPROVED
+dispersar  idem                                        → APPROVED → PROCESSING → COMPLETED
+liquidar   POST /api/finance/treasury/runs/[id]/items/[itemId]/settle → CONFIRMED / FAILED
+descargar  GET  /api/finance/treasury/runs/[id]/layout    → archivo SPEI con las CLABEs en claro
+```
+
+Cuatro hallazgos, y ninguno es «falta la columna»:
+
+1. **El filtro de rol vive en la ruta, no en la operación.** `updatePaymentRunStatus` y `settlePaymentRunItem` reciben `userId` y nada más: la comprobación de que sólo `ADMIN`/`OWNER`/`SUPER_ADMIN` mueven dinero está en `PATCH .../status`, en el cuerpo de la ruta. Quien llame al servicio por otra entrada —una acción de servidor, un script, un workflow— salta el filtro. `addItemToRun` sí lleva `companyId` desde la sesión (G1.2), pero el rol no viaja: es la mitad de una regla.
+2. **La pantalla no sabe qué puede el operador.** `payment-run-detail.tsx` decide los botones por `run.status` y nada más: un `GERENTE` —que sí puede abrir la corrida porque tiene `reports:read`— ve «Aprobar Corrida (Firma)», «Iniciar Dispersión», «Cerrar y Liquidar» y el diálogo de liquidación, y cada clic vuelve con un 403. El botón existe porque el servidor lo va a rechazar. Éste es el criterio 2 de aceptación roto en la dirección segura: la restricción no está en la pantalla.
+3. **El detalle de la corrida se lee sin empresa.** `getPaymentRunDetails(paymentRunId)` busca por id, trae partidas, facturas, nómina y gastos, y la ruta compara `details.run.companyId` **después**: la respuesta ajena ya se armó, y el rechazo es 403 en vez de 404, así que además confirma que el id existe.
+4. **El criterio 3 no estaba escrito en ningún sitio.** La máquina de estados ya define qué transiciones existen (`assertPaymentRunTransition`), y los estados terminales son terminales. Lo que faltaba era decirlo: endurecer el filtro **no reescribe** una corrida ya autorizada ni reabre una cerrada —la política se aplica a la próxima acción, nunca al pasado—.
+
+**Decisión (13-10-2026):** `treasuryModel` sigue `descriptiva`. C15 ya decided que deducir permisos de `CUENTA_UNICA`/`CUENTA_POR_SUCURSAL` sería repetir H04, y nadie ha definido qué cuenta puede disbursar cada sucursal. Lo que sí se aplica es el criterio 1 tal como C15 lo permite: **la configuración no concede permisos; la operación tiene un filtro propio, escrito, en el servicio y compartido con la pantalla.** La columna entra en el contrato como lo que queda por decidir.
+
+**Cortes antes de implementar:**
+
+- **C18.1 — Contrato honesto:** la entrada de `treasuryModel` del catálogo queda escrita contra la corrida real (los siete pasos y sus estados) y su decisión pendiente se reduce a lo que falta: qué cuenta puede disbursar cada sucursal y si la modalidad debe cambiar quién prepara, autoriza y liquida.
+- **C18.2 — El filtro vive en la operación:** módulo puro `lib/treasury/disbursement-policy.ts` con los pasos y el rol que mueve dinero; el servicio lo aplica en estado, liquidación y layout, y las rutas pasan `actorRole`. Se retira la comprobación duplicada de la ruta, que pasa a ser la segunda red.
+- **C18.3 — Pantalla y detalle acotado:** la pantalla usa el mismo módulo con el rol de la sesión y oculta o desactiva lo que el servidor va a rechazar, con el motivo; `getPaymentRunDetails` se acota por empresa y devuelve 404.
+- **C18.4 — Recorrido controlado:** un caso con dos empresas demuestra la corrida completa con doble firma, el rechazo por rol en cada paso que mueve dinero, el 404 de lo ajeno y que endurecer el filtro no reescribe estados ya alcanzados.
+
 **Criterios de aceptación:**
 
-- [ ] La configuración limita quién puede ejecutar la operación según C15.
-- [ ] Un intento por API o acción respeta la misma restricción que la pantalla.
-- [ ] Los cambios de política no invalidan estados históricos sin una transición definida.
+- [x] La configuración limita quién puede ejecutar la operación según C15. La política de C15 dice que la dimensión descriptiva no concede permisos; el límite de la operación queda escrito en `disbursement-policy.ts` (rol de tesorería + estado + segregación de funciones) y lo aplica el servicio, no la ruta.
+- [x] Un intento por API o acción respeta la misma restricción que la pantalla. La pantalla calcula los mismos veredictos que el servidor con el mismo módulo; la API los aplica aunque se llame al servicio por otra entrada.
+- [x] Los cambios de política no invalidan estados históricos sin una transición definida. Endurecer el filtro aplica a la próxima acción: una corrida ya autorizada sigue autorizada, una cerrada sigue cerrada y la máquina de transiciones no admite saltos ni retrocesos.
 
 **Verificación:** V1 de autorización y V2 de operación de tesorería; los permisos de seguridad siguen siendo obligatorios.
+
+**Verificación ejecutada (13-10-2026):** V1 — `tests/unit/finance/treasury-authorization.test.ts` sobre el módulo puro, el servicio y las rutas reales. V2 — `tests/e2e/treasury-authorization.spec.ts` en Chromium con la pantalla real y la API interceptada. V3/base real — `scripts/verify-treasury-authorization.ts` con dos empresas. Detalle y límites en la [evidencia](../docs/audits/2026-10-13-tesorería.md).
 
 **Archivos probables:**
 
