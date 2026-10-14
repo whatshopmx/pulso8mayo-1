@@ -1,6 +1,6 @@
 # Handoff — Conexión entre frontend y backend
 
-**Actualizado:** 2026-10-13 · **Plan:** `tasks/plan-conexion-frontend-backend.md` · **Seguimiento:** `tasks/todo-conexion-frontend-backend.md`
+**Actualizado:** 2026-10-14 · **Plan:** `tasks/plan-conexion-frontend-backend.md` · **Seguimiento:** `tasks/todo-conexion-frontend-backend.md`
 
 Este documento es para empezar una sesión nueva sin releer veinte archivos. **Las fuentes de verdad siguen siendo el plan y el seguimiento**; esto es el atajo, y su contenido caduca en cuanto avanza el plan.
 
@@ -10,23 +10,28 @@ Este documento es para empezar una sesión nueva sin releer veinte archivos. **L
 
 | Orden | Archivo | Qué aporta |
 | --- | --- | --- |
-| 1 | `tasks/todo-conexion-frontend-backend.md` | Estado real, una fila por tarea con evidencia y límites. **La fila de C16 es el siguiente paso.** |
-| 2 | `tasks/plan-conexion-frontend-backend.md` | Criterios de aceptación, dependencias y verificación de C16–C40 |
+| 1 | `tasks/todo-conexion-frontend-backend.md` | Estado real, una fila por tarea con evidencia y límites. **La fila de C20 es el siguiente paso.** |
+| 2 | `tasks/plan-conexion-frontend-backend.md` | Criterios de aceptación, dependencias y verificación de C20–C40 |
 | 3 | `docs/audits/2026-10-10-backend-frontend-wiring-audit.md` | Hallazgos H01–H12 que el plan tiene que cerrar |
 | 4 | `lib/company/operating-policy-catalog.ts` | Catálogo de C15: clasificación, consumidor, aplicación y decisión pendiente de las trece entradas. Es la fuente que C16–C23 consumen, y su prueba falla si una política deja de ser lo que dice. |
 
 ## 2. Estado al handing-off
 
-**C00–C18 completadas. C19–C40 pendientes.** La última línea commiteada es C18 (tesorería). Siguen sin commitear los archivos de `stock-count` y `workflows/[id]/execute`, que son de otra línea de trabajo (conteos por categoría y lote, y acceso a la pantalla de ejecución).
+**C00–C20 completadas. C21–C40 pendientes.** La última línea implementada y verificada es C20 (autonomía del gerente). Siguen sin commitear los archivos de `stock-count` y `workflows/[id]/execute`, que son de otra línea de trabajo (conteos por categoría y lote, y acceso a la pantalla de ejecución).
 
 ```
-C18.4 la autorización de la corrida de pago con dos empresas contra la base real
-C18.3 la pantalla ofrece lo mismo que el servidor y el detalle se acota por empresa
-C18.2 el filtro de rol de la operación vive en el servicio, no en la ruta
-C18.1 treasuryModel sigue descriptiva, con el contrato escrito contra la corrida real
+C20.4 recorrido del servicio contra Neon con dos empresas, escalada a OWNER en ALTA, auto-aprobación prohibida y dinamismo en caliente
+C20.3 comprobación en navegador aislado de insignia «Se aplica hoy», descripciones precisas, persistencia y evaluación cliente
+C20.2 integración autoritativa en expense-service y catálogo actualizado de pendiente a aplicada
+C20.1 implementación pura en rolExigidoPorMonto y 26 pruebas de matriz (ALTA, MEDIA, BAJA)
+C19.5 recorrido del servicio contra Neon con dos empresas, concurrencia de altas y layout SPEI
+C19.4 el modal excluye facturas/gastos/nómina ya retenidos, soporta lote parcial y refresco de pestañas
+C19.3 bloqueo transaccional con FOR UPDATE en alta de partidas (sin carrera)
+C19.2 una obligación, una sola vez (puedeAgendar en lib/treasury/scheduling-policy.ts)
+C19.1 supplierPayment sigue descriptiva con contrato honesto en el catálogo
 ```
 
-Puertas de fase cerradas: Fase 0, Fase 1 y **Fase 2** (12-10-2026). La Fase 3 sigue abierta: compras (C16), producción (C17) y tesorería (C18) cerradas; faltan C19–C23.
+Puertas de fase cerradas: Fase 0, Fase 1 y **Fase 2** (12-10-2026). La Fase 3 sigue abierta: compras (C16), producción (C17), tesorería (C18), pago a proveedores (C19) y autonomía del gerente (C20) cerradas; faltan C21–C23.
 
 ## 3. Lo que NO está verificado — no dar por hecho
 
@@ -139,19 +144,20 @@ El plan define cuatro verificaciones. Cada tarea declara cuál usa:
 | El filtro se comprueba antes que la máquina de estados: 403 = permisos, 400 = estado | 13-10 | Evidencia de C18.2 |
 | El botón que el servidor va a rechazar se desactiva con el motivo, no desaparece | 13-10 | Evidencia de C18.3 |
 | Endurecer el filtro no reescribe una corrida ya autorizada ni reabre una cerrada | 13-10 | Evidencia de C18.4 |
+| Una obligación se agenda una sola vez y mientras deba pagarse (bloqueo transaccional FOR UPDATE) | 14-10 | Evidencia de C19 |
+| La autonomía del gerente (`managerAutonomy`) se aplica en `rolExigidoPorMonto` y `expense-service`: BAJA centraliza en ADMIN, ALTA faculta al gerente hasta el umbral de dueño, MEDIA aplica límite monetario; umbral de dueño y segregación (A16) prioritarios | 14-10 | Evidencia de C20 |
 
-**Pendientes de decisión** (condicionan C16–C23, no bloquean el trabajo): quién revisa un workflow; si la exclusión de `ADMIN` en `policy_overrides` se confirma; las ocho decisiones por dimensión que C15 escribió (compras, producción, tesorería, pagos, autonomía, nómina, tipo de grupo y caja chica); horario, urgencias y zona horaria de notificaciones; consumidores externos del executor anterior.
+**Pendientes de decisión** (condicionan C21–C23, no bloquean el trabajo): quién revisa un workflow; si la exclusión de `ADMIN` en `policy_overrides` se confirma; las decisiones por dimensión restantes (nómina, tipo de grupo y caja chica); horario, urgencias y zona horaria de notificaciones; consumidores externos del executor anterior.
 
-## 8. Siguiente paso — C19
+## 8. Siguiente paso — C21
 
-**C16, C17 y C18 quedaron completas.** Compras, producción/alimentos y tesorería tienen su recorrido con alcance verificado en servidor y comprobación con dos empresas.
+**C16, C17, C18, C19 y C20 quedaron completas.** Compras, producción/alimentos, tesorería, pago a proveedores y autonomía del gerente tienen sus recorridos con alcance verificado en servidor y comprobación con dos empresas en Neon.
 
-C19 es la política de **pago a proveedores** (`supplierPayment`, hoy `descriptiva`). El camino ya está trillado, y conviene seguirlo al revés de C18: antes de decidir si la columna se aplica, leer qué hace hoy el recorrido del pago.
+C21 es la política de **dispersión de nómina** (`payrollDispersion`, hoy `descriptiva`). Siguiendo el mismo rigor:
+1. Inspeccionar el recorrido actual de nómina (`lib/services/payroll-service.ts`, `attendance-payroll.ts`, exportaciones de nómina).
+2. Determinar si `payrollDispersion` (`CONSOLIDADA` | `POR_RAZON_SOCIAL` | `MIXTO`) influye en una exportación, layout o agrupación de dispersión, o si debe permanecer clasificada como descriptiva con contrato honesto sin simular pagos no ejecutados.
+3. Si influye, implementar la política pura y los tests unitarios (V1), reflejar el estado en catálogo y UI con pruebas aisladas (V2), y verificar el comportamiento contra Neon (V3).
 
-Lo primero es una pregunta que el catálogo ya cuenta en la decisión pendiente: **¿el pago a un proveedor tiene una máquina de estados o es un estado de la factura?** Si el pago se decide dentro de la corrida de tesorería —que es como funciona hoy— entonces `supplierPayment` es un nombre de otra cosa, y la respuesta honesta es descriptiva con el contrato escrito, como C17. Si tiene recorrido propio, ahí es donde hay que buscar los huecos de alcance.
+## 9. Después de C20
 
-Lo que C19 no puede hacer: deducir reglas de `CENTRALIZADO`/`POR_SUCURSAL`/`HIBRIDO`, ni duplicar la máquina de la corrida de pago para asignarle otro nombre.
-
-## 9. Después de C18
-
-C19–C23 dependen de C15 y son una política por tarea: producción de alimentos (C17), tesorería (C18), pago a proveedores (C19), autonomía del gerente (C20), dispersión de nómina (C21), tipo de empresa (C22) y caja chica (C23). Cada una aplica el contrato de C15 en **un** recorrido, y todas exigen una decisión de negocio antes de activar su efecto: el plan lo dice con la frase "no activar una política deducida únicamente del nombre de un campo". Ninguna puede resolverse sola: todas piden una decisión registrada por dimensión en el catálogo.
+C21–C23 dependen de C15 y son una política por tarea: dispersión de nómina (C21), tipo de empresa (C22) y caja chica (C23). Cada una aplica el contrato de C15 en **un** recorrido, y todas exigen una decisión de negocio antes de activar su efecto: el plan lo dice con la frase "no activar una política deducida únicamente del nombre de un campo". Ninguna puede resolverse sola: todas piden una decisión registrada por dimensión en el catálogo.

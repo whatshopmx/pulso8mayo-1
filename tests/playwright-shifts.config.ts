@@ -10,6 +10,8 @@ export default defineConfig({
     "operating-config.spec.ts",
     "transfers-scope.spec.ts",
     "treasury-authorization.spec.ts",
+    "payment-scheduling.spec.ts",
+    "manager-autonomy.spec.ts",
   ],
   workers: 1,
   timeout: 120_000,

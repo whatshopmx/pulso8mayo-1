@@ -199,6 +199,7 @@ async function resolverRolExigido(
     rol: rolExigidoPorMonto(amountCents, {
       managerAuthLimitCents: config.managerAuthLimitCents,
       doubleApprovalThresholdCents: config.doubleApprovalThresholdCents,
+      managerAutonomy: config.managerAutonomy,
     }),
     regla: null,
   };
@@ -1054,6 +1055,7 @@ export async function getOperatingExpenses(
       rolExigidoPorMonto(expense.amountCents, {
         managerAuthLimitCents: config.managerAuthLimitCents,
         doubleApprovalThresholdCents: config.doubleApprovalThresholdCents,
+        managerAutonomy: config.managerAutonomy,
       });
 
     /**

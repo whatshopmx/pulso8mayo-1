@@ -247,74 +247,43 @@ export class StockCountService {
     companyId: string;
     branchId: string;
     assigneeId: string;
-    categoryValue: string;
-    highOnlyValue?: boolean; // Fase 4: por defecto true (solo alto valor)
+    categoryValue?: string;
+    categories?: string[];
+    highOnlyValue?: boolean;
   }) {
+    const categories = [...new Set(data.categories ?? (data.categoryValue ? [data.categoryValue] : []))];
+    if (!categories.length || categories.some(category => typeof category !== 'string' || !category.trim())) throw ApiError.badRequest('Selecciona al menos una categoría.');
     const activeCount = await this.getActiveCountForBranch(data.branchId);
-    if (activeCount) {
-      throw new Error(`Ya existe un conteo activo para esta sucursal. ID: ${activeCount.id}`);
-    }
-
-    const template = await this.getOrCreateTemplate(data.companyId);
+    if (activeCount) throw ApiError.conflict('Ya existe un conteo activo para esta sucursal. ID: ' + activeCount.id);
     const isHighOnly = data.highOnlyValue === true;
-    const products = await this.getProductsWithStock(data.companyId, data.branchId, data.categoryValue, isHighOnly);
-
-    if (products.length === 0) {
-      if (isHighOnly) {
-        throw new Error(`NO_PRODUCTS_FOUND: No se encontraron productos de alto valor en la categoría "${data.categoryValue}".`);
-      }
-      throw new Error(`NO_PRODUCTS_FOUND: No se encontraron productos para la categoría "${data.categoryValue}".`);
+    const steps = await this.resolveCountSteps(categories.map((category, index) => ({
+      id: 'stock-count-' + index, type: 'STOCK_COUNT', title: 'Conteo · ' + category,
+      description: 'Registra cada producto y lote. El conteo quedará pendiente de revisión.',
+      required: true, config: { category, highValueOnly: isHighOnly },
+    })), data.companyId, data.branchId);
+    const productMap = new Map<string, { id: string; name: string; sku: string; unit: string; currentStock: number }>();
+    for (const step of steps) for (const row of step.config.rows as StockCountRow[]) {
+      const product = productMap.get(row.itemId) ?? { id: row.itemId, name: row.name, sku: row.sku, unit: row.unit, currentStock: 0 };
+      product.currentStock = roundQty(product.currentStock + row.systemQuantity);
+      productMap.set(row.itemId, product);
     }
-
-        const templateSteps = typeof template.steps === 'string' ? JSON.parse(template.steps) : template.steps;
-        const steps = StockCountService.generateStockCountSteps(templateSteps, products, data.categoryValue);
-
-        const staticTemplate = templateLibrary['conteo-inventario-v1'];
-
-        const [instance] = await db.insert(workflowInstances).values({
-            workflowTemplateId: template.id,
-            branchId: data.branchId,
-            assigneeId: data.assigneeId,
-            status: "IN_PROGRESS",
-            startedAt: new Date(),
-            data: {
-                category: data.categoryValue,
-                productCount: products.length,
-                highValueOnly: isHighOnly,
-                startTime: new Date().toISOString(),
-                ...(staticTemplate?.aiConfig ? { aiConfig: staticTemplate.aiConfig } : {}),
-                ...(staticTemplate?.complianceConfig ? { complianceConfig: staticTemplate.complianceConfig } : {}),
-                ...(staticTemplate?.completionActions ? { completionActions: staticTemplate.completionActions } : {}),
-            },
-        }).returning();
-
-        for (const [index, step] of steps.entries()) {
-            const stepData = 'systemQuantity' in step
-                ? JSON.stringify({
-                    systemQuantity: (step as { systemQuantity: number }).systemQuantity,
-                    itemId: (step as { itemId: string }).itemId,
-                    inputValue: 'value' in step ? (step as { value: string }).value ?? null : null
-                })
-                : ('value' in step ? (step as { value: string }).value ?? null : null);
-
-            await db.insert(workflowInstanceSteps).values({
-                instanceId: instance.id,
-                stepId: step.id,
-                status: "PENDING",
-                value: stepData,
-                // Estos pasos se generan por SKU y no existen en la plantilla:
-                // si no se congela la definición aquí, su título es
-                // irrecuperable en la revisión. Misma razón que en
-                // `workflow-execution-service.createExecution`.
-                stepOrder: index,
-                title: step.title ?? null,
-                type: step.type ?? null,
-                definition: step,
-            });
-        }
-
-        return { instance, template, products, steps };
-    }
+    const products = [...productMap.values()];
+    const template = await this.getOrCreateTemplate(data.companyId);
+    const instance = await db.transaction(async tx => {
+      const [created] = await tx.insert(workflowInstances).values({
+        workflowTemplateId: template.id, branchId: data.branchId, assigneeId: data.assigneeId,
+        status: 'IN_PROGRESS', startedAt: new Date(),
+        data: { stockCountGrid: true, categories, category: categories.join(', '), productCount: products.length,
+          highValueOnly: isHighOnly, startTime: new Date().toISOString() },
+      }).returning();
+      await tx.insert(workflowInstanceSteps).values(steps.map((step, index) => ({
+        instanceId: created.id, stepId: step.id, status: 'PENDING' as const, value: null,
+        stepOrder: index, title: step.title, type: step.type, definition: step,
+      })));
+      return created;
+    });
+    return { instance, template, products, steps };
+  }
 
     static async completeStockCount(instanceId: string, userId: string) {
         const instance = await db.query.workflowInstances.findFirst({
@@ -580,6 +549,7 @@ export class StockCountService {
 
   static async getStockCountHistory(companyId: string, branchId?: string) {
     const conditions: any[] = [
+      eq(workflowTemplates.companyId, companyId),
       sql`(${workflowTemplates.name} = ${STOCK_COUNT_TEMPLATE_NAME} OR ${workflowInstances.data}->>'stockCountGrid' = 'true')`,
     ];
 
@@ -590,6 +560,7 @@ export class StockCountService {
     const history = await db.select({
       id: workflowInstances.id,
       branchId: workflowInstances.branchId,
+      assigneeId: workflowInstances.assigneeId,
       status: workflowInstances.status,
       data: workflowInstances.data,
       createdAt: workflowInstances.createdAt,

@@ -60,7 +60,9 @@ export function AddPaymentRunItemModal({
       const res = await fetch(url);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "No se pudieron cargar las facturas");
-      setInvoices(json.data || []);
+      const available: { id: string }[] = json.data || [];
+      setInvoices(available);
+      setSelectedInvoiceIds((prev) => prev.filter((id) => available.some((item) => item.id === id)));
     } catch (error: any) {
       toast.error("Error", {
         description: error.message || "No se pudieron cargar las facturas pendientes.",
@@ -77,7 +79,9 @@ export function AddPaymentRunItemModal({
       const res = await fetch(url);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "No se pudieron cargar las nóminas");
-      setPayrollRuns(json.data || []);
+      const available: { id: string }[] = json.data || [];
+      setPayrollRuns(available);
+      setSelectedPayrollIds((prev) => prev.filter((id) => available.some((item) => item.id === id)));
     } catch (error: any) {
       toast.error("Error", {
         description: error.message || "No se pudieron cargar las nóminas pendientes.",
@@ -94,7 +98,9 @@ export function AddPaymentRunItemModal({
       const res = await fetch(url);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "No se pudieron cargar los gastos operativos");
-      setExpenses(json.data || []);
+      const available: { id: string }[] = json.data || [];
+      setExpenses(available);
+      setSelectedExpenseIds((prev) => prev.filter((id) => available.some((item) => item.id === id)));
     } catch (error: any) {
       toast.error("Error", {
         description: error.message || "No se pudieron cargar los gastos operativos pendientes.",
@@ -120,9 +126,9 @@ export function AddPaymentRunItemModal({
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     setSearchQuery("");
-    if (tab === "invoices" && invoices.length === 0) fetchInvoices();
-    if (tab === "expenses" && expenses.length === 0) fetchExpenses();
-    if (tab === "payroll" && payrollRuns.length === 0) fetchPayrollRuns();
+    if (tab === "invoices") fetchInvoices();
+    if (tab === "expenses") fetchExpenses();
+    if (tab === "payroll") fetchPayrollRuns();
   };
 
   // Filtered lists
@@ -337,96 +343,56 @@ export function AddPaymentRunItemModal({
   const handleBatchAdd = async () => {
     if (currentSelectionCount === 0) return;
     setIsBatchAdding(true);
-
+    // El tab y sus partidas se capturan al iniciar: el operador puede cambiar
+    // de pestaña mientras las peticiones del lote siguen en curso.
+    const batchTab = activeTab;
+    const batch = batchTab === "invoices" ? {
+      items: invoices.filter((item) => selectedInvoiceIds.includes(item.id)),
+      itemType: "INVOICE", noun: "facturas", title: "Facturas adjuntadas en lote",
+      notes: (item: { folio?: string; nombreEmisor?: string; rfcEmisor?: string }) => `Folio: ${item.folio || "S/F"} - ${item.nombreEmisor || item.rfcEmisor || "Proveedor"}`,
+      setItems: setInvoices, setSelection: setSelectedInvoiceIds,
+    } : batchTab === "expenses" ? {
+      items: expenses.filter((item) => selectedExpenseIds.includes(item.id)),
+      itemType: "OPERATING_EXPENSE", noun: "gastos", title: "Gastos adjuntados en lote",
+      notes: (item: { description: string; payeeName?: string; category?: string }) => `${item.description} — ${item.payeeName || item.category}`,
+      setItems: setExpenses, setSelection: setSelectedExpenseIds,
+    } : {
+      items: payrollRuns.filter((item) => selectedPayrollIds.includes(item.id)),
+      itemType: "PAYROLL", noun: "nóminas", title: "Nóminas adjuntadas en lote",
+      notes: (item: { branchName?: string; periodStart: string; periodEnd: string }) => `Nómina (${item.branchName || "Sucursal"}) - Período ${item.periodStart} al ${item.periodEnd}`,
+      setItems: setPayrollRuns, setSelection: setSelectedPayrollIds,
+    };
+    const successfulIds = new Set<string>();
+    const failures: string[] = [];
     try {
-      if (activeTab === "invoices") {
-        const itemsToAdd = invoices.filter((i) => selectedInvoiceIds.includes(i.id));
-        let successCount = 0;
-
-        for (const item of itemsToAdd) {
-          try {
-            const res = await fetch(`/api/finance/treasury/runs/${runId}/items`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                itemType: "INVOICE",
-                referenceId: item.id,
-                notes: `Folio: ${item.folio || "S/F"} - ${item.nombreEmisor || item.rfcEmisor || "Proveedor"}`,
-              }),
-            });
-            if (res.ok) successCount++;
-          } catch (e) {
-            console.error(e);
+      for (const item of batch.items) {
+        try {
+          const res = await fetch(`/api/finance/treasury/runs/${runId}/items`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ itemType: batch.itemType, referenceId: item.id, notes: batch.notes(item) }),
+          });
+          if (!res.ok) {
+            const json = await res.json();
+            throw new Error(json.error || json.message || "No se pudo adjuntar la partida.");
           }
+          successfulIds.add(item.id);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "No se pudo adjuntar la partida.";
+          failures.push(`${batch.notes(item)}: ${reason}`);
         }
-
-        toast.success("Facturas adjuntadas en lote", {
-          description: `Se agregaron ${successCount} facturas a la corrida.`,
-        });
-
-        setInvoices((prev) => prev.filter((inv) => !selectedInvoiceIds.includes(inv.id)));
-        setSelectedInvoiceIds([]);
-      } else if (activeTab === "expenses") {
-        const itemsToAdd = expenses.filter((e) => selectedExpenseIds.includes(e.id));
-        let successCount = 0;
-
-        for (const item of itemsToAdd) {
-          try {
-            const res = await fetch(`/api/finance/treasury/runs/${runId}/items`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                itemType: "OPERATING_EXPENSE",
-                referenceId: item.id,
-                notes: `${item.description} — ${item.payeeName || item.category}`,
-              }),
-            });
-            if (res.ok) successCount++;
-          } catch (e) {
-            console.error(e);
-          }
-        }
-
-        toast.success("Gastos adjuntados en lote", {
-          description: `Se agregaron ${successCount} gastos a la corrida.`,
-        });
-
-        setExpenses((prev) => prev.filter((exp) => !selectedExpenseIds.includes(exp.id)));
-        setSelectedExpenseIds([]);
-      } else if (activeTab === "payroll") {
-        const itemsToAdd = payrollRuns.filter((p) => selectedPayrollIds.includes(p.id));
-        let successCount = 0;
-
-        for (const item of itemsToAdd) {
-          try {
-            const res = await fetch(`/api/finance/treasury/runs/${runId}/items`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                itemType: "PAYROLL",
-                referenceId: item.id,
-                notes: `Nómina (${item.branchName || "Sucursal"}) - Período ${item.periodStart} al ${item.periodEnd}`,
-              }),
-            });
-            if (res.ok) successCount++;
-          } catch (e) {
-            console.error(e);
-          }
-        }
-
-        toast.success("Nóminas adjuntadas en lote", {
-          description: `Se agregaron ${successCount} nóminas a la corrida.`,
-        });
-
-        setPayrollRuns((prev) => prev.filter((p) => !selectedPayrollIds.includes(p.id)));
-        setSelectedPayrollIds([]);
       }
-
-      onInvoiceAdded();
-    } catch (error: any) {
-      toast.error("Error al procesar lote", {
-        description: error.message || "Ocurrió un error al adjuntar los ítems.",
-      });
+      const summary = `Se agregaron ${successfulIds.size} ${batch.noun}; ${failures.length} no se pudieron agregar.`;
+      if (successfulIds.size > 0) {
+        batch.setItems((prev) => prev.filter((item) => !successfulIds.has(item.id)));
+        batch.setSelection((prev) => prev.filter((id) => !successfulIds.has(id)));
+        onInvoiceAdded();
+      }
+      if (failures.length > 0) {
+        toast.error(summary, { description: failures.join("\n") });
+      } else if (successfulIds.size > 0) {
+        toast.success(batch.title, { description: `Se agregaron ${successfulIds.size} ${batch.noun} a la corrida.` });
+      }
     } finally {
       setIsBatchAdding(false);
     }

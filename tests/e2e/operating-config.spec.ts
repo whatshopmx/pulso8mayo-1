@@ -323,7 +323,7 @@ const DIMENSIONES = [
   { campo: "treasuryModel", etiqueta: "Modelo de Tesorería", estado: "Descriptiva", opciones: ["Cuenta Única", "Por Sucursal", "Mixto"], valores: ["CUENTA_UNICA", "CUENTA_POR_SUCURSAL", "MIXTO"] },
   { campo: "supplierPayment", etiqueta: "Pago a Proveedores", estado: "Descriptiva", opciones: ["Centralizado", "Por Sucursal", "Híbrido"], valores: ["CENTRALIZADO", "POR_SUCURSAL", "HIBRIDO"] },
   { campo: "payrollDispersion", etiqueta: "Dispersión de Nómina", estado: "Descriptiva", opciones: ["Consolidada", "Por Razón Social", "Mixto"], valores: ["CONSOLIDADA", "POR_RAZON_SOCIAL", "MIXTO"] },
-  { campo: "managerAutonomy", etiqueta: "Autonomía del Gerente de Sucursal", estado: "Pendiente de decisión", opciones: ["Alta", "Media", "Baja"], valores: ["ALTA", "MEDIA", "BAJA"] },
+  { campo: "managerAutonomy", etiqueta: "Autonomía del Gerente de Sucursal", estado: "Se aplica hoy", opciones: ["Alta", "Media", "Baja"], valores: ["ALTA", "MEDIA", "BAJA"] },
   { campo: "tenantType", etiqueta: "Tipo de Estructura del Grupo", estado: "Pendiente de decisión", opciones: ["Grupo Propio (100% Unidades Corporativas)", "Mixto con Franquiciatarios"], valores: ["GRUPO_PROPIO", "MIXTO_FRANQUICIAS"] },
 ] as const;
 
@@ -332,7 +332,7 @@ test("cada dimensión declara su estado y caja chica distingue descripción de r
   for (const dimension of DIMENSIONES) {
     const grupo = page.getByRole("radiogroup", { name: dimension.etiqueta, exact: true });
     await expect(grupo.locator("..").getByText(dimension.estado, { exact: true })).toBeVisible();
-    await expect(grupo).toHaveAccessibleDescription(dimension.estado === "Descriptiva"
+    await expect(grupo).toHaveAccessibleDescription(dimension.estado === "Se aplica hoy" ? "Un servicio lee este valor y cambia una decisión con él." : dimension.estado === "Descriptiva"
       ? "Se guarda y describe cómo opera el grupo. Ningún servicio lo lee hoy para decidir nada."
       : "Se guarda como descripción. Falta definir su efecto; hoy no cambia permisos ni restricciones.");
   }

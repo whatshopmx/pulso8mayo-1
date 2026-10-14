@@ -65,18 +65,31 @@ export function canResolveExpense(check: ExpenseResolutionCheck): boolean {
 }
 
 
+export type ManagerAutonomyLevel = "ALTA" | "MEDIA" | "BAJA";
+
 /**
- * Los dos umbrales de autorización que la empresa ya configura.
+ * Los umbrales y la política de autonomía que la empresa configura.
  *
  * Viven en `tenant_operating_config` y se editan desde Organización →
- * "Umbrales Financieros y Políticas de Aprobación". `null` significa **sin
- * tope**, que es como el schema documenta el campo vacío.
+ * "Umbrales Financieros y Políticas de Aprobación" y "Modelo Operativo".
+ * `null` significa **sin tope**, que es como el schema documenta el campo vacío.
  */
 export interface UmbralesAutorizacion {
-  /** Hasta este monto, un GERENTE tiene autoridad. `null` = sin tope. */
+  /** Hasta este monto, un GERENTE tiene autoridad en autonomía MEDIA. `null` = sin tope. */
   managerAuthLimitCents: number | null;
   /** Desde este monto, la autoridad sube al dueño. `null` = sin tope. */
   doubleApprovalThresholdCents: number | null;
+  /**
+   * Nivel de autonomía del gerente de sucursal (C20):
+   * - `BAJA`: Visto bueno corporativo obligatorio. Todo gasto exige al menos `ADMIN`,
+   *   escalando a `OWNER` desde `doubleApprovalThresholdCents`. El gerente no resuelve gastos.
+   * - `MEDIA` (default): Sujeto a límite monetario. El gerente resuelve hasta `managerAuthLimitCents`;
+   *   desde ese tope escala a `ADMIN`, y al dueño desde `doubleApprovalThresholdCents`.
+   * - `ALTA`: Decide el gerente. El gerente de sucursal resuelve gastos ordinarios hasta el
+   *   umbral de Dirección General (`doubleApprovalThresholdCents`), sin requerir visto bueno
+   *   intermedio de `ADMIN`.
+   */
+  managerAutonomy?: ManagerAutonomyLevel | string | null;
 }
 
 /**
@@ -91,10 +104,8 @@ export interface UmbralesAutorizacion {
  * gastos se quedan en `PENDING_APPROVAL` para siempre y no llegan nunca a
  * Cuentas por Pagar, que sólo lista lo autorizado.
  *
- * La escalera sale de los umbrales que la empresa **ya configura y que nadie
- * leía**: `tenant-config-service.ts` los anota como "M16 expense authorization
- * (future)". Esto es conectar lo que el producto ya prometía en su pantalla de
- * Organización, no una política nueva.
+ * La escalera sale de los umbrales y la dimensión de autonomía que la empresa
+ * ya configura (`tenant-config-service.ts`, C20).
  *
  * No implementa doble firma: el sistema no tiene dos aprobadores por gasto.
  * `doubleApprovalThresholdCents` se lee como "de aquí para arriba decide el
@@ -104,18 +115,34 @@ export function rolExigidoPorMonto(
   amountCents: number,
   umbrales: UmbralesAutorizacion
 ): string {
-  const { managerAuthLimitCents, doubleApprovalThresholdCents } = umbrales;
+  const { managerAuthLimitCents, doubleApprovalThresholdCents, managerAutonomy } = umbrales;
 
+  // El umbral del dueño es prioritario e inclusivo en todos los niveles de autonomía:
+  // en el tope ya decide él.
+  const alcanzaAlDueno =
+    doubleApprovalThresholdCents !== null && amountCents >= doubleApprovalThresholdCents;
+  if (alcanzaAlDueno) return "OWNER";
+
+  const nivelAutonomia = managerAutonomy || "MEDIA";
+
+  if (nivelAutonomia === "BAJA") {
+    // Visto bueno corporativo: el gerente no autoriza gastos por su cuenta,
+    // incluso para montos chicos o sin tope definido.
+    return "ADMIN";
+  }
+
+  if (nivelAutonomia === "ALTA") {
+    // Decide el gerente: facultado para resolver gastos ordinarios de sucursal
+    // hasta el umbral del dueño, sin la escalada intermedia a ADMIN.
+    return "GERENTE";
+  }
+
+  // MEDIA (default): sujeto al límite monetario capturado.
   // Sin tope de gerente, el gerente alcanza para todo lo que no llegue al
-  // umbral del dueño. Es la lectura literal de "sin tope", y es una decisión
-  // que un administrador tomó a propósito al vaciar el campo.
+  // umbral del dueño.
   const dentroDeAutonomiaGerente =
     managerAuthLimitCents === null || amountCents < managerAuthLimitCents;
 
-  const alcanzaAlDueno =
-    doubleApprovalThresholdCents !== null && amountCents >= doubleApprovalThresholdCents;
-
-  if (alcanzaAlDueno) return "OWNER";
   if (dentroDeAutonomiaGerente) return "GERENTE";
   return "ADMIN";
 }

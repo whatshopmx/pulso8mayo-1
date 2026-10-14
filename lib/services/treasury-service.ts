@@ -18,7 +18,7 @@ import {
   employeeProfiles,
   users
 } from "@/lib/db/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, ne, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { ApiError } from "@/lib/api/error";
 import { getBankAccountsForPayment as getSupplierBankAccountsForPayment } from "@/lib/services/supplier-bank-account-service";
@@ -38,6 +38,11 @@ import {
   pasoDeDestino,
   type EstadoCorrida,
 } from "@/lib/treasury/disbursement-policy";
+import {
+  claveObligacion,
+  puedeAgendar,
+  type TipoPartida,
+} from "@/lib/treasury/scheduling-policy";
 import type { Role } from "@/lib/permissions";
 
 type PaymentRunStatus = typeof paymentRunStatusEnum.enumValues[number];
@@ -292,9 +297,97 @@ async function saldarDocumentosDePartidas(
   }
 }
 
+/** Bloquea el documento hasta confirmar el alta; la segunda alta lee la primera. */
+async function estadoDeObligacion(
+  tx: Transaccion,
+  companyId: string,
+  itemType: PaymentRunItemType,
+  referenceId: string,
+): Promise<string | null> {
+  if (itemType === "INVOICE") {
+    const [documento] = await tx.select({ status: invoices.paymentStatus }).from(invoices)
+      .where(and(eq(invoices.id, referenceId), eq(invoices.companyId, companyId))).for("update");
+    if (!documento) throw ApiError.notFound("Factura no encontrada");
+    return documento.status;
+  }
+  if (itemType === "OPERATING_EXPENSE") {
+    const [documento] = await tx.select({ status: operatingExpenses.status }).from(operatingExpenses)
+      .where(and(eq(operatingExpenses.id, referenceId), eq(operatingExpenses.companyId, companyId))).for("update");
+    if (!documento) throw ApiError.notFound("Gasto operativo no encontrado");
+    return documento.status;
+  }
+  if (itemType === "PAYROLL") {
+    const [documento] = await tx.select({ status: payrollRuns.status }).from(payrollRuns)
+      .where(and(eq(payrollRuns.id, referenceId), eq(payrollRuns.companyId, companyId))).for("update");
+    if (!documento) throw ApiError.notFound("Corrida de nómina no encontrada");
+    return null;
+  }
+  // Impuestos no tiene fila propia. La clave parametrizada serializa el par
+  // empresa/obligación; también cubre reposiciones sin bloquear el fondo completo.
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${companyId}:${claveObligacion(itemType, referenceId)}`}, 0))`);
+  return null;
+}
+
+/**
+ * C19 — qué corridas retienen esta obligación y si se puede volver a agendar.
+ *
+ * La llave es el par (tipo, referencia): dos partidas distintas que apuntan al
+ * mismo documento son la misma obligación. Las corridas canceladas no retienen,
+ * porque cancelarlas libera lo que contenían —es lo que la propia pantalla
+ * promete al cancelar— y a partir de ahí la obligación vuelve a estar
+ * disponible.
+ */
+async function corridasQueRetienen(
+  q: Pick<Transaccion, "select">,
+  params: {
+    companyId: string;
+    itemType: TipoPartida;
+    referenceId: string;
+    paymentRunId: string;
+    estadoDocumento: string | null;
+  },
+): Promise<{ permitido: boolean; motivo?: string }> {
+  const items = await q.select({
+    paymentRunId: paymentRunItems.paymentRunId,
+    title: paymentRuns.title,
+    status: paymentRuns.status,
+  })
+    .from(paymentRunItems)
+    .innerJoin(paymentRuns, eq(paymentRunItems.paymentRunId, paymentRuns.id))
+    .where(
+      and(
+        eq(paymentRunItems.itemType, params.itemType),
+        eq(paymentRunItems.referenceId, params.referenceId),
+        // La búsqueda se acota por empresa: la de otra no puede retener la
+        // obligación de esta, ni impedir que se agende.
+        eq(paymentRuns.companyId, params.companyId),
+      ),
+    );
+
+  const yaEnEstaCorrida = items.some((i) => i.paymentRunId === params.paymentRunId);
+  const retenidasPor = items
+    .filter((i) => i.paymentRunId !== params.paymentRunId)
+    .map((i) => ({ id: i.paymentRunId, title: i.title, status: i.status }));
+
+  return puedeAgendar(params.itemType, {
+    estadoDocumento: params.estadoDocumento,
+    yaEnEstaCorrida,
+    retenidasPor,
+  });
+}
+
+/** Listados y alta usan la misma definición: una corrida cancelada no retiene. */
+async function referenciasProgramadas(companyId: string, itemType: PaymentRunItemType) {
+  const items = await db.select({ referenceId: paymentRunItems.referenceId })
+    .from(paymentRunItems)
+    .innerJoin(paymentRuns, eq(paymentRunItems.paymentRunId, paymentRuns.id))
+    .where(and(eq(paymentRuns.companyId, companyId), eq(paymentRunItems.itemType, itemType), ne(paymentRuns.status, "CANCELLED")));
+  return new Set(items.map((item) => item.referenceId));
+}
+
 export class TreasuryService {
   /**
-   * Generates a new draft payment run (Corrida de Tesorería).
+   * Genera un nuevo borrador de corrida de pago.
    */
   static async createPaymentRun(
     companyId: string, 
@@ -331,10 +424,12 @@ export class TreasuryService {
       conditions.push(eq(invoices.branchId, branchId));
     }
 
-    return db.query.invoices.findMany({
+    const candidatas = await db.query.invoices.findMany({
       where: and(...conditions),
       orderBy: (inv, { asc }) => [asc(inv.fecha)],
     });
+    const programadas = await referenciasProgramadas(companyId, "INVOICE");
+    return candidatas.filter((factura) => !programadas.has(factura.id));
   }
 
   /**
@@ -355,7 +450,7 @@ export class TreasuryService {
       conditions.push(eq(operatingExpenses.branchId, branchId));
     }
 
-    return db
+    const candidatas = await db
       .select({
         id: operatingExpenses.id,
         description: operatingExpenses.description,
@@ -372,6 +467,8 @@ export class TreasuryService {
       .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
       .where(and(...conditions))
       .orderBy(sql`${operatingExpenses.dueDate} ASC NULLS LAST`);
+    const programadas = await referenciasProgramadas(companyId, "OPERATING_EXPENSE");
+    return candidatas.filter((gasto) => !programadas.has(gasto.id));
   }
 
   /**
@@ -387,11 +484,7 @@ export class TreasuryService {
 
     const runIds = runs.map(r => r.id);
 
-    const existingRunItems = await db.query.paymentRunItems.findMany({
-      where: eq(paymentRunItems.itemType, "PAYROLL"),
-      columns: { referenceId: true }
-    });
-    const attachedIds = new Set(existingRunItems.map(i => i.referenceId));
+    const attachedIds = await referenciasProgramadas(companyId, "PAYROLL");
 
     const payslips = await db.query.payrollPayslips.findMany({
       where: inArray(payrollPayslips.runId, runIds),
@@ -439,7 +532,7 @@ export class TreasuryService {
     /** Solo se usa en los tipos que no tienen documento con monto propio. */
     amountCents?: number;
     notes?: string;
-  }): Promise<{
+  }, q: Pick<Transaccion, "query"> = db): Promise<{
     amountCents: number;
     counterparty: string;
     /** Cuenta verificada de proveedor, vigente al momento de agregar la partida (A2.1). */
@@ -453,7 +546,7 @@ export class TreasuryService {
     switch (itemType) {
       // Mercancía: contraparte = proveedor de la factura, con CLABE verificada.
       case "INVOICE": {
-        const invoice = await db.query.invoices.findFirst({
+        const invoice = await q.query.invoices.findFirst({
           where: and(eq(invoices.id, referenceId), eq(invoices.companyId, companyId)),
         });
 
@@ -476,18 +569,20 @@ export class TreasuryService {
           );
         }
 
-        const verifiedAccount = await db.query.supplierBankAccounts.findFirst({
+        const verifiedAccount = await q.query.supplierBankAccounts.findFirst({
           where: and(
             eq(supplierBankAccounts.supplierId, invoice.supplierId),
+            eq(supplierBankAccounts.companyId, companyId),
             eq(supplierBankAccounts.status, "VERIFIED"),
             eq(supplierBankAccounts.active, true)
           ),
         });
 
-        const supplier = await db.query.suppliers.findFirst({
-          where: eq(suppliers.id, invoice.supplierId),
+        const supplier = await q.query.suppliers.findFirst({
+          where: and(eq(suppliers.id, invoice.supplierId), eq(suppliers.companyId, companyId)),
         });
-        const suppName = supplier?.name || "del proveedor";
+        if (!supplier) throw ApiError.notFound("Proveedor no encontrado en esta empresa");
+        const suppName = supplier.name;
 
         if (!verifiedAccount) {
           throw ApiError.badRequest(
@@ -510,13 +605,13 @@ export class TreasuryService {
       // empleados, no contra una cuenta de contraparte. **Se declara** que no
       // requiere contraparte bancaria; no cae por omisión.
       case "PAYROLL": {
-        const payrollRun = await db.query.payrollRuns.findFirst({
+        const payrollRun = await q.query.payrollRuns.findFirst({
           where: and(eq(payrollRuns.id, referenceId), eq(payrollRuns.companyId, companyId)),
         });
 
         if (!payrollRun) throw ApiError.notFound("Corrida de nómina no encontrada");
 
-        const payslips = await db.query.payrollPayslips.findMany({
+        const payslips = await q.query.payrollPayslips.findMany({
           where: eq(payrollPayslips.runId, payrollRun.id),
           columns: { totalPercepcionesCents: true },
         });
@@ -561,7 +656,7 @@ export class TreasuryService {
       // parcial, pero no se puede meter a la sucursal más efectivo del que el
       // fondo está autorizado a tener.
       case "PETTY_CASH_REIMBURSEMENT": {
-        const fund = await db.query.pettyCashFunds.findFirst({
+        const fund = await q.query.pettyCashFunds.findFirst({
           where: and(
             eq(pettyCashFunds.id, referenceId),
             eq(pettyCashFunds.companyId, companyId)
@@ -599,7 +694,7 @@ export class TreasuryService {
       // hielo, plomero) no tiene a quién transferirle — igual que una factura
       // sin `supplierId` — así que se rechaza en vez de colarse como OTHER.
       case "OPERATING_EXPENSE": {
-        const expense = await db.query.operatingExpenses.findFirst({
+        const expense = await q.query.operatingExpenses.findFirst({
           where: and(eq(operatingExpenses.id, referenceId), eq(operatingExpenses.companyId, companyId)),
         });
 
@@ -620,18 +715,20 @@ export class TreasuryService {
           );
         }
 
-        const verifiedAccount = await db.query.payeeBankAccounts.findFirst({
+        const verifiedAccount = await q.query.payeeBankAccounts.findFirst({
           where: and(
             eq(payeeBankAccounts.payeeId, expense.payeeId),
+            eq(payeeBankAccounts.companyId, companyId),
             eq(payeeBankAccounts.status, "VERIFIED"),
             eq(payeeBankAccounts.active, true),
           ),
         });
 
-        const payee = await db.query.payees.findFirst({
-          where: eq(payees.id, expense.payeeId),
+        const payee = await q.query.payees.findFirst({
+          where: and(eq(payees.id, expense.payeeId), eq(payees.companyId, companyId)),
         });
-        const payeeNameResuelto = payee?.name || "de la contraparte";
+        if (!payee) throw ApiError.notFound("Contraparte no encontrada en esta empresa");
+        const payeeNameResuelto = payee.name;
 
         if (!verifiedAccount) {
           throw ApiError.badRequest(
@@ -693,18 +790,30 @@ export class TreasuryService {
       throw ApiError.badRequest("Solo puedes agregar ítems a una corrida en estado DRAFT.");
     }
 
-    const { amountCents, bankAccountId, payeeBankAccountId, clabeLast4 } =
-      await TreasuryService.assertCounterpartyPayable({
-        companyId,
-        itemType,
-        referenceId,
-        amountCents: input.amountCents,
-        notes,
-      });
-
     // La partida y el total de la corrida se escriben juntos: antes eran dos
     // escrituras sueltas y un fallo entre ellas dejaba la corrida cuadrando mal.
     return db.transaction(async (tx) => {
+      const [corridaActual] = await tx.select({ status: paymentRuns.status }).from(paymentRuns)
+        .where(and(eq(paymentRuns.id, paymentRunId), eq(paymentRuns.companyId, companyId))).for("update");
+      if (!corridaActual) throw ApiError.notFound("Corrida de pago no encontrada");
+      if (corridaActual.status !== "DRAFT") {
+        throw ApiError.badRequest("Solo puedes agregar ítems a una corrida en estado DRAFT.");
+      }
+      const retenida = await corridasQueRetienen(tx, {
+        companyId,
+        itemType,
+        referenceId,
+        paymentRunId,
+        estadoDocumento: await estadoDeObligacion(tx, companyId, itemType, referenceId),
+      });
+
+      if (!retenida.permitido) {
+        throw ApiError.badRequest(retenida.motivo ?? "La obligación ya está programada.");
+      }
+
+      const { amountCents, bankAccountId, payeeBankAccountId, clabeLast4 } =
+        await TreasuryService.assertCounterpartyPayable(input, tx);
+
       const [item] = await tx
         .insert(paymentRunItems)
         .values({

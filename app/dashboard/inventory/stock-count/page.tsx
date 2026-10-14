@@ -3,7 +3,6 @@ import { auth } from "@/lib/auth";
 import { headers, cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { StockCountService } from "@/lib/services/stock-count-service";
-import { CATEGORIES } from "@/lib/inventory/constants";
 import { db } from "@/lib/db";
 import { branches, companies, inventoryItems } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -16,6 +15,7 @@ import { ClipboardList, History, Settings, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { PageHeader, PageContainer } from "@/components/shared";
 import { BRANCH_COOKIE_NAME } from "@/lib/branch-cookies";
+import { requireExecutionAccess, assertBranchDestino } from '@/lib/workflows/execution-access';
 
 async function toggleBlindCountSetting(formData: FormData) {
   "use server";
@@ -38,8 +38,9 @@ async function createStockCount(formData: FormData) {
   }
 
   const branchId = formData.get("branchId") as string;
-  const category = formData.get("category") as string;
-  if (!branchId || !category) {
+  const categories = formData.getAll('categories').map(String);
+  const category = categories.join(', ');
+  if (!branchId || !categories.length) {
     return redirect("/dashboard/inventory/stock-count?error=missing-fields");
   }
 
@@ -50,11 +51,14 @@ async function createStockCount(formData: FormData) {
   // pantalla de error. Por eso aquí solo se resuelve el destino.
   let destino: string;
   try {
+    const actor = await requireExecutionAccess('create');
+    await assertBranchDestino(actor, branchId);
     const result = await StockCountService.createStockCountInstance({
       companyId: session.user.companyId,
       branchId,
       assigneeId: session.user.id,
       categoryValue: category,
+      categories,
       highOnlyValue,
     });
     destino = result.instance?.id
@@ -100,8 +104,10 @@ export default async function StockCountPage(props: {
 
     const companyId = session.user.companyId || "";
 
-    const userBranches = await db.select().from(branches)
-        .where(eq(branches.companyId, companyId));
+    const companyScope = ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'READONLY'].includes(session.user.role);
+    const userBranchId = companyScope ? undefined : session.user.branchId;
+    const userBranches = !companyScope && !userBranchId ? [] : await db.select().from(branches)
+        .where(and(eq(branches.companyId, companyId), userBranchId ? eq(branches.id, userBranchId) : undefined));
 
     // Alcance del header (BranchScopeControl): si hay sucursal en foco, el
     // conteo hereda ese alcance en lugar de volver a preguntar — una sola
@@ -112,7 +118,8 @@ export default async function StockCountPage(props: {
     // crear conteos fantasma.
     const scopedBranch = userBranches.find((b) => b.id === scopedBranchId) ?? null;
 
-    const history = await StockCountService.getStockCountHistory(companyId);
+    const allHistory = !companyScope && !userBranchId ? [] : await StockCountService.getStockCountHistory(companyId, userBranchId || undefined);
+    const history = session.user.role === 'EMPLEADO' ? allHistory.filter(row => row.assigneeId === session.user.id || (!row.assigneeId && row.branchId === userBranchId)) : allHistory;
 
     // Consultar categorías reales presentes en el inventario con sus conteos
     const dbCategoryCounts = await db
@@ -127,31 +134,9 @@ export default async function StockCountPage(props: {
 
     const hasHighValueItems = dbCategoryCounts.some((c) => c.highValueCount > 0);
 
-    const dbCatMap = new Map(dbCategoryCounts.map((c) => [c.category, c]));
-
-    const availableCategories: Array<{ value: string; label: string; count: number; hasHighValue: boolean }> = [];
-
-    // Primero las categorías que tienen artículos registrados en la empresa
-    for (const c of dbCategoryCounts) {
-        availableCategories.push({
-            value: c.category,
-            label: `${c.category} (${c.totalCount} ${c.totalCount === 1 ? "artículo" : "artículos"}${c.highValueCount > 0 ? ` • ${c.highValueCount} alto valor` : ""})`,
-            count: c.totalCount,
-            hasHighValue: c.highValueCount > 0,
-        });
-    }
-
-    // Luego las categorías estándar que aún no tienen artículos (para compatibilidad de selección y tests)
-    for (const cat of CATEGORIES) {
-        if (!dbCatMap.has(cat.value)) {
-            availableCategories.push({
-                value: cat.value,
-                label: cat.label,
-                count: 0,
-                hasHighValue: false,
-            });
-        }
-    }
+    const availableCategories = dbCategoryCounts.filter(row => row.category?.trim() && row.totalCount > 0).map(row => ({
+        value: row.category, label: row.category, count: row.totalCount,
+    }));
 
     const [company] = await db.select({
         blindStockCount: companies.blindStockCount
@@ -255,21 +240,16 @@ export default async function StockCountPage(props: {
                                     )}
                                 </div>
 
-                                <div className="grid gap-2">
-                                    <Label htmlFor="category">Categoría</Label>
-                                    <select
-                                        id="category"
-                                        name="category"
-                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        required
-                                        defaultValue={searchParams?.category || ""}
-                                    >
-                                        <option value="">Seleccionar categoría</option>
-                                        {availableCategories.map((c) => (
-                                            <option key={c.value} value={c.value}>{c.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <fieldset className="grid gap-2">
+                                    <legend className="mb-2 text-sm font-medium">Categorías</legend>
+                                    {availableCategories.map((item, index) => <label key={item.value} htmlFor={'category-' + index} className="flex min-h-11 items-center gap-3 rounded-lg border p-3 text-sm">
+                                        <input id={'category-' + index} name="categories" type="checkbox" value={item.value} defaultChecked={item.value === searchParams?.category} />
+                                        <span className="min-w-0 flex-1 break-words">{item.label}</span>
+                                        <span className="text-xs text-muted-foreground">{item.count} productos</span>
+                                    </label>)}
+                                    {!availableCategories.length && <p className="text-sm text-muted-foreground">Registra productos activos en Inventario para iniciar un conteo.</p>}
+                                    <p className="text-xs text-muted-foreground">Cada categoría abre una lista completa de productos y lotes. Al finalizar, el conteo se guardará para revisión.</p>
+                                </fieldset>
 
                                 <div className="flex items-start gap-3 rounded-lg border bg-muted/10 p-3">
                                     <input
@@ -277,12 +257,12 @@ export default async function StockCountPage(props: {
                                         type="checkbox"
                                         name="highValueOnly"
                                         value="true"
-                                        defaultChecked={hasHighValueItems}
+                                        defaultChecked={false}
                                         className="mt-0.5 h-4 w-4 shrink-0 rounded border-input text-primary focus:ring-primary"
                                     />
                                     <div className="space-y-1">
                                         <label htmlFor="highValueOnly" className="text-sm font-medium leading-none cursor-pointer">
-                                            Contar solo SKUs de alto valor (80/20 Pareto — máx. 30)
+                                            Contar solo SKUs de alto valor (80/20 Pareto)
                                         </label>
                                         <p className="text-xs text-muted-foreground">
                                             {hasHighValueItems

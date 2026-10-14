@@ -186,12 +186,13 @@ describe("catálogo de políticas operativas — forma", () => {
 describe("catálogo de políticas operativas — aplicada contra el consumidor real", () => {
   const aplicadas = CATALOGO_OPERATIVO.filter((p) => p.clasificacion === "aplicada");
 
-  it("cubre los umbrales que el código sí lee y los controles de C16.2", () => {
+  it("cubre los umbrales que el código sí lee y los controles de C16.2 y C20", () => {
     expect(aplicadas.map((p) => p.campo).sort()).toEqual([
       "courtesyWasteMonthlyCapCents",
       "doubleApprovalThresholdCents",
       "emergencyPurchaseCapCents",
       "managerAuthLimitCents",
+      "managerAutonomy",
       "purchase_delegation_rules",
     ]);
   });
@@ -313,10 +314,10 @@ describe("catálogo de políticas operativas — pendientes", () => {
     }
   });
 
-  it("registra una decisión para cada dimensión y caja chica", () => {
+  it("registra una decisión para cada dimensión y caja chica aún pendientes", () => {
     expect(politicasConDecisionPendiente().map((p) => p.campo).sort()).toEqual([
       "purchasingStructure", "foodProduction", "treasuryModel", "supplierPayment",
-      "managerAutonomy", "payrollDispersion", "tenantType", "pettyCashLimitCents",
+      "payrollDispersion", "tenantType", "pettyCashLimitCents",
     ].sort());
   });
   it("ninguna pendiente bloquea una política que sí se aplica hoy", () => {
@@ -408,9 +409,9 @@ describe("catálogo de políticas operativas — parámetros de C14 y resumen", 
     const resumen = resumenDePoliticas();
     const total = Object.values(resumen).reduce((a, b) => a + b, 0);
     expect(total).toBe(CATALOGO_OPERATIVO.length);
-    expect(resumen.aplicada).toBe(5);
+    expect(resumen.aplicada).toBe(6);
     expect(resumen.descriptiva).toBe(6);
-    expect(resumen.pendiente).toBe(2);
+    expect(resumen.pendiente).toBe(1);
   });
 
   it("cada clasificación tiene etiqueta y explicación para la pantalla", () => {

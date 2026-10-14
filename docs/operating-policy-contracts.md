@@ -132,9 +132,9 @@ Cada valor de la tabla queda **clasificado como descriptivo en su comportamiento
 | `purchasingStructure` | `CENTRALIZADA` (default), `POR_SUCURSAL`, `HIBRIDO` | Descriptiva | Ninguno. No cambia quién solicita, aprueba o emite una compra. El tope de emergencias y la matriz de aprobación son independientes. |
 | `foodProduction` | `IN_SITU` (default), `COCINA_CENTRAL`, `MIXTO` | Descriptiva | Ninguno. No crea abastecimientos, traspasos ni movimientos de recetas/inventario. El umbral de merma automática es independiente. |
 | `treasuryModel` | `CUENTA_UNICA` (default), `CUENTA_POR_SUCURSAL`, `MIXTO` | Descriptiva | Ninguno. No elige cuentas ni limita preparación, aprobación o liquidación de corridas de tesorería. |
-| `supplierPayment` | `CENTRALIZADO` (default), `POR_SUCURSAL`, `HIBRIDO` | Descriptiva | Ninguno. No programa pagos ni modifica el método capturado del proveedor. |
+| `supplierPayment` | `CENTRALIZADO` (default), `POR_SUCURSAL`, `HIBRIDO` | Descriptiva | Ninguno. El pago se decide en la corrida de tesorería. La columna no programa pagos ni modifica el método capturado del proveedor. |
 | `payrollDispersion` | `CONSOLIDADA` (default), `POR_RAZON_SOCIAL`, `MIXTO` | Descriptiva | Ninguno. No agrupa corridas, exportaciones o recibos ni activa pagos automáticos. |
-| `managerAutonomy` | `ALTA`, `MEDIA` (default), `BAJA` | Pendiente de decisión | No hay consumidor de esta columna. La aprobación de gastos usa reglas y montos en `rolExigidoPorMonto`; elegir `ALTA` no concede más autoridad. |
+| `managerAutonomy` | `ALTA`, `MEDIA` (default), `BAJA` | Se aplica hoy | Aplica en la resolución y autorización de gastos ordinarios en `rolExigidoPorMonto` (`lib/expenses/approval-policy.ts` y `expense-service.ts`). En `BAJA`, el gerente no resuelve gastos (exige `ADMIN`); en `ALTA`, resuelve gastos ordinarios hasta el umbral de dueño; en `MEDIA`, resuelve hasta `managerAuthLimitCents`. El umbral de dueño (`doubleApprovalThresholdCents`) y la segregación de funciones (A16) se preservan transversalmente. |
 | `tenantType` | `GRUPO_PROPIO` (default), `MIXTO_FRANQUICIAS` | Pendiente de decisión | No hay consumidor de esta columna. La visibilidad de franquicias depende de `branches.ownershipType` en `lib/rbac/abac.ts` y `lib/rbac/branch-visibility.ts`. La selección no cambia ese atributo. |
 
 ### `pettyCashLimitCents` — monto de referencia de caja chica
@@ -161,8 +161,8 @@ Los tres estados (`null`, `0`, positivo) son descriptivos. Cambiarlos no modific
 | C16 — Compras | **Resuelto el 13-10-2026 (C16.2).** Los responsables se configuran de forma explícita —matriz de aprobación para quién aprueba, controles de delegación para quién solicita y emite— y la modalidad no concede permisos. Sigue abierta una pregunta: si una compra de emergencia puede saltarse algún control, y con qué condición. |
 | C17 — Producción | Cocina abastecedora, sucursales receptoras, responsables y movimientos de envío/recepción. Confirmar si continúa descriptiva. |
 | C18 — Tesorería | Cuentas permitidas, responsables de preparación/aprobación/liquidación y excepciones por modalidad. No hay una restricción acordada. |
-| C19 — Proveedores | Reparto de facturas entre corporativo y sucursal, programación/aprobación e idempotencia. Confirmar si continúa descriptiva. |
-| C20 — Autonomía | Relación de cada nivel con roles, montos y escalada de compras/gastos; preservar una sola política de autorización. |
+| C19 — Proveedores | **Resuelto el 14-10-2026 (C19) en una de sus tres partes.** Una factura, gasto o nómina se agenda una vez y sólo mientras debe pagarse. Siguen abiertas dos: quién programa y aprueba cada pago por modalidad, y cómo se reparten las facturas entre corporativo y sucursal. |
+| C20 — Autonomía | **Resuelto el 14-10-2026 (C20).** Se aplica en la escalera de autorización de gastos (`lib/expenses/approval-policy.ts` y `expense-service.ts`) combinando los tres niveles (ALTA, MEDIA, BAJA) con los umbrales monetarios existentes y la segregación de funciones (A16). |
 | C21 — Nómina | Descripción o agrupación de exportación; entidad legal y responsables. No interpretar la selección como autorización para enviar dinero. |
 | C22 — Tipo de grupo | Si sólo declara propiedad o fija el atributo de sucursales nuevas; quién captura `ownershipType` y cómo tratar sucursales existentes. |
 | C23 — Caja chica | Fondo máximo, máximo por gasto o límite de aprobación; reposición, excepciones y fondos existentes. Confirmar si continúa descriptiva. |
@@ -200,6 +200,54 @@ La primera política que el proyecto aplica a partir de una decisión escrita aq
 | Excepciones | La matriz de aprobación, el presupuesto, el tope de emergencias y la transición de estados siguen aplicando; ningún control los evita |
 
 Casos que la tabla no cubre, y por qué: la categoría del artículo es texto libre (`inventory_items.category`), así que la comparación normaliza mayúsculas y espacios y **no** puede exigir un catálogo que no existe; un artículo sin categoría no queda cubierto por reglas de categoría. Dos reglas activas sobre el mismo ámbito se permiten con aviso, porque la más permisiva gana y la otra queda muerta: es confuso de leer, no roto.
+
+### La obligación agendada una vez (C19)
+
+La segunda regla que el proyecto aplica a partir de una decisión escrita aquí. No viene de una columna de configuración: viene de una pregunta que el catálogo tenía abierta —*cómo se evitan pagos duplicados*— y que resultó tener respuesta en el recorrido, no en `supplierPayment`.
+
+**El pago a un proveedor no tiene máquina de estados propia.** Se decide dentro de la corrida de tesorería, que es el mismo recorrido que C18 acotó por rol:
+
+| Paso | Ruta | Qué hace |
+| --- | --- | --- |
+| Programar | `POST /api/finance/treasury/runs/[id]/items` | `assertCounterpartyPayable` valida empresa, contraparte y CLABE, y **C19** añade que la obligación sea agendable y no esté ya agendada |
+| Aprobar y dispersar | `PATCH /api/finance/treasury/runs/[id]/status` | Los pasos que mueven dinero exigidos por `lib/treasury/disbursement-policy.ts` |
+| Liquidar | `POST .../items/[itemId]/settle` | Marca la partida y **saldarDocumentosDePartidas** salda sus facturas y gastos |
+| Descargar | `GET /api/finance/treasury/runs/[id]/layout` | Un renglón SPEI por partida |
+
+La liquidación usa `saldarDocumentosDePartidas` para reflejar el pago en la factura. C19 conserva ese recorrido y su máquina de estados.
+
+| Aspecto | Contrato |
+| --- | --- |
+| Qué decide | `puedeAgendar` en `lib/treasury/scheduling-policy.ts` (módulo puro) aplicado por `addItemToRun` |
+| Regla | Una obligación —el par (tipo de partida, referencia)— se agenda **una vez** y sólo mientras el documento debe dinero |
+| Documento no pagable | Factura `PAID` o `CANCELLED`, gasto `PAID`: se rechaza nombrando el estado |
+| Obligación ya retenida | Se rechaza nombrando la corrida que la retiene y su estado. Cancelarla la libera si la máquina de estados admite la cancelación; `PROCESSING` y `COMPLETED` no se cancelan |
+| Misma corrida | Se rechaza y se pide revisar las partidas; no se promete una acción para eliminar que la pantalla no ofrece |
+| Carrera | La comprobación y el alta ocurren en la misma transacción con `FOR UPDATE` sobre corrida y documento. Se repiten estado, pertenencia, monto y contraparte dentro de la transacción; una segunda alta lee la primera confirmada |
+| Alcance | Empresa de la sesión. Las corridas de otra empresa ni retienen ni bloquean |
+| Tipos sin documento pagable | Impuestos y reposiciones se serializan por empresa/tipo/referencia con `pg_advisory_xact_lock`. `OTHER` sigue rechazado por la validación de contraparte |
+| Fondo recurrente | Una reposición `COMPLETED` libera el fondo para futuras reposiciones; las corridas abiertas lo retienen. El cierre de una factura, gasto o nómina sigue reteniendo su documento |
+| Interfaz | Los tres listados «para pagar» excluyen lo que ya es partida de una corrida viva, de modo que el doble pago deja de poder provocarse desde la pantalla |
+| Lote parcial | Se retiran sólo éxitos, se conserva selección de rechazados y se muestra cuenta exacta y motivos. Reintentar manda sólo los fallidos; cero éxitos no se anuncia como éxito |
+| Excepciones | El filtro de rol de C18, la CLABE verificada, la discrepancia de 3-Way Match y la máquina de transiciones siguen aplicando; esta regla no los evita |
+
+No se reparan automáticamente duplicados históricos ni se crea un recorrido de pagos parciales. Los listados son una lectura; la decisión definitiva se repite al agregar. [Evidencia de C19](audits/2026-10-14-pago-proveedores.md).
+
+### La política de autonomía del gerente (C20)
+
+La tercera política que el proyecto aplica a partir de una decisión escrita aquí. Conecta la dimensión `managerAutonomy` de `tenant_operating_config` directamente con la resolución y autorización de gastos en `rolExigidoPorMonto` (`lib/expenses/approval-policy.ts`) y su consumidor autoritativo en `expense-service.ts` (`approveOperatingExpense` y `rejectOperatingExpense`).
+
+| Aspecto | Contrato |
+| --- | --- |
+| Qué decide | Quién tiene facultad para aprobar o rechazar un gasto operativo ordinario de la sucursal cuando no existe una regla explícita en `expense_authorization_rules`. |
+| Niveles y comportamiento | **`BAJA`**: el gerente no tiene autoridad de aprobación ni rechazo (exige al menos `ADMIN`), centralizando el control en corporativo.<br>**`ALTA`**: el gerente está facultado para resolver gastos ordinarios de su sucursal hasta el umbral del dueño, sin escalada intermedia a `ADMIN`.<br>**`MEDIA`** (default): aplica la escalera monetaria estándar (`< managerAuthLimitCents` resuelve `GERENTE`, `>= managerAuthLimitCents` escala a `ADMIN`). |
+| Umbral de dueño | La escalada a `OWNER` por `doubleApprovalThresholdCents` es obligatoria y transversal en todos los niveles de autonomía: ningún nivel (ni siquiera `ALTA`) exime de aprobación ejecutiva a gastos mayores o iguales a este umbral. |
+| Segregación de funciones (A16) | Prevalece de forma absoluta sobre cualquier nivel de autonomía: quien registra un gasto no puede aprobarlo ni rechazarlo (`SELF`), sin importar si la autonomía es `ALTA`. Sólo ejecutivos `OWNER` o `SUPER_ADMIN` están exentos de auto-bloqueo. |
+| Aislamiento de sucursal | Un gerente acotado por rol o sucursal no puede resolver gastos de otra sucursal (`assertScopeCoversBranch`). |
+| Aislamiento multi-tenant | Las operaciones verifican rigurosamente la empresa del gasto y del contexto; intentos cruzados entre empresas devuelven 404 (NotFound). |
+| Dinamismo | Se consulta en caliente desde `tenant_operating_config`; actualizar la configuración surte efecto inmediato en las siguientes autorizaciones sin requerir migraciones ni dejar estados inconsistentes. |
+
+[Evidencia de C20](audits/2026-10-14-autonomia-gerente.md).
 
 ### Verificación de C15
 

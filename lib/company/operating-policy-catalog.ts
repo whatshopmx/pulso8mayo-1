@@ -319,10 +319,17 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
     clasificacion: "descriptiva",
     consumidor: null,
     aplicacion:
-      "Se lee al abrir la pantalla de configuración. El método de pago de un " +
-      "proveedor (`suppliers.payment_method`) es otra columna y otro dominio: " +
-      "no se deduce de esta.",
-    excepciones: "La modalidad del grupo no modifica el método de pago capturado del proveedor.",
+      "Se lee al abrir la pantalla de configuración. El pago a un proveedor se " +
+      "decide dentro de la corrida de tesorería —sus siete pasos y su filtro de " +
+      "rol están en el módulo de disbursement de C18—, no en esta columna: el " +
+      "método de pago de un proveedor (`suppliers.payment_method`) es otra " +
+      "columna y otro dominio y no se deduce de esta.",
+    excepciones:
+      "La modalidad del grupo no modifica el método de pago capturado del " +
+      "proveedor ni la obligación agendable. Lo que sí decide la corrida es si " +
+      "cada factura se paga una vez: una factura pagada, cancelada o ya partida " +
+      "de una corrida viva se rechaza al agendarla. Cancelar una corrida que " +
+      "todavía admite cancelación libera sus facturas pendientes.",
     vacio: "No aplica: la columna es `notNull` con default `CENTRALIZADO`.",
     valores: [
       { valor: "CENTRALIZADO", titulo: "Centralizado", caso: null },
@@ -330,8 +337,12 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
       { valor: "HIBRIDO", titulo: "Híbrido", caso: null },
     ],
     decisionPendiente:
-      "Falta definir quién programa y aprueba cada pago, cómo se reparten las facturas " +
-      "entre corporativo y sucursal, y cómo se evitan pagos duplicados.",
+      "Verificado el 14-10-2026: la dimensión sigue descriptiva y su recorrido " +
+      "queda escrito contra la corrida real. C19 resolvió una de las tres " +
+      "preguntas —cómo se evitan pagos duplicados, con la regla de una " +
+      "obligación agendada una vez mientras debe pagarse—. Quedan dos: quién " +
+      "programa y aprueba cada pago, y cómo se reparten las facturas entre " +
+      "corporativo y sucursal.",
   },
   {
     campo: "payrollDispersion",
@@ -370,25 +381,68 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
     unidad: "Enum de 3 valores",
     alcance: "Grupo",
     permiso: "settings/update",
-    clasificacion: "pendiente",
-    consumidor: null,
+    clasificacion: "aplicada",
+    consumidor: {
+      archivo: "lib/expenses/approval-policy.ts",
+      simbolo: "rolExigidoPorMonto",
+      decide:
+        "La autoridad de aprobación del gerente de sucursal frente a la escalera corporativa " +
+        "en combinación con los umbrales monetarios.",
+    },
+    consumidores: [
+      {
+        archivo: "lib/expenses/approval-policy.ts",
+        simbolo: "rolExigidoPorMonto",
+        decide:
+          "Calcula el rol exigido según nivel de autonomía (BAJA: ADMIN+, ALTA: GERENTE hasta dueño, MEDIA: límite monetario).",
+      },
+      {
+        archivo: "lib/services/expense-service.ts",
+        simbolo: "resolverRolExigido",
+        decide: "Pasa managerAutonomy de tenant_operating_config al resolver autorizaciones de gastos.",
+      },
+    ],
     aplicacion:
-      "La escalera de aprobación de gastos existe y funciona, pero se construye " +
-      "sólo con `managerAuthLimitCents` y `doubleApprovalThresholdCents` " +
-      "(`rolExigidoPorMonto`): el nivel de autonomía no participa en ella.",
+      "Gobierna la resolución de gastos de sucursal cuando no existe una regla explícita: " +
+      "`BAJA` exige siempre visto bueno corporativo (`ADMIN` o superior), " +
+      "`MEDIA` acota la autoridad al límite monetario (`managerAuthLimitCents`), y " +
+      "`ALTA` faculta al gerente para gastos ordinarios hasta el umbral de Dirección General (`doubleApprovalThresholdCents`).",
     excepciones:
-      "Los tres niveles comparten hoy exactamente el mismo comportamiento. " +
-      "Elegir `ALTA` no amplía lo que el gerente puede aprobar.",
+      "La segregación de funciones (prohibida la auto-aprobación) y el alcance de sucursal aplican en los tres niveles. " +
+      "Una regla explícita en `expense_authorization_rules` prevalece sobre la escalera general.",
     vacio: "No aplica: la columna es `notNull` con default `MEDIA`.",
     valores: [
-      { valor: "ALTA", titulo: "Alta", caso: null },
-      { valor: "MEDIA", titulo: "Media", caso: null },
-      { valor: "BAJA", titulo: "Baja", caso: null },
+      {
+        valor: "ALTA",
+        titulo: "Alta",
+        caso: {
+          dado: "autonomía ALTA configurada",
+          cuando: "se evalúa un gasto ordinario de la sucursal",
+          entonces:
+            "lo puede resolver un `GERENTE` hasta el umbral de Dirección General (`doubleApprovalThresholdCents`)",
+        },
+      },
+      {
+        valor: "MEDIA",
+        titulo: "Media",
+        caso: {
+          dado: "autonomía MEDIA configurada (default)",
+          cuando: "se evalúa un gasto de la sucursal",
+          entonces:
+            "un `GERENTE` resuelve hasta `managerAuthLimitCents`; desde ese monto escala a `ADMIN` y luego a `OWNER`",
+        },
+      },
+      {
+        valor: "BAJA",
+        titulo: "Baja",
+        caso: {
+          dado: "autonomía BAJA configurada",
+          cuando: "se evalúa cualquier gasto de la sucursal",
+          entonces:
+            "el gerente no tiene autoridad de aprobación: todo gasto exige al menos `ADMIN` (o `OWNER` si alcanza su umbral)",
+        },
+      },
     ],
-    decisionPendiente:
-      "Falta definir qué compras y gastos puede decidir el gerente en cada nivel " +
-      "y cómo se combina con los límites monetarios. Hoy elegir Alta, Media o Baja " +
-      "no cambia sus permisos de aprobación.",
   },
   {
     campo: "tenantType",

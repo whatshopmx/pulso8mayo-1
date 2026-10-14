@@ -3,6 +3,7 @@ import { WorkflowStepper } from "@/components/execution/workflow-stepper";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { requireExecutionAccess, assertExecutionInScope } from '@/lib/workflows/execution-access';
 
 interface PageProps {
     params: Promise<{
@@ -28,6 +29,10 @@ export default async function ExecuteWorkflowPage(props: PageProps) {
     if (!execution || !execution.template) {
         return notFound();
     }
+    try {
+        const actor = await requireExecutionAccess('read');
+        await assertExecutionInScope(actor, execution);
+    } catch { return notFound(); }
 
     // 3. Render Stepper
     return (

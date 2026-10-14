@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { StockCountService } from "@/lib/services/stock-count-service";
+import { StockCountService, STOCK_COUNT_TEMPLATE_NAME } from "@/lib/services/stock-count-service";
 import { db } from "@/lib/db";
-import { branches } from "@/lib/db/schema";
+import { branches, workflowInstances } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, AlertTriangle, CheckCircle2, Package, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { ApproveAdjustments } from "./approve-adjustments";
+import { requireExecutionAccess, assertExecutionInScope } from '@/lib/workflows/execution-access';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -23,19 +24,19 @@ export default async function StockCountResultsPage({ params }: PageProps) {
   const { id } = await params;
 
   let result;
+  let canApprove = false;
   try {
+    const actor = await requireExecutionAccess('read');
+    const instance = await db.query.workflowInstances.findFirst({ where: eq(workflowInstances.id, id) });
+    if (!instance) throw new Error('Conteo no encontrado');
+    await assertExecutionInScope(actor, instance);
     result = await StockCountService.getStockCountResults(id);
+    if (!(instance.data as { stockCountGrid?: boolean })?.stockCountGrid && result.templateName !== STOCK_COUNT_TEMPLATE_NAME) throw new Error('Conteo no encontrado');
+    canApprove = ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'GERENTE', 'SUPERVISOR'].includes(actor.role);
   } catch {
-    return (
-      <div className="container mx-auto py-8 max-w-4xl">
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            Conteo no encontrado
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return notFound();
   }
+  if (result.status !== 'COMPLETED') return <div className="container mx-auto max-w-4xl px-4 py-8"><Card><CardContent className="space-y-4 py-6"><p>El conteo todavía está en progreso.</p><Button asChild><Link href={`/dashboard/workflows/${id}/execute`}>Continuar conteo</Link></Button></CardContent></Card></div>;
 
   const branchRows = await db.select({ id: branches.id, name: branches.name })
     .from(branches)
@@ -57,7 +58,7 @@ export default async function StockCountResultsPage({ params }: PageProps) {
   const categoryLabel = StockCountService.getCategoryName(result.category);
 
   return (
-    <div className="container mx-auto py-8 max-w-4xl space-y-6">
+    <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
       <div className="flex items-center gap-4">
         <Link href="/dashboard/inventory/stock-count">
           <Button variant="ghost" size="sm">
@@ -81,6 +82,7 @@ export default async function StockCountResultsPage({ params }: PageProps) {
         instanceId={result.instanceId}
         adjustmentsStatus={result.adjustmentsStatus as "PENDING" | "APPLIED" | "NONE"}
         totalAdjustments={result.summary.totalAdjustments}
+        canApprove={canApprove}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -110,7 +112,7 @@ export default async function StockCountResultsPage({ params }: PageProps) {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Alertas (&gt;10%)</CardDescription>
+            <CardDescription>Alertas por producto (&gt;10%)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold font-mono flex items-center gap-2 ${result.summary.alertCount > 0 ? 'text-destructive' : 'text-success'}`}>
@@ -121,9 +123,18 @@ export default async function StockCountResultsPage({ params }: PageProps) {
         </Card>
       </div>
 
+      {result.lotResults.length > 0 && <Card><CardHeader><CardTitle>Detalle por lote</CardTitle><CardDescription>Revisa cada lote; sus diferencias pueden compensarse en el total del producto.</CardDescription></CardHeader><CardContent>
+        <div className="overflow-x-auto rounded-lg border"><table className="w-full min-w-[30rem] text-sm"><thead className="bg-muted/30"><tr>
+          <th scope="col" className="p-3 text-left">Producto / lote</th><th scope="col" className="p-3 text-right">Sistema</th><th scope="col" className="p-3 text-right">Físico</th><th scope="col" className="p-3 text-right">Diferencia</th>
+        </tr></thead><tbody className="divide-y">{result.lotResults.map(row => <tr key={`${row.itemId}:${row.batchId}`}>
+          <td className="p-3"><p className="font-medium">{row.name}</p><p className="text-xs text-muted-foreground">{row.sku} · {row.lotNumber || 'Sin lote'}{row.expirationDate ? ` · Vence ${row.expirationDate}` : ''}</p></td>
+          <td className="p-3 text-right tabular-nums">{row.systemQuantity} {row.unit}</td><td className="p-3 text-right tabular-nums">{row.physicalQuantity} {row.unit}</td>
+          <td className={`p-3 text-right tabular-nums ${row.variance < 0 ? 'text-destructive' : ''}`}>{row.variance > 0 ? '+' : ''}{row.variance} {row.unit}</td>
+        </tr>)}</tbody></table></div>
+      </CardContent></Card>}
       <Card>
         <CardHeader>
-          <CardTitle>Detalle de Varianzas</CardTitle>
+          <CardTitle>Totales por producto</CardTitle>
           <CardDescription className="text-xs">
             Comparación entre stock en sistema y conteo físico
           </CardDescription>

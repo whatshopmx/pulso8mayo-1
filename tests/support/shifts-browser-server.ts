@@ -21,6 +21,7 @@ export async function startShiftsBrowserServer() {
         "react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime",
         "@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-label",
         "@radix-ui/react-select", "@radix-ui/react-slot", "@radix-ui/react-tabs", "@radix-ui/react-switch",
+        "@radix-ui/react-checkbox",
         // C17 — la pantalla de transferencias usa popover. Se declara aquí
         // porque Vite optimiza lo que descubre durante la ejecución y avisa de
         // recarga: una dependencia nueva a mitad de suite rompe los tests que

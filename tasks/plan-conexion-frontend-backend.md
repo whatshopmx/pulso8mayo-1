@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 13 de octubre de 2026. Estado: C00–C15 implementadas con límites de verificación registrados en el seguimiento; C12 se cierra con la entrega de C11. C16–C40 pendientes, con C16.1 implementado dentro de C16.
+Fecha: 10 de octubre de 2026. Actualización: 14 de octubre de 2026. Estado: C00–C19 implementadas y verificadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C20–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -708,9 +708,9 @@ Cuatro hallazgos, y ninguno es «falta la columna»:
 
 #### Punto de control C16–C18
 
-- [ ] Criterios del bloque verificados con resultados registrados.
-- [ ] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
-- [ ] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
+- [x] Criterios del bloque verificados con resultados registrados.
+- [x] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
+- [x] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
 
 <a id="c19"></a>
 
@@ -720,13 +720,47 @@ Cuatro hallazgos, y ninguno es «falta la columna»:
 
 Conectar supplierPayment al recorrido de programación/aprobación de pago definido, preservando separación con tesorería.
 
+**Investigación de C19 (13-10-2026) — la pregunta del handoff, contestada: no hay máquina de estados del pago a proveedor.** El pago se decide dentro de la corrida de tesorería y en ningún otro sitio:
+
+```
+agendar   POST /api/finance/treasury/runs/[id]/items → assertCounterpartyPayable → payment_run_items
+pagar     corrida APPROVED → PROCESSING → COMPLETED y saldarDocumentosDePartidas
+estado    invoices.payment_status: PENDING | PAID | CANCELLED
+```
+
+La liquidación refleja el pago mediante `saldarDocumentosDePartidas`. C19 conserva la máquina de tesorería: `supplierPayment` describe una modalidad y no se convierte en un segundo motor de pagos.
+
+**La lectura del código anterior identificó tres caminos sin guarda de duplicados.** `assertCounterpartyPayable` comprobaba factura, empresa, discrepancia y cuenta verificada, pero no estado pagable ni programación previa. La tabla describe el defecto de ese código, no acredita una ejecución anterior contra la base:
+
+| intento | comportamiento permitido por el código anterior |
+| --- | --- |
+| La misma factura dos veces en la misma corrida | **se acepta**: dos partidas, el total de la corrida cuenta el importe dos veces y el layout SPEI trae dos renglones para una factura |
+| La misma factura en dos corridas distintas (ambas `DRAFT`) | **se acepta**: dos archivos de dispersión distintos con la misma transferencia |
+| Una factura ya `PAID` en una corrida nueva | **se acepta**: se programa un pago de algo que ya se pagó |
+
+No es sólo un hueco de API: una factura agendada pero no liquidada sigue `PENDING`. El listado anterior podía ofrecerla en otra corrida. C19 excluye referencias retenidas y repite la decisión dentro del alta.
+
+`payment_run_items` no tiene ninguna restricción de unicidad: la base no impide dos partidas iguales, así que la guarda tiene que vivir en el servicio (y bloquear la fila del documento para que dos altas simultáneas no se cuelen).
+
+**Decisión (13-10-2026):** `supplierPayment` sigue `descriptiva`. Su decisión pendiente tiene tres partes y **una queda resuelta por el trabajo**: «cómo se evitan pagos duplicados». Las otras dos —quién programa y aprueba cada pago, y cómo se reparten las facturas entre corporativo y sucursal— siguen sin acuerdo, y deducirlas de `CENTRALIZADO`/`POR_SUCURSAL`/`HIBRIDO` sería repetir H04. Lo que C19 aplica es el criterio 3 tal como está escrito: la operación conserva trazabilidad y no duplica pagos.
+
+**Cortes antes de implementar:**
+
+- **C19.1 — Contrato honesto:** la entrada `supplierPayment` del catálogo queda escrita contra el recorrido real (la corrida decide, `saldarDocumentosDePartidas` es el único escritor del estado de pago) y su decisión pendiente pierde la parte que C19 resuelve. Sin cambio de clasificación.
+- **C19.2 — Una obligación, una vez:** `addItemToRun` rechaza la partida si el documento ya no es pagable (factura pagada o cancelada, gasto pagado) o si el mismo par (tipo, referencia) ya es partida de esta corrida o de cualquier corrida que no esté cancelada. El rechazo nombra la corrida que la retiene, que es lo que hace falta para releasearla. El módulo puro `lib/treasury/scheduling-policy.ts` decide; el servicio pregunta a la base.
+- **C19.3 — Sin carrera:** la comprobación y el alta ocurren en la misma transacción, con la fila del documento bloqueada (`FOR UPDATE`), de modo que dos altas simultáneas de la misma factura no puedan pasar las dos. El caso se prueba con un adaptador que emula la semántica del cerrojo, como en C11.
+- **C19.4 — La pantalla deja de ofrecer lo ya programado:** los tres listados de «para pagar» excluyen lo que ya es partida de una corrida viva, y el de nómina deja de depender de partidas de **otras** empresas (hoy `attachedIds` no filtra por empresa). Con esto el doble pago deja de poder provocarse desde la interfaz.
+- **C19.5 — Recorrido controlado:** un caso con dos empresas demuestra que la misma factura no entra dos veces, que una corrida cancelada sí libera la obligación, y que el archivo de dispersión de una corrida con la factura una sola vez trae un renglón.
+
 **Criterios de aceptación:**
 
-- [ ] Cada valor tiene un efecto observable sobre el pago o se presenta como descriptivo.
-- [ ] La regla se aplica en servidor con empresa y proveedor verificados.
-- [ ] La operación y sus excepciones conservan trazabilidad y no duplican pagos.
+- [x] Cada valor tiene un efecto observable sobre el pago o se presenta como descriptivo. `supplierPayment` sigue `descriptiva` y el catálogo dice que el pago se decide en la corrida, no en la columna.
+- [x] La regla se aplica en servidor con empresa y proveedor verificados. La empresa ya se comprobaba (G1.2) y el proveedor con CLABE verificada también; C19 añade que la obligación sea agendable y que no esté ya agendada, extendiendo la misma protección a contraparte y cuenta de gastos.
+- [x] La operación y sus excepciones conservan trazabilidad y no duplican pagos. El rechazo nombra la corrida que retiene la obligación (o el estado pagado/cancelado), cancelar una corrida previa a dispersión libera los documentos pendientes y el alta concurrente contra Neon conserva una única partida con total consistente.
 
 **Verificación:** V1 de decisiones e idempotencia y V2 del recorrido de pago.
+
+**Verificación ejecutada (14-10-2026):** V1 — `tests/unit/finance/payment-scheduling.test.ts` (39) y `tests/unit/finance/` (56) sobre política, servicio y rutas reales con rollback, doble alta, contrapartes ajenas y contexto HTTP. V2 — `tests/e2e/payment-scheduling.spec.ts` (8) en Chromium con la pantalla real (modal de agregar facturas/gastos/nómina, lote parcial, cero éxitos y refresco de pestañas) y 68/68 en la suite aislada. V3/base real — `scripts/verify-payment-scheduling.ts` (21) contra Neon con dos empresas, carrera real de altas, liberación por cancelación, factura pagada y layout SPEI. `tsc --noEmit` limpio, `lint` 0 errores, suite 1157 aprobadas (87 archivos, 1 omitida, 1 TODO) y `build` exitoso. Límites documentados en la evidencia [C19](../docs/audits/2026-10-14-pago-proveedores.md).
 
 **Archivos probables:**
 
@@ -746,19 +780,26 @@ Relacionar managerAutonomy con los permisos de decisión definidos y los límite
 
 **Criterios de aceptación:**
 
-- [ ] Cada nivel de autonomía define qué puede decidir el gerente y cuándo escala.
-- [ ] Autonomía, permisos y límites monetarios se combinan de forma documentada en servidor.
-- [ ] Un intento equivalente por otra entrada no evita la escalada.
+- [x] Cada nivel de autonomía define qué puede decidir el gerente y cuándo escala.
+- [x] Autonomía, permisos y límites monetarios se combinan de forma documentada en servidor.
+- [x] Un intento equivalente por otra entrada no evita la escalada.
 
 **Verificación:** V1 de matriz de niveles/montos/roles y V2 de autorización/escalada.
 
-**Archivos probables:**
+**Verificación ejecutada (14-10-2026):** V1 — `tests/unit/finance/manager-autonomy.test.ts` (26) de matriz pura (ALTA, MEDIA, BAJA, límites numéricos, bordes y segregación de funciones) y 24 en `operating-policy-catalog.test.ts` (6 aplicadas / 6 descriptivas / 1 pendiente). V2 — `tests/e2e/manager-autonomy.spec.ts` (4) y `tests/e2e/operating-config.spec.ts` (31) en Chromium con la pantalla real (badge «Se aplica hoy», textos de opciones, persistencia y evaluación cliente). V3/base real — `scripts/verify-manager-autonomy.ts` (17) contra Neon con dos empresas simultáneas, usuarios con roles GERENTE, ADMIN y OWNER, escalamiento forzado a OWNER en ALTA, auto-aprobación prohibida (A16), dinamismo de cambio en caliente y limpieza confirmada. `tsc --noEmit` limpio, `lint` 0 errores y suite de 88 archivos aprobada. Evidencia en [C20](../docs/audits/2026-10-14-autonomia-gerente.md).
 
-- `lib/services/tenant-config-service.ts`
+**Archivos modificados:**
+
+- `lib/expenses/approval-policy.ts`
 - `lib/services/expense-service.ts`
-- `Consumidor de aprobación identificado en C00`
+- `lib/services/tenant-config-service.ts`
+- `lib/company/operating-policy-catalog.ts`
 - `components/company/operating-dimensions-section.tsx`
-- `Prueba de autonomía (nueva)`
+- `docs/operating-policy-contracts.md`
+- `docs/audits/2026-10-14-autonomia-gerente.md`
+- `tests/unit/finance/manager-autonomy.test.ts`
+- `tests/e2e/manager-autonomy.spec.ts`
+- `scripts/verify-manager-autonomy.ts`
 
 <a id="c21"></a>
 

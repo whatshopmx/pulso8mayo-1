@@ -11,12 +11,14 @@ interface ApproveAdjustmentsProps {
   instanceId: string;
   adjustmentsStatus: "PENDING" | "APPLIED" | "NONE";
   totalAdjustments: number;
+  canApprove?: boolean;
 }
 
 export function ApproveAdjustments({
   instanceId,
   adjustmentsStatus,
   totalAdjustments,
+  canApprove = true,
 }: ApproveAdjustmentsProps) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -73,7 +75,7 @@ export function ApproveAdjustments({
       console.error("Error applying adjustments:", error);
       toast.error("No se aplicaron los ajustes", {
         description:
-          "Revisa tu conexión e intenta de nuevo. El inventario no fue modificado.",
+          error instanceof Error ? error.message : "No se aplicaron los ajustes. Intenta de nuevo.",
       });
     } finally {
       setSubmitting(false);
@@ -95,7 +97,7 @@ export function ApproveAdjustments({
             </p>
           </div>
         </div>
-        <Button
+        {canApprove ? <Button
           onClick={handleApprove}
           disabled={submitting}
           className="shrink-0 min-h-[44px]"
@@ -108,7 +110,7 @@ export function ApproveAdjustments({
           ) : (
             `Aprobar y aplicar ${totalAdjustments} ${totalAdjustments === 1 ? "ajuste" : "ajustes"}`
           )}
-        </Button>
+        </Button> : <p className="text-sm text-muted-foreground">Pendiente de revisión por una persona supervisora.</p>}
       </CardContent>
     </Card>
   );
