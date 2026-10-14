@@ -79,6 +79,9 @@ export async function GET(
     const layout = await TreasuryService.generateBankDisbursementLayout(
       paymentRunId,
       user.companyId,
+      // C18 — el servicio exige el rol por su cuenta; `requireRoleApi` arriba
+      // es la segunda red.
+      (user.role ?? "ADMIN") as Parameters<typeof TreasuryService.generateBankDisbursementLayout>[2],
       format
     );
 

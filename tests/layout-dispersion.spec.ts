@@ -163,7 +163,7 @@ test.describe("Fase 2 · servicio: el archivo de dispersión", () => {
       amountCents: 150_000,
     });
 
-    const layout = await TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID);
+    const layout = await TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID, "ADMIN");
 
     expect(layout.recordCount).toBe(1);
     expect(layout.content, "el layout sigue emitiendo la CLABE enmascarada").not.toContain("****");
@@ -201,7 +201,7 @@ test.describe("Fase 2 · servicio: el archivo de dispersión", () => {
       amountCents: 99_900,
     });
 
-    const layout = await TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID);
+    const layout = await TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID, "ADMIN");
     const lineas = layout.content.split("\n");
 
     expect(lineas.length, "el nombre con comillas partió la fila").toBe(2);
@@ -236,8 +236,8 @@ test.describe("Fase 2 · servicio: el archivo de dispersión", () => {
       });
     }
 
-    const primera = await TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID);
-    const segunda = await TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID);
+    const primera = await TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID, "ADMIN");
+    const segunda = await TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID, "ADMIN");
 
     const refs = (layout: { content: string }) =>
       layout.content
@@ -281,7 +281,7 @@ test.describe("Fase 2 · servicio: el archivo de dispersión", () => {
     });
 
     await expect(
-      TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID)
+      TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID, "ADMIN")
     ).rejects.toThrow(/autorizado|aprobada/i);
   });
 
@@ -316,7 +316,7 @@ test.describe("Fase 2 · servicio: el archivo de dispersión", () => {
       notes: `${TAG} línea de captura`,
     });
 
-    const layout = await TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID);
+    const layout = await TreasuryService.generateBankDisbursementLayout(runId, COMPANY_ID, "ADMIN");
 
     // La factura sí viaja; el impuesto no, y se dice por qué. Antes se
     // descartaba en silencio y el toast reportaba "1 registro listo" sobre una
@@ -383,11 +383,11 @@ test.describe("Fase 2 · servicio: el archivo de dispersión", () => {
 
     try {
       contador = 0;
-      const layoutChica = await TreasuryService.generateBankDisbursementLayout(chica, COMPANY_ID);
+      const layoutChica = await TreasuryService.generateBankDisbursementLayout(chica, COMPANY_ID, "ADMIN");
       const consultasChica = contador;
 
       contador = 0;
-      const layoutGrande = await TreasuryService.generateBankDisbursementLayout(grande, COMPANY_ID);
+      const layoutGrande = await TreasuryService.generateBankDisbursementLayout(grande, COMPANY_ID, "ADMIN");
       const consultasGrande = contador;
 
       expect(layoutChica.recordCount).toBe(2);

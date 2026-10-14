@@ -42,6 +42,9 @@ export async function POST(
       companyId: ctx.userCompanyId,
       settlementStatus,
       userId: ctx.userId,
+      // C18 — liquidar confirma que el dinero salió: lo exige el mismo rol que
+      // firma la corrida, y el filtro vive en el servicio.
+      actorRole: ctx.userRole,
       reference,
       failureReason,
       notes,

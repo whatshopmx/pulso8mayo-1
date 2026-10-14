@@ -33,6 +33,12 @@ import {
   validarEvidenciaLiquidacion,
   aplicaEspejoDocumento,
 } from "./payment-run-settlement";
+import {
+  filtroDeRol,
+  pasoDeDestino,
+  type EstadoCorrida,
+} from "@/lib/treasury/disbursement-policy";
+import type { Role } from "@/lib/permissions";
 
 type PaymentRunStatus = typeof paymentRunStatusEnum.enumValues[number];
 
@@ -732,13 +738,19 @@ export class TreasuryService {
 
   /**
    * Fetches the details of a specific payment run, joining items.
+   *
+   * `companyId` es obligatorio (C18): antes la corrida se buscaba por id, se
+   * armaba el detalle entero —partidas, facturas, nómina, gastos— y la ruta
+   * comparaba la empresa **después** y respondía 403. La respuesta ajena ya se
+   * había construido y el 403 confirmaba que el id existía. Ahora la búsqueda
+   * lleva la empresa y lo que no es de la sesión se lee como no encontrado.
    */
-  static async getPaymentRunDetails(paymentRunId: string) {
+  static async getPaymentRunDetails(paymentRunId: string, companyId: string) {
     const run = await db.query.paymentRuns.findFirst({
-      where: eq(paymentRuns.id, paymentRunId),
+      where: and(eq(paymentRuns.id, paymentRunId), eq(paymentRuns.companyId, companyId)),
     });
 
-    if (!run) throw new Error("Payment run not found");
+    if (!run) throw ApiError.notFound("Corrida de pago no encontrada");
 
     let branchName = "Todas las sucursales (Consolidado)";
     if (run.branchId) {
@@ -923,18 +935,45 @@ export class TreasuryService {
    * `companyId` viene de la sesión y se repite en el `WHERE` del `UPDATE`, no
    * sólo en la lectura: entre leer y escribir hay una ventana, y es el mismo
    * criterio que ya usa `approveOperatingExpense`.
+   *
+   * `actorRole` es **obligatorio** (C18). Antes el filtro de rol vivía en el
+   * cuerpo de la ruta `PATCH .../status` y el servicio no lo veía: cualquier
+   * otra entrada —acción de servidor, script, workflow— podía cambiar el estado
+   * de una corrida sin ser administrador. Ahora la regla vive donde se escribe,
+   * y la ruta es la segunda red.
+   *
+   * El orden de las tres comprobaciones es el que la pantalla cuenta también:
+   * primero la pertenencia (404, que no filtra que exista), después el filtro
+   * de rol (403) y por último la máquina de estados (400). Un estado imposible
+   * se explica como estado, no como permiso.
    */
   static async updatePaymentRunStatus(
     paymentRunId: string,
     companyId: string,
     newStatus: typeof paymentRunStatusEnum.enumValues[number],
-    userId: string
+    userId: string,
+    actorRole: Role
   ) {
     const currentRun = await db.query.paymentRuns.findFirst({
       where: and(eq(paymentRuns.id, paymentRunId), eq(paymentRuns.companyId, companyId)),
     });
 
     if (!currentRun) throw ApiError.notFound("Corrida de pago no encontrada");
+
+    const paso = pasoDeDestino(newStatus as EstadoCorrida);
+    if (paso) {
+      // Sólo el filtro de rol: el estado lo responde `assertPaymentRunTransition`
+      // justo debajo, con su mensaje propio. Un 403 explica una falta de
+      // permisos y un 400 una corrida que todavía no llegó; mezclarlos obliga al
+      // operador a leer un motivo que no corresponde a lo que hizo.
+      const veredicto = filtroDeRol(paso, {
+        role: actorRole,
+        esPreparador: currentRun.preparedBy === userId,
+      });
+      if (!veredicto.permitido) {
+        throw ApiError.forbidden(veredicto.motivo ?? "No tienes permisos para esta operación de tesorería.");
+      }
+    }
 
     assertPaymentRunTransition(currentRun.status, newStatus);
 
@@ -1011,6 +1050,8 @@ export class TreasuryService {
     companyId: string;
     settlementStatus: "CONFIRMED" | "FAILED";
     userId: string;
+    /** Obligatorio (C18): liquidar confirma que el dinero salió. */
+    actorRole: Role;
     reference?: string | null;
     failureReason?: string | null;
     notes?: string | null;
@@ -1021,6 +1062,7 @@ export class TreasuryService {
       companyId,
       settlementStatus,
       userId,
+      actorRole,
       reference,
       failureReason,
       notes,
@@ -1031,6 +1073,14 @@ export class TreasuryService {
     });
 
     if (!run) throw ApiError.notFound("Corrida de pago no encontrada");
+
+    // C18 — el filtro va en el servicio, no en la ruta. Confirmar una partida
+    // salda su documento: es escribir que el dinero salió, y lo exige el mismo
+    // rol que firma la corrida.
+    const veredicto = filtroDeRol("LIQUIDAR", { role: actorRole });
+    if (!veredicto.permitido) {
+      throw ApiError.forbidden(veredicto.motivo ?? "No tienes permisos para esta operación de tesorería.");
+    }
 
     if (!puedeLiquidarCorrida(run.status)) {
       throw ApiError.badRequest(motivoNoLiquidable(run.status));
@@ -1120,6 +1170,8 @@ export class TreasuryService {
   static async generateBankDisbursementLayout(
     paymentRunId: string,
     companyId: string,
+    /** Obligatorio (C18). La ruta ya lo exigía con `requireRoleApi`; el servicio también. */
+    actorRole: Role,
     format: BankLayoutFormat = "SPEI_CSV"
   ): Promise<BankDisbursementLayout> {
     const run = await db.query.paymentRuns.findFirst({
@@ -1127,6 +1179,13 @@ export class TreasuryService {
     });
 
     if (!run) throw ApiError.notFound("Corrida de pago no encontrada");
+
+    const veredictoDescarga = filtroDeRol("DESCARGAR", { role: actorRole });
+    if (!veredictoDescarga.permitido) {
+      throw ApiError.forbidden(
+        veredictoDescarga.motivo ?? "No tienes permisos para esta operación de tesorería."
+      );
+    }
 
     if (!ESTADOS_DISPERSABLES.includes(run.status)) {
       throw ApiError.badRequest(

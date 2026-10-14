@@ -41,6 +41,7 @@ export interface DbSimulable {
   insert: unknown;
   update: unknown;
   transaction: unknown;
+  query: unknown;
 }
 
 function nombreDe(tablas: Tablas, tabla: unknown): string {
@@ -202,6 +203,51 @@ export function crearSimulador(
   })) as never);
   vi.mocked(db.transaction as never).mockImplementation(((cb: (tx: unknown) => unknown) =>
     Promise.resolve(cb(ejecutor))) as never);
+
+  /**
+   * API relacional de Drizzle (`db.query.<tabla>.findFirst/findMany`).
+   *
+   * Los servicios que usan `db.query` no pasan por `select`, así que sin esto
+   * una prueba leería `undefined` en cuanto el servicio cambiara de estilo — y
+   * laguarda de permisos, que es justo lo que hay que probar, no llegaría a
+   * ejecutarse. Se comporta como la cadena de `select`: mismo filtro de
+   * `where`, misma proyección por columnas, y `orderBy` ignorado.
+   */
+  const relacion = new Proxy(
+    {},
+    {
+      get: (_destino, nombreTabla: string) => {
+        const filas = estado.filas[nombreTabla] ?? [];
+        const buscar = async (args: { where?: unknown; columns?: Record<string, boolean> } = {}) => {
+          const filtradas = filtrar(filas as unknown[], args.where);
+          const columnas = args.columns;
+          if (!columnas) return filtradas;
+          return filtradas.map((fila) => {
+            const registro = fila as Record<string, unknown>;
+            const salida: Record<string, unknown> = {};
+            for (const [clave, pedir] of Object.entries(columnas)) {
+              if (pedir) salida[clave] = registro[clave];
+            }
+            return salida;
+          });
+        };
+        return {
+          findFirst: async (args?: { where?: unknown; columns?: Record<string, boolean> }) =>
+            (await buscar(args))[0] ?? undefined,
+          findMany: (args?: { where?: unknown; columns?: Record<string, boolean> }) => buscar(args),
+        };
+      },
+    },
+  );
+
+  // La prueba puede haber declarado `query` como función de mock o como objeto
+  // vacío; se acepta cualquiera de las dos formas sin que el simulador decida.
+  const dbMock = db as unknown as Record<string, unknown>;
+  if (typeof (dbMock.query as { mockImplementation?: unknown })?.mockImplementation === "function") {
+    vi.mocked(dbMock.query as never).mockImplementation(relacion as never);
+  } else {
+    dbMock.query = relacion;
+  }
 
   return estado;
 }

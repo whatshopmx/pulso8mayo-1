@@ -39,19 +39,16 @@ export async function PATCH(
 
     const { status } = parsed.data;
 
-    // Special authorization rules
-    if (status === "APPROVED" || status === "PROCESSING" || status === "COMPLETED") {
-      // For real financial approval, require ADMIN or higher
-      if (ctx.userRole !== "ADMIN" && ctx.userRole !== "OWNER" && ctx.userRole !== "SUPER_ADMIN") {
-        return ApiHandler.error(ApiError.forbidden("No tienes permisos suficientes para aprobar o procesar pagos."));
-      }
-    }
-
+    // C18 — el filtro de rol se aplica en el servicio, con `actorRole` de la
+    // sesión. Aquí la comprobación era la única puerta y quedaba en el cuerpo
+    // de la ruta: cualquier otra entrada al servicio la saltaba. Esta sigue
+    // siendo la segunda red, no la primera.
     const updatedRun = await TreasuryService.updatePaymentRunStatus(
       paymentRunId,
       ctx.userCompanyId,
       status,
-      ctx.userId
+      ctx.userId,
+      ctx.userRole
     );
 
     return ApiHandler.success(updatedRun);
