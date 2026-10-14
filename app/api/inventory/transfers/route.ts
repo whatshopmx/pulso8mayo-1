@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { enforceBranchScope } from "@/lib/branch-scope";
+import { enforceBranchScope, assertBranchOfCompany } from "@/lib/branch-scope";
 import type { Role } from "@/lib/permissions";
 import { InventoryService } from "@/lib/services/inventory-service";
+import { isApiError } from "@/lib/api/error";
 import { z } from "zod";
 
 const transferRequestSchema = z.object({
@@ -24,7 +25,7 @@ const transferRequestSchema = z.object({
 export async function POST(req: NextRequest) {
     try {
         const session = await getSession();
-        if (!session?.user?.id) {
+        if (!session?.user?.id || !session?.user?.companyId) {
             return NextResponse.json(
                 { error: "Unauthorized - User must be logged in" },
                 { status: 401 }
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
 
         // Create transfer
         const result = await InventoryService.createTransfer({
+            companyId: session.user.companyId,
             fromBranchId,
             toBranchId: validatedData.toBranchId,
             requestedBy: session.user.id,
@@ -64,19 +66,26 @@ export async function POST(req: NextRequest) {
 
     } catch (error) {
         console.error("Transfer request error:", error);
-        
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid data", details: error.issues },
-        { status: 400 }
-      );
-    }
 
-    return NextResponse.json(
-      { error: "Failed to create transfer request" },
-      { status: 500 }
-    );
-  }
+        // C17.3 — las guardas de pertenencia y de empresa fallan con `ApiError`
+        // y traen su status: sin esta traducción, un destino de otra empresa
+        // llegaba al cliente como 500 genérico.
+        if (error instanceof z.ZodError) {
+            return NextResponse.json(
+                { error: "Invalid data", details: error.issues },
+                { status: 400 }
+            );
+        }
+
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
+
+        return NextResponse.json(
+            { error: "Failed to create transfer request" },
+            { status: 500 }
+        );
+    }
 }
 
 /**
@@ -86,7 +95,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
     try {
         const session = await getSession();
-        if (!session?.user?.id) {
+        if (!session?.user?.id || !session?.user?.companyId) {
             return NextResponse.json(
                 { error: "Unauthorized" },
                 { status: 401 }
@@ -105,6 +114,10 @@ export async function GET(req: NextRequest) {
                 { status: 400 }
             );
         }
+        // C17.3 — el listado acepta `branchId` de la query para los roles que
+        // ven todas las sucursales: sin esta guarda, el ADMIN de una empresa
+        // listaba las transferencias de otra pasando su id.
+        await assertBranchOfCompany(session.user.companyId, branchId);
 
         // Get transfers
         const transfers = await InventoryService.getTransfersByBranch(
@@ -125,6 +138,9 @@ export async function GET(req: NextRequest) {
 
     } catch (error) {
         console.error("Get transfers error:", error);
+        if (isApiError(error)) {
+            return NextResponse.json({ error: error.message }, { status: error.statusCode });
+        }
         return NextResponse.json(
             { error: "Failed to fetch transfers" },
             { status: 500 }

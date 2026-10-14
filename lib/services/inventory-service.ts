@@ -1,7 +1,81 @@
 import { db } from "@/lib/db";
-import { inventoryItems, inventoryBatches, inventoryMovements, suppliers, inventoryPriceHistory, inventoryTransfers, inventoryTransferItems, inventoryWaste, inventoryPeriods, companies } from "@/lib/db/schema";
+import { inventoryItems, inventoryBatches, inventoryMovements, suppliers, inventoryPriceHistory, inventoryTransfers, inventoryTransferItems, inventoryWaste, inventoryPeriods, companies, branches } from "@/lib/db/schema";
 import { eq, and, sql, desc, inArray, gte, lte, or, ilike, ne } from "drizzle-orm";
+import { ApiError } from "@/lib/api/error";
 import { allocateFEFO, type DbExecutor } from "./fefo-allocator";
+
+/**
+ * C17.3 — pertenencia de sucursales y artículos a la empresa, para el recorrido
+ * de transferencias. La creación aceptaba destino, artículos y lote del cuerpo
+ * sin comprobar de qué empresa eran; con una sucursal ajena de destino se
+ * montaba una transferencia que `shipTransfer` descontaba del lote que hallara.
+ *
+ * Falla con 400 nombrando lo que no cuadra (no un 500 genérico): quien lo
+ * ve recarga el catálogo, no investiga un stack.
+ */
+async function assertBranchesOfCompany(companyId: string, branchIds: string[]): Promise<void> {
+    const unicas = [...new Set(branchIds)];
+    if (unicas.length === 0) return;
+
+    const propias = await db
+        .select({ id: branches.id })
+        .from(branches)
+        .where(and(inArray(branches.id, unicas), eq(branches.companyId, companyId)));
+
+    if (propias.length !== unicas.length) {
+        throw ApiError.badRequest(
+            "La sucursal seleccionada no existe para esta empresa. Recarga el catálogo e inténtalo de nuevo."
+        );
+    }
+}
+
+async function assertItemsOfCompany(companyId: string, itemIds: string[]): Promise<void> {
+    const unicos = [...new Set(itemIds)];
+    if (unicos.length === 0) return;
+
+    const propios = await db
+        .select({ id: inventoryItems.id })
+        .from(inventoryItems)
+        .where(and(inArray(inventoryItems.id, unicos), eq(inventoryItems.companyId, companyId)));
+
+    if (propios.length !== unicos.length) {
+        throw ApiError.badRequest(
+            "Uno o más artículos no pertenecen a esta empresa. Recarga el catálogo e inténtalo de nuevo."
+        );
+    }
+}
+
+/** `tx` de `db.transaction` o `db`: la misma API de queries que usa el servicio. */
+type TxLike = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function loadTransferInTx(tx: TxLike, transferId: string) {
+    const [transfer] = await tx.select()
+        .from(inventoryTransfers)
+        .where(eq(inventoryTransfers.id, transferId))
+        .limit(1);
+    return transfer ?? null;
+}
+
+/**
+ * Las dos sucursales de la transferencia —origen y destino— son de la empresa.
+ * Sólo sucursales: `inventory_transfers` no guarda empresa, y su alcance se
+ * resuelve por las sucursales que une.
+ */
+async function transferBelongsToCompany(
+    tx: TxLike,
+    companyId: string,
+    transfer: { fromBranchId: string; toBranchId: string },
+): Promise<boolean> {
+    const propias = await tx
+        .select({ id: branches.id })
+        .from(branches)
+        .where(and(
+            inArray(branches.id, [transfer.fromBranchId, transfer.toBranchId]),
+            eq(branches.companyId, companyId),
+        ));
+    const ids = new Set(propias.map((row) => row.id));
+    return ids.has(transfer.fromBranchId) && ids.has(transfer.toBranchId);
+}
 
 export class InventoryService {
 
@@ -358,6 +432,7 @@ export class InventoryService {
     // --- Transfers ---
 
     static async createTransfer(data: {
+        companyId: string;
         fromBranchId: string;
         toBranchId: string;
         requestedBy: string;
@@ -369,6 +444,18 @@ export class InventoryService {
         }>;
         notes?: string;
     }) {
+        // C17.3 — pertenencia antes de escribir. La creación aceptaba destino,
+        // artículos y lote del cuerpo sin comprobar de qué empresa eran: con el
+        // id de una sucursal ajena se montaba una transferencia que después
+        // `shipTransfer` descontaba — de la sucursal ajena, que es donde estaba
+        // el lote. Sin transferencia no hay envío, así que la guarda va aquí.
+        await assertBranchesOfCompany(data.companyId, [data.fromBranchId, data.toBranchId]);
+        await assertItemsOfCompany(data.companyId, data.items.map((item) => item.itemId));
+        if (data.fromBranchId === data.toBranchId) {
+            throw ApiError.badRequest(
+                "La transferencia envía de una sucursal a la misma sucursal: elige un destino distinto."
+            );
+        }
         return await db.transaction(async (tx) => {
             // Generate sequential transfer number: TRF-YYYYMM-XXXX
             const now = new Date();
@@ -409,13 +496,19 @@ export class InventoryService {
         });
     }
 
-    static async getTransfer(id: string) {
+    static async getTransfer(id: string, companyId: string) {
         const [transfer] = await db.select()
             .from(inventoryTransfers)
             .where(eq(inventoryTransfers.id, id))
             .limit(1);
 
         if (!transfer) return null;
+
+        // C17.3 — la transferencia se consulta por id, y el id no dice de qué
+        // empresa es: sin esta guarda, el detalle era legible para cualquier
+        // usuario autenticado que tuviera un UUID. Una transferencia ajena se
+        // lee como no encontrada: el 404 no filtra su existencia.
+        if (!(await transferBelongsToCompany(db, companyId, transfer))) return null;
 
         const items = await db.select({
             id: inventoryTransferItems.id,
@@ -482,8 +575,15 @@ export class InventoryService {
         }));
     }
 
-    static async approveTransfer(transferId: string, approvedBy: string, items?: Array<{ id: string; approvedQuantity: number }>) {
+    static async approveTransfer(transferId: string, companyId: string, approvedBy: string, items?: Array<{ id: string; approvedQuantity: number }>) {
         return await db.transaction(async (tx) => {
+            // C17.3 — la transición se busca por id: sin empresa, cualquier
+            // usuario autenticado con el UUID aprobaba una transferencia ajena.
+            const original = await loadTransferInTx(tx, transferId);
+            if (!original || !(await transferBelongsToCompany(tx, companyId, original))) {
+                throw ApiError.notFound("Transferencia no encontrada");
+            }
+
             // Update transfer status
             const [transfer] = await tx.update(inventoryTransfers)
                 .set({
@@ -512,8 +612,14 @@ export class InventoryService {
         });
     }
 
-static async rejectTransfer(transferId: string, rejectedBy: string, reason: string) {
+    static async rejectTransfer(transferId: string, companyId: string, rejectedBy: string, reason: string) {
   return await db.transaction(async (tx) => {
+    // C17.3 — misma guarda que approve: la transición no decide sobre una
+    // transferencia que no es de la empresa.
+    const original = await loadTransferInTx(tx, transferId);
+    if (!original || !(await transferBelongsToCompany(tx, companyId, original))) {
+      throw ApiError.notFound("Transferencia no encontrada");
+    }
     const [transfer] = await tx.update(inventoryTransfers)
     .set({
       status: 'REJECTED',
@@ -528,7 +634,7 @@ static async rejectTransfer(transferId: string, rejectedBy: string, reason: stri
   });
 }
 
-static async shipTransfer(transferId: string, shippedBy: string) {
+    static async shipTransfer(transferId: string, companyId: string, shippedBy: string) {
   return await db.transaction(async (tx) => {
     // Get transfer
     const [transfer] = await tx.select()
@@ -538,6 +644,12 @@ static async shipTransfer(transferId: string, shippedBy: string) {
 
     if (!transfer) {
       throw new Error("Transfer not found");
+    }
+
+    // C17.3 — el envío descuenta lotes: sólo si la transferencia es de la
+    // empresa. Antes el id bastaba, y el descuento caía donde cayera el lote.
+    if (!(await transferBelongsToCompany(tx, companyId, transfer))) {
+      throw ApiError.notFound("Transferencia no encontrada");
     }
 
     if (transfer.status !== 'APPROVED') {
@@ -644,7 +756,7 @@ static async shipTransfer(transferId: string, shippedBy: string) {
   });
 }
 
-  static async receiveTransfer(transferId: string, receivedBy: string, items?: Array<{ id: string; receivedQuantity: number }>) {
+    static async receiveTransfer(transferId: string, companyId: string, receivedBy: string, items?: Array<{ id: string; receivedQuantity: number }>) {
     return await db.transaction(async (tx) => {
       // Get transfer
       const [transfer] = await tx.select()
@@ -654,6 +766,12 @@ static async shipTransfer(transferId: string, shippedBy: string) {
 
       if (!transfer) {
         throw new Error("Transfer not found");
+      }
+
+      // C17.3 — la recepción crea stock en destino: sólo si la transferencia
+      // es de la empresa. El id solo no lo garantizaba.
+      if (!(await transferBelongsToCompany(tx, companyId, transfer))) {
+        throw ApiError.notFound("Transferencia no encontrada");
       }
 
       if (transfer.status !== 'IN_TRANSIT') {

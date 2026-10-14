@@ -184,10 +184,14 @@ export function TransferList({ branchId, branches = [], onRequestNewTransfer, re
     }, [transfers, searchTerm, getBranchName]);
 
     // Group transfers by status using useMemo
-    const { pendingTransfers, toApproveTransfers, inTransitTransfers, completedTransfers } = useMemo(() => {
+    const { pendingTransfers, toApproveTransfers, toShipTransfers, inTransitTransfers, completedTransfers } = useMemo(() => {
         return {
             pendingTransfers: filteredTransfers.filter(t => t.transfer.status === "PENDING" && t.transfer.fromBranchId === branchId),
             toApproveTransfers: filteredTransfers.filter(t => t.transfer.status === "PENDING" && t.transfer.toBranchId === branchId),
+            // C17.3 — la aprobada esperando envío es del origen. Antes no
+            // entraba en ninguna pestaña, así que quien tenía que enviarla no
+            // tenía cómo llegar al botón «Enviar».
+            toShipTransfers: filteredTransfers.filter(t => t.transfer.status === "APPROVED" && t.transfer.fromBranchId === branchId),
             inTransitTransfers: filteredTransfers.filter(t => t.transfer.status === "IN_TRANSIT"),
             completedTransfers: filteredTransfers.filter(t => ["COMPLETED", "REJECTED", "CANCELLED"].includes(t.transfer.status)),
         };
@@ -491,12 +495,15 @@ export function TransferList({ branchId, branches = [], onRequestNewTransfer, re
             {/* Tabs */}
             <Tabs defaultValue="pending" className="w-full">
                 <div className="overflow-x-auto pb-1">
-                    <TabsList className="grid w-full min-w-[500px] sm:min-w-0 grid-cols-2 md:grid-cols-4 gap-1 h-auto p-1 bg-muted/50 border">
+                    <TabsList className="grid w-full min-w-[500px] sm:min-w-0 grid-cols-2 md:grid-cols-5 gap-1 h-auto p-1 bg-muted/50 border">
                         <TabsTrigger value="pending" className="min-h-[40px] text-xs font-medium">
                             Pendientes ({pendingTransfers.length})
                         </TabsTrigger>
                         <TabsTrigger value="to-approve" className="min-h-[40px] text-xs font-medium">
                             Por Aprobar ({toApproveTransfers.length})
+                        </TabsTrigger>
+                        <TabsTrigger value="to-ship" className="min-h-[40px] text-xs font-medium">
+                            Por Enviar ({toShipTransfers.length})
                         </TabsTrigger>
                         <TabsTrigger value="transit" className="min-h-[40px] text-xs font-medium">
                             En Tránsito ({inTransitTransfers.length})
@@ -521,6 +528,14 @@ export function TransferList({ branchId, branches = [], onRequestNewTransfer, re
                         <DataTableSkeleton columns={5} rows={4} />
                     ) : (
                         renderTransferTable(toApproveTransfers)
+                    )}
+                </TabsContent>
+
+                <TabsContent value="to-ship" className="mt-4">
+                    {loading ? (
+                        <DataTableSkeleton columns={5} rows={4} />
+                    ) : (
+                        renderTransferTable(toShipTransfers)
                     )}
                 </TabsContent>
 
