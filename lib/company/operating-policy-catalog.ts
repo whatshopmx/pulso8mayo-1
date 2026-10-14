@@ -284,10 +284,16 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
     clasificacion: "descriptiva",
     consumidor: null,
     aplicacion:
-      "Se lee al abrir la pantalla de configuración. `treasury-service` modela " +
-      "cuentas y saldos por documento, sin mirar esta columna.",
+      "Se lee al abrir la pantalla de configuración. La operación que describe " +
+      "existe y es la corrida de pago: preparar, solicitar autorización, " +
+      "firmarla, dispersarla, liquidar sus partidas, cerrarla y bajar el layout " +
+      "SPEI. Ese recorrido no mira la columna: qué roles ejecutan cada paso lo " +
+      "dice `lib/treasury/disbursement-policy.ts` (rol de tesorería + estado + " +
+      "doble firma) y lo aplican el servicio y la pantalla.",
     excepciones:
-      "Las operaciones de cuentas bancarias no leen esta dimensión.",
+      "Las operaciones de cuentas bancarias no leen esta dimensión. El filtro " +
+      "de rol tampoco depende de ella: endurecerlo no reescribe una corrida ya " +
+      "autorizada ni reabre una cerrada.",
     vacio: "No aplica: la columna es `notNull` con default `CUENTA_UNICA`.",
     valores: [
       { valor: "CUENTA_UNICA", titulo: "Cuenta Única", caso: null },
@@ -295,8 +301,11 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
       { valor: "MIXTO", titulo: "Mixto", caso: null },
     ],
     decisionPendiente:
-      "Falta definir las cuentas permitidas por sucursal y quién puede preparar, " +
-      "aprobar y liquidar pagos en cada modalidad, incluidas las excepciones.",
+      "Decidido el 13-10-2026: la dimensión sigue descriptiva. C18 aplicó lo " +
+      "que sí estaba decidido —el filtro de la operación, escrito en el " +
+      "servicio y compartido con la pantalla—, no el que faltaba. Lo que queda " +
+      "para aplicarla: qué cuenta puede disbursar cada sucursal y si la " +
+      "modalidad debe cambiar quién prepara, autoriza y liquida.",
   },
   {
     campo: "supplierPayment",
