@@ -411,6 +411,14 @@ async function resolverAlcance(
 }
 
 /**
+ * Fallo por correr fuera de una petición de Next (scripts, Inngest, pruebas).
+ */
+function esFaltaDeContextoDePeticion(err: unknown): boolean {
+  const mensaje = err instanceof Error ? err.message : String(err);
+  return mensaje.includes("incrementalCache") || mensaje.includes("static generation store");
+}
+
+/**
  * Mide cada red por separado y devuelve los hallazgos etiquetados.
  *
  * Los promedios de red salen de los mismos scores ya calculados: no se vuelve a
@@ -1149,9 +1157,8 @@ export const CrossBranchService = {
     const red = segmentaRed(tipoEmpresa, visible);
     const huella = `${tipoEmpresa}-${alcance.alcance.completa ? "grupo" : huellaDeAlcance(visible.map((b) => b.id))}`;
 
-    return unstable_cache(
-      async (cid: string, pDays: number) => {
-        const branchList = visible;
+    const calcular = async (cid: string, pDays: number): Promise<BranchQSRRankingResult> => {
+      const branchList = visible;
 
         if (branchList.length === 0) {
           return {
@@ -1407,10 +1414,21 @@ export const CrossBranchService = {
           red: redes,
           alcance: alcance.alcance,
         };
-      },
-      [cacheKey(companyId, `qsr-ranking-${periodDays}-${huella}`)],
-      { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "qsr-ranking"] }
-    )(companyId, periodDays);
+      };
+
+    try {
+      return await unstable_cache(
+        calcular,
+        [cacheKey(companyId, `qsr-ranking-${periodDays}-${huella}`)],
+        { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "qsr-ranking"] }
+      )(companyId, periodDays).catch((err) => {
+        if (esFaltaDeContextoDePeticion(err)) return calcular(companyId, periodDays);
+        throw err;
+      });
+    } catch (err) {
+      if (esFaltaDeContextoDePeticion(err)) return calcular(companyId, periodDays);
+      throw err;
+    }
   },
 };
 

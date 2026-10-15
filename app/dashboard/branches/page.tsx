@@ -3,7 +3,14 @@
 import * as React from "react";
 import { PageHeader, PageContainer, EmptyState, ErrorState } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import {
@@ -164,10 +171,95 @@ export default function BranchesPage() {
         </Card>
       ) : (
         <div className="space-y-6">
+          {/* C22 — quién pide las cifras y sobre qué red se calculan. Los dos
+              avisos salen del servidor, no de la interpretación de la
+              pantalla: si el servidor acotó, la pantalla lo dice. */}
+          {qsrData?.alcance && !qsrData.alcance.completa && (
+            <Card role="status" data-testid="aviso-alcance">
+              <CardContent className="pt-6 flex flex-col gap-1">
+                <p className="text-sm font-medium">{qsrData.alcance.motivo}</p>
+                <p className="text-xs text-muted-foreground">
+                  Tus cifras cubren {qsrData.alcance.visibles} de{" "}
+                  {qsrData.alcance.total} sucursales del grupo.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+          {qsrData?.red && <RedesDelGrupo red={qsrData.red} />}
           {qsrData && <BranchQSRScorecard data={qsrData} period={period} />}
           <BranchRankingTable qsrBranches={branches} period={period} />
         </div>
       )}
     </PageContainer>
+  );
+}
+
+/**
+ * C22 — lo que la política de tipo de empresa decidió para este grupo.
+ *
+ * Sale del servidor (`red` en la respuesta de la ruta) y la pantalla sólo lo
+ * presenta: una red o dos, cuántas sucursales hay en cada una, sus promedios
+ * y las contradicciones de captura que la política dejó a la vista.
+ */
+function RedesDelGrupo({
+  red,
+}: {
+  red: NonNullable<BranchQSRRankingResult["red"]>;
+}) {
+  return (
+    <Card data-testid="redes-del-grupo">
+      <CardHeader>
+        <CardTitle className="text-base">{red.veredicto.titulo}</CardTitle>
+        <CardDescription>{red.veredicto.detalle}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          {red.segmentos.map((segmento) => (
+            <div key={segmento.tipo} className="rounded-xl border border-border/70 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">{segmento.etiqueta}</span>
+                <Badge variant="outline" className="text-xs text-muted-foreground">
+                  {segmento.sucursales} {segmento.sucursales === 1 ? "sucursal" : "sucursales"}
+                </Badge>
+              </div>
+              {segmento.sucursales > 0 ? (
+                <dl className="grid grid-cols-3 gap-2 text-center">
+                  {(
+                    [
+                      ["Prime Cost", segmento.promedios.primeCost],
+                      ["Food Cost", segmento.promedios.foodCost],
+                      ["Labor Cost", segmento.promedios.laborCost],
+                    ] as Array<[string, number]>
+                  ).map(([etiqueta, valor]) => (
+                    <div key={etiqueta} className="rounded-lg bg-muted/40 px-2 py-2">
+                      <dt className="text-[11px] text-muted-foreground">{etiqueta}</dt>
+                      <dd className="text-sm font-semibold tabular-nums">{valor.toFixed(1)}%</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Sin sucursales en esta red todavía.
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+        {red.contradicciones.length > 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3" role="alert">
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+              Captura inconsistente
+            </p>
+            <ul className="mt-1 space-y-1">
+              {red.contradicciones.map((contradiccion) => (
+                <li key={contradiccion} className="text-xs text-muted-foreground">
+                  {contradiccion}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

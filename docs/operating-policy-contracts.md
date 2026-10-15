@@ -137,22 +137,25 @@ Cada valor de la tabla queda **clasificado como descriptivo en su comportamiento
 | `managerAutonomy` | `ALTA`, `MEDIA` (default), `BAJA` | Se aplica hoy | Aplica en la resolución y autorización de gastos ordinarios en `rolExigidoPorMonto` (`lib/expenses/approval-policy.ts` y `expense-service.ts`). En `BAJA`, el gerente no resuelve gastos (exige `ADMIN`); en `ALTA`, resuelve gastos ordinarios hasta el umbral de dueño; en `MEDIA`, resuelve hasta `managerAuthLimitCents`. El umbral de dueño (`doubleApprovalThresholdCents`) y la segregación de funciones (A16) se preservan transversalmente. |
 | `tenantType` | `GRUPO_PROPIO` (default), `MIXTO_FRANQUICIAS` | Se aplica hoy | Se lee en la Liga de Sucursales: `segmentaRed` (`lib/company/tenant-network-policy.ts`) decide si el consolidado se mide como una red o dos, y `CrossBranchService.getBranchQSRRanking` promedia, rankea y detecta anomalías dentro de cada red. No concede permisos: `branchVisibilityFilter` acota las sucursales visibles antes de agregar. La propiedad de cada sucursal sigue siendo `branches.ownershipType`; una franquicia nunca entra en el promedio de la red propia y la contradicción queda declarada. |
 
-### `pettyCashLimitCents` — monto de referencia de caja chica
+### `pettyCashLimitCents` — fondo fijo de caja chica por sucursal
 
 | Aspecto | Contrato |
 | --- | --- |
 | Unidad y rango | Centavos enteros MXN, 0–2,147,483,647; la pantalla captura pesos |
 | Alcance y permiso | Declaración del grupo; `settings/update` para editar |
-| Estado en UI | Descriptiva |
-| `null` | Sin monto declarado. No elimina ni modifica fondos; no representa una política de «sin tope» aplicada |
-| `0` | Cero declarado. No cierra fondos ni impide aperturas, reposiciones o gastos |
-| Positivo | Monto de referencia declarado. No es un máximo de apertura, de reposición o por gasto |
-| Default sin fila | 500,000 centavos ($5,000 MXN) como declaración; no entrega efectivo ni crea un fondo |
-| Consumidor y momento | Ningún consumidor operativo. Se guarda y se recupera al cargar configuración |
-| Fondos existentes | Conservan `fund_amount`, saldo y `low_threshold`; `openFund` registra el efectivo explícitamente entregado y `registerOutflow` exige saldo suficiente |
-| Excepciones | El umbral de reposición del fondo y la autorización de gastos pertenecen a contratos separados |
+| Estado en UI | Se aplica hoy |
+| `null` | Sin tope de grupo declarado. No impone tope en `openFund`; permite cualquier monto autorizado positivo |
+| `0` | Cero declarado. Caja chica deshabilitada en el grupo: rechaza aperturas y reposiciones de fondos |
+| Positivo | Monto máximo corporativo del fondo fijo por sucursal. En `openFund`, `fundAmountCents <= pettyCashLimitCents`. En `replenishFund`, la reposición no puede exceder el fondo fijo autorizado (`currentBalance + amount <= fundAmount`) |
+| Default sin fila | 500,000 centavos ($5,000 MXN) como tope corporativo por sucursal |
+| Consumidor y momento | `validarAperturaFondo` y `validarReposicionFondo` (`lib/finance/petty-cash-policy.ts`) consumidos por `openFund` y `replenishFund` en `lib/services/petty-cash-service.ts` |
+| Fondos existentes | Conservan su fondo asignado y saldo operativo. Los retiros (`registerOutflow`) se validan contra el saldo disponible en caja y exigen comprobante |
+| Excepciones | Distinción tripartita: límite de fondo (corporativo), límite de retiro (saldo en caja) y límite de aprobación (gastos corporativos en cuentas por pagar) son independientes |
 
-Los tres estados (`null`, `0`, positivo) son descriptivos. Cambiarlos no modifica efectivo ni autoriza un gasto. C23 debe decidir su relación con apertura/reposición y los fondos existentes antes de imponer una restricción.
+El contrato distingue claramente tres niveles de límite:
+1. **Límite de Fondo (`pettyCashLimitCents`):** Regla corporativa en `tenant_operating_config`. Acota la apertura y reposición de fondos de caja chica por sucursal.
+2. **Límite de Retiro (`currentBalance`):** Saldo físico en caja. Todo retiro en `registerOutflow` exige `currentBalance >= amountCents` y comprobante adjunto.
+3. **Límite de Aprobación (`managerAuthLimitCents` / `doubleApprovalThresholdCents` / `managerAutonomy`):** Escalera de cuentas por pagar para compras y facturas corporativas. Ortogonal a la caja chica física.
 
 ### Decisiones pendientes por dimensión
 
@@ -164,12 +167,12 @@ Los tres estados (`null`, `0`, positivo) son descriptivos. Cambiarlos no modific
 | C19 — Proveedores | **Resuelto el 14-10-2026 (C19) en una de sus tres partes.** Una factura, gasto o nómina se agenda una vez y sólo mientras debe pagarse. Siguen abiertas dos: quién programa y aprueba cada pago por modalidad, y cómo se reparten las facturas entre corporativo y sucursal. |
 | C20 — Autonomía | **Resuelto el 14-10-2026 (C20).** Se aplica en la escalera de autorización de gastos (`lib/expenses/approval-policy.ts` y `expense-service.ts`) combinando los tres niveles (ALTA, MEDIA, BAJA) con los umbrales monetarios existentes y la segregación de funciones (A16). |
 | C21 — Nómina | Descripción o agrupación de exportación; entidad legal y responsables. No interpretar la selección como autorización para enviar dinero. |
-| C22 — Tipo de grupo | Si sólo declara propiedad o fija el atributo de sucursales nuevas; quién captura `ownershipType` y cómo tratar sucursales existentes. |
-| C23 — Caja chica | Fondo máximo, máximo por gasto o límite de aprobación; reposición, excepciones y fondos existentes. Confirmar si continúa descriptiva. |
+| C22 — Tipo de grupo | **Resuelto el 15-10-2026 (C22).** `tenantType` segmenta las redes en la Liga de Sucursales y panel ejecutivo (`segmentaRed`), reportando contradicciones si un grupo propio tiene franquicias capturadas sin alterar el aislamiento de datos. |
+| C23 — Caja chica | **Resuelto el 15-10-2026 (C23).** Se aplica la distinción tripartita de límites: fondo corporativo (`pettyCashLimitCents`), saldo físico en caja (`currentBalance`) y escalera de autorización corporativa (`managerAuthLimitCents`/`doubleApprovalThresholdCents`). Cero deshabilita, `null` es sin tope corporativo y positivo limita apertura y reposición. Fondos existentes conservan su saldo. |
 
 Estas decisiones no bloquean los parámetros de C14 ni las reglas monetarias ya aplicadas. La decisión de quién revisa workflows de C05 y la excepción de auto-revisión siguen abiertas: no se resuelven mediante `managerAutonomy`.
 
-### Cuatro umbrales monetarios que sí se aplican
+### Cinco umbrales monetarios que sí se aplican
 
 Comparten permiso `settings/update`, captura en pesos y almacenamiento en centavos enteros de 0 a 2,147,483,647 o `null`. Se leen con el valor actual, sin vigencia por periodo. Los casos siguientes describen la regla consumida, no conceden permisos al usuario.
 
@@ -179,6 +182,7 @@ Comparten permiso `settings/update`, captura en pesos y almacenamiento en centav
 | `doubleApprovalThresholdCents` → `rolExigidoPorMonto`; `umbralesDeAutorizacion` en `control-interno-service.ts` | Dado `null`, no escala al dueño por este umbral. Dado `0`, todo gasto no negativo exige `OWNER`. Dado un umbral positivo, desde ese monto exige `OWNER`. | No es doble firma: hay un aprobador por gasto. Una regla explícita prevalece en gastos. Control interno añade un umbral positivo a la detección de fraccionamiento; no añade `0` ni `null`. |
 | `emergencyPurchaseCapCents` → `validateEmergencyCap`/`evaluateEmergencyCap` en `budget-service.ts`; envío de órdenes de compra y servicio | Dado `null`, no bloquea por acumulado. Dado `0`, un documento positivo se rechaza si el total excede cero. Dado un tope positivo, acumulado + documento igual al tope se permite; mayor se rechaza con 400. | Tope del grupo atribuido por sucursal y mes de creación del documento. Sólo `EMERGENCIA`; matriz, cotizaciones y demás requisitos siguen aplicando. La lectura del tope no garantiza atomicidad de envíos concurrentes. |
 | `courtesyWasteMonthlyCapCents` → `evaluateApproval` en `lib/inventory/waste-approval.ts`, usado por la ruta de aprobación de merma | Dado `null`, exige `GERENTE` sin escalar por monto. Dado `0`, un costo positivo que rebasa el acumulado exige `ADMIN`. Dado un tope positivo, hasta el tope exige `GERENTE`; al superarlo exige `ADMIN`. | Vive en `companies`. Acumulado aprobado de `STAFF`/`COURTESY` de todo el grupo. `thisLossCents === null` no escala por monto. Los controles de existencia, estado y stock de la ruta son independientes. |
+| `pettyCashLimitCents` → `validarAperturaFondo` y `validarReposicionFondo` en `lib/finance/petty-cash-policy.ts`, usado por `petty-cash-service.ts` | Dado `null`, permite abrir fondo sin tope de grupo. Dado `0`, la caja chica está deshabilitada y rechaza aperturas y reposiciones. Dado un tope positivo, al abrir `fundAmountCents <= pettyCashLimitCents` y al reponer el saldo no puede superar el fondo fijo autorizado. | Grupo en la política, sucursal en el fondo. Retiros limitados al saldo disponible en caja con comprobante. No sustituye la escalera de cuentas por pagar. |
 
 ### Controles de solicitud y emisión de compras (C16.2)
 

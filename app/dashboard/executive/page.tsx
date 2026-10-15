@@ -53,7 +53,7 @@ export default async function ExecutiveDashboardPage(props: PageProps) {
   // C22 — el consolidado se calcula sobre lo que este actor puede ver: sin el
   // alcance, una sesión con empresa leía ventas, costos y nómina de sucursales
   // ajenas. Un rol que ve toda la empresa sigue viendo el consolidado completo.
-  const alcance = buildAccessContextFrom(session.user) ?? undefined;
+  const alcance = buildAccessContextFrom(session.user as any) ?? undefined;
 
   // Fetch core executive models in parallel (incluye resoluciones ya despachadas)
   const [companyRow, twin, ranking, brief, resolvedDecisions] = await Promise.all([

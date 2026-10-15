@@ -337,8 +337,8 @@ test("cada dimensión declara su estado y caja chica distingue descripción de r
       : "Se guarda como descripción. Falta definir su efecto; hoy no cambia permisos ni restricciones.");
   }
   const caja = page.getByLabel("Fondo Fijo de Caja Chica por Sucursal").locator("..").locator("..");
-  await expect(caja.getByText("Descriptiva", { exact: true })).toBeVisible();
-  await expect(caja).toContainText("Hoy no limita aperturas, reposiciones ni gastos");
+  await expect(caja.getByText("Se aplica hoy", { exact: true })).toBeVisible();
+  await expect(caja).toContainText("Tope corporativo para el fondo fijo por sucursal");
   const gerente = page.getByLabel("Límite de Autonomía de Gerente").locator("..").locator("..");
   await expect(gerente.getByText("Se aplica hoy", { exact: true })).toBeVisible();
   expect(fixture.errores).toEqual([]);

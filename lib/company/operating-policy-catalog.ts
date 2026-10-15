@@ -802,27 +802,63 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
     unidad: "Centavos (MXN); la pantalla captura pesos",
     alcance: "Grupo en la columna, pero el fondo real es por sucursal",
     permiso: "settings/update",
-    clasificacion: "descriptiva",
-    consumidor: null,
-    aplicacion:
-      "Se lee al abrir la pantalla de configuración. `petty-cash-service` abre, " +
-      "repone y registra movimientos con los montos que el operador escribe en cada " +
-      "movimiento, sin mirar esta columna.",
-    excepciones:
-      "El fondo abierto guarda su propio `fund_amount` y su propio " +
-      "`low_threshold` por sucursal, que es lo que el servicio usa para el saldo y " +
-      "la alerta de reposición.",
-    vacio: "No es «sin tope» como en los otros umbrales: si se vacía, el formulario lo muestra vacío y el valor guardado es `null`, que ningún servicio interpreta.",
-    valores: [
-      { valor: "null", titulo: "Sin monto declarado; no altera fondos existentes", caso: null },
-      { valor: "0", titulo: "Cero declarado; no cierra ni impide abrir fondos", caso: null },
-      { valor: "> 0", titulo: "Monto declarado; no limita apertura, reposición ni gastos", caso: null },
+    clasificacion: "aplicada",
+    consumidor: {
+      archivo: "lib/finance/petty-cash-policy.ts",
+      simbolo: "validarAperturaFondo",
+      decide: "Tope máximo al fondo fijo por sucursal en apertura y reapertura.",
+    },
+    consumidores: [
+      {
+        archivo: "lib/finance/petty-cash-policy.ts",
+        simbolo: "validarAperturaFondo",
+        decide: "Valida monto máximo de fondo fijo y deshabilitación en apertura.",
+      },
+      {
+        archivo: "lib/services/petty-cash-service.ts",
+        simbolo: "openFund",
+        decide: "Aplica la validación del límite corporativo al abrir fondo.",
+      },
+      {
+        archivo: "lib/services/petty-cash-service.ts",
+        simbolo: "replenishFund",
+        decide: "Aplica la validación al reponer fondo impidiendo exceder el fondo fijo autorizado.",
+      },
     ],
-    decisionPendiente:
-      "Si el límite es el tope al abrir el fondo, el máximo por gasto o el monto que " +
-      "exige aprobación del dueño. Hoy el fondo tiene tres montos distintos —" +
-      "`fund_amount`, `low_threshold` y el umbral de gastos— y este no es ninguno. " +
-      "También falta definir reposiciones, excepciones y tratamiento de fondos existentes.",
+    aplicacion:
+      "Al abrir, reabrir o reponer el fondo de caja chica de una sucursal en `petty-cash-service`.",
+    excepciones:
+      "Los fondos existentes conservan su fondo y saldo; los retiros se limitan al saldo disponible en caja (`currentBalance`) y requieren comprobante, sin interferir con la autorización de gastos corporativos.",
+    vacio: "`null` significa **sin tope de grupo**: cada sucursal puede abrir fondo por cualquier monto autorizado.",
+    valores: [
+      {
+        valor: "null",
+        titulo: "Sin tope",
+        caso: {
+          dado: "el grupo vació el campo",
+          cuando: "se abre o repone un fondo",
+          entonces: "se permite cualquier monto positivo autorizado sin imponer tope corporativo",
+        },
+      },
+      {
+        valor: "0",
+        titulo: "Cero",
+        caso: {
+          dado: "el grupo guardó cero",
+          cuando: "se intenta abrir o reponer un fondo",
+          entonces: "se rechaza porque la caja chica está deshabilitada en la empresa",
+        },
+      },
+      {
+        valor: "> 0",
+        titulo: "Con tope",
+        caso: {
+          dado: "el grupo fijó un monto",
+          cuando: "se abre un fondo con monto superior al límite",
+          entonces: "se rechaza en servidor indicando el exceso; dentro del límite se autoriza y la reposición no puede exceder el fondo fijo",
+        },
+      },
+    ],
   },
   // Los controles de C16.2 van al final: son política aplicada, no una de las
   // trece entradas de la pantalla que revisó C15, y su editor vive aparte.

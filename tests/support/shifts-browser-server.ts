@@ -21,7 +21,7 @@ export async function startShiftsBrowserServer() {
         "react", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime",
         "@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-label",
         "@radix-ui/react-select", "@radix-ui/react-slot", "@radix-ui/react-tabs", "@radix-ui/react-switch",
-        "@radix-ui/react-checkbox",
+        "@radix-ui/react-checkbox", "@radix-ui/react-progress", "@radix-ui/react-separator",
         // C17 — la pantalla de transferencias usa popover. Se declara aquí
         // porque Vite optimiza lo que descubre durante la ejecución y avisa de
         // recarga: una dependencia nueva a mitad de suite rompe los tests que
@@ -49,6 +49,7 @@ export async function startShiftsBrowserServer() {
       // ofrecer lo que el servidor va a rechazar; en la prueba el rol lo
       // inyecta la página, sin llamada a la API de auth.
       { find: /^@\/hooks\/use-session$/, replacement: "\0test-use-session" },
+      { find: /^@\/components\/shared\/camera-capture$/, replacement: "\0test-camera-capture" },
       { find: /^next\/link$/, replacement: "\0test-next-link" },
       { find: /^next\/navigation$/, replacement: "\0test-next-navigation" },
       { find: "@", replacement: root },
@@ -63,6 +64,8 @@ export async function startShiftsBrowserServer() {
         if (id === "/treasury-test-entry.tsx") return "\0test-treasury-entry";
         if (id === "/shifts-test-entry.tsx") return "\0test-entry";
         if (id === "/config-test-entry.tsx") return "\0test-config-entry";
+        if (id === "/liga-test-entry.tsx") return "\0test-liga-entry";
+        if (id === "/workflow-test-entry.tsx") return "\0test-workflow-entry";
         if (id === "/config-test-page.tsx") return "\0test-config-page";
         if (id === "/config-test.css") return "\0test-config.css";
       },
@@ -101,6 +104,7 @@ export async function startShiftsBrowserServer() {
           };
         `;
         if (id === "\0test-editor") return "export const ShiftEditorDialog = () => null;";
+        if (id === "\0test-camera-capture") return "export const CameraCapture = () => null;";
         // C17 — la sucursal activa la fija la prueba, no el contexto real: lo
         // que se comprueba es la pantalla contra las respuestas de la API.
         if (id === "\0test-branch-context") return `
@@ -243,15 +247,45 @@ export async function startShiftsBrowserServer() {
             React.createElement(QueryClientProvider, { client }, React.createElement(OperatingConfigPage))
           );
         `;
+        // C22 — la Liga de Sucursales es una pantalla que sólo habla con
+        // `/api/group/branches-qsr`, que la prueba intercepta: no necesita
+        // proveedores, sólo los estilos del layout real.
+        if (id === "\0test-liga-entry") return `
+          import '/config-test.css';
+          import React from 'react';
+          import { createRoot } from 'react-dom/client';
+          import LigaPage from '/app/dashboard/branches/page.tsx';
+          createRoot(document.getElementById('root')).render(React.createElement(LigaPage));
+        `;
+        // C24 — Workflow executor para validar contrato de paso y omisión en cliente
+        if (id === "\0test-workflow-entry") return `
+          import '/config-test.css';
+          import React from 'react';
+          import { createRoot } from 'react-dom/client';
+          import { WorkflowExecutor } from '/components/workflow/workflow-executor.tsx';
+          import { Toaster } from 'sonner';
+
+          const execution = window.__executionPrueba;
+          createRoot(document.getElementById('root')).render(
+            React.createElement(
+              React.Fragment,
+              null,
+              execution ? React.createElement(WorkflowExecutor, { execution }) : null,
+              React.createElement(Toaster, { position: 'top-right' })
+            )
+          );
+        `;
       },
       configureServer(devServer: { middlewares: { use: (handler: unknown) => void } }) {
         devServer.middlewares.use((req: { url: string }, res: { setHeader: (name: string, value: string) => void; end: (body: string) => void }, next: () => void) => {
-          if (req.url === "/" || req.url === "/config" || req.url === "/transfers" || req.url === "/tesoreria") {
+          if (req.url === "/" || req.url === "/config" || req.url === "/transfers" || req.url === "/tesoreria" || req.url === "/liga" || req.url === "/workflow") {
             res.setHeader("Content-Type", "text/html");
             const entrada =
               req.url === "/config" ? "/config-test-entry.tsx"
               : req.url === "/transfers" ? "/transfers-test-entry.tsx"
               : req.url === "/tesoreria" ? "/treasury-test-entry.tsx"
+              : req.url === "/liga" ? "/liga-test-entry.tsx"
+              : req.url === "/workflow" ? "/workflow-test-entry.tsx"
               : "/shifts-test-entry.tsx";
             res.end(`<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module" src="${entrada}"></script></body></html>`);
             return;

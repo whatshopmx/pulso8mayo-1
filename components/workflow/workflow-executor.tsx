@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AIVerificationStatus, AIVerificationStatusProps } from "@/components/workflow/ai-verification-status";
 import { WorkflowStep } from "@/lib/types/workflow";
 import { cn } from "@/lib/utils";
@@ -176,6 +177,9 @@ export function WorkflowExecutor({
   const [evidenceFiles, setEvidenceFiles] = React.useState<File[]>([]);
   const [uploading, setUploading] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
+  const [skipping, setSkipping] = React.useState(false);
+  const [skipDialogOpen, setSkipDialogOpen] = React.useState(false);
+  const [skipJustification, setSkipJustification] = React.useState("");
   const [aiVerification, setAIVerification] = React.useState<AIVerificationStatusProps['status'] | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [cameraOpen, setCameraOpen] = React.useState(false);
@@ -228,6 +232,47 @@ export function WorkflowExecutor({
     }
   };
 
+  const handleExecuteSkip = async (justification?: string) => {
+    if (!currentStep) return;
+
+    setSkipping(true);
+    try {
+      const response = await fetch(`/api/workflows/executions/${execution.id}/steps/${currentStep.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'SKIPPED',
+          comment: justification?.trim() || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const message = errorData.error || errorData.message || 'No se pudo omitir el paso';
+        throw new Error(message);
+      }
+
+      const result = await response.json();
+      toast.success('Paso omitido exitosamente');
+      setSkipDialogOpen(false);
+      setSkipJustification('');
+
+      onStepComplete?.(currentStep.id, result);
+
+      if (currentStepIndex < steps.length - 1) {
+        handleNext();
+      } else {
+        onComplete?.();
+      }
+    } catch (error: unknown) {
+      toast.error('Error al omitir el paso', {
+        description: error instanceof Error ? error.message : 'Error desconocido',
+      });
+    } finally {
+      setSkipping(false);
+    }
+  };
+
   const handleSubmitStep = async () => {
     if (!currentStep) return;
 
@@ -261,7 +306,9 @@ export function WorkflowExecutor({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update step');
+        const errorData = await response.json().catch(() => ({}));
+        const message = errorData.error || errorData.message || 'Failed to update step';
+        throw new Error(message);
       }
 
       const result = await response.json();
@@ -729,7 +776,10 @@ const getStepIcon = (type: string) => {
  }
 
     if (currentStep.required) {
-      return value && (typeof value === 'string' ? value.trim() : value.length > 0);
+      if (value === undefined || value === null || value === '') return false;
+      if (typeof value === 'string') return value.trim().length > 0;
+      if (Array.isArray(value)) return value.length > 0;
+      return true;
     }
 
     return true;
@@ -857,28 +907,89 @@ const getStepIcon = (type: string) => {
             <AIVerificationStatus status={aiVerification} />
           )}
         </CardContent>
-        <CardFooter className="flex justify-between">
+        <CardFooter className="flex justify-between items-center gap-2">
           <Button
             variant="outline"
             onClick={handlePrevious}
-            disabled={currentStepIndex === 0}
+            disabled={currentStepIndex === 0 || submitting || skipping}
           >
             <ChevronLeft className="h-4 w-4 mr-2" />
             Anterior
           </Button>
 
-          <Button
-            onClick={handleSubmitStep}
-            disabled={!isStepCompleteable() || submitting || uploading}
-          >
-            {(submitting || uploading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {submitting || uploading ? 'Procesando...' : currentStepIndex === steps.length - 1 ? 'Completar' : 'Siguiente'}
-            {!submitting && !uploading && currentStepIndex < steps.length - 1 && (
-              <ChevronRight className="h-4 w-4 ml-2" />
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              type="button"
+              className="text-muted-foreground hover:text-foreground text-xs"
+              onClick={() => {
+                setSkipJustification('');
+                setSkipDialogOpen(true);
+              }}
+              disabled={submitting || uploading || skipping}
+            >
+              Omitir paso
+            </Button>
+
+            <Button
+              onClick={handleSubmitStep}
+              disabled={!isStepCompleteable() || submitting || uploading || skipping}
+            >
+              {(submitting || uploading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {submitting || uploading ? 'Procesando...' : currentStepIndex === steps.length - 1 ? 'Completar' : 'Siguiente'}
+              {!submitting && !uploading && currentStepIndex < steps.length - 1 && (
+                <ChevronRight className="h-4 w-4 ml-2" />
+              )}
+            </Button>
+          </div>
         </CardFooter>
       </Card>
+
+      <Dialog open={skipDialogOpen} onOpenChange={setSkipDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Omitir paso</DialogTitle>
+            <DialogDescription>
+              {currentStep.required
+                ? "Este paso es obligatorio. Para omitirlo se requiere rol de Supervisor o Administrador y una justificación detallada."
+                : "¿Deseas omitir este paso opcional?"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {currentStep.required && (
+            <div className="space-y-2 py-2">
+              <Label htmlFor="skip-justification">Motivo / Justificación *</Label>
+              <Textarea
+                id="skip-justification"
+                placeholder="Explica la razón operativa por la cual se omite este paso..."
+                value={skipJustification}
+                onChange={(e) => setSkipJustification(e.target.value)}
+                className="min-h-[90px]"
+              />
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setSkipDialogOpen(false)}
+              disabled={skipping}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              type="button"
+              onClick={() => handleExecuteSkip(skipJustification)}
+              disabled={skipping || (currentStep.required && !skipJustification.trim())}
+            >
+              {skipping && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Confirmar omisión
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

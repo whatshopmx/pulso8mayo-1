@@ -1,6 +1,6 @@
 # Handoff — Conexión entre frontend y backend
 
-**Actualizado:** 2026-10-14 · **Plan:** `tasks/plan-conexion-frontend-backend.md` · **Seguimiento:** `tasks/todo-conexion-frontend-backend.md`
+**Actualizado:** 2026-10-15 · **Plan:** `tasks/plan-conexion-frontend-backend.md` · **Seguimiento:** `tasks/todo-conexion-frontend-backend.md`
 
 Este documento es para empezar una sesión nueva sin releer veinte archivos. **Las fuentes de verdad siguen siendo el plan y el seguimiento**; esto es el atajo, y su contenido caduca en cuanto avanza el plan.
 
@@ -10,16 +10,22 @@ Este documento es para empezar una sesión nueva sin releer veinte archivos. **L
 
 | Orden | Archivo | Qué aporta |
 | --- | --- | --- |
-| 1 | `tasks/todo-conexion-frontend-backend.md` | Estado real, una fila por tarea con evidencia y límites. **La fila de C22 es el siguiente paso.** |
-| 2 | `tasks/plan-conexion-frontend-backend.md` | Criterios de aceptación, dependencias y verificación de C20–C40 |
+| 1 | `tasks/todo-conexion-frontend-backend.md` | Estado real, una fila por tarea con evidencia y límites. **La fila de C25 es el siguiente paso.** |
+| 2 | `tasks/plan-conexion-frontend-backend.md` | Criterios de aceptación, dependencias y verificación de C24–C40 |
 | 3 | `docs/audits/2026-10-10-backend-frontend-wiring-audit.md` | Hallazgos H01–H12 que el plan tiene que cerrar |
 | 4 | `lib/company/operating-policy-catalog.ts` | Catálogo de C15: clasificación, consumidor, aplicación y decisión pendiente de las trece entradas. Es la fuente que C16–C23 consumen, y su prueba falla si una política deja de ser lo que dice. |
 
 ## 2. Estado al handing-off
 
-**C00–C21 completadas. C22–C40 pendientes.** La última línea implementada y verificada es C21 (dispersión de nómina). Siguen sin commitear los archivos de `stock-count` y `workflows/[id]/execute`, que son de otra línea de trabajo (conteos por categoría y lote, y acceso a la pantalla de ejecución).
+**C00–C24 completadas. C25–C40 pendientes.** La última línea implementada y verificada es C24 (validación autoritativa del contrato del paso en servidor, límites numéricos, opciones, evidencia, transiciones terminales 409 y omisión autorizada SKIPPED en HTTP 403/400). Siguen sin commitear los archivos de `stock-count` y `workflows/[id]/execute`, que son de otra línea de trabajo (conteos por categoría y lote, y acceso a la pantalla de ejecución).
 
 ```
+C24 validación autoritativa de contrato de paso en servidor (tipos, límites, evidencia, transiciones terminales 409 y omisión SKIPPED exclusiva de supervisor con justificación obligatoria en HTTP 403/400; 32 unitarias puras, 3 navegador Playwright y 7 comprobaciones Neon)
+C23 límite de caja chica tripartito (fondo corporativo vs gasto físico vs aprobación de gastos), validación en servicio de apertura/reposición/retiro, catálogo C15 en aplicada, preservación de fondos existentes (18 unitarias, 75 navegador, 16 comprobaciones Neon)
+C22.4 recorrido y reglas en Neon con dos empresas, validación de franquicias, contradicción en grupo propio y alcance del actor (23 comprobaciones)
+C22.3 vista de la Liga de Sucursales en Chromium con redes, promedios, anomalías etiquetadas y avisos de alcance (3 pruebas aisladas)
+C22.2 tenantType aplicado en CrossBranchService y catálogo C15; huella de alcance en clave de caché
+C22.1 propiedad de sucursal en contrato Zod, BranchService y pantalla de detalle
 C21 payrollDispersion permanece descriptiva con contrato honesto; timbrado real ejercitado contra el sandbox de FiscalAPI con personas de prueba del SAT (25 comprobaciones Neon + sandbox)
 C20.4 recorrido del servicio contra Neon con dos empresas, escalada a OWNER en ALTA, auto-aprobación prohibida y dinamismo en caliente
 C20.3 comprobación en navegador aislado de insignia «Se aplica hoy», descripciones precisas, persistencia y evaluación cliente
@@ -32,7 +38,7 @@ C19.2 una obligación, una sola vez (puedeAgendar en lib/treasury/scheduling-pol
 C19.1 supplierPayment sigue descriptiva con contrato honesto en el catálogo
 ```
 
-Puertas de fase cerradas: Fase 0, Fase 1 y **Fase 2** (12-10-2026). La Fase 3 sigue abierta: compras (C16), producción (C17), tesorería (C18), pago a proveedores (C19), autonomía del gerente (C20) y dispersión de nómina (C21) cerradas; faltan C22–C23.
+Puertas de fase cerradas: Fase 0, Fase 1, Fase 2 (12-10-2026) y **Fase 3** (15-10-2026). La Fase 4 está en curso con C24 completada y verificada; la siguiente es C25 (transmitir configuración de IA a la ejecución).
 
 ## 3. Lo que NO está verificado — no dar por hecho
 
@@ -61,6 +67,7 @@ Este es el apartado que más caro sale perder. Las tareas están marcadas, pero 
 | C18 | `lib/services/__tests__/treasury-disbursement.test.ts` **reimplementa la lógica dentro del test** (doble firma y CLABE) y no toca el servicio: su verde no dice nada. No se corrigió en C18. |
 | C18 | El botón de la pantalla depende del rol que `/api/auth/get-session` devuelve. Con sesión desfasada puede aparecer activo y el servidor lo rechaza con 403: el filtro que vale es el del servidor. |
 | C18.4 | `tests/layout-dispersion.spec.ts` usa `generateBankDisbursementLayout`, que ahora exige `actorRole`. Se actualizó para pasar `"ADMIN"` y **no se ejecutó** (configuración de Playwright con base real). |
+| C24 | La pantalla de ejecución en Playwright (`WorkflowExecutor`) simula la cámara (`navigator.mediaDevices` stub con canvas); la captura real de fotos en hardware físico depende del navegador móvil del operador. |
 
 ## 4. Estado de la base de datos
 
@@ -98,7 +105,7 @@ El plan define cuatro verificaciones. Cada tarea declara cuál usa:
 - `tests/playwright-shifts.config.ts` → UI aislada. Arranca un servidor Vite de pruebas con módulos reales y stubs para acciones, auth y DB. Es la que se usa para turnos y configuración. **No requiere Next, autenticación ni Postgres.**
 - `playwright.config.ts` (el de `pnpm test:e2e`) → specs que sí usan la base real y necesitan `auth.setup`. Más lento y frágil; no se usó en esta sesión.
 
-**Línea base actual (14-10-2026, tras C21):** `test:unit` 1190 aprobadas / 1 omitida / 1 TODO (89 archivos) · `lint` 0 errores (2402 warnings, todos preexistentes) · `build` exitoso y `tsc --noEmit` limpio. Los 7 casos de C21 explican el salto desde las 1183 de C20.
+**Línea base actual (15-10-2026, tras C24):** `test:unit` 1276 aprobadas / 1 omitida / 1 TODO (95 archivos) · `lint` 0 errores (2412 warnings, todos preexistentes) · `build` exitoso y `tsc --noEmit` limpio. Las pruebas añadidas por C24 (32 unitarias) más C22 y C23 explican el incremento desde las 1190 de C21.
 
 **Reglas del plan que se incumplen fácil:**
 - Una tarea que pase de cinco archivos **se divide en subtareas antes de implementar**, no después (C14 se dividió en C14.1–C14.3 así).
@@ -148,20 +155,35 @@ El plan define cuatro verificaciones. Cada tarea declara cuál usa:
 | Una obligación se agenda una sola vez y mientras deba pagarse (bloqueo transaccional FOR UPDATE) | 14-10 | Evidencia de C19 |
 | La autonomía del gerente (`managerAutonomy`) se aplica en `rolExigidoPorMonto` y `expense-service`: BAJA centraliza en ADMIN, ALTA faculta al gerente hasta el umbral de dueño, MEDIA aplica límite monetario; umbral de dueño y segregación (A16) prioritarios | 14-10 | Evidencia de C20 |
 | `payrollDispersion` permanece descriptiva: el producto no ejecuta dispersión bancaria autónoma; la tesorería genera el layout manual | 14-10 | Evidencia de C21 |
+| `tenantType` segmenta la Liga de Sucursales en redes (propias vs franquicias) y expone contradicciones; visibilidad por `branchVisibilityFilter` | 15-10 | Evidencia de C22 |
+| `pettyCashLimitCents` fija el tope corporativo del fondo fijo de caja chica; salidas limitadas por saldo físico; aprobaciones por matriz de gastos | 15-10 | Evidencia de C23 |
+| El contrato del paso valida tipo, valor, rango y evidencia antes de persistir; SKIPPED exige rol SUPERVISOR+ y justificación obligatoria; instancia terminal bloquea modificaciones con WORKFLOW_TERMINAL (409) | 15-10 | Evidencia de C24 (`docs/audits/2026-10-15-workflow-step-contract.md`) |
 
-**Pendientes de decisión** (condicionan C22–C23, no bloquean el trabajo): quién revisa un workflow; si la exclusión de `ADMIN` en `policy_overrides` se confirma; las decisiones por dimensión restantes (tipo de grupo y caja chica); horario, urgencias y zona horaria de notificaciones; consumidores externos del executor anterior.
+**Pendientes de decisión** (condicionan C25–C28, no bloquean el trabajo): quién revisa un workflow (lectura conservadora `SUPERVISOR`+ vigente); si la exclusión de `ADMIN` en `policy_overrides` se confirma; horario, urgencias y zona horaria de notificaciones; consumidores externos del executor anterior.
 
-## 8. Siguiente paso — C22
+## 8. Siguiente paso — C25
 
-**C16, C17, C18, C19, C20 y C21 quedaron completas.** Compras, producción/alimentos, tesorería, pago a proveedores, autonomía del gerente y dispersión de nómina tienen sus recorridos con alcance verificado en servidor y comprobación con dos empresas en Neon.
+**C24 quedó completa y verificada (V1, V2 y V3).** Toda actualización de pasos de workflow valida autoritativamente el contrato en servidor (evidencia requerida, rangos numéricos, opciones válidas, bloqueo de transiciones en instancias terminales con 409 y omisión autorizada SKIPPED con 403/400).
 
-C22 es la política del **tipo de empresa** (`tenantType`, hoy `pendiente`). Siguiendo el mismo rigor:
-1. Inspeccionar el recorrido de grupo (`lib/services/cross-branch-service.ts`, vistas de sucursales, atributos de `branches`).
-2. Determinar si `tenantType` altera agregación, visibilidad o segmentación. El plan exige **definir antes cómo se distinguen sucursales propias/franquiciadas** (hoy no existe el atributo en `branches`) y sólo aplicar efectos acordados: deducirlos del nombre del valor sería repetir H04.
-3. Si no hay atributo ni acuerdo, la tarea puede quedar en contrato honesto + decisión pendiente estrecha, como C21; si hay acuerdo, implementar política pura (V1), catálogo/UI aislado (V2) y recorrido contra Neon (V3).
+C25 continúa la **Fase 4 — Workflows y verificación**.
+Objetivo: **Transmitir configuración de IA a la ejecución** (H07).
+- Pasar `aiConfig` de la plantilla/instancia al adaptador y definir defaults, proveedor alternativo y límite efectivo de reintentos.
+- Criterios:
+  1. El proveedor configurado se utiliza en ambas vías de verificación actuales.
+  2. Proveedor alternativo y reintentos tienen una semántica efectiva y no multiplican los reintentos de Inngest.
+  3. Una configuración inválida falla de forma explícita; las credenciales permanecen en servidor.
+- Archivos clave:
+  - `lib/services/workflow-execution-service.ts`
+  - `lib/services/verification-engine.ts`
+  - `lib/services/ai-service.ts`
+  - `components/builder/workflow-settings-modal.tsx`
+  - `tests/workflows/ai-config.test.ts` (nuevo)
 
-**Aviso de sandbox FiscalAPI (14-10-2026):** el timbrado de nómina ya se ejercitó contra `test.fiscalapi.com` con las personas de prueba del SAT (`lib/fiscal/sat-test-data.ts`, 28 CSD en `tests/fixtures/fiscalapi-certs/`). El sandbox exige **timbres de prueba en la cuenta** — se compran en el dashboard con las tarjetas de prueba (PCI DSS lo impide por API). El 403 `Saldo insuficiente` no es un fallo del código: `scripts/verify-payroll-dispersion.ts` lo persiste como RECHAZADO y lo registra como pendiente sin maquillar.
+## 9. Fase 4 — Workflows y verificación
 
-## 9. Después de C20
-
-C22–C23 dependen de C15 y son una política por tarea: tipo de empresa (C22) y caja chica (C23). Cada una aplica el contrato de C15 en **un** recorrido, y todas exigen una decisión de negocio antes de activar su efecto: el plan lo dice con la frase "no activar una política deducida únicamente del nombre de un campo". Ninguna puede resolverse sola: todas piden una decisión registrada por dimensión en el catálogo.
+C24–C28 conforman el bloque de workflows:
+- C24: Validar el contrato del paso en servidor.
+- C25: Transmitir configuración de IA a la ejecución.
+- C26: Conservar confianza mínima en el veredicto IA.
+- C27: Hacer única la transición de finalización.
+- C28: Garantizar entrega de eventos y mostrar efectos pendientes.

@@ -23,6 +23,7 @@ import type {
   NetworkAnomalyFinding,
   BranchQSRRankingResult,
 } from "@/lib/services/cross-branch-service";
+import { ETIQUETA_RED } from "@/lib/company/tenant-network-policy";
 
 interface BranchQSRScorecardProps {
   data: BranchQSRRankingResult;
@@ -314,6 +315,16 @@ export function NetworkAnomaliesPanel({
                     }`}
                   />
                   <span className="font-semibold tracking-tight">{a.title}</span>
+                  {/* C22 — el hallazgo pertenece a una red: dentro de ella es
+                      donde la comparación tiene sentido. */}
+                  {a.red && (
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 text-[10px] font-medium text-muted-foreground"
+                    >
+                      {ETIQUETA_RED[a.red]}
+                    </Badge>
+                  )}
                 </div>
                 {a.estimatedImpactMxn > 0 && (
                   <span className="text-xs font-semibold tabular-nums text-destructive shrink-0 bg-background px-2 py-0.5 rounded border border-border">

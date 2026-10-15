@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 14 de octubre de 2026. Estado: C00–C21 implementadas y verificadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C22–C40 pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 15 de octubre de 2026. Estado: C00–C24 implementadas y verificadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C25–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -845,9 +845,9 @@ Definir si tenantType altera agregación, visibilidad o segmentación; aplicar s
 
 **Criterios de aceptación:**
 
-- [ ] Se define cómo distinguir sucursales propias/franquiciadas antes de modificar agregaciones.
-- [ ] Las vistas del recorrido elegido cumplen la segmentación sin ampliar acceso a datos.
-- [ ] Cada valor tiene casos de inclusión/exclusión o queda expresamente descriptivo.
+- [x] Se define cómo distinguir sucursales propias/franquiciadas antes de modificar agregaciones.
+- [x] Las vistas del recorrido elegido cumplen la segmentación sin ampliar acceso a datos.
+- [x] Cada valor tiene casos de inclusión/exclusión o queda expresamente descriptivo.
 
 **Verificación:** V1 de segmentación y V2 de vista de grupo; comprobar que existe el atributo necesario de sucursal.
 
@@ -869,9 +869,9 @@ Definir cómo pettyCashLimitCents se relaciona con apertura/reposición de fondo
 
 **Criterios de aceptación:**
 
-- [ ] Se distingue límite del fondo, límite por gasto y límite de aprobación.
-- [ ] La operación definida aplica el límite en servidor o el ajuste se declara descriptivo.
-- [ ] Cero, null, excepciones y fondos existentes tienen comportamiento documentado y verificable.
+- [x] Se distingue límite del fondo, límite por gasto y límite de aprobación.
+- [x] La operación definida aplica el límite en servidor o el ajuste se declara descriptivo.
+- [x] Cero, null, excepciones y fondos existentes tienen comportamiento documentado y verificable.
 
 **Verificación:** V1 de límites y V2 del recorrido de caja chica, sin duplicar su servicio.
 
@@ -885,11 +885,11 @@ Definir cómo pettyCashLimitCents se relaciona con apertura/reposición de fondo
 
 #### Punto de control C22–C23
 
-- [ ] Criterios del bloque verificados con resultados registrados.
-- [ ] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
-- [ ] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
+- [x] Criterios del bloque verificados con resultados registrados.
+- [x] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
+- [x] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
 
-**Puerta de fase:** revisar build/lint y regresiones pertinentes; conservar evidencia de la entrega indicada al inicio.
+**Puerta de fase:** revisar build/lint y regresiones pertinentes; conservar evidencia de la entrega indicada al inicio. Cerrada el 15-10-2026.
 
 ## Fase 4 — Workflows y verificación
 
@@ -905,18 +905,25 @@ Validar estado, requerido, tipo, límites y evidencia usando la definición apli
 
 **Criterios de aceptación:**
 
-- [ ] No se completa un paso requerido con un payload vacío, inválido o sin evidencia exigida.
-- [ ] La misma regla protege API, acciones e integraciones internas que actualicen pasos.
-- [ ] La UI recibe un error corregible; SKIPPED y transiciones permitidas tienen autorización explícita.
+- [x] No se completa un paso requerido con un payload vacío, inválido o sin evidencia exigida.
+- [x] La misma regla protege API, acciones e integraciones internas que actualicen pasos.
+- [x] La UI recibe un error corregible; SKIPPED y transiciones permitidas tienen autorización explícita.
 
 **Verificación:** V1 con payloads malformados y llamada directa al servidor; V2 de rechazo/corrección/completado.
 
-**Archivos probables:**
+**Verificación ejecutada (15-10-2026):** V1 — `tests/unit/workflows/step-contract.test.ts` (22) y `tests/unit/workflows/step-contract-service.test.ts` (10) sobre la política pura (`validarContratoDePaso`), tipos de campos (number, boolean, text, select, photo, signature), rango numérico, opciones permitidas, evidencia requerida, omisión autorizada (SKIPPED solo supervisor/admin/owner con justificación obligatoria) y transiciones protegidas (409 en instancias terminales); suite de workflows 119/119 aprobadas (12 archivos). V2 — `tests/e2e/workflow-step-contract.spec.ts` (3) en Chromium con la UI de `WorkflowExecutor` (rechazo out-of-bounds con toast corregible, modal de justificación de omisión para supervisor y rechazo 403 para empleado común). V3/base real — `scripts/verify-workflow-step-contract.ts` (7) contra Neon Postgres con dos sucursales, instancia real, bloqueo de paso sin evidencia (400), rechazo numérico (400), omisión no autorizada (403), omisión autorizada persistida como SKIPPED con justificación y usuario, y bloqueo atómico de modificación en instancia completada (`WORKFLOW_TERMINAL` 409). `tsc --noEmit` limpio, `lint` 0 errores. Evidencia en [C24](../docs/audits/2026-10-15-workflow-step-contract.md).
 
+**Archivos modificados:**
+
+- `lib/workflows/step-contract-policy.ts` (nuevo)
 - `lib/services/workflow-execution-service.ts`
 - `app/api/workflows/executions/[id]/steps/[stepId]/route.ts`
 - `components/workflow/workflow-executor.tsx`
-- `tests/workflows/step-contract.test.ts (nuevo)`
+- `tests/unit/workflows/step-contract.test.ts` (nuevo)
+- `tests/unit/workflows/step-contract-service.test.ts` (nuevo)
+- `tests/e2e/workflow-step-contract.spec.ts` (nuevo)
+- `scripts/verify-workflow-step-contract.ts` (nuevo)
+- `docs/audits/2026-10-15-workflow-step-contract.md` (nuevo)
 
 <a id="c25"></a>
 

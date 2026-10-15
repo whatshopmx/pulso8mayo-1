@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { WorkflowExecutionService, WorkflowReviewError, type WorkflowReviewErrorCode } from "@/lib/services/workflow-execution-service";
+import {
+  WorkflowExecutionService,
+  WorkflowReviewError,
+  WorkflowStepContractError,
+  type WorkflowReviewErrorCode,
+} from "@/lib/services/workflow-execution-service";
 import { isApiError } from "@/lib/api/error";
 import { requireExecutionAccess } from "@/lib/workflows/execution-access";
 import { emitWorkflowEvent } from "@/lib/websocket/workflow-handlers";
@@ -86,11 +91,21 @@ export async function PATCH(
     } catch (error) {
         // Un rechazo de alcance trae su status y su mensaje; convertirlo en 500
         // lo volvería indistinguible de una caída.
+        if (error instanceof WorkflowStepContractError) {
+            return NextResponse.json(
+                { error: error.message, code: error.code },
+                { status: error.statusCode }
+            );
+        }
         if (error instanceof WorkflowReviewError) {
             return NextResponse.json(
                 { error: error.message },
                 { status: REVIEW_ERROR_STATUS[error.code] }
             );
+        }
+        if (error instanceof z.ZodError) {
+            const firstIssue = error.issues[0]?.message || "Datos de entrada inválidos";
+            return NextResponse.json({ error: firstIssue, details: error.flatten() }, { status: 400 });
         }
         if (isApiError(error)) {
             return NextResponse.json({ error: error.message }, { status: error.statusCode });

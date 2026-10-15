@@ -12,6 +12,8 @@ export default defineConfig({
     "treasury-authorization.spec.ts",
     "payment-scheduling.spec.ts",
     "manager-autonomy.spec.ts",
+    "group-network.spec.ts",
+    "workflow-step-contract.spec.ts",
   ],
   workers: 1,
   timeout: 120_000,

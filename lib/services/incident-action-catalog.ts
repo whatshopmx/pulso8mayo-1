@@ -72,7 +72,7 @@ const CATALOG: CatalogEntry[] = [
   },
   {
     category: 'plaga',
-    destination: { href: '/dashboard/equipment/compliance', cta: 'Ver proveedores' },
+    destination: { href: '/dashboard/compliance/services', cta: 'Ver proveedores' },
     patterns: /plaga|cucarach|roedor|rata|insecto|fumigac/,
     label: 'Solicitar fumigación al proveedor de control de plagas',
     detectedAs: 'presencia de plagas',
@@ -80,7 +80,7 @@ const CATALOG: CatalogEntry[] = [
   },
   {
     category: 'gas',
-    destination: { href: '/dashboard/equipment/compliance', cta: 'Ver proveedores' },
+    destination: { href: '/dashboard/compliance/services', cta: 'Ver proveedores' },
     patterns: /fuga de gas|fuga|gas lp|olor a gas/,
     label: 'Cerrar el paso de gas y solicitar inspección inmediata',
     detectedAs: 'riesgo por fuga de gas',
@@ -88,7 +88,7 @@ const CATALOG: CatalogEntry[] = [
   },
   {
     category: 'incendio',
-    destination: { href: '/dashboard/equipment/compliance', cta: 'Ver proveedores' },
+    destination: { href: '/dashboard/compliance/services', cta: 'Ver proveedores' },
     patterns: /incendi|extintor|humo|conato/,
     label: 'Solicitar inspección del sistema contra incendios',
     detectedAs: 'riesgo de incendio o equipo contra incendios',
@@ -159,7 +159,7 @@ const DECLARED_ACTION_FOLLOWUP: Record<
   SCHEDULE_COMPLIANCE_SERVICE: {
     label: 'Agendar el servicio de cumplimiento con el proveedor',
     urgency: 'HIGH',
-    destination: { href: '/dashboard/equipment/compliance', cta: 'Ver proveedores' },
+    destination: { href: '/dashboard/compliance/services', cta: 'Ver proveedores' },
   },
   CREATE_PURCHASE_ORDER: {
     label: 'Revisar y autorizar la orden de compra',

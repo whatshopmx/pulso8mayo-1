@@ -193,6 +193,7 @@ describe("catálogo de políticas operativas — aplicada contra el consumidor r
       "emergencyPurchaseCapCents",
       "managerAuthLimitCents",
       "managerAutonomy",
+      "pettyCashLimitCents",
       "purchase_delegation_rules",
       "tenantType",
     ]);
@@ -251,13 +252,12 @@ describe("catálogo de políticas operativas — aplicada contra el consumidor r
 describe("catálogo de políticas operativas — descriptiva contra la ausencia de consumidor", () => {
   const descriptivas = CATALOGO_OPERATIVO.filter((p) => p.clasificacion === "descriptiva");
 
-  it("son las cinco dimensiones sin consumidor y el límite de caja chica", () => {
-    // `managerAutonomy` y `tenantType` no entran aquí: sus valores sí se leen
-    // para decidir —una en gastos, otra en la Liga de Sucursales desde C22.
+  it("son las cinco dimensiones sin consumidor", () => {
+    // `managerAutonomy`, `tenantType` y `pettyCashLimitCents` no entran aquí: sus valores sí se leen
+    // para decidir —en gastos, en la Liga de Sucursales y en la caja chica desde C23.
     expect(descriptivas.map((p) => p.campo).sort()).toEqual([
       "foodProduction",
       "payrollDispersion",
-      "pettyCashLimitCents",
       "purchasingStructure",
       "supplierPayment",
       "treasuryModel",
@@ -315,10 +315,10 @@ describe("catálogo de políticas operativas — pendientes", () => {
     }
   });
 
-  it("registra una decisión para cada dimensión y caja chica aún pendientes", () => {
+  it("registra una decisión para cada dimensión aún pendiente", () => {
     expect(politicasConDecisionPendiente().map((p) => p.campo).sort()).toEqual([
       "purchasingStructure", "foodProduction", "treasuryModel", "supplierPayment",
-      "payrollDispersion", "pettyCashLimitCents",
+      "payrollDispersion",
     ].sort());
   });
   it("ninguna pendiente bloquea una política que sí se aplica hoy", () => {
@@ -410,8 +410,8 @@ describe("catálogo de políticas operativas — parámetros de C14 y resumen", 
     const resumen = resumenDePoliticas();
     const total = Object.values(resumen).reduce((a, b) => a + b, 0);
     expect(total).toBe(CATALOGO_OPERATIVO.length);
-    expect(resumen.aplicada).toBe(7);
-    expect(resumen.descriptiva).toBe(6);
+    expect(resumen.aplicada).toBe(8);
+    expect(resumen.descriptiva).toBe(5);
     expect(resumen.pendiente).toBe(0);
   });
 
@@ -424,7 +424,7 @@ describe("catálogo de políticas operativas — parámetros de C14 y resumen", 
 
   it("clasificacionDe responde por input y no falla con uno desconocido", () => {
     expect(clasificacionDe("managerAuthLimit")).toBe("aplicada");
-    expect(clasificacionDe("pettyCashLimit")).toBe("descriptiva");
+    expect(clasificacionDe("pettyCashLimit")).toBe("aplicada");
     expect(clasificacionDe("campoQueNoExiste")).toBe("descriptiva");
   });
 });

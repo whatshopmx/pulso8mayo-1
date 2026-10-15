@@ -35,8 +35,9 @@
  *    is where the ladder gets the values.
  *  - `emergencyPurchaseCapCents`: applied via `validateEmergencyCap`
  *    (`lib/services/budget-service.ts`), which queries the table directly.
- *  - `pettyCashLimitCents`: **descriptive**. `petty-cash-service` uses each
- *    fund's own `fund_amount` and `low_threshold`. C23 decides what this is.
+ *  - `pettyCashLimitCents`: applied via `validarAperturaFondo` and
+ *    `validarReposicionFondo` (`lib/finance/petty-cash-policy.ts`) in
+ *    `petty-cash-service.ts` for branch fixed fund opening and replenishment caps.
  *  - Fiscal/labor/waste params (`vatRatePercent`, `laborBurdenFactorPercent`,
  *    `payrollStateTaxPercent`, `mermaVarianceThresholdPct`): applied, with
  *    `vigencia` by period resolved from `config_change_logs` (C14.3).

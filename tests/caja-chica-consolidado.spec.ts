@@ -46,8 +46,20 @@ async function saldoRealDeLaCadena(): Promise<{ saldo: number; fondo: number; n:
 test.describe("A17 · consolidado de caja chica", () => {
   let sucursalA = "";
   let sucursalB = "";
+  let prevPettyCashLimit: number | null = null;
 
   test.beforeAll(async () => {
+    // Asegurar que el límite corporativo de la empresa permita abrir el fondo de prueba de $10,000 MXN
+    const prevRows = await sql`
+      SELECT petty_cash_limit_cents FROM tenant_operating_config WHERE company_id = ${COMPANY_ID} LIMIT 1
+    `;
+    if (prevRows.length > 0) {
+      prevPettyCashLimit = prevRows[0].petty_cash_limit_cents;
+      await sql`
+        UPDATE tenant_operating_config SET petty_cash_limit_cents = 2000000 WHERE company_id = ${COMPANY_ID}
+      `;
+    }
+
     // Sucursales propias: las sembradas pueden traer fondo o no, y el caso
     // compara contra SQL directo — necesita saber exactamente qué añadió.
     sucursalA = await seedTestBranch(COMPANY_ID, "consolidado A");
@@ -81,6 +93,11 @@ test.describe("A17 · consolidado de caja chica", () => {
   test.afterAll(async () => {
     if (sucursalA) await deleteTestBranch(sucursalA);
     if (sucursalB) await deleteTestBranch(sucursalB);
+    if (prevPettyCashLimit !== null) {
+      await sql`
+        UPDATE tenant_operating_config SET petty_cash_limit_cents = ${prevPettyCashLimit} WHERE company_id = ${COMPANY_ID}
+      `;
+    }
   });
 
   test("el agregado coincide con la suma de la base", async () => {

@@ -15,6 +15,13 @@ import {
     type ExecutionActor,
 } from "@/lib/workflows/execution-access";
 import { hayExcepcionVigente } from "@/lib/security/policy-overrides";
+import {
+    validarContratoDePaso,
+    WorkflowStepContractError,
+    type WorkflowStepContractErrorCode,
+} from "@/lib/workflows/step-contract-policy";
+
+export { WorkflowStepContractError, type WorkflowStepContractErrorCode };
 
 export type WorkflowReviewErrorCode =
     | "NOT_FOUND"
@@ -455,29 +462,37 @@ export class WorkflowExecutionService {
             }
         }
 
-        {
-            const savedStep = await db.query.workflowInstanceSteps.findFirst({
-                where: and(eq(workflowInstanceSteps.instanceId, instanceId), eq(workflowInstanceSteps.stepId, stepId)),
-            });
-            currentStepDef = savedStep?.definition ?? currentStepDef;
-            if (currentStepDef?.type === 'STOCK_COUNT') {
-                if (instance.status === 'COMPLETED' || savedStep?.status === 'COMPLETED') {
-                    throw ApiError.conflict('Este conteo ya fue enviado a revisión.');
-                }
-                if (!savedStep || !Array.isArray(currentStepDef.config?.rows)) {
-                    throw ApiError.badRequest('No encontramos los productos y lotes de este conteo.');
-                }
-                if (data.status === 'SKIPPED' || data.status === 'FAILED') {
-                    throw ApiError.badRequest('Completa todos los productos y lotes antes de enviar el conteo.');
-                }
-                try {
-                    data = { ...data, value: JSON.stringify(normalizeStockCount(
-                        currentStepDef.config.rows, data.value ?? savedStep.value,
-                        data.status === 'COMPLETED',
-                    )) };
-                } catch (error) {
-                    throw ApiError.badRequest(error instanceof Error ? error.message : 'Conteo inválido.');
-                }
+        const savedStep = await db.query.workflowInstanceSteps.findFirst({
+            where: and(eq(workflowInstanceSteps.instanceId, instanceId), eq(workflowInstanceSteps.stepId, stepId)),
+        });
+        currentStepDef = savedStep?.definition ?? currentStepDef;
+
+        // Validar contrato del paso en servidor (C24 / H08)
+        validarContratoDePaso({
+            stepDef: currentStepDef,
+            data,
+            instance,
+            savedStep,
+            ctx,
+        });
+
+        if (currentStepDef?.type === 'STOCK_COUNT') {
+            if (instance.status === 'COMPLETED' || savedStep?.status === 'COMPLETED') {
+                throw ApiError.conflict('Este conteo ya fue enviado a revisión.');
+            }
+            if (!savedStep || !Array.isArray(currentStepDef.config?.rows)) {
+                throw ApiError.badRequest('No encontramos los productos y lotes de este conteo.');
+            }
+            if (data.status === 'SKIPPED' || data.status === 'FAILED') {
+                throw ApiError.badRequest('Completa todos los productos y lotes antes de enviar el conteo.');
+            }
+            try {
+                data = { ...data, value: JSON.stringify(normalizeStockCount(
+                    currentStepDef.config.rows, data.value ?? savedStep.value,
+                    data.status === 'COMPLETED',
+                )) };
+            } catch (error) {
+                throw ApiError.badRequest(error instanceof Error ? error.message : 'Conteo inválido.');
             }
         }
 

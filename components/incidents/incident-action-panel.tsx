@@ -329,7 +329,7 @@ export function IncidentActionPanel({
                 variant="outline"
                 className="gap-1.5 text-xs font-semibold w-full sm:w-auto"
               >
-                <Link href="/dashboard/equipment/compliance">
+                <Link href="/dashboard/compliance/services">
                   Configurar proveedor
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>

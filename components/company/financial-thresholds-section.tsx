@@ -78,8 +78,7 @@ export function FinancialThresholdsSection({
           <DollarSign className="w-5 h-5 text-foreground" /> Umbrales Financieros y Políticas de Aprobación
         </CardTitle>
         <CardDescription className="text-xs">
-          Los campos marcados «Se aplica hoy» cambian autorizaciones o límites de envío.
-          Caja chica documenta un monto; su fondo se administra por sucursal.
+          Los umbrales financieros gobiernan autorizaciones por rol, topes corporativos de compras y el límite del fondo de caja chica.
         </CardDescription>
       </CardHeader>
 
@@ -192,9 +191,9 @@ export function FinancialThresholdsSection({
           </div>
           <ErrorDeCampo id="pettyCashLimit-error" mensaje={mensajeDe("pettyCashLimit")} />
           <p className="text-xs text-muted-foreground leading-tight">
-            Monto de referencia del grupo. Hoy no limita aperturas, reposiciones ni gastos y no cambia
-            fondos existentes. Vacío, cero y un monto positivo son descripciones; cada fondo conserva
-            el efectivo entregado y su propio umbral de reposición.
+            Tope corporativo para el fondo fijo por sucursal. Aplica en apertura y reapertura de
+            fondos, y la reposición no puede exceder el fondo fijo autorizado. Cero deshabilita
+            la caja chica; vacío permite abrir sin tope de grupo. Los retiros se acotan al saldo en caja.
           </p>
         </div>
 

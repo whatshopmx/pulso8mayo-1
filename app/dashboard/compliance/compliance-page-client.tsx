@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MetricGrid, MetricCard } from "@/components/ui/metric-card";
 import { EmptyState, PageHeader } from "@/components/shared";
+import { ComplianceServicesList } from "@/components/equipment/compliance-services-list";
 import { useBranch } from "@/lib/branch-context";
 import {
   FileText,
@@ -393,7 +394,7 @@ export function CompliancePageClient({ branches, companyId = "" }: CompliancePag
       />
 
       <Tabs defaultValue="dashboard" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-5 h-auto p-1 gap-1">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6 h-auto p-1 gap-1">
           <TabsTrigger value="dashboard" className="py-2 text-xs font-semibold">
             <ClipboardCheck className="h-4 w-4 mr-2 text-primary" />
             Resumen Ejecutivo
@@ -405,6 +406,10 @@ export function CompliancePageClient({ branches, companyId = "" }: CompliancePag
           <TabsTrigger value="nom035" className="py-2 text-xs font-semibold">
             <Brain className="h-4 w-4 mr-2 text-info" />
             NOM-035 Psicosocial
+          </TabsTrigger>
+          <TabsTrigger value="servicios" className="py-2 text-xs font-semibold">
+            <ShieldCheck className="h-4 w-4 mr-2 text-primary" />
+            Servicios Normativos
           </TabsTrigger>
           <TabsTrigger value="imss" className="py-2 text-xs font-semibold">
             <Users className="h-4 w-4 mr-2 text-success" />
@@ -477,7 +482,28 @@ export function CompliancePageClient({ branches, companyId = "" }: CompliancePag
           </section>
         </TabsContent>
 
-        {/* Tab 4: IMSS, Labor & SAT Hub */}
+        {/* Tab 4: Servicios Normativos */}
+        <TabsContent value="servicios" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-primary" />
+                Servicios Normativos & Pólizas
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Control de servicios obligatorios por sucursal: Fumigación, Extintores, Trampas de Grasa y Calidad de Agua.
+              </p>
+            </div>
+            <Button asChild size="sm" variant="outline" className="text-xs">
+              <Link href="/dashboard/compliance/services">
+                Gestionar Servicios & OS <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+              </Link>
+            </Button>
+          </div>
+          <ComplianceServicesList branchId={selectedBranchId} />
+        </TabsContent>
+
+        {/* Tab 5: IMSS, Labor & SAT Hub */}
         <TabsContent value="imss" className="space-y-4">
           <IMSSOverviewTab branchId={selectedBranchId} />
         </TabsContent>

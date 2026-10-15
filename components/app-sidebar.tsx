@@ -234,7 +234,7 @@ const navMain = [
       },
       {
         title: "Servicios Normativos",
-        url: "/dashboard/equipment/compliance",
+        url: "/dashboard/compliance/services",
       },
       // Las OS nacen aquí (desde Servicios Normativos) y su control gerencial
       // vive en Finanzas › Control Interno — sin sección "Control" suelta.
@@ -265,6 +265,11 @@ const navMain = [
         title: "Protección Civil",
         url: "/dashboard/civil-protection",
         icon: Flame,
+      },
+      {
+        title: "Servicios Normativos",
+        url: "/dashboard/compliance/services",
+        icon: ShieldCheck,
       },
       {
         title: "Reportes",

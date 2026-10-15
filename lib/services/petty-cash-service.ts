@@ -8,6 +8,12 @@ import { eq, and, desc, count, inArray } from "drizzle-orm";
 import { NotificationDispatcher } from "./notification-dispatcher";
 import { ApiError } from "@/lib/api/error";
 import { assertBranchOfCompany, type BranchScope } from "@/lib/branch-scope";
+import { getTenantOperatingConfig } from "./tenant-config-service";
+import {
+  validarAperturaFondo,
+  validarReposicionFondo,
+  validarRetiroFondo,
+} from "@/lib/finance/petty-cash-policy";
 
 export interface RegisterOutflowInput {
   companyId: string;
@@ -122,6 +128,13 @@ export async function openFund(input: OpenFundInput) {
   // `company_id` de quien abrió y el `branch_id` de otra empresa.
   await assertBranchOfCompany(input.companyId, input.branchId);
 
+  const config = await getTenantOperatingConfig(input.companyId);
+  validarAperturaFondo({
+    fundAmountCents: input.fundAmountCents,
+    pettyCashLimitCents: config.pettyCashLimitCents,
+    lowThresholdCents: input.lowThresholdCents,
+  });
+
   const lowThreshold =
     input.lowThresholdCents ?? Math.round(input.fundAmountCents * 0.2);
 
@@ -198,11 +211,12 @@ export async function openFund(input: OpenFundInput) {
 export async function registerOutflow(input: RegisterOutflowInput) {
   const fund = await requireFund(input.companyId, input.branchId);
 
-  if (fund.currentBalance < input.amountCents) {
-    throw new Error(
-      `Saldo insuficiente en caja chica. Saldo actual: $${(fund.currentBalance / 100).toFixed(2)} MXN.`
-    );
-  }
+  validarRetiroFondo({
+    amountCents: input.amountCents,
+    currentBalanceCents: fund.currentBalance,
+    concept: input.concept,
+    evidenceUrl: input.evidenceUrl,
+  });
 
   // Atomic deduction
   const newBalance = fund.currentBalance - input.amountCents;
@@ -254,6 +268,14 @@ export async function registerOutflow(input: RegisterOutflowInput) {
 
 export async function replenishFund(input: ReplenishFundInput) {
   const fund = await requireFund(input.companyId, input.branchId);
+
+  const config = await getTenantOperatingConfig(input.companyId);
+  validarReposicionFondo({
+    amountCents: input.amountCents,
+    currentBalanceCents: fund.currentBalance,
+    fundAmountCents: fund.fundAmount,
+    pettyCashLimitCents: config.pettyCashLimitCents,
+  });
 
   const newBalance = fund.currentBalance + input.amountCents;
 
