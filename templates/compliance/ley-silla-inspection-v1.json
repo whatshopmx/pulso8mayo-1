@@ -24,7 +24,7 @@
   ],
   "tags": ["ley-silla", "ergonomia", "stps", "inspeccion", "pausas-activas", "bipedestacion", "horeca"],
   "aiConfig": {
-    "provider": "gemini",
+    "provider": "cloudflare",
     "fallbackProvider": "openai",
     "maxRetries": 2
   },

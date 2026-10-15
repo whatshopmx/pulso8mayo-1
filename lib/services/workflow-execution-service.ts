@@ -451,10 +451,16 @@ export class WorkflowExecutionService {
             });
         }
 
+        let template: any = null;
         if (instance) {
-            const template = await db.query.workflowTemplates.findFirst({
+            template = await db.query.workflowTemplates.findFirst({
                 where: eq(workflowTemplates.id, instance.workflowTemplateId)
             });
+
+            if (!template && instance.workflowTemplateId) {
+                const { templateLibrary } = await import("@/templates");
+                template = templateLibrary[instance.workflowTemplateId] || null;
+            }
 
             if (template) {
                 const steps = (typeof template.steps === 'string' ? JSON.parse(template.steps) : template.steps) as WorkflowStep[];
@@ -506,6 +512,14 @@ export class WorkflowExecutionService {
 
             const stepConfig = currentStepDef.config as any;
 
+            // Transmitir configuración de IA a la ejecución (C25 / H07)
+            const { resolveStepAiConfig } = await import("@/lib/workflows/ai-config-policy");
+            const effectiveAiConfig = resolveStepAiConfig({
+                stepDef: currentStepDef,
+                instance,
+                template,
+            });
+
             if (stepConfig?.verificationRule) {
                 // New: Verification Rule Engine Logic
                 let urlToVerify = data.evidenceUrl || (currentStepDef.type === 'PHOTO' ? data.value : null);
@@ -525,7 +539,7 @@ export class WorkflowExecutionService {
                 if (urlToVerify && typeof urlToVerify === 'string') {
                     const { VerificationEngine } = await import("./verification-engine");
                     const rule = stepConfig.verificationRule;
-                    const result = await VerificationEngine.evaluate(urlToVerify, rule);
+                    const result = await VerificationEngine.evaluate(urlToVerify, rule, effectiveAiConfig);
 
                     // Merge result while preserving backward compatibility for 'passed' field
                     aiAnalysis = {
@@ -559,11 +573,10 @@ export class WorkflowExecutionService {
                     const { AIService } = await import("./ai-service");
                     aiAnalysis = await AIService.verifyPhoto(
                         urlToVerify,
-                        (currentStepDef.aiVerification?.prompt || currentStepDef.config?.aiVerification?.prompt || "Verify this photo.")
+                        (currentStepDef.aiVerification?.prompt || currentStepDef.config?.aiVerification?.prompt || "Verify this photo."),
+                        effectiveAiConfig
                     );
                 }
-                // } // template check moved up
-                // } // instance check moved up
             }
         }
 

@@ -6,7 +6,9 @@ import { headers } from "next/headers";
 const verifyRequestSchema = z.object({
   photoUrl: z.string().url("Invalid photo URL"),
   prompt: z.string().min(1, "Prompt is required"),
-  provider: z.enum(['moondream', 'openai']).optional(),
+  provider: z.enum(['moondream', 'openai', 'cloudflare']).optional(),
+  fallbackProvider: z.enum(['moondream', 'openai', 'cloudflare', 'none']).nullable().optional(),
+  maxRetries: z.number().int().min(0).max(5).optional(),
   useFallback: z.boolean().optional().default(true),
 });
 
@@ -21,7 +23,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { photoUrl, prompt, provider, useFallback } = verifyRequestSchema.parse(body);
+    const { photoUrl, prompt, provider, fallbackProvider, maxRetries, useFallback } = verifyRequestSchema.parse(body);
 
     // Import AI service
     const { AIService } = await import("@/lib/services/ai-service");
@@ -29,6 +31,8 @@ export async function POST(req: Request) {
     // Perform verification
     const result = await AIService.verifyPhoto(photoUrl, prompt, {
       provider,
+      fallbackProvider,
+      maxRetries,
       useFallback,
     });
 

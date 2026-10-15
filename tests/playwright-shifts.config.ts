@@ -14,6 +14,7 @@ export default defineConfig({
     "manager-autonomy.spec.ts",
     "group-network.spec.ts",
     "workflow-step-contract.spec.ts",
+    "workflow-ai-config.spec.ts",
   ],
   workers: 1,
   timeout: 120_000,

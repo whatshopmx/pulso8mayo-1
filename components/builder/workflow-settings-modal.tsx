@@ -252,8 +252,8 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
 
             if (initialSettings.aiConfig) {
                 setAiProvider(initialSettings.aiConfig.provider || 'moondream');
-                setAiFallbackProvider(initialSettings.aiConfig.fallbackProvider || 'openai');
-                setAiMaxRetries(initialSettings.aiConfig.maxRetries || 2);
+                setAiFallbackProvider(initialSettings.aiConfig.fallbackProvider || 'none');
+                setAiMaxRetries(initialSettings.aiConfig.maxRetries ?? 2);
             }
 
             if (initialSettings.complianceConfig) {
@@ -310,8 +310,8 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
 
                     if (s.aiConfig) {
                         setAiProvider(s.aiConfig.provider || 'moondream');
-                        setAiFallbackProvider(s.aiConfig.fallbackProvider || 'openai');
-                        setAiMaxRetries(s.aiConfig.maxRetries || 2);
+                        setAiFallbackProvider(s.aiConfig.fallbackProvider || 'none');
+                        setAiMaxRetries(s.aiConfig.maxRetries ?? 2);
                     }
 
                     if (s.complianceConfig) {
@@ -347,8 +347,8 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
                         cumplimientoNormativo,
                         aiConfig: {
                             provider: aiProvider,
-                            fallbackProvider: aiFallbackProvider,
-                            maxRetries: aiMaxRetries
+                            fallbackProvider: aiFallbackProvider === 'none' ? null : aiFallbackProvider,
+                            maxRetries: Number.isFinite(aiMaxRetries) ? Math.min(Math.max(aiMaxRetries, 0), 5) : 2
                         },
                         complianceConfig: {
                             complianceType,
@@ -542,33 +542,49 @@ export function WorkflowSettingsModal({ open, onClose, templateId, initialSettin
 
                         {/* AI Configuration */}
                         <div className="space-y-4 border-t pt-4">
-                            <h3 className="font-semibold">Configuración de IA</h3>
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-semibold">Configuración de IA</h3>
+                                {!canEditPrivileged && (
+                                    <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                                        Solo Administradores
+                                    </span>
+                                )}
+                            </div>
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-2">
                                     <Label className="text-xs">Proveedor</Label>
-                                    <Select value={aiProvider} onValueChange={setAiProvider}>
+                                    <Select value={aiProvider} onValueChange={setAiProvider} disabled={!canEditPrivileged}>
                                         <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="moondream">Moondream</SelectItem>
+                                            <SelectItem value="cloudflare">Cloudflare Workers AI</SelectItem>
                                             <SelectItem value="openai">OpenAI</SelectItem>
-                                            <SelectItem value="gemini">Gemini</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-xs">Proveedor de Respaldo</Label>
-                                    <Select value={aiFallbackProvider} onValueChange={setAiFallbackProvider}>
+                                    <Select value={aiFallbackProvider} onValueChange={setAiFallbackProvider} disabled={!canEditPrivileged}>
                                         <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                                         <SelectContent>
+                                            <SelectItem value="none">Sin respaldo</SelectItem>
+                                            <SelectItem value="cloudflare">Cloudflare Workers AI</SelectItem>
                                             <SelectItem value="openai">OpenAI</SelectItem>
                                             <SelectItem value="moondream">Moondream</SelectItem>
-                                            <SelectItem value="gemini">Gemini</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-xs">Máx. Reintentos</Label>
-                                    <Input type="number" value={aiMaxRetries} onChange={(e) => setAiMaxRetries(parseInt(e.target.value))} className="text-sm" />
+                                    <Label className="text-xs">Máx. Reintentos (0-5)</Label>
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        max={5}
+                                        value={aiMaxRetries}
+                                        onChange={(e) => setAiMaxRetries(parseInt(e.target.value) || 0)}
+                                        disabled={!canEditPrivileged}
+                                        className="text-sm"
+                                    />
                                 </div>
                             </div>
                         </div>

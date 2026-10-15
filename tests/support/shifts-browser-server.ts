@@ -66,6 +66,7 @@ export async function startShiftsBrowserServer() {
         if (id === "/config-test-entry.tsx") return "\0test-config-entry";
         if (id === "/liga-test-entry.tsx") return "\0test-liga-entry";
         if (id === "/workflow-test-entry.tsx") return "\0test-workflow-entry";
+        if (id === "/workflow-settings-test-entry.tsx") return "\0test-workflow-settings-entry";
         if (id === "/config-test-page.tsx") return "\0test-config-page";
         if (id === "/config-test.css") return "\0test-config.css";
       },
@@ -275,10 +276,42 @@ export async function startShiftsBrowserServer() {
             )
           );
         `;
+        // C25 — Modal de configuración de workflows para validar transmisión de IA y fallback
+        if (id === "\0test-workflow-settings-entry") return `
+          import '/config-test.css';
+          import React from 'react';
+          import { createRoot } from 'react-dom/client';
+          import { WorkflowSettingsModal } from '/components/builder/workflow-settings-modal.tsx';
+          import { Toaster } from 'sonner';
+
+          const initialSettings = window.__settingsPrueba || {
+            aiConfig: {
+              provider: 'moondream',
+              fallbackProvider: 'cloudflare',
+              maxRetries: 2,
+            },
+          };
+          const canEditPrivileged = window.__canEditPrivileged ?? true;
+
+          createRoot(document.getElementById('root')).render(
+            React.createElement(
+              React.Fragment,
+              null,
+              React.createElement(WorkflowSettingsModal, {
+                open: true,
+                onClose: () => {},
+                templateId: 'tpl-c25-test',
+                initialSettings,
+                canEditPrivileged,
+              }),
+              React.createElement(Toaster, { position: 'top-right' })
+            )
+          );
+        `;
       },
       configureServer(devServer: { middlewares: { use: (handler: unknown) => void } }) {
         devServer.middlewares.use((req: { url: string }, res: { setHeader: (name: string, value: string) => void; end: (body: string) => void }, next: () => void) => {
-          if (req.url === "/" || req.url === "/config" || req.url === "/transfers" || req.url === "/tesoreria" || req.url === "/liga" || req.url === "/workflow") {
+          if (req.url === "/" || req.url === "/config" || req.url === "/transfers" || req.url === "/tesoreria" || req.url === "/liga" || req.url === "/workflow" || req.url === "/workflow-settings") {
             res.setHeader("Content-Type", "text/html");
             const entrada =
               req.url === "/config" ? "/config-test-entry.tsx"
@@ -286,6 +319,7 @@ export async function startShiftsBrowserServer() {
               : req.url === "/tesoreria" ? "/treasury-test-entry.tsx"
               : req.url === "/liga" ? "/liga-test-entry.tsx"
               : req.url === "/workflow" ? "/workflow-test-entry.tsx"
+              : req.url === "/workflow-settings" ? "/workflow-settings-test-entry.tsx"
               : "/shifts-test-entry.tsx";
             res.end(`<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module" src="${entrada}"></script></body></html>`);
             return;

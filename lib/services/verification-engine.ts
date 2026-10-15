@@ -14,18 +14,19 @@ function tryParseJSON(text: string): Record<string, any> | null {
 
 export class VerificationEngine {
     /**
-     * Evaluates a photo against a set of verification rules.
+     * Evaluates a photo against a set of verification rules using the configured AI provider.
      */
     static async evaluate(
         photoUrl: string,
-        rule: VerificationRule
+        rule: VerificationRule,
+        aiConfig?: import('./ai-service').AIConfig
     ): Promise<VerificationResult> {
-        // 1. Perform AI Analysis
+        // 1. Perform AI Analysis with configured provider / fallback
         const aiResult = await AIService.performVerification(photoUrl, rule.verificationType, {
             expectedObjects: rule.expectedObjects,
             forbiddenObjects: rule.forbiddenObjects,
             categories: rule.expectedObjects
-        });
+        }, aiConfig);
 
         // 2. Evaluate Rule Logic
         let success = aiResult.passed; // Default to AI's simple pass/fail judgment first

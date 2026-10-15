@@ -33,9 +33,14 @@ const scheduleSchema = z.object({
   cumplimientoNormativo: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   aiConfig: z.object({
-    provider: z.string().optional(),
-    fallbackProvider: z.string().optional(),
-    maxRetries: z.number().optional(),
+    provider: z.enum(['moondream', 'openai', 'cloudflare'], {
+      message: 'Proveedor de IA no soportado. Proveedores soportados: moondream, openai, cloudflare',
+    }).optional(),
+    fallbackProvider: z.enum(['moondream', 'openai', 'cloudflare', 'none'], {
+      message: 'Proveedor de respaldo no soportado. Soportados: moondream, openai, cloudflare, none',
+    }).nullable().optional(),
+    maxRetries: z.number().int('maxRetries debe ser un número entero').min(0, 'maxRetries no puede ser negativo').max(5, 'maxRetries no puede ser mayor a 5').optional(),
+    useFallback: z.boolean().optional(),
   }).optional(),
   complianceConfig: z.object({
     complianceType: z.string().optional(),

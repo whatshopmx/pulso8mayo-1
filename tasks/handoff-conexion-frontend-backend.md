@@ -158,32 +158,31 @@ El plan define cuatro verificaciones. Cada tarea declara cuál usa:
 | `tenantType` segmenta la Liga de Sucursales en redes (propias vs franquicias) y expone contradicciones; visibilidad por `branchVisibilityFilter` | 15-10 | Evidencia de C22 |
 | `pettyCashLimitCents` fija el tope corporativo del fondo fijo de caja chica; salidas limitadas por saldo físico; aprobaciones por matriz de gastos | 15-10 | Evidencia de C23 |
 | El contrato del paso valida tipo, valor, rango y evidencia antes de persistir; SKIPPED exige rol SUPERVISOR+ y justificación obligatoria; instancia terminal bloquea modificaciones con WORKFLOW_TERMINAL (409) | 15-10 | Evidencia de C24 (`docs/audits/2026-10-15-workflow-step-contract.md`) |
+| Transmisión efectiva de `aiConfig` con Cloudflare Workers AI (`@cf/meta/llama-3.2-11b-vision-instruct`), Moondream y OpenAI; fallback simétrico, reintentos acotados (0–5), sanitización de credenciales y gate de privilegios en Builder | 15-10 | Evidencia de C25 (`docs/audits/2026-10-15-workflow-ai-config.md`) |
 
-**Pendientes de decisión** (condicionan C25–C28, no bloquean el trabajo): quién revisa un workflow (lectura conservadora `SUPERVISOR`+ vigente); si la exclusión de `ADMIN` en `policy_overrides` se confirma; horario, urgencias y zona horaria de notificaciones; consumidores externos del executor anterior.
+**Pendientes de decisión** (condicionan C26–C28, no bloquean el trabajo): quién revisa un workflow (lectura conservadora `SUPERVISOR`+ vigente); umbral de confianza para autoaprobación de IA (C26); horario, urgencias y zona horaria de notificaciones; consumidores externos del executor anterior.
 
-## 8. Siguiente paso — C25
+## 8. Siguiente paso — C26
 
-**C24 quedó completa y verificada (V1, V2 y V3).** Toda actualización de pasos de workflow valida autoritativamente el contrato en servidor (evidencia requerida, rangos numéricos, opciones válidas, bloqueo de transiciones en instancias terminales con 409 y omisión autorizada SKIPPED con 403/400).
+**C25 quedó completa y verificada (V1, V2 y V3).** `aiConfig` se transmite autoritativamente desde la jerarquía (Paso > Instancia > Plantilla > Defaults) hacia `VerificationEngine.evaluate` y `AIService.verifyPhoto`. Se implementó el adaptador de **Cloudflare Workers AI**, fallback simétrico bidireccional, descarte estricto de proveedores no soportados (`gemini`) con `InvalidAIConfigError`, y saneamiento de credenciales de servidor.
 
-C25 continúa la **Fase 4 — Workflows y verificación**.
-Objetivo: **Transmitir configuración de IA a la ejecución** (H07).
-- Pasar `aiConfig` de la plantilla/instancia al adaptador y definir defaults, proveedor alternativo y límite efectivo de reintentos.
+C26 continúa la **Fase 4 — Workflows y verificación**.
+Objetivo: **Conservar confianza mínima en el veredicto IA** (H07).
+- Combinar confianza, resultado específico y autoaprobación como condiciones explícitas para impedir que una rama sobrescriba un rechazo obligatorio.
 - Criterios:
-  1. El proveedor configurado se utiliza en ambas vías de verificación actuales.
-  2. Proveedor alternativo y reintentos tienen una semántica efectiva y no multiplican los reintentos de Inngest.
-  3. Una configuración inválida falla de forma explícita; las credenciales permanecen en servidor.
+  1. Calidad o seguridad favorables no autoaprueban cuando no se cumple la confianza requerida.
+  2. Cada resultado conserva motivo, proveedor, confianza y necesidad de revisión.
+  3. Los casos frontera de confianza y autoApprove tienen resultado determinista.
 - Archivos clave:
-  - `lib/services/workflow-execution-service.ts`
   - `lib/services/verification-engine.ts`
-  - `lib/services/ai-service.ts`
-  - `components/builder/workflow-settings-modal.tsx`
-  - `tests/workflows/ai-config.test.ts` (nuevo)
+  - `lib/types/ai-verification.ts`
+  - `tests/unit/workflows/verification-verdict.test.ts` (nuevo)
 
 ## 9. Fase 4 — Workflows y verificación
 
 C24–C28 conforman el bloque de workflows:
-- C24: Validar el contrato del paso en servidor.
-- C25: Transmitir configuración de IA a la ejecución.
-- C26: Conservar confianza mínima en el veredicto IA.
-- C27: Hacer única la transición de finalización.
-- C28: Garantizar entrega de eventos y mostrar efectos pendientes.
+- [x] C24: Validar el contrato del paso en servidor.
+- [x] C25: Transmitir configuración de IA a la ejecución.
+- [ ] C26: Conservar confianza mínima en el veredicto IA.
+- [ ] C27: Hacer única la transición de finalización.
+- [ ] C28: Garantizar entrega de eventos y mostrar efectos pendientes.

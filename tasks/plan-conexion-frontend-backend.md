@@ -935,19 +935,29 @@ Pasar aiConfig de la plantilla/instancia al adaptador y definir defaults, provee
 
 **Criterios de aceptación:**
 
-- [ ] El proveedor configurado se utiliza en ambas vías de verificación actuales.
-- [ ] Proveedor alternativo y reintentos tienen una semántica efectiva y no multiplican los reintentos de Inngest.
-- [ ] Una configuración inválida falla de forma explícita; las credenciales permanecen en servidor.
+- [x] El proveedor configurado se utiliza en ambas vías de verificación actuales (`VerificationEngine.evaluate` y `AIService.verifyPhoto`).
+- [x] Proveedor alternativo (fallback simétrico Moondream <-> Cloudflare <-> OpenAI) y reintentos (acotados a 0–5) tienen una semántica efectiva y no multiplican los reintentos de Inngest.
+- [x] Una configuración inválida falla de forma explícita (`InvalidAIConfigError`); las credenciales permanecen en servidor (`sanitizeAIConfig`).
 
-**Verificación:** V1 con adaptadores simulados y conteo de llamadas; V2 de guardar configuración y verificar su uso.
+**Verificación ejecutada (15-10-2026):** V1 — `tests/unit/workflows/ai-config-policy.test.ts` (13) y `tests/unit/workflows/ai-config-service.test.ts` (7) con adaptadores mockeados, conteo estricto de llamadas en primario y fallback, validación de jerarquía (Paso > Instancia > Plantilla > Defaults), descarte de proveedores no soportados (`gemini`) y saneamiento de credenciales; suite completa de workflows 139/139 aprobadas (14 archivos). V2 — `tests/e2e/workflow-ai-config.spec.ts` (2) en Chromium aislado (`playwright-shifts.config.ts`) con modal real del Builder configurando Cloudflare Workers AI como primario, OpenAI como respaldo, maxRetries a 3, persistencia en API y verificación de bloqueo en roles no privilegiados (`canEditPrivileged = false`). V3/base real — `scripts/verify-workflow-ai-config.ts` (5) contra Neon Postgres viva con siembra y limpieza, persistencia real de `aiConfig` en `workflow_templates`, resolución en ejecución real, persistencia de análisis de IA con fallback y verificación forense de cero filtración de secretos. `tsc --noEmit` limpio, `lint` 0 errores. Evidencia en [C25](../docs/audits/2026-10-15-workflow-ai-config.md).
 
-**Archivos probables:**
+**Archivos modificados y creados:**
 
-- `lib/services/workflow-execution-service.ts`
-- `lib/services/verification-engine.ts`
+- `lib/workflows/ai-config-policy.ts` (nuevo)
+- `lib/ai/providers/cloudflare.ts` (nuevo)
 - `lib/services/ai-service.ts`
+- `lib/services/verification-engine.ts`
+- `lib/services/workflow-execution-service.ts`
+- `app/api/templates/[id]/settings/route.ts`
+- `app/api/ai/verify/route.ts`
 - `components/builder/workflow-settings-modal.tsx`
-- `tests/workflows/ai-config.test.ts (nuevo)`
+- `templates/compliance/ley-silla-inspection-v1.json`
+- `tests/unit/workflows/ai-config-policy.test.ts` (nuevo)
+- `tests/unit/workflows/ai-config-service.test.ts` (nuevo)
+- `tests/e2e/workflow-ai-config.spec.ts` (nuevo)
+- `tests/support/shifts-browser-server.ts`
+- `tests/playwright-shifts.config.ts`
+- `scripts/verify-workflow-ai-config.ts` (nuevo)
 
 <a id="c26"></a>
 
