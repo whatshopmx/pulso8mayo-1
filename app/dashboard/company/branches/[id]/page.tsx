@@ -8,7 +8,7 @@ import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, MapPin, Users, UserCog, Calendar, Clock, QrCode, Mail, Send, MessageCircle, Copy } from "lucide-react";
@@ -21,6 +21,7 @@ import { HolidaysManager } from "@/components/holidays-manager";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Branch {
     id: string;
@@ -33,6 +34,9 @@ interface Branch {
     inviteToken: string;
     managerInviteToken: string;
     active: boolean;
+    /** C22 — la propiedad capturada de la sucursal. Antes siempre `OWNED`. */
+    ownershipType: "OWNED" | "FRANCHISE";
+    franchiseeUserId: string | null;
 manager?: {
     id: string;
     name: string | null;
@@ -48,6 +52,13 @@ interface Employee {
     role: string;
 }
 
+/** Candidatos a franquiciatario: los gerentes y administradores de la empresa. */
+interface FranchiseeCandidate {
+    id: string;
+    name: string | null;
+    email: string;
+}
+
 export default function BranchDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = use(params);
     const router = useRouter();
@@ -56,6 +67,7 @@ export default function BranchDetailsPage({ params }: { params: Promise<{ id: st
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [companyId, setCompanyId] = useState<string>("");
     const [branchLoading, setBranchLoading] = useState(true);
+    const [franchiseeCandidates, setFranchiseeCandidates] = useState<FranchiseeCandidate[]>([]);
     
     // UI State
     const [activeTab, setActiveTab] = useState("general");
@@ -71,7 +83,9 @@ export default function BranchDetailsPage({ params }: { params: Promise<{ id: st
             address: "",
             timezone: "America/Mexico_City",
             operatingHours: undefined,
-            managerId: null
+            managerId: null,
+            ownershipType: "OWNED",
+            franchiseeUserId: null
         },
     });
 
@@ -100,7 +114,9 @@ export default function BranchDetailsPage({ params }: { params: Promise<{ id: st
                     address: data.address || "",
                     timezone: data.timezone || "America/Mexico_City",
                     operatingHours: data.operatingHours,
-                    managerId: data.managerId || null
+                    managerId: data.managerId || null,
+                    ownershipType: data.ownershipType || "OWNED",
+                    franchiseeUserId: data.franchiseeUserId || null
                 });
             } catch (e) {
                 console.error(e);
@@ -127,6 +143,23 @@ export default function BranchDetailsPage({ params }: { params: Promise<{ id: st
         }
         loadEmployees();
     }, [resolvedParams]);
+
+    // C22 — quién puede figurar como franquiciatario responsable: los gerentes
+    // y administradores de la empresa, los mismos que pueden llevar una
+    // sucursal. Es la lista que ya usa el selector de gerente.
+    useEffect(() => {
+        async function loadFranchisees() {
+            try {
+                const res = await fetch("/api/branches/managers");
+                if (!res.ok) return;
+                const response = await res.json();
+                setFranchiseeCandidates(response.data || []);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        loadFranchisees();
+    }, []);
 
     useEffect(() => {
         async function loadWhatsappPhone() {
@@ -351,6 +384,81 @@ export default function BranchDetailsPage({ params }: { params: Promise<{ id: st
                                                 </FormItem>
                                             )}
                                         />
+                                        {/* C22 — la propiedad decide a qué red
+                                            pertenece la sucursal y, en una
+                                            franquicia, quién es su responsable. */}
+                                        <FormField
+                                            control={form.control}
+                                            name="ownershipType"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Propiedad de la sucursal</FormLabel>
+                                                    <FormControl>
+                                                        <Select
+                                                            value={field.value ?? "OWNED"}
+                                                            onValueChange={(valor) => {
+                                                                field.onChange(valor);
+                                                                // Volver a "propia" limpia al
+                                                                // responsable: dejarlo puesto sería
+                                                                // un dato que el filtro leería si
+                                                                // alguien la reclasifica.
+                                                                if (valor === "OWNED") {
+                                                                    form.setValue("franchiseeUserId", null);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <SelectTrigger id="ownershipType">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="OWNED">Sucursal propia</SelectItem>
+                                                                <SelectItem value="FRANCHISE">Sucursal franchizada</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </FormControl>
+                                                    <FormDescription>
+                                                        Define en qué red se mide esta sucursal. Una
+                                                        sucursal propia y una franquiciada no comparten
+                                                        promedio: son economías distintas.
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        {form.watch("ownershipType") === "FRANCHISE" && (
+                                            <FormField
+                                                control={form.control}
+                                                name="franchiseeUserId"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Franquiciatario responsable</FormLabel>
+                                                        <FormControl>
+                                                            <Select
+                                                                value={field.value ?? ""}
+                                                                onValueChange={field.onChange}
+                                                            >
+                                                                <SelectTrigger id="franchiseeUserId">
+                                                                    <SelectValue placeholder="Elige a quién corresponde" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {franchiseeCandidates.map((candidato) => (
+                                                                        <SelectItem key={candidato.id} value={candidato.id}>
+                                                                            {candidato.name || candidato.email}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </FormControl>
+                                                        <FormDescription>
+                                                            Es la persona que puede ver esta sucursal. Sin
+                                                            responsable, el filtro de visibilidad no
+                                                            puede mostrarle nada.
+                                                        </FormDescription>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        )}
                                         <Button type="submit" disabled={saving}>
                                             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                             Guardar Cambios

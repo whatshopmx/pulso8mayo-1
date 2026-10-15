@@ -56,7 +56,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         
         const { id } = await params;
         await BranchService.getBranch(id, tenant.id!); // ownership check
-        await BranchService.deleteBranch(id);
+        await BranchService.deleteBranch(id, tenant.id!);
         return ApiHandler.success({ message: "Branch deleted" });
     } catch (error) {
         return ApiHandler.error(error);
