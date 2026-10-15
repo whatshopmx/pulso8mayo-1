@@ -458,24 +458,61 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
     unidad: "Enum de 2 valores",
     alcance: "Grupo",
     permiso: "settings/update",
-    clasificacion: "pendiente",
-    consumidor: null,
+    clasificacion: "aplicada",
+    consumidor: {
+      archivo: "lib/company/tenant-network-policy.ts",
+      simbolo: "segmentaRed",
+      decide:
+        "Si el consolidado del grupo se mide como una sola red o como dos " +
+        "(red propia y red de franquicias), y qué contradicciones de captura quedan a la vista.",
+    },
+    consumidores: [
+      {
+        archivo: "lib/company/tenant-network-policy.ts",
+        simbolo: "segmentaRed",
+        decide:
+          "Declara si la red se segmenta según la declaración del grupo y la propiedad capturada en cada sucursal.",
+      },
+      {
+        archivo: "lib/services/cross-branch-service.ts",
+        simbolo: "segmentaRed",
+        decide:
+          "Separa el ranking QSR en segmentos por red y calcula promedios, podio y hallazgos dentro de cada una.",
+      },
+    ],
     aplicacion:
-      "La aislación de franquicias sí existe y sí funciona, pero se decide por " +
-      "sucursal con `branches.ownershipType` (`lib/rbac/abac.ts`, " +
-      "`lib/rbac/branch-visibility.ts`). Esta columna de grupo no participa.",
+      "Se lee en la Liga de Sucursales: `segmentaRed` decide con `tenantType` si el consolidado es una " +
+      "red o dos, y `CrossBranchService.getBranchQSRRanking` mide cada red por separado —promedio, " +
+      "podio y anomalías— y etiqueta cada hallazgo con su red. El tipo de empresa no concede permisos: " +
+      "antes de agregar, `branchVisibilityFilter` acota las sucursales a las que el actor puede ver.",
     excepciones:
-      "Un grupo con `GRUPO_PROPIO` puede tener sucursales marcadas como `FRANCHISE` " +
-      "y la aislación se sigue aplicando: manda el atributo de la sucursal, no el de la empresa.",
+      "La propiedad de cada sucursal es `branches.ownershipType` y sigue mandando para visibilidad y " +
+      "aislamiento; esta columna sólo decide si la red se separa en segmentos comparables. Una " +
+      "franquicia nunca entra en el promedio de la red propia ni aunque el grupo declare red propia, " +
+      "y esa contradicción queda escrita en el resultado en vez de ocultarse.",
     vacio: "No aplica: la columna es `notNull` con default `GRUPO_PROPIO`.",
     valores: [
-      { valor: "GRUPO_PROPIO", titulo: "Grupo Propio", caso: null },
-      { valor: "MIXTO_FRANQUICIAS", titulo: "Mixto con Franquiciatarios", caso: null },
+      {
+        valor: "GRUPO_PROPIO",
+        titulo: "Grupo Propio",
+        caso: {
+          dado: "grupo declarado `GRUPO_PROPIO` (default)",
+          cuando: "se calcula el ranking de la Liga de Sucursales",
+          entonces:
+            "el consolidado es una sola red: promedios, podio y hallazgos comparan todas las sucursales visibles entre sí; si alguna está marcada `FRANCHISE` se mide aparte y la contradicción queda declarada",
+        },
+      },
+      {
+        valor: "MIXTO_FRANQUICIAS",
+        titulo: "Mixto con Franquiciatarios",
+        caso: {
+          dado: "grupo declarado `MIXTO_FRANQUICIAS`",
+          cuando: "se calcula el ranking de la Liga de Sucursales",
+          entonces:
+            "la red se separa en propia y de franquicias: cada una promedia, rankea y detecta anomalías dentro de su red, y un grupo sin ninguna franquicia marcada queda advertido en `contradicciones`",
+        },
+      },
     ],
-    decisionPendiente:
-      "Falta definir si este modelo asigna la propiedad de las sucursales nuevas " +
-      "o sólo describe al grupo. Hoy la visibilidad se decide por la propiedad " +
-      "capturada en cada sucursal; esta selección no la cambia.",
   },
 
   // ── Umbrales monetarios ────────────────────────────────────────────────

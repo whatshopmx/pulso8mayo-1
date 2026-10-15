@@ -183,7 +183,9 @@ describe("CrossBranchService — QSR Prime Cost & Benchmarking", () => {
         .mockResolvedValueOnce(mockResult);
 
       const res = await CrossBranchService.getBranchRanking("comp-1", 30);
-      expect(spy).toHaveBeenCalledWith("comp-1", 30);
+      // C22 — el tercer argumento es el alcance del actor: sin él la red es
+      // completa, que es lo que quieren los trabajos programados.
+      expect(spy).toHaveBeenCalledWith("comp-1", 30, undefined);
       expect(res.branches[0].primeCostPercent).toBe(55.0);
       expect(res.branches[0].foodCostPercent).toBe(31.0);
       expect(res.branches[0].laborCostPercent).toBe(24.0);

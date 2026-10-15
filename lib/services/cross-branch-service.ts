@@ -6,6 +6,26 @@
  *
  * Each public method is wrapped with unstable_cache (5 min TTL) so the
  * executive dashboard doesn't hammer the DB on every refresh.
+ *
+ * **C22 — dos reglas que este servicio aplica y antes no aplicaba.**
+ *
+ * 1. *Alcance del actor*. Las agregaciones de grupo se piden con `companyId` y
+ *    nada más, así que cualquier sesión con empresa leía todas las sucursales
+ *    de esa empresa: un gerente veía ventas, food cost y nómina de sucursales
+ *    que no son suyas. Cuando el llamador pasa `ctx`, la lista de sucursales
+ *    pasa por `branchVisibilityFilter` (`lib/rbac/branch-visibility.ts`) antes
+ *    de agregar. Sin `ctx` el comportamiento es el de siempre, y lo conservan
+ *    a propósito los trabajos programados (Inngest) y los motores de
+ *    inteligencia, donde el número del grupo es justo lo que se quiere calcular.
+ * 2. *Separación de redes*. `tenantType` decide si el consolidado se mide como
+ *    una sola red o como dos —red propia y red de franquicias—, según
+ *    `segmentaRed` (`lib/company/tenant-network-policy.ts`). Los promedios de
+ *    grupo no cambian; lo que se añade es medirlos y comparar dentro de cada
+ *    red, y que cada hallazgo diga a qué red pertenece.
+ *
+ * La caché lleva el alcance en la clave. Una clave por empresa con dos alcances
+ * distintos serviría el ranking de un gerente al dueño: por eso la huella del
+ * conjunto visible forma parte de la clave, y no sólo el `companyId`.
  */
 
 import { db } from "@/lib/db";
@@ -24,6 +44,18 @@ import {
 import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { subDays, startOfDay, endOfDay } from "date-fns";
+import type { AccessContext } from "@/lib/rbac/abac";
+import { branchVisibilityFilter } from "@/lib/rbac/branch-visibility";
+import {
+  segmentaRed,
+  idsDeSegmento,
+  veredictoDeRed,
+  ETIQUETA_RED,
+  type AlcanceRed,
+  type TipoEmpresa,
+  type TipoRed,
+} from "@/lib/company/tenant-network-policy";
+import { getTenantOperatingConfig } from "@/lib/services/tenant-config-service";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -139,6 +171,56 @@ export interface NetworkAnomalyFinding {
   variancePoints: number; // puntos porcentuales de desvío
   estimatedImpactMxn: number;
   suggestedAction: string;
+  /**
+   * C22 — la red a la que pertenece el hallazgo. Está cuando la red está
+   * segmentada: un desvío contra las hermanas de otra red no significa lo
+   * mismo que uno dentro de la propia.
+   */
+  red?: TipoRed;
+}
+
+/** Promedios de una red. Los mismos tres campos del consolidado, por red. */
+export interface PromediosRed {
+  primeCost: number;
+  foodCost: number;
+  laborCost: number;
+}
+
+/** Una red del grupo: qué sucursales la forman y cómo se midieron. */
+export interface SegmentoRedMedido {
+  tipo: TipoRed;
+  etiqueta: string;
+  /** Ids de las sucursales del segmento, en el orden de la política. */
+  branchIds: string[];
+  sucursales: number;
+  promedios: PromediosRed;
+  podiumTop3: BranchQSRScore[];
+  /** Hallazgos calculados **dentro** del segmento. */
+  anomalias: NetworkAnomalyFinding[];
+}
+
+/** Lo que la política de tipo de empresa decidió para este grupo. */
+export interface RedAgrupada {
+  tipoEmpresa: TipoEmpresa;
+  segmentada: boolean;
+  /** Texto para la pantalla: por qué hay una red o dos. */
+  veredicto: ReturnType<typeof veredictoDeRed>;
+  segmentos: SegmentoRedMedido[];
+  /** Capturas inconsistentes que la política dejó a la vista. */
+  contradicciones: string[];
+}
+
+/**
+ * Cuánto de la red ve quien pidió el ranking. `completa: false` significa que
+ * las cifras son de un subconjunto y la pantalla tiene que decirlo: el
+ * consolidado de un gerente no es el consolidado del grupo.
+ */
+export interface AlcanceDelActor {
+  completa: boolean;
+  visibles: number;
+  total: number;
+  /** Por qué no ve la red completa, o `null` si la ve. */
+  motivo: string | null;
 }
 
 export interface BranchQSRRankingResult {
@@ -149,6 +231,9 @@ export interface BranchQSRRankingResult {
   networkAverageFoodCost: number;
   networkAverageLaborCost: number;
   anomalies: NetworkAnomalyFinding[];
+  /** C22 — comparación por redes y alcance de quien pidió los datos. */
+  red?: RedAgrupada;
+  alcance?: AlcanceDelActor;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +319,147 @@ const CACHE_TAGS = ["cross-branch"];
 
 function cacheKey(companyId: string, method: string): string {
   return `cross-branch:${companyId}:${method}`;
+}
+
+/**
+ * Huella corta y estable del conjunto de sucursales que entra en una
+ * agregación.
+ *
+ * Va en la clave de caché porque dos actores de la misma empresa pueden ver
+ * conjuntos distintos: con una clave sólo por empresa, el ranking que se calculó
+ * para un gerente se le serviría al dueño. Ordena los ids para que el mismo
+ * conjunto produzca siempre la misma huella y el caché siga sirviendo.
+ */
+function huellaDeAlcance(branchIds: readonly string[]): string {
+  const ordenados = [...branchIds].sort();
+  let hash = 5381;
+  for (const id of ordenados) {
+    for (let i = 0; i < id.length; i++) {
+      hash = (hash * 33) ^ id.charCodeAt(i);
+    }
+    hash = (hash * 33) ^ 0x2c;
+  }
+  return `${ordenados.length}-${(hash >>> 0).toString(36)}`;
+}
+
+/** Cómo se calcula el conjunto de sucursales que entra en la agregación. */
+export interface AlcanceRedResuelto {
+  /** Filas de `branches` de la empresa, con su propiedad capturada. */
+  todas: Array<{ id: string; name: string; ownershipType: "OWNED" | "FRANCHISE"; franchiseeUserId: string | null }>;
+  /** Las que entran después del filtro de visibilidad, si el llamador dio `ctx`. */
+  visibles: Array<{ id: string; name: string; ownershipType: "OWNED" | "FRANCHISE"; franchiseeUserId: string | null }>;
+  alcance: AlcanceDelActor;
+}
+
+const MOTIVO_ALCANCE_PARCIAL =
+  "Estás viendo sólo las sucursales que te corresponden: las cifras no son el consolidado del grupo.";
+
+/**
+ * Resuelve el alcance antes de cachear, y de paso decide las redes.
+ *
+ * Va fuera del `unstable_cache` a propósito: el filtro depende del actor y la
+ * clave de caché tiene que poder distinguirlo. Leer la lista de sucursales es
+ * una consulta ligera; lo caro —ventas, costos, merma— sigue cacheado.
+ */
+async function resolverAlcance(
+  companyId: string,
+  ctx?: AccessContext,
+): Promise<AlcanceRedResuelto> {
+  const todas = await db
+    .select({
+      id: branches.id,
+      name: branches.name,
+      ownershipType: branches.ownershipType,
+      franchiseeUserId: branches.franchiseeUserId,
+    })
+    .from(branches)
+    .where(eq(branches.companyId, companyId));
+
+  const filas = todas.map((b) => ({
+    ...b,
+    ownershipType: (b.ownershipType ?? "OWNED") as "OWNED" | "FRANCHISE",
+    franchiseeUserId: b.franchiseeUserId ?? null,
+  }));
+
+  if (!ctx) {
+    return {
+      todas: filas,
+      visibles: filas,
+      alcance: { completa: true, visibles: filas.length, total: filas.length, motivo: null },
+    };
+  }
+
+  const permitidas = new Set(
+    branchVisibilityFilter(ctx, filas.map((b) => ({
+      id: b.id,
+      ownershipType: b.ownershipType,
+      franchiseeUserId: b.franchiseeUserId,
+    }))),
+  );
+  const visibles = filas.filter((b) => permitidas.has(b.id));
+
+  return {
+    todas: filas,
+    visibles,
+    alcance: {
+      completa: visibles.length === filas.length,
+      visibles: visibles.length,
+      total: filas.length,
+      motivo: visibles.length === filas.length ? null : MOTIVO_ALCANCE_PARCIAL,
+    },
+  };
+}
+
+/**
+ * Mide cada red por separado y devuelve los hallazgos etiquetados.
+ *
+ * Los promedios de red salen de los mismos scores ya calculados: no se vuelve a
+ * consultar nada. El podium también se recorta dentro del segmento, porque un
+ * "top 3" con dos sucursales de una red y una de otra no describe a ninguna.
+ */
+function medirRedes(
+  alcance: AlcanceRed,
+  scores: BranchQSRScore[],
+): RedAgrupada {
+  const segmentos: SegmentoRedMedido[] = alcance.segmentos.map((segmento) => {
+    const ids = new Set(idsDeSegmento(segmento));
+    const delSegmento = scores
+      .filter((s) => ids.has(s.branchId))
+      .sort((a, b) => b.compositeScore - a.compositeScore);
+
+    return {
+      tipo: segmento.tipo,
+      etiqueta: segmento.etiqueta,
+      branchIds: [...ids],
+      sucursales: delSegmento.length,
+      promedios: promediosDeRed(delSegmento),
+      podiumTop3: delSegmento.slice(0, 3),
+      anomalias: detectNetworkAnomalies(delSegmento, { red: segmento.tipo }),
+    };
+  });
+
+  return {
+    tipoEmpresa: alcance.tipoEmpresa,
+    segmentada: alcance.segmentada,
+    veredicto: veredictoDeRed(alcance),
+    segmentos,
+    contradicciones: alcance.contradicciones,
+  };
+}
+
+/** Los mismos tres promedios del consolidado, restringidos a un conjunto. */
+function promediosDeRed(scores: BranchQSRScore[]): PromediosRed {
+  if (scores.length === 0) return { primeCost: 0, foodCost: 0, laborCost: 0 };
+  const activo = scores.filter((b) => b.salesTotalCents > 0);
+  const cuenta = activo.length || scores.length;
+  const promedio = (accesor: (b: BranchQSRScore) => number) =>
+    Math.round((scores.reduce((acc, b) => acc + accesor(b), 0) / cuenta) * 10) / 10;
+
+  return {
+    primeCost: promedio((b) => b.primeCostPercent),
+    foodCost: promedio((b) => b.foodCostPercent),
+    laborCost: promedio((b) => b.laborCostPercent),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -892,25 +1118,40 @@ export const CrossBranchService = {
 
   async getBranchRanking(
     companyId: string,
-    periodDays = 30
+    periodDays = 30,
+    ctx?: AccessContext
   ): Promise<BranchQSRRankingResult> {
-    return this.getBranchQSRRanking(companyId, periodDays);
+    return this.getBranchQSRRanking(companyId, periodDays, ctx);
   },
 
   // -----------------------------------------------------------------------
   // getBranchQSRRanking — Prime Cost, Scorecard QSR y Detección de Anomalías
   // -----------------------------------------------------------------------
 
+  /**
+   * `ctx` es el actor que pide la agregación. Sin él la red es completa, que
+   * es lo que quieren los trabajos programados y los motores de inteligencia;
+   * con él, la red se acota a lo que ese actor puede ver y el resultado lo dice
+   * en `alcance`.
+   */
   async getBranchQSRRanking(
     companyId: string,
-    periodDays = 30
+    periodDays = 30,
+    ctx?: AccessContext
   ): Promise<BranchQSRRankingResult> {
+    const [config, alcance] = await Promise.all([
+      getTenantOperatingConfig(companyId),
+      resolverAlcance(companyId, ctx),
+    ]);
+
+    const tipoEmpresa = config.tenantType;
+    const visible = alcance.visibles;
+    const red = segmentaRed(tipoEmpresa, visible);
+    const huella = `${tipoEmpresa}-${alcance.alcance.completa ? "grupo" : huellaDeAlcance(visible.map((b) => b.id))}`;
+
     return unstable_cache(
       async (cid: string, pDays: number) => {
-        const branchList = await db
-          .select({ id: branches.id, name: branches.name })
-          .from(branches)
-          .where(eq(branches.companyId, cid));
+        const branchList = visible;
 
         if (branchList.length === 0) {
           return {
@@ -921,6 +1162,8 @@ export const CrossBranchService = {
             networkAverageFoodCost: 0,
             networkAverageLaborCost: 0,
             anomalies: [],
+            red: medirRedes(red, []),
+            alcance: alcance.alcance,
           };
         }
 
@@ -1143,7 +1386,15 @@ export const CrossBranchService = {
           ) / 10;
 
         // 9. Detección de inconsistencias de red
-        const anomalies = detectNetworkAnomalies(sortedBranches);
+        // C22 — cuando la red está segmentada, cada hallazgo se calcula y se
+        // nombra dentro de su red: comparar una franquicia contra el promedio de
+        // la red propia produce alertas que no significan nada. El consolidado
+        // conserva la lista completa para que quien la lea pueda ver de qué red
+        // sale cada uno (`red` en cada hallazgo).
+        const redes = medirRedes(red, sortedBranches);
+        const anomalies = redes.segmentada
+          ? redes.segmentos.flatMap((segmento) => segmento.anomalias)
+          : detectNetworkAnomalies(sortedBranches);
 
         return {
           periodDays: pDays,
@@ -1153,9 +1404,11 @@ export const CrossBranchService = {
           networkAverageFoodCost: avgFood,
           networkAverageLaborCost: avgLabor,
           anomalies,
+          red: redes,
+          alcance: alcance.alcance,
         };
       },
-      [cacheKey(companyId, `qsr-ranking-${periodDays}`)],
+      [cacheKey(companyId, `qsr-ranking-${periodDays}-${huella}`)],
       { revalidate: CACHE_TTL, tags: [...CACHE_TAGS, "qsr-ranking"] }
     )(companyId, periodDays);
   },
@@ -1165,9 +1418,18 @@ export const CrossBranchService = {
  * Algoritmo de detección de inconsistencias de red entre sucursales hermanas QSR.
  * Identifica varianzas de Food Cost > 3 puntos porcentuales, fugas de Prime Cost (>65%)
  * y sobrecostos laborales desproporcionados.
+ *
+ * C22 — `red` nombra la red a la que pertenece el hallazgo y, sobre todo,
+ * delimita contra qué se compara: el llamador pasa aquí un solo segmento cuando
+ * la red está segmentada, así que la sucursal más eficiente es la más eficiente
+ * **de su red**. Sin `red` el comportamiento es el de siempre (una sola red).
  */
-export function detectNetworkAnomalies(branchScores: BranchQSRScore[]): NetworkAnomalyFinding[] {
+export function detectNetworkAnomalies(
+  branchScores: BranchQSRScore[],
+  opts?: { red?: TipoRed },
+): NetworkAnomalyFinding[] {
   if (branchScores.length < 2) return [];
+  const red = opts?.red;
 
   const findings: NetworkAnomalyFinding[] = [];
 
@@ -1191,13 +1453,14 @@ export function detectNetworkAnomalies(branchScores: BranchQSRScore[]): NetworkA
         type: "FOOD_COST_DISCREPANCY",
         severity: diffAgainstBest > 5.0 ? "critical" : "warning",
         title: `Desviación de Food Cost en ${branch.branchName}`,
-        narrative: `${branch.branchName} reporta un costo de alimentos de ${branch.foodCostPercent.toFixed(1)}%, que supera por ${diffAgainstBest.toFixed(1)} puntos a ${bestFoodBranch.branchName} (${bestFoodBranch.foodCostPercent.toFixed(1)}%) operando el mismo menú.`,
+        narrative: `${branch.branchName} reporta un costo de alimentos de ${branch.foodCostPercent.toFixed(1)}%, que supera por ${diffAgainstBest.toFixed(1)} puntos a ${bestFoodBranch.branchName} (${bestFoodBranch.foodCostPercent.toFixed(1)}%)${red ? ` dentro de la ${ETIQUETA_RED[red].toLowerCase()}` : ""}.`,
         affectedBranchId: branch.branchId,
         affectedBranchName: branch.branchName,
         benchmarkBranchName: bestFoodBranch.branchName,
         variancePoints: Math.round(diffAgainstBest * 10) / 10,
         estimatedImpactMxn: impactMxn,
         suggestedAction: "Auditar rendimiento de porciones en recetas y verificar mermas de carne o proteínas no declaradas.",
+        red,
       });
     }
 
@@ -1216,6 +1479,7 @@ export function detectNetworkAnomalies(branchScores: BranchQSRScore[]): NetworkA
         variancePoints: Math.round(overrunPoints * 10) / 10,
         estimatedImpactMxn: impactMxn,
         suggestedAction: "Ajustar cuadrante de horas en horas valle y revisar precios de compra con comisariato.",
+        red,
       });
     }
 
@@ -1234,6 +1498,7 @@ export function detectNetworkAnomalies(branchScores: BranchQSRScore[]): NetworkA
         variancePoints: Math.round(laborDiff * 10) / 10,
         estimatedImpactMxn: impactMxn,
         suggestedAction: "Auditar horas extras aprobadas y redistribuir personal hacia tiendas con mayor afluencia.",
+        red,
       });
     }
   }

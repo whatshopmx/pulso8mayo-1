@@ -298,12 +298,13 @@ export async function requirePermissionApi(
   return { session, user, ctx, decision };
 }
 
-/** Convenience: build an AccessContext from the current session. */
-export async function buildAccessContext(): Promise<AccessContext | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  const user = session?.user as
+/** Build an AccessContext from an already-resolved session user (no extra read). */
+export function buildAccessContextFrom(
+  user:
     | { id: string; role?: Role; companyId?: string | null; branchId?: string | null }
-    | undefined;
+    | null
+    | undefined,
+): AccessContext | null {
   if (!user) return null;
   const role = (user.role ?? "EMPLEADO") as Role;
   return {
@@ -313,4 +314,14 @@ export async function buildAccessContext(): Promise<AccessContext | null> {
     userBranchId: user.branchId ?? null,
     ownershipScope: buildOwnershipScope(role),
   };
+}
+
+/** Convenience: build an AccessContext from the current session. */
+export async function buildAccessContext(): Promise<AccessContext | null> {
+  const session = await auth.api.getSession({ headers: await headers() });
+  return buildAccessContextFrom(
+    session?.user as
+      | { id: string; role?: Role; companyId?: string | null; branchId?: string | null }
+      | undefined,
+  );
 }

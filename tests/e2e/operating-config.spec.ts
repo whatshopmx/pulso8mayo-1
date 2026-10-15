@@ -324,7 +324,7 @@ const DIMENSIONES = [
   { campo: "supplierPayment", etiqueta: "Pago a Proveedores", estado: "Descriptiva", opciones: ["Centralizado", "Por Sucursal", "Híbrido"], valores: ["CENTRALIZADO", "POR_SUCURSAL", "HIBRIDO"] },
   { campo: "payrollDispersion", etiqueta: "Dispersión de Nómina", estado: "Descriptiva", opciones: ["Consolidada", "Por Razón Social", "Mixto"], valores: ["CONSOLIDADA", "POR_RAZON_SOCIAL", "MIXTO"] },
   { campo: "managerAutonomy", etiqueta: "Autonomía del Gerente de Sucursal", estado: "Se aplica hoy", opciones: ["Alta", "Media", "Baja"], valores: ["ALTA", "MEDIA", "BAJA"] },
-  { campo: "tenantType", etiqueta: "Tipo de Estructura del Grupo", estado: "Pendiente de decisión", opciones: ["Grupo Propio (100% Unidades Corporativas)", "Mixto con Franquiciatarios"], valores: ["GRUPO_PROPIO", "MIXTO_FRANQUICIAS"] },
+  { campo: "tenantType", etiqueta: "Tipo de Estructura del Grupo", estado: "Se aplica hoy", opciones: ["Grupo Propio (100% Unidades Corporativas)", "Mixto con Franquiciatarios"], valores: ["GRUPO_PROPIO", "MIXTO_FRANQUICIAS"] },
 ] as const;
 
 test("cada dimensión declara su estado y caja chica distingue descripción de regla aplicada", async ({ page }) => {
@@ -389,7 +389,7 @@ test("los estados de política caben en móvil, tablet y escritorio", async ({ p
     await page.setViewportSize({ width, height: 900 });
     const grupo = page.getByRole("radiogroup", { name: "Tipo de Estructura del Grupo", exact: true });
     await grupo.scrollIntoViewIfNeeded();
-    await expect(grupo.locator("..").getByText("Pendiente de decisión", { exact: true })).toBeVisible();
+    await expect(grupo.locator("..").getByText("Se aplica hoy", { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
   expect(fixture.errores).toEqual([]);

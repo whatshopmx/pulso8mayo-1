@@ -18,6 +18,7 @@ import { companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { ExecutiveTwinEngine } from "@/lib/services/executive-twin-engine";
 import { CrossBranchService } from "@/lib/services/cross-branch-service";
+import { buildAccessContextFrom } from "@/lib/rbac/abac";
 import { MorningBriefService } from "@/lib/services/morning-brief-service";
 import { ExecutiveDecisionService } from "@/lib/services/executive-decision-service";
 import type { ExecutiveViewMode } from "@/components/dashboard/executive/executive-cockpit-header";
@@ -49,11 +50,16 @@ export default async function ExecutiveDashboardPage(props: PageProps) {
   const currentView: ExecutiveViewMode =
     rawView === "economics" || rawView === "liquidity" ? rawView : "cockpit";
 
+  // C22 — el consolidado se calcula sobre lo que este actor puede ver: sin el
+  // alcance, una sesión con empresa leía ventas, costos y nómina de sucursales
+  // ajenas. Un rol que ve toda la empresa sigue viendo el consolidado completo.
+  const alcance = buildAccessContextFrom(session.user) ?? undefined;
+
   // Fetch core executive models in parallel (incluye resoluciones ya despachadas)
   const [companyRow, twin, ranking, brief, resolvedDecisions] = await Promise.all([
     db.select({ name: companies.name }).from(companies).where(eq(companies.id, companyId)).limit(1),
     ExecutiveTwinEngine.getLatest(companyId),
-    CrossBranchService.getBranchRanking(companyId, 30),
+    CrossBranchService.getBranchRanking(companyId, 30, alcance),
     MorningBriefService.getLatest(companyId),
     ExecutiveDecisionService.list(companyId),
   ]);

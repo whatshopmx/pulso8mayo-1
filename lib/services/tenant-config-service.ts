@@ -18,12 +18,17 @@
  *  - `purchasingStructure`, `foodProduction`, `treasuryModel`, `supplierPayment`,
  *    `payrollDispersion`: **descriptive**. Stored and displayed; no service reads
  *    them. C16–C21 define an effect or keep the descriptive contract.
- *  - `managerAutonomy`: **pending**. `rolExigidoPorMonto` builds the expense
- *    ladder from the two money thresholds and ignores it. C20 needs a business
- *    decision on what each level means.
- *  - `tenantType`: **pending**. Franchise isolation is real but keys off
- *    `branches.ownershipType` in `lib/rbac/`, not off this column. C22 decides
- *    whether this column derives branch ownership or stays a declaration.
+ *  - `managerAutonomy`: **applied** (C20). `rolExigidoPorMonto` reads the level
+ *    to build the expense ladder: `BAJA` centralizes on `ADMIN`, `ALTA`
+ *    empowers the branch manager up to the owner threshold, `MEDIA` caps at
+ *    `managerAuthLimitCents`.
+ *  - `tenantType`: **applied** (C22). `segmentaRed`
+ *    (`lib/company/tenant-network-policy.ts`) decides whether the group's
+ *    consolidated network is measured as one network or as two (owned vs
+ *    franchise), and `CrossBranchService.getBranchQSRRanking` averages,
+ *    ranks and flags anomalies inside each network. It does not grant access:
+ *    `branchVisibilityFilter` still decides who sees which branch, before
+ *    aggregating.
  *  - `managerAuthLimitCents` / `doubleApprovalThresholdCents`: applied via
  *    `rolExigidoPorMonto` (`lib/expenses/approval-policy.ts`) and, for the
  *    second, `umbralesDeAutorizacion` in `control-interno-service`. This service
