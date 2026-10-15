@@ -11,6 +11,8 @@ vi.mock("@/lib/db", () => ({
   db: {
     select: vi.fn(),
     update: vi.fn(),
+    transaction: vi.fn(),
+    execute: vi.fn(),
     query: {
       workflowInstances: { findFirst: vi.fn() },
       workflowTemplates: { findFirst: vi.fn() },
@@ -96,6 +98,8 @@ describe("C24 — WorkflowExecutionService.updateStep con validación de contrat
   beforeEach(() => {
     vi.clearAllMocks();
     mockDbSelect();
+    vi.mocked(db.transaction).mockImplementation(async (callback: any) => callback(db));
+    vi.mocked(db.execute).mockResolvedValue([]);
     vi.mocked(db.query.workflowInstances.findFirst).mockResolvedValue(mockInstance as never);
     vi.mocked(db.query.workflowTemplates.findFirst).mockResolvedValue({
       id: "tpl-1",

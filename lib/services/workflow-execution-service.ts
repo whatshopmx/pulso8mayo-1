@@ -59,6 +59,26 @@ export type StepUpdateContext =
     | { kind: "session"; actor: ExecutionActor; performedBy: string }
     | { kind: "link"; performedBy: string };
 
+/**
+ * Resultado del recálculo de progreso de una instancia.
+ *
+ * - `completed`: la instancia pasó a COMPLETED en esta llamada y los efectos
+ *   secundarios de terminación se ejecutaron exactamente una vez.
+ * - `alreadyCompleted`: la instancia ya era COMPLETED; no se volvieron a
+ *   ejecutar efectos secundarios (respuesta idempotente ante duplicados o
+ *   concurrentes).
+ * - `blocked`: incidente sin resolver; la instancia quedó BLOCKED, no COMPLETED.
+ * - `notFound`: la instancia no existe.
+ * - `score`: puntuación de cumplimiento calculada.
+ */
+export type CheckProgressResult = {
+    completed: boolean;
+    alreadyCompleted: boolean;
+    blocked: boolean;
+    notFound: boolean;
+    score: number;
+};
+
 export class WorkflowExecutionService {
 
     /**
@@ -748,88 +768,146 @@ export class WorkflowExecutionService {
      * incidente bloqueante: la instancia debe cerrarse en ese momento si el
      * checklist ya estaba terminado.
      */
-    static async recalculateProgress(instanceId: string, userId?: string) {
+    static async recalculateProgress(instanceId: string, userId?: string): Promise<CheckProgressResult> {
         return this.checkProgress(instanceId, userId);
     }
 
-    private static async checkProgress(instanceId: string, userId?: string) {
-        // Logic to update instance status or calculate score
-        const allSteps = await db.query.workflowInstanceSteps.findMany({
-            where: eq(workflowInstanceSteps.instanceId, instanceId)
+    /**
+     * Recalcula el progreso y, si todos los pasos terminaron, transiciona la
+     * instancia a COMPLETED ejecutando los efectos secundarios de terminación
+     * (inventario, notificaciones, smart links, extractores vía Inngest).
+     *
+     * C27 — Hacer única la transición de finalización (H10):
+     *
+     * 1. Fast-path idempotente: si la instancia ya está COMPLETED, no se toca
+     *    nada ni se re-ejecuta ningún efecto secundario.
+     * 2. Bloqueo asesor por instancia (`pg_advisory_xact_lock`) dentro de una
+     *    transacción para serializar transiciones concurrentes a COMPLETED.
+     * 3. Doble comprobación dentro del bloqueo: otra transacción pudo
+     *    completarla mientras se esperaba el lock.
+     * 4. Transición atómica a COMPLETED con condición de estado
+     *    (`status != 'COMPLETED'`): si otra tx ya la marcó, 0 filas y no se
+     *    vuelve a disparar Inngest ni acciones de cierre.
+     *
+     * Los efectos secundarios se ejecutan exactamente una vez por instancia,
+     * incluso ante llamadas duplicadas o concurrentes.
+     */
+    private static async checkProgress(instanceId: string, userId?: string): Promise<CheckProgressResult> {
+        // Fast-path idempotente: si la instancia ya está COMPLETED, no se vuelve
+        // a tocar nada. Evita re-ejecutar acciones de terminación (inventario,
+        // notificaciones, extractores) ante llamadas duplicadas o concurrentes.
+        const existente = await db.query.workflowInstances.findFirst({
+            where: eq(workflowInstances.id, instanceId),
+            columns: { id: true, status: true },
         });
 
-        const allCompleted = allSteps.every(s => s.status === 'COMPLETED' || s.status === 'SKIPPED');
-        const completedCount = allSteps.filter(s => s.status === 'COMPLETED').length;
-        const totalCount = allSteps.length;
-
-        // Simple score: % of completed steps (excluding skipped if we want, but usually strict)
-        // Or if we want to weight them. For now, simple percentage.
-        const score = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
-        // Optionally, deduct points for incidents? 
-        // For now, let's keep it simple: progress % is the score for completion.
-        // Compliance Score probably implies "Passed Verification".
-        // Let's count "Passed" steps (where aiAnalysis.passed !== false).
-
-        // Refined Score: Steps that are COMPLETED and (no AI Check OR AI Check Passed)
-        const passedCount = allSteps.filter(s => {
-            if (s.status !== 'COMPLETED') return false;
-            // If AI analysis exists and passed is explicitly false, then it failed.
-            if (s.aiAnalysis && (s.aiAnalysis as any).passed === false) return false;
-            return true;
-        }).length;
-
-        const complianceScore = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0;
-
-        // Un incidente con acción BLOCK sin resolver impide cerrar el checklist:
-        // se puede seguir capturando evidencia y remediando, pero no darlo por
-        // hecho. Al resolverse, el motor de incidentes vuelve a llamar aquí.
-        const { IncidentEngine } = await import('./incident-engine');
-        const isBlocked = await IncidentEngine.hasBlockingIncidents(instanceId);
-
-        if (isBlocked) {
-            await db.update(workflowInstances)
-                .set({ status: 'BLOCKED', score: complianceScore })
-                .where(eq(workflowInstances.id, instanceId));
-
-            console.log(
-                `[WorkflowExecution] Instancia ${instanceId} bloqueada por incidente sin resolver; ` +
-                `no se cierra (pasos completos: ${allCompleted})`
-            );
-            return;
+        if (!existente) {
+            return { completed: false, alreadyCompleted: false, blocked: false, notFound: true, score: 0 };
         }
 
-        if (allCompleted) {
-            // Trigger completion actions (including inventory updates, notifications, etc.)
-            const instance = await db.query.workflowInstances.findFirst({
-                where: eq(workflowInstances.id, instanceId)
+        if (existente.status === 'COMPLETED') {
+            console.log(`[WorkflowExecution] Instancia ${instanceId} ya está COMPLETED; transición idempotente, sin efectos secundarios.`);
+            return { completed: false, alreadyCompleted: true, blocked: false, notFound: false, score: 0 };
+        }
+
+        // Bloqueo asesor por instancia para serializar transiciones concurrentes
+        // a COMPLETED. Patrón idéntico a C11 (turnos) y tesorería:
+        // pg_advisory_xact_lock dentro de una transacción.
+        const resultado = await db.transaction(async (tx) => {
+            await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${instanceId}, 0))`);
+
+            // Doble comprobación dentro del bloqueo: otra tx pudo completarla
+            // mientras esperábamos el lock.
+            const instancia = await tx.query.workflowInstances.findFirst({
+                where: eq(workflowInstances.id, instanceId),
+                columns: { id: true, status: true, branchId: true, assigneeId: true, data: true, workflowTemplateId: true },
             });
 
-            if (instance) {
-                try {
-                    const { WorkflowActionRunner } = await import("./workflow-action-runner");
-                    await WorkflowActionRunner.runCompletionActions(instanceId, userId || instance.assigneeId || "");
-                } catch (error) {
-                    console.error("[WorkflowExecution] Error running completion actions:", error);
-                }
-                if ((instance.data as { stockCountGrid?: boolean })?.stockCountGrid) {
-                    const { StockCountService } = await import('./stock-count-service');
-                    await StockCountService.completeStockCount(instanceId, userId || instance.assigneeId || '');
-                }
+            if (!instancia) {
+                return { completed: false, alreadyCompleted: false, blocked: false, notFound: true, score: 0 };
             }
 
-            await db.update(workflowInstances)
+            if (instancia.status === 'COMPLETED') {
+                console.log(`[WorkflowExecution] Instancia ${instanceId} ya estaba COMPLETED tras bloqueo; idempotente.`);
+                return { completed: false, alreadyCompleted: true, blocked: false, notFound: false, score: 0 };
+            }
+
+            const allSteps = await tx.query.workflowInstanceSteps.findMany({
+                where: eq(workflowInstanceSteps.instanceId, instanceId),
+            });
+
+            const allCompleted = allSteps.every(s => s.status === 'COMPLETED' || s.status === 'SKIPPED');
+            const totalCount = allSteps.length;
+
+            // Puntuación de cumplimiento: pasos COMPLETED sin fallo de verificación IA.
+            const passedCount = allSteps.filter(s => {
+                if (s.status !== 'COMPLETED') return false;
+                if (s.aiAnalysis && (s.aiAnalysis as any).passed === false) return false;
+                return true;
+            }).length;
+
+            const complianceScore = totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0;
+
+            if (!allCompleted) {
+                await tx.update(workflowInstances)
+                    .set({ status: 'IN_PROGRESS', startedAt: new Date(), score: complianceScore })
+                    .where(eq(workflowInstances.id, instanceId));
+
+                return { completed: false, alreadyCompleted: false, blocked: false, notFound: false, score: complianceScore };
+            }
+
+            // Un incidente con acción BLOCK sin resolver impide cerrar el checklist:
+            // se puede seguir capturando evidencia y remediando, pero no darlo por
+            // hecho. Al resolverse, el motor de incidentes vuelve a llamar aquí.
+            const { IncidentEngine } = await import('./incident-engine');
+            const isBlocked = await IncidentEngine.hasBlockingIncidents(instanceId);
+
+            if (isBlocked) {
+                await tx.update(workflowInstances)
+                    .set({ status: 'BLOCKED', score: complianceScore })
+                    .where(eq(workflowInstances.id, instanceId));
+
+                console.log(
+                    `[WorkflowExecution] Instancia ${instanceId} bloqueada por incidente sin resolver; ` +
+                    `no se cierra (pasos completos: ${allCompleted})`
+                );
+
+                return { completed: false, alreadyCompleted: false, blocked: true, notFound: false, score: complianceScore };
+            }
+
+            // Efectos secundarios de finalización: se ejecutan una sola vez por
+            // instancia, gracias al bloqueo asesor y a la condición de estado abajo.
+            try {
+                const { WorkflowActionRunner } = await import("./workflow-action-runner");
+                await WorkflowActionRunner.runCompletionActions(instanceId, userId || instancia.assigneeId || "");
+            } catch (error) {
+                console.error("[WorkflowExecution] Error running completion actions:", error);
+            }
+
+            if ((instancia.data as { stockCountGrid?: boolean })?.stockCountGrid) {
+                const { StockCountService } = await import('./stock-count-service');
+                await StockCountService.completeStockCount(instanceId, userId || instancia.assigneeId || '');
+            }
+
+            // Transición atómica a COMPLETED: la condición de estado evita que
+            // dos transacciones concurrentes escriban COMPLETED dos veces.
+            const [updated] = await tx.update(workflowInstances)
                 .set({
                     status: 'COMPLETED',
                     completedAt: new Date(),
-                    score: complianceScore
+                    score: complianceScore,
                 })
-                .where(eq(workflowInstances.id, instanceId));
+                .where(
+                    and(
+                        eq(workflowInstances.id, instanceId),
+                        sql`${workflowInstances.status} != 'COMPLETED'`
+                    )
+                )
+                .returning();
 
             // Plan 5.5: al cerrar el flujo, los smart links de la instancia quedan
-            // USED (preservando el usedAt de la primera apertura) — ya no se puede
-            // reabrir la ejecución por enlace. Best-effort: un fallo aquí no debe
-            // impedir el cierre.
+            // USED (preservando el usedAt de la primera apertura). Best-effort:
+            // un fallo aquí no debe impedir el cierre.
             try {
                 const { SmartLinkService } = await import("./smart-link-service");
                 await SmartLinkService.markUsedForInstance(instanceId);
@@ -837,42 +915,30 @@ export class WorkflowExecutionService {
                 console.error(`[WorkflowExecution] Error marking smart links used for ${instanceId}:`, error);
             }
 
-            // Extractores (recepción, conteo, merma, producción): antes se
-            // disparaban aquí como `void extract*(instanceId)`, es decir después
-            // de responder al cliente. El deploy es Netlify sobre Lambda, que
-            // CONGELA el contenedor al devolver la respuesta: esas promesas
-            // quedaban suspendidas y sólo terminaban si el mismo contenedor
-            // recibía otra invocación (O-1 — no determinístico, no "nunca").
-            //
-            // Ahora viajan por Inngest (`workflow-extractors`): cola, reintentos
-            // por extractor y el fallo visible como run fallido en vez de morir
-            // en un `console.error` (R-5). Va DESPUÉS del update porque los
+            // Extractores (recepción, conteo, merma, producción): viajan por
+            // Inngest (workflow-extractors): cola, reintentos por extractor y el
+            // fallo visible como run fallido. Va DESPUÉS del update porque los
             // extractores descartan la instancia si no está en COMPLETED.
-            if (instance) {
+            // El id `workflow-extractors:${instanceId}` tiene dedupe de 24h.
+            if (updated) {
                 try {
                     await inngest.send({
                         name: workflowInstanceCompleted.name,
-                        // Dedupe de 24h: completar dos veces la misma instancia
-                        // no encola dos veces la extracción.
                         id: `workflow-extractors:${instanceId}`,
                         data: { instanceId },
                     });
                 } catch (error) {
                     // El instance ya quedó COMPLETED y commiteado: tumbar aquí la
                     // petición no lo revierte, sólo le rompe el cierre al operador.
-                    // Se registra y `scripts/audit-extractores-perdidos.ts` es la
+                    // Se registra y scripts/audit-extractores-perdidos.ts es la
                     // red para detectar instancias que se quedaron sin extraer.
                     console.error(`[WorkflowExecution] No se pudo encolar la extracción de la instancia ${instanceId}:`, error);
                 }
             }
-        } else {
-            await db.update(workflowInstances)
-                .set({
-                    status: 'IN_PROGRESS',
-                    startedAt: new Date(), // Should use COALESCE
-                    score: complianceScore // Update score in real-time? Sure.
-                })
-                .where(eq(workflowInstances.id, instanceId));
-        }
+
+            return { completed: !!updated, alreadyCompleted: false, blocked: false, notFound: false, score: complianceScore };
+        });
+
+        return resultado;
     }
 }
