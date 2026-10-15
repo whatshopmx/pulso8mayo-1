@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 14 de octubre de 2026. Estado: C00–C19 implementadas y verificadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C20–C40 pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 14 de octubre de 2026. Estado: C00–C21 implementadas y verificadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C22–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -811,11 +811,15 @@ Precisar y aplicar payrollDispersion al recorrido soportado de nómina/exportaci
 
 **Criterios de aceptación:**
 
-- [ ] La UI no promete pagos automatizados que el producto no ejecuta.
-- [ ] El comportamiento definido respeta empresa, sucursal y permiso de nómina.
-- [ ] Un caso de cada modalidad demuestra resultado o clasificación descriptiva sin enviar dinero real.
+- [x] La UI no promete pagos automatizados que el producto no ejecuta. Los textos de la sección describen cómo se **declara** la nómina (corrida consolidada, por razón social o mezcla), no transferencias; el catálogo dice que ningún módulo lee la columna para decidir nada.
+- [x] El comportamiento definido respeta empresa, sucursal y permiso de nómina. La columna no gobierna ninguna operación, y el recorrido que describe —corrida, timbrado y programación en tesorería— se acota por `companyId` y permiso, verificado contra la base real con dos empresas.
+- [x] Un caso de cada modalidad demuestra resultado o clasificación descriptiva sin enviar dinero real. Las tres modalidades persisten y releen por empresa; alternar la modalidad no altera corridas ni folios timbrados. El timbrado se ejercitó contra el sandbox de FiscalAPI con las personas de prueba del SAT (CFDI con UUID real), sin PAC de producción ni dinero real.
 
 **Verificación:** V1 y V2 con fixtures de nómina y adaptadores simulados.
+
+**Decisión (14-10-2026):** `payrollDispersion` permanece **descriptiva**. El producto no ejecuta dispersión bancaria autónoma —la corrida se calcula, se timbra y la tesorería genera un layout que un apoderado dispersa manualmente— y deducir agrupaciones o responsables de `CONSOLIDADA`/`POR_RAZON_SOCIAL`/`MIXTO` sería repetir H04. El contrato de la entrada del catálogo quedó escrito contra el recorrido real y su decisión pendiente se registró como resuelta.
+
+**Verificación ejecutada (14-10-2026):** V1 — `tests/unit/finance/payroll-dispersion-policy.test.ts` (7) sobre el catálogo real, más las 24 del catálogo sin cambios de clasificación (6 aplicadas / 6 descriptivas / 1 pendiente). V3/base real + sandbox — `scripts/verify-payroll-dispersion.ts` (25) contra Neon con dos empresas y el sandbox de FiscalAPI: cálculo aislado, corrida por empresa, **timbrado real con UUID del PAC para ambas empresas** usando personas de prueba del SAT y el emisor EKU9003173C9, payslip que conserva el folio, tesorería sin fugas entre tenants e historial intacto tras cambiar la modalidad; limpieza confirmada. Suite 1190 aprobadas (89 archivos), lint 0 errores y build exitoso. Límites en la [evidencia](../docs/audits/2026-10-14-dispersion-nomina.md): sin V2 con Next/auth, sandbox (no producción) y sin dispersión bancaria que verificar porque no existe.
 
 **Archivos probables:**
 

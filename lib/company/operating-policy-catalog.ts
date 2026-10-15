@@ -357,7 +357,10 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
     consumidor: null,
     aplicacion:
       "Se lee al abrir la pantalla de configuración. Ningún módulo de nómina " +
-      "—exportación, timbrado o dispersión— lee la columna.",
+      "—exportación, timbrado o dispersión— lee la columna para decidir nada. " +
+      "El producto no ejecuta dispersión bancaria ni transferencias automatizadas de nómina " +
+      "de forma autónoma: las corridas se procesan y timbran por empresa, y la tesorería " +
+      "genera layouts bancarios que un apoderado dispersa manualmente.",
     excepciones:
       "Elegir una modalidad no agrupa corridas, exportaciones o recibos ni activa pagos automáticos.",
     vacio: "No aplica: la columna es `notNull` con default `CONSOLIDADA`.",
@@ -367,8 +370,10 @@ export const CATALOGO_OPERATIVO: PoliticaOperativa[] = [
       { valor: "MIXTO", titulo: "Mixto", caso: null },
     ],
     decisionPendiente:
-      "Falta definir si la modalidad sólo describe la operación o agrupa una exportación " +
-      "de nómina, por qué entidad legal y con qué responsables de aprobación.",
+      "Decidido y verificado el 14-10-2026 (C21): la dimensión permanece descriptiva " +
+      "porque el producto no cuenta con integración de dispersión bancaria directa ni " +
+      "mecanismos de pago automatizado hacia cuentas de nómina. La UI no promete pagos " +
+      "automatizados y documenta honestamente el esquema operativo del grupo sin enviar dinero real.",
   },
 
   // ── Gobernanza ─────────────────────────────────────────────────────────
