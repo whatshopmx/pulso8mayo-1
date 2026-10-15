@@ -579,6 +579,8 @@ export class AIService {
                         metadata: { error: errorMessage },
                     },
                     requiresManualReview: true,
+                    decisionRule: 'INVALID_AI_RESPONSE',
+                    minConfidence: rule.minConfidence ?? (rule as any).expectedConfidence ?? 0.85,
                     timestamp: new Date(),
                 };
                 attempts++;

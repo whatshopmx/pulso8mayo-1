@@ -17,9 +17,11 @@ Este documento es para empezar una sesión nueva sin releer veinte archivos. **L
 
 ## 2. Estado al handing-off
 
-**C00–C24 completadas. C25–C40 pendientes.** La última línea implementada y verificada es C24 (validación autoritativa del contrato del paso en servidor, límites numéricos, opciones, evidencia, transiciones terminales 409 y omisión autorizada SKIPPED en HTTP 403/400). Siguen sin commitear los archivos de `stock-count` y `workflows/[id]/execute`, que son de otra línea de trabajo (conteos por categoría y lote, y acceso a la pantalla de ejecución).
+**C00–C26 completadas. C27–C40 pendientes.** La última línea implementada y verificada es C26 (compuerta autoritativa de confianza mínima en veredictos de IA, bloqueo de autoaprobación indebida en calidad/seguridad cuando confianza < minConfidence, 22 pruebas unitarias en `verification-verdict.test.ts` y 5 comprobaciones en Neon Postgres viva con `verify-workflow-verdict.ts`). Siguen sin commitear los archivos de `stock-count` y `workflows/[id]/execute`, que son de otra línea de trabajo.
 
 ```
+C26 compuerta de confianza mínima en veredictos de IA (calidad o seguridad favorables nunca autoaprueban si confianza < minConfidence; códigos estructurados de veredicto; 22 unitarias y 5 comprobaciones Neon viva)
+C25 transmisión efectiva de aiConfig jerárquica con Cloudflare Workers AI, Moondream y OpenAI con fallback simétrico (13 unitarias de política, 7 de servicio, 2 Playwright y 5 comprobaciones Neon)
 C24 validación autoritativa de contrato de paso en servidor (tipos, límites, evidencia, transiciones terminales 409 y omisión SKIPPED exclusiva de supervisor con justificación obligatoria en HTTP 403/400; 32 unitarias puras, 3 navegador Playwright y 7 comprobaciones Neon)
 C23 límite de caja chica tripartito (fondo corporativo vs gasto físico vs aprobación de gastos), validación en servicio de apertura/reposición/retiro, catálogo C15 en aplicada, preservación de fondos existentes (18 unitarias, 75 navegador, 16 comprobaciones Neon)
 C22.4 recorrido y reglas en Neon con dos empresas, validación de franquicias, contradicción en grupo propio y alcance del actor (23 comprobaciones)
@@ -159,30 +161,27 @@ El plan define cuatro verificaciones. Cada tarea declara cuál usa:
 | `pettyCashLimitCents` fija el tope corporativo del fondo fijo de caja chica; salidas limitadas por saldo físico; aprobaciones por matriz de gastos | 15-10 | Evidencia de C23 |
 | El contrato del paso valida tipo, valor, rango y evidencia antes de persistir; SKIPPED exige rol SUPERVISOR+ y justificación obligatoria; instancia terminal bloquea modificaciones con WORKFLOW_TERMINAL (409) | 15-10 | Evidencia de C24 (`docs/audits/2026-10-15-workflow-step-contract.md`) |
 | Transmisión efectiva de `aiConfig` con Cloudflare Workers AI (`@cf/meta/llama-3.2-11b-vision-instruct`), Moondream y OpenAI; fallback simétrico, reintentos acotados (0–5), sanitización de credenciales y gate de privilegios en Builder | 15-10 | Evidencia de C25 (`docs/audits/2026-10-15-workflow-ai-config.md`) |
+| Compuerta autoritativa de confianza mínima: calidad o seguridad favorables nunca autoaprueban si confianza < minConfidence (`CONFIDENCE_BELOW_MINIMUM`, `requiresManualReview: true`); veredictos estructurados y punto frontera exacto determinista (0.85 === 0.85) | 15-10 | Evidencia de C26 (`docs/audits/2026-10-15-workflow-verdict-confidence.md`) |
 
-**Pendientes de decisión** (condicionan C26–C28, no bloquean el trabajo): quién revisa un workflow (lectura conservadora `SUPERVISOR`+ vigente); umbral de confianza para autoaprobación de IA (C26); horario, urgencias y zona horaria de notificaciones; consumidores externos del executor anterior.
+**Pendientes de decisión** (condicionan C27–C28, no bloquean el trabajo): quién revisa un workflow (lectura conservadora `SUPERVISOR`+ vigente); horario, urgencias y zona horaria de notificaciones; consumidores externos del executor anterior.
 
-## 8. Siguiente paso — C26
+## 8. Siguiente paso — C27
 
-**C25 quedó completa y verificada (V1, V2 y V3).** `aiConfig` se transmite autoritativamente desde la jerarquía (Paso > Instancia > Plantilla > Defaults) hacia `VerificationEngine.evaluate` y `AIService.verifyPhoto`. Se implementó el adaptador de **Cloudflare Workers AI**, fallback simétrico bidireccional, descarte estricto de proveedores no soportados (`gemini`) con `InvalidAIConfigError`, y saneamiento de credenciales de servidor.
+**C26 quedó completa y verificada (V1 y V3 contra Neon Postgres viva).** La compuerta de confianza mínima opera de manera estricta y autoritativa en `evaluateVerificationVerdict` (`lib/workflows/verification-verdict-policy.ts`) y `VerificationEngine.evaluate`, asignando códigos canónicos de veredicto e impidiendo que una calidad o seguridad favorable autoapruebe cuando no se cumple la confianza requerida.
 
-C26 continúa la **Fase 4 — Workflows y verificación**.
-Objetivo: **Conservar confianza mínima en el veredicto IA** (H07).
-- Combinar confianza, resultado específico y autoaprobación como condiciones explícitas para impedir que una rama sobrescriba un rechazo obligatorio.
+C27 continúa la **Fase 4 — Workflows y verificación**.
+Objetivo: **Hacer única la transición de finalización** (H10).
+- Garantizar que la transición a estado `COMPLETED` en una instancia de workflow sea estrictamente idempotente y atómica, impidiendo que ejecuciones concurrentes o reintentos dupliquen acciones posteriores (disparo de incidentes, notificaciones o deducciones de inventario).
 - Criterios:
-  1. Calidad o seguridad favorables no autoaprueban cuando no se cumple la confianza requerida.
-  2. Cada resultado conserva motivo, proveedor, confianza y necesidad de revisión.
-  3. Los casos frontera de confianza y autoApprove tienen resultado determinista.
-- Archivos clave:
-  - `lib/services/verification-engine.ts`
-  - `lib/types/ai-verification.ts`
-  - `tests/unit/workflows/verification-verdict.test.ts` (nuevo)
+  1. La transición a `COMPLETED` se ejecuta una sola vez por instancia (`pg_advisory_xact_lock` o condición de estado atómica `status != 'COMPLETED'`).
+  2. Solicitudes duplicadas o concurrentes reciben respuesta idempotente sin reinvocar hooks ni acciones de terminación.
+  3. Los efectos secundarios de finalización quedan registrados de manera trazable.
 
 ## 9. Fase 4 — Workflows y verificación
 
 C24–C28 conforman el bloque de workflows:
 - [x] C24: Validar el contrato del paso en servidor.
 - [x] C25: Transmitir configuración de IA a la ejecución.
-- [ ] C26: Conservar confianza mínima en el veredicto IA.
+- [x] C26: Conservar confianza mínima en el veredicto IA.
 - [ ] C27: Hacer única la transición de finalización.
 - [ ] C28: Garantizar entrega de eventos y mostrar efectos pendientes.

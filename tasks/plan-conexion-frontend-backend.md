@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 15 de octubre de 2026. Estado: C00–C24 implementadas y verificadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C25–C40 pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 15 de octubre de 2026. Estado: C00–C26 implementadas y verificadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C27–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -969,9 +969,9 @@ Combinar confianza, resultado específico y autoaprobación como condiciones exp
 
 **Criterios de aceptación:**
 
-- [ ] Calidad o seguridad favorables no autoaprueban cuando no se cumple la confianza requerida.
-- [ ] Cada resultado conserva motivo, proveedor, confianza y necesidad de revisión.
-- [ ] Los casos frontera de confianza y autoApprove tienen resultado determinista.
+- [x] Calidad o seguridad favorables no autoaprueban cuando no se cumple la confianza requerida.
+- [x] Cada resultado conserva motivo, proveedor, confianza y necesidad de revisión.
+- [x] Los casos frontera de confianza y autoApprove tienen resultado determinista.
 
 **Verificación:** V1 con resultados de calidad/seguridad y confianza debajo/igual/encima del mínimo.
 
@@ -983,9 +983,9 @@ Combinar confianza, resultado específico y autoaprobación como condiciones exp
 
 #### Punto de control C24–C26
 
-- [ ] Criterios del bloque verificados con resultados registrados.
-- [ ] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
-- [ ] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
+- [x] Criterios del bloque verificados con resultados registrados.
+- [x] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
+- [x] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
 
 <a id="c27"></a>
 
