@@ -138,36 +138,70 @@ export interface BenchmarkingData {
   bestPractices: PracticeInsight | null;
   worstPractices: PracticeInsight | null;
   qsrSummary?: {
-    networkAveragePrimeCost: number;
-    networkAverageFoodCost: number;
-    networkAverageLaborCost: number;
+    networkAveragePrimeCost: number | null;
+    networkAverageFoodCost: number | null;
+    networkAverageLaborCost: number | null;
     branches: {
       branchId: string;
       branchName: string;
-      primeCostPercent: number;
-      foodCostPercent: number;
-      laborCostPercent: number;
+      primeCostPercent: number | null;
+      foodCostPercent: number | null;
+      laborCostPercent: number | null;
     }[];
   };
 }
 
 // --- Tipos QSR: Prime Cost, Scorecards y Detección de Inconsistencias ---
 
+/**
+ * Calidad de un indicador de la Liga. Son tres estados distintos a propósito
+ * (H06): `MEASURED` se calculó con datos del cliente, `ESTIMATED` se derivó de
+ * ellos (base estimada, proxy de compras, factor de carga capturado) y
+ * `MISSING` no tiene insumos. Un dato ausente **no** es cero ni un promedio
+ * sectorial: la pantalla muestra ausencia.
+ */
+export type MetricQuality = "MEASURED" | "ESTIMATED" | "MISSING";
+
+/** Traduce la procedencia del P&L al vocabulario de calidad de la Liga. */
+export function lineSourceToQuality(source: LineSource): MetricQuality {
+  if (source === "MEASURED") return "MEASURED";
+  if (source === "NO_DATA") return "MISSING";
+  return "ESTIMATED";
+}
+
 export interface BranchQSRScore {
   branchId: string;
   branchName: string;
   salesTotalCents: number;
+  /** Centavos medidos; `0` cuando la fuente es `NO_DATA`. La calidad lo distingue. */
   foodCostCents: number;
   laborCostCents: number;
-  foodCostPercent: number; // ej. 31.5%
-  laborCostPercent: number; // ej. 24.2%
-  primeCostPercent: number; // ej. 55.7% (Food + Labor)
-  primeCostStatus: "HEALTHY" | "WATCH" | "CRITICAL"; // <60% HEALTHY, 60-65% WATCH, >65% CRITICAL
-  nom251ComplianceRate: number; // 0-100%
-  cashReconciliationRate: number; // 0-100%
-  compositeScore: number; // 0-100 ponderado
+  /** `null` cuando no hay insumo o base. Nunca un porcentaje sectorial inventado. */
+  foodCostPercent: number | null; // ej. 31.5%
+  laborCostPercent: number | null; // ej. 24.2%
+  primeCostPercent: number | null; // ej. 55.7% (Food + Labor)
+  /** `null` cuando falta food o labor: sin dato no hay semáforo. */
+  primeCostStatus: "HEALTHY" | "WATCH" | "CRITICAL" | null; // <target HEALTHY, ≤warn WATCH, >warn CRITICAL
+  /** `null` si no hubo registros de temperatura: no es 100% por defecto. */
+  nom251ComplianceRate: number | null; // 0-100%
+  /** `null` si no hubo cortes de caja: no es 100% por defecto. */
+  cashReconciliationRate: number | null; // 0-100%
+  /** 0-100 ponderando **sólo** los indicadores disponibles; `null` si no hay ninguno. */
+  compositeScore: number | null;
   rank: number;
-  dataQuality: "VERIFIED" | "ESTIMATED";
+  /** Resumen de la calidad: `MISSING` si no se midió nada, `ESTIMATED` si algo es derivado. */
+  dataQuality: MetricQuality;
+  /**
+   * De dónde sale cada número, para que la pantalla pueda nombrar la ausencia
+   * renglón por renglón en vez de esconderla bajo un único distintivo.
+   */
+  quality: {
+    sales: MetricQuality;
+    foodCost: MetricQuality;
+    laborCost: MetricQuality;
+    nom251: MetricQuality;
+    cashReconciliation: MetricQuality;
+  };
   /**
    * C29 — la base neta sobre la que se dividieron food/labor (A3.2). Sin IVA
    * capturado y sin tasa configurada, la base es la venta con IVA.
@@ -201,11 +235,14 @@ export interface NetworkAnomalyFinding {
   red?: TipoRed;
 }
 
-/** Promedios de una red. Los mismos tres campos del consolidado, por red. */
+/**
+ * Promedios de una red. `null` cuando ninguna sucursal de la red tiene ese
+ * indicador: un promedio sin observaciones no es cero.
+ */
 export interface PromediosRed {
-  primeCost: number;
-  foodCost: number;
-  laborCost: number;
+  primeCost: number | null;
+  foodCost: number | null;
+  laborCost: number | null;
 }
 
 /** Una red del grupo: qué sucursales la forman y cómo se midieron. */
@@ -249,9 +286,10 @@ export interface BranchQSRRankingResult {
   periodDays: number;
   branches: BranchQSRScore[];
   podiumTop3: BranchQSRScore[];
-  networkAveragePrimeCost: number;
-  networkAverageFoodCost: number;
-  networkAverageLaborCost: number;
+  /** `null` si ninguna sucursal del alcance tiene el indicador. */
+  networkAveragePrimeCost: number | null;
+  networkAverageFoodCost: number | null;
+  networkAverageLaborCost: number | null;
   /** C29 — umbrales de prime cost del inquilino con que se pintó el semáforo. */
   primeCostTargetPercent?: number;
   primeCostWarnPercent?: number;
@@ -459,7 +497,7 @@ function medirRedes(
     const ids = new Set(idsDeSegmento(segmento));
     const delSegmento = scores
       .filter((s) => ids.has(s.branchId))
-      .sort((a, b) => b.compositeScore - a.compositeScore);
+      .sort((a, b) => (b.compositeScore ?? -1) - (a.compositeScore ?? -1));
 
     return {
       tipo: segmento.tipo,
@@ -487,17 +525,22 @@ function medirRedes(
 
 /** Los mismos tres promedios del consolidado, restringidos a un conjunto. */
 function promediosDeRed(scores: BranchQSRScore[]): PromediosRed {
-  if (scores.length === 0) return { primeCost: 0, foodCost: 0, laborCost: 0 };
-  const activo = scores.filter((b) => b.salesTotalCents > 0);
-  const cuenta = activo.length || scores.length;
-  const promedio = (accesor: (b: BranchQSRScore) => number) =>
-    Math.round((scores.reduce((acc, b) => acc + accesor(b), 0) / cuenta) * 10) / 10;
-
   return {
-    primeCost: promedio((b) => b.primeCostPercent),
-    foodCost: promedio((b) => b.foodCostPercent),
-    laborCost: promedio((b) => b.laborCostPercent),
+    primeCost: promedioDeIndicador(scores.map((b) => b.primeCostPercent)),
+    foodCost: promedioDeIndicador(scores.map((b) => b.foodCostPercent)),
+    laborCost: promedioDeIndicador(scores.map((b) => b.laborCostPercent)),
   };
+}
+
+/**
+ * Promedio sobre las observaciones que existen. Si no hay ninguna devuelve
+ * `null`: promediar ceros o inventar un sectorial presentaría salud donde no
+ * hay dato (H06).
+ */
+function promedioDeIndicador(valores: Array<number | null>): number | null {
+  const observados = valores.filter((v): v is number => v !== null);
+  if (observados.length === 0) return null;
+  return Math.round((observados.reduce((acc, v) => acc + v, 0) / observados.length) * 10) / 10;
 }
 
 // ---------------------------------------------------------------------------
@@ -1111,19 +1154,19 @@ export const CrossBranchService = {
             label: "Prime Cost",
             unit: "%",
             higherIsBetter: false,
-            rankings: rank((b) => qsrMap.get(b.id)?.primeCostPercent ?? 0, false),
+            rankings: rank((b) => qsrMap.get(b.id)?.primeCostPercent ?? Number.POSITIVE_INFINITY, false),
           },
           {
             label: "Food Cost",
             unit: "%",
             higherIsBetter: false,
-            rankings: rank((b) => qsrMap.get(b.id)?.foodCostPercent ?? 0, false),
+            rankings: rank((b) => qsrMap.get(b.id)?.foodCostPercent ?? Number.POSITIVE_INFINITY, false),
           },
           {
             label: "Labor Cost",
             unit: "%",
             higherIsBetter: false,
-            rankings: rank((b) => qsrMap.get(b.id)?.laborCostPercent ?? 0, false),
+            rankings: rank((b) => qsrMap.get(b.id)?.laborCostPercent ?? Number.POSITIVE_INFINITY, false),
           }
         );
 
@@ -1195,9 +1238,9 @@ export const CrossBranchService = {
             periodDays: pDays,
             branches: [],
             podiumTop3: [],
-            networkAveragePrimeCost: 0,
-            networkAverageFoodCost: 0,
-            networkAverageLaborCost: 0,
+            networkAveragePrimeCost: null,
+            networkAverageFoodCost: null,
+            networkAverageLaborCost: null,
             anomalies: [],
             red: medirRedes(red, []),
             alcance: alcance.alcance,
@@ -1298,7 +1341,7 @@ export const CrossBranchService = {
         for (const r of tempRows) {
           const tot = Number(r.total);
           const comp = Number(r.compliant);
-          tempMap.set(r.branchId, tot > 0 ? (comp / tot) * 100 : 100);
+          if (tot > 0) tempMap.set(r.branchId, (comp / tot) * 100);
         }
 
         // 5. Consolidación de cada sucursal
@@ -1336,44 +1379,70 @@ export const CrossBranchService = {
             targets,
           });
 
-          // C30 — sustituirá esta referencia sectorial declarada por un estado
-          // de ausencia explícito. Hoy la liga no inventa un VERIFIED: cuando
-          // falta un renglón lo marca ESTIMATED.
-          const foodFaltaba = costo.foodPercent === null;
-          const laborFaltaba = costo.laborPercent === null;
-          const foodCostPercent = costo.foodPercent ?? 31.5;
-          const laborCostPercent = costo.laborPercent ?? 24.5;
-          const primeCostPercent = Math.round((foodCostPercent + laborCostPercent) * 10) / 10;
-          const isEstimated =
-            foodFaltaba ||
-            laborFaltaba ||
-            costo.foodSource !== "MEASURED" ||
-            costo.laborSource !== "MEASURED";
+          // C30 — nada se sustituye: si falta el insumo, el renglón vale `null`
+          // y su calidad es `MISSING`. Un 31.5% sectorial presentado como propio
+          // es exactamente lo que H06 mandó retirar.
+          const foodCostPercent = costo.foodPercent;
+          const laborCostPercent = costo.laborPercent;
+          const primeCostPercent =
+            foodCostPercent === null || laborCostPercent === null
+              ? null
+              : Math.round((foodCostPercent + laborCostPercent) * 10) / 10;
 
           const primeCostStatus: BranchQSRScore["primeCostStatus"] =
-            primeCostPercent < primeTarget
-              ? "HEALTHY"
-              : primeCostPercent <= primeWarn
-                ? "WATCH"
-                : "CRITICAL";
+            primeCostPercent === null
+              ? null
+              : primeCostPercent < primeTarget
+                ? "HEALTHY"
+                : primeCostPercent <= primeWarn
+                  ? "WATCH"
+                  : "CRITICAL";
 
-          const nom251Rate = Math.round((tempMap.get(b.id) ?? 100) * 10) / 10;
+          const temperatura = tempMap.get(b.id);
+          const nom251Rate = temperatura === undefined ? null : Math.round(temperatura * 10) / 10;
 
           const cashReconciliationRate =
             salesData.totalCuts > 0
               ? Math.round((salesData.balancedCuts / salesData.totalCuts) * 1000) / 10
-              : 100;
+              : null;
 
-          // Composite Score (0-100)
-          const primeEfficiencyScore = Math.max(0, Math.min(100, 100 - (primeCostPercent - 50) * 3));
-          const salesScore = salesTotal > 0 ? 90 : 50;
-          const composite = Math.round(
-            (salesScore * 0.3 +
-              primeEfficiencyScore * 0.3 +
-              nom251Rate * 0.2 +
-              cashReconciliationRate * 0.2) *
-              10
-          ) / 10;
+          // Calidad por renglón: de dónde sale cada número.
+          const salesQuality: MetricQuality = salesData.totalCuts > 0 ? "MEASURED" : "MISSING";
+          const foodQuality = lineSourceToQuality(costo.foodSource);
+          const laborQuality = lineSourceToQuality(costo.laborSource);
+          const nom251Quality: MetricQuality = nom251Rate === null ? "MISSING" : "MEASURED";
+          const cashQuality: MetricQuality =
+            cashReconciliationRate === null ? "MISSING" : "MEASURED";
+          const calidades = [salesQuality, foodQuality, laborQuality, nom251Quality, cashQuality];
+          const dataQuality: MetricQuality = calidades.every((q) => q === "MEASURED")
+            ? "MEASURED"
+            : calidades.every((q) => q === "MISSING")
+              ? "MISSING"
+              : "ESTIMATED";
+
+          // Composite Score (0-100): cada componente entra sólo si existe y los
+          // pesos se renormalizan. Si no hay ninguno, no hay score que inventar.
+          const componentes: Array<{ valor: number; peso: number }> = [];
+          if (salesQuality !== "MISSING") {
+            componentes.push({ valor: salesTotal > 0 ? 90 : 0, peso: 0.3 });
+          }
+          if (primeCostPercent !== null) {
+            componentes.push({
+              valor: Math.max(0, Math.min(100, 100 - (primeCostPercent - 50) * 3)),
+              peso: 0.3,
+            });
+          }
+          if (nom251Rate !== null) componentes.push({ valor: nom251Rate, peso: 0.2 });
+          if (cashReconciliationRate !== null) {
+            componentes.push({ valor: cashReconciliationRate, peso: 0.2 });
+          }
+          const pesoDisponible = componentes.reduce((acc, c) => acc + c.peso, 0);
+          const composite =
+            pesoDisponible > 0
+              ? Math.round(
+                  (componentes.reduce((acc, c) => acc + c.valor * c.peso, 0) / pesoDisponible) * 10
+                ) / 10
+              : null;
 
           return {
             branchId: b.id,
@@ -1381,10 +1450,8 @@ export const CrossBranchService = {
             salesTotalCents: salesTotal,
             salesBaseCents: salesBase.baseCents,
             salesBaseKind: salesBase.kind,
-            foodCostCents: foodFaltaba
-              ? 0
-              : (food?.foodCostCents ?? 0) + (food?.wasteCents ?? 0),
-            laborCostCents: laborFaltaba ? 0 : costo.laborCostCargadoCents,
+            foodCostCents: (food?.foodCostCents ?? 0) + (food?.wasteCents ?? 0),
+            laborCostCents: labor ? costo.laborCostCargadoCents : 0,
             foodCostPercent,
             laborCostPercent,
             primeCostPercent,
@@ -1392,36 +1459,33 @@ export const CrossBranchService = {
             nom251ComplianceRate: nom251Rate,
             cashReconciliationRate,
             compositeScore: composite,
-            dataQuality: isEstimated ? "ESTIMATED" : "VERIFIED",
-            foodCostSource: foodFaltaba ? "SECTOR_DEFAULT" : costo.foodSource,
-            laborCostSource: laborFaltaba ? "SECTOR_DEFAULT" : costo.laborSource,
+            dataQuality,
+            quality: {
+              sales: salesQuality,
+              foodCost: foodQuality,
+              laborCost: laborQuality,
+              nom251: nom251Quality,
+              cashReconciliation: cashQuality,
+            },
+            foodCostSource: costo.foodSource,
+            laborCostSource: costo.laborSource,
             costNote: `${salesBase.note} ${burden.nota}`,
           };
         });
 
-        // 6. Ordenar por compositeScore desc y asignar rank
+        // 6. Ordenar por compositeScore desc y asignar rank. Un score `null`
+        // (sin ningún indicador) va al final; no se le inventa un lugar.
         const sortedBranches = [...rawBranches]
-          .sort((a, b) => b.compositeScore - a.compositeScore)
+          .sort((a, b) => (b.compositeScore ?? -1) - (a.compositeScore ?? -1))
           .map((b, idx) => ({ ...b, rank: idx + 1 }));
 
         // 7. Podio Top 3
         const podiumTop3 = sortedBranches.slice(0, 3);
 
-        // 8. Promedios de la red
-        const activeUnits = sortedBranches.filter((b) => b.salesTotalCents > 0);
-        const count = activeUnits.length || sortedBranches.length || 1;
-        const avgPrime =
-          Math.round(
-            (sortedBranches.reduce((acc, b) => acc + b.primeCostPercent, 0) / count) * 10
-          ) / 10;
-        const avgFood =
-          Math.round(
-            (sortedBranches.reduce((acc, b) => acc + b.foodCostPercent, 0) / count) * 10
-          ) / 10;
-        const avgLabor =
-          Math.round(
-            (sortedBranches.reduce((acc, b) => acc + b.laborCostPercent, 0) / count) * 10
-          ) / 10;
+        // 8. Promedios de la red: sólo sobre las sucursales que tienen el dato.
+        const avgPrime = promedioDeIndicador(sortedBranches.map((b) => b.primeCostPercent));
+        const avgFood = promedioDeIndicador(sortedBranches.map((b) => b.foodCostPercent));
+        const avgLabor = promedioDeIndicador(sortedBranches.map((b) => b.laborCostPercent));
 
         // 9. Detección de inconsistencias de red
         // C22 — cuando la red está segmentada, cada hallazgo se calcula y se
@@ -1492,36 +1556,54 @@ export function detectNetworkAnomalies(
   const activeBranches = branchScores.filter((b) => b.salesTotalCents > 0);
   if (activeBranches.length < 2) return [];
 
+  const conLabor = activeBranches.filter((b) => b.laborCostPercent !== null);
   const avgLaborCost =
-    activeBranches.reduce((acc, b) => acc + b.laborCostPercent, 0) / activeBranches.length;
+    conLabor.length > 0
+      ? conLabor.reduce((acc, b) => acc + (b.laborCostPercent ?? 0), 0) / conLabor.length
+      : null;
 
-  // Encontrar la sucursal más eficiente en Food Cost
-  const sortedByFood = [...activeBranches].sort((a, b) => a.foodCostPercent - b.foodCostPercent);
-  const bestFoodBranch = sortedByFood[0];
+  // Encontrar la sucursal más eficiente en Food Cost entre las que reportan el dato.
+  const conFood = activeBranches.filter((b) => b.foodCostPercent !== null);
+  const bestFoodBranch =
+    conFood.length > 0
+      ? [...conFood].sort(
+          (a, b) => (a.foodCostPercent ?? Infinity) - (b.foodCostPercent ?? Infinity)
+        )[0]
+      : null;
 
   for (const branch of activeBranches) {
-    // 1. Desviación en Food Cost > 3 puntos porcentuales contra la más eficiente
-    const diffAgainstBest = branch.foodCostPercent - bestFoodBranch.foodCostPercent;
-    if (diffAgainstBest > 3.0 && branch.branchId !== bestFoodBranch.branchId) {
-      const impactMxn = Math.round((diffAgainstBest / 100) * (branch.salesTotalCents / 100));
-      findings.push({
-        id: `food-cost-variance-${branch.branchId}`,
-        type: "FOOD_COST_DISCREPANCY",
-        severity: diffAgainstBest > 5.0 ? "critical" : "warning",
-        title: `Desviación de Food Cost en ${branch.branchName}`,
-        narrative: `${branch.branchName} reporta un costo de alimentos de ${branch.foodCostPercent.toFixed(1)}%, que supera por ${diffAgainstBest.toFixed(1)} puntos a ${bestFoodBranch.branchName} (${bestFoodBranch.foodCostPercent.toFixed(1)}%)${red ? ` dentro de la ${ETIQUETA_RED[red].toLowerCase()}` : ""}.`,
-        affectedBranchId: branch.branchId,
-        affectedBranchName: branch.branchName,
-        benchmarkBranchName: bestFoodBranch.branchName,
-        variancePoints: Math.round(diffAgainstBest * 10) / 10,
-        estimatedImpactMxn: impactMxn,
-        suggestedAction: "Auditar rendimiento de porciones en recetas y verificar mermas de carne o proteínas no declaradas.",
-        red,
-      });
+    // 1. Desviación en Food Cost > 3 puntos porcentuales contra la más eficiente.
+    // Una sucursal sin food cost medido no entra en la comparación: la ausencia
+    // no es una desviación.
+    if (
+      branch.foodCostPercent !== null &&
+      bestFoodBranch &&
+      bestFoodBranch.foodCostPercent !== null &&
+      branch.branchId !== bestFoodBranch.branchId
+    ) {
+      const diffAgainstBest = branch.foodCostPercent - bestFoodBranch.foodCostPercent;
+      if (diffAgainstBest > 3.0) {
+        const impactMxn = Math.round((diffAgainstBest / 100) * (branch.salesTotalCents / 100));
+        findings.push({
+          id: `food-cost-variance-${branch.branchId}`,
+          type: "FOOD_COST_DISCREPANCY",
+          severity: diffAgainstBest > 5.0 ? "critical" : "warning",
+          title: `Desviación de Food Cost en ${branch.branchName}`,
+          narrative: `${branch.branchName} reporta un costo de alimentos de ${branch.foodCostPercent.toFixed(1)}%, que supera por ${diffAgainstBest.toFixed(1)} puntos a ${bestFoodBranch.branchName} (${bestFoodBranch.foodCostPercent.toFixed(1)}%)${red ? ` dentro de la ${ETIQUETA_RED[red].toLowerCase()}` : ""}.`,
+          affectedBranchId: branch.branchId,
+          affectedBranchName: branch.branchName,
+          benchmarkBranchName: bestFoodBranch.branchName,
+          variancePoints: Math.round(diffAgainstBest * 10) / 10,
+          estimatedImpactMxn: impactMxn,
+          suggestedAction: "Auditar rendimiento de porciones en recetas y verificar mermas de carne o proteínas no declaradas.",
+          red,
+        });
+      }
     }
 
     // 2. Fuga de Prime Cost por encima del límite de viabilidad configurado.
-    if (branch.primeCostPercent > primeWarn) {
+    // Sin food o labor no hay prime cost: no se puede alertar sobre un dato ausente.
+    if (branch.primeCostPercent !== null && branch.primeCostPercent > primeWarn) {
       const overrunPoints = branch.primeCostPercent - primeTarget;
       const impactMxn = Math.round((overrunPoints / 100) * (branch.salesTotalCents / 100));
       findings.push({
@@ -1539,23 +1621,25 @@ export function detectNetworkAnomalies(
       });
     }
 
-    // 3. Sobrecosto laboral > 3.5 puntos sobre el promedio de la red
-    const laborDiff = branch.laborCostPercent - avgLaborCost;
-    if (laborDiff > 3.5) {
-      const impactMxn = Math.round((laborDiff / 100) * (branch.salesTotalCents / 100));
-      findings.push({
-        id: `labor-overrun-${branch.branchId}`,
-        type: "LABOR_OVERRUN",
-        severity: "warning",
-        title: `Sobrecosto Laboral en ${branch.branchName} (+${laborDiff.toFixed(1)} pts)`,
-        narrative: `La nómina en ${branch.branchName} representa el ${branch.laborCostPercent.toFixed(1)}% de las ventas, comparado con el promedio de la red de ${avgLaborCost.toFixed(1)}%.`,
-        affectedBranchId: branch.branchId,
-        affectedBranchName: branch.branchName,
-        variancePoints: Math.round(laborDiff * 10) / 10,
-        estimatedImpactMxn: impactMxn,
-        suggestedAction: "Auditar horas extras aprobadas y redistribuir personal hacia tiendas con mayor afluencia.",
-        red,
-      });
+    // 3. Sobrecosto laboral > 3.5 puntos sobre el promedio de la red.
+    if (branch.laborCostPercent !== null && avgLaborCost !== null) {
+      const laborDiff = branch.laborCostPercent - avgLaborCost;
+      if (laborDiff > 3.5) {
+        const impactMxn = Math.round((laborDiff / 100) * (branch.salesTotalCents / 100));
+        findings.push({
+          id: `labor-overrun-${branch.branchId}`,
+          type: "LABOR_OVERRUN",
+          severity: "warning",
+          title: `Sobrecosto Laboral en ${branch.branchName} (+${laborDiff.toFixed(1)} pts)`,
+          narrative: `La nómina en ${branch.branchName} representa el ${branch.laborCostPercent.toFixed(1)}% de las ventas, comparado con el promedio de la red de ${avgLaborCost.toFixed(1)}%.`,
+          affectedBranchId: branch.branchId,
+          affectedBranchName: branch.branchName,
+          variancePoints: Math.round(laborDiff * 10) / 10,
+          estimatedImpactMxn: impactMxn,
+          suggestedAction: "Auditar horas extras aprobadas y redistribuir personal hacia tiendas con mayor afluencia.",
+          red,
+        });
+      }
     }
   }
 

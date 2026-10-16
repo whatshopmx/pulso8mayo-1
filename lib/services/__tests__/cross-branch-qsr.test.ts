@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   detectNetworkAnomalies,
   BranchQSRScore,
@@ -15,6 +15,15 @@ vi.mock("@/lib/db", () => ({
 vi.mock("next/cache", () => ({
   unstable_cache: (fn: any) => fn,
 }));
+
+/** C30 — calidad de un fixture medido en todas sus dimensiones. */
+const CALIDAD_MEDIDA: BranchQSRScore["quality"] = {
+  sales: "MEASURED",
+  foodCost: "MEASURED",
+  laborCost: "MEASURED",
+  nom251: "MEASURED",
+  cashReconciliation: "MEASURED",
+};
 
 describe("CrossBranchService — QSR Prime Cost & Benchmarking", () => {
   describe("detectNetworkAnomalies", () => {
@@ -34,7 +43,8 @@ describe("CrossBranchService — QSR Prime Cost & Benchmarking", () => {
           cashReconciliationRate: 100,
           compositeScore: 92.4,
           rank: 1,
-          dataQuality: "VERIFIED",
+          dataQuality: "MEASURED",
+          quality: CALIDAD_MEDIDA,
         },
       ];
 
@@ -58,7 +68,8 @@ describe("CrossBranchService — QSR Prime Cost & Benchmarking", () => {
           cashReconciliationRate: 100,
           compositeScore: 95.0,
           rank: 1,
-          dataQuality: "VERIFIED",
+          dataQuality: "MEASURED",
+          quality: CALIDAD_MEDIDA,
         },
         {
           branchId: "b-2",
@@ -74,7 +85,8 @@ describe("CrossBranchService — QSR Prime Cost & Benchmarking", () => {
           cashReconciliationRate: 90,
           compositeScore: 78.0,
           rank: 2,
-          dataQuality: "VERIFIED",
+          dataQuality: "MEASURED",
+          quality: CALIDAD_MEDIDA,
         },
       ];
 
@@ -107,7 +119,8 @@ describe("CrossBranchService — QSR Prime Cost & Benchmarking", () => {
           cashReconciliationRate: 100,
           compositeScore: 92.0,
           rank: 1,
-          dataQuality: "VERIFIED",
+          dataQuality: "MEASURED",
+          quality: CALIDAD_MEDIDA,
         },
         {
           branchId: "b-2",
@@ -123,7 +136,8 @@ describe("CrossBranchService — QSR Prime Cost & Benchmarking", () => {
           cashReconciliationRate: 85,
           compositeScore: 58.0,
           rank: 2,
-          dataQuality: "VERIFIED",
+          dataQuality: "MEASURED",
+          quality: CALIDAD_MEDIDA,
         },
       ];
 
@@ -133,6 +147,42 @@ describe("CrossBranchService — QSR Prime Cost & Benchmarking", () => {
       expect(primeCostLeak?.affectedBranchId).toBe("b-2");
       expect(primeCostLeak?.severity).toBe("critical");
       expect(primeCostLeak?.variancePoints).toBe(9); // 69% - 60% límite objetivo
+    });
+
+    it("no compara una sucursal sin food cost medido: la ausencia no es una desviación", () => {
+      const conDato: BranchQSRScore = {
+        branchId: "b-1",
+        branchName: "Con dato",
+        salesTotalCents: 100000000,
+        foodCostCents: 28000000,
+        laborCostCents: 24000000,
+        foodCostPercent: 28.0,
+        laborCostPercent: 24.0,
+        primeCostPercent: 52.0,
+        primeCostStatus: "HEALTHY",
+        nom251ComplianceRate: 100,
+        cashReconciliationRate: 100,
+        compositeScore: 95.0,
+        rank: 1,
+        dataQuality: "ESTIMATED",
+        quality: { ...CALIDAD_MEDIDA, foodCost: "MEASURED" },
+      };
+      const sinDato: BranchQSRScore = {
+        ...conDato,
+        branchId: "b-2",
+        branchName: "Sin dato",
+        foodCostCents: 0,
+        foodCostPercent: null,
+        primeCostPercent: null,
+        primeCostStatus: null,
+        compositeScore: null,
+        dataQuality: "MISSING",
+        quality: { ...CALIDAD_MEDIDA, foodCost: "MISSING", laborCost: "MEASURED" },
+      };
+
+      const findings = detectNetworkAnomalies([conDato, sinDato]);
+      expect(findings.some((f) => f.type === "FOOD_COST_DISCREPANCY")).toBe(false);
+      expect(findings.some((f) => f.type === "PRIME_COST_LEAK")).toBe(false);
     });
 
     it("debe clasificar correctamente el semáforo de Prime Cost (<60 HEALTHY, 60-65 WATCH, >65 CRITICAL)", () => {
@@ -168,7 +218,8 @@ describe("CrossBranchService — QSR Prime Cost & Benchmarking", () => {
             cashReconciliationRate: 95,
             compositeScore: 90,
             rank: 1,
-            dataQuality: "VERIFIED" as const,
+            dataQuality: "MEASURED" as const,
+            quality: CALIDAD_MEDIDA,
           },
         ],
         podiumTop3: [],
@@ -189,35 +240,7 @@ describe("CrossBranchService — QSR Prime Cost & Benchmarking", () => {
       expect(res.branches[0].primeCostPercent).toBe(55.0);
       expect(res.branches[0].foodCostPercent).toBe(31.0);
       expect(res.branches[0].laborCostPercent).toBe(24.0);
-      expect(res.branches[0].dataQuality).toBe("VERIFIED");
-    });
-
-    it("clasifica como ESTIMATED cuando faltan registros contables usando promedios estándar QSR", () => {
-      const salesTotal = 10000000; // $100,000 MXN
-      let foodCostCents = 0;
-      let laborCostCents = 0;
-      let isEstimated = false;
-
-      if (salesTotal > 0 && foodCostCents === 0) {
-        foodCostCents = Math.round(salesTotal * 0.315);
-        isEstimated = true;
-      }
-      if (salesTotal > 0 && laborCostCents === 0) {
-        laborCostCents = Math.round(salesTotal * 0.245);
-        isEstimated = true;
-      }
-
-      expect(isEstimated).toBe(true);
-      expect(foodCostCents).toBe(3150000);
-      expect(laborCostCents).toBe(2450000);
-
-      const foodPercent = Math.round((foodCostCents / salesTotal) * 1000) / 10;
-      const laborPercent = Math.round((laborCostCents / salesTotal) * 1000) / 10;
-      const primePercent = Math.round((foodPercent + laborPercent) * 10) / 10;
-
-      expect(foodPercent).toBe(31.5);
-      expect(laborPercent).toBe(24.5);
-      expect(primePercent).toBe(56.0);
+      expect(res.branches[0].dataQuality).toBe("MEASURED");
     });
   });
 });

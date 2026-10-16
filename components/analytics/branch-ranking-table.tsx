@@ -207,10 +207,14 @@ export function BranchRankingTable({ qsrBranches, ranking, period }: Props) {
                       {/* Data Quality */}
                       <TableCell className="text-center">
                         <Badge
-                          variant={item.dataQuality === "VERIFIED" ? "secondary" : "outline"}
+                          variant={item.dataQuality === "MEASURED" ? "secondary" : "outline"}
                           className="text-[10px] px-1.5 py-0"
                         >
-                          {item.dataQuality === "VERIFIED" ? "Real" : "Estimado"}
+                          {item.dataQuality === "MEASURED"
+                            ? "Real"
+                            : item.dataQuality === "MISSING"
+                            ? "Sin datos"
+                            : "Estimado"}
                         </Badge>
                       </TableCell>
 

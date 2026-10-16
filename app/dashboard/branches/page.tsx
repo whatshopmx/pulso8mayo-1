@@ -101,7 +101,7 @@ export default function BranchesPage() {
         `${b.foodCostSource ?? "NO_DATA"} / ${b.laborCostSource ?? "NO_DATA"}`,
         b.nom251ComplianceRate.toFixed(1),
         b.cashReconciliationRate.toFixed(1),
-        b.dataQuality === "VERIFIED" ? "Verificado" : "Estimado",
+        b.dataQuality === "MEASURED" ? "Verificado" : b.dataQuality === "MISSING" ? "Sin datos" : "Estimado",
         etiquetaPeriodo,
       ]),
       filename: "liga-sucursales-qsr",
