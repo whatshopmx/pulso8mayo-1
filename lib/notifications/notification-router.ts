@@ -1,461 +1,74 @@
-import { NotificationDispatcher, NotificationPayload, NotificationEventType, NotificationChannel } from "@/lib/services/notification-dispatcher";
+import { NotificationDispatcher, NotificationPayload } from "@/lib/services/notification-dispatcher";
+import {
+  NotificationChannel,
+  NotificationEventType,
+  RoutingDecision,
+  RoutingRule,
+  getRoutingRule,
+  getRoutingRules,
+  updateRoutingRule,
+} from "@/lib/notifications/routing-policy";
 
-export interface RoutingRule {
-    eventType: NotificationEventType;
-    priority: "low" | "normal" | "high" | "critical";
-    channels: NotificationChannel[];
-    retryAttempts: number;
-    retryDelayMs: number;
-    businessHoursOnly: boolean;
-}
+/**
+ * C33 — el router y el dispatcher comparten una sola decisión.
+ *
+ * Antes, `route()` calculaba los canales, los metía en `metadata.routedChannels`
+ * y el dispatcher los ignoraba: volvía a elegir por plantilla y preferencias, y
+ * el horario se medía con la zona del proceso. Ahora `route()` delega en
+ * `NotificationDispatcher.decideChannels`, que usa la política pura
+ * (`routing-policy.ts`). `sendWithRouting` sólo envía: el dispatcher decide y
+ * entrega exactamente lo decidido.
+ */
 
-export interface RoutingDecision {
-    shouldSend: boolean;
-    channels: NotificationChannel[];
-    priority: string;
-    retryConfig: {
-        attempts: number;
-        delayMs: number;
-    };
-    reason?: string;
-}
-
-// Routing rules configuration
-const routingRules: Record<NotificationEventType, RoutingRule> = {
-    workflow_assignment: {
-        eventType: "workflow_assignment",
-        priority: "normal",
-        channels: ["whatsapp", "email", "in-app"],
-        retryAttempts: 3,
-        retryDelayMs: 5000,
-        businessHoursOnly: false
-    },
-    workflow_due_soon: {
-        eventType: "workflow_due_soon",
-        priority: "normal",
-        channels: ["whatsapp", "in-app"],
-        retryAttempts: 2,
-        retryDelayMs: 3000,
-        businessHoursOnly: false
-    },
-    workflow_overdue: {
-        eventType: "workflow_overdue",
-        priority: "high",
-        channels: ["whatsapp", "email", "in-app"],
-        retryAttempts: 3,
-        retryDelayMs: 2000,
-        businessHoursOnly: false
-    },
-    incident: {
-        eventType: "incident",
-        priority: "critical",
-        channels: ["whatsapp", "email", "in-app"],
-        retryAttempts: 5,
-        retryDelayMs: 1000,
-        businessHoursOnly: false
-    },
-    stock_alert: {
-        eventType: "stock_alert",
-        priority: "high",
-        channels: ["whatsapp", "email", "in-app"],
-        retryAttempts: 3,
-        retryDelayMs: 2000,
-        businessHoursOnly: true
-    },
-    shift_reminder: {
-        eventType: "shift_reminder",
-        priority: "low",
-        channels: ["whatsapp", "in-app"],
-        retryAttempts: 2,
-        retryDelayMs: 5000,
-        businessHoursOnly: true
-    },
-    schedule_change: {
-        eventType: "schedule_change",
-        priority: "normal",
-        channels: ["whatsapp", "email", "in-app"],
-        retryAttempts: 3,
-        retryDelayMs: 3000,
-        businessHoursOnly: false
-    },
-  document_expiration: {
-    eventType: "document_expiration",
-    priority: "high",
-    channels: ["whatsapp", "email", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 2000,
-    businessHoursOnly: false
-  },
-  shift_approval_request: {
-    eventType: "shift_approval_request",
-    priority: "normal",
-    channels: ["whatsapp", "email", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  /**
-   * Gasto esperando autorización. Mismo trato que la aprobación de turno: es
-   * dinero detenido, pero no una urgencia que justifique despertar a nadie —
-   * `businessHoursOnly: false` porque la cola se atiende cuando se abre.
-   */
-  expense_approval_request: {
-    eventType: "expense_approval_request",
-    priority: "normal",
-    channels: ["whatsapp", "email", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  shift_approval_decision: {
-    eventType: "shift_approval_decision",
-    priority: "normal",
-    channels: ["whatsapp", "email", "in-app"],
-    retryAttempts: 2,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  stock_count_variance: {
-    eventType: "stock_count_variance",
-    priority: "high",
-    channels: ["whatsapp", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 2000,
-    businessHoursOnly: true
-  },
-  shift_change_request: {
-    eventType: "shift_change_request",
-    priority: "normal",
-    channels: ["whatsapp", "email", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  shift_change_decision: {
-    eventType: "shift_change_decision",
-    priority: "normal",
-    channels: ["whatsapp", "email", "in-app"],
-    retryAttempts: 2,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  employee_absence: {
-    eventType: "employee_absence",
-    priority: "high",
-    channels: ["whatsapp", "email", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 2000,
-    businessHoursOnly: false
-  },
-  announcement_broadcast: {
-    eventType: "announcement_broadcast",
-    priority: "normal",
-    channels: ["whatsapp", "email", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  training_assigned: {
-    eventType: "training_assigned",
-    priority: "normal",
-    channels: ["whatsapp", "email", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  imss_deadline: {
-    eventType: "imss_deadline",
-    priority: "high",
-    channels: ["whatsapp", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 2000,
-    businessHoursOnly: false
-  },
-  sales_cut_reminder: {
-    eventType: "sales_cut_reminder",
-    priority: "normal",
-    channels: ["whatsapp", "in-app"],
-    retryAttempts: 2,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  sales_cut_missing: {
-    eventType: "sales_cut_missing",
-    priority: "high",
-    channels: ["whatsapp", "email", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 2000,
-    businessHoursOnly: false
-  },
-  financial_kpi_deviation: {
-    eventType: "financial_kpi_deviation",
-    priority: "high",
-    channels: ["whatsapp", "in-app"],
-    retryAttempts: 2,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  cash_variance_detected: {
-    eventType: "cash_variance_detected",
-    // Un faltante de caja se avisa mientras la caja todavía se puede recontar:
-    // `businessHoursOnly` lo reencolaría al día siguiente, que es justo cuando
-    // ya no sirve. Los cortes ocurren al cierre, fuera de horario de oficina.
-    priority: "critical",
-    channels: ["whatsapp", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  recurring_shortage_detected: {
-    eventType: "recurring_shortage_detected",
-    // `high` y no `critical`: a diferencia del faltante del día, el patrón no
-    // se investiga a las 11 de la noche. Sí sale fuera de horario porque se
-    // detecta al cerrar el corte, y retenerlo hasta mañana lo despega del
-    // hecho que lo disparó.
-    priority: "high",
-    channels: ["whatsapp", "in-app"],
-    retryAttempts: 2,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  budget_threshold_reached: {
-    eventType: "budget_threshold_reached",
-    // `high` y no `critical`: es dinero que ya se gastó, no una fuga en curso.
-    // `businessHoursOnly` en false porque el gasto se captura a cualquier hora y
-    // retener el aviso hasta la mañana lo desconecta de la captura que lo causó.
-    priority: "high",
-    channels: ["whatsapp", "in-app"],
-    retryAttempts: 2,
-    retryDelayMs: 3000,
-    businessHoursOnly: false
-  },
-  morning_brief: {
-    eventType: "morning_brief",
-    priority: "normal",
-    // El cron ya dispara a las 7:00 locales; `businessHoursOnly` lo reencolaría
-    // fuera de esa ventana y el brief dejaría de ser "de la mañana".
-    channels: ["whatsapp", "in-app"],
-    retryAttempts: 2,
-    retryDelayMs: 5000,
-    businessHoursOnly: false
-  },
-  supplier_bank_account_changed: {
-    eventType: "supplier_bank_account_changed",
-    // `critical` y no `high`: es la señal de que alguien pudo estar redirigiendo
-    // un pago. Un cambio de CLABE a las 3 a.m. es MÁS sospechoso, no menos, así
-    // que `businessHoursOnly` queda en false a propósito — retenerlo hasta la
-    // mañana le regalaría al atacante la noche entera.
-    priority: "critical",
-    channels: ["whatsapp", "in-app"],
-    retryAttempts: 5,
-    retryDelayMs: 1000,
-    businessHoursOnly: false
-  },
-  // Mismo control antifraude que supplier_bank_account_changed, aplicado al
-  // catálogo de payees: la contraparte cambia, el riesgo de redirigir un
-  // pago es idéntico.
-  payee_bank_account_changed: {
-    eventType: "payee_bank_account_changed",
-    priority: "critical",
-    channels: ["whatsapp", "in-app"],
-    retryAttempts: 5,
-    retryDelayMs: 1000,
-    businessHoursOnly: false
-  },
-  workflow_unassigned: {
-    eventType: "workflow_unassigned",
-    // Plan 5.2: una programación sin destinatario es un hueco operativo que
-    // necesita a un gerente actuando — si el turno de cierre a las 21:00 no
-    // encontró nadie, avisar en la mañana es tarde. `high`, no `critical`
-    // (no es incidente/fraude), y fuera de horario a propósito.
-    priority: "high",
-    channels: ["whatsapp", "email", "in-app"],
-    retryAttempts: 3,
-    retryDelayMs: 2000,
-    businessHoursOnly: false
-  }
-};
+export type { NotificationChannel, NotificationEventType, RoutingDecision, RoutingRule };
+export { getRoutingRule, getRoutingRules, updateRoutingRule };
 
 export class NotificationRouter {
-    /**
-     * Route notification to appropriate channels
-     */
-    static async route(payload: NotificationPayload): Promise<RoutingDecision> {
-        const rule = routingRules[payload.eventType];
+  /**
+   * Decisión de enrutamiento para un payload: canales, prioridad y reintentos.
+   * Es la misma que aplica el dispatcher al enviar.
+   */
+  static async route(payload: NotificationPayload): Promise<RoutingDecision> {
+    return NotificationDispatcher.decideChannels(payload);
+  }
 
-        if (!rule) {
-            return {
-                shouldSend: false,
-                channels: [],
-                priority: "normal",
-                retryConfig: {
-                    attempts: 0,
-                    delayMs: 0
-                },
-                reason: `No routing rule found for event type: ${payload.eventType}`
-            };
-        }
+  /**
+   * Envía con la decisión del dispatcher. No se vuelve a decidir aquí: si lo
+   * hiciera, volvería a existir la divergencia que H09 describe.
+   */
+  static async sendWithRouting(payload: NotificationPayload): Promise<void> {
+    await NotificationDispatcher.sendNotification(payload);
+  }
 
-        // Check business hours if required
-        if (rule.businessHoursOnly && !this.isBusinessHours()) {
-            return {
-                shouldSend: true,
-                channels: ["in-app"], // Only send in-app notification outside business hours
-                priority: rule.priority,
-                retryConfig: {
-                    attempts: rule.retryAttempts,
-                    delayMs: rule.retryDelayMs
-                },
-                reason: "Outside business hours - only in-app notification sent"
-            };
-        }
+  /**
+   * Envía un lote ordenado por prioridad. La prioridad sale de la regla, que
+   * es la misma que usa la decisión de canales.
+   */
+  static async sendBatchWithRouting(payloads: NotificationPayload[]): Promise<void> {
+    const grouped = this.groupByPriority(payloads);
 
-        // Check for critical notifications - always send through all channels
-        if (rule.priority === "critical") {
-            return {
-                shouldSend: true,
-                channels: rule.channels,
-                priority: rule.priority,
-                retryConfig: {
-                    attempts: rule.retryAttempts,
-                    delayMs: rule.retryDelayMs
-                }
-            };
-        }
-
-        // Normal routing
-        return {
-            shouldSend: true,
-            channels: rule.channels,
-            priority: rule.priority,
-            retryConfig: {
-                attempts: rule.retryAttempts,
-                delayMs: rule.retryDelayMs
-            }
-        };
+    for (const priority of ["critical", "high", "normal", "low"] as const) {
+      const batch = grouped[priority];
+      if (batch) {
+        await Promise.all(batch.map((payload) => this.sendWithRouting(payload)));
+      }
     }
+  }
 
-    /**
-     * Send notification with routing
-     */
-    static async sendWithRouting(payload: NotificationPayload): Promise<void> {
-        const decision = await this.route(payload);
+  private static groupByPriority(payloads: NotificationPayload[]): {
+    critical?: NotificationPayload[];
+    high?: NotificationPayload[];
+    normal?: NotificationPayload[];
+    low?: NotificationPayload[];
+  } {
+    const grouped: Record<string, NotificationPayload[]> = {};
 
-        if (!decision.shouldSend) {
-            console.log("Notification not sent:", decision.reason);
-            return;
-        }
+    payloads.forEach((payload) => {
+      const rule = getRoutingRule(payload.eventType);
+      if (!rule) return;
+      (grouped[rule.priority] ??= []).push(payload);
+    });
 
-        // Create modified payload based on routing decision
-        const routingPayload = {
-            ...payload,
-            metadata: {
-                ...payload.metadata,
-                routingPriority: decision.priority,
-                routedChannels: decision.channels
-            }
-        };
-
-        // Send through dispatcher
-        await NotificationDispatcher.sendNotification(routingPayload);
-    }
-
-    /**
-     * Send batch notifications with routing
-     */
-    static async sendBatchWithRouting(payloads: NotificationPayload[]): Promise<void> {
-        // Group by priority
-        const grouped = this.groupByPriority(payloads);
-
-        // Send critical first
-        if (grouped.critical) {
-            await Promise.all(
-                grouped.critical.map(payload => this.sendWithRouting(payload))
-            );
-        }
-
-        // Then high priority
-        if (grouped.high) {
-            await Promise.all(
-                grouped.high.map(payload => this.sendWithRouting(payload))
-            );
-        }
-
-        // Then normal
-        if (grouped.normal) {
-            await Promise.all(
-                grouped.normal.map(payload => this.sendWithRouting(payload))
-            );
-        }
-
-        // Finally low priority
-        if (grouped.low) {
-            await Promise.all(
-                grouped.low.map(payload => this.sendWithRouting(payload))
-            );
-        }
-    }
-
-    /**
-     * Check if current time is within business hours
-     */
-    private static isBusinessHours(): boolean {
-        const now = new Date();
-        const day = now.getDay(); // 0 = Sunday, 6 = Saturday
-        const hour = now.getHours();
-
-        // Monday to Friday, 9 AM to 6 PM
-        return day >= 1 && day <= 5 && hour >= 9 && hour < 18;
-    }
-
-    /**
-     * Group payloads by priority
-     */
-    private static groupByPriority(payloads: NotificationPayload[]): {
-        critical?: NotificationPayload[];
-        high?: NotificationPayload[];
-        normal?: NotificationPayload[];
-        low?: NotificationPayload[];
-    } {
-        const grouped: any = {};
-
-        payloads.forEach(payload => {
-            const rule = routingRules[payload.eventType];
-            if (!rule) return;
-
-            if (!grouped[rule.priority]) {
-                grouped[rule.priority] = [];
-            }
-
-            grouped[rule.priority].push(payload);
-        });
-
-        return grouped;
-    }
-
-    /**
-     * Get routing rules
-     */
-    static getRoutingRules(): Record<NotificationEventType, RoutingRule> {
-        return routingRules;
-    }
-
-    /**
-     * Get routing rule for specific event type
-     */
-    static getRoutingRule(eventType: NotificationEventType): RoutingRule | undefined {
-        return routingRules[eventType];
-    }
-
-    /**
-     * Update routing rule (for runtime configuration)
-     */
-    static updateRoutingRule(eventType: NotificationEventType, updates: Partial<RoutingRule>): void {
-        if (routingRules[eventType]) {
-            routingRules[eventType] = {
-                ...routingRules[eventType],
-                ...updates
-            };
-        }
-    }
+    return grouped;
+  }
 }

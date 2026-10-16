@@ -1,6 +1,13 @@
 import { db } from "@/lib/db";
-import { notifications, notificationPreferences, users } from "@/lib/db/schema";
+import { branches, notifications, notificationPreferences, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import {
+  DEFAULT_NOTIFICATION_TIMEZONE,
+  decideNotificationChannels,
+  type NotificationChannel,
+  type NotificationEventType,
+  type RoutingDecision,
+} from "@/lib/notifications/routing-policy";
 import {
   sendWorkflowAssignmentEmail,
   sendWorkflowReminderEmail,
@@ -12,36 +19,9 @@ import {
   sendWorkflowUnassignedEmail,
 } from "./email-service";
 
-export type NotificationChannel = "whatsapp" | "email" | "in-app";
-export type NotificationEventType =
-  | "workflow_assignment"
-  | "workflow_due_soon"
-  | "workflow_overdue"
-  | "incident"
-  | "stock_alert"
-  | "stock_count_variance"
-  | "shift_reminder"
-  | "schedule_change"
-  | "document_expiration"
-  | "shift_approval_request"
-  | "expense_approval_request"
-  | "shift_approval_decision"
-  | "shift_change_request"
-  | "shift_change_decision"
-  | "employee_absence"
-  | "announcement_broadcast"
-  | "training_assigned"
-  | "imss_deadline"
-  | "sales_cut_reminder"
-  | "sales_cut_missing"
-  | "financial_kpi_deviation"
-  | "cash_variance_detected"
-  | "recurring_shortage_detected"
-  | "budget_threshold_reached"
-  | "morning_brief"
-  | "supplier_bank_account_changed"
-  | "payee_bank_account_changed"
-  | "workflow_unassigned";
+// C33: los tipos viven en la política de enrutamiento y se re-exportan aquí
+// para no romper a quienes importaban del dispatcher.
+export type { NotificationChannel, NotificationEventType, RoutingDecision };
 
 export interface UserData {
     id: string;
@@ -64,6 +44,8 @@ export interface NotificationPreferencesData {
     workflowOverdue: boolean;
     incidents: boolean;
     inventoryAlerts: boolean;
+    shiftReminders: boolean;
+    scheduleChanges: boolean;
 }
 
 export interface NotificationPayload {
@@ -495,50 +477,114 @@ export class NotificationDispatcher {
     /**
      * Send notification through appropriate channels based on user preferences
      */
+    /**
+     * C33 — la decisión de canales, compartida con el router. Carga
+     * preferencias, plantilla y zona del contexto, y devuelve la decisión única.
+     */
+    static async decideChannels(payload: NotificationPayload): Promise<RoutingDecision> {
+        const prepared = await this.prepareDelivery(payload);
+        if (!prepared) {
+            return {
+                shouldSend: false,
+                channels: [],
+                priority: "normal",
+                retryConfig: { attempts: 0, delayMs: 0 },
+                reason: `Sin preferencias o plantilla para ${payload.eventType}`,
+                outsideBusinessHours: false,
+                timezone: DEFAULT_NOTIFICATION_TIMEZONE,
+            };
+        }
+        return prepared.decision;
+    }
+
+    /**
+     * Preferencias + plantilla + zona + decisión, en un solo lugar, para que
+     * decidir y enviar no vuelvan a divergir.
+     */
+    private static async prepareDelivery(payload: NotificationPayload): Promise<{
+        decision: RoutingDecision;
+        template: NotificationTemplate;
+        userData: UserData | null;
+    } | null> {
+        const prefs = await this.getUserPreferences(payload.userId);
+        if (!prefs) return null;
+
+        const template = notificationTemplates[payload.eventType];
+        if (!template) return null;
+
+        const userData = await this.getUserData(payload.userId);
+        const timezone = await this.resolveTimezone(userData, payload.metadata);
+
+        const decision = decideNotificationChannels({
+            eventType: payload.eventType,
+            preferences: prefs,
+            templateChannels: template.channels,
+            now: new Date(),
+            timezone,
+        });
+
+        return { decision, template, userData };
+    }
+
     static async sendNotification(payload: NotificationPayload): Promise<void> {
         try {
-            // Get user preferences
-            const prefs = await this.getUserPreferences(payload.userId);
-            if (!prefs) {
-                console.log(`No preferences found for user ${payload.userId}`);
+            const prepared = await this.prepareDelivery(payload);
+            if (!prepared) {
+                console.log(`No preferences or template for ${payload.eventType} / ${payload.userId}`);
                 return;
             }
 
-            // Check if user wants this type of notification
-            if (!this.shouldSendNotification(payload.eventType, prefs)) {
-                console.log(`User ${payload.userId} has disabled ${payload.eventType} notifications`);
+            const { decision, template, userData } = prepared;
+
+            if (!decision.shouldSend) {
+                console.log(`Notification ${payload.eventType} not sent: ${decision.reason}`);
                 return;
             }
 
-            // Get template
-            const template = notificationTemplates[payload.eventType];
-            if (!template) {
-                console.warn(`No template found for event type: ${payload.eventType}`);
-                return;
+            // Se intenta exactamente lo que decidió el router: ni un canal de más.
+            const attempts: Promise<unknown>[] = [];
+
+            for (const channel of decision.channels) {
+                if (channel === "whatsapp") {
+                    attempts.push(this.sendWhatsAppNotification(payload, template, userData));
+                } else if (channel === "email") {
+                    attempts.push(this.sendEmailNotification(payload, template, userData));
+                } else {
+                    attempts.push(this.sendInAppNotification(payload, template, userData));
+                }
             }
 
-            // Get user data for template variables
-            const userData = await this.getUserData(payload.userId);
-
-            // Send through enabled channels
-            const promises = [];
-
-            if (prefs.whatsappEnabled && template.channels.includes("whatsapp")) {
-                promises.push(this.sendWhatsAppNotification(payload, template, userData));
-            }
-
-            if (prefs.emailEnabled && template.channels.includes("email")) {
-                promises.push(this.sendEmailNotification(payload, template, userData));
-            }
-
-            if (prefs.inAppEnabled && template.channels.includes("in-app")) {
-                promises.push(this.sendInAppNotification(payload, template, userData));
-            }
-
-            await Promise.allSettled(promises);
+            await Promise.allSettled(attempts);
         } catch (error) {
             console.error("Error in sendNotification:", error);
         }
+    }
+
+    /**
+     * Zona horaria del contexto: la sucursal del destinatario, luego el default
+     * del producto. `metadata.timezone` la sobreescribe. Nunca usa la zona del
+     * proceso. La empresa no tiene zona propia en el esquema (sólo la sucursal).
+     */
+    private static async resolveTimezone(
+        userData: UserData | null,
+        metadata?: Record<string, unknown>
+    ): Promise<string> {
+        const explicit = metadata?.timezone;
+        if (typeof explicit === "string" && explicit) return explicit;
+
+        try {
+            if (userData?.branchId) {
+                const branch = await db.query.branches.findFirst({
+                    where: eq(branches.id, userData.branchId),
+                    columns: { timezone: true },
+                });
+                if (branch?.timezone) return branch.timezone;
+            }
+        } catch (error) {
+            console.error("Error resolving notification timezone:", error);
+        }
+
+        return DEFAULT_NOTIFICATION_TIMEZONE;
     }
 
     /**
@@ -571,7 +617,7 @@ export class NotificationDispatcher {
   private static async sendWhatsAppNotification(
     payload: NotificationPayload,
     template: NotificationTemplate,
-    userData: UserData
+    userData: UserData | null
   ): Promise<void> {
     try {
       if (!template.whatsappTemplate) return;
@@ -598,7 +644,7 @@ export class NotificationDispatcher {
   private static async sendEmailNotification(
     payload: NotificationPayload,
     template: NotificationTemplate,
-    userData: UserData
+    userData: UserData | null
   ): Promise<void> {
     try {
       if (!template.emailSubject || !template.emailBody) return;
@@ -715,7 +761,7 @@ export class NotificationDispatcher {
     private static async sendInAppNotification(
         payload: NotificationPayload,
         template: NotificationTemplate,
-        userData: UserData
+        userData: UserData | null
     ): Promise<void> {
         try {
             if (!template.inAppTitle || !template.inAppMessage) return;
@@ -767,38 +813,13 @@ export class NotificationDispatcher {
         workflowDueSoon: true,
         workflowOverdue: true,
         incidents: true,
-        inventoryAlerts: true
+        inventoryAlerts: true,
+        shiftReminders: true,
+        scheduleChanges: true
       };
         } catch (error) {
             console.error("Error getting user preferences:", error);
             return null;
-        }
-    }
-
-    /**
-     * Check if notification should be sent based on event type and preferences
-     */
-    private static shouldSendNotification(
-        eventType: NotificationEventType,
-        prefs: NotificationPreferencesData
-    ): boolean {
-        switch (eventType) {
-            case "workflow_assignment":
-                return prefs.workflowAssignments;
-            case "workflow_due_soon":
-                return prefs.workflowDueSoon;
-            case "workflow_overdue":
-                return prefs.workflowOverdue;
-            case "incident":
-                return prefs.incidents;
-            case "stock_alert":
-                return true; // Always send stock alerts
-            case "shift_reminder":
-                return true; // Always send shift reminders
-            case "schedule_change":
-                return true; // Always send schedule changes
-            default:
-                return true;
         }
     }
 
