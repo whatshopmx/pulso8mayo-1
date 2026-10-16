@@ -2,14 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import {
   branches,
-  costRecords,
   dailySalesCuts,
-  inventoryWaste,
   temperatureLogs,
 } from "@/lib/db/schema";
 import { buildOwnershipScope, type AccessContext } from "@/lib/rbac/abac";
 import { CrossBranchService } from "@/lib/services/cross-branch-service";
-import { getTenantOperatingConfig } from "@/lib/services/tenant-config-service";
+import { getTenantOperatingConfig, getFinancialTargets } from "@/lib/services/tenant-config-service";
+import { getFoodCostByBranch } from "@/lib/services/food-cost-service";
+import { getLaborCostByBranch } from "@/lib/services/labor-cost-service";
+import { getLaborBurden } from "@/lib/services/labor-burden";
+import { getVatRatePercent } from "@/lib/services/sales-base";
+import { DEFAULT_FINANCIAL_TARGETS } from "@/lib/services/financial-kpi-types";
 
 /**
  * C22 — V1 del recorrido elegido: la Liga de Sucursales.
@@ -41,7 +44,17 @@ vi.mock("next/cache", () => ({
 }));
 vi.mock("@/lib/services/tenant-config-service", () => ({
   getTenantOperatingConfig: vi.fn(),
+  getFinancialTargets: vi.fn(),
 }));
+// C29 — el motor QSR toma los numeradores de los mismos servicios que el motor
+// financiero: aquéllos se simulan y la base (ventas) se entrega por tabla.
+vi.mock("@/lib/services/food-cost-service", () => ({ getFoodCostByBranch: vi.fn() }));
+vi.mock("@/lib/services/labor-cost-service", () => ({ getLaborCostByBranch: vi.fn() }));
+vi.mock("@/lib/services/labor-burden", () => ({ getLaborBurden: vi.fn() }));
+vi.mock("@/lib/services/sales-base", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/sales-base")>();
+  return { ...actual, getVatRatePercent: vi.fn() };
+});
 
 type Filas = Record<string, unknown>[];
 
@@ -84,10 +97,10 @@ const filasDeSucursales: Filas = [
 const soloPropias: Filas = filasDeSucursales.filter((f) => f.ownershipType === "OWNED");
 
 const ventas: Filas = [
-  { branchId: "b1", totalSales: 100_000_000, totalCuts: 10, balancedCuts: 10 },
-  { branchId: "b2", totalSales: 80_000_000, totalCuts: 10, balancedCuts: 10 },
-  { branchId: "b3", totalSales: 60_000_000, totalCuts: 10, balancedCuts: 10 },
-  { branchId: "b4", totalSales: 50_000_000, totalCuts: 10, balancedCuts: 10 },
+  { branchId: "b1", totalSales: 100_000_000, taxSum: 0, cutsWithTax: 0, totalCuts: 10, balancedCuts: 10 },
+  { branchId: "b2", totalSales: 80_000_000, taxSum: 0, cutsWithTax: 0, totalCuts: 10, balancedCuts: 10 },
+  { branchId: "b3", totalSales: 60_000_000, taxSum: 0, cutsWithTax: 0, totalCuts: 10, balancedCuts: 10 },
+  { branchId: "b4", totalSales: 50_000_000, taxSum: 0, cutsWithTax: 0, totalCuts: 10, balancedCuts: 10 },
 ];
 const ventasPropias = ventas.filter((f) => f.branchId === "b1" || f.branchId === "b2");
 
@@ -115,12 +128,35 @@ const manoDeObraPropia = manoDeObra.filter((f) => f.branchId === "b1" || f.branc
 
 /** La cadena completa de consultas que hace el recorrido con estas filas. */
 function programarRecorrido(sucursales: Filas, ventasDeRed: Filas, comidaDeRed: Filas, obraDeRed: Filas) {
+  // C29 — food y nómina llegan por los servicios compartidos; sólo las ventas y
+  // las temperaturas se resuelven contra la base simulada.
+  vi.mocked(getFoodCostByBranch).mockResolvedValue(
+    comidaDeRed.map((r) => ({
+      branchId: r.branchId as string,
+      foodCostCents: r.total as number,
+      wasteCents: 0,
+      source: "CONSUMPTION",
+      usedCostFallback: false,
+      costingMethod: "LAST_COST",
+      coveragePercent: 100,
+      note: "",
+    })) as never,
+  );
+  vi.mocked(getLaborCostByBranch).mockResolvedValue(
+    obraDeRed.map((r) => ({
+      branchId: r.branchId as string,
+      baseCostCents: r.total as number,
+      overtimeCostCents: 0,
+      totalCostCents: r.total as number,
+      headcount: 1,
+      source: "MEASURED",
+      coveragePercent: 100,
+      note: "",
+    })) as never,
+  );
   programar(
     [branches, sucursales],
     [dailySalesCuts, ventasDeRed],
-    [costRecords, comidaDeRed], // food cost
-    [inventoryWaste, []],
-    [costRecords, obraDeRed], // mano de obra
     [temperatureLogs, []],
   );
 }
@@ -136,6 +172,18 @@ const gerenteDeB1: AccessContext = {
 beforeEach(() => {
   vi.mocked(db.select).mockReset();
   vi.mocked(getTenantOperatingConfig).mockReset();
+  vi.mocked(getFoodCostByBranch).mockReset();
+  vi.mocked(getLaborCostByBranch).mockReset();
+  // Sin carga y sin IVA estimado: la base es la venta con IVA, como antes de
+  // C29, para que las cifras del recorrido sigan siendo las declaradas.
+  vi.mocked(getLaborBurden).mockResolvedValue({
+    factorPercent: null,
+    stateTaxPercent: null,
+    totalPercent: null,
+    nota: "Cifra BRUTA.",
+  });
+  vi.mocked(getVatRatePercent).mockResolvedValue(null);
+  vi.mocked(getFinancialTargets).mockResolvedValue(DEFAULT_FINANCIAL_TARGETS);
   clavesDeCache.length = 0;
 });
 
@@ -269,14 +317,7 @@ describe("getBranchQSRRanking — red única con GRUPO_PROPIO", () => {
   it("grupo propio con una franquicia capturada: se segmenta y la contradicción queda escrita", async () => {
     vi.mocked(getTenantOperatingConfig).mockResolvedValue(config("GRUPO_PROPIO"));
     const capturaInconsistente = [...soloPropias, filasDeSucursales[2]];
-    programar(
-      [branches, capturaInconsistente],
-      [dailySalesCuts, ventas],
-      [costRecords, comida],
-      [inventoryWaste, []],
-      [costRecords, manoDeObra],
-      [temperatureLogs, []],
-    );
+    programarRecorrido(capturaInconsistente, ventas, comida, manoDeObra);
 
     const resultado = await CrossBranchService.getBranchQSRRanking("comp-a", 30);
 

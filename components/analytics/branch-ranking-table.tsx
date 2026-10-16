@@ -71,8 +71,8 @@ export function BranchRankingTable({ qsrBranches, ranking, period }: Props) {
                   <TableHead>Sucursal</TableHead>
                   <TableHead className="text-right">Score QSR</TableHead>
                   <TableHead className="text-right">Venta Período</TableHead>
-                  <TableHead className="text-right">Food Cost %</TableHead>
-                  <TableHead className="text-right">Labor Cost %</TableHead>
+                  <TableHead className="text-right">Food Cost % · merma</TableHead>
+                  <TableHead className="text-right">Labor Cost % · carga</TableHead>
                   <TableHead className="text-center">Prime Cost %</TableHead>
                   <TableHead className="text-right">NOM-251</TableHead>
                   <TableHead className="text-right">Cuadre Caja</TableHead>

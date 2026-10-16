@@ -17,7 +17,7 @@ Este documento es para empezar una sesión nueva sin releer veinte archivos. **L
 
 ## 2. Estado al handing-off
 
-**C00–C28 completadas en el seguimiento. C29–C40 pendientes.** La entrega de C28 (outbox transaccional, publicador con reintentos, resultado durable por extractor, recuperación autorizada y presentación) quedó verificada el 15-10-2026. El detalle vigente está en `docs/audits/2026-10-15-workflow-completion-delivery.md`. C28 se cierra con límites declarados (acciones síncronas anteriores, escritura parcial de recepción e Inngest sin levantar contra Neon); no usar las pruebas de extractores como evidencia de esos caminos.
+**C00–C29 completadas en el seguimiento. C30–C40 pendientes.** La entrega de C28 (outbox transaccional, publicador con reintentos, resultado durable por extractor, recuperación autorizada y presentación) quedó verificada el 15-10-2026. El detalle vigente está en `docs/audits/2026-10-15-workflow-completion-delivery.md`. C28 se cierra con límites declarados (acciones síncronas anteriores, escritura parcial de recepción e Inngest sin levantar contra Neon); no usar las pruebas de extractores como evidencia de esos caminos.
 
 ```
 C26 compuerta de confianza mínima en veredictos de IA (calidad o seguridad favorables nunca autoaprueban si confianza < minConfidence; códigos estructurados de veredicto; 22 unitarias y 5 comprobaciones Neon viva)
@@ -40,7 +40,7 @@ C19.2 una obligación, una sola vez (puedeAgendar en lib/treasury/scheduling-pol
 C19.1 supplierPayment sigue descriptiva con contrato honesto en el catálogo
 ```
 
-Puertas de fase cerradas: Fase 1, Fase 2 (12-10-2026), **Fase 3** (15-10-2026) y **Fase 4** (15-10-2026). La siguiente entrega es la Fase 5 (C29). La puerta de Fase 0 sigue sin marcar en el seguimiento.
+Puertas de fase cerradas: Fase 1, Fase 2 (12-10-2026), **Fase 3** (15-10-2026) y **Fase 4** (15-10-2026). La Fase 5 está en curso: C29 completada ([definiciones compartidas](../docs/audits/2026-10-15-branch-kpi-consistency.md)); la siguiente entrega es C30. La puerta de Fase 0 sigue sin marcar en el seguimiento.
 
 ## 3. Lo que NO está verificado — no dar por hecho
 
@@ -187,3 +187,9 @@ C24–C28 conforman el bloque de workflows:
 - [x] C26: Conservar confianza mínima en el veredicto IA.
 - [x] C27: Hacer única la transición de finalización (límites adicionales detectados al continuar C28 registrados arriba).
 - [x] C28: Garantizar entrega de eventos y mostrar efectos pendientes.
+
+## 10. Fase 5 — Métricas consistentes
+
+- [x] C29: Compartir definiciones financieras entre motores (módulo puro `lib/services/branch-cost-metrics.ts`; base neta, numeradores, carga y objetivos compartidos).
+- [ ] C30: Distinguir dato real, estimado y ausente.
+- [ ] C31: Verificar efecto financiero desde configuración hasta pantalla.

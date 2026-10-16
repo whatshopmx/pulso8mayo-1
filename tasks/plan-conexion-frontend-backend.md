@@ -1072,9 +1072,9 @@ Reutilizar base de ventas, carga laboral y objetivos en la vista de sucursales, 
 
 **Criterios de aceptación:**
 
-- [ ] Mismo periodo, sucursal y datos producen métricas comparables con la misma base y fórmula.
-- [ ] IVA, carga laboral y objetivos configurados afectan ambas vistas coherentemente.
-- [ ] Las diferencias legítimas de concepto se nombran en la interfaz en lugar de ocultarse bajo el mismo indicador.
+- [x] Mismo periodo, sucursal y datos producen métricas comparables con la misma base y fórmula.
+- [x] IVA, carga laboral y objetivos configurados afectan ambas vistas coherentemente.
+- [x] Las diferencias legítimas de concepto se nombran en la interfaz en lugar de ocultarse bajo el mismo indicador.
 
 **Verificación:** V1 con fixtures de ventas/costos y conciliación entre motores; considerar duplicación de merma al elegir numeradores.
 

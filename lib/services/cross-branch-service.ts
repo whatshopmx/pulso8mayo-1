@@ -38,7 +38,6 @@ import {
   shiftSessions,
   employeeDocuments,
   dailySalesCuts,
-  costRecords,
   temperatureLogs,
 } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
@@ -55,7 +54,19 @@ import {
   type TipoEmpresa,
   type TipoRed,
 } from "@/lib/company/tenant-network-policy";
-import { getTenantOperatingConfig } from "@/lib/services/tenant-config-service";
+import { getTenantOperatingConfig, getFinancialTargets } from "@/lib/services/tenant-config-service";
+import { getVatRatePercent, resolveSalesBase } from "@/lib/services/sales-base";
+import type { SalesBase } from "@/lib/services/sales-base";
+import { getLaborBurden } from "@/lib/services/labor-burden";
+import { getFoodCostByBranch } from "@/lib/services/food-cost-service";
+import { getLaborCostByBranch } from "@/lib/services/labor-cost-service";
+import {
+  calcularCostoPorcentual,
+  foodSourceToLineSource,
+  laborSourceToLineSource,
+} from "@/lib/services/branch-cost-metrics";
+import { cierreDelPeriodo } from "@/lib/company/period-close";
+import type { LineSource } from "@/lib/services/pnl-types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -157,6 +168,17 @@ export interface BranchQSRScore {
   compositeScore: number; // 0-100 ponderado
   rank: number;
   dataQuality: "VERIFIED" | "ESTIMATED";
+  /**
+   * C29 — la base neta sobre la que se dividieron food/labor (A3.2). Sin IVA
+   * capturado y sin tasa configurada, la base es la venta con IVA.
+   */
+  salesBaseCents?: number;
+  salesBaseKind?: SalesBase["kind"];
+  /** C29 — procedencia de cada renglón, con el vocabulario del P&L. */
+  foodCostSource?: LineSource;
+  laborCostSource?: LineSource;
+  /** C29 — explicación de la base y de la carga patronal usadas. */
+  costNote?: string;
 }
 
 export interface NetworkAnomalyFinding {
@@ -230,6 +252,9 @@ export interface BranchQSRRankingResult {
   networkAveragePrimeCost: number;
   networkAverageFoodCost: number;
   networkAverageLaborCost: number;
+  /** C29 — umbrales de prime cost del inquilino con que se pintó el semáforo. */
+  primeCostTargetPercent?: number;
+  primeCostWarnPercent?: number;
   anomalies: NetworkAnomalyFinding[];
   /** C22 — comparación por redes y alcance de quien pidió los datos. */
   red?: RedAgrupada;
@@ -428,6 +453,7 @@ function esFaltaDeContextoDePeticion(err: unknown): boolean {
 function medirRedes(
   alcance: AlcanceRed,
   scores: BranchQSRScore[],
+  umbrales?: { primeTarget: number; primeWarn: number },
 ): RedAgrupada {
   const segmentos: SegmentoRedMedido[] = alcance.segmentos.map((segmento) => {
     const ids = new Set(idsDeSegmento(segmento));
@@ -442,7 +468,11 @@ function medirRedes(
       sucursales: delSegmento.length,
       promedios: promediosDeRed(delSegmento),
       podiumTop3: delSegmento.slice(0, 3),
-      anomalias: detectNetworkAnomalies(delSegmento, { red: segmento.tipo }),
+      anomalias: detectNetworkAnomalies(delSegmento, {
+        red: segmento.tipo,
+        primeTarget: umbrales?.primeTarget,
+        primeWarn: umbrales?.primeWarn,
+      }),
     };
   });
 
@@ -1178,108 +1208,74 @@ export const CrossBranchService = {
         const startDate = startOfDay(subDays(new Date(), pDays));
         const endDate = endOfDay(new Date());
 
-        // 1. Ventas por sucursal desde dailySalesCuts
-        const salesRows = await db
-          .select({
-            branchId: dailySalesCuts.branchId,
-            totalSales: sql<number>`coalesce(sum(${dailySalesCuts.totalSales}), 0)`,
-            totalCuts: sql<number>`cast(count(*) as integer)`,
-            balancedCuts: sql<number>`cast(count(*) filter (where abs(coalesce(${dailySalesCuts.cashSales}, 0) - coalesce(${dailySalesCuts.cashCountedCents}, ${dailySalesCuts.cashSales}, 0)) <= 5000) as integer)`,
-          })
-          .from(dailySalesCuts)
-          .where(
-            and(
-              eq(dailySalesCuts.companyId, cid),
-              inArray(dailySalesCuts.branchId, branchIds),
-              gte(dailySalesCuts.businessDate, startDate.toISOString().slice(0, 10)),
-              lte(dailySalesCuts.businessDate, endDate.toISOString().slice(0, 10))
-            )
-          )
-          .groupBy(dailySalesCuts.branchId);
+        const startDay = startDate.toISOString().slice(0, 10);
+        const endDay = endDate.toISOString().slice(0, 10);
+        const cierre = cierreDelPeriodo(endDay);
 
-        const salesMap = new Map<string, { totalSales: number; totalCuts: number; balancedCuts: number }>();
+        // C29 — los mismos insumos que el motor financiero: base neta (A3.2),
+        // consumo y merma valorizados, nómina del período, carga patronal y
+        // objetivos del inquilino. La procedencia viaja con cada renglón.
+        const [salesRows, foodByBranch, laborByBranch, vatRatePercent, burden, targets] =
+          await Promise.all([
+            db
+              .select({
+                branchId: dailySalesCuts.branchId,
+                totalSales: sql<number>`coalesce(sum(${dailySalesCuts.totalSales}), 0)`,
+                taxSum: sql<number>`coalesce(sum(${dailySalesCuts.taxAmount}), 0)`,
+                cutsWithTax: sql<number>`cast(count(${dailySalesCuts.taxAmount}) as integer)`,
+                totalCuts: sql<number>`cast(count(*) as integer)`,
+                balancedCuts: sql<number>`cast(count(*) filter (where abs(coalesce(${dailySalesCuts.cashSales}, 0) - coalesce(${dailySalesCuts.cashCountedCents}, ${dailySalesCuts.cashSales}, 0)) <= 5000) as integer)`,
+              })
+              .from(dailySalesCuts)
+              .where(
+                and(
+                  eq(dailySalesCuts.companyId, cid),
+                  inArray(dailySalesCuts.branchId, branchIds),
+                  gte(dailySalesCuts.businessDate, startDay),
+                  lte(dailySalesCuts.businessDate, endDay)
+                )
+              )
+              .groupBy(dailySalesCuts.branchId),
+            getFoodCostByBranch(cid, startDay, endDay),
+            getLaborCostByBranch(cid, startDay, endDay),
+            getVatRatePercent(cid, cierre),
+            getLaborBurden(cid, cierre),
+            getFinancialTargets(cid),
+          ]);
+
+        const salesMap = new Map<
+          string,
+          {
+            totalSales: number;
+            taxSum: number;
+            cutsWithTax: number;
+            totalCuts: number;
+            balancedCuts: number;
+          }
+        >();
         for (const row of salesRows) {
           salesMap.set(row.branchId, {
             totalSales: Number(row.totalSales),
+            taxSum: Number(row.taxSum),
+            cutsWithTax: Number(row.cutsWithTax),
             totalCuts: Number(row.totalCuts),
             balancedCuts: Number(row.balancedCuts),
           });
         }
 
-        // 2. Costos de comida desde costRecords e inventoryWaste
-        const foodCostRows = await db
-          .select({
-            branchId: costRecords.branchId,
-            total: sql<number>`coalesce(sum(${costRecords.amount}), 0)`,
-          })
-          .from(costRecords)
-          .where(
-            and(
-              eq(costRecords.companyId, cid),
-              inArray(costRecords.branchId, branchIds),
-              gte(costRecords.recordedAt, startDate),
-              lte(costRecords.recordedAt, endDate),
-              sql`upper(${costRecords.category}) in ('FOOD', 'ALIMENTOS', 'INGREDIENTS', 'INSUMOS', 'BEBIDAS', 'MATERIA_PRIMA')`
-            )
-          )
-          .groupBy(costRecords.branchId);
+        // C29 — los numeradores vienen de los mismos servicios que el motor
+        // financiero; la lista trae todas las sucursales de la empresa.
+        const foodCostMap = new Map(
+          foodByBranch.filter((f) => branchIds.includes(f.branchId)).map((f) => [f.branchId, f])
+        );
+        const laborCostMap = new Map(
+          laborByBranch.filter((l) => branchIds.includes(l.branchId)).map((l) => [l.branchId, l])
+        );
 
-        const wasteRows = await db
-          .select({
-            branchId: inventoryWaste.branchId,
-            totalLoss: sql<number>`coalesce(sum(${inventoryWaste.totalLoss}), 0)`,
-          })
-          .from(inventoryWaste)
-          .where(
-            and(
-              eq(inventoryWaste.companyId, cid),
-              inArray(inventoryWaste.branchId, branchIds),
-              gte(inventoryWaste.recordedAt, startDate),
-              lte(inventoryWaste.recordedAt, endDate)
-            )
-          )
-          .groupBy(inventoryWaste.branchId);
-
-        const foodCostMap = new Map<string, { amount: number; hasRecordedData: boolean }>();
-        for (const r of foodCostRows) {
-          if (r.branchId) {
-            foodCostMap.set(r.branchId, { amount: Number(r.total), hasRecordedData: true });
-          }
-        }
-        for (const w of wasteRows) {
-          if (w.branchId) {
-            const current = foodCostMap.get(w.branchId) ?? { amount: 0, hasRecordedData: false };
-            foodCostMap.set(w.branchId, {
-              amount: current.amount + Number(w.totalLoss),
-              hasRecordedData: current.hasRecordedData || Number(w.totalLoss) > 0,
-            });
-          }
-        }
-
-        // 3. Costos de mano de obra desde costRecords
-        const laborCostRows = await db
-          .select({
-            branchId: costRecords.branchId,
-            total: sql<number>`coalesce(sum(${costRecords.amount}), 0)`,
-          })
-          .from(costRecords)
-          .where(
-            and(
-              eq(costRecords.companyId, cid),
-              inArray(costRecords.branchId, branchIds),
-              gte(costRecords.recordedAt, startDate),
-              lte(costRecords.recordedAt, endDate),
-              sql`upper(${costRecords.category}) in ('LABOR', 'NOMINA', 'MANO_DE_OBRA', 'SUELDOS')`
-            )
-          )
-          .groupBy(costRecords.branchId);
-
-        const laborCostMap = new Map<string, { amount: number; hasRecordedData: boolean }>();
-        for (const r of laborCostRows) {
-          if (r.branchId) {
-            laborCostMap.set(r.branchId, { amount: Number(r.total), hasRecordedData: true });
-          }
-        }
+        // El umbral de prime cost sale de los objetivos del inquilino: con los
+        // defaults, 58/67 en vez de las constantes 60/65 de antes.
+        const primeTarget = targets.foodCostTargetPercent + targets.laborCostTargetPercent;
+        const primeWarn = targets.foodCostWarnPercent + targets.laborCostWarnPercent;
 
         // 4. Cumplimiento NOM-251 de temperaturas
         const tempRows = await db
@@ -1307,31 +1303,59 @@ export const CrossBranchService = {
 
         // 5. Consolidación de cada sucursal
         const rawBranches: Omit<BranchQSRScore, "rank">[] = branchList.map((b) => {
-          const salesData = salesMap.get(b.id) ?? { totalSales: 0, totalCuts: 0, balancedCuts: 0 };
+          const salesData = salesMap.get(b.id) ?? {
+            totalSales: 0,
+            taxSum: 0,
+            cutsWithTax: 0,
+            totalCuts: 0,
+            balancedCuts: 0,
+          };
           const salesTotal = salesData.totalSales;
 
-          let foodCostCents = foodCostMap.get(b.id)?.amount ?? 0;
-          let laborCostCents = laborCostMap.get(b.id)?.amount ?? 0;
-          let isEstimated = false;
+          const salesBase = resolveSalesBase({
+            grossCents: salesTotal,
+            taxCents: salesData.taxSum,
+            cutsWithTax: salesData.cutsWithTax,
+            cutsCount: salesData.totalCuts,
+            vatRatePercent,
+          });
 
-          // Si no hay datos contables registrados pero hay ventas, usamos estimaciones estándar QSR
-          if (salesTotal > 0 && foodCostCents === 0) {
-            foodCostCents = Math.round(salesTotal * 0.315); // 31.5%
-            isEstimated = true;
-          }
-          if (salesTotal > 0 && laborCostCents === 0) {
-            laborCostCents = Math.round(salesTotal * 0.245); // 24.5%
-            isEstimated = true;
-          }
+          const food = foodCostMap.get(b.id);
+          const labor = laborCostMap.get(b.id);
+          const costo = calcularCostoPorcentual({
+            baseCents: salesBase.baseCents,
+            salesBaseKind: salesBase.kind,
+            foodCostCents: (food?.foodCostCents ?? 0) + (food?.wasteCents ?? 0),
+            laborCostCents: labor?.totalCostCents ?? 0,
+            foodSource: foodSourceToLineSource(
+              food?.source ?? "NO_DATA",
+              food?.usedCostFallback ?? false
+            ),
+            laborSource: laborSourceToLineSource(labor?.source ?? "NO_DATA"),
+            burden,
+            targets,
+          });
 
-          const foodCostPercent =
-            salesTotal > 0 ? Math.round((foodCostCents / salesTotal) * 1000) / 10 : 31.5;
-          const laborCostPercent =
-            salesTotal > 0 ? Math.round((laborCostCents / salesTotal) * 1000) / 10 : 24.5;
+          // C30 — sustituirá esta referencia sectorial declarada por un estado
+          // de ausencia explícito. Hoy la liga no inventa un VERIFIED: cuando
+          // falta un renglón lo marca ESTIMATED.
+          const foodFaltaba = costo.foodPercent === null;
+          const laborFaltaba = costo.laborPercent === null;
+          const foodCostPercent = costo.foodPercent ?? 31.5;
+          const laborCostPercent = costo.laborPercent ?? 24.5;
           const primeCostPercent = Math.round((foodCostPercent + laborCostPercent) * 10) / 10;
+          const isEstimated =
+            foodFaltaba ||
+            laborFaltaba ||
+            costo.foodSource !== "MEASURED" ||
+            costo.laborSource !== "MEASURED";
 
           const primeCostStatus: BranchQSRScore["primeCostStatus"] =
-            primeCostPercent < 60 ? "HEALTHY" : primeCostPercent <= 65 ? "WATCH" : "CRITICAL";
+            primeCostPercent < primeTarget
+              ? "HEALTHY"
+              : primeCostPercent <= primeWarn
+                ? "WATCH"
+                : "CRITICAL";
 
           const nom251Rate = Math.round((tempMap.get(b.id) ?? 100) * 10) / 10;
 
@@ -1355,8 +1379,12 @@ export const CrossBranchService = {
             branchId: b.id,
             branchName: b.name,
             salesTotalCents: salesTotal,
-            foodCostCents,
-            laborCostCents,
+            salesBaseCents: salesBase.baseCents,
+            salesBaseKind: salesBase.kind,
+            foodCostCents: foodFaltaba
+              ? 0
+              : (food?.foodCostCents ?? 0) + (food?.wasteCents ?? 0),
+            laborCostCents: laborFaltaba ? 0 : costo.laborCostCargadoCents,
             foodCostPercent,
             laborCostPercent,
             primeCostPercent,
@@ -1365,6 +1393,9 @@ export const CrossBranchService = {
             cashReconciliationRate,
             compositeScore: composite,
             dataQuality: isEstimated ? "ESTIMATED" : "VERIFIED",
+            foodCostSource: foodFaltaba ? "SECTOR_DEFAULT" : costo.foodSource,
+            laborCostSource: laborFaltaba ? "SECTOR_DEFAULT" : costo.laborSource,
+            costNote: `${salesBase.note} ${burden.nota}`,
           };
         });
 
@@ -1398,10 +1429,11 @@ export const CrossBranchService = {
         // la red propia produce alertas que no significan nada. El consolidado
         // conserva la lista completa para que quien la lea pueda ver de qué red
         // sale cada uno (`red` en cada hallazgo).
-        const redes = medirRedes(red, sortedBranches);
+        const umbrales = { primeTarget, primeWarn };
+        const redes = medirRedes(red, sortedBranches, umbrales);
         const anomalies = redes.segmentada
           ? redes.segmentos.flatMap((segmento) => segmento.anomalias)
-          : detectNetworkAnomalies(sortedBranches);
+          : detectNetworkAnomalies(sortedBranches, umbrales);
 
         return {
           periodDays: pDays,
@@ -1410,6 +1442,8 @@ export const CrossBranchService = {
           networkAveragePrimeCost: avgPrime,
           networkAverageFoodCost: avgFood,
           networkAverageLaborCost: avgLabor,
+          primeCostTargetPercent: primeTarget,
+          primeCostWarnPercent: primeWarn,
           anomalies,
           red: redes,
           alcance: alcance.alcance,
@@ -1444,10 +1478,14 @@ export const CrossBranchService = {
  */
 export function detectNetworkAnomalies(
   branchScores: BranchQSRScore[],
-  opts?: { red?: TipoRed },
+  opts?: { red?: TipoRed; primeTarget?: number; primeWarn?: number },
 ): NetworkAnomalyFinding[] {
   if (branchScores.length < 2) return [];
   const red = opts?.red;
+  // C29 — el umbral sale de los objetivos del inquilino cuando se conocen;
+  // 60/65 es el default para quien no los pase (comparaciones de fixtures).
+  const primeTarget = opts?.primeTarget ?? 60;
+  const primeWarn = opts?.primeWarn ?? 65;
 
   const findings: NetworkAnomalyFinding[] = [];
 
@@ -1482,16 +1520,16 @@ export function detectNetworkAnomalies(
       });
     }
 
-    // 2. Fuga de Prime Cost > 65% (Alerta roja de viabilidad unit economics)
-    if (branch.primeCostPercent > 65.0) {
-      const overrunPoints = branch.primeCostPercent - 60.0;
+    // 2. Fuga de Prime Cost por encima del límite de viabilidad configurado.
+    if (branch.primeCostPercent > primeWarn) {
+      const overrunPoints = branch.primeCostPercent - primeTarget;
       const impactMxn = Math.round((overrunPoints / 100) * (branch.salesTotalCents / 100));
       findings.push({
         id: `prime-cost-leak-${branch.branchId}`,
         type: "PRIME_COST_LEAK",
         severity: "critical",
         title: `Prime Cost Crítico en ${branch.branchName} (${branch.primeCostPercent.toFixed(1)}%)`,
-        narrative: `El costo combinado de alimentos y mano de obra en ${branch.branchName} absorbe el ${branch.primeCostPercent.toFixed(1)}% de la venta, excediendo el límite de viabilidad de 60%.`,
+        narrative: `El costo combinado de alimentos y mano de obra en ${branch.branchName} absorbe el ${branch.primeCostPercent.toFixed(1)}% de la venta, excediendo el límite de viabilidad de ${primeTarget}%.`,
         affectedBranchId: branch.branchId,
         affectedBranchName: branch.branchName,
         variancePoints: Math.round(overrunPoints * 10) / 10,

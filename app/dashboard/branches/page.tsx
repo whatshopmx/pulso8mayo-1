@@ -33,6 +33,13 @@ const PERIODOS = [
   { value: "ytd", label: "En el año" },
 ];
 
+/** C29 — cómo se llamó la base de ventas en cada renglón del CSV. */
+const ETIQUETA_BASE: Record<string, string> = {
+  NET_MEASURED: "Neta medida (IVA del POS)",
+  NET_DERIVED: "Neta estimada (IVA configurado)",
+  GROSS_DECLARED: "Con IVA (sin desglose)",
+};
+
 export default function BranchesPage() {
   const [period, setPeriod] = React.useState("30d");
   const [qsrData, setQsrData] = React.useState<BranchQSRRankingResult | null>(null);
@@ -70,10 +77,12 @@ export default function BranchesPage() {
         "Sucursal",
         "Score QSR",
         "Venta Total (MXN)",
+        "Base de Ventas",
         "Food Cost (%)",
         "Labor Cost (%)",
         "Prime Cost (%)",
         "Estatus Prime Cost",
+        "Procedencia Costos",
         "Cumplimiento NOM-251 (%)",
         "Cuadre Caja (%)",
         "Calidad Datos",
@@ -84,10 +93,12 @@ export default function BranchesPage() {
         b.branchName,
         b.compositeScore.toFixed(1),
         Math.round(b.salesTotalCents / 100),
+        ETIQUETA_BASE[b.salesBaseKind ?? "GROSS_DECLARED"],
         b.foodCostPercent.toFixed(1),
         b.laborCostPercent.toFixed(1),
         b.primeCostPercent.toFixed(1),
         b.primeCostStatus,
+        `${b.foodCostSource ?? "NO_DATA"} / ${b.laborCostSource ?? "NO_DATA"}`,
         b.nom251ComplianceRate.toFixed(1),
         b.cashReconciliationRate.toFixed(1),
         b.dataQuality === "VERIFIED" ? "Verificado" : "Estimado",

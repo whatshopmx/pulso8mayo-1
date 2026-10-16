@@ -160,6 +160,10 @@ export function BranchPodium({
                 </div>
 
                 <div className="pt-2">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed" title={item.costNote}>
+                    Porcentajes sobre venta neta; el food cost incluye la merma y la nómina va con carga patronal.
+                    Un renglón sin datos se marca «Estimado», nunca «Real».
+                  </p>
                   <Button variant="ghost" size="sm" asChild className="w-full justify-between h-8 text-xs">
                     <Link href={`/dashboard/branches/${item.branchId}${period ? `?period=${period}` : ""}`}>
                       Ver Ficha 360°
@@ -196,7 +200,7 @@ export function NetworkKpisSummary({ data }: { data: BranchQSRRankingResult }) {
             <span className="text-2xl font-bold tabular-nums">
               {data.networkAveragePrimeCost.toFixed(1)}%
             </span>
-            <span className="text-xs text-muted-foreground">Meta &lt;60%</span>
+            <span className="text-xs text-muted-foreground">Meta ≤{data.primeCostTargetPercent ?? 60}%</span>
           </div>
         </CardContent>
       </Card>
@@ -211,7 +215,7 @@ export function NetworkKpisSummary({ data }: { data: BranchQSRRankingResult }) {
             <span className="text-2xl font-bold tabular-nums">
               {data.networkAverageFoodCost.toFixed(1)}%
             </span>
-            <span className="text-xs text-muted-foreground">Insumos y merma</span>
+            <span className="text-xs text-muted-foreground">Insumos y merma · base neta</span>
           </div>
         </CardContent>
       </Card>
@@ -226,7 +230,7 @@ export function NetworkKpisSummary({ data }: { data: BranchQSRRankingResult }) {
             <span className="text-2xl font-bold tabular-nums">
               {data.networkAverageLaborCost.toFixed(1)}%
             </span>
-            <span className="text-xs text-muted-foreground">Nómina y turnos</span>
+            <span className="text-xs text-muted-foreground">Nómina con carga · base neta</span>
           </div>
         </CardContent>
       </Card>
@@ -235,7 +239,7 @@ export function NetworkKpisSummary({ data }: { data: BranchQSRRankingResult }) {
         <CardContent className="p-4 space-y-1">
           <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-            Salud de Red (&lt;60%)
+            Salud de Red (≤{data.primeCostTargetPercent ?? 60}%)
           </span>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
