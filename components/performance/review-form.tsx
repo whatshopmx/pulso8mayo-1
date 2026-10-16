@@ -29,6 +29,7 @@ interface Employee {
   id: string;
   name: string;
   email: string;
+  branchId: string | null;
 }
 
 interface Criteria {
@@ -77,6 +78,8 @@ export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewF
 
   const [formData, setFormData] = useState({
     userId: initialData?.userId || '',
+    // Derived from the reviewed employee — never asked for directly.
+    branchId: initialData?.branchId || '',
     reviewerId: initialData?.reviewerId || userId,
     reviewType: initialData?.reviewType || 'MANAGER',
     reviewPeriod: initialData?.reviewPeriod || currentQuarter,
@@ -91,14 +94,18 @@ export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewF
     // Fetch employees for selection
     const fetchEmployees = async () => {
       try {
-        const res = await fetch(`/api/employees?companyId=${companyId}&limit=100`);
+        const res = await fetch(`/api/employees?limit=100`);
         if (res.ok) {
           const data = await res.json();
-          setEmployees(data.employees?.map((e: any) => ({
+          // `/api/employees` returns `{ success, data, pagination }` — see
+          // EmployeeService.listEmployees. Reading `data.employees` yielded
+          // `undefined`, which left this Select with zero options.
+          setEmployees((data.data || []).map((e: any) => ({
             id: e.userId || e.id,
             name: e.userName || e.name || 'Sin nombre',
             email: e.userEmail || e.email || '',
-          })) || []);
+            branchId: e.branchId ?? null,
+          })));
         }
       } catch (e) {
         console.error('Error fetching employees:', e);
@@ -126,6 +133,15 @@ export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewF
     setCriteriaRatings(prev => ({
       ...prev,
       [criteriaId]: { ...prev[criteriaId], rating, comments: prev[criteriaId]?.comments || '' },
+    }));
+  };
+
+  const handleEmployeeChange = (employeeId: string) => {
+    const employee = employees.find((e) => e.id === employeeId);
+    setFormData(prev => ({
+      ...prev,
+      userId: employeeId,
+      branchId: employee?.branchId ?? '',
     }));
   };
 
@@ -174,10 +190,11 @@ export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewF
 
       // overallRating 0 means "unrated" — omit so zod's min(1) passes;
       // the server computes the weighted rating when criteria exist.
-      const { overallRating, ...rest } = formData;
+      const { overallRating, branchId, ...rest } = formData;
       const body = {
         ...rest,
         ...(overallRating > 0 ? { overallRating } : {}),
+        ...(branchId ? { branchId } : {}),
         companyId,
         status,
         ...(criteriaRatingsPayload.length ? { criteriaRatings: criteriaRatingsPayload } : {}),
@@ -259,7 +276,7 @@ export function ReviewForm({ companyId, userId, reviewId, initialData }: ReviewF
               <Label htmlFor="employee">Empleado a Evaluar</Label>
               <Select
                 value={formData.userId}
-                onValueChange={(v) => setFormData(prev => ({ ...prev, userId: v }))}
+                onValueChange={handleEmployeeChange}
               >
                 <SelectTrigger id="employee">
                   <SelectValue placeholder="Seleccionar empleado" />
