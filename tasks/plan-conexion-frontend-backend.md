@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 16 de octubre de 2026. Estado: C00–C32 implementadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C33–C40 pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 16 de octubre de 2026. Estado: C00–C33 implementadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C34–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -1194,11 +1194,13 @@ Hacer efectiva la decisión de routing, preferencias y horario en el dispatcher,
 
 **Criterios de aceptación:**
 
-- [ ] Los canales calculados por el router son exactamente los intentados por el dispatcher.
-- [ ] Stock y recordatorios de turnos respetan preferencias por tipo; las excepciones están documentadas.
-- [ ] Fuera de horario se aplica la política definida usando zona horaria del contexto, sin depender de la del proceso.
+- [x] Los canales calculados por el router son exactamente los intentados por el dispatcher. `NotificationRouter.route` delega en `NotificationDispatcher.decideChannels`, y `sendNotification` intenta exactamente `decision.channels`; ambos usan la política pura `routing-policy.ts`.
+- [x] Stock y recordatorios de turnos respetan preferencias por tipo; las excepciones están documentadas. `eventTypeEnabled` mapea stock/conteo → `inventoryAlerts`, turno → `shiftReminders`, cambio de horario → `scheduleChanges`. La única excepción a los canales de la regla es el diferido fuera de horario (sólo in-app); no hay excepción a las preferencias, tampoco para eventos críticos.
+- [x] Fuera de horario se aplica la política definida usando zona horaria del contexto, sin depender de la del proceso. La zona sale de `metadata.timezone` o de `branches.timezone`, con `America/Mexico_City` de último recurso; el horario se evalúa con `Intl` sobre esa zona.
 
 **Verificación:** V1 por tipo/canal/horario con adaptadores simulados y reloj controlado.
+
+**Verificación ejecutada (16-10-2026):** V1 — `tests/unit/notifications/routing-policy.test.ts` (20) con reloj y zona controlados: horario por zona, bordes 09/18, fin de semana, preferencias por tipo y canal, evento crítico no diferido, y el dispatcher intentando exactamente los canales decididos. Suite 1414 aprobadas (110 archivos, 1 omitida, 1 TODO), `tsc` y `lint` limpios. Evidencia en [C33](../docs/audits/2026-10-16-decision-canal-notificaciones.md).
 
 **Archivos probables:**
 
