@@ -7,16 +7,24 @@ import { Trophy, Flame, ArrowRight, Percent, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BranchQSRRankingResult } from "@/lib/services/cross-branch-service";
 
+/** C30 — porcentaje o «Sin dato»; la ausencia no se dibuja como 0 ni con color. */
+function pctTexto(valor: number | null, decimales = 1): string {
+  return valor === null ? "Sin dato" : `${valor.toFixed(decimales)}%`;
+}
+
 export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResult }) {
   const { branches, networkAveragePrimeCost, networkAverageFoodCost, networkAverageLaborCost, anomalies } = ranking;
 
-  // Sort branches by primeCostPercent ascending (best margin efficiency first)
-  const sortedByPrime = [...branches].sort((a, b) => a.primeCostPercent - b.primeCostPercent);
+  // Las sucursales sin prime cost van al final: no se comparan como si valieran 0.
+  const sortedByPrime = [...branches].sort(
+    (a, b) => (a.primeCostPercent ?? Infinity) - (b.primeCostPercent ?? Infinity)
+  );
+  const hayPromedioPrime = networkAveragePrimeCost !== null;
 
   // Escala dinámica: la peor sucursal de la red define el ancho total, así una
   // desviación por encima del 80% de Prime Cost no se recorta ni desborda.
   const worstPrimeCost = branches.reduce(
-    (max, branch) => Math.max(max, branch.primeCostPercent),
+    (max, branch) => Math.max(max, branch.primeCostPercent ?? 0),
     0
   );
   const scaleMax = Math.max(80, Math.ceil(worstPrimeCost / 10) * 10);
@@ -44,12 +52,14 @@ export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResul
               <span
                 className={cn(
                   "text-xs font-bold px-2 py-0.5 rounded",
-                  networkAveragePrimeCost <= 60
-                    ? "bg-success/10 text-success-text"
-                    : "bg-destructive/10 text-destructive"
+                  !hayPromedioPrime
+                    ? "bg-muted text-muted-foreground"
+                    : networkAveragePrimeCost <= 60
+                      ? "bg-success/10 text-success-text"
+                      : "bg-destructive/10 text-destructive"
                 )}
               >
-                {networkAveragePrimeCost.toFixed(1)}% Prime Cost
+                {pctTexto(networkAveragePrimeCost)} Prime Cost
               </span>
             </div>
           </div>
@@ -61,11 +71,11 @@ export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResul
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1.5">
                 <span className="h-3 w-3 rounded-sm bg-chart-4 inline-block" />
-                <span>Alimentos (Food Cost %) · Prom: {networkAverageFoodCost.toFixed(1)}%</span>
+                <span>Alimentos (Food Cost %) · Prom: {pctTexto(networkAverageFoodCost)}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="h-3 w-3 rounded-sm bg-chart-6 inline-block" />
-                <span>Nómina (Labor Cost %) · Prom: {networkAverageLaborCost.toFixed(1)}%</span>
+                <span>Nómina (Labor Cost %) · Prom: {pctTexto(networkAverageLaborCost)}</span>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -80,9 +90,10 @@ export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResul
           {/* Branch Bars */}
           <div className="space-y-4">
             {sortedByPrime.map((branch, idx) => {
-              const isBest = idx === 0 && branch.primeCostPercent <= 60;
-              const isLeak = branch.primeCostPercent > 65;
-              const isWarning = branch.primeCostPercent > 60 && branch.primeCostPercent <= 65;
+              const prime = branch.primeCostPercent;
+              const isBest = idx === 0 && prime !== null && prime <= 60;
+              const isLeak = prime !== null && prime > 65;
+              const isWarning = prime !== null && prime > 60 && prime <= 65;
 
               return (
                 <div key={branch.branchId} className="space-y-1.5">
@@ -110,19 +121,21 @@ export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResul
 
                     <div className="flex items-center gap-3">
                       <span className="text-muted-foreground text-xs">
-                        Comida <strong className="text-foreground">{branch.foodCostPercent.toFixed(1)}%</strong> + Nómina <strong className="text-foreground">{branch.laborCostPercent.toFixed(1)}%</strong>
+                        Comida <strong className="text-foreground">{pctTexto(branch.foodCostPercent)}</strong> + Nómina <strong className="text-foreground">{pctTexto(branch.laborCostPercent)}</strong>
                       </span>
                       <span
                         className={cn(
                           "font-bold text-xs px-2 py-0.5 rounded",
-                          branch.primeCostPercent <= 60
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : isWarning
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                            : "bg-destructive/10 text-destructive"
+                          prime === null
+                            ? "bg-muted text-muted-foreground"
+                            : prime <= 60
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : isWarning
+                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                : "bg-destructive/10 text-destructive"
                         )}
                       >
-                        = {branch.primeCostPercent.toFixed(1)}%
+                        {prime === null ? "Sin dato" : `= ${prime.toFixed(1)}%`}
                       </span>
                     </div>
                   </div>
@@ -131,16 +144,16 @@ export function PrimeCostStackCard({ ranking }: { ranking: BranchQSRRankingResul
                   <div
                     className="relative flex h-4 w-full overflow-hidden rounded bg-muted"
                     role="img"
-                    aria-label={`${branch.branchName}: Prime Cost ${branch.primeCostPercent.toFixed(1)}% (Alimentos ${branch.foodCostPercent.toFixed(1)}% + Nómina ${branch.laborCostPercent.toFixed(1)}%)`}
+                    aria-label={`${branch.branchName}: Prime Cost ${pctTexto(prime)} (Alimentos ${pctTexto(branch.foodCostPercent)} + Nómina ${pctTexto(branch.laborCostPercent)})`}
                   >
                     {/* Food cost segment */}
                     <div
-                      style={{ width: `${widthPercent(branch.foodCostPercent)}%` }}
+                      style={{ width: `${widthPercent(branch.foodCostPercent ?? 0)}%` }}
                       className="h-full bg-chart-4 transition-all"
                     />
                     {/* Labor cost segment */}
                     <div
-                      style={{ width: `${widthPercent(branch.laborCostPercent)}%` }}
+                      style={{ width: `${widthPercent(branch.laborCostPercent ?? 0)}%` }}
                       className="h-full bg-chart-6 transition-all"
                     />
 

@@ -13,11 +13,13 @@ export type ExecutiveViewMode = "cockpit" | "economics" | "liquidity";
 export interface VitalSignsData {
   healthScore: number;
   driftScore: number;
-  salesMonthMxn: number;
+  /** `null` si la red no tiene ventas medidas en el período (C30). */
+  salesMonthMxn: number | null;
   salesTargetPercent: number;
-  primeCostPercent: number;
-  foodCostPercent: number;
-  laborCostPercent: number;
+  /** `null` si la red no tiene food cost o nómina medidos (C30). */
+  primeCostPercent: number | null;
+  foodCostPercent: number | null;
+  laborCostPercent: number | null;
   freeCash14dCents: number;
   liquidityRisk: number;
   pendingDecisionsCount: number;
@@ -49,9 +51,14 @@ function fmtMxnCompact(cents: number): string {
  * suspender el árbol ni dispara navegaciones RSC al alternar de vista.
  */
 export function ExecutiveCockpitHeader({ companyName, data }: ExecutiveCockpitHeaderProps) {
-  const isPrimeCostHealthy = data.primeCostPercent <= PRIME_COST_TARGET;
+  const hayPrime = data.primeCostPercent !== null;
+  const isPrimeCostHealthy =
+    hayPrime && (data.primeCostPercent as number) <= PRIME_COST_TARGET;
   const isPrimeCostWarning =
-    data.primeCostPercent > PRIME_COST_TARGET && data.primeCostPercent <= PRIME_COST_WARNING;
+    hayPrime &&
+    (data.primeCostPercent as number) > PRIME_COST_TARGET &&
+    (data.primeCostPercent as number) <= PRIME_COST_WARNING;
+  const hayVentas = data.salesMonthMxn !== null;
 
   return (
     <div className="space-y-4">
@@ -119,17 +126,19 @@ export function ExecutiveCockpitHeader({ companyName, data }: ExecutiveCockpitHe
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl font-bold tracking-tight text-foreground">
-                {fmtMxnCompact(data.salesMonthMxn * 100)}
+                {hayVentas ? fmtMxnCompact((data.salesMonthMxn as number) * 100) : "Sin datos"}
               </span>
-              <span className={cn(
-                "text-xs font-semibold px-1.5 py-0.5 rounded",
-                data.salesTargetPercent >= 95 ? "bg-success/10 text-success-text" : "bg-warning/10 text-warning-text"
-              )}>
-                {Math.round(data.salesTargetPercent)}% meta
-              </span>
+              {hayVentas && (
+                <span className={cn(
+                  "text-xs font-semibold px-1.5 py-0.5 rounded",
+                  data.salesTargetPercent >= 95 ? "bg-success/10 text-success-text" : "bg-warning/10 text-warning-text"
+                )}>
+                  {Math.round(data.salesTargetPercent)}% meta
+                </span>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-1 truncate">
-              Corte consolidado todas las sucursales
+              {hayVentas ? "Corte consolidado todas las sucursales" : "Sin cortes medidos en el período"}
             </p>
           </CardContent>
         </Card>
@@ -137,32 +146,51 @@ export function ExecutiveCockpitHeader({ companyName, data }: ExecutiveCockpitHe
         {/* 3. Prime Cost Consolidado */}
         <Card className={cn(
           "border bg-card shadow-none transition-colors",
-          !isPrimeCostHealthy && !isPrimeCostWarning ? "border-destructive/40 bg-destructive/5" : "border-border"
+          hayPrime && !isPrimeCostHealthy && !isPrimeCostWarning
+            ? "border-destructive/40 bg-destructive/5"
+            : "border-border"
         )}>
           <CardContent className="p-4 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
               <span>Prime Cost (Comida + Nómina)</span>
               <Percent className={cn(
                 "h-4 w-4",
-                isPrimeCostHealthy ? "text-success" : isPrimeCostWarning ? "text-warning" : "text-destructive"
+                !hayPrime
+                  ? "text-muted-foreground"
+                  : isPrimeCostHealthy
+                    ? "text-success"
+                    : isPrimeCostWarning
+                      ? "text-warning"
+                      : "text-destructive"
               )} />
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className={cn(
                 "text-2xl font-bold tracking-tight",
-                isPrimeCostHealthy ? "text-foreground" : isPrimeCostWarning ? "text-warning-text" : "text-destructive"
+                !hayPrime
+                  ? "text-muted-foreground"
+                  : isPrimeCostHealthy
+                    ? "text-foreground"
+                    : isPrimeCostWarning
+                      ? "text-warning-text"
+                      : "text-destructive"
               )}>
-                {data.primeCostPercent.toFixed(1)}%
+                {hayPrime ? `${(data.primeCostPercent as number).toFixed(1)}%` : "Sin datos"}
               </span>
               <span className={cn(
                 "text-xs font-semibold px-1.5 py-0.5 rounded",
-                isPrimeCostHealthy ? "bg-success/10 text-success-text" : "bg-destructive/10 text-destructive"
+                !hayPrime
+                  ? "bg-muted text-muted-foreground"
+                  : isPrimeCostHealthy
+                    ? "bg-success/10 text-success-text"
+                    : "bg-destructive/10 text-destructive"
               )}>
-                {isPrimeCostHealthy ? "Meta ≤ 60%" : "Fuga de Margen"}
+                {!hayPrime ? "Sin costos medidos" : isPrimeCostHealthy ? "Meta ≤ 60%" : "Fuga de Margen"}
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-1 truncate">
-              Alimentos {data.foodCostPercent.toFixed(1)}% · Nómina {data.laborCostPercent.toFixed(1)}%
+              Alimentos {data.foodCostPercent === null ? "—" : `${data.foodCostPercent.toFixed(1)}%`} · Nómina{" "}
+              {data.laborCostPercent === null ? "—" : `${data.laborCostPercent.toFixed(1)}%`}
             </p>
           </CardContent>
         </Card>
@@ -226,9 +254,9 @@ export function ExecutiveCockpitHeader({ companyName, data }: ExecutiveCockpitHe
           className="h-9 flex-none gap-2 px-3 text-sm text-muted-foreground group-data-[orientation=horizontal]/tabs:after:bottom-0 after:bg-primary data-[state=active]:text-foreground"
         >
           <span>2. Unit Economics & Prime Cost</span>
-          {!isPrimeCostHealthy && (
+          {hayPrime && !isPrimeCostHealthy && (
             <span className="rounded-full bg-warning/10 px-1.5 py-0.5 text-xs font-bold leading-none tabular-nums text-warning-text">
-              {data.primeCostPercent.toFixed(1)}%
+              {(data.primeCostPercent as number).toFixed(1)}%
             </span>
           )}
         </TabsTrigger>

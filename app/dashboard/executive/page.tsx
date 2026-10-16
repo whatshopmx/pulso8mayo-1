@@ -81,14 +81,19 @@ export default async function ExecutiveDashboardPage(props: PageProps) {
     decisionKeys.has(key)
   ).length;
 
+  // C30 — la venta y los costos de red no se inventan cuando faltan: se pasan
+  // como ausencia y la cabecera lo dice. Los valores del Twin conservan su
+  // default propio (otro motor, fuera de este hallazgo).
+  const hayVentasMedidas = ranking.branches.some((b) => b.quality?.sales === "MEASURED");
+
   const vitalSigns = {
     healthScore: twin?.healthScore ?? 88,
     driftScore: twin?.driftScore ?? 12,
-    salesMonthMxn: totalSalesMxn > 0 ? totalSalesMxn : 4820000,
+    salesMonthMxn: hayVentasMedidas ? totalSalesMxn : null,
     salesTargetPercent: 96,
-    primeCostPercent: ranking.networkAveragePrimeCost > 0 ? ranking.networkAveragePrimeCost : 57.8,
-    foodCostPercent: ranking.networkAverageFoodCost > 0 ? ranking.networkAverageFoodCost : 29.4,
-    laborCostPercent: ranking.networkAverageLaborCost > 0 ? ranking.networkAverageLaborCost : 28.4,
+    primeCostPercent: ranking.networkAveragePrimeCost,
+    foodCostPercent: ranking.networkAverageFoodCost,
+    laborCostPercent: ranking.networkAverageLaborCost,
     freeCash14dCents: twin?.projectedCashFlowCents ?? 64800000,
     liquidityRisk: twin?.liquidityRisk ?? 22,
     pendingDecisionsCount: Math.max(
@@ -100,9 +105,12 @@ export default async function ExecutiveDashboardPage(props: PageProps) {
   const cashFlowDays = (twin?.executiveState?.cashFlowProjection as CashFlowDay[]) ?? [];
   const obligations = (twin?.executiveState?.upcomingObligations as Obligation[]) ?? [];
 
-  // Sucursal con la mayor fuga de Prime Cost: se destaca dentro de la cascada P&L.
+  // Sucursal con la mayor fuga de Prime Cost: se destaca dentro de la cascada
+  // P&L. Sólo entran las que tienen prime cost medido.
   const leakBranch =
-    [...ranking.branches].sort((a, b) => b.primeCostPercent - a.primeCostPercent)[0] ?? null;
+    [...ranking.branches]
+      .filter((b) => b.primeCostPercent !== null)
+      .sort((a, b) => (b.primeCostPercent ?? 0) - (a.primeCostPercent ?? 0))[0] ?? null;
 
   // Fecha de referencia del servidor: mantiene determinista la proyección
   // preliminar de tesorería entre SSR e hidratación.

@@ -23,15 +23,15 @@ import { cn } from "@/lib/utils";
 interface LeakBranch {
   branchId: string;
   branchName: string;
-  primeCostPercent: number;
-  foodCostPercent: number;
-  laborCostPercent: number;
+  primeCostPercent: number | null;
+  foodCostPercent: number | null;
+  laborCostPercent: number | null;
 }
 
 interface PnlWaterfallProps {
   salesTotalCents: number;
-  foodCostPercent: number;
-  laborCostPercent: number;
+  foodCostPercent: number | null;
+  laborCostPercent: number | null;
   storeOpexPercent?: number;
   /** Sucursal con la mayor fuga de Prime Cost de la red (opcional). */
   leakBranch?: LeakBranch | null;
@@ -70,6 +70,11 @@ function fmtMxnCompact(cents: number): string {
   return `${sign}$${(abs / 100).toLocaleString("es-MX", { maximumFractionDigits: 0 })}`;
 }
 
+/** C30 — un porcentaje ausente se nombra; no se dibuja como 0. */
+function fmtPct(valor: number | null, decimales = 1): string {
+  return valor === null ? "sin dato" : `${valor.toFixed(decimales)}%`;
+}
+
 interface WaterfallTooltipProps {
   active?: boolean;
   payload?: Array<{ payload?: WaterfallStep }>;
@@ -98,7 +103,7 @@ function WaterfallTooltip({ active, payload, leakBranch }: WaterfallTooltipProps
         <p className="mt-1.5 border-t border-border pt-1.5 text-muted-foreground">
           Mayor fuga:{" "}
           <span className="font-semibold text-foreground">{leakBranch.branchName}</span> con{" "}
-          {leakBranch.primeCostPercent.toFixed(1)}% de Prime Cost
+          {fmtPct(leakBranch.primeCostPercent)} de Prime Cost
         </p>
       )}
     </div>
@@ -127,6 +132,21 @@ export function PnlExecutiveWaterfall({
 }: PnlWaterfallProps) {
   const [selectedStepKey, setSelectedStepKey] = useState<string | null>(null);
   const [auditOpen, setAuditOpen] = useState(false);
+
+  // C30 — sin costos no se dibuja un P&L inventado. Un costo ausente no es 0%.
+  if (foodCostPercent === null || laborCostPercent === null) {
+    return (
+      <Card className="border-border bg-card shadow-none">
+        <CardContent className="p-6 space-y-1">
+          <p className="text-sm font-semibold text-foreground">Sin datos de costos para el período</p>
+          <p className="text-xs text-muted-foreground">
+            No hay food cost ni nómina medidos en la red para este período, así que no hay cascada de
+            margen que mostrar. Un renglón sin dato no se dibuja como 0%.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const safeSales = salesTotalCents > 0 ? salesTotalCents : DEFAULT_SALES_CENTS;
   const isEstimated = salesTotalCents <= 0;
@@ -391,9 +411,9 @@ export function PnlExecutiveWaterfall({
               </p>
               <p className="text-xs text-muted-foreground">
                 <strong className="text-foreground">{leakBranch.branchName}</strong> opera con{" "}
-                {leakBranch.primeCostPercent.toFixed(1)}% de Prime Cost (Comida{" "}
-                {leakBranch.foodCostPercent.toFixed(1)}% + Nómina{" "}
-                {leakBranch.laborCostPercent.toFixed(1)}%).{" "}
+                {fmtPct(leakBranch.primeCostPercent)} de Prime Cost (Comida{" "}
+                {fmtPct(leakBranch.foodCostPercent)} + Nómina{" "}
+                {fmtPct(leakBranch.laborCostPercent)}).{" "}
                 {selectedStep
                   ? `Escalón en foco: ${selectedStep.label}.`
                   : "Alinear recetas y plantilla de esta tienda es la vía más corta al EBITDA."}
