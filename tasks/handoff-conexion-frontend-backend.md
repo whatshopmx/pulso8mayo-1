@@ -4,6 +4,8 @@
 
 Este documento es para empezar una sesión nueva sin releer veinte archivos. **Las fuentes de verdad siguen siendo el plan y el seguimiento**; esto es el atajo, y su contenido caduca en cuanto avanza el plan.
 
+> **Para arrancar directamente en C35** (cierre de la Fase 6 y Fase 7), usa el handoff corto [`tasks/handoff-cierre-conexion-frontend-backend.md`](handoff-cierre-conexion-frontend-backend.md): trae el inventario de productores de notificaciones y el patrón de migración. Este documento conserva la historia detallada de C00–C34.
+
 ---
 
 ## 1. Dónde está todo y en qué orden leerlo
