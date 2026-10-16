@@ -54,7 +54,15 @@ const sucursal = (
   cashReconciliationRate: 100,
   compositeScore: 95 - rank,
   rank,
-  dataQuality: "VERIFIED" as const,
+  // C30 — calidad por renglón; todas las dimensiones de este fixture están medidas.
+  quality: {
+    sales: "MEASURED" as const,
+    foodCost: "MEASURED" as const,
+    laborCost: "MEASURED" as const,
+    nom251: "MEASURED" as const,
+    cashReconciliation: "MEASURED" as const,
+  },
+  dataQuality: "MEASURED" as const,
 });
 
 const veredicto = (titulo: string, detalle: string) => ({ segmentada: true, titulo, detalle });
@@ -293,6 +301,59 @@ test("red única: el consolidado se explica como una sola red y no hay contradic
 
   await expect(page.getByTestId("aviso-alcance")).toHaveCount(0);
   await expect(page.getByText("Captura inconsistente")).toHaveCount(0);
+
+  expect(errores).toEqual([]);
+});
+
+test("sin datos: la pantalla muestra ausencia, no 31.5/24.5 ni un 100 por defecto", async ({
+  page,
+}) => {
+  const errores = await abrirLiga(page, {
+    periodDays: 30,
+    branches: [
+      {
+        branchId: "b1",
+        branchName: "Sucursal Vacía",
+        salesTotalCents: 0,
+        foodCostCents: 0,
+        laborCostCents: 0,
+        foodCostPercent: null,
+        laborCostPercent: null,
+        primeCostPercent: null,
+        primeCostStatus: null,
+        nom251ComplianceRate: null,
+        cashReconciliationRate: null,
+        compositeScore: null,
+        rank: 1,
+        quality: {
+          sales: "MISSING",
+          foodCost: "MISSING",
+          laborCost: "MISSING",
+          nom251: "MISSING",
+          cashReconciliation: "MISSING",
+        },
+        dataQuality: "MISSING",
+      },
+    ],
+    podiumTop3: [],
+    networkAveragePrimeCost: null,
+    networkAverageFoodCost: null,
+    networkAverageLaborCost: null,
+    anomalies: [],
+    alcance: { completa: true, visibles: 1, total: 1, motivo: null },
+  });
+
+  // Los promedios de red sin observaciones se leen como ausencia, no como 0%.
+  await expect(
+    page.getByText("Prime Cost Promedio").locator(".."),
+  ).toContainText("Sin dato");
+  await expect(page.getByText("Sin dato").first()).toBeVisible();
+  await expect(page.getByText("31.5%")).toHaveCount(0);
+  await expect(page.getByText("24.5%")).toHaveCount(0);
+
+  // La tabla no inventa un prime cost ni un porcentaje de cumplimiento.
+  await expect(page.getByText("Sin datos suficientes para comparar")).toBeVisible();
+  await expect(page.getByText("Consistencia de red óptima")).toHaveCount(0);
 
   expect(errores).toEqual([]);
 });

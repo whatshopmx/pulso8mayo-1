@@ -30,33 +30,49 @@ interface BranchQSRScorecardProps {
   period?: string;
 }
 
+/** C30 — un indicador nulo se muestra como ausencia, nunca como 0 ni como guion con color. */
+function formatoPct(valor: number | null, decimales = 0): string {
+  return valor === null ? "—" : `${valor.toFixed(decimales)}%`;
+}
+
 /**
- * Indicador semafórico de Prime Cost
+ * Indicador semafórico de Prime Cost. `status`/`percent` nulos significan que
+ * falta food o labor: no hay semáforo que pintar.
  */
 export function PrimeCostBadge({
   status,
   percent,
 }: {
   status: BranchQSRScore["primeCostStatus"];
-  percent: number;
+  percent: number | null;
 }) {
+  if (status === null) {
+    return (
+      <span
+        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-muted text-muted-foreground border border-border"
+        title="Sin food cost o nómina medidos: no hay prime cost que mostrar"
+      >
+        Sin dato
+      </span>
+    );
+  }
   if (status === "HEALTHY") {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-        {percent.toFixed(1)}% Saludable
+        {percent?.toFixed(1)}% Saludable
       </span>
     );
   }
   if (status === "WATCH") {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-        {percent.toFixed(1)}% Observación
+        {percent?.toFixed(1)}% Observación
       </span>
     );
   }
   return (
     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-destructive/10 text-destructive border border-destructive/20">
-      {percent.toFixed(1)}% Crítico
+      {percent?.toFixed(1)}% Crítico
     </span>
   );
 }
@@ -136,7 +152,7 @@ export function BranchPodium({
                   <div>
                     <span className="text-muted-foreground block text-[11px]">Score Integral</span>
                     <span className="text-lg font-extrabold tabular-nums text-foreground">
-                      {item.compositeScore.toFixed(1)}
+                      {item.compositeScore === null ? "—" : item.compositeScore.toFixed(1)}
                       <span className="text-[10px] font-normal text-muted-foreground">/100</span>
                     </span>
                   </div>
@@ -148,13 +164,13 @@ export function BranchPodium({
                   <div>
                     <span className="text-muted-foreground block text-[11px]">Food / Labor</span>
                     <span className="font-medium tabular-nums">
-                      {item.foodCostPercent.toFixed(0)}% / {item.laborCostPercent.toFixed(0)}%
+                      {formatoPct(item.foodCostPercent)} / {formatoPct(item.laborCostPercent)}
                     </span>
                   </div>
                   <div>
                     <span className="text-muted-foreground block text-[11px]">NOM-251 Frío</span>
                     <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
-                      {item.nom251ComplianceRate.toFixed(0)}%
+                      {formatoPct(item.nom251ComplianceRate)}
                     </span>
                   </div>
                 </div>
@@ -162,7 +178,7 @@ export function BranchPodium({
                 <div className="pt-2">
                   <p className="text-[11px] text-muted-foreground leading-relaxed" title={item.costNote}>
                     Porcentajes sobre venta neta; el food cost incluye la merma y la nómina va con carga patronal.
-                    Un renglón sin datos se marca «Estimado», nunca «Real».
+                    Un renglón sin datos se muestra como «Sin dato», nunca como cero.
                   </p>
                   <Button variant="ghost" size="sm" asChild className="w-full justify-between h-8 text-xs">
                     <Link href={`/dashboard/branches/${item.branchId}${period ? `?period=${period}` : ""}`}>
@@ -184,9 +200,11 @@ export function BranchPodium({
  * Resumen de métricas de red QSR
  */
 export function NetworkKpisSummary({ data }: { data: BranchQSRRankingResult }) {
-  const healthyCount = data.branches.filter((b) => b.primeCostStatus === "HEALTHY").length;
-  const totalCount = data.branches.length;
-  const healthyRate = totalCount > 0 ? Math.round((healthyCount / totalCount) * 100) : 0;
+  // C30 — la salud de red se mide sólo sobre las sucursales con prime cost.
+  // Sin observaciones no se presenta 0/0 como si fuera una red perfecta.
+  const conPrime = data.branches.filter((b) => b.primeCostPercent !== null);
+  const healthyCount = conPrime.filter((b) => b.primeCostStatus === "HEALTHY").length;
+  const healthyRate = conPrime.length > 0 ? Math.round((healthyCount / conPrime.length) * 100) : null;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -198,7 +216,9 @@ export function NetworkKpisSummary({ data }: { data: BranchQSRRankingResult }) {
           </span>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold tabular-nums">
-              {data.networkAveragePrimeCost.toFixed(1)}%
+              {data.networkAveragePrimeCost === null
+                ? "Sin dato"
+                : `${data.networkAveragePrimeCost.toFixed(1)}%`}
             </span>
             <span className="text-xs text-muted-foreground">Meta ≤{data.primeCostTargetPercent ?? 60}%</span>
           </div>
@@ -213,7 +233,9 @@ export function NetworkKpisSummary({ data }: { data: BranchQSRRankingResult }) {
           </span>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold tabular-nums">
-              {data.networkAverageFoodCost.toFixed(1)}%
+              {data.networkAverageFoodCost === null
+                ? "Sin dato"
+                : `${data.networkAverageFoodCost.toFixed(1)}%`}
             </span>
             <span className="text-xs text-muted-foreground">Insumos y merma · base neta</span>
           </div>
@@ -228,7 +250,9 @@ export function NetworkKpisSummary({ data }: { data: BranchQSRRankingResult }) {
           </span>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold tabular-nums">
-              {data.networkAverageLaborCost.toFixed(1)}%
+              {data.networkAverageLaborCost === null
+                ? "Sin dato"
+                : `${data.networkAverageLaborCost.toFixed(1)}%`}
             </span>
             <span className="text-xs text-muted-foreground">Nómina con carga · base neta</span>
           </div>
@@ -243,9 +267,11 @@ export function NetworkKpisSummary({ data }: { data: BranchQSRRankingResult }) {
           </span>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
-              {healthyCount}/{totalCount}
+              {conPrime.length === 0 ? "Sin dato" : `${healthyCount}/${conPrime.length}`}
             </span>
-            <span className="text-xs text-muted-foreground">({healthyRate}%)</span>
+            <span className="text-xs text-muted-foreground">
+              {healthyRate === null ? "" : `(${healthyRate}%)`}
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -258,10 +284,33 @@ export function NetworkKpisSummary({ data }: { data: BranchQSRRankingResult }) {
  */
 export function NetworkAnomaliesPanel({
   anomalies,
+  suficientes = true,
 }: {
   anomalies: NetworkAnomalyFinding[];
+  /** C30 — ¿hay al menos dos sucursales con prime cost para comparar? */
+  suficientes?: boolean;
 }) {
   if (anomalies.length === 0) {
+    // Sin datos medidos no se puede afirmar que la red sea consistente: la
+    // ausencia de hallazgos no es un hallazgo de salud.
+    if (!suficientes) {
+      return (
+        <Card className="bg-card/50 border-border/70">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-full bg-muted text-muted-foreground">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold">Sin datos suficientes para comparar</h4>
+              <p className="text-xs text-muted-foreground">
+                Hacen falta al menos dos sucursales con food cost y nómina medidos en el período. La
+                ausencia de alertas aquí no significa que la red sea consistente.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
     return (
       <Card className="bg-card/50 border-border/70">
         <CardContent className="p-4 flex items-center gap-3">
@@ -363,11 +412,12 @@ export function NetworkAnomaliesPanel({
  * Exportación consolidada
  */
 export function BranchQSRScorecard({ data, period }: BranchQSRScorecardProps) {
+  const conPrime = data.branches.filter((b) => b.primeCostPercent !== null).length;
   return (
     <div className="space-y-6">
       <NetworkKpisSummary data={data} />
       <BranchPodium top3={data.podiumTop3} period={period} />
-      <NetworkAnomaliesPanel anomalies={data.anomalies} />
+      <NetworkAnomaliesPanel anomalies={data.anomalies} suficientes={conPrime >= 2} />
     </div>
   );
 }

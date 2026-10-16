@@ -505,7 +505,7 @@ function medirRedes(
       branchIds: [...ids],
       sucursales: delSegmento.length,
       promedios: promediosDeRed(delSegmento),
-      podiumTop3: delSegmento.slice(0, 3),
+      podiumTop3: delSegmento.filter((s) => s.compositeScore !== null).slice(0, 3),
       anomalias: detectNetworkAnomalies(delSegmento, {
         red: segmento.tipo,
         primeTarget: umbrales?.primeTarget,
@@ -1479,8 +1479,11 @@ export const CrossBranchService = {
           .sort((a, b) => (b.compositeScore ?? -1) - (a.compositeScore ?? -1))
           .map((b, idx) => ({ ...b, rank: idx + 1 }));
 
-        // 7. Podio Top 3
-        const podiumTop3 = sortedBranches.slice(0, 3);
+        // 7. Podio Top 3: sólo unidades con score. Un renglón sin ningún
+        // indicador no es una «unidad líder», es una sin datos.
+        const podiumTop3 = sortedBranches
+          .filter((b) => b.compositeScore !== null)
+          .slice(0, 3);
 
         // 8. Promedios de la red: sólo sobre las sucursales que tienen el dato.
         const avgPrime = promedioDeIndicador(sortedBranches.map((b) => b.primeCostPercent));

@@ -40,6 +40,16 @@ const ETIQUETA_BASE: Record<string, string> = {
   GROSS_DECLARED: "Con IVA (sin desglose)",
 };
 
+/** C30 — en el CSV la ausencia se declara, no se exporta un cero ni un guion vacío. */
+const csvNumero = (valor: number | null, decimales = 1): string | number =>
+  valor === null ? "Sin datos" : Number(valor.toFixed(decimales));
+
+const ETIQUETA_CALIDAD: Record<string, string> = {
+  MEASURED: "Medido",
+  ESTIMATED: "Estimado",
+  MISSING: "Sin datos",
+};
+
 export default function BranchesPage() {
   const [period, setPeriod] = React.useState("30d");
   const [qsrData, setQsrData] = React.useState<BranchQSRRankingResult | null>(null);
@@ -91,17 +101,17 @@ export default function BranchesPage() {
       rows: qsrData.branches.map((b) => [
         b.rank,
         b.branchName,
-        b.compositeScore.toFixed(1),
+        csvNumero(b.compositeScore),
         Math.round(b.salesTotalCents / 100),
         ETIQUETA_BASE[b.salesBaseKind ?? "GROSS_DECLARED"],
-        b.foodCostPercent.toFixed(1),
-        b.laborCostPercent.toFixed(1),
-        b.primeCostPercent.toFixed(1),
-        b.primeCostStatus,
+        csvNumero(b.foodCostPercent),
+        csvNumero(b.laborCostPercent),
+        csvNumero(b.primeCostPercent),
+        b.primeCostStatus ?? "Sin dato",
         `${b.foodCostSource ?? "NO_DATA"} / ${b.laborCostSource ?? "NO_DATA"}`,
-        b.nom251ComplianceRate.toFixed(1),
-        b.cashReconciliationRate.toFixed(1),
-        b.dataQuality === "MEASURED" ? "Verificado" : b.dataQuality === "MISSING" ? "Sin datos" : "Estimado",
+        csvNumero(b.nom251ComplianceRate),
+        csvNumero(b.cashReconciliationRate),
+        ETIQUETA_CALIDAD[b.dataQuality] ?? b.dataQuality,
         etiquetaPeriodo,
       ]),
       filename: "liga-sucursales-qsr",
@@ -198,7 +208,12 @@ export default function BranchesPage() {
           )}
           {qsrData?.red && <RedesDelGrupo red={qsrData.red} />}
           {qsrData && <BranchQSRScorecard data={qsrData} period={period} />}
-          <BranchRankingTable qsrBranches={branches} period={period} />
+          <BranchRankingTable
+            qsrBranches={branches}
+            period={period}
+            primeCostTargetPercent={qsrData?.primeCostTargetPercent}
+            primeCostWarnPercent={qsrData?.primeCostWarnPercent}
+          />
         </div>
       )}
     </PageContainer>
@@ -240,11 +255,13 @@ function RedesDelGrupo({
                       ["Prime Cost", segmento.promedios.primeCost],
                       ["Food Cost", segmento.promedios.foodCost],
                       ["Labor Cost", segmento.promedios.laborCost],
-                    ] as Array<[string, number]>
+                    ] as Array<[string, number | null]>
                   ).map(([etiqueta, valor]) => (
                     <div key={etiqueta} className="rounded-lg bg-muted/40 px-2 py-2">
                       <dt className="text-[11px] text-muted-foreground">{etiqueta}</dt>
-                      <dd className="text-sm font-semibold tabular-nums">{valor.toFixed(1)}%</dd>
+                      <dd className="text-sm font-semibold tabular-nums">
+                        {valor === null ? "Sin dato" : `${valor.toFixed(1)}%`}
+                      </dd>
                     </div>
                   ))}
                 </dl>

@@ -30,11 +30,20 @@ interface Props {
   ranking?: LegacyRankingItem[];
   /** Período seleccionado para conservar en drill-down */
   period?: string;
+  /** C30 — umbrales del inquilino para la leyenda y el semáforo, no constantes. */
+  primeCostTargetPercent?: number;
+  primeCostWarnPercent?: number;
 }
 
 const rankIcons = [Trophy, Medal, Award];
 
-export function BranchRankingTable({ qsrBranches, ranking, period }: Props) {
+export function BranchRankingTable({
+  qsrBranches,
+  ranking,
+  period,
+  primeCostTargetPercent = 60,
+  primeCostWarnPercent = 65,
+}: Props) {
   // Si tenemos datos QSR completos, renderizamos la tabla analítica multi-sucursal
   if (qsrBranches && qsrBranches.length > 0) {
     return (
@@ -51,13 +60,14 @@ export function BranchRankingTable({ qsrBranches, ranking, period }: Props) {
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" /> &lt;60% Saludable
+                <span className="h-2 w-2 rounded-full bg-emerald-500" /> &lt;{primeCostTargetPercent}% Saludable
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-amber-500" /> 60-65% Observación
+                <span className="h-2 w-2 rounded-full bg-amber-500" /> {primeCostTargetPercent}-
+                {primeCostWarnPercent}% Observación
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-destructive" /> &gt;65% Crítico
+                <span className="h-2 w-2 rounded-full bg-destructive" /> &gt;{primeCostWarnPercent}% Crítico
               </span>
             </div>
           </div>
@@ -127,81 +137,118 @@ export function BranchRankingTable({ qsrBranches, ranking, period }: Props) {
                       {/* Score QSR */}
                       <TableCell className="text-right">
                         <span className="font-extrabold tabular-nums text-foreground">
-                          {item.compositeScore.toFixed(1)}
+                          {item.compositeScore === null ? "—" : item.compositeScore.toFixed(1)}
                         </span>
-                        <span className="text-[11px] text-muted-foreground">/100</span>
+                        {item.compositeScore !== null && (
+                          <span className="text-[11px] text-muted-foreground">/100</span>
+                        )}
                       </TableCell>
 
                       {/* Venta Período */}
                       <TableCell className="text-right tabular-nums font-medium">
-                        {item.salesTotalCents > 0
-                          ? `$${Math.round(item.salesTotalCents / 100).toLocaleString("es-MX")}`
-                          : "Sin venta"}
+                        {item.quality.sales === "MISSING"
+                          ? "Sin datos"
+                          : item.salesTotalCents > 0
+                            ? `$${Math.round(item.salesTotalCents / 100).toLocaleString("es-MX")}`
+                            : "$0"}
                       </TableCell>
 
                       {/* Food Cost */}
                       <TableCell className="text-right tabular-nums">
-                        <span
-                          className={
-                            item.foodCostPercent > 35
-                              ? "text-destructive font-semibold"
-                              : item.foodCostPercent <= 30
-                              ? "text-emerald-600 dark:text-emerald-400 font-medium"
-                              : "text-foreground"
-                          }
-                        >
-                          {item.foodCostPercent.toFixed(1)}%
-                        </span>
+                        {item.foodCostPercent === null ? (
+                          <span className="text-muted-foreground" title="Sin food cost medido en el período">
+                            —
+                          </span>
+                        ) : (
+                          <span
+                            className={
+                              item.foodCostPercent > 35
+                                ? "text-destructive font-semibold"
+                                : item.foodCostPercent <= 30
+                                ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                                : "text-foreground"
+                            }
+                          >
+                            {item.foodCostPercent.toFixed(1)}%
+                          </span>
+                        )}
                       </TableCell>
 
                       {/* Labor Cost */}
                       <TableCell className="text-right tabular-nums">
-                        <span
-                          className={
-                            item.laborCostPercent > 28
-                              ? "text-destructive font-semibold"
-                              : "text-foreground"
-                          }
-                        >
-                          {item.laborCostPercent.toFixed(1)}%
-                        </span>
+                        {item.laborCostPercent === null ? (
+                          <span className="text-muted-foreground" title="Sin nómina medida en el período">
+                            —
+                          </span>
+                        ) : (
+                          <span
+                            className={
+                              item.laborCostPercent > 28
+                                ? "text-destructive font-semibold"
+                                : "text-foreground"
+                            }
+                          >
+                            {item.laborCostPercent.toFixed(1)}%
+                          </span>
+                        )}
                       </TableCell>
 
                       {/* Prime Cost */}
                       <TableCell className="text-center">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border tabular-nums ${primeCostClass}`}
-                        >
-                          {item.primeCostPercent.toFixed(1)}%
-                        </span>
+                        {item.primeCostPercent === null ? (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border bg-muted text-muted-foreground border-border"
+                            title="Sin food cost o nómina: no hay prime cost que mostrar"
+                          >
+                            Sin dato
+                          </span>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border tabular-nums ${primeCostClass}`}
+                          >
+                            {item.primeCostPercent.toFixed(1)}%
+                          </span>
+                        )}
                       </TableCell>
 
                       {/* NOM-251 */}
                       <TableCell className="text-right tabular-nums">
-                        <span
-                          className={
-                            item.nom251ComplianceRate >= 95
-                              ? "text-emerald-600 dark:text-emerald-400 font-medium"
-                              : item.nom251ComplianceRate < 85
-                              ? "text-destructive font-semibold"
-                              : "text-amber-600 font-medium"
-                          }
-                        >
-                          {item.nom251ComplianceRate.toFixed(0)}%
-                        </span>
+                        {item.nom251ComplianceRate === null ? (
+                          <span className="text-muted-foreground" title="Sin registros de temperatura en el período">
+                            —
+                          </span>
+                        ) : (
+                          <span
+                            className={
+                              item.nom251ComplianceRate >= 95
+                                ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                                : item.nom251ComplianceRate < 85
+                                ? "text-destructive font-semibold"
+                                : "text-amber-600 font-medium"
+                            }
+                          >
+                            {item.nom251ComplianceRate.toFixed(0)}%
+                          </span>
+                        )}
                       </TableCell>
 
                       {/* Cuadre Caja */}
                       <TableCell className="text-right tabular-nums">
-                        <span
-                          className={
-                            item.cashReconciliationRate >= 95
-                              ? "text-foreground font-medium"
-                              : "text-destructive font-semibold"
-                          }
-                        >
-                          {item.cashReconciliationRate.toFixed(0)}%
-                        </span>
+                        {item.cashReconciliationRate === null ? (
+                          <span className="text-muted-foreground" title="Sin cortes de caja en el período">
+                            —
+                          </span>
+                        ) : (
+                          <span
+                            className={
+                              item.cashReconciliationRate >= 95
+                                ? "text-foreground font-medium"
+                                : "text-destructive font-semibold"
+                            }
+                          >
+                            {item.cashReconciliationRate.toFixed(0)}%
+                          </span>
+                        )}
                       </TableCell>
 
                       {/* Data Quality */}
