@@ -1103,15 +1103,15 @@ Reemplazar porcentajes saludables por estados de calidad explícitos cuando falt
 
 **Dividida en C30.1–C30.3 antes de implementar.** La calidad de dato viaja en el tipo compartido `BranchQSRScore`, así que el servicio va primero y la representación después; separar el servicio de su pantalla y de los consumidores ejecutivos mantiene cada corte por debajo de cinco archivos. Los tres cortes se commitean por separado y cada uno conserva el build verde.
 
-- [ ] C30.1 — Servicio: `MetricQuality`, métricas nullable y sin sustituciones inventadas (`cross-branch-service.ts` + pruebas).
-- [ ] C30.2 — Liga de Sucursales: la pantalla, la tabla y el CSV nombran la ausencia y la procedencia.
-- [ ] C30.3 — Consumidores ejecutivos: el cockpit deja de inventar 57.8/29.4/28.4 cuando la red no tiene dato.
+- [x] C30.1 — Servicio: `MetricQuality`, métricas nullable y sin sustituciones inventadas (`cross-branch-service.ts` + pruebas).
+- [x] C30.2 — Liga de Sucursales: la pantalla, la tabla y el CSV nombran la ausencia y la procedencia.
+- [x] C30.3 — Consumidores ejecutivos: el cockpit deja de inventar 57.8/29.4/28.4 cuando la red no tiene dato.
 
 **Criterios de aceptación:**
 
-- [ ] Ausencia de ventas/costos nunca se presenta como VERIFIED ni con un porcentaje operativo inventado.
-- [ ] Toda estimación muestra fuente y metodología; dato real y cero real se distinguen de ausencia.
-- [ ] Indicadores de cumplimiento sin evidencias muestran ausencia de datos en lugar de 100 por defecto.
+- [x] Ausencia de ventas/costos nunca se presenta como VERIFIED ni con un porcentaje operativo inventado.
+- [x] Toda estimación muestra fuente y metodología; dato real y cero real se distinguen de ausencia.
+- [x] Indicadores de cumplimiento sin evidencias muestran ausencia de datos en lugar de 100 por defecto.
 
 **Verificación:** V1 con conjunto vacío, ventas sin costos, cero real y datos completos; V2 de representación.
 
@@ -1120,7 +1120,8 @@ Reemplazar porcentajes saludables por estados de calidad explícitos cuando falt
 - `lib/services/cross-branch-service.ts` (C30.1)
 - `lib/services/__tests__/cross-branch-qsr.test.ts` (C30.1) · `tests/unit/finance/data-quality.test.ts (nuevo, C30.1)`
 - `components/analytics/branch-qsr-scorecard.tsx` · `components/analytics/branch-ranking-table.tsx` · `app/dashboard/branches/page.tsx` (C30.2)
-- `app/dashboard/executive/page.tsx` · `components/dashboard/executive/prime-cost-stack-card.tsx` · `components/dashboard/executive/executive-cockpit-header.tsx` (C30.3)
+- `app/dashboard/executive/page.tsx` · `components/dashboard/executive/prime-cost-stack-card.tsx` · `components/dashboard/executive/executive-cockpit-header.tsx` · `components/dashboard/executive/pnl-executive-waterfall.tsx` (C30.3)
+- `tests/e2e/group-network.spec.ts` (V2 de representación, C30.2)
 
 <a id="c31"></a>
 

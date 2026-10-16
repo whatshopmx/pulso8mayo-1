@@ -17,9 +17,12 @@ Este documento es para empezar una sesión nueva sin releer veinte archivos. **L
 
 ## 2. Estado al handing-off
 
-**C00–C29 completadas en el seguimiento. C30–C40 pendientes.** La entrega de C28 (outbox transaccional, publicador con reintentos, resultado durable por extractor, recuperación autorizada y presentación) quedó verificada el 15-10-2026. El detalle vigente está en `docs/audits/2026-10-15-workflow-completion-delivery.md`. C28 se cierra con límites declarados (acciones síncronas anteriores, escritura parcial de recepción e Inngest sin levantar contra Neon); no usar las pruebas de extractores como evidencia de esos caminos.
+**C00–C30 completadas en el seguimiento. C31–C40 pendientes.** La entrega de C28 (outbox transaccional, publicador con reintentos, resultado durable por extractor, recuperación autorizada y presentación) quedó verificada el 15-10-2026. El detalle vigente está en `docs/audits/2026-10-15-workflow-completion-delivery.md`. C28 se cierra con límites declarados (acciones síncronas anteriores, escritura parcial de recepción e Inngest sin levantar contra Neon); no usar las pruebas de extractores como evidencia de esos caminos.
 
 ```
+C30.3 el cockpit ejecutivo deja de inventar 57.8/29.4/28.4; sin costos no dibuja un P&L (4 archivos)
+C30.2 Liga de Sucursales: «Sin dato» y procedencia en tarjeta, podio, tabla y CSV; leyenda con objetivos del inquilino (V2 sin datos)
+C30.1 MetricQuality (MEASURED/ESTIMATED/MISSING) y métricas nullable; sin 31.5/24.5 ni 100 por defecto (V1, 12 unitarias)
 C26 compuerta de confianza mínima en veredictos de IA (calidad o seguridad favorables nunca autoaprueban si confianza < minConfidence; códigos estructurados de veredicto; 22 unitarias y 5 comprobaciones Neon viva)
 C25 transmisión efectiva de aiConfig jerárquica con Cloudflare Workers AI, Moondream y OpenAI con fallback simétrico (13 unitarias de política, 7 de servicio, 2 Playwright y 5 comprobaciones Neon)
 C24 validación autoritativa de contrato de paso en servidor (tipos, límites, evidencia, transiciones terminales 409 y omisión SKIPPED exclusiva de supervisor con justificación obligatoria en HTTP 403/400; 32 unitarias puras, 3 navegador Playwright y 7 comprobaciones Neon)
@@ -40,7 +43,7 @@ C19.2 una obligación, una sola vez (puedeAgendar en lib/treasury/scheduling-pol
 C19.1 supplierPayment sigue descriptiva con contrato honesto en el catálogo
 ```
 
-Puertas de fase cerradas: Fase 1, Fase 2 (12-10-2026), **Fase 3** (15-10-2026) y **Fase 4** (15-10-2026). La Fase 5 está en curso: C29 completada ([definiciones compartidas](../docs/audits/2026-10-15-branch-kpi-consistency.md)); la siguiente entrega es C30. La puerta de Fase 0 sigue sin marcar en el seguimiento.
+Puertas de fase cerradas: Fase 1, Fase 2 (12-10-2026), **Fase 3** (15-10-2026) y **Fase 4** (15-10-2026). La Fase 5 está en curso: C29 y C30 completadas ([definiciones compartidas](../docs/audits/2026-10-15-branch-kpi-consistency.md), [calidad del dato](../docs/audits/2026-10-16-calidad-dato-liga.md)); la siguiente entrega es C31 (V2 de configuración a pantalla). La puerta de Fase 0 sigue sin marcar en el seguimiento.
 
 ## 3. Lo que NO está verificado — no dar por hecho
 
@@ -70,6 +73,7 @@ Este es el apartado que más caro sale perder. Las tareas están marcadas, pero 
 | C18 | El botón de la pantalla depende del rol que `/api/auth/get-session` devuelve. Con sesión desfasada puede aparecer activo y el servidor lo rechaza con 403: el filtro que vale es el del servidor. |
 | C18.4 | `tests/layout-dispersion.spec.ts` usa `generateBankDisbursementLayout`, que ahora exige `actorRole`. Se actualizó para pasar `"ADMIN"` y **no se ejecutó** (configuración de Playwright con base real). |
 | C24 | La pantalla de ejecución en Playwright (`WorkflowExecutor`) simula la cámara (`navigator.mediaDevices` stub con canvas); la captura real de fotos en hardware físico depende del navegador móvil del operador. |
+| C30 | Sin V2 con Next/auth/Postgres: la representación de la ausencia se prueba en la UI aislada con la API interceptada. El cockpit ejecutivo conserva los defaults del `ExecutiveTwinEngine` y los umbrales 60/65 (no recibe los objetivos del inquilino). |
 
 ## 4. Estado de la base de datos
 
@@ -107,7 +111,7 @@ El plan define cuatro verificaciones. Cada tarea declara cuál usa:
 - `tests/playwright-shifts.config.ts` → UI aislada. Arranca un servidor Vite de pruebas con módulos reales y stubs para acciones, auth y DB. Es la que se usa para turnos y configuración. **No requiere Next, autenticación ni Postgres.**
 - `playwright.config.ts` (el de `pnpm test:e2e`) → specs que sí usan la base real y necesitan `auth.setup`. Más lento y frágil; no se usó en esta sesión.
 
-**Línea base actual (15-10-2026, tras C24):** `test:unit` 1276 aprobadas / 1 omitida / 1 TODO (95 archivos) · `lint` 0 errores (2412 warnings, todos preexistentes) · `build` exitoso y `tsc --noEmit` limpio. Las pruebas añadidas por C24 (32 unitarias) más C22 y C23 explican el incremento desde las 1190 de C21.
+**Línea base actual (16-10-2026, tras C30):** `test:unit` 1370 aprobadas / 1 omitida / 1 TODO (107 archivos) · `lint` 0 errores (2482 warnings, todos preexistentes) · `build` exitoso y `tsc --noEmit` limpio · suite de navegador aislada 87/87. Las pruebas añadidas por C24–C30 explican el incremento desde las 1190 de C21.
 
 **Reglas del plan que se incumplen fácil:**
 - Una tarea que pase de cinco archivos **se divide en subtareas antes de implementar**, no después (C14 se dividió en C14.1–C14.3 así).
@@ -191,5 +195,5 @@ C24–C28 conforman el bloque de workflows:
 ## 10. Fase 5 — Métricas consistentes
 
 - [x] C29: Compartir definiciones financieras entre motores (módulo puro `lib/services/branch-cost-metrics.ts`; base neta, numeradores, carga y objetivos compartidos).
-- [ ] C30: Distinguir dato real, estimado y ausente.
+- [x] C30: Distinguir dato real, estimado y ausente (`MetricQuality`; métricas nullable; Liga y cockpit ejecutivo nombran la ausencia).
 - [ ] C31: Verificar efecto financiero desde configuración hasta pantalla.
