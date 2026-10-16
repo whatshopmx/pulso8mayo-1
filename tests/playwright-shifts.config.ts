@@ -18,6 +18,7 @@ export default defineConfig({
     "workflow-ai-config.spec.ts",
     "workflow-completion.spec.ts",
     "notification-preferences.spec.ts",
+    "stock-count-inline.spec.ts",
   ],
   workers: 1,
   timeout: 120_000,

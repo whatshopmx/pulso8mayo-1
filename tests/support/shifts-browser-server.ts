@@ -70,6 +70,7 @@ export async function startShiftsBrowserServer() {
         if (id === "/workflow-completion-test-entry.tsx") return "\0test-workflow-completion-entry";
         if (id === "/workflow-settings-test-entry.tsx") return "\0test-workflow-settings-entry";
         if (id === "/notifications-test-entry.tsx") return "\0test-notifications-entry";
+        if (id === "/stock-count-test-entry.tsx") return "\0test-stock-count-entry";
         if (id === "/config-test-page.tsx") return "\0test-config-page";
         if (id === "/config-test.css") return "\0test-config.css";
       },
@@ -346,10 +347,18 @@ export async function startShiftsBrowserServer() {
             )
           );
         `;
+        if (id === "\0test-stock-count-entry") return `
+          import '/config-test.css';
+          import React from 'react';
+          import { createRoot } from 'react-dom/client';
+          import { StockCountLauncher } from '/components/inventory/stock-count-launcher.tsx';
+          const props = window.__stockCountPrueba ?? {};
+          createRoot(document.getElementById('root')).render(React.createElement(StockCountLauncher, props));
+        `;
       },
       configureServer(devServer: { middlewares: { use: (handler: unknown) => void } }) {
         devServer.middlewares.use((req: { url: string }, res: { setHeader: (name: string, value: string) => void; end: (body: string) => void }, next: () => void) => {
-          if (req.url === "/" || req.url === "/config" || req.url === "/transfers" || req.url === "/tesoreria" || req.url === "/liga" || req.url === "/workflow" || req.url === "/workflow-settings" || req.url === "/workflow-completion" || req.url === "/notifications") {
+          if (req.url === "/" || req.url === "/config" || req.url === "/transfers" || req.url === "/tesoreria" || req.url === "/liga" || req.url === "/workflow" || req.url === "/workflow-settings" || req.url === "/workflow-completion" || req.url === "/notifications" || req.url === "/stock-count") {
             res.setHeader("Content-Type", "text/html");
             const entrada =
               req.url === "/config" ? "/config-test-entry.tsx"
@@ -360,6 +369,7 @@ export async function startShiftsBrowserServer() {
               : req.url === "/workflow-completion" ? "/workflow-completion-test-entry.tsx"
               : req.url === "/workflow-settings" ? "/workflow-settings-test-entry.tsx"
               : req.url === "/notifications" ? "/notifications-test-entry.tsx"
+              : req.url === "/stock-count" ? "/stock-count-test-entry.tsx"
               : "/shifts-test-entry.tsx";
             res.end(`<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module" src="${entrada}"></script></body></html>`);
             return;

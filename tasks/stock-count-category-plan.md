@@ -37,3 +37,29 @@ terminar, guardar para revisión. No ajustar existencias durante la captura.
 - Conteos anteriores conservan su ejecución y revisión.
 - Pruebas unitarias, TypeScript, lint y build; verificar escritorio y móvil en
   navegador y recorrer captura, recarga, finalización y revisión.
+
+## Estado de implementación (16-10-2026)
+
+Se añadió la entrada **inline** pedida: al seleccionar una categoría, su conteo
+aparece en la misma pantalla de Inventario, con un renglón por producto y lote
+disponible (y su vencimiento, FEFO), sin redirigir a un formulario por producto.
+
+- **B1 (servidor):** `GET /api/inventory/stock-count/rows` devuelve las filas de
+  la categoría (empresa de la sesión, sucursal validada por alcance).
+  `createStockCountInstance` acepta `initialValues` por categoría y los valida
+  con `normalizeStockCount` contra las filas congeladas antes de escribir.
+- **B2 (pantalla):** `StockCountLauncher` reemplaza el formulario que sólo
+  enviaba categorías; muestra el grid por categoría al marcarla y conserva lo
+  capturado como borrador del conteo al confirmar.
+- Evidencia: `tests/unit/workflows/stock-count-rows-route.test.ts` (3),
+  `tests/unit/workflows/stock-count-prefill.test.ts` (3),
+  `tests/unit/inventory/stock-count-launcher.test.ts` (4) y
+  `tests/e2e/stock-count-inline.spec.ts` (2, navegador aislado).
+
+**Pendiente conocido (no incluido en B):** el mismo template "Conteo de
+Inventario" lanzado por la vía genérica (`POST /api/workflows/execute` desde
+Plantillas/Ejecutar/Compartir/agendado) conserva la rama legacy de
+`workflow-execution-service.ts` que genera **un paso por producto sin lote**
+(`getProductsWithStock` + `generateStockCountSteps`). La pantalla de Inventario
+ya no usa esa rama, pero la inconsistencia sigue viva para quien lance el
+template por otra entrada. Se deja anotada para decidir su retiro.

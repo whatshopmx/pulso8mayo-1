@@ -15,7 +15,7 @@ import { ClipboardList, History, Settings, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { PageHeader, PageContainer } from "@/components/shared";
 import { BRANCH_COOKIE_NAME } from "@/lib/branch-cookies";
-import { requireExecutionAccess, assertBranchDestino } from '@/lib/workflows/execution-access';
+import { StockCountLauncher } from "@/components/inventory/stock-count-launcher";
 
 async function toggleBlindCountSetting(formData: FormData) {
   "use server";
@@ -27,65 +27,6 @@ async function toggleBlindCountSetting(formData: FormData) {
     .set({ blindStockCount: value })
     .where(eq(companies.id, session.user.companyId));
   revalidatePath("/dashboard/inventory/stock-count");
-}
-
-async function createStockCount(formData: FormData) {
-  "use server";
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return redirect("/sign-in");
-  if (!session.user.companyId) {
-    return redirect("/dashboard/inventory/stock-count?error=missing-company");
-  }
-
-  const branchId = formData.get("branchId") as string;
-  const categories = formData.getAll('categories').map(String);
-  const category = categories.join(', ');
-  if (!branchId || !categories.length) {
-    return redirect("/dashboard/inventory/stock-count?error=missing-fields");
-  }
-
-  const highOnlyValue = formData.get("highValueOnly") === "true";
-
-  // `redirect()` funciona lanzando NEXT_REDIRECT: si se llama dentro del try,
-  // el propio catch se lo traga y el conteo recién creado termina en la
-  // pantalla de error. Por eso aquí solo se resuelve el destino.
-  let destino: string;
-  try {
-    const actor = await requireExecutionAccess('create');
-    await assertBranchDestino(actor, branchId);
-    const result = await StockCountService.createStockCountInstance({
-      companyId: session.user.companyId,
-      branchId,
-      assigneeId: session.user.id,
-      categoryValue: category,
-      categories,
-      highOnlyValue,
-    });
-    destino = result.instance?.id
-      ? `/dashboard/workflows/${result.instance.id}/execute`
-      : "/dashboard/inventory/stock-count?error=create-failed";
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    // El service reporta el conteo ya activo como "... ID: <uuid>".
-    const match = message.match(/ID:\s*([a-f0-9-]+)/i);
-    if (match) {
-      destino = `/dashboard/workflows/${match[1]}/execute`;
-    } else if (message.includes("NO_PRODUCTS_FOUND") || message.includes("No products found")) {
-      const params = new URLSearchParams({
-        error: "no-products",
-        category,
-        highOnlyValue: highOnlyValue ? "true" : "false",
-      });
-      destino = `/dashboard/inventory/stock-count?${params.toString()}`;
-    } else if (message.includes("Ya existe un conteo activo")) {
-      destino = "/dashboard/inventory/stock-count?error=active-count";
-    } else {
-      console.error("Stock count error:", error);
-      destino = `/dashboard/inventory/stock-count?error=create-failed&msg=${encodeURIComponent(message.slice(0, 100))}`;
-    }
-  }
-
-  redirect(destino);
 }
 
 export default async function StockCountPage(props: {
@@ -204,80 +145,14 @@ export default async function StockCountPage(props: {
                 </Card>
             ) : (
                 <div className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Nuevo Conteo</CardTitle>
-                            <CardDescription>
-                                Selecciona la categoría y sucursal para iniciar el conteo físico
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <form action={createStockCount} className="grid gap-4">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="branchId">Sucursal</Label>
-                                    {scopedBranch ? (
-                                        <>
-                                            <input type="hidden" name="branchId" value={scopedBranch.id} />
-                                            <div
-                                                id="branchId"
-                                                className="flex h-9 w-full items-center rounded-md border border-input bg-muted/30 px-3 py-1 text-sm text-muted-foreground"
-                                            >
-                                                {scopedBranch.name}
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <select
-                                            id="branchId"
-                                            name="branchId"
-                                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                            required
-                                        >
-                                            <option value="">Seleccionar sucursal</option>
-                                            {userBranches.map((b) => (
-                                                <option key={b.id} value={b.id}>{b.name}</option>
-                                            ))}
-                                        </select>
-                                    )}
-                                </div>
-
-                                <fieldset className="grid gap-2">
-                                    <legend className="mb-2 text-sm font-medium">Categorías</legend>
-                                    {availableCategories.map((item, index) => <label key={item.value} htmlFor={'category-' + index} className="flex min-h-11 items-center gap-3 rounded-lg border p-3 text-sm">
-                                        <input id={'category-' + index} name="categories" type="checkbox" value={item.value} defaultChecked={item.value === searchParams?.category} />
-                                        <span className="min-w-0 flex-1 break-words">{item.label}</span>
-                                        <span className="text-xs text-muted-foreground">{item.count} productos</span>
-                                    </label>)}
-                                    {!availableCategories.length && <p className="text-sm text-muted-foreground">Registra productos activos en Inventario para iniciar un conteo.</p>}
-                                    <p className="text-xs text-muted-foreground">Cada categoría abre una lista completa de productos y lotes. Al finalizar, el conteo se guardará para revisión.</p>
-                                </fieldset>
-
-                                <div className="flex items-start gap-3 rounded-lg border bg-muted/10 p-3">
-                                    <input
-                                        id="highValueOnly"
-                                        type="checkbox"
-                                        name="highValueOnly"
-                                        value="true"
-                                        defaultChecked={false}
-                                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-input text-primary focus:ring-primary"
-                                    />
-                                    <div className="space-y-1">
-                                        <label htmlFor="highValueOnly" className="text-sm font-medium leading-none cursor-pointer">
-                                            Contar solo SKUs de alto valor (80/20 Pareto)
-                                        </label>
-                                        <p className="text-xs text-muted-foreground">
-                                            {hasHighValueItems
-                                                ? "Filtra automáticamente los artículos de mayor costo acumulado. Desmarca para auditar todo el catálogo de la categoría."
-                                                : "No hay productos marcados como alto valor en el catálogo. Mantén esta opción desmarcada para auditar todos los artículos."}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <Button type="submit" className="w-full mt-2">
-                                    Iniciar Conteo
-                                </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
+                    <StockCountLauncher
+                        branches={userBranches.map((b) => ({ id: b.id, name: b.name }))}
+                        scopedBranch={scopedBranch ? { id: scopedBranch.id, name: scopedBranch.name } : null}
+                        categories={availableCategories}
+                        hasHighValueItems={hasHighValueItems}
+                        blindCount={isBlindCount}
+                        defaultCategory={searchParams?.category}
+                    />
 
                     {/* Settings Card */}
                     <Card>
