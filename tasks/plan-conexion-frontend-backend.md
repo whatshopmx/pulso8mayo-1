@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 15 de octubre de 2026. Estado: C00–C28 implementadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C29–C40 pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 16 de octubre de 2026. Estado: C00–C32 implementadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C33–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -1166,11 +1166,15 @@ Elegir un contrato canónico, hacer compatibles las tres APIs y cargar preferenc
 
 **Criterios de aceptación:**
 
-- [ ] Las tres entradas autorizan al mismo usuario y usan la misma semántica de campos.
-- [ ] Guardar/recargar conserva canales y preferencias por tipo, incluidos stock y turnos.
-- [ ] Un error de carga no muestra defaults como si fueran las preferencias guardadas.
+- [x] Las tres entradas autorizan al mismo usuario y usan la misma semántica de campos. `lib/notifications/preferences-contract.ts` es la única definición; las tres rutas derivan el usuario de la sesión, normalizan el cuerpo con el contrato y responden la misma forma (`inventoryAlerts` canónico, `stockAlerts` sólo como alias de entrada).
+- [x] Guardar/recargar conserva canales y preferencias por tipo, incluidos stock y turnos. La migración aditiva 0097 añade `shift_reminders` y `schedule_changes`; el guardado combina con lo existente en lugar de resetear campos omitidos.
+- [x] Un error de carga no muestra defaults como si fueran las preferencias guardadas. La pantalla distingue `loading`/`ready`/`error`: en error muestra un aviso con reintento y ningún interruptor.
 
 **Verificación:** V1 de contratos compatibles y V2 de desactivar/guardar/recargar.
+
+**Verificación ejecutada (16-10-2026):** V1 — `tests/unit/notifications/preferences-contract.test.ts` (13) y `tests/unit/notifications/preferences-routes.test.ts` (11) sobre el contrato puro y las tres rutas reales con base simulada. V2 — `tests/e2e/notification-preferences.spec.ts` (4) en Chromium aislado con el componente real y `fetch` interceptado. Base real — migración 0097 aplicada a Neon y verificada contra `information_schema.columns`. Suite 1394 aprobadas (109 archivos, 1 omitida, 1 TODO), 94/94 navegador aislado, `tsc` y `lint` limpios. Evidencia en [C32](../docs/audits/2026-10-16-preferencias-notificacion.md).
+
+**Desglose ejecutado (16-10-2026):** C32.1 contrato canónico y persistencia (`7fec4e2`); C32.2 las tres APIs comparten el contrato (`4df495b`); C32.3 la pantalla carga antes de editar (`835026e`).
 
 **Archivos probables:**
 
