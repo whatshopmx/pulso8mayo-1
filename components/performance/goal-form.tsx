@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,18 +19,31 @@ import { useToast } from '@/hooks/use-toast';
 
 interface GoalFormProps {
   companyId: string;
-  userId: string;
   goalId?: string;
   initialData?: any;
 }
 
-export function GoalForm({ companyId, userId, goalId, initialData }: GoalFormProps) {
+interface Employee {
+  id: string;
+  name: string;
+  email: string;
+  branchId: string | null;
+}
+
+export function GoalForm({ companyId, goalId, initialData }: GoalFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>([]);
 
   const [formData, setFormData] = useState({
-    userId: initialData?.userId || userId,
+    // No default assignee on create: a goal must be attributed deliberately.
+    // Defaulting to the logged-in user was how goals silently landed on their
+    // creator. On edit the current assignee comes from the record.
+    userId: initialData?.userId || '',
+    // Derived from the assignee — never asked for directly. Sent to the API
+    // only when known, because the schema validates it as a uuid.
+    branchId: initialData?.branchId || '',
     title: initialData?.title || '',
     description: initialData?.description || '',
     category: initialData?.category || '',
@@ -40,9 +53,48 @@ export function GoalForm({ companyId, userId, goalId, initialData }: GoalFormPro
     status: initialData?.status || 'NOT_STARTED',
   });
 
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const res = await fetch(`/api/employees?limit=100`);
+        if (res.ok) {
+          const data = await res.json();
+          // `/api/employees` returns `{ success, data, pagination }`.
+          setEmployees((data.data || []).map((e: any) => ({
+            id: e.userId || e.id,
+            name: e.userName || e.name || 'Sin nombre',
+            email: e.userEmail || e.email || '',
+            branchId: e.branchId ?? null,
+          })));
+        }
+      } catch (e) {
+        console.error('Error fetching employees:', e);
+      }
+    };
+
+    fetchEmployees();
+  }, []);
+
+  const handleAssignChange = (assigneeId: string) => {
+    const employee = employees.find((e) => e.id === assigneeId);
+    setFormData(prev => ({
+      ...prev,
+      userId: assigneeId,
+      branchId: employee?.branchId ?? '',
+    }));
+  };
+
   const handleSubmit = async () => {
     if (!formData.title.trim()) {
       toast({ title: 'Error', description: 'El título es requerido', variant: 'destructive' });
+      return;
+    }
+    if (!formData.userId) {
+      toast({
+        title: 'Error',
+        description: 'Selecciona el empleado al que se asigna el objetivo',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -53,8 +105,10 @@ export function GoalForm({ companyId, userId, goalId, initialData }: GoalFormPro
         : '/api/performance/goals';
       const method = goalId ? 'PATCH' : 'POST';
 
+      const { branchId, ...rest } = formData;
       const body = {
-        ...formData,
+        ...rest,
+        ...(branchId ? { branchId } : {}),
         companyId,
       };
 
@@ -110,6 +164,25 @@ export function GoalForm({ companyId, userId, goalId, initialData }: GoalFormPro
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="assignee">Empleado *</Label>
+            <Select value={formData.userId} onValueChange={handleAssignChange}>
+              <SelectTrigger id="assignee">
+                <SelectValue placeholder="Seleccionar empleado" />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {emp.name} ({emp.email})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              El objetivo se asigna a esta persona y hereda su sucursal.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="title">Título del Objetivo *</Label>
             <Input

@@ -47,7 +47,6 @@ export default async function EditGoalPage({ params }: { params: Promise<{ id: s
 
       <GoalForm
         companyId={user.companyId}
-        userId={user.id}
         goalId={goal.id}
         initialData={goal}
       />

@@ -32,7 +32,6 @@ export default async function NewGoalPage() {
 
       <GoalForm
         companyId={user.companyId}
-        userId={user.id}
       />
     </div>
   );
