@@ -35,6 +35,10 @@ const createReviewSchema = z.object({
   developmentPlan: z.string().optional(),
   comments: z.string().optional(),
   criteriaRatings: z.array(criteriaRatingSchema).optional(),
+  // A review can only be born as a draft or as submitted — IN_PROGRESS and
+  // COMPLETED are reached through PATCH. Defaulting to DRAFT keeps the
+  // previous behaviour for callers that do not send a status.
+  status: z.enum(['DRAFT', 'SUBMITTED']).default('DRAFT'),
 });
 
 const updateReviewSchema = createReviewSchema.partial().extend({
@@ -91,6 +95,7 @@ const reviewColumns = {
   id: performanceReviews.id,
   userId: performanceReviews.userId,
   reviewerId: performanceReviews.reviewerId,
+  branchId: performanceReviews.branchId,
   reviewType: performanceReviews.reviewType,
   reviewPeriod: performanceReviews.reviewPeriod,
   reviewDate: performanceReviews.reviewDate,
@@ -226,7 +231,7 @@ export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
     }
 
     // Never spread criteriaRatings into the reviews insert — it has no column
-    const { criteriaRatings: _ignored, ...reviewFields } = data;
+    const { criteriaRatings: _ignored, status, ...reviewFields } = data;
 
     const [newReview] = await db
       .insert(performanceReviews)
@@ -235,7 +240,8 @@ export const POST = withTenantAuth(async (request: NextRequest, { auth }) => {
         overallRating,
         reviewerId: auth.user.id, // reviewer is the authenticated user
         companyId: auth.tenantId,
-        status: 'DRAFT',
+        status,
+        submittedAt: status === 'SUBMITTED' ? new Date() : null,
         createdBy: auth.user.id,
       })
       .returning();
