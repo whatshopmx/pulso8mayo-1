@@ -75,8 +75,8 @@ NotificationQueue.enqueue(payload)                     ← productores deberían
 | `lib/cron/check-overdue.ts` | `workflow_overdue` | Candidato natural: clave `instancia`. |
 | `lib/cron/workflow-reminders.ts` | `workflow_due_soon` | |
 | `lib/cron/send-reminders.ts` | `workflow_due_soon` | Posible duplicado con el anterior: verificar. |
-| `lib/cron/imss-deadline-alerts.ts` | `imss_deadline` | Usa `sendBatchNotifications`. |
-| `lib/inngest/functions/cron-sales-cut-reminder.ts` | `sales_cut_missing` | |
+| `lib/cron/imss-deadline-alerts.ts` | `imss_deadline` | **Migrado (C35.2)** — `enqueueBatch`. |
+| `lib/inngest/functions/cron-sales-cut-reminder.ts` | `sales_cut_missing` | **Migrado (C35.2)** — cron `0 * * * *`. |
 | `lib/inngest/functions/check-financial-alerts.ts` | `financial_kpi_deviation` | |
 | `lib/inngest/functions/generate-morning-brief.ts` | `morning_brief` | |
 | `lib/inngest/functions/emergency-departure-handler.ts` | `shift_approval_request` | |
@@ -172,7 +172,7 @@ La tabla de arriba era un punto de partida, no el inventario completo. El recorr
 
 ## 6. Línea base y límites que NO hay que dar por cubiertos
 
-**Línea base (16-10-2026, tras C34; actualizada tras C35.1):** `test:unit` **1437** aprobadas / 1 omitida / 1 TODO (113 archivos) · `lint` 0 errores · `build` exitoso · `tsc --noEmit` limpio · navegador aislado **94/94**.
+**Línea base (16-10-2026, tras C34; actualizada tras C35.2):** `test:unit` **1444** aprobadas / 1 omitida / 1 TODO (113 archivos) · `lint` 0 errores · `build` exitoso · `tsc --noEmit` limpio · navegador aislado **94/94**.
 
 Límites abiertos que las tareas arrastran (no usar como evidencia de lo contrario):
 
@@ -230,5 +230,6 @@ Límites abiertos que las tareas arrastran (no usar como evidencia de lo contrar
 1. Leer `tasks/todo-conexion-frontend-backend.md` (Fase 6 y fila C34) y la sección C35 del plan.
 2. Confirmar que el árbol está limpio (`git status`) y la línea base: `pnpm test:unit` (esperado 1431 aprobadas).
 3. **C35.0 — cerrar el inventario** (hecho el 16-10-2026): verificado `workflow-reminders.ts` vs `send-reminders.ts` (duplicado parcial, no idéntico), clasificado `whatsapp-notification-service.ts` (legacy) y descubierto que `shift-reminders.ts` es huérfano. Inventario completo en [la evidencia](../docs/audits/2026-10-16-consolidacion-productores-notificacion.md).
-4. **C35.1 — migrar el primer lote** (hecho el 16-10-2026): `shift-reminders.ts` quedó fuera por huérfano; se migraron `check-overdue.ts` (`workflow-overdue:<assignmentId>`) y `workflow-reminders.ts` (`workflow-due-soon:<assignmentId>:<reminderType>`) a `NotificationQueue.enqueue`, con `tests/unit/notifications/producer-migration.test.ts` (6).
-5. Repetir por productor en sesiones siguientes, máximo dos por sesión, y solo entonces marcar C35 y abrir C36.
+4. **C35.1 — migrar el primer lote** (hecho el 16-10-2026): `shift-reminders.ts` quedó fuera por huérfano; se migraron `check-overdue.ts` (`workflow-overdue:<assignmentId>`) y `workflow-reminders.ts` (`workflow-due-soon:<assignmentId>:<reminderType>`) a `NotificationQueue.enqueue`, con `tests/unit/notifications/producer-migration.test.ts`.
+4-bis. **C35.2 — segundo lote** (hecho el 16-10-2026): `imss-deadline-alerts.ts` (`imss-deadline:<tipo>:<fecha>:<ventana>:<userId>`, vía `enqueueBatch`) y `cron-sales-cut-reminder.ts` (`sales-cut-missing:<branchId>:<businessDate>`). El test acumula 13 casos.
+5. Repetir por productor en sesiones siguientes, máximo dos por sesión, y solo entonces marcar C35 y abrir C36. Próximo lote sugerido: `check-financial-alerts.ts` (`financial_kpi_deviation`) y `generate-morning-brief.ts` (`morning_brief`).

@@ -13,7 +13,8 @@
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { and, inArray, isNotNull, isNull } from 'drizzle-orm';
-import { NotificationDispatcher, type NotificationPayload } from '@/lib/services/notification-dispatcher';
+import { NotificationQueue } from '@/lib/notifications/notification-queue';
+import type { NotificationPayload } from '@/lib/services/notification-dispatcher';
 import {
     formatDaysUntil,
     formatDeadlineDate,
@@ -42,6 +43,10 @@ function buildPayloads(deadline: ImssDeadline, recipientIds: string[]): Notifica
             deadlineDate,
             daysUntil: deadline.daysUntil,
             daysLabel,
+            // C35.2: la misma fecha límite avisa una sola vez por ventana
+            // (7/3/1 días) y por destinatario. Repetir la corrida del día no
+            // vuelve a notificar.
+            dedupeKey: `imss-deadline:${deadline.type}:${deadline.date.year}-${deadline.date.month}-${deadline.date.day}:${deadline.daysUntil}:${userId}`,
         },
     }));
 }
@@ -72,7 +77,7 @@ export async function checkImssDeadlines(now: Date = new Date()) {
         const payloads = dueDeadlines.flatMap((deadline) => buildPayloads(deadline, recipientIds));
 
         if (payloads.length > 0) {
-            await NotificationDispatcher.sendBatchNotifications(payloads);
+            await NotificationQueue.enqueueBatch(payloads);
         }
 
         console.log(

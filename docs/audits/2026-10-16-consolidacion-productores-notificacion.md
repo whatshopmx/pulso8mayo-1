@@ -1,6 +1,6 @@
 # C35 — Consolidación de productores de notificaciones
 
-Fecha: 16 de octubre de 2026. Estado: **en curso** (C35.0 inventario cerrado; C35.1 primer lote migrado).
+Fecha: 16 de octubre de 2026. Estado: **en curso** (C35.0 inventario cerrado; C35.1 y C35.2 migrados).
 
 Plan: [conexión frontend/backend](../../tasks/plan-conexion-frontend-backend.md#c35). Seguimiento: [todo](../../tasks/todo-conexion-frontend-backend.md). Handoff: [cierre C35–C40](../../tasks/handoff-cierre-conexion-frontend-backend.md).
 
@@ -101,3 +101,27 @@ V1/V3 en `tests/unit/notifications/producer-migration.test.ts`:
 - El productor sólo **encola**; la entrega real la verifica C34 con adaptadores simulados. Este corte no levanta el runtime de Inngest.
 - `send-reminders.ts` sigue directo y sigue solapando con `workflow-reminders.ts` hasta que C36/C38 decidan su retiro. El `dedupeKey` evita duplicados **dentro** de `workflow-reminders`, no entre los dos productores.
 - `check-overdue.ts` marca `isOverdue` antes de encolar. Una caída entre la marca y el encolado no se recupera con el `dedupeKey` (el `isOverdue=false` impide re-seleccionar); es el mismo límite que ya tenía el cron y queda declarado.
+
+---
+
+## C35.2 — Segundo lote migrado
+
+Productores: `lib/cron/imss-deadline-alerts.ts` (`imss_deadline`, registrado como `imssAlerts`) y `lib/inngest/functions/cron-sales-cut-reminder.ts` (`sales_cut_missing`, cron `0 * * * *`).
+
+Cambio por productor:
+
+1. `imss-deadline-alerts`: `NotificationDispatcher.sendBatchNotifications(payloads)` → `NotificationQueue.enqueueBatch(payloads)`. `dedupeKey` por destinatario: `imss-deadline:<tipo>:<AAAA-M-D>:<díasRestantes>:<userId>`.
+2. `cron-sales-cut-reminder`: `NotificationDispatcher.sendNotification(payload)` → `NotificationQueue.enqueue(payload)`. `dedupeKey`: `sales-cut-missing:<branchId>:<businessDate>`.
+
+### Verificación
+
+Siete casos nuevos en `tests/unit/notifications/producer-migration.test.ts` (13 en total):
+
+- `imss-deadline`: una fecha límite produce un aviso por destinatario con id determinista; repetir la corrida del día da los mismos ids; sin fechas en ventana no encola.
+- `cron-sales-cut-reminder`: una sucursal sin corte produce un aviso con clave sucursal+fecha; repetir la corrida horaria da el mismo id; si el corte existe o la sucursal no tiene gerente, no encola.
+
+### Límites declarados
+
+- **`sales_cut_missing` pasa de hasta 24 avisos al día a uno por sucursal y día** dentro de la ventana de deduplicación de Inngest. Si el corte sigue faltando pasadas 24 h, puede volver a avisar: es aceptable (el problema sigue vivo), pero queda dicho.
+- `imss-deadline-alerts` envía a **todos** los `OWNER`/`ADMIN` de todas las empresas por cada fecha límite. Es comportamiento previo a C35 y no se toca aquí; si debe acotarse por empresa es una tarea aparte.
+- Sin runtime de Inngest: los dos productores sólo encolan; la entrega real la verifica C34 con adaptadores simulados.

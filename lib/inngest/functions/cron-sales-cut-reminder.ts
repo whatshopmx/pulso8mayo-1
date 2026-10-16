@@ -6,7 +6,7 @@ import { inngest } from "../client";
 import { db } from "@/lib/db";
 import { branches, dailySalesCuts, users } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
+import { NotificationQueue } from "@/lib/notifications/notification-queue";
 
 export const cronSalesCutReminder = inngest.createFunction(
   {
@@ -52,7 +52,7 @@ export const cronSalesCutReminder = inngest.createFunction(
 
           const smartLinkUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard/sales?branchId=${branch.id}`;
 
-          await NotificationDispatcher.sendNotification({
+          await NotificationQueue.enqueue({
             userId: branch.managerId,
             title: "💰 Alerta: Corte de Caja Faltante",
             message: `El corte de ventas de la sucursal ${branch.name} para hoy (${todayStr}) aún no se ha registrado.`,
@@ -65,6 +65,9 @@ export const cronSalesCutReminder = inngest.createFunction(
               shift: "COMPLETO",
               businessDate: todayStr,
               smartLinkUrl,
+              // C35.2: una sucursal sin corte avisa una sola vez al día, no una
+              // vez por hora. Inngest deduplica por id dentro de su ventana.
+              dedupeKey: `sales-cut-missing:${branch.id}:${todayStr}`,
             },
           });
         }
