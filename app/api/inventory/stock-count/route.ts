@@ -6,7 +6,7 @@ import { requireExecutionAccess, assertBranchDestino } from '@/lib/workflows/exe
 import { isApiError } from '@/lib/api/error';
 import { z } from 'zod';
 
-const createSchema = z.object({ branchId: z.string().min(1), category: z.string().min(1).optional(), categories: z.array(z.string().min(1)).min(1).optional(), highValueOnly: z.boolean().optional() });
+const createSchema = z.object({ branchId: z.string().min(1), category: z.string().min(1).optional(), categories: z.array(z.string().min(1)).min(1).optional(), highValueOnly: z.boolean().optional(), initialValues: z.record(z.string(), z.unknown()).optional() });
 
 export async function POST(request: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { branchId, category, categories, highValueOnly } = createSchema.parse(body);
+        const { branchId, category, categories, highValueOnly, initialValues } = createSchema.parse(body);
 
         if (!category && !categories?.length) {
             return NextResponse.json({ error: "branchId and category required" }, { status: 400 });
@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
             categoryValue: category,
             categories,
             highOnlyValue: highValueOnly === true,
+            initialValues,
         });
 
         return NextResponse.json(result);

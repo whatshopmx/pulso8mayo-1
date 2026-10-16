@@ -252,6 +252,12 @@ export class StockCountService {
     categoryValue?: string;
     categories?: string[];
     highOnlyValue?: boolean;
+    /**
+     * Captura hecha en la pantalla antes de crear la instancia, por categoría.
+     * El servidor NO confía en las filas: re-resuelve el alcance y valida el
+     * valor contra las filas reales con `normalizeStockCount`.
+     */
+    initialValues?: Record<string, unknown>;
   }) {
     const categories = [...new Set(data.categories ?? (data.categoryValue ? [data.categoryValue] : []))];
     if (!categories.length || categories.some(category => typeof category !== 'string' || !category.trim())) throw ApiError.badRequest('Selecciona al menos una categoría.');
@@ -270,6 +276,15 @@ export class StockCountService {
       productMap.set(row.itemId, product);
     }
     const products = [...productMap.values()];
+    // Captura previa (C-B): se valida contra las filas congeladas antes de
+    // escribir. Una fila ajena o duplicada aborta sin crear la instancia.
+    const stepValues = new Map<string, string>();
+    for (const step of steps) {
+      if (step.type !== 'STOCK_COUNT') continue;
+      const raw = data.initialValues?.[step.config.category as string];
+      if (raw === undefined) continue;
+      stepValues.set(step.id, JSON.stringify(normalizeStockCount(step.config.rows as StockCountRow[], raw, false)));
+    }
     const template = await this.getOrCreateTemplate(data.companyId);
     const instance = await db.transaction(async tx => {
       const [created] = await tx.insert(workflowInstances).values({
@@ -279,7 +294,8 @@ export class StockCountService {
           highValueOnly: isHighOnly, startTime: new Date().toISOString() },
       }).returning();
       await tx.insert(workflowInstanceSteps).values(steps.map((step, index) => ({
-        instanceId: created.id, stepId: step.id, status: 'PENDING' as const, value: null,
+        instanceId: created.id, stepId: step.id, status: 'PENDING' as const,
+        value: stepValues.get(step.id) ?? null,
         stepOrder: index, title: step.title, type: step.type, definition: step,
       })));
       return created;
