@@ -39,6 +39,7 @@ export async function startShiftsBrowserServer() {
       { find: /^@\/hooks$/, replacement: "\0test-hooks" },
       { find: /^@\/hooks\/use-toast$/, replacement: "\0test-toast" },
       { find: "@/app/actions/shifts", replacement: "\0test-actions" },
+      { find: "@/app/actions/workflow-completion-recovery", replacement: "\0test-completion-recovery" },
       // C17 — la pantalla de transferencias (el abastecimiento entre
       // sucursales) se monta con un contexto de sucursal fijo: la página real,
       // los componentes reales y `fetch` a la API, que la prueba intercepta.
@@ -66,6 +67,7 @@ export async function startShiftsBrowserServer() {
         if (id === "/config-test-entry.tsx") return "\0test-config-entry";
         if (id === "/liga-test-entry.tsx") return "\0test-liga-entry";
         if (id === "/workflow-test-entry.tsx") return "\0test-workflow-entry";
+        if (id === "/workflow-completion-test-entry.tsx") return "\0test-workflow-completion-entry";
         if (id === "/workflow-settings-test-entry.tsx") return "\0test-workflow-settings-entry";
         if (id === "/config-test-page.tsx") return "\0test-config-page";
         if (id === "/config-test.css") return "\0test-config.css";
@@ -159,6 +161,23 @@ export async function startShiftsBrowserServer() {
           export const usePathname = () => '/';
           export const useSearchParams = () => new URLSearchParams();
           export const redirect = () => {};
+          export const useParams = () => window.__paramsPrueba ?? {};
+        `;
+        if (id === "\0test-completion-recovery") return `
+          export async function retryWorkflowCompletionEffects(input) {
+            const response = await fetch('/api/workflow-test/retry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error);
+            return data;
+          }
+        `;
+        if (id === "\0test-workflow-completion-entry") return `
+          import '/config-test.css';
+          import React from 'react';
+          import { createRoot } from 'react-dom/client';
+          import Page from '/app/dashboard/workflows/execute/[id]/page.tsx';
+          import { Toaster } from 'sonner';
+          createRoot(document.getElementById('root')).render(React.createElement(React.Fragment, null, React.createElement(Page), React.createElement(Toaster)));
         `;
         if (id === "\0test-transfers-entry") return `
           import React from 'react';
@@ -311,7 +330,7 @@ export async function startShiftsBrowserServer() {
       },
       configureServer(devServer: { middlewares: { use: (handler: unknown) => void } }) {
         devServer.middlewares.use((req: { url: string }, res: { setHeader: (name: string, value: string) => void; end: (body: string) => void }, next: () => void) => {
-          if (req.url === "/" || req.url === "/config" || req.url === "/transfers" || req.url === "/tesoreria" || req.url === "/liga" || req.url === "/workflow" || req.url === "/workflow-settings") {
+          if (req.url === "/" || req.url === "/config" || req.url === "/transfers" || req.url === "/tesoreria" || req.url === "/liga" || req.url === "/workflow" || req.url === "/workflow-settings" || req.url === "/workflow-completion") {
             res.setHeader("Content-Type", "text/html");
             const entrada =
               req.url === "/config" ? "/config-test-entry.tsx"
@@ -319,6 +338,7 @@ export async function startShiftsBrowserServer() {
               : req.url === "/tesoreria" ? "/treasury-test-entry.tsx"
               : req.url === "/liga" ? "/liga-test-entry.tsx"
               : req.url === "/workflow" ? "/workflow-test-entry.tsx"
+              : req.url === "/workflow-completion" ? "/workflow-completion-test-entry.tsx"
               : req.url === "/workflow-settings" ? "/workflow-settings-test-entry.tsx"
               : "/shifts-test-entry.tsx";
             res.end(`<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module" src="${entrada}"></script></body></html>`);

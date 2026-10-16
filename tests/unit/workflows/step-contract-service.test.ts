@@ -11,6 +11,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     select: vi.fn(),
     update: vi.fn(),
+    insert: vi.fn(),
     transaction: vi.fn(),
     execute: vi.fn(),
     query: {
@@ -100,6 +101,9 @@ describe("C24 — WorkflowExecutionService.updateStep con validación de contrat
     mockDbSelect();
     vi.mocked(db.transaction).mockImplementation(async (callback: any) => callback(db));
     vi.mocked(db.execute).mockResolvedValue([]);
+    // checkProgress inserta en el outbox (C28): mock de db.insert para no romper
+    // los casos que completan el último paso y llegan a marcar COMPLETED.
+    vi.mocked(db.insert).mockReturnValue({ values: vi.fn().mockResolvedValue([]) } as never);
     vi.mocked(db.query.workflowInstances.findFirst).mockResolvedValue(mockInstance as never);
     vi.mocked(db.query.workflowTemplates.findFirst).mockResolvedValue({
       id: "tpl-1",

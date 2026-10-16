@@ -10,14 +10,14 @@ Este documento es para empezar una sesión nueva sin releer veinte archivos. **L
 
 | Orden | Archivo | Qué aporta |
 | --- | --- | --- |
-| 1 | `tasks/todo-conexion-frontend-backend.md` | Estado real, una fila por tarea con evidencia y límites. **La fila de C25 es el siguiente paso.** |
+| 1 | `tasks/todo-conexion-frontend-backend.md` | Estado real, una fila por tarea con evidencia y límites. **La fila de C28 es el siguiente paso.** |
 | 2 | `tasks/plan-conexion-frontend-backend.md` | Criterios de aceptación, dependencias y verificación de C24–C40 |
 | 3 | `docs/audits/2026-10-10-backend-frontend-wiring-audit.md` | Hallazgos H01–H12 que el plan tiene que cerrar |
 | 4 | `lib/company/operating-policy-catalog.ts` | Catálogo de C15: clasificación, consumidor, aplicación y decisión pendiente de las trece entradas. Es la fuente que C16–C23 consumen, y su prueba falla si una política deja de ser lo que dice. |
 
 ## 2. Estado al handing-off
 
-**C00–C26 completadas. C27–C40 pendientes.** La última línea implementada y verificada es C26 (compuerta autoritativa de confianza mínima en veredictos de IA, bloqueo de autoaprobación indebida en calidad/seguridad cuando confianza < minConfidence, 22 pruebas unitarias en `verification-verdict.test.ts` y 5 comprobaciones en Neon Postgres viva con `verify-workflow-verdict.ts`). Siguen sin commitear los archivos de `stock-count` y `workflows/[id]/execute`, que son de otra línea de trabajo.
+**C00–C28 completadas en el seguimiento. C29–C40 pendientes.** La entrega de C28 (outbox transaccional, publicador con reintentos, resultado durable por extractor, recuperación autorizada y presentación) quedó verificada el 15-10-2026. El detalle vigente está en `docs/audits/2026-10-15-workflow-completion-delivery.md`. C28 se cierra con límites declarados (acciones síncronas anteriores, escritura parcial de recepción e Inngest sin levantar contra Neon); no usar las pruebas de extractores como evidencia de esos caminos.
 
 ```
 C26 compuerta de confianza mínima en veredictos de IA (calidad o seguridad favorables nunca autoaprueban si confianza < minConfidence; códigos estructurados de veredicto; 22 unitarias y 5 comprobaciones Neon viva)
@@ -40,7 +40,7 @@ C19.2 una obligación, una sola vez (puedeAgendar en lib/treasury/scheduling-pol
 C19.1 supplierPayment sigue descriptiva con contrato honesto en el catálogo
 ```
 
-Puertas de fase cerradas: Fase 0, Fase 1, Fase 2 (12-10-2026) y **Fase 3** (15-10-2026). La Fase 4 está en curso con C24 completada y verificada; la siguiente es C25 (transmitir configuración de IA a la ejecución).
+Puertas de fase cerradas: Fase 1, Fase 2 (12-10-2026), **Fase 3** (15-10-2026) y **Fase 4** (15-10-2026). La siguiente entrega es la Fase 5 (C29). La puerta de Fase 0 sigue sin marcar en el seguimiento.
 
 ## 3. Lo que NO está verificado — no dar por hecho
 
@@ -165,17 +165,19 @@ El plan define cuatro verificaciones. Cada tarea declara cuál usa:
 
 **Pendientes de decisión** (condicionan C27–C28, no bloquean el trabajo): quién revisa un workflow (lectura conservadora `SUPERVISOR`+ vigente); horario, urgencias y zona horaria de notificaciones; consumidores externos del executor anterior.
 
-## 8. Siguiente paso — C27
+## 8. C28 cerrada — límites declarados y siguiente paso
 
-**C26 quedó completa y verificada (V1 y V3 contra Neon Postgres viva).** La compuerta de confianza mínima opera de manera estricta y autoritativa en `evaluateVerificationVerdict` (`lib/workflows/verification-verdict-policy.ts`) y `VerificationEngine.evaluate`, asignando códigos canónicos de veredicto e impidiendo que una calidad o seguridad favorable autoapruebe cuando no se cumple la confianza requerida.
+C28 quedó implementada y verificada: el outbox persiste la intención y el cierre en la misma transacción; el cron publica lotes de 25 por corrida y conserva intentos/fallos; el consumidor registra extractores exitosos, serializa por instancia y guarda el resultado separado del envío; la recuperación usa `workflows:update` y `assertExecutionInScope` sin publicar desde el navegador; la pantalla conserva el estado final y consulta cada cinco segundos mientras se procesa. El cierre de conteo (`StockCountService`) comparte la transacción del motor y difiere las alertas al post-commit.
 
-C27 continúa la **Fase 4 — Workflows y verificación**.
-Objetivo: **Hacer única la transición de finalización** (H10).
-- Garantizar que la transición a estado `COMPLETED` en una instancia de workflow sea estrictamente idempotente y atómica, impidiendo que ejecuciones concurrentes o reintentos dupliquen acciones posteriores (disparo de incidentes, notificaciones o deducciones de inventario).
-- Criterios:
-  1. La transición a `COMPLETED` se ejecuta una sola vez por instancia (`pg_advisory_xact_lock` o condición de estado atómica `status != 'COMPLETED'`).
-  2. Solicitudes duplicadas o concurrentes reciben respuesta idempotente sin reinvocar hooks ni acciones de terminación.
-  3. Los efectos secundarios de finalización quedan registrados de manera trazable.
+Verificación final: `tsc --noEmit` código 0, `build` código 0, `test:unit` 1351/1353 (104 archivos), `lint` 0 errores. Migración 0096 aplicada y confirmada en Neon. `scripts/verify-workflow-completion-delivery.ts` 11/11 contra Postgres real.
+
+**Límites declarados (C28.6), no repetir como cubiertos:**
+
+1. `WorkflowActionRunner` y smart links conservan efectos síncronos con conexiones propias; sólo el camino de conteo comparte transacción. `completionEffectsStatus` y la UI describen extractores, no certifican esas acciones.
+2. `processReceiving` no encierra reporte/lotes/movimientos en una sola transacción: una caída parcial puede omitir trabajo pendiente y el reintento lo saltaría.
+3. No se levantó Inngest contra Neon ni se enviaron eventos reales; la entrega se verificó contra Postgres y adaptadores de transacción.
+
+**Siguiente paso:** Fase 5 — C29 (compartir definiciones financieras entre motores), que depende de C14 y conecta `getPnLSnapshots`, hoy sin consumidores.
 
 ## 9. Fase 4 — Workflows y verificación
 
@@ -183,5 +185,5 @@ C24–C28 conforman el bloque de workflows:
 - [x] C24: Validar el contrato del paso en servidor.
 - [x] C25: Transmitir configuración de IA a la ejecución.
 - [x] C26: Conservar confianza mínima en el veredicto IA.
-- [ ] C27: Hacer única la transición de finalización.
-- [ ] C28: Garantizar entrega de eventos y mostrar efectos pendientes.
+- [x] C27: Hacer única la transición de finalización (límites adicionales detectados al continuar C28 registrados arriba).
+- [x] C28: Garantizar entrega de eventos y mostrar efectos pendientes.

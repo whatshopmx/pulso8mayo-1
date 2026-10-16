@@ -145,6 +145,8 @@ export interface WorkflowExecutionData {
   status: string;
   currentStepId: string | null;
   score: number | null;
+  completionEffectsStatus?: "pending" | "processing" | "completed" | "failed" | null;
+  canRetryCompletionEffects?: boolean;
   template: {
     name: string;
     description: string | null;
@@ -156,8 +158,9 @@ export interface WorkflowExecutionData {
 
 export interface WorkflowExecutorProps {
   execution: WorkflowExecutionData;
-  onStepComplete?: (stepId: string, data: Record<string, unknown>) => void;
+  onStepComplete?: (stepId: string, data: Record<string, unknown>) => void | Promise<void>;
   onComplete?: () => void;
+  onRetryEffects?: () => Promise<void>;
   className?: string;
 }
 
@@ -165,6 +168,7 @@ export function WorkflowExecutor({
   execution,
   onStepComplete,
   onComplete,
+  onRetryEffects,
   className
 }: WorkflowExecutorProps) {
    const [currentStepIndex, setCurrentStepIndex] = React.useState(() => {
@@ -177,6 +181,8 @@ export function WorkflowExecutor({
   const [evidenceFiles, setEvidenceFiles] = React.useState<File[]>([]);
   const [uploading, setUploading] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
+  const [retryingEffects, setRetryingEffects] = React.useState(false);
+  const [effectsError, setEffectsError] = React.useState<string | null>(null);
   const [skipping, setSkipping] = React.useState(false);
   const [skipDialogOpen, setSkipDialogOpen] = React.useState(false);
   const [skipJustification, setSkipJustification] = React.useState("");
@@ -257,12 +263,12 @@ export function WorkflowExecutor({
       setSkipDialogOpen(false);
       setSkipJustification('');
 
-      onStepComplete?.(currentStep.id, result);
+      await onStepComplete?.(currentStep.id, result);
 
       if (currentStepIndex < steps.length - 1) {
         handleNext();
       } else {
-        onComplete?.();
+        if (!onStepComplete) onComplete?.();
       }
     } catch (error: unknown) {
       toast.error('Error al omitir el paso', {
@@ -328,7 +334,7 @@ export function WorkflowExecutor({
       if (currentStep.type === 'STOCK_COUNT') setCompletedCounts(previous => [...previous, currentStep.id]);
 
       // Notify parent
-      onStepComplete?.(currentStep.id, result);
+      await onStepComplete?.(currentStep.id, result);
 
       // Check if remediation is required
       if (result.remediationRequired) {
@@ -346,7 +352,7 @@ export function WorkflowExecutor({
           handleNext();
         }, 1000);
       } else {
-        onComplete?.();
+        if (!onStepComplete) onComplete?.();
       }
     } catch (error: unknown) {
       toast.error('Error al completar el paso', {
@@ -785,16 +791,65 @@ const getStepIcon = (type: string) => {
     return true;
   };
 
-  if (!currentStep) {
+  const efectosEntregados = execution.completionEffectsStatus === 'completed';
+  const efectosFallidos = execution.completionEffectsStatus === 'failed';
+  const effectsText = efectosEntregados ? 'Procesamiento completado'
+    : efectosFallidos ? 'El procesamiento falló'
+    : execution.completionEffectsStatus === 'pending' ? 'Procesamiento pendiente'
+    : execution.completionEffectsStatus === 'processing' ? 'Procesando registros…'
+    : 'Procesamiento sin seguimiento';
+
+  const retryEffects = async () => {
+    if (!onRetryEffects || retryingEffects) return;
+    setRetryingEffects(true);
+    setEffectsError(null);
+    try { await onRetryEffects(); }
+    catch (error) {
+      setEffectsError(error instanceof Error ? error.message : 'No se pudo programar la recuperación. Inténtalo de nuevo.');
+    } finally { setRetryingEffects(false); }
+  };
+
+  if (execution.status === 'COMPLETED' || !currentStep) {
     return (
       <Card className={className}>
         <CardContent className="py-12 text-center">
           <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-green-500" />
           <h3 className="text-xl font-semibold mb-2">Workflow Completado</h3>
           <p className="text-muted-foreground">
-            Todos los pasos han sido completados exitosamente.
+            Los pasos están completos. El procesamiento de registros se muestra por separado.
           </p>
-          <Button onClick={onComplete} className="mt-4">
+
+          {/* Estado de efectos de terminación (C28) */}
+          {execution.status === 'COMPLETED' && (
+            <div className="mt-6 flex flex-col items-center gap-2" role="status" aria-live="polite">
+              <Badge variant={efectosEntregados ? 'success' : efectosFallidos ? 'destructive' : 'secondary'}>
+                {effectsText}
+              </Badge>
+              <p className="text-sm text-muted-foreground max-w-md">
+                {efectosFallidos ? 'Algunos registros no pudieron procesarse. La recuperación conserva los extractores que ya terminaron.'
+                  : efectosEntregados ? 'Los extractores de recepción, conteo, merma y producción terminaron.'
+                  : !execution.completionEffectsStatus ? 'Esta ejecución no tiene seguimiento de procesamiento. Su estado no está confirmado.'
+                  : 'Puedes salir de esta pantalla. El procesamiento continuará en segundo plano.'}
+              </p>
+              {efectosFallidos && execution.canRetryCompletionEffects && onRetryEffects && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={retryEffects}
+                  disabled={retryingEffects}
+                  className="mt-2"
+                >
+                  {retryingEffects ? 'Programando recuperación…' : 'Reintentar procesamiento'}
+                </Button>
+              )}
+              {efectosFallidos && !execution.canRetryCompletionEffects && (
+                <p className="text-sm text-muted-foreground">Solicita la recuperación a una persona con permiso para actualizar esta ejecución.</p>
+              )}
+              {effectsError && <p role="alert" className="text-sm text-destructive">{effectsError}</p>}
+            </div>
+          )}
+
+          <Button onClick={onComplete} className="mt-6">
             Volver al Dashboard
           </Button>
         </CardContent>

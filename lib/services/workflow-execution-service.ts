@@ -1,12 +1,10 @@
 import { db } from "@/lib/db";
-import { workflowInstances, workflowInstanceSteps, workflowTemplates, users, companies, branches } from "@/lib/db/schema";
+import { workflowInstances, workflowInstanceSteps, workflowTemplates, workflowCompletionOutbox, users, companies, branches } from "@/lib/db/schema";
 import { WorkflowStep } from "@/lib/types/workflow";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { STOCK_COUNT_TEMPLATE_NAME, DEFAULT_CATEGORIES } from "./stock-count-service";
 import { hasDynamicSteps, resolveDynamicSteps } from "@/lib/workflows/dynamic-steps";
 import { templateLibrary } from "@/templates";
-import { inngest } from "@/lib/inngest/client";
-import { workflowInstanceCompleted } from "@/lib/inngest/events";
 import { ApiError, isApiError } from "@/lib/api/error";
 import { normalizeStockCount } from "@/lib/workflows/stock-count-grid";
 import type { Role } from "@/lib/permissions";
@@ -62,8 +60,8 @@ export type StepUpdateContext =
 /**
  * Resultado del recálculo de progreso de una instancia.
  *
- * - `completed`: la instancia pasó a COMPLETED en esta llamada y los efectos
- *   secundarios de terminación se ejecutaron exactamente una vez.
+ * - `completed`: esta llamada confirmó COMPLETED y su intención de publicación
+ *   en el outbox. El procesamiento de extractores se consulta por separado.
  * - `alreadyCompleted`: la instancia ya era COMPLETED; no se volvieron a
  *   ejecutar efectos secundarios (respuesta idempotente ante duplicados o
  *   concurrentes).
@@ -789,8 +787,9 @@ export class WorkflowExecutionService {
      *    (`status != 'COMPLETED'`): si otra tx ya la marcó, 0 filas y no se
      *    vuelve a disparar Inngest ni acciones de cierre.
      *
-     * Los efectos secundarios se ejecutan exactamente una vez por instancia,
-     * incluso ante llamadas duplicadas o concurrentes.
+     * El bloqueo protege la transición entre llamadas a este método. Los
+     * servicios síncronos anteriores usan conexiones propias; su atomicidad
+     * no se deduce de esta transacción. El outbox sigue solo los extractores.
      */
     private static async checkProgress(instanceId: string, userId?: string): Promise<CheckProgressResult> {
         // Fast-path idempotente: si la instancia ya está COMPLETED, no se vuelve
@@ -879,14 +878,14 @@ export class WorkflowExecutionService {
             // instancia, gracias al bloqueo asesor y a la condición de estado abajo.
             try {
                 const { WorkflowActionRunner } = await import("./workflow-action-runner");
-                await WorkflowActionRunner.runCompletionActions(instanceId, userId || instancia.assigneeId || "");
+                await WorkflowActionRunner.runCompletionActions(instanceId, userId || instancia.assigneeId || "", tx);
             } catch (error) {
                 console.error("[WorkflowExecution] Error running completion actions:", error);
             }
 
             if ((instancia.data as { stockCountGrid?: boolean })?.stockCountGrid) {
                 const { StockCountService } = await import('./stock-count-service');
-                await StockCountService.completeStockCount(instanceId, userId || instancia.assigneeId || '');
+                await StockCountService.completeStockCount(instanceId, userId || instancia.assigneeId || '', tx);
             }
 
             // Transición atómica a COMPLETED: la condición de estado evita que
@@ -896,6 +895,8 @@ export class WorkflowExecutionService {
                     status: 'COMPLETED',
                     completedAt: new Date(),
                     score: complianceScore,
+                    // La entrega y el procesamiento tienen estados separados.
+                    completionEffectsStatus: 'pending',
                 })
                 .where(
                     and(
@@ -915,30 +916,33 @@ export class WorkflowExecutionService {
                 console.error(`[WorkflowExecution] Error marking smart links used for ${instanceId}:`, error);
             }
 
-            // Extractores (recepción, conteo, merma, producción): viajan por
-            // Inngest (workflow-extractors): cola, reintentos por extractor y el
-            // fallo visible como run fallido. Va DESPUÉS del update porque los
-            // extractores descartan la instancia si no está en COMPLETED.
-            // El id `workflow-extractors:${instanceId}` tiene dedupe de 24h.
+            // Outbox (C28): persistir la intención de publicar el evento de
+            // finalización junto con la transición (misma transacción), así un
+            // fallo entre commit y envío no pierde el evento. El consumidor
+            // durable `workflow-completion-recovery` lo publica y lo marca
+            // delivered/failed con reintentos. Una fila por instancia.
             if (updated) {
-                try {
-                    await inngest.send({
-                        name: workflowInstanceCompleted.name,
-                        id: `workflow-extractors:${instanceId}`,
-                        data: { instanceId },
-                    });
-                } catch (error) {
-                    // El instance ya quedó COMPLETED y commiteado: tumbar aquí la
-                    // petición no lo revierte, sólo le rompe el cierre al operador.
-                    // Se registra y scripts/audit-extractores-perdidos.ts es la
-                    // red para detectar instancias que se quedaron sin extraer.
-                    console.error(`[WorkflowExecution] No se pudo encolar la extracción de la instancia ${instanceId}:`, error);
-                }
+                // Un error revierte la transición: nunca confirmar COMPLETED
+                // sin haber persistido también la intención de publicación.
+                await tx.insert(workflowCompletionOutbox).values({
+                    instanceId,
+                    intent: "workflow/instance.completed",
+                    payload: { instanceId },
+                    status: "pending",
+                });
             }
 
             return { completed: !!updated, alreadyCompleted: false, blocked: false, notFound: false, score: complianceScore };
         });
 
+        if (resultado.completed) {
+            try {
+                const { StockCountService } = await import('./stock-count-service');
+                await StockCountService.notifyStockCountVariance(instanceId);
+            } catch (error) {
+                console.error('[WorkflowExecution] Error sending count variance alerts:', error);
+            }
+        }
         return resultado;
     }
 }

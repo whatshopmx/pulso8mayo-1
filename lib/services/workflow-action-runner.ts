@@ -27,7 +27,10 @@ interface CompletionAction {
 
 export class WorkflowActionRunner {
   
-  static async runCompletionActions(instanceId: string, userId: string): Promise<void> {
+  static async runCompletionActions(
+    instanceId: string, userId: string,
+    tx?: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  ): Promise<void> {
     try {
       console.log(`[WorkflowActionRunner] Starting completion actions for instance: ${instanceId}`);
       
@@ -78,7 +81,7 @@ export class WorkflowActionRunner {
       // Run each action
       for (const action of actions) {
         try {
-          await this.executeAction(action, instance, steps, userId);
+          await this.executeAction(action, instance, steps, userId, tx);
         } catch (actionError) {
           console.error(`[WorkflowActionRunner] Error executing action ${action.type}:`, actionError);
         }
@@ -92,7 +95,8 @@ export class WorkflowActionRunner {
     action: CompletionAction,
     instance: any,
     steps: any[],
-    userId: string
+    userId: string,
+    tx?: Parameters<Parameters<typeof db.transaction>[0]>[0],
   ): Promise<void> {
     console.log(`[WorkflowActionRunner] Executing action: ${action.type}`);
     
@@ -100,7 +104,7 @@ export class WorkflowActionRunner {
     
     switch (action.type) {
       case "UPDATE_INVENTORY":
-        await this.handleUpdateInventory(instance, steps, userId);
+        await this.handleUpdateInventory(instance, steps, userId, tx);
         break;
         
       case "CREATE_CLAIM":
@@ -153,7 +157,10 @@ export class WorkflowActionRunner {
     }
   }
 
-  private static async handleUpdateInventory(instance: any, steps: any[], userId: string): Promise<void> {
+  private static async handleUpdateInventory(
+    instance: any, steps: any[], userId: string,
+    tx?: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  ): Promise<void> {
     const instanceData = (instance.data as Record<string, any>) || {};
     const templateId = instance.workflowTemplateId;
 
@@ -161,7 +168,7 @@ export class WorkflowActionRunner {
     if (templateId === "tpl-conteo-inventario-v1" || instanceData.productCount !== undefined) {
       console.log(`[WorkflowActionRunner] Triggering Stock Count complete flow`);
       // For stock counts, we trigger variance calculations. StockCountService will set status to PENDING approval.
-      await StockCountService.completeStockCount(instance.id, userId);
+      await StockCountService.completeStockCount(instance.id, userId, tx);
       return;
     }
 

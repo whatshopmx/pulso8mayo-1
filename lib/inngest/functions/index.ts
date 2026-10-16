@@ -48,3 +48,4 @@ export { notificationDispatchFn } from "./notification-dispatch";
 
 
 export { workflowExtractorsFn } from "./workflow-extractors";
+export { workflowCompletionRecoveryFn } from "./workflow-completion-recovery";

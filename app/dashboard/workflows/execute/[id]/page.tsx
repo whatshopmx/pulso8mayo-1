@@ -6,6 +6,7 @@ import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkflowExecutor, WorkflowExecutionData } from "@/components/workflow/workflow-executor";
 import { toast } from "sonner";
+import { retryWorkflowCompletionEffects } from "@/app/actions/workflow-completion-recovery";
 
 export default function WorkflowExecutionPage() {
   const params = useParams<{ id: string }>();
@@ -13,6 +14,21 @@ export default function WorkflowExecutionPage() {
   const [execution, setExecution] = React.useState<WorkflowExecutionData | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [refreshError, setRefreshError] = React.useState(false);
+
+  React.useEffect(() => {
+    if (execution?.status !== 'COMPLETED' || !['pending', 'processing'].includes(execution.completionEffectsStatus ?? '')) return;
+    const controller = new AbortController();
+    const timer = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/workflows/executions/${params.id}`, { signal: controller.signal });
+        if (!response.ok) throw new Error('No se pudo actualizar el procesamiento');
+        const data = await response.json();
+        if (!controller.signal.aborted) { setExecution(data); setRefreshError(false); }
+      } catch { if (!controller.signal.aborted) setRefreshError(true); }
+    }, 5000);
+    return () => { controller.abort(); clearInterval(timer); };
+  }, [params.id, execution?.status, execution?.completionEffectsStatus]);
 
   React.useEffect(() => {
     const fetchExecution = async () => {
@@ -65,6 +81,12 @@ export default function WorkflowExecutionPage() {
     router.push('/dashboard/workflows');
   };
 
+  const handleRetryEffects = async () => {
+    await retryWorkflowCompletionEffects({ instanceId: params.id });
+    setExecution(previous => previous ? { ...previous, completionEffectsStatus: 'pending' } : previous);
+    toast.success('Recuperación programada');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -104,10 +126,12 @@ export default function WorkflowExecutionPage() {
         </div>
       </div>
 
+      {refreshError && <p role="alert" className="text-sm text-destructive">No se pudo actualizar el procesamiento. Reintentaremos automáticamente.</p>}
       <WorkflowExecutor
         execution={execution}
         onStepComplete={handleStepComplete}
         onComplete={handleComplete}
+        onRetryEffects={execution.canRetryCompletionEffects ? handleRetryEffects : undefined}
       />
     </div>
   );

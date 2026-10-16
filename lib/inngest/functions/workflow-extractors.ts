@@ -22,6 +22,7 @@ import { extractReceivingFromInstance } from "@/lib/services/receiving-from-work
 import { extractStockCountFromInstance } from "@/lib/services/stock-count-from-workflow";
 import { extractMermaFromInstance } from "@/lib/services/merma-from-workflow";
 import { extractProductionFromInstance } from "@/lib/services/production-from-workflow";
+import { runCompletionExtractor, setWorkflowExtractionStatus } from "@/lib/services/workflow-completion-delivery";
 
 const logger = createChildLogger("inngest:workflow-extractors");
 
@@ -46,9 +47,16 @@ export const workflowExtractorsFn = inngest.createFunction(
     triggers: [{ event: "workflow/instance.completed" }],
     // Por paso, no por función: un extractor con la BD caída reintenta solo.
     retries: 3,
+    concurrency: { limit: 1, key: "event.data.instanceId" },
+    onFailure: async ({ event, step }) => {
+      const { instanceId, generation } = event.data.event.data as { instanceId?: string; generation?: number };
+      if (instanceId) {
+        await step.run("record-extraction-failure", () => setWorkflowExtractionStatus(instanceId, "failed", generation));
+      }
+    },
   },
   async ({ event, step }) => {
-    const { instanceId } = (event.data ?? {}) as { instanceId?: string };
+    const { instanceId, generation } = (event.data ?? {}) as { instanceId?: string; generation?: number };
     if (!instanceId) {
       // Reintentar no va a inventar el id que el emisor no mandó.
       throw new NonRetriableError("workflow/instance.completed sin instanceId");
@@ -56,10 +64,11 @@ export const workflowExtractorsFn = inngest.createFunction(
 
     // Aislamiento (criterio de aceptación de A2): el `catch` deja seguir a los
     // demás extractores aunque uno agote sus reintentos.
+    await step.run("mark-extractors-processing", () => setWorkflowExtractionStatus(instanceId, "processing", generation));
     const failed: string[] = [];
     for (const [name, extract] of EXTRACTORS) {
       try {
-        await step.run(`extract-${name}`, () => extract(instanceId));
+        await step.run(`extract-${name}`, () => runCompletionExtractor(instanceId, name, extract, generation));
       } catch (error) {
         failed.push(name);
         logger.error({ instanceId, extractor: name, err: String(error) }, "Extractor agotó sus reintentos");
@@ -67,6 +76,7 @@ export const workflowExtractorsFn = inngest.createFunction(
     }
 
     if (failed.length > 0) {
+      await step.run("mark-extractors-failed", () => setWorkflowExtractionStatus(instanceId, "failed", generation));
       // Que la corrida quede FALLIDA y no verde con un error escondido (R-5).
       // No retriable: cada paso ya gastó sus reintentos, repetir la función
       // sólo volvería a correr los que sí funcionaron.
@@ -75,6 +85,7 @@ export const workflowExtractorsFn = inngest.createFunction(
       );
     }
 
+    await step.run("mark-extractors-completed", () => setWorkflowExtractionStatus(instanceId, "completed", generation));
     return { instanceId, extractors: EXTRACTORS.length };
   }
 );

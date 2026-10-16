@@ -9,6 +9,8 @@ import { NotificationDispatcher } from "./notification-dispatcher";
 import { templateLibrary } from "@/templates";
 import { CATEGORIES } from "@/lib/inventory/constants";
 
+type CompletionTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export const STOCK_COUNT_TEMPLATE_NAME = "Conteo de Inventario";
 
 export const DEFAULT_CATEGORIES = CATEGORIES.map((c) => ({
@@ -285,8 +287,9 @@ export class StockCountService {
     return { instance, template, products, steps };
   }
 
-    static async completeStockCount(instanceId: string, userId: string) {
-        const instance = await db.query.workflowInstances.findFirst({
+    static async completeStockCount(instanceId: string, userId: string, tx?: CompletionTransaction) {
+        const connection: Pick<typeof db, 'query' | 'select' | 'update'> = tx ?? db;
+        const instance = await connection.query.workflowInstances.findFirst({
             where: eq(workflowInstances.id, instanceId),
         });
 
@@ -297,7 +300,7 @@ export class StockCountService {
         }
         if (instance.status === "COMPLETED") throw new Error("Already completed");
 
-        const steps = await db.select()
+        const steps = await connection.select()
             .from(workflowInstanceSteps)
             .where(eq(workflowInstanceSteps.instanceId, instanceId));
 
@@ -370,11 +373,10 @@ export class StockCountService {
         }
 
     const lotResults = gridRows.map(r => ({ ...r, physicalQuantity: r.countedQuantity!, variance: roundQty(r.countedQuantity! - r.systemQuantity) }));
-    await db.update(workflowInstances)
+    await connection.update(workflowInstances)
       .set({
-        status: "COMPLETED",
-        completedAt: new Date(),
-        score: 100,
+        // El motor confirma estado, puntuación y outbox en su transacción.
+        ...(tx ? {} : { status: "COMPLETED", completedAt: new Date(), score: 100 }),
         data: {
           ...instanceData,
           results,
@@ -389,6 +391,10 @@ export class StockCountService {
       })
       .where(eq(workflowInstances.id, instanceId));
 
+    // El consumidor del outbox extrae después del commit, cuando puede leer
+    // los resultados. Las alertas se despachan también después del commit.
+    if (tx) return { instanceId, results };
+
     // Saca los resultados del blob a `stock_counts` (filas consultables por
     // ítem/fecha). Best-effort: un fallo aquí no invalida el conteo, que sigue
     // completo en `workflow_instances.data`.
@@ -399,6 +405,16 @@ export class StockCountService {
       console.error("[StockCount] Error persistiendo stock_counts:", error);
     }
 
+    await this.notifyStockCountVariance(instanceId);
+    return { instanceId, results };
+    }
+
+    static async notifyStockCountVariance(instanceId: string) {
+    const instance = await db.query.workflowInstances.findFirst({ where: eq(workflowInstances.id, instanceId) });
+    if (!instance || instance.status !== 'COMPLETED') return;
+    const instanceData = (instance.data || {}) as Record<string, unknown>;
+    const results = instanceData.results as Array<{ isAlert: boolean }> | undefined;
+    if (!Array.isArray(results)) return;
     const alertItems = results.filter(r => r.isAlert);
     if (alertItems.length > 0) {
       try {
@@ -438,7 +454,6 @@ export class StockCountService {
       }
     }
 
-    return { instanceId, results };
     }
 
     /**

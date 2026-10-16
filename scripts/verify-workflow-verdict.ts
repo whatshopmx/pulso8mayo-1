@@ -36,6 +36,7 @@ async function main() {
     workflowTemplates,
     workflowInstances,
     workflowInstanceSteps,
+    workflowCompletionOutbox,
   } = await import("@/lib/db/schema");
   const { WorkflowExecutionService } = await import("@/lib/services/workflow-execution-service");
   const { AIService } = await import("@/lib/services/ai-service");
@@ -132,7 +133,7 @@ async function main() {
       description: "Verificacion con compuerta autoritativa de confianza minima",
       category: "QUALITY",
       scope: "company",
-      status: "published",
+      active: true,
       steps: templateSteps as any,
     });
 
@@ -344,6 +345,7 @@ async function main() {
       if (prevInst.length > 0) {
         const iIds = prevInst.map((i) => i.id);
         await db.delete(workflowInstanceSteps).where(inArray(workflowInstanceSteps.instanceId, iIds));
+        await db.delete(workflowCompletionOutbox).where(inArray(workflowCompletionOutbox.instanceId, iIds));
         await db.delete(workflowInstances).where(inArray(workflowInstances.id, iIds));
       }
 
@@ -366,6 +368,7 @@ async function main() {
           const biIds = bInst.map(i => i.id);
           if (biIds.length > 0) {
             await db.delete(workflowInstanceSteps).where(inArray(workflowInstanceSteps.instanceId, biIds));
+            await db.delete(workflowCompletionOutbox).where(inArray(workflowCompletionOutbox.instanceId, biIds));
             await db.delete(workflowInstances).where(inArray(workflowInstances.id, biIds));
           }
           await db.delete(users).where(inArray(users.branchId, bIds));

@@ -11,6 +11,22 @@ import { AIService } from '@/lib/services/ai-service';
 import { VerificationType } from '@/lib/types/ai-verification';
 
 describe('C26 — Conservar confianza minima en el veredicto IA (H07)', () => {
+    it('un resumen JSON que no sea texto conserva un motivo legible', () => {
+        const result = evaluateVerificationVerdict({
+            aiResult: { passed: true, reason: JSON.stringify({ score: 9, summary: { text: 'OK' } }), confidence: 0.9 },
+            rule: { verificationType: VerificationType.ANALISIS_CALIDAD, autoApprove: true },
+        });
+        expect(result.aiResult.reason).toBe('Quality standard met with score 9/10.');
+    });
+
+    it('un campo de peligros malformado no rompe ni aprueba un resultado inseguro', () => {
+        const result = evaluateVerificationVerdict({
+            aiResult: { passed: false, reason: JSON.stringify({ is_safe: false, hazards: 'fuego', risk_level: {} }), confidence: 0.5 },
+            rule: { verificationType: VerificationType.ANALISIS_SEGURIDAD, autoApprove: true },
+        });
+        expect(result.success).toBe(false);
+        expect(result.aiResult.reason).toContain('Unsafe conditions detected by AI.');
+    });
     describe('Criterio 1: Calidad o seguridad favorables no autoaprueban cuando no se cumple la confianza requerida', () => {
         it('calidad favorable (score 6/10 -> confianza 0.60) no autoaprueba si minConfidence es 0.85', () => {
             const result = evaluateVerificationVerdict({

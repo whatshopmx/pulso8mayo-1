@@ -666,6 +666,13 @@
       "when": 1791921209819,
       "tag": "0095_square_gladiator",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1792022400000,
+      "tag": "0096_workflow_completion_outbox",
+      "breakpoints": true
     }
   ]
 }

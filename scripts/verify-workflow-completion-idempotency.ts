@@ -29,6 +29,7 @@ async function main() {
     workflowTemplates,
     workflowInstances,
     workflowInstanceSteps,
+    workflowCompletionOutbox,
   } = await import("@/lib/db/schema");
   const { WorkflowExecutionService } = await import("@/lib/services/workflow-execution-service");
 
@@ -91,7 +92,7 @@ async function main() {
       description: "Dos pasos, transicion a COMPLETED idempotente",
       category: "GENERAL",
       scope: "company",
-      status: "published",
+      active: true,
       steps: templateSteps as any,
     });
 
@@ -218,6 +219,7 @@ async function main() {
       if (instancias.length > 0) {
         const iIds = instancias.map((i) => i.id);
         await db.delete(workflowInstanceSteps).where(inArray(workflowInstanceSteps.instanceId, iIds));
+        await db.delete(workflowCompletionOutbox).where(inArray(workflowCompletionOutbox.instanceId, iIds));
         await db.delete(workflowInstances).where(inArray(workflowInstances.id, iIds));
       }
 
@@ -243,6 +245,7 @@ async function main() {
           const iiIds = insts.map((i) => i.id);
           if (iiIds.length > 0) {
             await db.delete(workflowInstanceSteps).where(inArray(workflowInstanceSteps.instanceId, iiIds));
+            await db.delete(workflowCompletionOutbox).where(inArray(workflowCompletionOutbox.instanceId, iiIds));
             await db.delete(workflowInstances).where(inArray(workflowInstances.id, iiIds));
           }
           await db.delete(users).where(inArray(users.branchId, rIds));

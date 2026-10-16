@@ -38,6 +38,8 @@
   ],
   "exclude": [
     "node_modules",
+    ".worktrees/**",
+    ".tmp/**",
     "tests/**/*",
     "playwright.config.ts",
     ".next/dev/**/*"

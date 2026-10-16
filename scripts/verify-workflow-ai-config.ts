@@ -109,7 +109,7 @@ async function main() {
       description: "Verificación fotográfica con IA en el borde (Cloudflare / Moondream)",
       category: "OPERATIONS",
       scope: "company",
-      status: "published",
+      active: true,
       steps: templateSteps as any,
       aiConfig: {
         provider: "cloudflare",
@@ -242,6 +242,8 @@ async function main() {
       if (prevInst.length > 0) {
         const iIds = prevInst.map((i) => i.id);
         await db.delete(workflowInstanceSteps).where(inArray(workflowInstanceSteps.instanceId, iIds));
+        const { workflowCompletionOutbox } = await import('@/lib/db/schema');
+        await db.delete(workflowCompletionOutbox).where(inArray(workflowCompletionOutbox.instanceId, iIds));
         await db.delete(workflowInstances).where(inArray(workflowInstances.id, iIds));
       }
       await db.delete(workflowTemplates).where(eq(workflowTemplates.id, templateId));

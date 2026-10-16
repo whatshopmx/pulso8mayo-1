@@ -7,6 +7,7 @@ import {
 } from "@/lib/services/workflow-execution-service";
 import { emitWorkflowEvent } from "@/lib/websocket/workflow-handlers";
 import { isApiError } from "@/lib/api/error";
+import { hasPermission } from "@/lib/permissions";
 import {
     assertExecutionInScope,
     requireExecutionAccess,
@@ -52,7 +53,10 @@ export async function GET(
             assigneeId: execution.assigneeId,
         });
 
-        return NextResponse.json(execution);
+        return NextResponse.json({
+            ...execution,
+            canRetryCompletionEffects: hasPermission(actor.role, 'workflows', 'update'),
+        });
     } catch (error) {
         if (isApiError(error)) {
             return NextResponse.json({ error: error.message }, { status: error.statusCode });

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/lib/db';
 import { StockCountService } from '@/lib/services/stock-count-service';
 import { InventoryService } from '@/lib/services/inventory-service';
+import { extractStockCountFromInstance } from '@/lib/services/stock-count-from-workflow';
 
 vi.mock('@/lib/db', () => ({ db: { select: vi.fn(), update: vi.fn(), query: {
   workflowInstances: { findFirst: vi.fn() },
@@ -23,6 +24,19 @@ beforeEach(() => {
 });
 
 describe('enviar conteo a revisión', () => {
+  it('prepara resultados en la transacción del motor sin adelantar el cierre ni extraer', async () => {
+    const txUpdate = vi.fn().mockReturnValue({ set: (value: Record<string, unknown>) => {
+      saved = value; return { where: async () => [] };
+    } });
+    const tx = { query: db.query, select: db.select, update: txUpdate };
+    await StockCountService.completeStockCount('instance', 'encargado', tx as never);
+    expect(txUpdate).toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+    expect(saved.status).toBeUndefined();
+    expect(saved.completedAt).toBeUndefined();
+    expect(saved.data.adjustmentsStatus).toBe('PENDING');
+    expect(extractStockCountFromInstance).not.toHaveBeenCalled();
+  });
   it('mantiene diferencias por lote aunque el total del producto coincida, sin mover stock', async () => {
     const movement = vi.spyOn(InventoryService, 'recordMovement');
     await StockCountService.completeStockCount('instance', 'encargado');

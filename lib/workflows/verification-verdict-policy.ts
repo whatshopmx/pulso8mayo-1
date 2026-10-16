@@ -127,13 +127,14 @@ export function evaluateVerificationVerdict(input: EvaluateVerdictInput): Verifi
             const parsed = tryParseJSON(reason);
             if (parsed && typeof parsed.score === 'number') {
                 const score = Number(parsed.score);
+                const summary = typeof parsed.summary === 'string' ? parsed.summary : '';
                 const passed = score >= PASSING_QUALITY_SCORE;
                 domainPassed = passed;
                 if (!passed) {
                     domainFailureCode = 'QUALITY_CRITERIA_FAILED';
-                    reason = parsed.summary || `Quality score (${score}/10) is below passing threshold (${PASSING_QUALITY_SCORE}/10).`;
+                    reason = summary || `Quality score (${score}/10) is below passing threshold (${PASSING_QUALITY_SCORE}/10).`;
                 } else {
-                    reason = parsed.summary || `Quality standard met with score ${score}/10.`;
+                    reason = summary || `Quality standard met with score ${score}/10.`;
                 }
                 // La confianza se calcula del score de calidad: min(0.95, score / 10)
                 confidence = normalizeConfidence(Math.min(0.95, Math.max(0, score / 10)));
@@ -148,19 +149,22 @@ export function evaluateVerificationVerdict(input: EvaluateVerdictInput): Verifi
         case VerificationType.ANALISIS_SEGURIDAD: {
             const parsed = tryParseJSON(reason);
             if (parsed && typeof parsed.is_safe === 'boolean') {
+                const hazards = Array.isArray(parsed.hazards)
+                    ? parsed.hazards.filter((hazard): hazard is string => typeof hazard === 'string') : [];
+                const riskLevel = typeof parsed.risk_level === 'string' ? parsed.risk_level : '';
                 domainPassed = Boolean(parsed.is_safe);
                 if (!domainPassed) {
                     domainFailureCode = 'SAFETY_HAZARD_DETECTED';
-                    reason = parsed.hazards?.length
-                        ? `Hazards detected: ${parsed.hazards.join(', ')}`
+                    reason = hazards.length
+                        ? `Hazards detected: ${hazards.join(', ')}`
                         : 'Unsafe conditions detected by AI.';
                 } else {
-                    reason = parsed.hazards?.length
-                        ? `Hazards detected: ${parsed.hazards.join(', ')}`
+                    reason = hazards.length
+                        ? `Hazards detected: ${hazards.join(', ')}`
                         : 'No hazards detected; environment verified safe.';
                 }
                 const riskMap: Record<string, number> = { low: 0.9, medium: 0.75, high: 0.5 };
-                const calculatedRiskConfidence = riskMap[parsed.risk_level] ?? (parsed.is_safe ? 0.85 : 0.5);
+                const calculatedRiskConfidence = riskMap[riskLevel] ?? (parsed.is_safe ? 0.85 : 0.5);
                 confidence = normalizeConfidence(calculatedRiskConfidence);
                 metadata.hazards = parsed.hazards;
                 metadata.riskLevel = parsed.risk_level;

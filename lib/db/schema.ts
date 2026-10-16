@@ -86,6 +86,10 @@ export const workflowInstances = pgTable("workflow_instances", {
     reviewedAt: timestamp("reviewed_at"),
     reviewedBy: text("reviewed_by"), // User ID del revisor
 
+    // Solo extractores durables. NULL = ejecución anterior sin seguimiento.
+    // Aceptar el evento no equivale a haber aplicado sus efectos.
+    completionEffectsStatus: text("completion_effects_status"), // pending, processing, completed, failed
+
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -116,6 +120,33 @@ export const workflowInstanceSteps = pgTable("workflow_instance_steps", {
     type: text("type"),
     definition: jsonb("definition"), // WorkflowStep completo (unit, options, validation)
 });
+
+/**
+ * Outbox de entrega de efectos de terminación de workflows (C28).
+ *
+ * Persiste la intención de publicar `workflow/instance.completed` junto con la
+ * transición a COMPLETED (misma transacción), así que un fallo entre commit y
+ * envío no pierde el evento. Una fila por instancia (instanceId único).
+ * Un consumidor durable (workflow-completion-recovery) publica el evento y
+ * marca la fila delivered/failed con reintentos.
+ */
+export const workflowCompletionOutbox = pgTable("workflow_completion_outbox", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    instanceId: uuid("instance_id").notNull().unique().references(() => workflowInstances.id),
+    intent: text("intent").notNull(), // 'workflow/instance.completed'
+    payload: jsonb("payload").notNull().default(sql`'{}'::jsonb`),
+    status: text("status").notNull().default('pending'), // pending, delivered, failed
+    attempts: integer("attempts").notNull().default(0),
+    generation: integer("generation").notNull().default(0),
+    completedExtractors: jsonb("completed_extractors").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    deliveredAt: timestamp("delivered_at"),
+    processedAt: timestamp("processed_at"),
+}, (table) => [
+    index("workflow_completion_outbox_status_idx").on(table.status, table.createdAt),
+    index("workflow_completion_outbox_instance_idx").on(table.instanceId),
+]);
 
 export const workflowTemplates = pgTable("workflow_templates", {
     id: text("id").$defaultFn(() => crypto.randomUUID()).primaryKey().notNull(),

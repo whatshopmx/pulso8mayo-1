@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 15 de octubre de 2026. Estado: C00–C26 implementadas y verificadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C27–C40 pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 15 de octubre de 2026. Estado: C00–C28 implementadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C29–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -997,9 +997,9 @@ Establecer una transición atómica al completar y claves de idempotencia para c
 
 **Criterios de aceptación:**
 
-- [ ] Dos solicitudes concurrentes producen una sola transición lógica a completado.
-- [ ] Cada acción con efectos tiene una clave estable y repetir la evaluación no duplica el efecto.
-- [ ] Un error de acción queda registrado con estado recuperable en vez de desaparecer en un log.
+- [x] Dos solicitudes concurrentes producen una sola transición lógica a completado.
+- [x] Cada acción con efectos tiene una clave estable y repetir la evaluación no duplica el efecto.
+- [x] Un error de acción queda registrado con estado recuperable en vez de desaparecer en un log.
 
 **Verificación:** V3 de concurrencia/reintento y fallo de una acción; separar migración aditiva si resulta necesaria.
 
@@ -1020,11 +1020,27 @@ Persistir intención de publicación junto con la transición y entregar con rei
 
 **Criterios de aceptación:**
 
-- [ ] Un fallo entre commit y envío no pierde el evento: la entrega puede recuperarse mediante outbox o mecanismo durable equivalente.
-- [ ] Entrega repetida no duplica movimientos/documentos y un fallo terminal tiene estado visible.
-- [ ] El usuario distingue pasos completados, efectos pendientes y efectos fallidos con una vía autorizada de recuperación.
+- [x] Un fallo entre commit y envío no pierde el evento: la entrega puede recuperarse mediante outbox o mecanismo durable equivalente.
+- [x] Entrega repetida no duplica movimientos/documentos y un fallo terminal tiene estado visible.
+- [x] El usuario distingue pasos completados, efectos pendientes y efectos fallidos con una vía autorizada de recuperación.
 
 **Verificación:** V3 de caída antes/después del envío y entrega duplicada; V2 del estado de procesamiento. Si backend y UI exceden cinco archivos, dividir entrega y presentación antes de ejecutar.
+
+**Desglose de continuación (15-10-2026), antes de modificar el trabajo C28 existente:**
+
+- C28.1a — Esquema del outbox: esquema, migración, journal y snapshot (cuatro archivos).
+- C28.1b — Transición y outbox atómicos: servicio y pruebas de finalización. Un error al insertar la intención revierte el cierre; no se oculta.
+- C28.2 — Publicación recuperable: consumidor cron, servicio de entrega, registro y pruebas. Separar entrega al proveedor de procesamiento de extractores; limitar lote e intentos y conservar el error.
+- C28.3 — Resultado durable de extractores: consumidor, servicio de entrega y pruebas. Serializar por instancia, conservar éxitos por extractor y reflejar fallos sin repetir los exitosos.
+- C28.4 — Recuperación autorizada: acción, contrato de lectura y pruebas. Reutilizar permiso de escritura y alcance de empresa/sucursal/responsable; reintentar con una nueva generación de evento.
+- C28.5 — Presentación: executor, página y pruebas de navegador. Mostrar pasos completos por separado de efectos pendientes/fallidos/completados, conservar el error de recuperación y refrescar mientras se procesa.
+- C28.6 — Verificación y evidencia: regresiones, lint/build y documentación. Los efectos síncronos anteriores (acciones de plantilla, cierre de conteo y smart links) conservan su recorrido; cualquier límite de esas acciones se declara y no se confunde con entrega de extractores.
+- C28.7a — Preparación transaccional del conteo: servicio de conteo, runner y prueba del servicio (tres archivos). Compartir la transacción del motor y diferir extracción/alertas hasta después del commit.
+- C28.7b — Integración del cierre: motor, regresión de idempotencia y prueba conteo/outbox (tres archivos). El motor confirma COMPLETED; reproducir rollback del outbox y la finalización de la cuadrícula real.
+- C28.7c — Verificación Postgres: script de fixtures con UUID propios y evidencia. No publicar eventos ni enviar mensajes.
+- C28.8a — Puerta de compilación: excluir `.worktrees` y `.tmp` del proyecto TypeScript (un archivo).
+- C28.8b — Resolver bloqueos previos de C26 al compilar: validar campos desconocidos de JSON de IA y probar respuestas malformadas (dos archivos).
+- C28.8c — Alinear fixtures previas C25–C27 con el esquema vigente de plantillas (tres scripts; `active` en lugar de la columna inexistente `status`).
 
 **Archivos probables:**
 
@@ -1036,9 +1052,9 @@ Persistir intención de publicación junto con la transición y entregar con rei
 
 #### Punto de control C27–C28
 
-- [ ] Criterios del bloque verificados con resultados registrados.
-- [ ] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
-- [ ] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
+- [x] Criterios del bloque verificados con resultados registrados.
+- [x] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
+- [x] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
 
 **Puerta de fase:** revisar build/lint y regresiones pertinentes; conservar evidencia de la entrega indicada al inicio.
 

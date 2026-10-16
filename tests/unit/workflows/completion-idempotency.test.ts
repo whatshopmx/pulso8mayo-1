@@ -5,12 +5,14 @@ import { WorkflowActionRunner } from "@/lib/services/workflow-action-runner";
 import { StockCountService } from "@/lib/services/stock-count-service";
 import { SmartLinkService } from "@/lib/services/smart-link-service";
 import { inngest } from "@/lib/inngest/client";
+import { workflowCompletionOutbox } from "@/lib/db/schema";
 import { assertExecutionInScope } from "@/lib/workflows/execution-access";
 
 vi.mock("@/lib/db", () => ({
   db: {
     select: vi.fn(),
     update: vi.fn(),
+    insert: vi.fn(),
     transaction: vi.fn(),
     execute: vi.fn(),
     query: {
@@ -32,7 +34,7 @@ vi.mock("@/lib/services/workflow-action-runner", () => ({
 }));
 
 vi.mock("@/lib/services/stock-count-service", () => ({
-  StockCountService: { completeStockCount: vi.fn() },
+  StockCountService: { completeStockCount: vi.fn(), notifyStockCountVariance: vi.fn() },
 }));
 
 vi.mock("@/lib/services/smart-link-service", () => ({
@@ -100,6 +102,7 @@ describe("C27 — Hacer única la transición de finalización (H10)", () => {
     vi.mocked(db.query.workflowInstanceSteps.findFirst).mockResolvedValue(mockSavedStep as never);
     vi.mocked(db.transaction).mockImplementation(async (callback: any) => callback(db));
     vi.mocked(db.execute).mockResolvedValue([]);
+    vi.mocked(db.insert).mockReturnValue({ values: vi.fn().mockResolvedValue([]) } as never);
   });
 
   it("completar el último paso ejecuta efectos secundarios exactamente una vez", async () => {
@@ -126,18 +129,15 @@ describe("C27 — Hacer única la transición de finalización (H10)", () => {
     expect(vi.mocked(WorkflowActionRunner.runCompletionActions)).toHaveBeenCalledWith(
       INSTANCE_ID,
       "user-1",
+      db,
     );
     expect(vi.mocked(SmartLinkService.markUsedForInstance)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(SmartLinkService.markUsedForInstance)).toHaveBeenCalledWith(INSTANCE_ID);
     // Stock count no aplica (sin stockCountGrid)
     expect(vi.mocked(StockCountService.completeStockCount)).not.toHaveBeenCalled();
-    // Extractores vía Inngest (dedupe 24h por instancia)
-    expect(vi.mocked(inngest.send)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(inngest.send)).toHaveBeenCalledWith({
-      name: expect.anything(),
-      id: `workflow-extractors:${INSTANCE_ID}`,
-      data: { instanceId: INSTANCE_ID },
-    });
+    // El envío sale del outbox después del commit.
+    expect(db.insert).toHaveBeenCalledWith(workflowCompletionOutbox);
+    expect(inngest.send).not.toHaveBeenCalled();
   });
 
   it("llamada duplicada o concurrente no vuelve a disparar efectos secundarios (idempotente)", async () => {
@@ -173,7 +173,8 @@ describe("C27 — Hacer única la transición de finalización (H10)", () => {
     // Criterio 2: los efectos secundarios se ejecutaron una sola vez en total
     expect(vi.mocked(WorkflowActionRunner.runCompletionActions)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(SmartLinkService.markUsedForInstance)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(inngest.send)).toHaveBeenCalledTimes(1);
+    expect(db.insert).toHaveBeenCalledTimes(1);
+    expect(inngest.send).not.toHaveBeenCalled();
   });
 
   it("recalculateProgress sobre instancia ya COMPLETED es idempotente (fast-path sin efectos)", async () => {
