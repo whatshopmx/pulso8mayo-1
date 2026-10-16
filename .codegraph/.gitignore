@@ -9,6 +9,9 @@
 # Cache
 cache/
 
+# Runtime lock (contiene el PID del proceso que abrió el índice)
+*.lock
+
 # Logs
 *.log
 
