@@ -1078,6 +1078,13 @@ Reutilizar base de ventas, carga laboral y objetivos en la vista de sucursales, 
 
 **Verificación:** V1 con fixtures de ventas/costos y conciliación entre motores; considerar duplicación de merma al elegir numeradores.
 
+**Desglose antes de implementar (más de cinco archivos):**
+
+- C29.1 — Definición compartida de porcentajes: módulo puro `lib/services/branch-cost-metrics.ts` con el mapeo de procedencia, la degradación por base, la aplicación de carga laboral y el cálculo de porcentajes/estados; `financial-kpi-service` lo consume sin cambiar su salida; pruebas puras.
+- C29.2 — El motor QSR mide con la base y la carga compartidas: `getBranchQSRRanking` usa `getFoodCostByBranch`/`getLaborCostByBranch` + `resolveSalesBase` por sucursal + `getLaborBurden` + `getFinancialTargets`; deja de inventar 31.5/24.5 y deriva `dataQuality` de la procedencia.
+- C29.3 — La vista nombra procedencia y diferencia de concepto: `BranchQSRScore` expone fuente y nota por renglón; scorecard y CSV muestran base neta, merma incluida y carga, con los objetivos del tenant.
+- C29.4 — Conciliación V1 entre motores: `tests/unit/finance/branch-kpi-consistency.test.ts` con fixtures compartidos; ajuste de `tests/e2e/group-network.spec.ts` si cambia la forma.
+
 **Archivos probables:**
 
 - `lib/services/cross-branch-service.ts`

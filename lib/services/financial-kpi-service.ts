@@ -35,9 +35,13 @@ import { getFinancialTargets } from "@/lib/services/tenant-config-service";
 import { getVatRatePercent, resolveSalesBase } from "@/lib/services/sales-base";
 import type { SalesBase } from "@/lib/services/sales-base";
 import { getLaborBurden } from "@/lib/services/labor-burden";
+import {
+  calcularCostoPorcentual,
+  foodSourceToLineSource,
+  laborSourceToLineSource,
+} from "@/lib/services/branch-cost-metrics";
 import { weakestOf } from "@/lib/services/pnl-types";
 import { cierreDelPeriodo } from "@/lib/company/period-close";
-import { costStatus, marginStatus } from "@/lib/services/financial-kpi-types";
 import type { LineSource } from "@/lib/services/pnl-types";
 import type { FinancialKPIsResult, KpiMetric } from "@/lib/services/financial-kpi-types";
 
@@ -77,53 +81,6 @@ function shiftDay(day: string, deltaDays: number): string {
   return new Date(new Date(`${day}T00:00:00Z`).getTime() + deltaDays * 86_400_000)
     .toISOString()
     .slice(0, 10);
-}
-
-// --- Mapeo de procedencia ---------------------------------------------------
-
-/**
- * `FoodCostSource` → `LineSource`. Misma regla que `pnl-service`: PURCHASES es
- * un proxy sesgado (compras ≠ consumo) y se declara DERIVED, no MEASURED.
- */
-function foodSourceToLineSource(source: string, usedCostFallback: boolean): LineSource {
-  switch (source) {
-    case "CONSUMPTION":
-      return usedCostFallback ? "DERIVED" : "MEASURED";
-    case "INVENTORY_DIFF":
-    case "PURCHASES":
-      return "DERIVED";
-    case "SECTOR_DEFAULT":
-      return "SECTOR_DEFAULT";
-    default:
-      return "NO_DATA";
-  }
-}
-
-/** `LaborCostSource` → `LineSource`. CONTRACT_ONLY es plantilla teórica: DERIVED. */
-function laborSourceToLineSource(source: string): LineSource {
-  switch (source) {
-    case "MEASURED":
-      return "MEASURED";
-    case "CONTRACT_ONLY":
-      return "DERIVED";
-    case "SECTOR_DEFAULT":
-      return "SECTOR_DEFAULT";
-    default:
-      return "NO_DATA";
-  }
-}
-
-/**
- * La procedencia de un porcentaje no puede ser más fuerte que su divisor.
- *
- * Un food cost medido al centavo, dividido entre una venta neta *estimada* con
- * la tasa de IVA configurada, ya no es una medición: es un cálculo derivado. Es
- * el mismo criterio de `weakestOf` en `pnl-types`, aplicado al denominador —que
- * hasta A3.2 nadie miraba porque se daba por hecho que era neto.
- */
-function degradarPorBase(source: LineSource, kind: SalesBase["kind"]): LineSource {
-  if (source === "NO_DATA") return source;
-  return kind === "NET_MEASURED" ? source : weakestOf(source, "DERIVED");
 }
 
 // --- Agregación de un período ----------------------------------------------
@@ -258,36 +215,30 @@ export async function calculateFinancialKPIs(
    * dividía entre la bruta y un food cost real del 34.8% se presentaba como
    * 30%, del lado verde del semáforo.
    */
-  const base = current.salesBase.baseCents;
-  const prevBase = previous.salesBase.baseCents;
-
   /**
-   * A3.3 — nómina cargada cuando el grupo capturó el factor.
-   *
-   * El objetivo `laborCostTargetPercent` trae default 28.00, que es un número
-   * de industria *cargado*. Comparar contra él un bruto medido pinta verde lo
-   * que no lo está. Sin factor capturado el semáforo se apaga (`status: null`)
-   * en vez de mentir con un color.
+   * C29 — la fórmula vive en `branch-cost-metrics`, compartida con la Liga de
+   * Sucursales. Antes cada motor tenía su propia copia y podían divergir.
    */
-  const cargar = (cents: number): number =>
-    burden.totalPercent === null
-      ? cents
-      : Math.round(cents * (1 + burden.totalPercent / 100));
-
-  /** % sobre ventas, o `null` si no hay base contra la cual dividir. */
-  const pctOfSales = (cents: number, base: number, source: LineSource): number | null => {
-    if (source === "NO_DATA" || base <= 0) return null;
-    return Number(((cents / base) * 100).toFixed(1));
-  };
-
-  const foodPercent = pctOfSales(current.foodCostCents, base, current.foodSource);
-  const laborPercent = pctOfSales(cargar(current.laborCostCents), base, current.laborSource);
-  const prevFoodPercent = pctOfSales(previous.foodCostCents, prevBase, previous.foodSource);
-  const prevLaborPercent = pctOfSales(
-    cargar(previous.laborCostCents),
-    prevBase,
-    previous.laborSource,
-  );
+  const actual = calcularCostoPorcentual({
+    baseCents: current.salesBase.baseCents,
+    salesBaseKind: current.salesBase.kind,
+    foodCostCents: current.foodCostCents,
+    laborCostCents: current.laborCostCents,
+    foodSource: current.foodSource,
+    laborSource: current.laborSource,
+    burden,
+    targets,
+  });
+  const anterior = calcularCostoPorcentual({
+    baseCents: previous.salesBase.baseCents,
+    salesBaseKind: previous.salesBase.kind,
+    foodCostCents: previous.foodCostCents,
+    laborCostCents: previous.laborCostCents,
+    foodSource: previous.foodSource,
+    laborSource: previous.laborSource,
+    burden,
+    targets,
+  });
 
   const deltaPoints = (now: number | null, before: number | null): number | null =>
     now === null || before === null ? null : Number((now - before).toFixed(1));
@@ -320,53 +271,30 @@ export async function calculateFinancialKPIs(
 
   const foodCost: KpiMetric = {
     cents: current.foodCostCents,
-    percent: foodPercent,
-    status:
-      foodPercent === null
-        ? null
-        : costStatus(foodPercent, targets.foodCostTargetPercent, targets.foodCostWarnPercent),
+    percent: actual.foodPercent,
+    status: actual.foodStatus,
     // La base estimada degrada la procedencia: un porcentaje calculado sobre un
     // IVA supuesto no es una medición, por muy medido que esté el numerador.
-    source: degradarPorBase(current.foodSource, current.salesBase.kind),
+    source: actual.foodSource,
     note: `${foodNote} ${baseNota}`,
-    deltaPoints: deltaPoints(foodPercent, prevFoodPercent),
+    deltaPoints: deltaPoints(actual.foodPercent, anterior.foodPercent),
   };
 
   const laborCost: KpiMetric = {
     // El importe es el cargado cuando hay factor: es el que se compara contra
     // el objetivo, y mostrar uno y comparar el otro sería peor que no cargarlo.
-    cents: cargar(current.laborCostCents),
-    percent: laborPercent,
-    status:
-      // Sin factor de carga el semáforo NO pinta: el objetivo por default (28%)
-      // es un número cargado y el medido es bruto. Un color sobre esa
-      // comparación afirma una salud que nadie calculó.
-      laborPercent === null || burden.totalPercent === null
-        ? null
-        : costStatus(laborPercent, targets.laborCostTargetPercent, targets.laborCostWarnPercent),
-    source:
-      burden.totalPercent === null
-        ? degradarPorBase(current.laborSource, current.salesBase.kind)
-        : weakestOf(degradarPorBase(current.laborSource, current.salesBase.kind), "DERIVED"),
+    cents: actual.laborCostCargadoCents,
+    percent: actual.laborPercent,
+    status: actual.laborStatus,
+    source: actual.laborSource,
     note: `${laborNote} ${baseNota}`,
-    deltaPoints: deltaPoints(laborPercent, prevLaborPercent),
+    deltaPoints: deltaPoints(actual.laborPercent, anterior.laborPercent),
   };
 
   // El combinado solo existe si ambos renglones existen. Sumar un food cost real
   // con un labor ausente produce un margen falsamente sano.
-  const combinedCostPercent =
-    foodPercent === null || laborPercent === null
-      ? null
-      : Number((foodPercent + laborPercent).toFixed(1));
-
-  const healthyMarginPercent =
-    combinedCostPercent === null ? null : Number((100 - combinedCostPercent).toFixed(1));
-
-  const prevCombined =
-    prevFoodPercent === null || prevLaborPercent === null
-      ? null
-      : Number((prevFoodPercent + prevLaborPercent).toFixed(1));
-  const prevMargin = prevCombined === null ? null : Number((100 - prevCombined).toFixed(1));
+  const combinedCostPercent = actual.combinedCostPercent;
+  const healthyMarginPercent = actual.healthyMarginPercent;
 
   return {
     period: { startDate: startDay, endDate: endDay, days: periodDays },
@@ -383,15 +311,11 @@ export async function calculateFinancialKPIs(
 
     combinedCostPercent,
     healthyMarginPercent,
-    healthyMarginStatus:
-      healthyMarginPercent === null
-        ? null
-        : marginStatus(
-            healthyMarginPercent,
-            targets.healthyMarginTargetPercent,
-            targets.healthyMarginWarnPercent,
-          ),
-    healthyMarginDeltaPoints: deltaPoints(healthyMarginPercent, prevMargin),
+    healthyMarginStatus: actual.healthyMarginStatus,
+    healthyMarginDeltaPoints: deltaPoints(
+      actual.healthyMarginPercent,
+      anterior.healthyMarginPercent,
+    ),
 
     targets,
     weakestSource: weakestOf(current.foodSource, current.laborSource),
