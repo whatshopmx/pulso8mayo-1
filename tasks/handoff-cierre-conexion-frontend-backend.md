@@ -98,6 +98,15 @@ NotificationQueue.enqueue(payload)                     ← productores deberían
 **Legacy con consumidores vivos (clasificar en C36/C38, no tocar en C35):**
 - `lib/services/notification-service.ts` — tiene su **propio** tipo `NotificationPreferences` y `updateNotificationPreferences` esparce `stockAlerts` hacia el `set` de Drizzle (bug conocido). Consumidores: `lib/services/performance-reminder-service.ts:52` y `app/api/performance/goals/route.ts:217` (`sendWhatsAppNotification`); `lib/services/escalation-service.ts:242` está comentado.
 
+### 2.2-bis C35.0 — inventario verificado (16-10-2026)
+
+La tabla de arriba era un punto de partida, no el inventario completo. El recorrido real de todos los llamadores (`grep` de `sendNotification`/`sendBatchNotifications`/`sendWithRouting`/`enqueue` + extracción del `eventType` por archivo) dejó estas correcciones, con detalle en [la evidencia](../docs/audits/2026-10-16-consolidacion-productores-notificacion.md):
+
+- **Productores directos que faltaban:** `lib/services/expense-service.ts` (`expense_approval_request`, `budget_threshold_reached`), `insight-generator-service.ts` (`stock_alert`), `overtime-alert-service.ts` (`incident`), `payee-bank-account-service.ts` (`payee_bank_account_changed`), `petty-cash-service.ts` (`stock_alert`), `receiving-service.ts` (`incident`), `shift-approval-service.ts` (`shift_approval_request`, `shift_approval_decision`) y `supplier-bank-account-service.ts` (`supplier_bank_account_changed`). El universo directo queda en **32 archivos**.
+- **`lib/cron/shift-reminders.ts` es huérfano:** `sendShiftReminders` no lo importa ninguna función Inngest, ruta ni acción. No hay disparador, así que no es candidato de migración — es candidato de retiro o conexión (C36/C38).
+- **`send-reminders.ts` y `workflow-reminders.ts` son un duplicado histórico parcial:** ambos producen `workflow_due_soon` para las próximas 24 h; `workflow-reminders` es el escalonado con seguimiento, `send-reminders` es el recordatorio diario de las 08:00 sin seguimiento. Se clasifican juntos y no se migra el duplicado mientras siga duplicando.
+- **`whatsapp-notification-service.ts` no es un productor paralelo:** ya está `@deprecated`, envuelve al dispatcher y su `isDigitalDisconnectActive` está roto. Se clasifica en C36, no se migra.
+
 ### 2.3 Patrón de migración por productor
 
 1. Leer el productor y anotar: destinatarios, evento, si ya tiene una clave natural, y si necesita ser síncrono (respuesta inmediata al usuario) o puede ser durable.
@@ -163,7 +172,7 @@ NotificationQueue.enqueue(payload)                     ← productores deberían
 
 ## 6. Línea base y límites que NO hay que dar por cubiertos
 
-**Línea base (16-10-2026, tras C34):** `test:unit` **1431** aprobadas / 1 omitida / 1 TODO (112 archivos) · `lint` 0 errores · `build` exitoso · `tsc --noEmit` limpio · navegador aislado **94/94**.
+**Línea base (16-10-2026, tras C34; actualizada tras C35.1):** `test:unit` **1437** aprobadas / 1 omitida / 1 TODO (113 archivos) · `lint` 0 errores · `build` exitoso · `tsc --noEmit` limpio · navegador aislado **94/94**.
 
 Límites abiertos que las tareas arrastran (no usar como evidencia de lo contrario):
 
@@ -220,6 +229,6 @@ Límites abiertos que las tareas arrastran (no usar como evidencia de lo contrar
 
 1. Leer `tasks/todo-conexion-frontend-backend.md` (Fase 6 y fila C34) y la sección C35 del plan.
 2. Confirmar que el árbol está limpio (`git status`) y la línea base: `pnpm test:unit` (esperado 1431 aprobadas).
-3. **C35.0 — cerrar el inventario**: revisar la tabla 2.2, verificar `workflow-reminders.ts` vs `send-reminders.ts` (posible duplicado) y clasificar `whatsapp-notification-service.ts`.
-4. **C35.1 — migrar el primer lote** (propuesta: `shift-reminders.ts` y `check-overdue.ts`): `NotificationDispatcher.sendNotification` → `NotificationQueue.enqueue`, con `dedupeKey` natural; prueba V1/V3 de una ocurrencia → una notificación; actualizar el inventario y el seguimiento.
+3. **C35.0 — cerrar el inventario** (hecho el 16-10-2026): verificado `workflow-reminders.ts` vs `send-reminders.ts` (duplicado parcial, no idéntico), clasificado `whatsapp-notification-service.ts` (legacy) y descubierto que `shift-reminders.ts` es huérfano. Inventario completo en [la evidencia](../docs/audits/2026-10-16-consolidacion-productores-notificacion.md).
+4. **C35.1 — migrar el primer lote** (hecho el 16-10-2026): `shift-reminders.ts` quedó fuera por huérfano; se migraron `check-overdue.ts` (`workflow-overdue:<assignmentId>`) y `workflow-reminders.ts` (`workflow-due-soon:<assignmentId>:<reminderType>`) a `NotificationQueue.enqueue`, con `tests/unit/notifications/producer-migration.test.ts` (6).
 5. Repetir por productor en sesiones siguientes, máximo dos por sesión, y solo entonces marcar C35 y abrir C36.

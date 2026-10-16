@@ -1,5 +1,5 @@
 import { WorkflowAssignmentService } from '@/lib/services/workflow-assignment-service';
-import { NotificationDispatcher } from '@/lib/services/notification-dispatcher';
+import { NotificationQueue } from '@/lib/notifications/notification-queue';
 import { db } from '@/lib/db';
 import { workflowAssignments, workflowInstances, workflowTemplates } from '@/lib/db/schema';
 import { and, eq, or, sql } from 'drizzle-orm';
@@ -90,8 +90,9 @@ export async function checkOverdueAssignments() {
 
                 const workflowName = template?.name || 'Workflow';
 
-                // Send overdue notification
-                await NotificationDispatcher.sendNotification({
+                // Send overdue notification (durable: C35.1). La clave natural
+                // es la asignación: una asignación vencida avisa una sola vez.
+                await NotificationQueue.enqueue({
                     userId: assignment.assignedTo,
                     title: '⚠️ Tarea Vencida',
                     message: `Tarea VENCIDA: ${workflowName}`,
@@ -107,6 +108,7 @@ export async function checkOverdueAssignments() {
                             ? `desde ${new Date(assignment.dueDate).toLocaleDateString('es-MX')}`
                             : 'hace poco',
                         smartLinkUrl,
+                        dedupeKey: `workflow-overdue:${assignment.id}`,
                     },
                 });
                 console.log(`[Cron] Sent overdue notification for assignment ${assignment.id}`);

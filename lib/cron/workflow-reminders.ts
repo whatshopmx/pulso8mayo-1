@@ -12,7 +12,7 @@
 import { db } from '@/lib/db';
 import { workflowAssignments, workflowTemplates, workflowInstances } from '@/lib/db/schema';
 import { and, eq, sql } from 'drizzle-orm';
-import { NotificationDispatcher } from '@/lib/services/notification-dispatcher';
+import { NotificationQueue } from '@/lib/notifications/notification-queue';
 
 interface ReminderSent {
   type: '24h' | '1h' | '30min';
@@ -88,8 +88,11 @@ async function sendReminder(
   try {
     const hoursUntilDue = getHoursUntilDue(new Date(assignment.dueDate!));
 
-    // Send notification via dispatcher
-    await NotificationDispatcher.sendNotification({
+    // Send notification via durable queue (C35.1). La clave natural es
+    // asignación + tipo de recordatorio: repetir la misma ocurrencia no vuelve
+    // a notificar. `remindersSent` sigue siendo el seguimiento de negocio; el
+    // `dedupeKey` es la garantía de entrega única.
+    await NotificationQueue.enqueue({
       userId: assignment.assignedTo,
       title: `Recordatorio: ${templateName}`,
       message: `Tu tarea "${templateName}" está por vencer en ${hoursUntilDue} horas.`,
@@ -101,6 +104,7 @@ async function sendReminder(
         reminderType,
         assignmentId: assignment.id,
         smartLinkUrl,
+        dedupeKey: `workflow-due-soon:${assignment.id}:${reminderType}`,
       },
       actionUrl: `/dashboard/workflows/${instanceId}/execute`,
       actionLabel: 'Ver Tarea',

@@ -1257,6 +1257,8 @@ Migrar productores de NotificationService y NotificationDispatcher por evento a 
 
 **Verificación:** V1/V3 por productor migrado. Abrir una subtarea por productor; máximo dos productores y cinco archivos por sesión.
 
+**Ejecutado (16-10-2026):** C35.0 cerró el inventario (32 productores directos, 2 de compatibilidad, 2 legacy y 1 huérfano; 8 productores que el handoff no listaba). C35.1 migró el primer lote —`check-overdue.ts` (`workflow_overdue`, clave `workflow-overdue:<assignmentId>`) y `workflow-reminders.ts` (`workflow_due_soon`, clave `workflow-due-soon:<assignmentId>:<reminderType>`)— a `NotificationQueue.enqueue`, con `tests/unit/notifications/producer-migration.test.ts` (6 casos de id determinista, repetición y fallo de encolado). `tsc` 0, eslint 0 errores, suite 1437/1437 (113 archivos). Evidencia: [consolidación de productores](../docs/audits/2026-10-16-consolidacion-productores-notificacion.md). Límites: sin runtime de Inngest; `send-reminders.ts` sigue directo y solapando `workflow_due_soon`; `shift-reminders.ts` es huérfano. Quedan 30 productores directos.
+
 **Archivos probables:**
 
 - `lib/services/notification-service.ts`
