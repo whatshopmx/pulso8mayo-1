@@ -1,6 +1,6 @@
 # Plan de conexión entre frontend y backend — Pulso HORECA
 
-Fecha: 10 de octubre de 2026. Actualización: 16 de octubre de 2026. Estado: C00–C33 implementadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C34–C40 pendientes.
+Fecha: 10 de octubre de 2026. Actualización: 16 de octubre de 2026. Estado: C00–C34 implementadas con límites registrados en el seguimiento; C12 se cierra con la entrega de C11. C35–C40 pendientes.
 
 Origen: [auditoría de conexiones](../docs/audits/2026-10-10-backend-frontend-wiring-audit.md). Seguimiento: [lista de tareas](todo-conexion-frontend-backend.md).
 
@@ -1218,11 +1218,15 @@ Inspeccionar resultados de envío y permitir que Inngest reintente fallos transi
 
 **Criterios de aceptación:**
 
-- [ ] Cada canal devuelve resultado verificable; registrar texto no cuenta como email enviado.
-- [ ] Un fallo parcial no se presenta como éxito total ni se absorbe sin estado.
-- [ ] Reintentar conserva canales exitosos y distingue error transitorio de terminal.
+- [x] Cada canal devuelve resultado verificable; registrar texto no cuenta como email enviado. `ChannelDeliveryResult` con `sent`/`skipped`/`failed`; el fallback de correo que sólo registraba el texto ahora se declara `skipped`/terminal.
+- [x] Un fallo parcial no se presenta como éxito total ni se absorbe sin estado. `sendNotification` devuelve un resultado por canal; un fallo de correo convive con WhatsApp e in-app exitosos.
+- [x] Reintentar conserva canales exitosos y distingue error transitorio de terminal. Cada canal es su propio `step.run` memoizado; un fallo transitorio lanza para no memoizarse y sólo ese canal se re-ejecuta. `skipped`/terminal no reintentan.
 
 **Verificación:** V3 con email fallido y WhatsApp exitoso, recuperación y agotamiento; usar adaptadores simulados sin mensajes reales.
+
+**Verificación ejecutada (16-10-2026):** V1 — `tests/unit/notifications/channel-delivery.test.ts` (11) de clasificación por canal. V3 — `tests/unit/notifications/channel-retry.test.ts` (6) con un `step` que memoiza como Inngest: reintento tras fallo de correo (WhatsApp e in-app salen una vez en total, el correo dos), agotamiento y fallo terminal. Suite 1431 aprobadas (112 archivos, 1 omitida, 1 TODO), `tsc` y `lint` limpios. Evidencia en [C34](../docs/audits/2026-10-16-reintento-por-canal.md).
+
+**Desglose ejecutado (16-10-2026):** C34.1 resultado por canal en el dispatcher (`fae6008`); C34.2 reintento durable por canal en Inngest (`c007cd2`).
 
 **Archivos probables:**
 
@@ -1233,9 +1237,9 @@ Inspeccionar resultados de envío y permitir que Inngest reintente fallos transi
 
 #### Punto de control C32–C34
 
-- [ ] Criterios del bloque verificados con resultados registrados.
-- [ ] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
-- [ ] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
+- [x] Criterios del bloque verificados con resultados registrados. C32 (13+11 V1, 4 V2), C33 (20 V1) y C34 (11 V1, 6 V3); suite 1431 aprobadas (112 archivos), `tsc` y `lint` limpios.
+- [x] Recorrido válido y rechazo autorizado comprobados cuando correspondan. C32.3 tiene V2 aislada de carga/guardado/error; C33 y C34 se verifican con adaptadores simulados y reloj controlado, según su propia verificación.
+- [x] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque. Migración 0097 aplicada; la política de horario/zona/diferido quedó escrita; los límites (sin Inngest real, sin registro de entregas, productores sin migrar) quedan en las evidencias y en el handoff.
 
 <a id="c35"></a>
 

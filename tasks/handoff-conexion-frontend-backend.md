@@ -17,9 +17,10 @@ Este documento es para empezar una sesión nueva sin releer veinte archivos. **L
 
 ## 2. Estado al handing-off
 
-**C00–C33 completadas en el seguimiento. C34–C40 pendientes.** C33 (una sola decisión de canal) quedó verificada el 16-10-2026: política pura consumida por router y dispatcher, horario por zona de sucursal y preferencias por tipo efectivas. El detalle vigente está en `docs/audits/2026-10-16-decision-canal-notificaciones.md`. C32 (preferencias de notificación) quedó verificada el 16-10-2026: contrato canónico, migración 0097 y pantalla que carga antes de editar. La entrega de C28 (outbox transaccional, publicador con reintentos, resultado durable por extractor, recuperación autorizada y presentación) quedó verificada el 15-10-2026. C28 se cierra con límites declarados (acciones síncronas anteriores, escritura parcial de recepción e Inngest sin levantar contra Neon); no usar las pruebas de extractores como evidencia de esos caminos.
+**C00–C34 completadas en el seguimiento. C35–C40 pendientes.** C34 (fallos y reintento por canal) quedó verificada el 16-10-2026: resultado por canal y reintento durable por paso. El detalle vigente está en `docs/audits/2026-10-16-reintento-por-canal.md`. C33 (una sola decisión de canal) quedó verificada el 16-10-2026: política pura consumida por router y dispatcher, horario por zona de sucursal y preferencias por tipo efectivas. C32 (preferencias de notificación) quedó verificada el 16-10-2026: contrato canónico, migración 0097 y pantalla que carga antes de editar. La entrega de C28 (outbox transaccional, publicador con reintentos, resultado durable por extractor, recuperación autorizada y presentación) quedó verificada el 15-10-2026. C28 se cierra con límites declarados (acciones síncronas anteriores, escritura parcial de recepción e Inngest sin levantar contra Neon); no usar las pruebas de extractores como evidencia de esos caminos.
 
 ```
+C34 fallos y reintento por canal: `ChannelDeliveryResult` (sent/skipped/failed, transient/terminal), el correo sin remitente deja de contar como enviado, y cada canal es su propio paso de Inngest con memoización (11+6 unitarias)
 C33 una sola decisión de canal: política pura `routing-policy.ts` compartida por router y dispatcher, horario por zona de sucursal, preferencias por tipo (20 unitarias con reloj controlado)
 C32 preferencias de notificación con un solo contrato: `preferences-contract.ts`, migración 0097 (`shift_reminders`/`schedule_changes`) y pantalla que carga antes de editar (13+11 unitarias, 4 navegador aislado)
 C31 V2 config → Liga: el objetivo mueve la meta, la recarga la conserva y un 403 no persiste (3 pruebas aisladas)
@@ -46,7 +47,7 @@ C19.2 una obligación, una sola vez (puedeAgendar en lib/treasury/scheduling-pol
 C19.1 supplierPayment sigue descriptiva con contrato honesto en el catálogo
 ```
 
-Puertas de fase cerradas: Fase 1, Fase 2 (12-10-2026), **Fase 3** (15-10-2026), **Fase 4** (15-10-2026) y **Fase 5** (16-10-2026). La Fase 6 (notificaciones verificables) está en curso: C32–C33 cerradas, **C34–C35 pendientes**. La puerta de Fase 0 sigue sin marcar en el seguimiento.
+Puertas de fase cerradas: Fase 1, Fase 2 (12-10-2026), **Fase 3** (15-10-2026), **Fase 4** (15-10-2026) y **Fase 5** (16-10-2026). La Fase 6 (notificaciones verificables) está en curso: C32–C34 cerradas, **C35 pendiente**. La puerta de Fase 0 sigue sin marcar en el seguimiento.
 
 ## 3. Lo que NO está verificado — no dar por hecho
 
@@ -78,7 +79,8 @@ Este es el apartado que más caro sale perder. Las tareas están marcadas, pero 
 | C24 | La pantalla de ejecución en Playwright (`WorkflowExecutor`) simula la cámara (`navigator.mediaDevices` stub con canvas); la captura real de fotos en hardware físico depende del navegador móvil del operador. |
 | C30 | Sin V2 con Next/auth/Postgres: la representación de la ausencia se prueba en la UI aislada con la API interceptada. El cockpit ejecutivo conserva los defaults del `ExecutiveTwinEngine` y los umbrales 60/65 (no recibe los objetivos del inquilino). |
 | C32 | `lib/services/notification-service.ts` conserva su propio tipo y su bug de `set` con `stockAlerts`; consolidar es C35. `scheduleChanges` se persiste pero aún no tiene interruptor. Las dos rutas sin consumidor interno siguen registradas hasta C36. |
-| C33 | **Sin V2** (la verificación del plan para C33 es V1). Los fallos por canal siguen sin resultado trazable: `sendNotification` usa `Promise.allSettled` y cada adaptador captura su error, así que un canal que falla no se distingue de uno exitoso — es C34. La resolución de zona añade una lectura de `branches` por notificación sin caché. `metadata.timezone` existe pero nadie la puebla; no hay zona a nivel empresa. |
+| C33 | **Sin V2** (la verificación del plan para C33 es V1). La resolución de zona añade una lectura de `branches` por notificación sin caché. `metadata.timezone` existe pero nadie la puebla; no hay zona a nivel empresa. |
+| C34 | **Sin runtime de Inngest**: la memoización por paso se emula con un `step` de prueba; no se levantó Inngest contra Neon ni se ejercitó su backoff real. El reintento por canal sólo aplica al camino durable (`notification/dispatch.requested`); los productores que llaman a `sendNotification` directamente no reintentan — es C35. No hay registro de entregas consultable (el fallo agotado queda en la corrida de Inngest). `sin sesión de WhatsApp` se clasifica transitoria. |
 
 ## 4. Estado de la base de datos
 
@@ -117,7 +119,7 @@ El plan define cuatro verificaciones. Cada tarea declara cuál usa:
 - `tests/playwright-shifts.config.ts` → UI aislada. Arranca un servidor Vite de pruebas con módulos reales y stubs para acciones, auth y DB. Es la que se usa para turnos y configuración. **No requiere Next, autenticación ni Postgres.**
 - `playwright.config.ts` (el de `pnpm test:e2e`) → specs que sí usan la base real y necesitan `auth.setup`. Más lento y frágil; no se usó en esta sesión.
 
-**Línea base actual (16-10-2026, tras C33):** `test:unit` 1414 aprobadas / 1 omitida / 1 TODO (110 archivos) · `lint` 0 errores (2482+ warnings, todos preexistentes) · `build` exitoso y `tsc --noEmit` limpio · suite de navegador aislada 94/94. Las pruebas añadidas por C24–C33 explican el incremento desde las 1190 de C21.
+**Línea base actual (16-10-2026, tras C34):** `test:unit` 1431 aprobadas / 1 omitida / 1 TODO (112 archivos) · `lint` 0 errores (2482+ warnings, todos preexistentes) · `build` exitoso y `tsc --noEmit` limpio · suite de navegador aislada 94/94. Las pruebas añadidas por C24–C34 explican el incremento desde las 1190 de C21.
 
 **Reglas del plan que se incumplen fácil:**
 - Una tarea que pase de cinco archivos **se divide en subtareas antes de implementar**, no después (C14 se dividió en C14.1–C14.3 así).
@@ -175,7 +177,7 @@ El plan define cuatro verificaciones. Cada tarea declara cuál usa:
 | Un solo contrato de preferencias de notificación: `inventoryAlerts` es el nombre canónico, `stockAlerts` sólo alias de entrada; el guardado combina con lo existente y un error de carga no muestra defaults | 16-10 | Evidencia de C32 (`docs/audits/2026-10-16-preferencias-notificacion.md`) |
 | Una sola decisión de canal: router y dispatcher comparten `routing-policy.ts`; horario lunes–viernes 09:00–18:00 en la zona de la sucursal; fuera de horario sólo in-app; las preferencias siempre aplican, también a eventos críticos | 16-10 | Evidencia de C33 (`docs/audits/2026-10-16-decision-canal-notificaciones.md`) |
 
-**Pendientes de decisión** (condicionan C34–C35, no bloquean el trabajo): quién revisa un workflow (lectura conservadora `SUPERVISOR`+ vigente); consumidores externos del executor anterior.
+**Pendientes de decisión** (condicionan C35, no bloquean el trabajo): quién revisa un workflow (lectura conservadora `SUPERVISOR`+ vigente); consumidores externos del executor anterior.
 
 ## 8. C28 cerrada — límites declarados y siguiente paso
 
@@ -210,5 +212,5 @@ C24–C28 conforman el bloque de workflows:
 
 - [x] C32: Unificar contrato de preferencias (`preferences-contract.ts`, migración 0097, tres APIs y pantalla que carga antes de editar).
 - [x] C33: Aplicar una sola decisión de canal (`routing-policy.ts` compartida; el dispatcher intenta exactamente lo decidido; horario por zona de sucursal; preferencias por tipo).
-- [ ] C34: Registrar fallos y reintentar por canal. **Siguiente paso.**
-- [ ] C35: Consolidar productores activos (por productor, máximo dos por sesión).
+- [x] C34: Registrar fallos y reintentar por canal (`ChannelDeliveryResult`; un paso de Inngest por canal con memoización).
+- [ ] C35: Consolidar productores activos (por productor, máximo dos por sesión). **Siguiente paso.**
