@@ -3,10 +3,20 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notificationPreferences } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import {
+    fromStoredPreferences,
+    hasPreferenceInput,
+    normalizePreferenceInput,
+    toStoredPreferencesPatch,
+} from "@/lib/notifications/preferences-contract";
 
 /**
  * PATCH /api/notifications/preferences
- * Update user notification preferences
+ * Guarda las preferencias del usuario en sesión.
+ *
+ * C32: el cuerpo se normaliza con el contrato canónico. Un campo omitido
+ * conserva lo que estaba guardado —antes se reseteaba a `true`— y un cuerpo sin
+ * ninguna preferencia válida se rechaza en vez de escribir defaults silenciosos.
  */
 export async function PATCH(req: NextRequest) {
     try {
@@ -16,46 +26,32 @@ export async function PATCH(req: NextRequest) {
         }
 
         const body = await req.json();
-        const {
-            whatsappEnabled,
-            emailEnabled,
-            inAppEnabled,
-            workflowAssignments,
-            workflowDueSoon,
-            workflowOverdue,
-            incidents,
-            stockAlerts,
-            shiftReminders
-        } = body;
+        const patch = normalizePreferenceInput(body);
 
-        // Upsert preferences
-        await db.insert(notificationPreferences).values({
-            userId: session.user.id,
-            whatsappEnabled: whatsappEnabled ?? true,
-            emailEnabled: emailEnabled ?? true,
-            inAppEnabled: inAppEnabled ?? true,
-            workflowAssignments: workflowAssignments ?? true,
-            workflowDueSoon: workflowDueSoon ?? true,
-            workflowOverdue: workflowOverdue ?? true,
-            incidents: incidents ?? true,
-            ...(stockAlerts !== undefined && { stockAlerts }),
-            ...(shiftReminders !== undefined && { shiftReminders })
-        }).onConflictDoUpdate({
-            target: notificationPreferences.userId,
-            set: {
-                whatsappEnabled: whatsappEnabled ?? true,
-                emailEnabled: emailEnabled ?? true,
-                inAppEnabled: inAppEnabled ?? true,
-                workflowAssignments: workflowAssignments ?? true,
-                workflowDueSoon: workflowDueSoon ?? true,
-                workflowOverdue: workflowOverdue ?? true,
-                incidents: incidents ?? true,
-                ...(stockAlerts !== undefined && { stockAlerts }),
-                ...(shiftReminders !== undefined && { shiftReminders })
-            }
+        if (!hasPreferenceInput(patch)) {
+            return NextResponse.json(
+                { error: "No hay preferencias válidas que guardar" },
+                { status: 400 }
+            );
+        }
+
+        const existing = await db.query.notificationPreferences.findFirst({
+            where: eq(notificationPreferences.userId, session.user.id),
         });
 
-        return NextResponse.json({ success: true });
+        // Se escribe el estado completo: lo guardado + lo que llegó.
+        const merged = { ...fromStoredPreferences(existing), ...patch };
+        const stored = toStoredPreferencesPatch(merged);
+
+        await db
+            .insert(notificationPreferences)
+            .values({ userId: session.user.id, ...stored })
+            .onConflictDoUpdate({
+                target: notificationPreferences.userId,
+                set: { ...stored, updatedAt: new Date() },
+            });
+
+        return NextResponse.json(fromStoredPreferences(stored));
 
     } catch (error) {
         console.error("[Preferences API] Error:", error);
@@ -68,9 +64,9 @@ export async function PATCH(req: NextRequest) {
 
 /**
  * GET /api/notifications/preferences
- * Get user notification preferences
+ * Devuelve las preferencias del usuario en sesión con el contrato canónico.
  */
-export async function GET(req: NextRequest) {
+export async function GET() {
     try {
         const session = await getSession();
         if (!session?.user) {
@@ -78,25 +74,11 @@ export async function GET(req: NextRequest) {
         }
 
         const prefs = await db.query.notificationPreferences.findFirst({
-            where: eq(notificationPreferences.userId, session.user.id)
+            where: eq(notificationPreferences.userId, session.user.id),
         });
 
-        if (!prefs) {
-            // Return defaults
-            return NextResponse.json({
-                whatsappEnabled: true,
-                emailEnabled: true,
-                inAppEnabled: true,
-                workflowAssignments: true,
-                workflowDueSoon: true,
-                workflowOverdue: true,
-                incidents: true,
-                stockAlerts: true,
-                shiftReminders: true
-            });
-        }
-
-        return NextResponse.json(prefs);
+        // Sin fila se devuelven los defaults del contrato, nunca una forma distinta.
+        return NextResponse.json(fromStoredPreferences(prefs));
 
     } catch (error) {
         console.error("[Preferences API] Error:", error);

@@ -6,24 +6,33 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { z } from "zod";
+import {
+    fromStoredPreferences,
+    hasPreferenceInput,
+    normalizePreferenceInput,
+    toStoredPreferencesPatch,
+} from "@/lib/notifications/preferences-contract";
 
-const updatePreferencesSchema = z.object({
-    whatsappEnabled: z.boolean().optional(),
-    emailEnabled: z.boolean().optional(),
-    inAppEnabled: z.boolean().optional(),
-    workflowAssignments: z.boolean().optional(),
-    workflowDueSoon: z.boolean().optional(),
-    workflowOverdue: z.boolean().optional(),
-    incidents: z.boolean().optional(),
-    whatsappPhone: z.string().optional().nullable(),
+/**
+ * Preferencias del propio usuario + su teléfono de WhatsApp.
+ *
+ * C32: las preferencias se leen y escriben con el contrato canónico, igual que
+ * las otras dos entradas. `whatsappPhone` sigue siendo un campo del usuario, no
+ * una preferencia, y por eso se valida aparte.
+ */
+const phoneSchema = z.object({
+    whatsappPhone: z.string().nullable().optional(),
 });
 
-export async function GET(req: NextRequest) {
-  try {
+async function getSessionUserId(): Promise<string | null> {
     const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) return ApiHandler.error(new Error("Unauthorized"), { status: 401 });
+    return session?.user?.id ?? null;
+}
 
-        const userId = session.user.id;
+export async function GET() {
+  try {
+    const userId = await getSessionUserId();
+    if (!userId) return ApiHandler.error(new Error("Unauthorized"), { status: 401 });
 
         // Get or create preferences
         let prefs = await db.query.notificationPreferences.findFirst({
@@ -44,7 +53,7 @@ export async function GET(req: NextRequest) {
         });
 
         return ApiHandler.success({
-            ...prefs,
+            ...fromStoredPreferences(prefs),
             whatsappPhone: user?.whatsappPhone || null
         });
     } catch (error) {
@@ -54,15 +63,19 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) return ApiHandler.error(new Error("Unauthorized"), { status: 401 });
+    const userId = await getSessionUserId();
+    if (!userId) return ApiHandler.error(new Error("Unauthorized"), { status: 401 });
 
-        const userId = session.user.id;
         const body = await req.json();
-        const data = updatePreferencesSchema.parse(body);
+        const { whatsappPhone } = phoneSchema.parse(body);
+        const patch = normalizePreferenceInput(body);
 
-        // Separate user fields and preference fields
-        const { whatsappPhone, ...prefsData } = data;
+        if (whatsappPhone === undefined && !hasPreferenceInput(patch)) {
+            return ApiHandler.error(
+                new Error("No hay preferencias ni teléfono que guardar"),
+                { status: 400 }
+            );
+        }
 
         // Update WhatsApp phone if provided
         if (whatsappPhone !== undefined) {
@@ -71,28 +84,29 @@ export async function PATCH(req: NextRequest) {
                 .where(eq(users.id, userId));
         }
 
-        // Check if preferences exist
         const existingPrefs = await db.query.notificationPreferences.findFirst({
             where: eq(notificationPreferences.userId, userId),
         });
 
-        let updatedPrefs;
-        if (existingPrefs) {
-            const [result] = await db.update(notificationPreferences)
-                .set({ ...prefsData, updatedAt: new Date() })
-                .where(eq(notificationPreferences.userId, userId))
-                .returning();
-            updatedPrefs = result;
-        } else {
-            const [result] = await db.insert(notificationPreferences)
-                .values({ ...prefsData, userId })
-                .returning();
-            updatedPrefs = result;
-        }
+        const merged = { ...fromStoredPreferences(existingPrefs), ...patch };
+        const stored = toStoredPreferencesPatch(merged);
+
+        await db
+            .insert(notificationPreferences)
+            .values({ userId, ...stored })
+            .onConflictDoUpdate({
+                target: notificationPreferences.userId,
+                set: { ...stored, updatedAt: new Date() },
+            });
+
+        const user = await db.query.users.findFirst({
+            where: eq(users.id, userId),
+            columns: { whatsappPhone: true },
+        });
 
         return ApiHandler.success({
-            ...updatedPrefs,
-            whatsappPhone: whatsappPhone !== undefined ? whatsappPhone : undefined
+            ...fromStoredPreferences(stored),
+            whatsappPhone: user?.whatsappPhone ?? null,
         });
   } catch (error) {
     if (error instanceof z.ZodError) {
