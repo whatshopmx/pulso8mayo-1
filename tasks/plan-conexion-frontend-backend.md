@@ -1133,22 +1133,22 @@ Cerrar un recorrido controlado de cambio de parámetro y consulta de métricas, 
 
 **Criterios de aceptación:**
 
-- [ ] Cambiar un parámetro permitido modifica las métricas que su contrato declara.
-- [ ] La recarga conserva configuración, procedencia y unidad del indicador.
-- [ ] Un usuario no autorizado no cambia parámetros y el historial permite explicar el resultado.
+- [x] Cambiar un parámetro permitido modifica las métricas que su contrato declara.
+- [x] La recarga conserva configuración, procedencia y unidad del indicador.
+- [x] Un usuario no autorizado no cambia parámetros y el historial permite explicar el resultado.
 
 **Verificación:** V2 desde configuración a vista financiera/sucursales con datos conocidos.
 
 **Archivos probables:**
 
 - `tests/e2e/financial-policy-effect.spec.ts (nuevo)`
-- `docs/operating-policy-contracts.md (nuevo)`
+- `docs/operating-policy-contracts.md` (ya existía desde C14/C15; C31 amplía «Cómo se verifica un parámetro» y corrige el límite de `getPnLSnapshots`)
 
 #### Punto de control C29–C31
 
-- [ ] Criterios del bloque verificados con resultados registrados.
-- [ ] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
-- [ ] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
+- [x] Criterios del bloque verificados con resultados registrados.
+- [x] Recorrido válido y rechazo autorizado comprobados cuando correspondan.
+- [x] Errores, decisiones pendientes y cambios de contrato documentados antes del siguiente bloque.
 
 **Puerta de fase:** revisar build/lint y regresiones pertinentes; conservar evidencia de la entrega indicada al inicio.
 

@@ -13,6 +13,7 @@ export default defineConfig({
     "payment-scheduling.spec.ts",
     "manager-autonomy.spec.ts",
     "group-network.spec.ts",
+    "financial-policy-effect.spec.ts",
     "workflow-step-contract.spec.ts",
     "workflow-ai-config.spec.ts",
     "workflow-completion.spec.ts",

@@ -86,13 +86,17 @@ Tres decisiones de diseño que conviene no romper:
 
 Lo que sigue sin cubrirse:
 
-- `getPnLSnapshots` continúa sin consumidores. El P&L congelado al cerrar el periodo es un archivo que ninguna vista lee; la vigencia por fecha de los parámetros es la que impide hoy la reescritura del pasado en los cálculos. Conectar esas lecturas sigue siendo trabajo de C29–C31.
+- `getPnLSnapshots` continúa sin consumidores. El P&L congelado al cerrar el periodo es un archivo que ninguna vista lee; la vigencia por fecha de los parámetros es la que impide hoy la reescritura del pasado en los cálculos. C29–C31 no lo conectaron: queda como tarea propia.
 - La consulta de vigencia cuesta **una** consulta extra por lectura con fecha (`distinct on (field_name)` sobre el índice `config_change_logs_param_idx`), no una por parámetro.
 - Los objetivos de semáforo y los umbrales monetarios no tienen vigencia: se leen siempre del valor actual, porque calibran el objetivo contra el que se compara, no un hecho del periodo.
 
 ## Cómo se verifica un parámetro
 
 Cada parámetro de esta página tiene una prueba que lo pasa por la función que lo consume y comprueba que el resultado cambia ([`tests/unit/company/financial-config.test.ts`](../../tests/unit/company/financial-config.test.ts)). Una prueba que sólo comprueba que el campo se guardó no demuestra efecto: para eso están `resolveSalesBase`, `buildLaborBurden` y `excedeUmbralMerma`.
+
+El recorrido de pantalla se cierra en **C31** ([`tests/e2e/financial-policy-effect.spec.ts`](../../tests/e2e/financial-policy-effect.spec.ts)): cambiar el objetivo en configuración mueve la meta y el semáforo que la Liga declara, la recarga conserva el valor y la procedencia, un `null` persistido se recarga como vacío —no como default— y un `PUT` rechazado por autorización no persiste tras recargar. La aritmética del parámetro sobre la métrica sigue siendo V1; el V2 comprueba que la pantalla queda gobernada por el valor declarado y no por una constante.
+
+Quién cambió qué, y de qué a qué, queda en `config_change_logs`: una fila por campo modificado con el actor de la sesión y el valor anterior/nuevo ([`tests/unit/company/config-history.test.ts`](../../tests/unit/company/config-history.test.ts)). Ese historial es también la fuente de la vigencia por periodo descrita arriba.
 
 ## Añadir un parámetro aquí
 
