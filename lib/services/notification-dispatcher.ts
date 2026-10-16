@@ -48,6 +48,26 @@ export interface NotificationPreferencesData {
     scheduleChanges: boolean;
 }
 
+/**
+ * C34 — resultado verificable por canal. "Enviado" es lo único que cuenta como
+ * enviado; `skipped` (sin teléfono, sin remitente) y `failed` (con su
+ * `kind`) quedan separados para poder reintentar sólo lo transitorio.
+ */
+export type ChannelDeliveryStatus = "sent" | "skipped" | "failed";
+export type ChannelFailureKind = "transient" | "terminal";
+
+export interface ChannelDeliveryResult {
+    channel: NotificationChannel;
+    status: ChannelDeliveryStatus;
+    /** Sólo para `failed`: si reintentar puede servir. */
+    kind?: ChannelFailureKind;
+    reason?: string;
+}
+
+function errorReason(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
 export interface NotificationPayload {
     userId: string;
     title: string;
@@ -526,37 +546,62 @@ export class NotificationDispatcher {
         return { decision, template, userData };
     }
 
-    static async sendNotification(payload: NotificationPayload): Promise<void> {
+    static async sendNotification(payload: NotificationPayload): Promise<ChannelDeliveryResult[]> {
         try {
             const prepared = await this.prepareDelivery(payload);
             if (!prepared) {
                 console.log(`No preferences or template for ${payload.eventType} / ${payload.userId}`);
-                return;
+                return [];
             }
 
             const { decision, template, userData } = prepared;
 
             if (!decision.shouldSend) {
                 console.log(`Notification ${payload.eventType} not sent: ${decision.reason}`);
-                return;
+                return [];
             }
 
             // Se intenta exactamente lo que decidió el router: ni un canal de más.
-            const attempts: Promise<unknown>[] = [];
-
-            for (const channel of decision.channels) {
-                if (channel === "whatsapp") {
-                    attempts.push(this.sendWhatsAppNotification(payload, template, userData));
-                } else if (channel === "email") {
-                    attempts.push(this.sendEmailNotification(payload, template, userData));
-                } else {
-                    attempts.push(this.sendInAppNotification(payload, template, userData));
-                }
-            }
-
-            await Promise.allSettled(attempts);
+            return await Promise.all(
+                decision.channels.map((channel) =>
+                    this.deliverChannel(channel, payload, template, userData)
+                )
+            );
         } catch (error) {
             console.error("Error in sendNotification:", error);
+            return [];
+        }
+    }
+
+    /**
+     * C34 — expone lo preparado (decisión + plantilla + usuario) para que el
+     * llamador durable pueda entregar canal por canal y memoizar cada uno.
+     */
+    static async planDelivery(payload: NotificationPayload): Promise<{
+        decision: RoutingDecision;
+        template: NotificationTemplate;
+        userData: UserData | null;
+    } | null> {
+        return this.prepareDelivery(payload);
+    }
+
+    /**
+     * C34 — entrega un solo canal y devuelve su resultado. No lanza: un canal
+     * caído no debe tumbar a los demás.
+     */
+    static async deliverChannel(
+        channel: NotificationChannel,
+        payload: NotificationPayload,
+        template: NotificationTemplate,
+        userData: UserData | null
+    ): Promise<ChannelDeliveryResult> {
+        switch (channel) {
+            case "whatsapp":
+                return this.sendWhatsAppNotification(payload, template, userData);
+            case "email":
+                return this.sendEmailNotification(payload, template, userData);
+            case "in-app":
+                return this.sendInAppNotification(payload, template, userData);
         }
     }
 
@@ -618,13 +663,15 @@ export class NotificationDispatcher {
     payload: NotificationPayload,
     template: NotificationTemplate,
     userData: UserData | null
-  ): Promise<void> {
+  ): Promise<ChannelDeliveryResult> {
+    const channel = "whatsapp" as const;
     try {
-      if (!template.whatsappTemplate) return;
+      if (!template.whatsappTemplate) {
+        return { channel, status: "skipped", kind: "terminal", reason: "La plantilla no tiene contenido de WhatsApp" };
+      }
 
       if (!userData?.whatsappPhone && !userData?.phone) {
-        console.warn('[NotificationDispatcher] No phone number for user, skipping WhatsApp channel');
-        return;
+        return { channel, status: "skipped", kind: "terminal", reason: "El usuario no tiene teléfono" };
       }
 
       const message = this.replaceTemplateVariables(
@@ -632,9 +679,10 @@ export class NotificationDispatcher {
         this.buildTemplateVariables(payload, userData)
       );
 
-      await this.sendWhatsAppMessage(userData.id, message);
+      const outcome = await this.sendWhatsAppMessage(userData.id, message);
+      return { channel, ...outcome };
     } catch (error) {
-      console.error('[NotificationDispatcher] Error sending WhatsApp notification:', error);
+      return { channel, status: "failed", kind: "transient", reason: errorReason(error) };
     }
 }
 
@@ -645,14 +693,16 @@ export class NotificationDispatcher {
     payload: NotificationPayload,
     template: NotificationTemplate,
     userData: UserData | null
-  ): Promise<void> {
+  ): Promise<ChannelDeliveryResult> {
+    const channel = "email" as const;
     try {
-      if (!template.emailSubject || !template.emailBody) return;
+      if (!template.emailSubject || !template.emailBody) {
+        return { channel, status: "skipped", kind: "terminal", reason: "La plantilla no tiene contenido de correo" };
+      }
 
       // Get user's email
       if (!userData?.email) {
-        console.log(`No email for user ${payload.userId}`);
-        return;
+        return { channel, status: "skipped", kind: "terminal", reason: "El usuario no tiene correo" };
       }
 
       // Send based on event type with appropriate email template
@@ -738,20 +788,19 @@ export class NotificationDispatcher {
         break;
 
         default:
-          // Fallback to generic template
-          const subject = this.replaceTemplateVariables(
-            template.emailSubject,
-            this.buildTemplateVariables(payload, userData)
-          );
-          const body = this.replaceTemplateVariables(
-            template.emailBody,
-            this.buildTemplateVariables(payload, userData)
-          );
-          // Generic email sending would go here if needed
-          console.log(`[Email] Fallback: To: ${userData.email}, Subject: ${subject}`);
+          // No hay remitente real para este tipo. Registrar el texto no es
+          // enviar el correo: se declara omitido, no enviado.
+          return {
+            channel,
+            status: "skipped",
+            kind: "terminal",
+            reason: `Sin remitente de correo para ${payload.eventType}`,
+          };
       }
+
+      return { channel, status: "sent" };
     } catch (error) {
-      console.error("Error sending email notification:", error);
+      return { channel, status: "failed", kind: "transient", reason: errorReason(error) };
     }
   }
 
@@ -762,9 +811,12 @@ export class NotificationDispatcher {
         payload: NotificationPayload,
         template: NotificationTemplate,
         userData: UserData | null
-    ): Promise<void> {
+    ): Promise<ChannelDeliveryResult> {
+        const channel = "in-app" as const;
         try {
-            if (!template.inAppTitle || !template.inAppMessage) return;
+            if (!template.inAppTitle || !template.inAppMessage) {
+                return { channel, status: "skipped", kind: "terminal", reason: "La plantilla no tiene contenido in-app" };
+            }
 
             // Replace template variables
             const title = this.replaceTemplateVariables(
@@ -788,10 +840,10 @@ export class NotificationDispatcher {
                 read: false
             });
 
-            console.log(`[In-App] To: ${payload.userId}, Title: ${title}`);
+            return { channel, status: "sent" };
 
         } catch (error) {
-            console.error("Error sending in-app notification:", error);
+            return { channel, status: "failed", kind: "transient", reason: errorReason(error) };
         }
     }
 
@@ -983,22 +1035,23 @@ export class NotificationDispatcher {
   /**
    * Send WhatsApp message to user
      */
-  private static async sendWhatsAppMessage(userId: string, message: string): Promise<void> {
+  private static async sendWhatsAppMessage(
+    userId: string,
+    message: string
+  ): Promise<Omit<ChannelDeliveryResult, "channel">> {
     try {
       const { whatsappClient } = await import('@/lib/whatsapp/client-factory');
       const { sessionManager } = await import('@/lib/whatsapp/session-manager');
 
       const userData = await this.getUserData(userId);
       if (!userData?.phone && !userData?.whatsappPhone) {
-        console.warn('[NotificationDispatcher] No phone number for user, skipping WhatsApp send', userId);
-        return;
+        return { status: "skipped", kind: "terminal", reason: "El usuario no tiene teléfono" };
       }
 
       const companyId = userData.companyId || process.env.DEFAULT_COMPANY_ID || 'default';
       const session = await sessionManager.getActiveSession(companyId);
       if (!session) {
-        console.warn('[NotificationDispatcher] No active WhatsApp session, skipping WhatsApp send for user', userId);
-        return;
+        return { status: "failed", kind: "transient", reason: "No hay sesión de WhatsApp activa" };
       }
 
       const phone = userData.whatsappPhone || userData.phone!;
@@ -1007,8 +1060,9 @@ export class NotificationDispatcher {
         to: phone,
         message,
       });
+      return { status: "sent" };
     } catch (error) {
-      console.error('[NotificationDispatcher] WhatsApp send failed for user', userId, error);
+      return { status: "failed", kind: "transient", reason: errorReason(error) };
     }
 }
 
