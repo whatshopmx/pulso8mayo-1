@@ -1,0 +1,2 @@
+ALTER TABLE "notification_preferences" ADD COLUMN "shift_reminders" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+ALTER TABLE "notification_preferences" ADD COLUMN "schedule_changes" boolean DEFAULT true NOT NULL;

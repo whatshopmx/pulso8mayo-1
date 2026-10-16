@@ -1318,6 +1318,10 @@ export const notificationPreferences = pgTable("notification_preferences", {
     workflowOverdue: boolean("workflow_overdue").notNull().default(true),
     incidents: boolean("incidents").notNull().default(true),
     inventoryAlerts: boolean("inventory_alerts").notNull().default(true),
+    // C32: preferencias por tipo que la interfaz ya ofrecía y la API inventaba
+    // como `true` en cada lectura. Sin columna no había nada que conservar.
+    shiftReminders: boolean("shift_reminders").notNull().default(true),
+    scheduleChanges: boolean("schedule_changes").notNull().default(true),
 
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
