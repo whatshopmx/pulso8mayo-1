@@ -2302,7 +2302,9 @@ export const performanceReviews = pgTable("performance_reviews", {
     status: performanceReviewStatusEnum("status").notNull().default('DRAFT'),
     
     // Assessment
-    overallRating: integer("overall_rating"), // 1-5
+    // 1-5 with one decimal: the weighted criteria average is rarely a whole
+    // number, and `integer` rejected it at the Postgres input boundary.
+    overallRating: numeric("overall_rating", { precision: 2, scale: 1, mode: "number" }),
     strengths: text("strengths"),
     areasForImprovement: text("areas_for_improvement"),
     goals: jsonb("goals"), // [{ goal, target, deadline }]
