@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -16,11 +16,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Bell, MessageCircle, Mail, Smartphone } from "lucide-react";
+import { AlertCircle, Bell, MessageCircle, Mail, Smartphone } from "lucide-react";
+import {
+    fromStoredPreferences,
+    type NotificationPreferenceField,
+    type NotificationPreferencesContract,
+} from "@/lib/notifications/preferences-contract";
 
 interface NotificationTest {
     type: string;
@@ -28,20 +32,48 @@ interface NotificationTest {
     description: string;
 }
 
+type LoadState = "loading" | "ready" | "error";
+
+/**
+ * C32.3 — la pantalla carga lo guardado antes de editar.
+ *
+ * Antes, el estado arrancaba con todos los interruptores en `true` y nunca
+ * pedía la fila: guardar sin tocar nada sobrescribía las preferencias reales
+ * con defaults. Ahora se lee primero y un fallo de carga muestra un error con
+ * reintento, nunca los defaults como si fueran lo guardado.
+ */
 export function NotificationPreferences() {
-    const [loading, setLoading] = useState(false);
+    const [loadState, setLoadState] = useState<LoadState>("loading");
+    const [preferences, setPreferences] = useState<NotificationPreferencesContract | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [testing, setTesting] = useState(false);
     const [testType, setTestType] = useState<string>("");
-    const [preferences, setPreferences] = useState({
-        whatsappEnabled: true,
-        emailEnabled: true,
-        inAppEnabled: true,
-        workflowAssignments: true,
-        workflowDueSoon: true,
-        workflowOverdue: true,
-        incidents: true,
-        stockAlerts: true,
-        shiftReminders: true
-    });
+
+    const loadPreferences = useCallback(async () => {
+        setLoadState("loading");
+        try {
+            const response = await fetch("/api/notifications/preferences");
+            if (!response.ok) {
+                throw new Error("No se pudieron cargar las preferencias");
+            }
+            const data = await response.json();
+            setPreferences(fromStoredPreferences(data));
+            setLoadState("ready");
+        } catch {
+            // Sin datos no se muestra un formulario editable con defaults: eso
+            // haría creer que lo guardado es eso.
+            setPreferences(null);
+            setLoadState("error");
+        }
+    }, []);
+
+    useEffect(() => {
+        void loadPreferences();
+    }, [loadPreferences]);
+
+    const updatePreference = (field: NotificationPreferenceField, value: boolean) => {
+        setPreferences((prev) => (prev ? { ...prev, [field]: value } : prev));
+    };
 
     const notificationTests: NotificationTest[] = [
         {
@@ -67,7 +99,8 @@ export function NotificationPreferences() {
     ];
 
     const handleSavePreferences = async () => {
-        setLoading(true);
+        if (!preferences) return;
+        setSaving(true);
         try {
             const response = await fetch("/api/notifications/preferences", {
                 method: "PATCH",
@@ -76,14 +109,16 @@ export function NotificationPreferences() {
             });
 
             if (response.ok) {
+                const saved = await response.json();
+                setPreferences(fromStoredPreferences(saved));
                 toast.success("Preferencias guardadas correctamente");
             } else {
                 toast.error("Error al guardar preferencias");
             }
-        } catch (error) {
+        } catch {
             toast.error("Error al guardar preferencias");
         } finally {
-            setLoading(false);
+            setSaving(false);
         }
     };
 
@@ -93,7 +128,7 @@ export function NotificationPreferences() {
             return;
         }
 
-        setLoading(true);
+        setTesting(true);
         try {
             const response = await fetch("/api/notifications/test-whatsapp", {
                 method: "POST",
@@ -110,12 +145,48 @@ export function NotificationPreferences() {
             } else {
                 toast.error(result.error || "Error al enviar notificación");
             }
-        } catch (error) {
+        } catch {
             toast.error("Error al enviar notificación de prueba");
         } finally {
-            setLoading(false);
+            setTesting(false);
         }
     };
+
+    if (loadState === "loading") {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Bell className="h-5 w-5" />
+                        Preferencias de Notificación
+                    </CardTitle>
+                    <CardDescription>Cargando tus preferencias…</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-24 animate-pulse rounded-md bg-muted" aria-hidden="true" />
+                </CardContent>
+            </Card>
+        );
+    }
+
+    if (loadState === "error" || !preferences) {
+        return (
+            <Card role="alert">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-destructive">
+                        <AlertCircle className="h-5 w-5" />
+                        No se pudieron cargar tus preferencias
+                    </CardTitle>
+                    <CardDescription>
+                        No se muestran valores por defecto para no confundirlos con lo guardado.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Button onClick={() => void loadPreferences()}>Reintentar</Button>
+                </CardContent>
+            </Card>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -144,9 +215,7 @@ export function NotificationPreferences() {
                         <Switch
                             id="whatsapp"
                             checked={preferences.whatsappEnabled}
-                            onCheckedChange={(checked) =>
-                                setPreferences(prev => ({ ...prev, whatsappEnabled: checked }))
-                            }
+                            onCheckedChange={(checked) => updatePreference("whatsappEnabled", checked)}
                         />
                     </div>
 
@@ -163,9 +232,7 @@ export function NotificationPreferences() {
                         <Switch
                             id="email"
                             checked={preferences.emailEnabled}
-                            onCheckedChange={(checked) =>
-                                setPreferences(prev => ({ ...prev, emailEnabled: checked }))
-                            }
+                            onCheckedChange={(checked) => updatePreference("emailEnabled", checked)}
                         />
                     </div>
 
@@ -182,9 +249,7 @@ export function NotificationPreferences() {
                         <Switch
                             id="inapp"
                             checked={preferences.inAppEnabled}
-                            onCheckedChange={(checked) =>
-                                setPreferences(prev => ({ ...prev, inAppEnabled: checked }))
-                            }
+                            onCheckedChange={(checked) => updatePreference("inAppEnabled", checked)}
                         />
                     </div>
                 </CardContent>
@@ -209,9 +274,7 @@ export function NotificationPreferences() {
                         <Switch
                             id="workflow-assignments"
                             checked={preferences.workflowAssignments}
-                            onCheckedChange={(checked) =>
-                                setPreferences(prev => ({ ...prev, workflowAssignments: checked }))
-                            }
+                            onCheckedChange={(checked) => updatePreference("workflowAssignments", checked)}
                         />
                     </div>
 
@@ -225,9 +288,7 @@ export function NotificationPreferences() {
                         <Switch
                             id="workflow-due-soon"
                             checked={preferences.workflowDueSoon}
-                            onCheckedChange={(checked) =>
-                                setPreferences(prev => ({ ...prev, workflowDueSoon: checked }))
-                            }
+                            onCheckedChange={(checked) => updatePreference("workflowDueSoon", checked)}
                         />
                     </div>
 
@@ -241,9 +302,7 @@ export function NotificationPreferences() {
                         <Switch
                             id="workflow-overdue"
                             checked={preferences.workflowOverdue}
-                            onCheckedChange={(checked) =>
-                                setPreferences(prev => ({ ...prev, workflowOverdue: checked }))
-                            }
+                            onCheckedChange={(checked) => updatePreference("workflowOverdue", checked)}
                         />
                     </div>
 
@@ -257,9 +316,7 @@ export function NotificationPreferences() {
                         <Switch
                             id="incidents"
                             checked={preferences.incidents}
-                            onCheckedChange={(checked) =>
-                                setPreferences(prev => ({ ...prev, incidents: checked }))
-                            }
+                            onCheckedChange={(checked) => updatePreference("incidents", checked)}
                         />
                     </div>
 
@@ -272,10 +329,8 @@ export function NotificationPreferences() {
                         </div>
                         <Switch
                             id="stock-alerts"
-                            checked={preferences.stockAlerts}
-                            onCheckedChange={(checked) =>
-                                setPreferences(prev => ({ ...prev, stockAlerts: checked }))
-                            }
+                            checked={preferences.inventoryAlerts}
+                            onCheckedChange={(checked) => updatePreference("inventoryAlerts", checked)}
                         />
                     </div>
 
@@ -289,9 +344,7 @@ export function NotificationPreferences() {
                         <Switch
                             id="shift-reminders"
                             checked={preferences.shiftReminders}
-                            onCheckedChange={(checked) =>
-                                setPreferences(prev => ({ ...prev, shiftReminders: checked }))
-                            }
+                            onCheckedChange={(checked) => updatePreference("shiftReminders", checked)}
                         />
                     </div>
                 </CardContent>
@@ -329,18 +382,18 @@ export function NotificationPreferences() {
 
                     <Button
                         onClick={handleSendTest}
-                        disabled={loading || !testType}
+                        disabled={testing || !testType}
                         className="w-full"
                     >
-                        {loading ? "Enviando..." : "Enviar Notificación de Prueba"}
+                        {testing ? "Enviando..." : "Enviar Notificación de Prueba"}
                     </Button>
                 </CardContent>
             </Card>
 
             {/* Save Button */}
             <div className="flex justify-end">
-                <Button onClick={handleSavePreferences} disabled={loading}>
-                    {loading ? "Guardando..." : "Guardar Preferencias"}
+                <Button onClick={handleSavePreferences} disabled={saving}>
+                    {saving ? "Guardando..." : "Guardar Preferencias"}
                 </Button>
             </div>
         </div>
