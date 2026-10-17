@@ -13,7 +13,8 @@ export type Resource =
     | 'inventory'
     | 'reports'
     | 'settings'
-    | 'billing';
+    | 'billing'
+    | 'exceptions';
 
 export type Action = 'create' | 'read' | 'update' | 'delete' | 'manage';
 
@@ -78,7 +79,8 @@ export const PERMISSIONS: PermissionMatrix = {
         'inventory': ['manage'],
         'reports': ['manage'],
         'settings': ['manage'],
-        'billing': ['manage']
+        'billing': ['manage'],
+        'exceptions': ['manage']
     },
     'OWNER': {
         'users': ['manage'],
@@ -88,7 +90,8 @@ export const PERMISSIONS: PermissionMatrix = {
         'inventory': ['manage'],
         'reports': ['manage'],
         'settings': ['manage'],
-        'billing': ['manage']
+        'billing': ['manage'],
+        'exceptions': ['manage']
     },
     'ADMIN': {
         'users': ['manage'],
@@ -98,7 +101,8 @@ export const PERMISSIONS: PermissionMatrix = {
         'inventory': ['manage'],
         'reports': ['manage'],
         'settings': ['manage'],
-        'billing': ['read'] // Cannot modify billing
+        'billing': ['read'], // Cannot modify billing
+        'exceptions': ['manage']
     },
     'GERENTE': {
         'users': ['read', 'create', 'update'], // Can manage branch users
@@ -108,7 +112,8 @@ export const PERMISSIONS: PermissionMatrix = {
         'inventory': ['manage'],
         'reports': ['read'],
         'settings': ['read'],
-        'billing': []
+        'billing': [],
+        'exceptions': ['read', 'update']
     },
     'SUPERVISOR': {
         'users': ['read'],
@@ -118,7 +123,8 @@ export const PERMISSIONS: PermissionMatrix = {
         'inventory': ['read', 'update', 'create'],
         'reports': ['read'],
         'settings': [],
-        'billing': []
+        'billing': [],
+        'exceptions': ['read', 'update']
     },
     'EMPLEADO': {
         'users': ['read'], // Can see team
@@ -128,7 +134,8 @@ export const PERMISSIONS: PermissionMatrix = {
         'inventory': ['read'],
         'reports': [],
         'settings': [],
-        'billing': []
+        'billing': [],
+        'exceptions': ['read']
     },
     'READONLY': {
         'users': ['read'],
@@ -138,7 +145,8 @@ export const PERMISSIONS: PermissionMatrix = {
         'inventory': ['read'],
         'reports': ['read'],
         'settings': ['read'],
-        'billing': []
+        'billing': [],
+        'exceptions': ['read']
     }
 };
 

@@ -27,3 +27,6 @@ export * from './production';
 
 // Cabina ejecutiva: resoluciones persistidas de la Cola de Decisiones.
 export * from './executive-decisions';
+
+// Phase 0 / Control Core: excepción canónica con lifecycle, owner y SLA.
+export * from './exceptions';
