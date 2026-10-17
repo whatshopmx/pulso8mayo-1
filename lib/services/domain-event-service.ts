@@ -22,6 +22,9 @@ export type DomainEventType =
   | 'IncidentDetected'
   | 'IncidentEscalated'
   | 'DocumentExpiring'
+  // Control Core (Phase 0)
+  | 'EXCEPTION_RAISED'
+  | 'EXCEPTION_CLOSED'
   // Executive (Sprint 1)
   | 'EXECUTIVE_TWIN_UPDATED'
   | 'MORNING_BRIEF_GENERATED'
