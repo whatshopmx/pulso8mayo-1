@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
             {
                 user: { id: session.user.id, companyId: session.user.companyId },
                 branchId,
+                role,
             },
             body
         );

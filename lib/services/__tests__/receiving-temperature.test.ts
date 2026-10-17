@@ -13,7 +13,10 @@
 import { describe, expect, it } from "vitest";
 import {
     evaluateReceivingTemperature,
+    evaluateReceivingTemperaturePolicy,
     expectedTemperatureRange,
+    missingTemperatureReadings,
+    requiresTemperatureReading,
 } from "../receiving-temperature";
 
 describe("expectedTemperatureRange", () => {
@@ -105,5 +108,74 @@ describe("evaluateReceivingTemperature — sin lectura", () => {
             expect(evaluateReceivingTemperature(temp as number | undefined, "REFRIGERATED").quarantined).toBe(false);
             expect(evaluateReceivingTemperature(temp as number | undefined, null).quarantined).toBe(false);
         }
+    });
+});
+
+describe("requiresTemperatureReading", () => {
+    it("exige lectura para refrigerado y congelado", () => {
+        expect(requiresTemperatureReading("REFRIGERATED")).toBe(true);
+        expect(requiresTemperatureReading("FROZEN")).toBe(true);
+    });
+
+    it("no exige lectura para seco ni sin clasificar", () => {
+        expect(requiresTemperatureReading("DRY")).toBe(false);
+        expect(requiresTemperatureReading(null)).toBe(false);
+        expect(requiresTemperatureReading(undefined)).toBe(false);
+    });
+});
+
+describe("evaluateReceivingTemperaturePolicy — falta de lectura ≠ conformidad", () => {
+    it("refrigerado sin lectura ⇒ MISSING_READING (no cuarentena)", () => {
+        const p = evaluateReceivingTemperaturePolicy(undefined, "REFRIGERATED");
+        expect(p.status).toBe("MISSING_READING");
+        expect(p.readingRequired).toBe(true);
+        expect(p.missingReading).toBe(true);
+        expect(p.quarantined).toBe(false);
+    });
+
+    it("congelado sin lectura ⇒ MISSING_READING", () => {
+        expect(evaluateReceivingTemperaturePolicy(null, "FROZEN").status).toBe("MISSING_READING");
+    });
+
+    it("seco o sin clasificar sin lectura ⇒ OK (compatibilidad legacy)", () => {
+        expect(evaluateReceivingTemperaturePolicy(undefined, "DRY").status).toBe("OK");
+        expect(evaluateReceivingTemperaturePolicy(undefined, null).status).toBe("OK");
+    });
+
+    it("refrigerado con lectura fuera de rango ⇒ QUARANTINE", () => {
+        const p = evaluateReceivingTemperaturePolicy(9, "REFRIGERATED");
+        expect(p.status).toBe("QUARANTINE");
+        expect(p.quarantined).toBe(true);
+        expect(p.missingReading).toBe(false);
+        expect(p.violation).toContain("0–4°C");
+    });
+
+    it("refrigerado con lectura válida ⇒ OK y marca el requisito", () => {
+        const p = evaluateReceivingTemperaturePolicy(3, "REFRIGERATED");
+        expect(p.status).toBe("OK");
+        expect(p.readingRequired).toBe(true);
+        expect(p.missingReading).toBe(false);
+    });
+});
+
+describe("missingTemperatureReadings", () => {
+    const base = { temperature: undefined, storageType: "REFRIGERATED" as const };
+
+    it("lista sólo los ítems que exigen lectura y no la capturaron", () => {
+        const ids = missingTemperatureReadings([
+            { itemId: "a", ...base },
+            { itemId: "b", temperature: 2, storageType: "REFRIGERATED" },
+            { itemId: "c", temperature: undefined, storageType: "DRY" },
+            { itemId: "d", temperature: undefined, storageType: "FROZEN" },
+        ]);
+        expect(ids).toEqual(["a", "d"]);
+    });
+
+    it("una excepción con motivo saca al ítem de la lista", () => {
+        const ids = missingTemperatureReadings([
+            { itemId: "a", ...base, exceptionReason: "vehículo averiado, autorizó gerente" },
+            { itemId: "b", ...base, exceptionReason: "   " },
+        ]);
+        expect(ids).toEqual(["b"]);
     });
 });

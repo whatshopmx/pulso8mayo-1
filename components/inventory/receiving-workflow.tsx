@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
     evaluateReceivingTemperature,
+    evaluateReceivingTemperaturePolicy,
     expectedTemperatureRange,
     type ItemStorageType,
 } from "@/lib/services/receiving-temperature";
@@ -333,6 +334,21 @@ export function ReceivingWorkflow({ suppliers = [], items = [], onComplete, init
         const invalidItems = receivingItems.filter(item => !item.itemId || item.quantity <= 0);
         if (invalidItems.length > 0) {
             toast.error("Completa todos los campos requeridos (item y cantidad)");
+            return;
+        }
+
+        // H07: refrigerados/congelados exigen lectura; su ausencia no es
+        // conformidad. El backend también lo bloquea, pero se avisa aquí para
+        // no perder la captura.
+        const missingTempItems = receivingItems.filter(item =>
+            evaluateReceivingTemperaturePolicy(
+                item.temperature !== "" ? item.temperature : undefined,
+                item.storageType ?? null
+            ).missingReading
+        );
+        if (missingTempItems.length > 0) {
+            const names = missingTempItems.map(item => item.itemName || item.sku || "ítem").join(", ");
+            toast.error(`Captura la temperatura de: ${names}`);
             return;
         }
 

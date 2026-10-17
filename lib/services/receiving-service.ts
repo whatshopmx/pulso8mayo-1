@@ -14,7 +14,9 @@ import { PurchaseOrderService } from "./purchase-order-service";
 import { UnitConversionService } from "./unit-conversion-service";
 import { InvoiceMatchingService } from "./invoice-matching-service";
 import { StockAlertService } from "./stock-alert-service";
-import { evaluateReceivingTemperature } from "./receiving-temperature";
+import { evaluateReceivingTemperaturePolicy, missingTemperatureReadings } from "./receiving-temperature";
+import { convertReceivedAmount } from "./receiving-cost";
+import { hasPermission, type Role } from "@/lib/permissions";
 import { SupplierClaimService } from "./supplier-claim-service";
 import { NotificationDispatcher } from "./notification-dispatcher";
 
@@ -28,6 +30,10 @@ export const receivingSchema = z.object({
         productionDate: z.string().optional(),
         unitCost: z.number().optional(),
         temperature: z.number().optional(),
+        /** Excepción autorizada para recibir refrigerado/congelado sin lectura.
+         *  Requiere motivo no vacío; sólo la acepta un actor con permiso de
+         *  inventario. Queda registrada en el lote para trazabilidad. */
+        temperatureExceptionReason: z.string().trim().min(8).max(300).optional(),
     })),
     supplierId: z.string().uuid().optional(),
     purchaseOrderId: z.string().uuid().optional(),
@@ -44,6 +50,8 @@ export const receivingSchema = z.object({
 export type ReceivingActor = {
     user: { id: string; companyId?: string | null };
     branchId: string;
+    /** Rol del actor: habilita la excepción autorizada de temperatura. */
+    role?: Role;
 };
 
 export type ReceivingResult = {
@@ -75,6 +83,48 @@ export async function processReceiving(
     const validatedData = receivingSchema.parse(body);
     const companyId = actor.user.companyId || "";
     const branchId = actor.branchId;
+
+    // H07 — Pre-flight SIN escrituras: la lectura de temperatura es exigible
+    // para refrigerados/congelados y su ausencia no es conformidad. Se valida
+    // antes de crear el reporte para no dejar una recepción a medias. Los
+    // ítems se cargan una sola vez y se reutilizan en el loop.
+    const itemById = new Map<string, Awaited<ReturnType<typeof InventoryService.getItem>>>();
+    for (const itemData of validatedData.items) {
+        if (itemById.has(itemData.itemId)) continue;
+        const item = await InventoryService.getItem(itemData.itemId);
+        if (!item) {
+            throw new Error(`Item not found: ${itemData.itemId}`);
+        }
+        itemById.set(itemData.itemId, item);
+    }
+
+    const canAuthorizeTemperatureException =
+        !!actor.role && hasPermission(actor.role, "inventory", "update");
+    if (
+        !canAuthorizeTemperatureException &&
+        validatedData.items.some((it) => it.temperatureExceptionReason)
+    ) {
+        throw new Error(
+            "Sólo un usuario con permiso de inventario puede autorizar una excepción de temperatura."
+        );
+    }
+
+    const missingReadings = missingTemperatureReadings(
+        validatedData.items.map((it) => ({
+            itemId: it.itemId,
+            temperature: it.temperature,
+            storageType: itemById.get(it.itemId)?.storageType ?? null,
+            exceptionReason: it.temperatureExceptionReason ?? null,
+        }))
+    );
+    if (missingReadings.length > 0) {
+        const names = missingReadings
+            .map((id) => itemById.get(id)?.name ?? id)
+            .join(", ");
+        throw new Error(
+            `Falta la lectura de temperatura de: ${names}. Es obligatoria para productos refrigerados/congelados; captura la lectura o registra una excepción autorizada.`
+        );
+    }
 
     // 1. Create receiving report
     const [report] = await db.insert(receivingReports).values({
@@ -124,11 +174,15 @@ export async function processReceiving(
     // Process each item in the receiving
     for (const itemData of validatedData.items) {
         const { itemId, unit, batchNumber, expirationDate, productionDate, temperature } = itemData;
-        // Solo estas dos se recalculan más abajo (conversión de unidad / costo).
-        let { quantity, unitCost } = itemData;
+        // quantity y unitCostCents se recalculan más abajo (conversión de unidad
+        // / costo). El costo se maneja en centavos porque así se guarda en DB.
+        let quantity: number = itemData.quantity;
+        const enteredUnitCost = itemData.unitCost;
+        let unitCostCents: number | null =
+            enteredUnitCost !== undefined ? Math.round(enteredUnitCost * 100) : null;
 
-        // Get item details
-        const item = await InventoryService.getItem(itemId);
+        // Item ya cargado y validado en el pre-flight.
+        const item = itemById.get(itemId);
         if (!item) {
             throw new Error(`Item not found: ${itemId}`);
         }
@@ -137,11 +191,17 @@ export async function processReceiving(
         if (unit && item.unit && unit !== item.unit) {
             const convertedQty = await UnitConversionService.convert(quantity, unit, item.unit, companyId);
             if (convertedQty !== null) {
-                quantity = convertedQty;
-                // Adjust unitCost inversely (if 2x quantity, half the unit cost)
-                if (unitCost !== undefined) {
-                    unitCost = unitCost * (quantity / convertedQty);
-                }
+                // H07: el costo debe dividirse por el factor para que el valor
+                // total recibido se conserve (antes se multiplicaba por un
+                // factor 1 y el costo por unidad base quedaba sin corregir).
+                const factor = quantity > 0 ? convertedQty / quantity : 1;
+                const converted = convertReceivedAmount({
+                    quantity,
+                    unitCostCents,
+                    factor,
+                });
+                quantity = converted.quantity;
+                unitCostCents = converted.unitCostCents;
             }
         }
 
@@ -163,7 +223,7 @@ export async function processReceiving(
                     discrepancyQty = remainingQty - quantity; // positive = under-received, negative = over-received
                 }
 
-                const costInCents = unitCost ? Math.round(unitCost * 100) : null;
+                const costInCents = unitCostCents;
                 if (costInCents !== null && poItem.unitCost !== costInCents) {
                     discrepancyType = 'PRICE';
                 }
@@ -174,13 +234,17 @@ export async function processReceiving(
 
         // Validación de temperatura por tipo de almacenamiento (loteprod §5.2):
         // congelado ≤ -18°C, refrigerado 0–4°C; fuera de rango = rechazo.
-        const temperatureCheck = evaluateReceivingTemperature(temperature, item.storageType ?? null);
+        // La falta de lectura en ítem que la exige ya fue bloqueada en el
+        // pre-flight salvo excepción autorizada; aquí sólo puede llegar con
+        // lectura válida, fuera de rango, o con excepción trazada.
+        const temperatureCheck = evaluateReceivingTemperaturePolicy(temperature, item.storageType ?? null);
         if (temperatureCheck.quarantined) {
             discrepancyType = 'QUALITY';
         }
 
-        // Convert unitCost from decimal float to integer cents
-        const finalUnitCostCents = unitCost ? Math.round(unitCost * 100) : (poUnitCost || item.lastCost || null);
+        // Costo final en centavos: el capturado (ya convertido a unidad base)
+        // o, si no vino, el de la OC / último costo conocido del ítem.
+        const finalUnitCostCents = unitCostCents ?? poUnitCost ?? item.lastCost ?? null;
 
         // Create batch with expiration date and batch number
         const batch = await InventoryService.createBatch({
@@ -201,6 +265,8 @@ export async function processReceiving(
                 receivedAt: new Date().toISOString(),
                 notes: validatedData.notes,
                 temperature: temperature,
+                temperatureReadingMissing: temperatureCheck.missingReading,
+                temperatureExceptionReason: itemData.temperatureExceptionReason ?? null,
             }
         });
 

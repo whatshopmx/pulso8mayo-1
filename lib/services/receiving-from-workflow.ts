@@ -288,12 +288,25 @@ async function extractV3Items(args: {
   // Rechazo total: no se registra mercancía, sólo el reporte con evidencia.
   const rejected = valueOf("paso-decision") === "Rechazar";
 
+  // La temperatura capturada en `paso-temperatura` aplica a toda la entrega y
+  // antes se descartaba: el lote quedaba sin lectura y la validación por tipo
+  // de almacenamiento no podía exigirla. Se propaga a cada línea.
+  const temperatureRaw = valueOf("paso-temperatura");
+  const temperatureNum =
+    typeof temperatureRaw === "number"
+      ? temperatureRaw
+      : temperatureRaw !== undefined && temperatureRaw !== null && temperatureRaw !== ""
+        ? Number(temperatureRaw)
+        : NaN;
+  const capturedTemperature = Number.isFinite(temperatureNum) ? temperatureNum : undefined;
+
   const items: Array<{
     itemId: string;
     quantity: number;
     batchNumber?: string;
     expirationDate?: string;
     unitCost?: number;
+    temperature?: number;
   }> = [];
 
   for (const [lineId, itemId] of lineToItem) {
@@ -316,6 +329,7 @@ async function extractV3Items(args: {
       batchNumber,
       expirationDate,
       ...(Number.isFinite(unitCostNum) && unitCostNum > 0 ? { unitCost: unitCostNum } : {}),
+      ...(capturedTemperature !== undefined ? { temperature: capturedTemperature } : {}),
     });
   }
 
