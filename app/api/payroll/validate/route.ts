@@ -1,9 +1,8 @@
 // app/api/payroll/validate/route.ts
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAuth, requireTenant } from "@/lib/tenant-context";
+import { requirePermissionApi } from "@/lib/rbac/abac";
 import { ApiHandler } from "@/lib/api/response";
-import { ApiError } from "@/lib/api/error";
 import { validatePayrollPreStamping } from "@/lib/services/payroll-service";
 
 const validatePayrollSchema = z.object({
@@ -12,19 +11,25 @@ const validatePayrollSchema = z.object({
   branchId: z.string().uuid().optional(),
 });
 
+/**
+ * POST /api/payroll/validate
+ *
+ * Pre-validación de la nómina antes de timbrar. Devuelve incidencias por
+ * empleado (nombre, RFC, errores de salario), así que se gatea como lectura
+ * FINANCIAL del módulo de nómina (S-1, Phase -1). Antes solo autenticaba.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const tenant = await requireTenant();
-    if (!tenant.id) {
-      throw ApiError.badRequest("No hay una empresa seleccionada.");
-    }
-    await requireAuth();
+    const { ctx } = await requirePermissionApi("reports", "read", {
+      classification: "FINANCIAL",
+      audit: { action: "READ", req },
+    });
 
     const body = await req.json();
     const data = validatePayrollSchema.parse(body);
 
     const validation = await validatePayrollPreStamping(
-      tenant.id,
+      ctx.userCompanyId,
       data.startDate,
       data.endDate,
       data.branchId

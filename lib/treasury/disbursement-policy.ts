@@ -193,3 +193,79 @@ export function pasoDeDestino(destino: EstadoCorrida): PasoCorrida | null {
   }
   return null;
 }
+
+// ── Doble firma de pagos (S-3, Phase -1) ─────────────────────────────────────
+//
+// `payment_approvals` (migración 0028) describía la doble firma desde Sec-0 y
+// nadie la escribía: una corrida se aprobaba con una sola persona distinta al
+// preparador, sin importar el monto. Aquí vive la regla pura; el servicio
+// (`treasury-service.updatePaymentRunStatus`) la aplica sobre esa tabla.
+
+/**
+ * ¿Este monto exige dos firmas?
+ *
+ * `null`/`undefined` = la empresa no fijó umbral → no exige doble firma (no se
+ * inventa un umbral). Un umbral de `0` exige doble firma para todo.
+ * El umbral es inclusivo: `amount === threshold` la exige.
+ */
+export function requiereDobleFirma(
+  amountCents: number,
+  thresholdCents: number | null | undefined,
+): boolean {
+  if (thresholdCents === null || thresholdCents === undefined) return false;
+  return amountCents >= thresholdCents;
+}
+
+/** Las dos firmas acumuladas de un pago. `null` = todavía no firmada. */
+export interface EstadoFirmas {
+  approvedBy: string | null;
+  secondApprovedBy: string | null;
+}
+
+export type VeredictoFirma =
+  | { accion: "REGISTRAR_PRIMERA" }
+  | { accion: "REGISTRAR_SEGUNDA" }
+  | { accion: "DENEGAR"; motivo: string };
+
+/**
+ * Qué hacer con la firma del actor sobre un pago que exige doble firma.
+ *
+ * Reglas, en orden:
+ * 1. El preparador de la corrida nunca firma (segregación de funciones).
+ * 2. Si ya hay dos firmas, no hay nada que firmar.
+ * 3. Sin primera firma → se registra la primera.
+ * 4. La segunda firma debe ser de **otro** usuario; repetir el mismo se deniega.
+ */
+export function evaluarFirmaPago(input: {
+  actorId: string;
+  preparadorId: string | null;
+  firmas: EstadoFirmas;
+}): VeredictoFirma {
+  const { actorId, preparadorId, firmas } = input;
+
+  if (preparadorId && actorId === preparadorId) {
+    return {
+      accion: "DENEGAR",
+      motivo:
+        "Quien preparó la corrida no puede firmarla: la doble firma exige un segundo usuario.",
+    };
+  }
+
+  if (firmas.secondApprovedBy) {
+    return { accion: "DENEGAR", motivo: "Esta corrida ya tiene las dos firmas." };
+  }
+
+  if (!firmas.approvedBy) {
+    return { accion: "REGISTRAR_PRIMERA" };
+  }
+
+  if (firmas.approvedBy === actorId) {
+    return {
+      accion: "DENEGAR",
+      motivo:
+        "La primera firma ya es tuya; la segunda firma debe ser de otro usuario.",
+    };
+  }
+
+  return { accion: "REGISTRAR_SEGUNDA" };
+}

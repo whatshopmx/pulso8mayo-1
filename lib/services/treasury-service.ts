@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import {
   paymentRuns,
   paymentRunItems,
+  paymentApprovals,
   recurringContracts,
   invoices,
   suppliers,
@@ -18,7 +19,7 @@ import {
   employeeProfiles,
   users
 } from "@/lib/db/schema";
-import { eq, and, inArray, ne, sql } from "drizzle-orm";
+import { eq, and, inArray, ne, sql, desc } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { ApiError } from "@/lib/api/error";
 import { getBankAccountsForPayment as getSupplierBankAccountsForPayment } from "@/lib/services/supplier-bank-account-service";
@@ -36,8 +37,11 @@ import {
 import {
   filtroDeRol,
   pasoDeDestino,
+  requiereDobleFirma,
+  evaluarFirmaPago,
   type EstadoCorrida,
 } from "@/lib/treasury/disbursement-policy";
+import { getTenantOperatingConfig } from "@/lib/services/tenant-config-service";
 import {
   claveObligacion,
   puedeAgendar,
@@ -1088,11 +1092,70 @@ export class TreasuryService {
 
     const updateData: any = { status: newStatus, updatedAt: new Date() };
 
+    // Firma que hay que completar dentro de la transacción (S-3): la segunda
+    // firma de un pago que supera el umbral de doble firma.
+    let firmaParaCompletar: string | null = null;
+
     // Regla de Segregación de Funciones: Quien prepara NO puede auto-aprobar (Módulo 6.2)
     if (newStatus === "APPROVED") {
       if (currentRun.preparedBy === userId) {
         throw ApiError.forbidden("Segregación de funciones: El usuario que preparó la corrida de pago no puede auto-aprobarla (se requiere doble firma de un segundo usuario autorizado).");
       }
+
+      // S-3 (Phase -1): doble firma por encima del umbral configurable.
+      // Reutiliza `payment_approvals` (migración 0028), que existía sin writer.
+      const config = await getTenantOperatingConfig(companyId);
+      if (requiereDobleFirma(currentRun.totalAmountCents, config.doubleApprovalThresholdCents)) {
+        const [firmaExistente] = await db
+          .select()
+          .from(paymentApprovals)
+          .where(
+            and(
+              eq(paymentApprovals.companyId, companyId),
+              eq(paymentApprovals.paymentRef, paymentRunId),
+              eq(paymentApprovals.paymentRefType, "PAYMENT_RUN")
+            )
+          )
+          .orderBy(desc(paymentApprovals.requestedAt))
+          .limit(1);
+
+        const veredicto = evaluarFirmaPago({
+          actorId: userId,
+          preparadorId: currentRun.preparedBy,
+          firmas: {
+            approvedBy: firmaExistente?.approvedBy ?? null,
+            secondApprovedBy: firmaExistente?.secondApprovedBy ?? null,
+          },
+        });
+
+        if (veredicto.accion === "DENEGAR") {
+          throw ApiError.forbidden(veredicto.motivo);
+        }
+
+        if (veredicto.accion === "REGISTRAR_PRIMERA") {
+          // Se persiste fuera de la transacción a propósito: la corrida NO se
+          // aprueba todavía y debe quedar en PENDING_APPROVAL esperando la
+          // segunda firma. Un throw dentro de la transacción la revertiría.
+          await db.insert(paymentApprovals).values({
+            companyId,
+            branchId: currentRun.branchId,
+            amountCents: currentRun.totalAmountCents,
+            currency: currentRun.currency,
+            paymentRef: paymentRunId,
+            paymentRefType: "PAYMENT_RUN",
+            status: "PENDING",
+            requestedBy: currentRun.preparedBy ?? userId,
+            approvedBy: userId,
+          });
+          throw ApiError.conflict(
+            "Primera firma registrada. Esta corrida supera el umbral de doble firma: falta la aprobación de un segundo usuario autorizado."
+          );
+        }
+
+        // REGISTRAR_SEGUNDA → se completa dentro de la transacción que aprueba.
+        firmaParaCompletar = firmaExistente!.id;
+      }
+
       updateData.approvedBy = userId;
     }
 
@@ -1101,6 +1164,15 @@ export class TreasuryService {
     // corrida cerrada con sus facturas todavía abiertas, que es la forma de
     // pagar dos veces la misma factura.
     return db.transaction(async (tx) => {
+      // La segunda firma y la aprobación de la corrida son atómicas: si una
+      // falla, ninguna queda. La primera firma se persistió fuera (ver arriba).
+      if (firmaParaCompletar) {
+        await tx
+          .update(paymentApprovals)
+          .set({ secondApprovedBy: userId, status: "APPROVED", approvedAt: new Date() })
+          .where(eq(paymentApprovals.id, firmaParaCompletar));
+      }
+
       const [updatedRun] = await tx
         .update(paymentRuns)
         .set(updateData)
