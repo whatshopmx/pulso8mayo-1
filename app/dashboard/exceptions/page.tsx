@@ -31,6 +31,7 @@ import type {
   GroupException,
   QsrRiskCategory,
 } from "@/lib/services/group-exceptions-service";
+import { ExceptionLifecycleActions } from "@/components/exceptions/exception-lifecycle-actions";
 
 const QSR_CATEGORIES: {
   id: QsrRiskCategory | "ALL";
@@ -296,29 +297,39 @@ export default function ExceptionsPage() {
                     )}
                   </div>
 
-                  {/* Acciones resolutivas en 1 clic */}
+                  {/* Acciones resolutivas: lifecycle canónico o enlace al dominio */}
                   <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                    {action && action.whatsappSuggestedMessage && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs h-8 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                        onClick={() => {
-                          const url = `https://wa.me/?text=${encodeURIComponent(action.whatsappSuggestedMessage!)}`;
-                          window.open(url, "_blank");
-                        }}
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 mr-1" />
-                        Avisar Gerente
-                      </Button>
-                    )}
+                    {item.lifecycle ? (
+                      <ExceptionLifecycleActions
+                        exceptionId={item.id}
+                        lifecycle={item.lifecycle}
+                        onDone={fetchExceptions}
+                      />
+                    ) : (
+                      <>
+                        {action && action.whatsappSuggestedMessage && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-8 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                            onClick={() => {
+                              const url = `https://wa.me/?text=${encodeURIComponent(action.whatsappSuggestedMessage!)}`;
+                              window.open(url, "_blank");
+                            }}
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                            Avisar Gerente
+                          </Button>
+                        )}
 
-                    <Button asChild size="sm" className="text-xs h-8">
-                      <Link href={action?.url || item.deepLinkUrl}>
-                        {action?.label || "Resolver"}
-                        <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                      </Link>
-                    </Button>
+                        <Button asChild size="sm" className="text-xs h-8">
+                          <Link href={action?.url || item.deepLinkUrl}>
+                            {action?.label || "Resolver"}
+                            <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                          </Link>
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>

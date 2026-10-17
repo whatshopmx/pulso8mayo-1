@@ -1,0 +1,24 @@
+﻿
+
+Algorithm : SHA256
+Hash      : 3BC2C4B816833F89D7C6ABFA5252627C56454E90E1B48CABD7A1F8AA921F68BE
+Path      : C:\Users\david\pulso29\package.json
+
+Algorithm : SHA256
+Hash      : D1E2E576E4D896F9513A138D3EE231C0DC231CA0D464840949D6360ADCC6284F
+Path      : C:\Users\david\pulso29\pnpm-lock.yaml
+
+Algorithm : SHA256
+Hash      : 6C491E84B905821F7E09AE63442031F411DCB89887A5861BD020C0BF8C9FE48D
+Path      : C:\Users\david\pulso29\vitest.config.ts
+
+Algorithm : SHA256
+Hash      : 90EAA879404C02C77C4C48F2CAE81184B861F30F122DDD5BF32A4A9F8F490CDE
+Path      : C:\Users\david\pulso29\scripts\seed-13-receiving-matching.ts
+
+Algorithm : SHA256
+Hash      : 176152C339A18B9EF8777B0F0A6A858D6C26275D1C5C9A0E2881EA67C0DFFB61
+Path      : C:\Users\david\pulso29\tests\unit\seed-integration.test.ts
+
+
+

@@ -8,7 +8,7 @@ Mapa completo de módulos de Pulso par
    - Audit Trail: quién cambió qué, cuándo y por qué.
    Pulso ya tiene multi-tenancy, companies, branches, roles/permisos y configuración operacional; lo que debe reforzarse es el audit trail unificado y seguridad a nivel DB.    
 2. Centro de Control del Grupo
-   - Group Dashboard: situación de las ocho sucursales.
+   - Group Dashboard: situación de las sucursalesdel grupo 
    - Store Health: score operativo/financiero de cada unidad.
    - Critical Issues: problemas que requieren atención inmediata.
    - Open Actions: pendientes, responsables y fechas límite.

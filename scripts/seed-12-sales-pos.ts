@@ -3,9 +3,11 @@ import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { salesEntries, dailySalesCuts, recipes, branchTerminals, tpvShiftBatches } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
+import { localDateString } from "@/lib/workflows/today";
 import {
   COMPANY_ID, BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA,
   USER_ADMIN, USER_GERENTE, USER_SUPERVISOR,
+  DEMO_BRANCHES,
 } from "./seed-constants";
 
 function randomInt(min: number, max: number): number {
@@ -61,11 +63,8 @@ export async function main() {
   const batchValues: any[] = [];
 
   for (let daysAgo = 30; daysAgo >= 0; daysAgo--) {
-    const targetDate = new Date();
-    targetDate.setDate(now.getDate() - daysAgo);
-    targetDate.setHours(0, 0, 0, 0); // Medianoche local
-
-    const businessDateStr = targetDate.toISOString().slice(0, 10); // YYYY-MM-DD
+    const businessDateStr = localDateString(new Date(now.getTime() - daysAgo * 86400000), "America/Mexico_City");
+    const targetDate = new Date(`${businessDateStr}T18:00:00Z`);
 
     for (const branchId of branches) {
       let branchDailySalesTotal = 0;
@@ -108,6 +107,8 @@ export async function main() {
         cashSales,
         cardSales,
         otherPayments,
+        aggregatorSales: { rappi: otherPayments },
+        taxAmount: branchDailySalesTotal - Math.round(branchDailySalesTotal / 1.16),
         cashCountedCents: cashSales,
         depositedCents: cashSales,
         ticketCount: tickets,
@@ -115,6 +116,9 @@ export async function main() {
         source: "MANUAL_FORM" as const,
         status: "VALIDATED" as const,
         validationNotes: "Cierre de turno validado automáticamente por POS",
+        receivedBy: DEMO_BRANCHES.find((branch) => branch.id === branchId)!.operatorId,
+        receivedAt: targetDate,
+        createdAt: targetDate,
       });
 
       // Generar lotes TPV de respaldo para las terminales autorizadas de esta sucursal
@@ -137,7 +141,7 @@ export async function main() {
           batchNumber: batchNum1,
           cardAmountCents: term1Amount,
           tipAmountCents: tip1,
-          capturedBy: USER_GERENTE,
+          capturedBy: DEMO_BRANCHES.find((branch) => branch.id === branchId)!.operatorId,
           createdAt: targetDate,
         });
 
@@ -149,7 +153,7 @@ export async function main() {
           batchNumber: batchNum2,
           cardAmountCents: term2Amount,
           tipAmountCents: tip2,
-          capturedBy: USER_GERENTE,
+          capturedBy: DEMO_BRANCHES.find((branch) => branch.id === branchId)!.operatorId,
           createdAt: targetDate,
         });
       }

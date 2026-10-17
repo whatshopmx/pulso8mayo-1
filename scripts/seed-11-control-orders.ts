@@ -327,6 +327,17 @@ export async function main() {
   ]);
 
   console.log("Inserting service orders (OS)...");
+  // Los encabezados se derivan del detalle: ya no muestran totales distintos
+  // de la suma que conciliará la recepción/factura.
+  const demoPOs = await db.select().from(purchaseOrders).where(eq(purchaseOrders.companyId, COMPANY_ID));
+  for (const po of demoPOs) {
+    const lines = await db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.poId, po.id));
+    const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
+    const tax = lines.reduce((sum, line) => sum + (line.taxAmount ?? 0), 0);
+    const ieps = lines.reduce((sum, line) => sum + (line.iepsAmount ?? 0), 0);
+    await db.update(purchaseOrders).set({ subtotal, taxAmount: tax, iepsAmount: ieps, totalAmount: subtotal + tax + ieps })
+      .where(eq(purchaseOrders.id, po.id));
+  }
   // 1. OS Mantenimiento Campana (Vinculada a compliance service)
   const compSvc = compServices[0];
   const [osCompliance] = await db.insert(serviceOrders).values({

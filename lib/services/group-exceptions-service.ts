@@ -37,6 +37,7 @@ import {
   type QsrRiskCategory,
 } from "./exception-adapters/shared";
 import { ExceptionService, type ExceptionRow } from "./exception-service";
+import type { ExceptionStatus } from "./exception-types";
 
 export type {
   ExceptionDomain,
@@ -64,6 +65,17 @@ export interface GroupException {
   deepLinkUrl: string;
   estimatedImpact?: string | null;
   action?: QsrActionMeta;
+  /**
+   * Presente solo cuando la fila proviene de la tabla canónica `exceptions`:
+   * `id` es el id canónico y las acciones de lifecycle pueden operar sobre él.
+   */
+  lifecycle?: GroupExceptionLifecycle;
+}
+
+export interface GroupExceptionLifecycle {
+  status: ExceptionStatus;
+  ownerId: string | null;
+  slaDueAt: Date | null;
 }
 
 export interface ListOpenOptions {
@@ -147,6 +159,11 @@ export function canonicalExceptionToGroupException(
       "/dashboard/exceptions",
     estimatedImpact: (meta.impact as string) ?? null,
     action: actionMeta ?? undefined,
+    lifecycle: {
+      status: row.status,
+      ownerId: row.ownerId,
+      slaDueAt: row.slaDueAt,
+    },
   };
 }
 

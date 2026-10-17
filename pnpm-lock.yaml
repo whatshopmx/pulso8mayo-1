@@ -121,7 +121,7 @@ importers:
         version: 1.15.2
       better-auth:
         specifier: ^1.4.18
-        version: 1.4.18(drizzle-kit@0.31.8)(drizzle-orm@0.45.2(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.16.0)(@upstash/redis@1.37.0)(kysely@0.28.10)(pg@8.20.0))(next@16.1.6(@babel/core@7.28.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(pg@8.20.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.30)(vite@8.2.2(@types/node@20.19.30)(esbuild@0.25.12)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0)))
+        version: 1.4.18(drizzle-kit@0.31.8)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.10)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.16.0)(@upstash/redis@1.37.0)(kysely@0.28.10)(pg@8.20.0))(next@16.1.6(@babel/core@7.28.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(pg@8.20.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.30)(vite@8.2.2(@types/node@20.19.30)(esbuild@0.25.12)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0)))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -133,7 +133,7 @@ importers:
         version: 4.1.0
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.16.0)(@upstash/redis@1.37.0)(kysely@0.28.10)(pg@8.20.0)
+        version: 0.45.2(@electric-sql/pglite@0.5.10)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.16.0)(@upstash/redis@1.37.0)(kysely@0.28.10)(pg@8.20.0)
       exceljs:
         specifier: ^4.4.0
         version: 4.4.0
@@ -225,6 +225,9 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.5.10
+        version: 0.5.10
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
@@ -688,6 +691,9 @@ packages:
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
+
+  '@electric-sql/pglite@0.5.10':
+    resolution: {integrity: sha512-tXc/25U3ulOkiRQuTFdwIv+JhBqtMdAF7Gvo6CfZZWtSB4+hgC4Wr2vwK5ngvvN5PJfAAEGIsfyCVy1JhCOBYw==}
 
   '@emnapi/core@1.8.1':
     resolution: {integrity: sha512-AvT9QFpxK0Zd8J0jopedNm+w/2fIzvtPKPjqyw9jwvBaReTTqPBk9Hixaz7KbjimP+QNz605/XnjFcDAL2pqBg==}
@@ -9631,6 +9637,8 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
+  '@electric-sql/pglite@0.5.10': {}
+
   '@emnapi/core@1.8.1':
     dependencies:
       '@emnapi/wasi-threads': 1.1.0
@@ -14270,7 +14278,7 @@ snapshots:
 
   baseline-browser-mapping@2.9.19: {}
 
-  better-auth@1.4.18(drizzle-kit@0.31.8)(drizzle-orm@0.45.2(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.16.0)(@upstash/redis@1.37.0)(kysely@0.28.10)(pg@8.20.0))(next@16.1.6(@babel/core@7.28.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(pg@8.20.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.30)(vite@8.2.2(@types/node@20.19.30)(esbuild@0.25.12)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0))):
+  better-auth@1.4.18(drizzle-kit@0.31.8)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.10)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.16.0)(@upstash/redis@1.37.0)(kysely@0.28.10)(pg@8.20.0))(next@16.1.6(@babel/core@7.28.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(pg@8.20.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.30)(vite@8.2.2(@types/node@20.19.30)(esbuild@0.25.12)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0))):
     dependencies:
       '@better-auth/core': 1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0)
       '@better-auth/telemetry': 1.4.18(@better-auth/core@1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0))
@@ -14286,7 +14294,7 @@ snapshots:
       zod: 4.3.6
     optionalDependencies:
       drizzle-kit: 0.31.8
-      drizzle-orm: 0.45.2(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.16.0)(@upstash/redis@1.37.0)(kysely@0.28.10)(pg@8.20.0)
+      drizzle-orm: 0.45.2(@electric-sql/pglite@0.5.10)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.16.0)(@upstash/redis@1.37.0)(kysely@0.28.10)(pg@8.20.0)
       next: 16.1.6(@babel/core@7.28.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       pg: 8.20.0
       react: 19.2.3
@@ -14794,8 +14802,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.45.2(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.16.0)(@upstash/redis@1.37.0)(kysely@0.28.10)(pg@8.20.0):
+  drizzle-orm@0.45.2(@electric-sql/pglite@0.5.10)(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.1)(@types/pg@8.16.0)(@upstash/redis@1.37.0)(kysely@0.28.10)(pg@8.20.0):
     optionalDependencies:
+      '@electric-sql/pglite': 0.5.10
       '@neondatabase/serverless': 1.0.2
       '@opentelemetry/api': 1.9.1
       '@types/pg': 8.16.0

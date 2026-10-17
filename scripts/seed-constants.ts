@@ -12,3 +12,15 @@ export const USER_EMPLEADO_1  = "u0000001-0000-4000-8000-000000000005";
 export const USER_EMPLEADO_2  = "u0000001-0000-4000-8000-000000000006";
 export const USER_EMPLEADO_3  = "u0000001-0000-4000-8000-000000000007";
 export const USER_READONLY    = "u0000001-0000-4000-8000-000000000008";
+
+export const DEMO_BRANCHES = [
+  { id: BRANCH_CONDESA, operatorId: USER_EMPLEADO_1 },
+  { id: BRANCH_POLANCO, operatorId: USER_EMPLEADO_2 },
+  { id: BRANCH_ROMA, operatorId: USER_EMPLEADO_3 },
+] as const;
+
+export function branchForUser(userId: string): string {
+  if (userId === USER_SUPERVISOR || userId === USER_EMPLEADO_2) return BRANCH_POLANCO;
+  if (userId === USER_EMPLEADO_3) return BRANCH_ROMA;
+  return BRANCH_CONDESA;
+}

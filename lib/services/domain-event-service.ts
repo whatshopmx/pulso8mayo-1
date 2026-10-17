@@ -1,6 +1,14 @@
 import { db } from "@/lib/db";
 import { domainEvents } from "@/lib/db/schema";
 import { inngest } from "@/lib/inngest/client";
+import { AsyncLocalStorage } from "node:async_hooks";
+
+const localOnly = new AsyncLocalStorage<boolean>();
+
+/** Seeds/replays locales: conserva el ledger sin disparar automatizaciones. */
+export function withLocalDomainEvents<T>(run: () => Promise<T>): Promise<T> {
+  return localOnly.run(true, run);
+}
 
 /**
  * Domain event types — the immutable DB ledger (`domain_events.event_type`).
@@ -69,9 +77,11 @@ export async function emitDomainEvent({
       branchId,
       eventType,
       payload,
-      processed: false,
+      processed: localOnly.getStore() === true,
     })
     .returning();
+
+  if (localOnly.getStore()) return event;
 
   // 2. Dispatch to Inngest for async, event-driven twin updating
   try {

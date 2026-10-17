@@ -1,0 +1,120 @@
+# Checklist — cierre del sistema Pulso
+
+Plan: [plan.md](plan.md). Investigación: [INFORME.md](../../audits/2026-10-17-sistema/INFORME.md).
+
+Estado inicial: todas las tareas pendientes; guardar este plan no acredita implementación.
+
+## Fase 0 — Línea base
+
+- [ ] BASE-01 — Revalidar código/esquema, seed fallido, pruebas, build y entorno aislado.
+
+## Fase 1 — P0: accesos y recepción
+
+- [ ] SEC-01 — Autorizar equipo/sucursal y corregir fecha de mantenimiento.
+- [ ] SEC-02 — Restringir consulta/descarga de evidencia por actor y alcance.
+- [ ] SEC-03 — Autorizar ventas legacy y validar receta/sucursal/empresa.
+- [ ] REC-01 — Recibir 10 deja 10; fracciones, conversión y cuarentena correctas.
+- [ ] REC-02 — Recepción atómica e idempotente, incluida su entrega externa.
+- [ ] REC-03 — Diagnóstico histórico y ajustes revisables basados en evidencia/conteos.
+- [ ] Puerta 1 — Accesos cruzados rechazados y recepción exacta con rollback/reintentos.
+
+## Fase 2 — Evidencia, auditoría y aislamiento DB
+
+- [ ] EVI-01 — Evidencia común durable y aislada; primer recorrido con workflow.
+- [ ] AUD-01 — Auditoría durable/atómica en mutaciones sensibles del dominio piloto.
+- [ ] SEC-04 — Contexto transaccional y RLS piloto compatibles con pool/jobs.
+- [ ] SEC-05.<dominio> — Crear y cerrar lotes S/M por dominio, incluidas tablas hijas.
+- [ ] Puerta 2 — Reinicio conserva evidencia y ningún contexto de tenant se filtra.
+
+## Fase 3 — Excepciones
+
+- [ ] EXC-01 — Migración de `exceptions` probada.
+- [ ] EXC-02 — Sync, comparación legacy/canónico y activación reversible del feed.
+- [ ] EXC-03 — Lifecycle concurrente, verificación segregada y escalamiento por SLA.
+- [ ] EXC-04.merma — Fuente/umbral, owner, SLA y resolución consistentes.
+- [ ] EXC-04.presupuesto — Fuente/umbral, owner, SLA y resolución consistentes.
+- [ ] EXC-04.ausencia — Fuente/umbral, owner, SLA y resolución consistentes.
+- [ ] EXC-04.banco — Pago/depósito no conciliado con owner, SLA y resolución.
+- [ ] Puerta 3 — Siete casos del requisito recorren detección→cierre/reapertura.
+
+## Fase 4 — Workforce y nómina
+
+- [ ] NOM-01 — Unidad salarial, vigencias y reglas aplicables sin ambigüedad.
+- [ ] NOM-02 — Pre-nómina desde asistencia/incidencias, bonos y deducciones.
+- [ ] NOM-03 — Aprobación y snapshot con invalidación ante cambios.
+- [ ] NOM-04 — Exportación/corrida/payslips/timbrado consumen el mismo cálculo.
+- [ ] NOM-05 — Nómina neta autorizada entra a tesorería sin duplicarse.
+- [ ] Puerta 4 — Período con faltas, festivo, vacaciones y overtime cuadra de extremo a extremo.
+
+## Fase 5 — Inventario y producción
+
+- [ ] INV-01 — Corrección/reintento de venta ajusta consumo transaccionalmente.
+- [ ] INV-02 — Política de consumo por producción/venta y versión histórica.
+- [ ] PROD-01 — Lote de terminado con genealogía, costo y saldo correctos.
+- [ ] PROD-02 — Hold time y entradas de producción usan el mismo modelo.
+- [ ] INV-03 — Conteo físico, aprobación y ajuste idempotente.
+- [ ] INV-04 — Costo/snapshots/varianza reproducibles al cerrar período.
+- [ ] Puerta 5 — Venta/producción/recepción no duplican consumo ni saldo; cierre conserva costo.
+
+## Fase 6 — Banca y finanzas
+
+- [ ] BAN-01 — Cuentas bancarias propias, alcance y vínculo de origen de corrida.
+- [ ] BAN-02 — Importación idempotente del banco piloto y sus errores visibles.
+- [ ] BAN-03 — Matching de egresos con ambigüedad explícita.
+- [ ] BAN-04 — Confirmación/reversa de conciliación y soporte o bloqueo explícito de parcial/múltiple.
+- [ ] BAN-05 — Ingreso esperado desde corte/terminal/agregador.
+- [ ] BAN-06 — Liquidación/depósito conciliados con diferencias trazables.
+- [ ] FIN-01 — Saldo bancario conciliado separado de caja proyectada.
+- [ ] FIN-02 — P&L por sucursal/grupo congelado por período.
+- [ ] Puerta 6 — Factura pagada e ingreso por canal conciliados; reversas conservan deuda/historia.
+
+## Fase 7 — Cobertura operativa
+
+- [ ] OPE-01 — Recurrencias de mantenimiento generan/cerran órdenes sin duplicados.
+- [ ] OPE-02 — Downtime e historial/costo comparativo de equipo.
+- [ ] OPE-03.aceite — Medición/evidencia, política y excepción verificable.
+- [ ] OPE-03.cocina — Rutina asignada, ejecutada y verificada.
+- [ ] OPE-03.salon — Rutina salón/counter asignada, ejecutada y verificada.
+- [ ] OPE-03.gerente — Checklist gerente con evidencia/acciones.
+- [ ] OPE-03.handoff — Entrega de turno con pendientes y recepción del responsable.
+- [ ] COM-01.compra — Requisición→OC→recepción→CFDI→obligación.
+- [ ] COM-01.servicio — OS→cotizaciones→conformidad→factura→obligación.
+- [ ] APR-01.<documento> — Contrato de aprobación coherente por documento.
+- [ ] PER-01.<perfil> — Ocho perfiles con capacidades/alcance comprobados en API y UI.
+- [ ] AUT-01.<job> — Runtime y recuperación observables por empresa.
+- [ ] CTL-01 — KPIs, comparación, twin y daily brief persistidos y trazables.
+- [ ] INT-01.<fuente> — POS/canal: archivo→corte/mix→liquidación→banco.
+- [ ] Puerta 7 — Rutinas y proyecciones acreditadas por ejecución, no sólo templates/seeds.
+
+## Fase 8 — Validación
+
+- [ ] VAL-01.M01 — Organización y configuración.
+- [ ] VAL-01.M02 — Centro de control.
+- [ ] VAL-01.M03 — Workflows y ejecución.
+- [ ] VAL-01.M04 — Evidencia y verificación.
+- [ ] VAL-01.M05 — Excepciones, incidentes y acciones.
+- [ ] VAL-01.M06 — Operación diaria.
+- [ ] VAL-01.M07 — Food safety, calidad y compliance.
+- [ ] VAL-01.M08 — Equipos y mantenimiento.
+- [ ] VAL-01.M09 — Workforce, documentos, training y performance.
+- [ ] VAL-01.M10 — Nómina.
+- [ ] VAL-01.M11 — Recetas y food cost.
+- [ ] VAL-01.M12 — Producción.
+- [ ] VAL-01.M13 — Inventarios, conteos, PAR, alto valor y transferencias.
+- [ ] VAL-01.M14 — Compras y proveedores.
+- [ ] VAL-01.M15 — Recepción.
+- [ ] VAL-01.M16 — Administración, CxP, gastos y petty cash.
+- [ ] VAL-01.M17 — Finanzas, tesorería y conciliación.
+- [ ] VAL-01.transversal — Ventas/canales y ocho perfiles; resolver las 217 filas.
+- [ ] VAL-02 — Piloto funcional, carga 3/8/15 sucursales y recuperación/restauración.
+- [ ] Puerta final — Sin P0 abierto; tests, TypeScript, build y E2E aprobados; pendientes explícitos.
+
+## Registro de ejecución
+
+Crear una fila al trabajar cada tarea; subdividir IDs con marcador de dominio antes de marcar el padre.
+
+| ID | Estado | Revisión/commit | Entorno | Evidencia de aceptación | Pendiente/riesgo |
+|---|---|---|---|---|---|
+| — | Sin iniciar | — | — | — | — |
+
+Estados: pendiente, en curso, verificada, bloqueada por dato externo. Una tarea «verificada» enlaza comandos/resultados y prueba de sus criterios. Un bloqueo de integración no impide continuar una tarea independiente.

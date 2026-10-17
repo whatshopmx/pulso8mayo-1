@@ -12,6 +12,7 @@ import {
   COMPANY_ID, BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA,
   USER_ADMIN, USER_GERENTE, USER_SUPERVISOR,
   USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3,
+  branchForUser,
 } from "./seed-constants";
 
 function randomDate(daysAgo: number): Date {
@@ -73,9 +74,9 @@ export async function main() {
 
   for (let r = 0; r < 4; r++) {
     const userId = EMPLOYEES[r % EMPLOYEES.length];
-    const reviewerId = r === 0 ? USER_GERENTE : r === 1 ? USER_ADMIN : USER_SUPERVISOR;
     const type = reviewTypes[r % 3];
-    const overallRating = randomInt(3, 5);
+    const reviewerId = type === "SELF" ? userId : USER_ADMIN;
+    const overallRating = Number((randomInt(30, 50) / 10).toFixed(2));
     const strengths = ["Buena actitud", "Alta productividad", "Trabajo en equipo", "Puntualidad", "Iniciativa"].slice(0, randomInt(2, 4)).join(", ");
     const areasForImprovement = ["Comunicación", "Gestión del tiempo", "Documentación", "Liderazgo"].slice(0, randomInt(1, 3)).join(", ");
 
@@ -83,9 +84,9 @@ export async function main() {
       userId,
       reviewerId,
       companyId: COMPANY_ID,
-      branchId: BRANCHES[r % 3],
+      branchId: branchForUser(userId),
       reviewType: type,
-      reviewPeriod: "2026-Q1",
+      reviewPeriod: `${new Date().getFullYear()}-Q${Math.floor(new Date().getMonth() / 3) + 1}`,
       status: "COMPLETED",
       overallRating,
       strengths,
@@ -114,6 +115,11 @@ export async function main() {
     }
   }
   await db.insert(performanceReviewResponses).values(responseValues);
+  for (const review of reviewRows) {
+    const responses = responseValues.filter((row) => row.reviewId === review.id);
+    const average = responses.reduce((sum, row) => sum + row.rating, 0) / responses.length;
+    await db.update(performanceReviews).set({ overallRating: Number(average.toFixed(2)) }).where(eq(performanceReviews.id, review.id));
+  }
 
   console.log("Creating performance goals...");
   const goalData = [
@@ -126,7 +132,7 @@ export async function main() {
   const goalValues = goalData.map(g => ({
     userId: g.userId,
     companyId: COMPANY_ID,
-    branchId: BRANCH_CONDESA,
+    branchId: branchForUser(g.userId),
     title: g.title,
     description: g.description,
     category: g.category,

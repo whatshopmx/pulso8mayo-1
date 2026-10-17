@@ -39,7 +39,7 @@ const TIERS = [
   },
 ] as const;
 
-async function main() {
+export async function main() {
   console.log("Seeding subscription tiers...");
 
   for (const tier of TIERS) {
@@ -69,10 +69,11 @@ async function main() {
   }
 
   console.log("Done.");
-  process.exit(0);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });
+}

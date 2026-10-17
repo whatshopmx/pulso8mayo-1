@@ -1,0 +1,55 @@
+﻿ M app/api/group/exceptions/route.ts
+ M app/dashboard/exceptions/page.tsx
+ M lib/services/__tests__/group-exceptions-canonical.test.ts
+ M lib/services/domain-event-service.ts
+ M lib/services/group-exceptions-service.ts
+ M package.json
+ M pnpm-lock.yaml
+ M scripts/seed-04-inventory.ts
+ M scripts/seed-05-workflows.ts
+ M scripts/seed-08-hr-advanced.ts
+ M scripts/seed-11-control-orders.ts
+ M scripts/seed-12-sales-pos.ts
+ M scripts/seed-13-receiving-matching.ts
+ M scripts/seed-cleanup.ts
+ M scripts/seed-constants.ts
+ M scripts/seed-full.ts
+ M scripts/seed-passwords.ts
+ M scripts/seed-subscription-tiers.ts
+ M sistemainvestigacion17oct.md
+?? .claude/settings.local.json
+?? .impeccable/critique/2026-10-16T19-40-32Z__app-dashboard-performance.md
+?? .impeccable/critique/2026-10-16T22-19-43Z__app-dashboard.md
+?? .impeccable/critique/shots/app-dashboard-2026-10-16/exceptions-1440.png
+?? .impeccable/critique/shots/app-dashboard-2026-10-16/finance-1440.png
+?? .impeccable/critique/shots/app-dashboard-2026-10-16/home-1440.png
+?? .impeccable/critique/shots/app-dashboard-2026-10-16/home-390.png
+?? .impeccable/critique/shots/app-dashboard-2026-10-16/home-dark-1440.png
+?? .impeccable/critique/shots/app-dashboard-2026-10-16/inventory-1440.png
+?? .impeccable/critique/shots/app-dashboard-2026-10-16/labor-1440.png
+?? .impeccable/critique/shots/remix-cola-1440.png
+?? .impeccable/critique/shots/remix-cola-390.png
+?? .impeccable/critique/shots/remix-cola-dark-1440.png
+?? .impeccable/critique/shots/remix-home-1440.png
+?? .impeccable/critique/shots/remix-home-390.png
+?? .impeccable/critique/shots/remix-home-dark-1440.png
+?? .pnpm-store/v11/index.db
+?? app/dashboard/prototipo/cola/page.tsx
+?? app/dashboard/prototipo/page.tsx
+?? audits/2026-10-17-sistema/INFORME.md
+?? audits/2026-10-17-sistema/compilacion.log
+?? audits/2026-10-17-sistema/evidencia-base.json
+?? audits/2026-10-17-sistema/requisitos-fuente.txt
+?? audits/2026-10-17-sistema/requisitos.csv
+?? audits/2026-10-17-sistema/verificacion.json
+?? components/exceptions/exception-lifecycle-actions.tsx
+?? docs/seed-demo.md
+?? scripts/seed-14-current-operations.ts
+?? scripts/seed-15-financial-close.ts
+?? scripts/seed-16-executive-control.ts
+?? scripts/seed-phase.ts
+?? scripts/seed-plan.ts
+?? tasks/cierre-sistema-2026-10-17/cierresistemapulsoplan.md
+?? tasks/cierre-sistema-2026-10-17/cierresistemapulsotodo.md
+?? tests/unit/seed-integration.test.ts
+?? tests/unit/seed-safety.test.ts

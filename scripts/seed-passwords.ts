@@ -38,7 +38,7 @@ export async function main() {
   for (const cred of CREDENTIALS) {
     await db.insert(account).values({
       id: `cred-${cred.id}`,
-      accountId: cred.email,
+      accountId: cred.id,
       providerId: "credential",
       userId: cred.id,
       password: hashedPassword,

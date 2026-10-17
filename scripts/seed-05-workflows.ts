@@ -5,7 +5,8 @@ import {
   workflowInstanceSteps, workflowAssignments, eventTriggers,
 } from "@/lib/db/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
-import { getAllTemplates } from "@/templates/index";
+import { getAllTemplates, templateLibrary } from "@/templates/index";
+import { resolveDynamicSteps } from "@/lib/workflows/dynamic-steps";
 import {
   COMPANY_ID, BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA,
   USER_ADMIN, USER_GERENTE, USER_SUPERVISOR,
@@ -23,7 +24,7 @@ function randomInt(min: number, max: number): number {
 }
 
 const BRANCHES = [BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA];
-const USERS = [USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3, USER_SUPERVISOR, USER_GERENTE];
+const BRANCH_OPERATORS = [USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3];
 
 // La revisión trata cualquier nota del operador como hallazgo que mirar
 // (`stepNeedsAttention` en `lib/workflows/step-definitions.ts`). Con una nota en
@@ -66,7 +67,7 @@ export async function main() {
   await db.delete(workflowSchedules).where(sql`1=1`);
   await db.delete(workflowTemplates).where(eq(workflowTemplates.companyId, COMPANY_ID));
 
-  console.log("Loading 19 templates from template library...");
+  console.log("Loading current template library...");
   const templates = getAllTemplates();
   console.log(`  Found ${templates.length} templates`);
 
@@ -92,6 +93,23 @@ export async function main() {
   }
 
   console.log("Creating schedules...");
+  // Claves estables: agregar plantillas a la librería no debe cambiar qué
+  // ejecuta una programación existente.
+  const templateKeys = [
+    "reporte-incidentes-v2", "daily-attendance-v1", "fumigacion-v1",
+    "inspeccion-sistema-incendios-v1", "nom-035-survey-v1", "control-higiene-personal-v2",
+    "control-temperaturas-v1", "inspeccion-alimentos-v1", "recepcion-mercancia-v2",
+    "checklist-mantenimiento-v1", "mantenimiento-equipos-refrigeradores-v1",
+    "apertura-restaurante-v2", "cierre-restaurante-v2", "limpieza-sanitizacion-v2",
+    "conteo-inventario-v1", "control-accesos-v1", "seguridad-local-v1",
+    "produccion-diaria-v1", "registro-merma-v1",
+  ];
+  const scheduledTemplate = (index: number) => {
+    const definition = templateLibrary[templateKeys[index]] as typeof templates[number] & { id: string };
+    const row = templateRows.find((row) => row.id === definition?.id);
+    if (!row) throw new Error(`Plantilla requerida ausente: ${templateKeys[index]}`);
+    return row;
+  };
   type FreqType = "DAILY" | "WEEKLY" | "MONTHLY" | "ONCE";
   const scheduleConfigs: { templateIdx: number; branchIdx: number; title: string; freq: FreqType; dayOfWeek?: number; dayOfMonth?: number; time: string; role: string }[] = [
     { templateIdx: 0, branchIdx: 0, title: "Reporte de Incidentes - Condesa", freq: "DAILY", time: "14:00", role: "GERENTE" },
@@ -119,11 +137,13 @@ export async function main() {
     { templateIdx: 14, branchIdx: 0, title: "Conteo Inventario - Condesa", freq: "WEEKLY", dayOfWeek: 6, time: "23:00", role: "SUPERVISOR" },
     { templateIdx: 15, branchIdx: 0, title: "Control Accesos - Condesa", freq: "DAILY", time: "08:00", role: "SUPERVISOR" },
     { templateIdx: 16, branchIdx: 0, title: "Seguridad Local - Condesa", freq: "DAILY", time: "22:00", role: "SUPERVISOR" },
+    { templateIdx: 17, branchIdx: 0, title: "Producción Diaria - Condesa", freq: "DAILY", time: "11:00", role: "EMPLEADO" },
+    { templateIdx: 18, branchIdx: 0, title: "Registro Merma - Condesa", freq: "DAILY", time: "21:00", role: "EMPLEADO" },
   ];
 
   const scheduleRows: { id: string }[] = [];
   for (const sc of scheduleConfigs) {
-    const tmpl = templateRows[sc.templateIdx];
+    const tmpl = scheduledTemplate(sc.templateIdx);
     if (!tmpl) continue;
     const [row] = await db.insert(workflowSchedules).values({
       templateId: tmpl.id,
@@ -166,7 +186,7 @@ export async function main() {
       if (sc.freq === "MONTHLY" && sc.dayOfMonth !== undefined && date.getDate() !== sc.dayOfMonth) continue;
       if (sc.freq === "ONCE" && day > 0) continue;
 
-      const tmpl = templateRows[sc.templateIdx];
+      const tmpl = scheduledTemplate(sc.templateIdx);
       if (!tmpl) continue;
 
       const hours = parseInt(sc.time.split(":")[0]);
@@ -174,10 +194,10 @@ export async function main() {
       const dueDate = new Date(date);
       dueDate.setHours(hours, mins, 0, 0);
 
-      const completed = Math.random() > 0.15;
+      const completed = dueDate.getTime() + 120 * 60000 < now.getTime() && Math.random() > 0.15;
       const score = completed ? (Math.random() > 0.2 ? randomInt(70, 100) : randomInt(40, 69)) : undefined;
 
-      const assigneeId = USERS[instanceCount % USERS.length];
+      const assigneeId = BRANCH_OPERATORS[sc.branchIdx];
 
       instanceValues.push({
         workflowTemplateId: tmpl.id,
@@ -190,6 +210,10 @@ export async function main() {
         dueDate,
         priority: "MEDIUM",
         score,
+        reviewStatus: completed ? (instanceCount % 3 === 0 ? "APPROVED" : "PENDING_REVIEW") : null,
+        reviewedBy: completed && instanceCount % 3 === 0 ? USER_ADMIN : null,
+        reviewedAt: completed && instanceCount % 3 === 0 ? new Date(dueDate.getTime() + 120 * 60000) : null,
+        createdAt: dueDate,
         data: {},
       });
       instanceMeta.push({ templateId: tmpl.id, scheduleId: scheduleRows[s]?.id, completed, assigneeId });
@@ -211,12 +235,17 @@ export async function main() {
   console.log("Creating workflow instance steps...");
   let stepCount = 0;
   const stepValues: any[] = [];
+  const resolvedByTemplate = new Map<string, Awaited<ReturnType<typeof resolveDynamicSteps>>>();
   for (let instIdx = 0; instIdx < instanceRows.length; instIdx++) {
     const inst = instanceRows[instIdx];
     const tmpl = templates.find(t => (t as any).id === inst.templateId);
     if (!tmpl?.steps) continue;
-    const steps = tmpl.steps.slice(0, Math.min(tmpl.steps.length, 8));
-    const isCompleted = Math.random() > 0.15;
+    if (!resolvedByTemplate.has(inst.templateId)) {
+      resolvedByTemplate.set(inst.templateId, await resolveDynamicSteps(tmpl.steps, { companyId: COMPANY_ID }));
+    }
+    const steps = resolvedByTemplate.get(inst.templateId)!;
+    const source = instanceValues[instIdx];
+    const isCompleted = instanceMeta[instIdx].completed;
 
     // El relevo de turno es real en HORECA —quien abre no siempre cierra— pero
     // es la excepción, no la regla. Una de cada doce ejecuciones se parte en dos
@@ -224,11 +253,11 @@ export async function main() {
     // pantalla de revisión; el resto las firma su asignado de principio a fin.
     const isHandoff = instIdx % 12 === 0 && steps.length >= 3;
     const handoffAt = isHandoff ? Math.ceil(steps.length * 0.6) : steps.length;
-    const relief = inst.assigneeId === USER_SUPERVISOR ? USER_GERENTE : USER_SUPERVISOR;
+    const relief = USER_ADMIN;
 
     for (let stepIdx = 0; stepIdx < steps.length; stepIdx++) {
       const step = steps[stepIdx];
-      const stepCompleted = isCompleted && Math.random() > 0.1;
+      const stepCompleted = isCompleted;
       let value: any = null;
       let evidenceUrl: string | null = null;
       let aiAnalysis: any = null;
@@ -240,11 +269,13 @@ export async function main() {
             evidenceUrl = value;
             break;
           case "NUMBER":
-            value = randomInt(15, 40).toString();
+            value = String(step.validation?.min ?? 1);
             break;
           case "SELECT":
+            value = step.options?.[0] ?? "Sin novedades";
+            break;
           case "YESNO":
-            value = Math.random() > 0.3 ? "Sí" : "No";
+            value = "yes";
             break;
           case "CHECKBOX":
             value = step.options ? step.options.slice(0, randomInt(1, step.options.length)) : [];
@@ -282,7 +313,7 @@ export async function main() {
         aiAnalysis: aiAnalysis as unknown as Record<string, unknown>,
         evidenceUrl,
         comment: stepCompleted ? notaDelPaso(aiAnalysis) : null,
-        completedAt: stepCompleted ? randomDate(1) : null,
+        completedAt: stepCompleted ? source.completedAt : null,
         completedBy: stepCompleted
           ? (stepIdx < handoffAt ? inst.assigneeId : relief)
           : null,
@@ -302,25 +333,29 @@ export async function main() {
   console.log("Creating assignments...");
   let assignCount = 0;
   const assignValues: any[] = [];
-  for (const inst of instanceRows.slice(0, 50)) {
-    const isCompleted = Math.random() > 0.15;
+  for (const inst of instanceRows) {
+    const source = instanceValues[assignCount];
+    const isCompleted = instanceMeta[assignCount].completed;
     assignValues.push({
       instanceId: inst.id,
       scheduleId: inst.scheduleId,
-      assignedTo: USERS[assignCount % USERS.length],
+      assignedTo: inst.assigneeId,
       assignedBy: USER_ADMIN,
       assignmentType: "AUTO",
-      status: isCompleted ? "COMPLETED" : "PENDING",
-      notifiedAt: isCompleted ? randomDate(1) : null,
-      startedAt: isCompleted ? randomDate(1) : null,
-      completedAt: isCompleted ? randomDate(1) : null,
-      dueDate: randomDate(1),
+      status: isCompleted ? "COMPLETED" : source.dueDate < now ? "OVERDUE" : "PENDING",
+      notifiedAt: isCompleted ? source.startedAt : null,
+      startedAt: source.startedAt,
+      completedAt: source.completedAt,
+      dueDate: source.dueDate,
       priority: "MEDIUM",
     });
     assignCount++;
   }
   if (assignValues.length > 0) {
     await db.insert(workflowAssignments).values(assignValues);
+    await db.execute(sql`UPDATE workflow_instances i SET assignment_id = a.id
+      FROM workflow_assignments a WHERE a.instance_id = i.id AND i.branch_id IN
+      (${BRANCH_CONDESA}, ${BRANCH_POLANCO}, ${BRANCH_ROMA})`);
   }
   console.log(`  Created ${assignCount} assignments`);
 
@@ -332,7 +367,7 @@ export async function main() {
   ];
   const eventTriggerValues: any[] = [];
   for (const et of eventTriggerData) {
-    const tmpl = templateRows[et.templateIdx];
+    const tmpl = scheduledTemplate(et.templateIdx);
     if (!tmpl) continue;
     eventTriggerValues.push({
       templateId: tmpl.id,

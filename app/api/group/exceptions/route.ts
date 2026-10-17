@@ -12,6 +12,7 @@ const VALID_DOMAINS: ExceptionDomain[] = [
   "equipos",
   "personal",
   "inventario",
+  "finanzas",
 ];
 
 /**

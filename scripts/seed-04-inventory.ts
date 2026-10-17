@@ -31,7 +31,8 @@ const HORECA_CONVERSIONS = [
   { fromUnit: "L", toUnit: "mL", factor: 1000, description: "Litros a Mililitros" },
   { fromUnit: "BOX", toUnit: "UNIT", factor: 12, description: "Caja a Piezas (estándar 12)" },
   { fromUnit: "DOZEN", toUnit: "UNIT", factor: 12, description: "Docena a Piezas" },
-  { fromUnit: "KG", toUnit: "LB", factor: 2205, description: "Kilogramos a Libras (milésimas)" },
+  { fromUnit: "KG", toUnit: "LB", factor: 2.204623, description: "Kilogramos a Libras" },
+  { fromUnit: "LB", toUnit: "KG", factor: 0.453592, description: "Libras a Kilogramos" },
   { fromUnit: "BOX", toUnit: "KG", factor: 10, description: "Caja a KG (ej: harina 10kg)" },
   { fromUnit: "BOX", toUnit: "L", factor: 12, description: "Caja a Litros" },
   { fromUnit: "BULTO", toUnit: "KG", factor: 25, description: "Bulto a KG (estándar 25kg)" },
@@ -119,11 +120,15 @@ export async function main() {
     minLevel: item.minLevel,
     maxLevel: item.maxLevel,
     storageArea: item.storageArea,
+    storageType: item.storageArea === "REFRIGERATOR" ? "REFRIGERATED" as const : "DRY" as const,
+    isHighValue: item.lastCost >= 8500 && item.category !== "Limpieza",
+    tags: item.shelfLifeDays <= 30 ? ["perecedero", "receta_activa", "merma"] : ["receta_activa", "merma"],
     allergenInfo: item.allergenInfo,
     storageRequirements: item.storageReq,
     typicalShelfLifeDays: item.shelfLifeDays,
     supplierId: findSupplier(item.supplierIdx),
     lastCost: item.lastCost,
+    averageCost: item.lastCost,
     taxRate: item.taxRate ?? 16,
     iepsRate: item.iepsRate ?? 0,
     active: true,
@@ -163,7 +168,7 @@ export async function main() {
       expiresDate.setDate(expiresDate.getDate() + item.shelfLifeDays);
       const qty = randomInt(item.minLevel * 2, item.maxLevel * 2);
       const used = randomInt(0, Math.floor(qty * 0.7));
-      const cost = item.lastCost + randomInt(-1000, 1000);
+      const cost = Math.max(1, item.lastCost + randomInt(-1000, 1000));
 
       batchValues.push({
         itemId,
@@ -180,64 +185,35 @@ export async function main() {
       });
     }
   }
-  const batchRows = await db.insert(inventoryBatches).values(batchValues).returning({ id: inventoryBatches.id });
+  const batchRows = await db.insert(inventoryBatches).values(batchValues).returning();
   console.log(`  Created ${batchRows.length} batches`);
 
-  console.log("Inserting inventory movements (50+)...");
-  const usageValues: any[] = [];
-  const receivingValues: any[] = [];
-  let batchIdx = 0;
-  for (let i = 0; i < itemRows.length; i++) {
-    const itemId = itemRows[i].id;
-    const item = ITEMS[i];
-    const bid = branchIds[i % 3];
-    const bStorage = branchStorage[i % 3];
-    const numMovements = randomInt(1, 3);
-    const itemBatches = batchRows.slice(batchIdx, batchIdx + (item.category === "Carnes" ? 3 : 2));
-    batchIdx += item.category === "Carnes" ? 3 : 2;
-
-    for (let m = 0; m < numMovements; m++) {
-      const batch = itemBatches[m % itemBatches.length];
-      const qty = -randomInt(1, Math.max(2, Math.floor(item.maxLevel / 3)));
-      const ts = randomDate(30);
-
-      usageValues.push({
-        branchId: bid,
-        itemId,
-        batchId: batch.id,
-        type: "USAGE",
-        quantityChange: qty,
-        fromLocationId: bStorage.fridgeId,
-        reason: "Consumo en cocina",
-        referenceId: null,
-        performedBy: [USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3][i % 3],
-        timestamp: ts,
-      });
-    }
-
-    const receivingBatch = itemBatches[0];
-    if (receivingBatch) {
-      const ts = randomDate(30);
-      receivingValues.push({
-        branchId: bid,
-        itemId,
-        batchId: receivingBatch.id,
-        type: "RECEIVING",
-        quantityChange: (itemBatches.length > 1 ? itemBatches : [receivingBatch]).reduce((s, b) => s + (itemBatches.find(r => r.id === b.id) ? 1 : 0), 0) > 0 ? randomInt(item.minLevel * 2, item.maxLevel * 2) : randomInt(item.minLevel, item.maxLevel * 2),
-        toLocationId: bStorage.dryId,
-        reason: "Recepción de proveedor",
-        performedBy: USER_ADMIN,
-        timestamp: ts,
-      });
-    }
+  console.log("Inserting inventory movements from batch balances...");
+  const movements: typeof inventoryMovements.$inferInsert[] = [];
+  for (const batch of batchRows) {
+    const initial = Number(batch.initialQuantity);
+    const used = initial - Number(batch.currentQuantity);
+    const item = ITEMS[itemRows.findIndex(row => row.id === batch.itemId)];
+    const storage = branchStorage.find(row => row.bid === batch.branchId)!;
+    const locationId = item.storageArea === "REFRIGERATOR" ? storage.fridgeId : storage.dryId;
+    movements.push({
+      branchId: batch.branchId, itemId: batch.itemId, batchId: batch.id,
+      type: "RECEIVING", quantityChange: String(initial), toLocationId: locationId,
+      performedBy: USER_ADMIN, timestamp: batch.receivedAt!, reason: "Recepción demo",
+    });
+    if (used > 0) movements.push({
+      branchId: batch.branchId, itemId: batch.itemId, batchId: batch.id,
+      type: "USAGE", quantityChange: String(-used), fromLocationId: locationId,
+      performedBy: USER_ADMIN, timestamp: new Date(batch.receivedAt!.getTime() + 3600000),
+      reason: "Consumo histórico demo",
+    });
   }
-  if (usageValues.length > 0) await db.insert(inventoryMovements).values(usageValues);
-  if (receivingValues.length > 0) await db.insert(inventoryMovements).values(receivingValues);
+  await db.insert(inventoryMovements).values(movements);
 
   console.log("Inserting price history...");
   const priceValues: any[] = [];
   for (let i = 0; i < itemRows.length; i++) {
-    const prevCost = ITEMS[i].lastCost - randomInt(1000, 4000);
+    const prevCost = Math.max(1, ITEMS[i].lastCost - randomInt(1000, 4000));
     priceValues.push({
       itemId: itemRows[i].id,
       previousCost: Math.max(0, prevCost),
@@ -278,7 +254,7 @@ export async function main() {
       status: a < 4 ? "ACTIVE" : "RESOLVED",
       currentStock: stock,
       minLevel: item.minLevel,
-      batchId: batchRows[idx * 2]?.id,
+      batchId: batchRows.find(row => row.itemId === itemRows[idx].id && row.branchId === bid)?.id,
       detectedAt: randomDate(7),
       viewedAt: a >= 2 ? randomDate(5) : null,
       resolvedAt: a >= 4 ? randomDate(2) : null,
@@ -300,7 +276,8 @@ export async function main() {
     const qty = randomInt(1, 5);
     const reason = wasteReasons[w % wasteReasons.length];
     const cost = item.lastCost;
-    const batch = batchRows[itemIdx * 2];
+    const batch = batchRows.find(row => row.itemId === itemRows[itemIdx].id && row.branchId === bid && Number(row.currentQuantity) >= qty);
+    if (!batch) continue;
 
     wasteValues.push({
       companyId: COMPANY_ID,
@@ -317,22 +294,26 @@ export async function main() {
       notes: `Merma por ${reason === "EXPIRED" ? "caducidad" : reason === "DAMAGED" ? "daño" : reason === "QUALITY" ? "calidad" : reason === "SPILLAGE" ? "derrame" : "otro motivo"} - ${item.name}`,
     });
   }
-  await db.insert(inventoryWaste).values(wasteValues);
+  if (wasteValues.length) await db.insert(inventoryWaste).values(wasteValues);
+  for (const waste of wasteValues) {
+    await db.update(inventoryBatches).set({ currentQuantity: sql`current_quantity - ${waste.quantity}` }).where(eq(inventoryBatches.id, waste.batchId));
+    await db.insert(inventoryMovements).values({
+      branchId: waste.branchId, itemId: waste.itemId, batchId: waste.batchId,
+      type: "WASTE", quantityChange: String(-waste.quantity), timestamp: waste.recordedAt,
+      performedBy: waste.recordedBy, reason: waste.notes,
+    });
+  }
 
   console.log("Inserting transfers...");
   await db.insert(inventoryTransfers).values({
     transferNumber: "TRF-2026-001",
     fromBranchId: BRANCH_CONDESA,
     toBranchId: BRANCH_POLANCO,
-    status: "COMPLETED",
+    status: "APPROVED",
     requestedBy: USER_GERENTE,
     approvedBy: USER_ADMIN,
-    shippedBy: USER_EMPLEADO_1,
-    receivedBy: USER_EMPLEADO_2,
     requestedAt: new Date(Date.now() - 7 * 86400000),
     approvedAt: new Date(Date.now() - 6 * 86400000),
-    shippedAt: new Date(Date.now() - 6 * 86400000),
-    receivedAt: new Date(Date.now() - 5 * 86400000),
     notes: "Transferencia de insumos por excedente en Condesa",
   });
   const [transfer1] = await db.select({ id: inventoryTransfers.id })
@@ -344,13 +325,9 @@ export async function main() {
     transferNumber: "TRF-2026-002",
     fromBranchId: BRANCH_POLANCO,
     toBranchId: BRANCH_ROMA,
-    status: "IN_TRANSIT",
+    status: "PENDING",
     requestedBy: USER_SUPERVISOR,
-    approvedBy: USER_ADMIN,
-    shippedBy: USER_EMPLEADO_2,
     requestedAt: new Date(Date.now() - 2 * 86400000),
-    approvedAt: new Date(Date.now() - 1 * 86400000),
-    shippedAt: new Date(Date.now() - 1 * 86400000),
     notes: "Transferencia urgente de productos para evento especial",
   });
   const [transfer2] = await db.select({ id: inventoryTransfers.id })
@@ -361,30 +338,30 @@ export async function main() {
   const transferItemValues: any[] = [];
   if (transfer1) {
     for (let t = 0; t < 3; t++) {
-      const idx = t * 5;
+      const idx = t * 3;
       if (idx >= itemRows.length) break;
       const qty = randomInt(5, 20);
       transferItemValues.push({
         transferId: transfer1.id,
         itemId: itemRows[idx].id,
-        batchId: batchRows[idx * 2]?.id,
+        batchId: batchRows.find(row => row.itemId === itemRows[idx].id)?.id,
         requestedQuantity: qty,
         approvedQuantity: qty,
-        shippedQuantity: qty,
-        receivedQuantity: qty,
+        shippedQuantity: 0,
+        receivedQuantity: 0,
         notes: null,
       });
     }
   }
   if (transfer2) {
     for (let t = 0; t < 2; t++) {
-      const idx = t * 7 + 2;
+      const idx = t * 3 + 1;
       if (idx >= itemRows.length) break;
       const qty = randomInt(3, 10);
       transferItemValues.push({
         transferId: transfer2.id,
         itemId: itemRows[idx].id,
-        batchId: batchRows[idx * 2]?.id,
+        batchId: batchRows.find(row => row.itemId === itemRows[idx].id)?.id,
         requestedQuantity: qty,
         notes: null,
       });
@@ -462,7 +439,7 @@ export async function main() {
       lines: [
         { sub: "R2", quantity: "0.5000", unit: "PORTION" },
         { sub: "R1", quantity: "0.2000", unit: "PORTION" },
-        { itemIdx: 23, quantity: "0.1500", unit: "KG" }, // Tortilla
+        { itemIdx: 25, quantity: "0.1500", unit: "KG" }, // Tortilla
         { itemIdx: 7, quantity: "0.0500", unit: "KG" },  // Queso
         { itemIdx: 12, quantity: "0.0500", unit: "KG" }, // Aguacate
       ],
@@ -472,7 +449,7 @@ export async function main() {
       baseYield: "1.00", priceSelling: 14500,
       lines: [
         { itemIdx: 0, quantity: "0.2000", unit: "KG" },  // Pollo
-        { itemIdx: 23, quantity: "0.2000", unit: "KG" }, // Tortilla
+        { itemIdx: 25, quantity: "0.2000", unit: "KG" }, // Tortilla
         { sub: "R1", quantity: "0.3000", unit: "PORTION" },
         { itemIdx: 6, quantity: "0.0500", unit: "KG" },  // Crema
         { itemIdx: 7, quantity: "0.0800", unit: "KG" },  // Queso
@@ -483,7 +460,7 @@ export async function main() {
       baseYield: "1.00", priceSelling: 18500,
       lines: [
         { itemIdx: 1, quantity: "0.2500", unit: "KG" },  // Filete
-        { itemIdx: 23, quantity: "0.1500", unit: "KG" }, // Tortilla
+        { itemIdx: 25, quantity: "0.1500", unit: "KG" }, // Tortilla
         { itemIdx: 11, quantity: "0.0500", unit: "KG" }, // Cebolla
         { itemIdx: 12, quantity: "0.0800", unit: "KG" }, // Aguacate
         { itemIdx: 14, quantity: "0.0500", unit: "KG" }, // Limón
@@ -520,6 +497,8 @@ export async function main() {
       description: rDef.description,
       baseYield: rDef.baseYield,
       priceSelling: rDef.priceSelling,
+      tags: ["receta_activa"],
+      holdTimeMinutes: rDef.priceSelling > 0 ? 30 : null,
     }).returning({ id: recipes.id });
     recipeIdMap.set(rDef.key, row.id);
   }

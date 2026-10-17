@@ -68,6 +68,12 @@ describe("canonicalExceptionToGroupException", () => {
     expect(mapped.status).toBe("ASSIGNED");
     // Fallback de enlace por subject_type.
     expect(mapped.deepLinkUrl).toBe("/dashboard/inventory/invoices");
+    // Datos de lifecycle para la UI.
+    expect(mapped.lifecycle).toEqual({
+      status: "ASSIGNED",
+      ownerId: "owner-1",
+      slaDueAt: new Date("2026-10-17T18:00:00Z"),
+    });
   });
 
   it("prefiere metadata y action_meta cuando existen", () => {
