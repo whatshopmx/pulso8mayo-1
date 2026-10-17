@@ -14,7 +14,7 @@ tenant-isolation test → workflow/E2E test → docs → siguiente gate.
 | Fase | Alcance | Estado |
 |---|---|---|
 | **-1** | Security Gate | ✅ **CERRADO** (RLS como plan) |
-| **0** | Control Core (Exception + Evidence + Audit) | ⬜ Pendiente |
+| **0** | Control Core (Exception + Evidence + Audit) | 🟡 En curso — 0.1 backend hecho (schema, RBAC, lifecycle, servicio, adaptadores, sync, API); falta UI, 0.2 Evidence y 0.3 Audit |
 | **1** | Loop de dinero (AP→Payment→Settlement, Approval Engine) | ⬜ Pendiente |
 | **2** | Management Finance (Cost Centers, P&L, Budget) | ⬜ Pendiente |
 | **3** | Workforce / Pre-payroll | ⬜ Pendiente |
