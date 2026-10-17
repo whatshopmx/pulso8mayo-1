@@ -43,6 +43,7 @@ export interface ListExceptionsOptions {
   severity?: ExceptionSeverity;
   qsrCategory?: QsrRiskCategory;
   ownerId?: string | null;
+  subjectType?: string;
   limit?: number;
   offset?: number;
 }
@@ -279,6 +280,26 @@ export const ExceptionService = {
     return loadScoped(id, companyId);
   },
 
+  /** Fila canónica por clave de idempotencia; `null` si no existe. */
+  async getBySubject(
+    companyId: string,
+    subjectType: string,
+    subjectId: string,
+  ): Promise<ExceptionRow | null> {
+    const [row] = await db
+      .select()
+      .from(exceptions)
+      .where(
+        and(
+          eq(exceptions.companyId, companyId),
+          eq(exceptions.subjectType, subjectType),
+          eq(exceptions.subjectId, subjectId),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
   async list(
     companyId: string,
     opts: ListExceptionsOptions = {},
@@ -301,6 +322,9 @@ export const ExceptionService = {
           opts.severity ? eq(exceptions.severity, opts.severity) : undefined,
           opts.qsrCategory ? eq(exceptions.qsrCategory, opts.qsrCategory) : undefined,
           opts.ownerId ? eq(exceptions.ownerId, opts.ownerId) : undefined,
+          opts.subjectType
+            ? eq(exceptions.subjectType, opts.subjectType)
+            : undefined,
         ),
       )
       .orderBy(desc(exceptions.slaDueAt), desc(exceptions.createdAt))
