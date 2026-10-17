@@ -36,6 +36,7 @@ import {
   type ExceptionSeverity,
   type QsrRiskCategory,
 } from "./exception-adapters/shared";
+import { ExceptionService, type ExceptionRow } from "./exception-service";
 
 export type {
   ExceptionDomain,
@@ -72,16 +73,121 @@ export interface ListOpenOptions {
   limit?: number;
 }
 
+const SEVERITY_RANK: Record<ExceptionSeverity, number> = {
+  fatal: 0,
+  critical: 1,
+  high: 2,
+  warning: 3,
+  info: 4,
+};
+
+/** Filtra/ordena el feed igual para la fuente legacy y la canónica. */
+function applyListOpenFilters(
+  results: GroupException[],
+  opts: ListOpenOptions,
+): GroupException[] {
+  const { domain, qsrCategory, limit } = opts;
+  let filtered = domain ? results.filter((r) => r.domain === domain) : results;
+  if (qsrCategory) {
+    filtered = filtered.filter((r) => r.qsrCategory === qsrCategory);
+  }
+  filtered.sort((a, b) => {
+    const bySeverity = SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity];
+    if (bySeverity !== 0) return bySeverity;
+    const aTime = a.detectedAt?.getTime() ?? 0;
+    const bTime = b.detectedAt?.getTime() ?? 0;
+    return bTime - aTime;
+  });
+  return limit ? filtered.slice(0, limit) : filtered;
+}
+
+/** Flag de rollout del feed canónico (env). Phase 7 retira el legacy. */
+export function isCanonicalReadEnabled(): boolean {
+  return process.env.EXCEPTIONS_CANONICAL_READ === "true";
+}
+
+/** Enlaces por defecto cuando la fila no trae `action_meta.url`. */
+const SUBJECT_DEEP_LINKS: Record<string, string> = {
+  incident: "/dashboard/incidents",
+  inventory_alert: "/dashboard/inventory/alerts",
+  compliance_alert: "/dashboard/compliance",
+  equipment_alert: "/dashboard/equipment/maintenance",
+  nom035_action_plan: "/dashboard/compliance",
+  shift_approval: "/dashboard/labor/approvals",
+  shift_change_request: "/dashboard/labor/shift-changes",
+  cash_variance: "/dashboard/finance/cash-flow",
+  invoice_discrepancy: "/dashboard/inventory/invoices",
+};
+
+/** Mapea una fila canónica al shape `GroupException` del feed. Puro. */
+export function canonicalExceptionToGroupException(
+  row: ExceptionRow,
+  branchName: string | null = null,
+): GroupException {
+  const meta = (row.metadata ?? {}) as Record<string, unknown>;
+  const actionMeta = (row.actionMeta ?? null) as QsrActionMeta | null;
+  return {
+    id: row.id,
+    domain: row.domain,
+    qsrCategory: row.qsrCategory,
+    sourceTable: row.subjectType,
+    branchId: row.branchId,
+    branchName,
+    severity: row.severity,
+    title: (meta.title as string) ?? row.reason,
+    description: (meta.description as string) ?? null,
+    status: row.status,
+    assignedTo: row.ownerId,
+    detectedAt: row.createdAt,
+    resolvedAt: row.resolvedAt,
+    resolutionNotes: row.resolution,
+    deepLinkUrl:
+      actionMeta?.url ??
+      SUBJECT_DEEP_LINKS[row.subjectType] ??
+      "/dashboard/exceptions",
+    estimatedImpact: (meta.impact as string) ?? null,
+    action: actionMeta ?? undefined,
+  };
+}
+
+async function listOpenCanonical(
+  companyId: string,
+  opts: ListOpenOptions,
+): Promise<GroupException[]> {
+  const rows = await ExceptionService.listOpen(companyId, {
+    branchId: opts.branchId ?? null,
+  });
+  const branchRows = await db
+    .select({ id: branches.id, name: branches.name })
+    .from(branches)
+    .where(eq(branches.companyId, companyId));
+  const names = new Map(branchRows.map((b) => [b.id, b.name]));
+  const mapped = rows.map((r) =>
+    canonicalExceptionToGroupException(
+      r,
+      r.branchId ? names.get(r.branchId) ?? null : null,
+    ),
+  );
+  return applyListOpenFilters(mapped, opts);
+}
+
 export const GroupExceptionsService = {
   /**
    * Todas las excepciones abiertas de las fuentes Nivel A, para una compañía.
    * Ejecuta queries en paralelo y normaliza el resultado a `GroupException`
    * clasificándolas por categoría QSR de negocio.
+   *
+   * Con `EXCEPTIONS_CANONICAL_READ=true` lee la tabla canónica `exceptions`
+   * (Phase 7 retira el agregador legacy).
    */
   async listOpen(
     companyId: string,
     opts: ListOpenOptions = {},
   ): Promise<GroupException[]> {
+    if (isCanonicalReadEnabled()) {
+      return listOpenCanonical(companyId, opts);
+    }
+
     const { branchId, domain, qsrCategory, limit } = opts;
 
     const [
@@ -529,26 +635,6 @@ export const GroupExceptionsService = {
       });
     }
 
-    let filtered = domain ? results.filter((r) => r.domain === domain) : results;
-    if (qsrCategory) {
-      filtered = filtered.filter((r) => r.qsrCategory === qsrCategory);
-    }
-
-    filtered.sort((a, b) => {
-      const rank: Record<ExceptionSeverity, number> = {
-        fatal: 0,
-        critical: 1,
-        high: 2,
-        warning: 3,
-        info: 4,
-      };
-      const bySeverity = rank[a.severity] - rank[b.severity];
-      if (bySeverity !== 0) return bySeverity;
-      const aTime = a.detectedAt?.getTime() ?? 0;
-      const bTime = b.detectedAt?.getTime() ?? 0;
-      return bTime - aTime;
-    });
-
-    return limit ? filtered.slice(0, limit) : filtered;
+    return applyListOpenFilters(results, opts);
   },
 };
