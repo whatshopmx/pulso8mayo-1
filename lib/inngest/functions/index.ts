@@ -49,3 +49,6 @@ export { notificationDispatchFn } from "./notification-dispatch";
 
 export { workflowExtractorsFn } from "./workflow-extractors";
 export { workflowCompletionRecoveryFn } from "./workflow-completion-recovery";
+
+// Phase 0 / Control Core: proyección durable hacia `exceptions`.
+export { exceptionsSync } from "./exceptions-sync";

@@ -400,6 +400,14 @@ export class IncidentEngine {
 
             console.log('[IncidentEngine] Incident created:', incident.id, incident.severity, incident.title);
 
+            // Phase 0 / Task 12: proyectar la excepción canónica on-demand.
+            {
+                const { requestExceptionSync } = await import('./exception-sync-trigger');
+                void requestExceptionSync({
+                    branchId: incidentData.branchId,
+                });
+            }
+
             // Trigger escalation if chain exists
             if (rule.escalationChain && Array.isArray(rule.escalationChain)) {
                 const { inngest } = await import("@/lib/inngest/client");

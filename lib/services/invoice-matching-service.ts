@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { purchaseOrders, purchaseOrderItems, receivingReports, receivingReportItems, suppliers, invoices, invoiceLines } from "@/lib/db/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
+import { requestExceptionSync } from "./exception-sync-trigger";
 
 export interface MatchResult {
     isPerfectMatch: boolean;
@@ -498,6 +499,14 @@ export class InvoiceMatchingService {
                 .where(eq(invoices.id, invoiceId));
         }
 
+        // Phase 0 / Task 12: si hubo discrepancia, proyectar la excepción ya.
+        if (matchDetails && !matchDetails.isPerfectMatch) {
+            void requestExceptionSync({
+                companyId: invoice.companyId,
+                branchId: invoice.branchId,
+            });
+        }
+
         const detail = await this.getInvoiceDetail(invoiceId, invoice.companyId);
         if (!detail) throw new Error("Factura no encontrada");
         return detail;
@@ -531,6 +540,12 @@ export class InvoiceMatchingService {
             })
             .where(eq(invoices.id, invoiceId))
             .returning();
+
+        // Phase 0 / Task 12: la autorización debe cerrar la excepción abierta.
+        void requestExceptionSync({
+            companyId: invoice.companyId,
+            branchId: invoice.branchId,
+        });
 
         return updated;
     }
