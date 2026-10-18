@@ -287,3 +287,65 @@ export const payeeBankAccounts = pgTable("payee_bank_accounts", {
     name: "payee_bank_accounts_replaces_account_id_fk",
   }),
 }));
+
+/**
+ * Cuentas bancarias propias de la empresa — el lado pagador.
+ *
+ * El catálogo de `payee_bank_accounts` cubre a quién se le paga; aquí vive de
+ * dónde sale el dinero. Hasta ahora `payment_runs.source_account` era texto
+ * libre: la corrida podía afirmar una cuenta que nadie registró y el layout de
+ * dispersión imprimía "SIN_CUENTA_ORIGEN" en la columna CUENTA_ORIGEN.
+ *
+ * El campo de identidad es el **número de cuenta** (lo que el banco y el layout
+ * reconocen como origen), no la CLABE: la CLABE en este sistema es del
+ * DESTINATARIO (`CLABE_DESTINO` en el arquivo). La CLABE propia es opcional,
+ * solo como referencia SPEI de contexto.
+ *
+ * No hay flujo CEP de verificación como en payees/proveedores: son cuentas
+ * propias, capturadas por ADMIN. Heredan el blindaje pasivo: número cifrado
+ * en reposo con DEK del tenant, últimos 4 en claro y fingerprint para dedupe —
+ * el número completo de la cuenta de la empresa no es un dato que deba salir
+ * por lectura normal.
+ *
+ * `active` es baja lógica: una cuenta siempre es evidencia de de dónde salió
+ * un pago. El selector de corridas solo muestra las activas.
+ */
+export const companyBankAccounts = pgTable("company_bank_accounts", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+
+  /** Etiqueta legible: "BBVA · Cuenta operativa", "HSBC · Fideicomiso". */
+  label: text("label").notNull(),
+
+  /** Número de cuenta — el origen real del pago — cifrado en reposo. */
+  accountNumber: text("account_number").notNull(),
+  /** Últimos 4 dígitos en claro: es todo lo que la UI muestra jamás. */
+  accountLastFour: text("account_last_four").notNull(),
+  /** HMAC-SHA256(número, DEK del tenant) — dedupe por cuenta activa. */
+  accountFingerprint: text("account_fingerprint").notNull(),
+
+  /** Código Banxico: si no viene en la CLABE se elige del catálogo. */
+  bankCode: text("bank_code").notNull(),
+  bankName: text("bank_name").notNull(),
+
+  /** CLABE propia OPCIONAL (cifrada): referencia SPEI de contexto, no origen. */
+  clabe: text("clabe"),
+  clabeLastFour: text("clabe_last_four"),
+
+  currency: text("currency").default("MXN").notNull(),
+
+  /** Baja lógica. Nunca se borra: es evidencia desde dónde se dispersó. */
+  active: boolean("active").default(true).notNull(),
+
+  registeredBy: text("registered_by").notNull().references(() => users.id),
+
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  /** La misma cuenta activa de la empresa no puede duplicarse. */
+  accountUnique: uniqueIndex("company_bank_accounts_active_number_unique")
+    .on(table.companyId, table.accountFingerprint)
+    .where(sql`${table.active}`),
+  companyIdx: index("company_bank_accounts_company_idx").on(table.companyId),
+}));

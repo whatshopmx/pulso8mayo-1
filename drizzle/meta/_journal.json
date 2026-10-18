@@ -743,6 +743,13 @@
       "when": 1792352624936,
       "tag": "0106_rls_stock_counts",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1792362318608,
+      "tag": "0107_company_bank_accounts",
+      "breakpoints": true
     }
   ]
 }
