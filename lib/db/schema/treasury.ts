@@ -297,8 +297,8 @@ export const payeeBankAccounts = pgTable("payee_bank_accounts", {
  * dispersión imprimía "SIN_CUENTA_ORIGEN" en la columna CUENTA_ORIGEN.
  *
  * El campo de identidad es el **número de cuenta** (lo que el banco y el layout
- * reconocen como origen), no la CLABE: la CLABE en este sistema es del
- * DESTINATARIO (`CLABE_DESTINO` en el arquivo). La CLABE propia es opcional,
+ * reconocen como origen). La CLABE en este sistema es del
+ * DESTINATARIO (`CLABE_DESTINO` en el archivo). La CLABE propia es opcional,
  * solo como referencia SPEI de contexto.
  *
  * No hay flujo CEP de verificación como en payees/proveedores: son cuentas
