@@ -49,7 +49,7 @@ const FINANCE_TABS: NavTab[] = [
     name: "Pagos",
     href: "/dashboard/finance/payables",
     icon: CreditCard,
-    aliases: ["/dashboard/finance/treasury"],
+    aliases: ["/dashboard/finance/treasury", "/dashboard/finance/bank-reconciliation"],
   },
   {
     name: "Caja y cobros",
