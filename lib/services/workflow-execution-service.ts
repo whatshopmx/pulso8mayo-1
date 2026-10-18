@@ -612,6 +612,25 @@ export class WorkflowExecutionService {
             ))
             .returning();
 
+        // EVI-01 (Fase 2): reflejar la evidencia del paso en la tabla canónica
+        // `evidence`. No es fatal: el paso ya quedó guardado y su columna
+        // `evidence_url` sigue siendo la fuente de lectura durante la migración
+        // por dominio. El reenvío del paso reemplaza la evidencia, no la acumula.
+        if (data.evidenceUrl && updatedStep?.id && template?.companyId) {
+            try {
+                const { syncStepEvidence } = await import("@/lib/workflows/step-evidence");
+                await syncStepEvidence({
+                    companyId: template.companyId,
+                    branchId: instance.branchId,
+                    stepRowId: updatedStep.id,
+                    evidenceUrl: data.evidenceUrl,
+                    createdBy: userId,
+                });
+            } catch (error) {
+                console.error("[WorkflowExecution] Error syncing canonical evidence:", error);
+            }
+        }
+
         // Check for incidents if step is completed
         let incidents: any[] = [];
         if (data.status === 'COMPLETED') {

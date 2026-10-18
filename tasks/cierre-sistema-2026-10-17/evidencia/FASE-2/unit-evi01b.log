@@ -1,0 +1,46 @@
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+seed run 1: seed-01-foundation OK
+seed run 1: seed-02-hr-profiles OK
+seed run 1: seed-03-equipment OK
+seed run 1: seed-04-inventory OK
+seed run 1: seed-05-workflows OK
+seed run 1: seed-06-labor OK
+seed run 1: seed-07-compliance-kpi OK
+seed run 1: seed-08-hr-advanced OK
+seed run 1: seed-09-whatsapp OK
+seed run 1: seed-10-final OK
+seed run 1: seed-11-control-orders OK
+seed run 1: seed-12-sales-pos OK
+seed run 1: seed-13-receiving-matching OK
+seed run 1: seed-14-current-operations OK
+seed run 1: seed-15-financial-close OK
+seed run 1: seed-16-executive-control OK
+seed run 2: seed-01-foundation OK
+seed run 2: seed-02-hr-profiles OK
+seed run 2: seed-03-equipment OK
+seed run 2: seed-04-inventory OK
+seed run 2: seed-05-workflows OK
+seed run 2: seed-06-labor OK
+seed run 2: seed-07-compliance-kpi OK
+seed run 2: seed-08-hr-advanced OK
+seed run 2: seed-09-whatsapp OK
+seed run 2: seed-10-final OK
+seed run 2: seed-11-control-orders OK
+seed run 2: seed-12-sales-pos OK
+seed run 2: seed-13-receiving-matching OK
+seed run 2: seed-14-current-operations OK
+seed run 2: seed-15-financial-close OK
+seed run 2: seed-16-executive-control OK
+{"level":40,"time":1767268800000,"pid":7508,"hostname":"daveescam","component":"rate-limiter","msg":"Redis not available, falling back to in-memory rate limiting"}
+{"level":50,"time":1792301024118,"pid":20008,"hostname":"daveescam","component":"inngest:workflow-extractors","instanceId":"instance-28","extractor":"stock-count","err":"Error: agotó reintentos","msg":"Extractor agotó sus reintentos"}
+
+ Test Files  141 passed (141)
+      Tests  1699 passed | 1 skipped | 1 todo (1701)
+   Start at  05:22:24
+   Duration  133.70s (transform 55.87s, setup 0ms, import 555.13s, tests 57.82s, environment 58ms)
+

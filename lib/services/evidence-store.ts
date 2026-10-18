@@ -16,6 +16,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { evidence } from "@/lib/db/schema";
+import type { DbExecutor } from "@/lib/services/fefo-allocator";
 import { uploadToR2, isR2Configured } from "@/lib/storage/r2-client";
 
 export type EvidenceKind = "PHOTO" | "FILE" | "VOICE" | "VIDEO" | "TEXT";
@@ -103,7 +104,7 @@ class EvidenceStoreImpl {
    * is not configured (local dev), the record is persisted with the caller's
    * `url` (or a placeholder) so the API still works and tests can run.
    */
-  async store(input: StoreEvidenceInput): Promise<EvidenceRecord> {
+  async store(input: StoreEvidenceInput, executor?: DbExecutor): Promise<EvidenceRecord> {
     const id = randomUUID();
     let url = input.url ?? "";
     let storageKey: string | undefined;
@@ -128,7 +129,7 @@ class EvidenceStoreImpl {
       }
     }
 
-    const [row] = await db
+    const [row] = await (executor ?? db)
       .insert(evidence)
       .values({
         id,

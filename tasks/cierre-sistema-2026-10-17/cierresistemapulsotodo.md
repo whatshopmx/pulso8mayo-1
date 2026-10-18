@@ -20,7 +20,7 @@ Estado inicial: todas las tareas pendientes; guardar este plan no acredita imple
 
 ## Fase 2 — Evidencia, auditoría y aislamiento DB
 
-- [~] EVI-01 — Evidencia común durable y aislada. **Hecho (2a):** tabla `evidence` (empresa/sucursal/entidad/autor/tipo/key) + migración `0101` aplicada en base aislada; `EvidenceStore` persiste y exige `companyId` (store/lectura/borrado lógico). **Verificado** contra DB real (`tests/integration/evidence-store-db.test.ts`, 3/3). **Falta (2b):** wiring del primer recorrido (paso de workflow) y no duplicar `workflow_instance_steps.evidence_url`.
+- [x] EVI-01 — Evidencia común durable y aislada; primer recorrido con workflow. **Hecho (2a):** tabla `evidence` (empresa/sucursal/entidad/autor/tipo/key) + migración `0101` aplicada en base aislada; `EvidenceStore` persiste y exige `companyId` (store/lectura/borrado lógico). **Hecho (2b):** `syncStepEvidence` refleja la evidencia del paso de workflow en la tabla canónica con reemplazo (sin duplicar) y alcance por empresa; enganchado en `WorkflowExecutionService.updateStep`. **Verificado** contra DB real (`tests/integration/evidence-store-db.test.ts`, 5/5; `tests/unit/workflows/step-evidence.test.ts`, 4/4). Pendiente: recorrido API/navegador del PATCH de paso con dos empresas.
 - [ ] AUD-01 — Auditoría durable/atómica en mutaciones sensibles del dominio piloto.
 - [ ] SEC-04 — Contexto transaccional y RLS piloto compatibles con pool/jobs.
 - [ ] SEC-05.<dominio> — Crear y cerrar lotes S/M por dominio, incluidas tablas hijas.
@@ -124,6 +124,6 @@ Crear una fila al trabajar cada tarea; subdividir IDs con marcador de dominio an
 | REC-02b | Verificada | idem | local (unit) + DB real `.env.test` | `evidencia/PUERTA-1/integration-2026-10-17.log` (4/4) | — |
 | REC-03 | En curso | idem | base configurada (sólo lectura) | `rec03-diagnostico-dryrun.txt` | ajuste no aplicado; 2 lotes ambiguos a conteo |
 | PUERTA-1 | Verificada (técnica) | idem | local + DB aislada | `evidencia/PUERTA-1/`: `tsc-2026-10-17-real.txt` (exit 0), `build-2026-10-17-real.log` (exit 0), `integration-2026-10-17.log` (4/4), `unit-2026-10-17-real.log` (1652/0) | operativo: aplicar `0100` al entorno objetivo; REC-03 |
-| EVI-01 | En curso (2a hecho) | `bff8a8d` + cambios locales | local + DB aislada | `evidencia/FASE-2/`: `unit-evi01.log` (1669/0), `tsc-evi01.txt` (exit 0), `integration-evi01.log` (3/3) | falta 2b: wiring workflow; migración `0101` no aplicada al entorno objetivo |
+| EVI-01 | Verificada (persistencia) | `c9c3192` + cambios locales | local + DB aislada | `evidencia/FASE-2/`: `unit-evi01b.log` (1699/0), `tsc-evi01b.txt` (exit 0), `integration-evi01b.log` (5/5) | falta recorrido API/navegador del PATCH de paso; migración `0101` no aplicada al entorno objetivo |
 
 Estados: pendiente, en curso, verificada, bloqueada por dato externo. Una tarea «verificada» enlaza comandos/resultados y prueba de sus criterios. Un bloqueo de integración no impide continuar una tarea independiente.

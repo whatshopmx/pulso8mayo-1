@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { branches, companies, evidence, users } from "@/lib/db/schema";
 import { EvidenceStore } from "@/lib/services/evidence-store";
+import { syncStepEvidence } from "@/lib/workflows/step-evidence";
 
 /**
  * EVI-01 contra base Postgres real (Fase 2).
@@ -126,5 +127,94 @@ describe("EVI-01 sobre base real: evidencia durable y aislada", () => {
 
     // Segundo borrado del mismo registro: ya no está vivo → false (idempotente).
     expect(await EvidenceStore.softDelete(a.companyId, record.id)).toBe(false);
+  });
+});
+
+describe("EVI-01 (2b) sobre base real: sync de evidencia de un paso de workflow", () => {
+  let a: Tenant;
+  let b: Tenant;
+
+  beforeEach(async () => {
+    a = await seedTenant("A");
+    b = await seedTenant("B");
+  });
+
+  async function countStep(companyId: string, stepRowId: string) {
+    const rows = await db
+      .select({ id: evidence.id })
+      .from(evidence)
+      .where(
+        and(
+          eq(evidence.companyId, companyId),
+          eq(evidence.entityType, "WORKFLOW_STEP"),
+          eq(evidence.entityId, stepRowId),
+        ),
+      );
+    return rows.length;
+  }
+
+  it("refleja un arreglo de fotos y reemplaza en reenvíos (sin duplicar)", async () => {
+    const stepRowId = randomUUID();
+
+    const first = await syncStepEvidence({
+      companyId: a.companyId,
+      branchId: a.branchId,
+      stepRowId,
+      evidenceUrl: JSON.stringify(["companies/a/1.jpg", "companies/a/2.jpg"]),
+      createdBy: a.userId,
+    });
+    expect(first).toBe(2);
+    expect(await countStep(a.companyId, stepRowId)).toBe(2);
+
+    // Reenvío del mismo paso con una sola foto: reemplaza, no acumula.
+    const second = await syncStepEvidence({
+      companyId: a.companyId,
+      branchId: a.branchId,
+      stepRowId,
+      evidenceUrl: "companies/a/3.jpg",
+      createdBy: a.userId,
+    });
+    expect(second).toBe(1);
+    expect(await countStep(a.companyId, stepRowId)).toBe(1);
+
+    const live = await EvidenceStore.getByEntity(a.companyId, "WORKFLOW_STEP", stepRowId);
+    expect(live).toHaveLength(1);
+    expect(live[0].url).toBe("companies/a/3.jpg");
+    expect(live[0].createdBy).toBe(a.userId);
+  });
+
+  it("no toca la evidencia de otra empresa con el mismo id de paso", async () => {
+    const stepRowId = randomUUID();
+
+    // Misma entityId en dos empresas: cada fila queda aislada por companyId.
+    await syncStepEvidence({
+      companyId: a.companyId,
+      branchId: a.branchId,
+      stepRowId,
+      evidenceUrl: "companies/a/x.jpg",
+      createdBy: a.userId,
+    });
+    await syncStepEvidence({
+      companyId: b.companyId,
+      branchId: b.branchId,
+      stepRowId,
+      evidenceUrl: "companies/b/y.jpg",
+      createdBy: b.userId,
+    });
+
+    expect(await countStep(a.companyId, stepRowId)).toBe(1);
+    expect(await countStep(b.companyId, stepRowId)).toBe(1);
+
+    // El reenvío de la empresa A no borra la evidencia de B.
+    await syncStepEvidence({
+      companyId: a.companyId,
+      branchId: a.branchId,
+      stepRowId,
+      evidenceUrl: "companies/a/z.jpg",
+      createdBy: a.userId,
+    });
+    expect(await countStep(b.companyId, stepRowId)).toBe(1);
+    const bRow = await EvidenceStore.getByEntity(b.companyId, "WORKFLOW_STEP", stepRowId);
+    expect(bRow[0].url).toBe("companies/b/y.jpg");
   });
 });
