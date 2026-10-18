@@ -750,6 +750,13 @@
       "when": 1792362318608,
       "tag": "0107_company_bank_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1792366780360,
+      "tag": "0108_bank_transactions",
+      "breakpoints": true
     }
   ]
 }

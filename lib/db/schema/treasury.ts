@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, uuid, integer, pgEnum, uniqueIndex, index, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, integer, pgEnum, uniqueIndex, index, foreignKey, date } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { companies, branches } from "./core";
 import { users } from "./auth";
@@ -348,4 +348,64 @@ export const companyBankAccounts = pgTable("company_bank_accounts", {
     .on(table.companyId, table.accountFingerprint)
     .where(sql`${table.active}`),
   companyIdx: index("company_bank_accounts_company_idx").on(table.companyId),
+}));
+
+// ---------------------------------------------------------------------------
+// Movimientos bancarios — el estado de cuenta, importado.
+//
+// La conciliación de ENTRADAS ya existe por pasarela
+// (`gateway_transactions` + upload de reportes Clip/agregadores); lo que
+// quedaba huérfano es el lado bancario: el banco movió dinero y nadie cruza
+// contra el libro interno. Con el congelado de partida + liquidación por
+// partida, el cruce natural es movimientos ↔ `payment_run_items` liquidadas.
+//
+// Idempotencia por `fingerprint`: el mismo CSV reimportado no duplica filas —
+// el hash cubre cuenta+fecha+referencia+monto, que es lo que identifica a un
+// movimiento real de un reenvío.
+//
+// `amount_cents` va FIRMADO: negativo = salida (dispersión), positivo =
+// entrada (depósito). El matching automático sugiere salidas contra partidas
+// confirmadas por monto exacto y ventana de fecha; las entradas quedan
+// visibles para el cruce manual contra depósitos de ventas.
+// ---------------------------------------------------------------------------
+
+export const bankTransactionMatchEnum = pgEnum("bank_transaction_match_status", [
+  'UNMATCHED',
+  'MATCHED',
+  'IGNORED',
+]);
+
+export const bankTransactions = pgTable("bank_transactions", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  /** Cuenta de origen del catálogo (`company_bank_accounts`). */
+  sourceBankAccountId: uuid("source_bank_account_id").references(() => companyBankAccounts.id),
+
+  /** Fecha valor del movimiento, tal como el estado de cuenta la declara. */
+  valueDate: date("value_date").notNull(),
+  description: text("description").notNull(),
+  /** Folio/referencia del banco — parte del fingerprint. */
+  reference: text("reference"),
+  /** Firmado: negativo = salida, positivo = entrada. */
+  amountCents: integer("amount_cents").notNull(),
+
+  /** SHA-256 de cuenta+fecha+referencia+monto — idempotencia de import. */
+  fingerprint: text("fingerprint").notNull(),
+
+  matchStatus: bankTransactionMatchEnum("match_status").default('UNMATCHED').notNull(),
+  /** Partida de corrida confirmada a la que se cruzó este movimiento. */
+  matchedPaymentRunItemId: uuid("matched_payment_run_item_id"),
+  matchedAt: timestamp("matched_at"),
+  matchedBy: text("matched_by").references(() => users.id),
+  matchNotes: text("match_notes"),
+
+  importedBy: text("imported_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  /** Reimportar el mismo estado de cuenta es un no-op, no un doble libro. */
+  fingerprintUnique: uniqueIndex("bank_transactions_fingerprint_unique").on(table.fingerprint),
+  companyDateIdx: index("bank_transactions_company_date_idx").on(table.companyId, table.valueDate),
+  accountIdx: index("bank_transactions_account_idx").on(table.sourceBankAccountId),
+  /** El panel pregunta por movimientos sin cruzar de una cuenta. */
+  matchStatusIdx: index("bank_transactions_match_status_idx").on(table.companyId, table.matchStatus),
 }));
