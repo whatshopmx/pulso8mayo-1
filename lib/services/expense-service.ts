@@ -187,10 +187,13 @@ async function findApprovers(
  * no alcanzaban el rol y el dueño no podía firmar lo suyo. Ver
  * `rolExigidoPorMonto`.
  */
-async function resolverRolExigido(
+export async function resolverRolExigido(
   companyId: string,
   amountCents: number
 ): Promise<{ rol: string; regla: Awaited<ReturnType<typeof findAuthorizationRule>> }> {
+  // Exportada a propósito: la bandeja unificada de aprobaciones debe aplicar el
+  // MISMO criterio de rol exigido que esta pantalla, no una réplica que se
+  // puede desviar con el tiempo.
   const regla = await findAuthorizationRule(companyId, amountCents);
   if (regla) return { rol: regla.approverRole, regla };
 
