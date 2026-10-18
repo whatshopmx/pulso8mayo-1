@@ -1,0 +1,14 @@
+[dotenv@17.2.3] injecting env (0) from .env.test -- tip: ⚙️  override existing env vars with { override: true }
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+{"level":40,"time":1792353250998,"pid":12428,"hostname":"daveescam","component":"workflows:dynamic-steps","stepId":"paso-plataformas","entity":"sales_channel","companyId":"b8964544-8061-4390-a512-358b218761c6","msg":"El paso dinámico no coincidió con ninguna entidad: se omite"}
+
+ Test Files  9 passed (9)
+      Tests  40 passed (40)
+   Start at  19:51:28
+   Duration  167.12s (transform 2.67s, setup 402ms, import 22.18s, tests 138.01s, environment 2ms)
+

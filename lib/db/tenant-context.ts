@@ -17,8 +17,9 @@
  *   `withCompanyContext` con el `companyId` explícito del evento, en vez de
  *   asumir un alcance privilegiado (SEC-04 (3)).
  */
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { branches } from "@/lib/db/schema";
 import type { DbExecutor } from "@/lib/services/fefo-allocator";
 
 /** Nombres de los ajustes de sesión que leen las políticas RLS. */
@@ -82,6 +83,38 @@ export async function withCompanyContext<T>(
 ): Promise<T> {
   return client.transaction(async (tx) => {
     await setTenantContext(tx, scope);
+    return fn(tx);
+  });
+}
+
+/**
+ * Igual que `withCompanyContext`, pero resolviendo la empresa a partir de la
+ * sucursal. Sirve a los servicios y reportes del dominio que sólo reciben
+ * `branchId` y hoy dependían del bypass del dueño.
+ *
+ * La lectura de `branches` va DENTRO de la transacción del tenant: `branches`
+ * todavía no tiene RLS, así que la resolución es posible sin contexto previo.
+ */
+export async function withBranchContext<T>(
+  branchId: string,
+  fn: (tx: DbTransaction) => Promise<T>,
+  client: typeof db = db,
+): Promise<T> {
+  return client.transaction(async (tx) => {
+    const [branch] = await tx
+      .select({ companyId: branches.companyId })
+      .from(branches)
+      .where(eq(branches.id, branchId))
+      .limit(1);
+
+    const companyId = branch?.companyId;
+    if (!companyId) {
+      throw new Error(
+        `withBranchContext: la sucursal ${branchId} no existe o no tiene empresa; no se consulta sin contexto.`,
+      );
+    }
+
+    await setTenantContext(tx, { companyId, branchId });
     return fn(tx);
   });
 }

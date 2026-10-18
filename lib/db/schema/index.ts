@@ -28,6 +28,10 @@ export * from './production';
 // Cabina ejecutiva: resoluciones persistidas de la Cola de Decisiones.
 export * from './executive-decisions';
 
+// Reformas laborales LFT 2026-2030: ley con vigencia por fecha (DOF 1-may-2026)
+// y readiness del registro electrónico de jornada 2027.
+export * from './labor-law-ref';
+
 // Phase 0 / Control Core: excepción canónica con lifecycle, owner y SLA.
 export * from './exceptions';
 

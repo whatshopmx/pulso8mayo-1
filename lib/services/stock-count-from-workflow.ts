@@ -30,6 +30,7 @@ import {
   inventoryWaste,
 } from "@/lib/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
+import { withCompanyContext } from "@/lib/db/tenant-context";
 import { roundQty } from "./stock-count-service";
 import { normalizeStockCount, stockCountTotals, type StockCountRow } from "@/lib/workflows/stock-count-grid";
 import { localDateString } from "@/lib/workflows/today";
@@ -238,20 +239,24 @@ export async function extractStockCountFromInstance(instanceId: string): Promise
 
     if (rows.length === 0) return;
 
-    await db
-      .insert(stockCounts)
-      .values(rows)
-      .onConflictDoUpdate({
-        target: [stockCounts.workflowInstanceId, stockCounts.itemId],
-        targetWhere: sql`${stockCounts.workflowInstanceId} IS NOT NULL`,
-        set: {
-          countedQuantity: sql`excluded.counted_quantity`,
-          systemQuantity: sql`excluded.system_quantity`,
-          evidenceUrl: sql`excluded.evidence_url`,
-          countedBy: sql`excluded.counted_by`,
-          countDate: sql`excluded.count_date`,
-        },
-      });
+    await withCompanyContext(
+      { companyId, branchId: instance.branchId, actorId: countedBy },
+      (tx) =>
+        tx
+          .insert(stockCounts)
+          .values(rows)
+          .onConflictDoUpdate({
+            target: [stockCounts.workflowInstanceId, stockCounts.itemId],
+            targetWhere: sql`${stockCounts.workflowInstanceId} IS NOT NULL`,
+            set: {
+              countedQuantity: sql`excluded.counted_quantity`,
+              systemQuantity: sql`excluded.system_quantity`,
+              evidenceUrl: sql`excluded.evidence_url`,
+              countedBy: sql`excluded.counted_by`,
+              countDate: sql`excluded.count_date`,
+            },
+          }),
+    );
 
     logger.info(
       { instanceId, companyId, branchId: instance.branchId, conteos: rows.length, countDate },

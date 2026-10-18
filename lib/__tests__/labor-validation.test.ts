@@ -315,14 +315,17 @@ describe("formatOvertimeRate", () => {
 });
 
 describe("getComplianceStatus", () => {
-    // Umbrales con reglas 2026 default (48h = 2880 min): warning >2940, violation
-    // >3420 (= 2880 + 9h de extra, el tope semanal LFT en 2026).
+    // Umbrales con reglas 2026 vigentes (48h = 2880 min). Pendiente tras
+    // HOTFIX Art. 66/68 (DOF 1-may-2026): EXTRA semanal legal = 9h doble
+    // + 4h triple = 61h to absoluto; la banda warning es la superior de 48h
+    // (+1h de tolerancia deliberada).
     it.each([
         ["48h exactas", 2880, "compliant"],
         ["49h exactas aún compliant (tolerancia de 1h)", 2940, "compliant"],
         ["49h 1min ya es warning", 2941, "warning"],
-        ["57h todavía warning (dentro de las 9h extra)", 3420, "warning"],
-        ["57h 1min viola el tope LFT de extra", 3421, "violation"],
+        ["57h todavía warning (dentro del tope legal de extra)", 3420, "warning"],
+        ["61h exactas aún warning (tope legal 48+9+4)", 3660, "warning"],
+        ["61h 1min viola el tope LFT de extra", 3661, "violation"],
     ])("%s (%i min → %s)", (_label, minutes, expected) => {
         expect(getComplianceStatus(minutes)).toBe(expected);
     });
@@ -331,7 +334,15 @@ describe("getComplianceStatus", () => {
         const rules: ComplianceRule = { ...DEFAULT_COMPLIANCE_RULES, weeklyHours: 40 };
         expect(getComplianceStatus(2400, rules)).toBe("compliant");
         expect(getComplianceStatus(2461, rules)).toBe("warning");
-        expect(getComplianceStatus(2941, rules)).toBe("violation");
+    });
+
+    it("HOTFIX: tope de violación escala con el calendario legal (no 9h fijas)", () => {
+        // 2026: tope total = 48 + 9 (doble) + 4 (triple) = 61h.
+        expect(getComplianceStatus(3660, { ...DEFAULT_COMPLIANCE_RULES, weeklyHours: 48 }, 2026)).toBe("warning");
+        expect(getComplianceStatus(3661, { ...DEFAULT_COMPLIANCE_RULES, weeklyHours: 48 }, 2026)).toBe("violation");
+        // 2030: 40 + 12 (doble) + 4 (triple) = 56h.
+        expect(getComplianceStatus(3360, { ...DEFAULT_COMPLIANCE_RULES, weeklyHours: 40 }, 2030)).toBe("warning");
+        expect(getComplianceStatus(3361, { ...DEFAULT_COMPLIANCE_RULES, weeklyHours: 40 }, 2030)).toBe("violation");
     });
 });
 
@@ -377,11 +388,17 @@ describe("generateWeeklyReport", () => {
     });
 
     it("empleado sobre el tope LFT cuenta como violation en el resumen", () => {
+        // HOTFIX Art. 66/68: tope semanal absoluto en 2026 = 48 + 13h extra =
+        // 61h. El caso antes usado (3×20h = 60h) ahora cae dentro del tope
+        // total y es capturado por la distribución diaria
+        // (validateOvertimeDistribution / LFTConflictDetector); para
+        // violation semanal se usa 4×20h = 80h.
         const report = generateWeeklyReport(
             [
-                shift("a", "u1", "2026-06-16T00:00:00Z", "2026-06-16T20:00:00Z"), // 20h lunes
+                shift("a", "u1", "2026-06-16T00:00:00Z", "2026-06-16T20:00:00Z"),
                 shift("b", "u1", "2026-06-17T00:00:00Z", "2026-06-17T20:00:00Z"),
                 shift("c", "u1", "2026-06-18T00:00:00Z", "2026-06-18T20:00:00Z"),
+                shift("d", "u1", "2026-06-19T00:00:00Z", "2026-06-19T20:00:00Z"), // 80h
             ],
             [],
         );

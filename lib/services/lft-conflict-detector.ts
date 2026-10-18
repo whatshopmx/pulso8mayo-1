@@ -7,13 +7,15 @@
 
 import { format, differenceInDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { LaborCalendarRulesService } from './labor-calendar-rules';
+import { validateOvertimeDistribution } from '../labor-validation';
 
 export type LFTConflictType = 
     | 'SIXTH_DAY_VIOLATION'
     | 'WEEKLY_LIMIT_EXCEEDED'
     | 'DAILY_LIMIT_EXCEEDED'
     | 'INSUFFICIENT_REST'
-    | 'MISSING_REST_DAY';
+    | 'MISSING_REST_DAY'
+    | 'OVERTIME_DISTRIBUTION_VIOLATION';
 
 export type ConflictSeverity = 'LEVE' | 'GRAVE' | 'MUY_GRAVE';
 
@@ -61,6 +63,10 @@ export class LFTConflictDetector {
 
             // Check insufficient rest between shifts (12 hours min)
             conflicts.push(...this.detectInsufficientRestViolation(userId, shifts));
+
+            // HOTFIX Art. 66/68 (DOF 1-may-2026): distribución de extra
+            // ilegale — ≤4h/día, ≤4 días con extra, tope doble+triple semanal.
+            conflicts.push(...this.detectOvertimeDistributionViolation(userId, shifts));
         }
 
         return conflicts;
@@ -229,6 +235,72 @@ export class LFTConflictDetector {
                 });
             }
         });
+
+        return conflicts;
+    }
+
+    /**
+     * HOTFIX DOJ 1-may-2026 (Art. 66/68): la extra semanal no sólo
+     * tiene tope de horas: se distribuye en máx 4h diarias, en máx 4
+     * días y con tope doble+triple semanal según año (9+4h en 2026).
+     */
+    private static detectOvertimeDistributionViolation(
+        userId: string,
+        shifts: ShiftSchedule[]
+    ): LFTConflict[] {
+        const conflicts: LFTConflict[] = [];
+
+        // Extras DIARIAS por semana (anclado al día de inicio de semana lunes).
+        const extrasByWeek: Record<string, Record<string, number>> = {};
+        const namesByWeek: Record<string, string> = {};
+        const datesByWeek: Record<string, Date[]> = {};
+
+        shifts.forEach(shift => {
+            const weekKey = format(startOfWeek(shift.date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            if (!extrasByWeek[weekKey]) {
+                extrasByWeek[weekKey] = {};
+                namesByWeek[weekKey] = shift.userName;
+                datesByWeek[weekKey] = [];
+            }
+            if (shift.workHours > 8) {
+                extrasByWeek[weekKey][format(shift.date, 'yyyy-MM-dd')] = shift.workHours - 8;
+                datesByWeek[weekKey].push(shift.date);
+            }
+        });
+
+        for (const [weekStart, dailyExtras] of Object.entries(extrasByWeek)) {
+            const weekYear = new Date(weekStart).getFullYear();
+            // Orden de días calendario dentro de la semana (tan importante
+            // como el orden del array de fecha ISO).
+            const dayKeys = Object.keys(dailyExtras).sort();
+            const violations = validateOvertimeDistribution(
+                dayKeys.map(day => dailyExtras[day] * 60),
+                weekYear
+            );
+
+            for (const violation of violations) {
+                conflicts.push({
+                    id: `ot-dist-${userId}-${weekStart}-${violation.code}`,
+                    userId,
+                    userName: namesByWeek[weekStart],
+                    type: 'OVERTIME_DISTRIBUTION_VIOLATION',
+                    severity: 'MUY_GRAVE',
+                    description: `${violation.message} (semana del ${weekStart})`,
+                    article: violation.article,
+                    dates: violation.dayIndex !== undefined && datesByWeek[weekStart][violation.dayIndex]
+                        ? [datesByWeek[weekStart][violation.dayIndex]]
+                        : datesByWeek[weekStart],
+                    details: {
+                        weekStart,
+                        code: violation.code,
+                        distributionViolation: violation.message,
+                        year: weekYear,
+                        maxWeeklyDoubleOvertimeHours: LaborCalendarRulesService.getRulesForYear(weekYear).maxWeeklyDoubleOvertimeHours,
+                        maxWeeklyTripleOvertimeCap: LaborCalendarRulesService.getRulesForYear(weekYear).maxWeeklyTripleOvertimeCap,
+                    },
+                });
+            }
+        }
 
         return conflicts;
     }

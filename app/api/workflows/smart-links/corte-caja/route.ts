@@ -7,6 +7,7 @@ import { requireAuth, requireTenant } from "@/lib/tenant-context";
 import { ApiHandler } from "@/lib/api/response";
 import { ApiError } from "@/lib/api/error";
 import { checkCashVarianceAndAlertSafe } from "@/lib/services/cash-variance-alert-service";
+import { buildAggregatorSalesMap } from "@/lib/sales/aggregator-sales-map";
 
 const corteSchema = z.object({
   workflowInstanceId: z.string().optional(),
@@ -18,28 +19,18 @@ const corteSchema = z.object({
   rappi: z.number().int().min(0).default(0),
   uber: z.number().int().min(0).default(0),
   didi: z.number().int().min(0).default(0),
+  /**
+   * Plataformas activas capturadas por el paso dinámico `paso-plataformas-<canal>`:
+   * un mapa canal→centavos. Reemplaza la lista fija rappi/uber/didi, que se
+   * conserva por compatibilidad. La llave se normaliza a la canónica.
+   */
+  plataformas: z.record(z.string(), z.number().int().min(0)).optional(),
   tickets: z.number().int().min(0).default(0),
   // Fase 2: arqueo físico (efectivo contado) y depósito del turno.
   // Opcionales en el schema; la validación de negocio exige arqueo si hay efectivo.
   arqueo: z.number().int().min(0).optional(),
   deposito: z.number().int().min(0).optional(),
 });
-
-// Fase 3: etiquetas conocidas de agregadores (rappi/uber/didi + genéricos).
-function buildAggregatorSales(data: z.infer<typeof corteSchema>): Record<string, number> | null {
-  const entries = [
-    ["rappi", data.rappi],
-    ["uber", data.uber],
-    ["didi", data.didi],
-  ] as const;
-  const hasAny = entries.some(([, v]) => (v ?? 0) > 0);
-  if (!hasAny) return null;
-  const out: Record<string, number> = {};
-  for (const [key, value] of entries) {
-    out[key] = value ?? 0;
-  }
-  return out;
-}
 
 /**
  * POST /api/workflows/smart-links/corte-caja
@@ -69,10 +60,14 @@ export async function POST(req: NextRequest) {
     const efectivoCents = data.efectivo;
     const tarjetaCents = data.tarjeta;
     const cuponesCents = data.cupones;
-    const rappiCents = data.rappi;
-    const uberCents = data.uber;
-    const didiCents = data.didi;
-    const otherPayments = cuponesCents + rappiCents + uberCents + didiCents;
+    const aggregatorSales = buildAggregatorSalesMap({
+      rappi: data.rappi,
+      uber: data.uber,
+      didi: data.didi,
+      plataformas: data.plataformas,
+    });
+    const aggregatorsCents = Object.values(aggregatorSales ?? {}).reduce((a, b) => a + b, 0);
+    const otherPayments = cuponesCents + aggregatorsCents;
     const totalSales = efectivoCents + tarjetaCents + otherPayments;
 
     if (totalSales <= 0) {
@@ -99,7 +94,7 @@ export async function POST(req: NextRequest) {
         otherPayments,
         cashCountedCents: data.arqueo ?? null,
         depositedCents: data.deposito ?? null,
-        aggregatorSales: buildAggregatorSales(data),
+        aggregatorSales,
         ticketCount: data.tickets || null,
         source: "MANUAL_FORM",
         status: "PENDING_REVIEW",

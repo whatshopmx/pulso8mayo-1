@@ -4,7 +4,15 @@
  * Manages off-hours convocations (inventories, trainings, corporate events)
  * applying mandatory +50% extra rate / overtime computation and tracking 
  * compensatory rest days to be taken within 30 calendar days.
+ *
+ * ESTATUS LEGAL (Task 4 — catálogo ACTIVIDADES_FUERA_DE_JORNADA_50):
+ * la regla +50%/descanso 30 días NO se localiza en el DOF (ni en el
+ * decreto de 1-may-2026 ni en las reformas de dic-2024). Se implementa
+ * como POLICY de empresa escogable, no como norma exigible; el evento
+ * resultante lleva `legalStatus` para que UI/auditoría no la alegue.
  */
+
+import { getReformStatus } from '@/lib/company/labor-reform-status-catalog';
 
 export interface OffHoursEventRequest {
   id: string;
@@ -35,7 +43,7 @@ export class OffHoursEventService {
     hoursSpent: number;
     isRestDayEvent: boolean;
     justificationByEmployer: string;
-  }): { success: boolean; event: OffHoursEventRequest; summaryMessage: string } {
+  }): { success: boolean; event: OffHoursEventRequest; summaryMessage: string; legalStatus: string; legalBasisNote: string } {
     const eventDateStr = input.eventDate.toISOString().split('T')[0];
     const surcharge = input.isRestDayEvent ? 1.5 : 1.0;
 
@@ -57,12 +65,16 @@ export class OffHoursEventService {
     const summaryMessage = input.isRestDayEvent
       ? `Evento fuera de jornada convocado el día de descanso. Se aplica un sobreprecio del 50% extra (o tarifa extra LFT) y el colaborador tiene derecho a 1 día de descanso compensatorio elegible dentro de 30 días.`
       : `Actividad complementaria fuera de jornada registrada (${input.hoursSpent}h) como tiempo extraordinario.`;
+    const reformStatus = getReformStatus('ACTIVIDADES_FUERA_DE_JORNADA_50');
 
     return {
       success: true,
       event,
       summaryMessage,
-    };
+      /** POLICY: la regla +50% no se localiza en DOF — política de empresa. */
+      legalStatus: reformStatus?.status ?? 'POLICY',
+      legalBasisNote: reformStatus?.basis ?? 'No localizada en el DOF; política interna opcional.',
+    } as { success: boolean; event: OffHoursEventRequest; summaryMessage: string; legalStatus: string; legalBasisNote: string };
   }
 
   /**

@@ -1,0 +1,93 @@
+{
+  "id": "tpl-conciliacion-plataformas-v1",
+  "nombre": "💳 Conciliación Semanal de Plataformas",
+  "descripcion": "El gerente captura el resumen semanal que manda cada plataforma (Rappi, Uber Eats, DiDi, terminal) y Pulso lo compara contra las ventas registradas en los cortes de esa semana. Si el depósito no cuadra, queda una excepción con responsable y fecha límite.",
+  "categoria": "FINANZAS",
+  "version": 1,
+  "activo": true,
+  "requiereIA": false,
+  "duracionEstimada": "5-8 min",
+  "tags": ["conciliacion", "agregadores", "delivery", "deposito", "semanal", "finanzas", "liquidacion"],
+  "responsable": {
+    "rol": "GERENTE",
+    "descripcion": "Gerente de sucursal o encargado de finanzas"
+  },
+  "frecuenciaSugerida": "SEMANAL",
+  "pasos": [
+    {
+      "id": "paso-canal",
+      "tipo": "Select",
+      "titulo": "Plataforma a conciliar",
+      "descripcion": "Elige la plataforma cuyo estado de cuenta vas a capturar. Corre el flujo una vez por plataforma.",
+      "obligatorio": true,
+      "opciones": [
+        "Rappi",
+        "Uber Eats",
+        "DiDi Food",
+        "PedidosYa",
+        "Justo",
+        "Sin Delantal",
+        "Mercado Pago",
+        "TPV (tarjeta)"
+      ]
+    },
+    {
+      "id": "paso-periodo-inicio",
+      "tipo": "date",
+      "titulo": "Inicio del periodo del estado de cuenta",
+      "descripcion": "Primer día que cubre el resumen de la plataforma (normalmente lunes).",
+      "obligatorio": true
+    },
+    {
+      "id": "paso-periodo-fin",
+      "tipo": "date",
+      "titulo": "Fin del periodo del estado de cuenta",
+      "descripcion": "Último día que cubre el resumen (normalmente domingo).",
+      "obligatorio": true
+    },
+    {
+      "id": "paso-venta-bruta",
+      "tipo": "NumberField",
+      "titulo": "Venta bruta reportada por la plataforma ($ MXN)",
+      "descripcion": "El total de venta que la plataforma dice que hiciste, ANTES de su comisión.",
+      "obligatorio": true,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-comision",
+      "tipo": "NumberField",
+      "titulo": "Comisión cobrada por la plataforma ($ MXN)",
+      "descripcion": "Lo que la plataforma retuvo. Déjalo en blanco si no hubo comisión.",
+      "obligatorio": false,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-neto",
+      "tipo": "NumberField",
+      "titulo": "Neto depositado en banco ($ MXN)",
+      "descripcion": "El monto que realmente llegó a la cuenta (venta bruta menos comisión).",
+      "obligatorio": true,
+      "validation": { "min": 0 }
+    },
+    {
+      "id": "paso-evidencia",
+      "tipo": "PhotoField",
+      "titulo": "Estado de cuenta o comprobante del depósito",
+      "descripcion": "Adjunta la foto o el PDF del resumen de la plataforma.",
+      "obligatorio": false
+    },
+    {
+      "id": "paso-notas",
+      "tipo": "textarea",
+      "titulo": "Notas (opcional)",
+      "descripcion": "Cualquier aclaración: promociones, ajustes, cargos no reconocidos.",
+      "obligatorio": false
+    }
+  ],
+  "completionActions": [
+    {
+      "type": "RECONCILE_AGGREGATOR_SETTLEMENTS",
+      "message": "Registrar la liquidación, conciliarla contra los cortes del periodo y abrir una excepción si no cuadra"
+    }
+  ]
+}

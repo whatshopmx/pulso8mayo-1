@@ -95,6 +95,84 @@ export function calculateWeeklyOvertime(dailyOvertime: number[]): OvertimeCalcul
   return calculateOvertime(8 * 60 + totalOvertime);
 }
 
+export interface OvertimeDistributionViolation {
+    code: "DAILY_EXTRA_EXCEEDED" | "TOO_MANY_EXTRA_DAYS" | "TRIPLE_CAP_EXCEEDED" | "DAILY_SUM_EXCEEDED";
+    message: string;
+    article: string;
+    dayIndex?: number;
+}
+
+/**
+ * Reglas de distribución de horas extra (Art. 66/68 LFT, DOF 1-may-2026):
+ *  - extra ≤ 4h diarias;
+ *  - días CON extra ≤ 4 por semana;
+ *  - triple acumulado semanal ≤ cap del año (4h desde 2026);
+ *  - suma ordinaria+extra ≤ 12h diarias (jornada tipica de 8h).
+ * Recibe los minutos de extra DIARIA (mismo contrato que
+ * calculateWeeklyOvertime) y el año para resolver el cap vigente.
+ */
+export function validateOvertimeDistribution(
+  dailyOvertime: number[],
+  year: number = new Date().getFullYear()
+): OvertimeDistributionViolation[] {
+  const violations: OvertimeDistributionViolation[] = [];
+  const rules = LaborCalendarRulesService.getRulesForYear(year);
+  const maxExtraPerDay = rules.maxExtraHoursPerDay ?? 4;
+  const maxExtraDays = rules.maxExtraDaysPerWeek ?? 4;
+  const maxDailySum = rules.maxDailySumHours ?? 12;
+  const ordinaryDailyMinutes = 60 * (maxDailySum - maxExtraPerDay); // 8h típicas
+
+  let totalOvertime = 0;
+  let daysWithExtra = 0;
+
+  dailyOvertime.forEach((overtime, dayIndex) => {
+    const extra = Math.max(0, overtime);
+    if (extra <= 0) return;
+    totalOvertime += extra;
+    daysWithExtra++;
+
+    if (extra > maxExtraPerDay * 60) {
+      violations.push({
+        code: "DAILY_EXTRA_EXCEEDED",
+        message: `Extra diaria de ${(extra / 60).toFixed(1)}h excede el máximo de ${maxExtraPerDay}h/día (Art. 66 LFT)`,
+        article: "Art. 66 LFT",
+        dayIndex,
+      });
+    }
+
+    if (ordinaryDailyMinutes + extra > maxDailySum * 60) {
+      violations.push({
+        code: "DAILY_SUM_EXCEEDED",
+        message: `Suma ordinaria+extra de ${((ordinaryDailyMinutes + extra) / 60).toFixed(1)}h excede el máximo de ${maxDailySum}h diarias (Art. 68 LFT)`,
+        article: "Art. 68 LFT",
+        dayIndex,
+      });
+    }
+  });
+
+  // Tope total de extra semanal: doble + triple (Art. 66 + 68). Ej. 2026:
+  // 9h al doble + máx 4h al triple = 13h semanales.
+  const maxWeeklyOvertimeMinutes =
+    rules.maxWeeklyDoubleOvertimeHours * 60 + rules.maxWeeklyTripleOvertimeCap * 60;
+  if (totalOvertime > maxWeeklyOvertimeMinutes) {
+    violations.push({
+      code: "TRIPLE_CAP_EXCEEDED",
+      message: `Horas extra totales de ${(totalOvertime / 60).toFixed(1)}h superan ${rules.maxWeeklyDoubleOvertimeHours}h al doble + ${rules.maxWeeklyTripleOvertimeCap}h al triple semanales (Art. 68 LFT)`,
+      article: "Art. 68 LFT",
+    });
+  }
+
+  if (daysWithExtra > maxExtraDays) {
+    violations.push({
+      code: "TOO_MANY_EXTRA_DAYS",
+      message: `${daysWithExtra} días con extra exceden el máximo de ${maxExtraDays} días por semana (Art. 66 LFT)`,
+      article: "Art. 66 LFT",
+    });
+  }
+
+  return violations;
+}
+
 export function validateBreakCompliance(
   workMinutes: number,
   breakMinutes: number,
@@ -280,13 +358,23 @@ export function formatOvertimeRate(minutes: number, rate: 1 | 2 | 3): string {
 
 export function getComplianceStatus(
   weeklyMinutes: number,
-  rules: ComplianceRule = DEFAULT_COMPLIANCE_RULES
+  rules: ComplianceRule = DEFAULT_COMPLIANCE_RULES,
+  year: number = new Date().getFullYear()
 ): "compliant" | "warning" | "violation" {
+  // Tope legal completo según calendario vigente: jornada semanal + extra
+  // doble + cap triple (Art. 66/68, DOF 1-may-2026). Antes usaba
+  // `3 * 60 * 3` fijo (9 horas) y quedaba obsoleto cada año.
+  const calendarRules = LaborCalendarRulesService.getRulesForYear(year);
   const maxWeekly = rules.weeklyHours * 60;
-  const maxWithOvertime = maxWeekly + (3 * 60 * 3);
+  const maxWithOvertime =
+    maxWeekly +
+    calendarRules.maxWeeklyDoubleOvertimeHours * 60 +
+    calendarRules.maxWeeklyTripleOvertimeCap * 60;
 
   if (weeklyMinutes > maxWithOvertime) return "violation";
-  if (weeklyMinutes > maxWeekly + (1 * 60)) return "warning";
+  // Tolerancia deliberada de 1h sobre la jornada semanal (decisión previa
+  // que se conserva) antes de marcar warning.
+  if (weeklyMinutes > maxWeekly + 60) return "warning";
   return "compliant";
 }
 

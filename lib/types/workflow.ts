@@ -50,7 +50,12 @@ export interface StepValidation {
  * Entidades que el resolver de pasos dinámicos sabe expandir.
  * Ver `lib/workflows/dynamic-steps.ts`.
  */
-export type DynamicSourceEntity = "inventory_item" | "recipe" | "purchase_order_item";
+export type DynamicSourceEntity =
+  | "inventory_item"
+  | "recipe"
+  | "purchase_order_item"
+  /** Canales de venta con tarifa capturada (agregadores activos del grupo). */
+  | "sales_channel";
 
 export interface DynamicSourceFilter {
   /** Sólo SKUs marcados 80/20. Únicamente para `inventory_item`. */

@@ -39,28 +39,13 @@
       "validation": { "min": 0 }
     },
     {
-      "id": "paso-rappi",
+      "id": "paso-plataformas",
       "type": "NumberField",
-      "titulo": "Rappi ($ MXN)",
-      "descripcion": "Total de órdenes recibidas y completadas vía Rappi durante el turno.",
+      "titulo": "Ventas {{name}} ($ MXN)",
+      "descripcion": "Total de órdenes recibidas y completadas vía {{name}} durante el turno. Se genera un paso por cada plataforma activa del grupo (Modelo Operativo → Canales de venta).",
       "obligatorio": false,
-      "validation": { "min": 0 }
-    },
-    {
-      "id": "paso-uber",
-      "type": "NumberField",
-      "titulo": "Uber Eats ($ MXN)",
-      "descripcion": "Total de órdenes recibidas vía Uber Eats durante el turno.",
-      "obligatorio": false,
-      "validation": { "min": 0 }
-    },
-    {
-      "id": "paso-didi",
-      "type": "NumberField",
-      "titulo": "Didi Food ($ MXN)",
-      "descripcion": "Total de órdenes recibidas vía Didi Food durante el turno.",
-      "obligatorio": false,
-      "validation": { "min": 0 }
+      "validation": { "min": 0 },
+      "metadata": { "dynamicSource": { "entity": "sales_channel" } }
     },
     {
       "id": "paso-tickets",

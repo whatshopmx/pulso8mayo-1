@@ -710,6 +710,13 @@
       "breakpoints": true
     },
     {
+      "idx": 102,
+      "version": "7",
+      "when": 1792301587985,
+      "tag": "0102_parallel_red_skull",
+      "breakpoints": true
+    },
+    {
       "idx": 103,
       "version": "7",
       "when": 1792333118084,
@@ -728,6 +735,13 @@
       "version": "7",
       "when": 1792336238263,
       "tag": "0105_rls_inventory_monitoring",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1792352624936,
+      "tag": "0106_rls_stock_counts",
       "breakpoints": true
     }
   ]

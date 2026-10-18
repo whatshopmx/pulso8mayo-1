@@ -11,9 +11,11 @@
 // 7 archivos y todos los renderers ya saben pintar los tipos generados.
 
 import { db } from "@/lib/db";
-import { inventoryItems, purchaseOrderItems, purchaseOrders, recipes } from "@/lib/db/schema";
+import { channelCommissionRates, inventoryItems, purchaseOrderItems, purchaseOrders, recipes } from "@/lib/db/schema";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { DynamicSource, DynamicSourceFilter, WorkflowStep } from "@/lib/types/workflow";
+import { activeSalesChannels } from "@/lib/services/sales-channel-catalog";
+import { localDateString } from "@/lib/workflows/today";
 import { createChildLogger } from "@/lib/logger";
 
 const logger = createChildLogger("workflows:dynamic-steps");
@@ -170,6 +172,33 @@ async function queryPurchaseOrderItems(
     .orderBy(inventoryItems.name);
 }
 
+/**
+ * Canales de venta expandibles: los agregadores **activos** del grupo.
+ *
+ * Activo = tiene tarifa capturada (o es un canal de sistema, que aquí se
+ * excluye). Un agregador sin tarifa no se ofrece: no se vende por él, y un paso
+ * en cero por cada plataforma del mercado sólo estorba. El `id` del sub-paso es
+ * la clave canónica (`rappi`, `uber`…), que es justo la que escribe
+ * `aggregator_sales`.
+ */
+async function querySalesChannels(companyId: string): Promise<ResolvedEntity[]> {
+  const rates = await db
+    .select({
+      channel: channelCommissionRates.channel,
+      branchId: channelCommissionRates.branchId,
+      effectiveFrom: channelCommissionRates.effectiveFrom,
+      rateBps: channelCommissionRates.rateBps,
+      vatBps: channelCommissionRates.vatBps,
+    })
+    .from(channelCommissionRates)
+    .where(eq(channelCommissionRates.companyId, companyId));
+
+  const today = localDateString(new Date(), null);
+  return activeSalesChannels(rates, today)
+    .filter((channel) => channel.kind === "AGGREGATOR")
+    .map((channel) => ({ id: channel.key, name: channel.label }));
+}
+
 async function loadEntities(source: DynamicSource, ctx: DynamicResolveContext): Promise<ResolvedEntity[]> {
   switch (source.entity) {
     case "inventory_item":
@@ -187,6 +216,8 @@ async function loadEntities(source: DynamicSource, ctx: DynamicResolveContext): 
       }
       return queryPurchaseOrderItems(ctx.companyId, poId);
     }
+    case "sales_channel":
+      return querySalesChannels(ctx.companyId);
     default:
       logger.warn({ entity: String((source as DynamicSource).entity) }, "Entidad desconocida");
       return [];

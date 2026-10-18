@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import {
   computeTpvVariance,
   tpvVarianceNote,
 } from "@/lib/sales/cash-variance";
+import { computeCutPaymentBreakdown } from "@/lib/sales/cut-payment-breakdown";
 import { Loader2, Upload, Plus, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 /**
@@ -57,6 +58,12 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
   const [commission, setCommission] = useState<string>("");
   const [ticketCount, setTicketCount] = useState<string>("");
 
+  // Fase 2 — plataformas activas del grupo. Se cargan del catálogo de canales
+  // (Modelo Operativo → Canales de venta) para capturar el desglose por
+  // plataforma en el corte manual, en vez de colapsarlo dentro de "Otros".
+  const [aggregators, setAggregators] = useState<Array<{ key: string; label: string }>>([]);
+  const [aggregatorAmounts, setAggregatorAmounts] = useState<Record<string, string>>({});
+
   const resetForm = () => {
     setFile(null);
     setBranchId(branches[0]?.id || "");
@@ -70,7 +77,30 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
     setTpvDeposit("");
     setCommission("");
     setTicketCount("");
+    setAggregatorAmounts({});
   };
+
+  // Las plataformas son una comodidad de captura, no una puerta: si el catálogo
+  // no carga, el corte se sigue pudiendo registrar con "Otros".
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/company/sales-channels");
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success) return;
+        const activos = (json.data?.channels ?? [])
+          .filter((c: { kind?: string; active?: boolean }) => c.kind === "AGGREGATOR" && c.active)
+          .map((c: { key: string; label: string }) => ({ key: c.key, label: c.label }));
+        if (!cancelado) setAggregators(activos);
+      } catch {
+        // Sin catálogo: sólo se pierde el desglose, no la captura.
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   // --- Comprobaciones en vivo -------------------------------------------------
   // El único momento en que un error de conteo se puede corregir es mientras el
@@ -79,13 +109,27 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
   const totalCents = pesosToCents(totalSales);
   const cashCents = pesosToCents(cashSales);
   const cardCents = pesosToCents(cardSales);
-  const otherCents = pesosToCents(otherPayments);
+  const otherBaseCents = pesosToCents(otherPayments);
   const countedCents = pesosToCents(cashCounted);
   const tpvDepositCents = pesosToCents(tpvDeposit);
   const commissionCents = pesosToCents(commission);
 
-  const anyPaymentEntered = cashCents !== null || cardCents !== null || otherCents !== null;
-  const paymentsSum = (cashCents ?? 0) + (cardCents ?? 0) + (otherCents ?? 0);
+  // Cuadre de formas de pago, con el desglose por plataforma activa.
+  const aggregatorCentsPorCanal: Record<string, number | null> = {};
+  for (const a of aggregators) {
+    aggregatorCentsPorCanal[a.key] = pesosToCents(aggregatorAmounts[a.key] ?? "");
+  }
+  const {
+    aggregatorSales,
+    otherTotalCents,
+    paymentsSumCents: paymentsSum,
+    anyEntered: anyPaymentEntered,
+  } = computeCutPaymentBreakdown({
+    cashCents,
+    cardCents,
+    otherBaseCents,
+    aggregatorCents: aggregatorCentsPorCanal,
+  });
   // Mismo margen que aplica el servidor (app/api/sales/cuts/route.ts): ±2%.
   const paymentsGap = totalCents !== null && anyPaymentEntered ? paymentsSum - totalCents : null;
   const paymentsOutOfTolerance =
@@ -167,7 +211,8 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
           totalSales: totalCents, // in cents
           cashSales: cashCents,
           cardSales: cardCents,
-          otherPayments: otherCents,
+          otherPayments: otherTotalCents,
+          aggregatorSales: Object.keys(aggregatorSales).length > 0 ? aggregatorSales : null,
           cashCountedCents: countedCents,
           tpvDepositCents,
           commissionCents,
@@ -380,7 +425,7 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="otherPayments" className="text-xs">Otros (MXN)</Label>
+                  <Label htmlFor="otherPayments" className="text-xs">Otros (vales, transf.)</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -391,6 +436,38 @@ export function SalesCutUpload({ branches, onSuccess, onUploadSuccess }: SalesCu
                   />
                 </div>
               </div>
+
+              {/* Fase 2 — desglose por plataforma. Sólo las activas del catálogo de
+                  canales: lo que el POS liquida aparte se captura aquí. */}
+              {aggregators.length > 0 && (
+                <div className="space-y-2 pt-1 border-t">
+                  <Label className="text-xs">Ventas por plataforma (MXN)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Sólo las plataformas activas del grupo (Modelo Operativo → Canales de venta).
+                    Se suman a &quot;Otros&quot; en el cuadre.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {aggregators.map((a) => (
+                      <div key={a.key} className="space-y-1">
+                        <Label htmlFor={`agg-${a.key}`} className="text-xs">
+                          {a.label}
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          id={`agg-${a.key}`}
+                          placeholder="0.00"
+                          value={aggregatorAmounts[a.key] ?? ""}
+                          onChange={(e) =>
+                            setAggregatorAmounts((prev) => ({ ...prev, [a.key]: e.target.value }))
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Cuadre de formas de pago contra el total, en vivo. */}
               {paymentsGap !== null && (

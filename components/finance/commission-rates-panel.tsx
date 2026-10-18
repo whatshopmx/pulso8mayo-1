@@ -42,7 +42,7 @@ function percentToBps(raw: string): number | null {
  * en "sin datos" y lo dice. Por eso la pantalla insiste en que capturar aquí es
  * lo que enciende el cálculo.
  */
-export function CommissionRatesPanel({ canEdit }: { canEdit: boolean }) {
+export function CommissionRatesPanel({ canEdit, onSaved }: { canEdit: boolean; onSaved?: () => void }) {
   const { toast } = useToast();
   const [rates, setRates] = useState<CommissionRate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,6 +113,7 @@ export function CommissionRatesPanel({ canEdit }: { canEdit: boolean }) {
       setPercent("");
       setNotes("");
       await load();
+      onSaved?.();
     } catch (err) {
       toast({
         title: "Error al guardar",
@@ -137,6 +138,7 @@ export function CommissionRatesPanel({ canEdit }: { canEdit: boolean }) {
         description: `Los cortes que se valuaban con ella pasan a la vigencia anterior, o quedan sin estimar si no hay ninguna.`,
       });
       await load();
+      onSaved?.();
     } catch (err) {
       toast({
         title: "Error al borrar",

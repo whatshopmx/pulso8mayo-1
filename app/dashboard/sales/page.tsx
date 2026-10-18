@@ -44,6 +44,13 @@ import {
 } from "@/lib/sales/sales-cut-types";
 
 /**
+ * Tamaño de página del registro de cortes. 50 mantiene la primera pintura
+ * rápida en una cadena de 15 sucursales × 2 turnos (~30/día) y el resto se pide
+ * con "Cargar más".
+ */
+const CUTS_PAGE_SIZE = 50;
+
+/**
  * `useSearchParams` exige un límite de Suspense: el rango de fechas ahora vive en
  * la URL que escribe `BranchScopeControl`, y sin esta frontera el prerender de la
  * ruta falla en build.
@@ -137,7 +144,9 @@ function SalesDashboardPageContent() {
   }, [resolvedStartDate, resolvedEndDate]);
 
   // Fetch sales cuts
-  const fetchCuts = useCallback(async () => {
+  const fetchCuts = useCallback(async (opts?: { offset?: number; append?: boolean }) => {
+    const offset = opts?.offset ?? 0;
+    const append = opts?.append ?? false;
     setLoadingCuts(true);
     setCutsError(null);
     try {
@@ -151,6 +160,9 @@ function SalesDashboardPageContent() {
       if (endDate) {
         url += `endDate=${endDate}&`;
       }
+      // Paginación: la ruta ya soporta `limit`/`offset`. Sin esto pedía el
+      // default (100) y pintaba todo, truncando el resto sin salida.
+      url += `limit=${CUTS_PAGE_SIZE}&offset=${offset}`;
 
       const res = await fetch(url);
       if (!res.ok) {
@@ -160,7 +172,10 @@ function SalesDashboardPageContent() {
       // La ruta pasó de devolver un arreglo pelado a `{ items, total, scope }`
       // (A8), para poder declarar el rango aplicado y lo que no cabe en la
       // página. `?? []` cubre el caso de una respuesta sin `items`.
-      setCuts(data.data?.items ?? []);
+      const items = (data.data?.items ?? []) as SalesCut[];
+      // "Cargar más" acumula; un cambio de filtro o un guardado reemplaza.
+      if (append) setCuts((prev) => [...prev, ...items]);
+      else setCuts(items);
       setCutsScope(data.data?.scope ?? null);
       setCutsTotal(data.data?.total ?? 0);
     } catch (err) {
@@ -497,13 +512,11 @@ function SalesDashboardPageContent() {
                     el alcance desde los controles del encabezado.
                   </p>
 
-                  {/* Una lista acotada presentada como completa es una afirmación
-                      falsa sobre cuántos cortes hay. Se dice cuántos se ven y
-                      cuántos existen, como ya hace Control Interno. */}
-                  {cutsScope?.truncated && (
-                    <p className="text-xs text-warning-text">
-                      Se muestran {cuts.length} de {cutsTotal} cortes del período. Acota el rango
-                      para ver el resto.
+                  {/* Cuántos se ven de cuántos hay. Con paginación es un dato
+                      esperado, no una advertencia; el botón de abajo carga el resto. */}
+                  {cuts.length < cutsTotal && (
+                    <p className="text-xs text-muted-foreground">
+                      Se muestran {cuts.length} de {cutsTotal} cortes del período.
                     </p>
                   )}
                 </div>
@@ -644,6 +657,19 @@ function SalesDashboardPageContent() {
                       })}
                     </TableBody>
                   </Table>
+                </div>
+              )}
+              {cuts.length < cutsTotal && (
+                <div className="flex justify-center pt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchCuts({ offset: cuts.length, append: true })}
+                    disabled={loadingCuts}
+                  >
+                    {loadingCuts && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Cargar más ({cutsTotal - cuts.length} restantes)
+                  </Button>
                 </div>
               )}
             </CardContent>

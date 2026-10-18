@@ -52,6 +52,7 @@ import produccionDiariaV1 from './operaciones_diarias/produccion-diaria-v1.json'
 import retiroCajaChicaV1 from './finanzas/retiro-caja-chica-v1.json';
 import corteCajaV1 from './finanzas/corte-caja.json';
 import cierreSucursalV2 from './finanzas/cierre-sucursal.json';
+import conciliacionPlataformasV1 from './finanzas/conciliacion-plataformas-v1.json';
 
 
 const normalizeTemplate = (json: any): Template => {
@@ -165,10 +166,11 @@ export const templateLibrary: Record<string, Template> = {
   'recepcion-mercancia-v3': normalizeTemplate(recepcionMercanciaV3),
   'produccion-diaria-v1': normalizeTemplate(produccionDiariaV1),
 
-  // Finanzas (3)
+  // Finanzas (4)
   'retiro-caja-chica-v1': normalizeTemplate(retiroCajaChicaV1),
   'corte-caja-v1': normalizeTemplate(corteCajaV1),
   'cierre-sucursal-v2': normalizeTemplate(cierreSucursalV2),
+  'conciliacion-plataformas-v1': normalizeTemplate(conciliacionPlataformasV1),
 };
 
 

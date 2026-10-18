@@ -12,15 +12,34 @@ export interface LaborYearlyRule {
   maxWeeklyDoubleOvertimeHours: number;
   maxWeeklyTripleOvertimeCap: number; // Max triple overtime hours allowed
   minRestBetweenShiftsHours: number;
+  // Reglas de distribución (Art. 66/68 LFT, DOF 1-may-2026) — constantes
+  // entre 2026-2030: la extra se reparte en máx 4h diarias, máx 4 días
+  // por semana, y la suma ordinaria+extra nunca supera 12h diarias.
+  maxExtraHoursPerDay: number;
+  maxExtraDaysPerWeek: number;
+  maxDailySumHours: number;
 }
 
+// Constantes de distribución Art. 66/68 (no cambian con el calendario).
+export const OVERTIME_DISTRIBUTION_LIMITS = {
+  maxExtraHoursPerDay: 4,
+  maxExtraDaysPerWeek: 4,
+  maxDailySumHours: 12,
+} as const;
+
 export const LFT_SCHEDULED_REFORMS: Record<number, LaborYearlyRule> = {
+  // HOTFIX legal 2026-10: el Art. 68 reformado (DOF 1-may-2026) ya es
+  // vigente desde el 1 de mayo de 2026 y permite máx 4h de triple en
+  // 2026 (antes el mapa decía 0 = extra triple sin tope, tolerando
+  // hasta 13h extra semanales de forma ilegal). Transitorios:
+  // dobles 9/9/10/11/12 y triple 4 en todos los años.
   2026: {
     year: 2026,
     maxWeeklyHours: 48,
     maxWeeklyDoubleOvertimeHours: 9,
-    maxWeeklyTripleOvertimeCap: 0, // Unrestricted surplus prior to 2027-2030 cap rules
+    maxWeeklyTripleOvertimeCap: 4,
     minRestBetweenShiftsHours: 12,
+    ...OVERTIME_DISTRIBUTION_LIMITS,
   },
   2027: {
     year: 2027,
@@ -28,6 +47,7 @@ export const LFT_SCHEDULED_REFORMS: Record<number, LaborYearlyRule> = {
     maxWeeklyDoubleOvertimeHours: 9,
     maxWeeklyTripleOvertimeCap: 4,
     minRestBetweenShiftsHours: 12,
+    ...OVERTIME_DISTRIBUTION_LIMITS,
   },
   2028: {
     year: 2028,
@@ -35,6 +55,7 @@ export const LFT_SCHEDULED_REFORMS: Record<number, LaborYearlyRule> = {
     maxWeeklyDoubleOvertimeHours: 10,
     maxWeeklyTripleOvertimeCap: 4,
     minRestBetweenShiftsHours: 12,
+    ...OVERTIME_DISTRIBUTION_LIMITS,
   },
   2029: {
     year: 2029,
@@ -42,6 +63,7 @@ export const LFT_SCHEDULED_REFORMS: Record<number, LaborYearlyRule> = {
     maxWeeklyDoubleOvertimeHours: 11,
     maxWeeklyTripleOvertimeCap: 4,
     minRestBetweenShiftsHours: 12,
+    ...OVERTIME_DISTRIBUTION_LIMITS,
   },
   2030: {
     year: 2030,
@@ -49,6 +71,7 @@ export const LFT_SCHEDULED_REFORMS: Record<number, LaborYearlyRule> = {
     maxWeeklyDoubleOvertimeHours: 12,
     maxWeeklyTripleOvertimeCap: 4,
     minRestBetweenShiftsHours: 12,
+    ...OVERTIME_DISTRIBUTION_LIMITS,
   },
 };
 

@@ -8,7 +8,22 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import {
+  COMMISSION_CHANNELS,
+  commissionChannelLabel,
+} from "@/lib/services/commission-types";
 import { Percent, CheckCircle2, AlertTriangle, Plus, Loader2 } from "lucide-react";
+
+/**
+ * Canales conciliables: agregadores + terminal.
+ *
+ * Se derivan de `COMMISSION_CHANNELS` en vez de hardcodearse. El `<SelectItem>`
+ * anterior ofrecía `ubereats`, que no es la llave que guarda el corte (`uber`),
+ * así que la liquidación de Uber Eats se conciliaba contra cero. La fuente
+ * canónica es la misma que usan `matchAggregatorLabel` y las tarifas de comisión.
+ * `mostrador` queda fuera: es efectivo, no se liquida por estado de cuenta.
+ */
+const RECONCILABLE_CHANNELS = COMMISSION_CHANNELS.filter((c) => c !== "mostrador");
 
 interface Settlement {
   id: string;
@@ -155,10 +170,11 @@ export function CommissionsReconciliationPanel({ branches }: CommissionsReconcil
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="rappi">Rappi</SelectItem>
-                    <SelectItem value="ubereats">Uber Eats</SelectItem>
-                    <SelectItem value="didi">DiDi Food</SelectItem>
-                    <SelectItem value="tpv">Terminal Bancaria (TPV)</SelectItem>
+                    {RECONCILABLE_CHANNELS.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c === "tpv" ? "Terminal Bancaria (TPV)" : commissionChannelLabel(c)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

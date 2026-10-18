@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PurchasingApprovalsSection } from "@/components/company/purchasing-approvals-section";
 import { PurchasingDelegationSection } from "@/components/company/purchasing-delegation-section";
+import { SalesChannelsSection } from "@/components/company/sales-channels-section";
 import {
   OperatingConfigForm,
   type OperatingConfigValues,
@@ -90,6 +91,7 @@ export default function OperatingConfigPage() {
       ) : (
         <div className="space-y-6">
           <OperatingConfigForm initialConfig={config} onSuccess={() => void cargar()} />
+          <SalesChannelsSection />
           <PurchasingApprovalsSection />
           <PurchasingDelegationSection />
         </div>

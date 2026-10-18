@@ -8,13 +8,19 @@ import {
   suppliers,
   purchaseOrders,
   purchaseOrderItems,
-  incidents
+  incidents,
+  branches,
+  aggregatorSettlements
 } from "@/lib/db/schema";
 import { eq, and, ilike } from "drizzle-orm";
 import { InventoryService } from "./inventory-service";
 import { StockCountService } from "./stock-count-service";
 import { SupplierClaimService } from "./supplier-claim-service";
 import { NotificationDispatcher } from "./notification-dispatcher";
+import { ExceptionService } from "./exception-service";
+import { createAndReconcileAggregatorSettlement } from "./aggregator-settlement-service";
+import { extractAggregatorSettlement } from "./aggregator-settlement-extraction";
+import { formatCents } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
 
 interface CompletionAction {
@@ -119,6 +125,10 @@ export class WorkflowActionRunner {
         await this.handleCreateRemediationPlan(action, instance, steps, userId);
         break;
 
+      case "RECONCILE_AGGREGATOR_SETTLEMENTS":
+        await this.handleReconcileAggregatorSettlements(instance, steps, userId);
+        break;
+
       default:
         console.warn(`[WorkflowActionRunner] Unsupported action type: ${action.type}`);
     }
@@ -154,6 +164,120 @@ export class WorkflowActionRunner {
       );
     } catch (error) {
       console.error("[WorkflowActionRunner] Error creating completion action remediation plan:", error);
+    }
+  }
+
+  /**
+   * Fase 4 — conciliación semanal de plataformas.
+   *
+   * La acción de cierre del workflow "Conciliación Semanal de Plataformas"
+   * registra la liquidación capturada, la compara contra los cortes del periodo
+   * (vía `createAndReconcileAggregatorSettlement`, que suma el canal correcto) y
+   * abre una excepción canónica cuando el depósito no cuadra.
+   */
+  private static async handleReconcileAggregatorSettlements(
+    instance: any,
+    steps: any[],
+    userId: string,
+  ): Promise<void> {
+    try {
+      const extraida = extractAggregatorSettlement(
+        (steps ?? []).map((s) => ({ stepId: s.stepId, value: s.value })),
+      );
+      if (!extraida) {
+        console.warn(
+          "[WorkflowActionRunner] Conciliación: faltan canal o periodo; no se registra liquidación.",
+        );
+        return;
+      }
+
+      const branch = await db.query.branches.findFirst({
+        where: eq(branches.id, instance.branchId),
+      });
+      if (!branch) {
+        console.warn(
+          `[WorkflowActionRunner] Conciliación: sucursal ${instance.branchId} no encontrada.`,
+        );
+        return;
+      }
+
+      // Idempotencia: una liquidación por (sucursal, canal, periodo). Reejecutar
+      // el workflow no debe crear una segunda verdad para la misma semana.
+      const existente = await db.query.aggregatorSettlements.findFirst({
+        where: and(
+          eq(aggregatorSettlements.companyId, branch.companyId),
+          eq(aggregatorSettlements.branchId, instance.branchId),
+          eq(aggregatorSettlements.channel, extraida.channel),
+          eq(aggregatorSettlements.periodStart, extraida.periodStart),
+          eq(aggregatorSettlements.periodEnd, extraida.periodEnd),
+        ),
+      });
+      if (existente) {
+        console.log(
+          `[WorkflowActionRunner] Conciliación: ya existe la liquidación ${existente.id} para ${extraida.channel}; se omite.`,
+        );
+        return;
+      }
+
+      const settlement = await createAndReconcileAggregatorSettlement({
+        companyId: branch.companyId,
+        branchId: instance.branchId,
+        channel: extraida.channel,
+        periodStart: extraida.periodStart,
+        periodEnd: extraida.periodEnd,
+        grossSalesCents: extraida.grossSalesCents,
+        commissionCents: extraida.commissionCents,
+        netDepositedCents: extraida.netDepositedCents,
+        notes: extraida.notes,
+      });
+
+      if (settlement.status === "RECONCILED") {
+        console.log(
+          `[WorkflowActionRunner] Conciliación de ${extraida.channel} cuadrada (${formatCents(settlement.posSalesCents)}).`,
+        );
+        return;
+      }
+
+      const faltante = settlement.varianceCents < 0;
+      await ExceptionService.raise({
+        companyId: branch.companyId,
+        branchId: instance.branchId,
+        domain: "finanzas",
+        qsrCategory: "DINERO",
+        severity: "high",
+        subjectType: "aggregator_settlement",
+        subjectId: settlement.id,
+        reason:
+          `Liquidación de ${extraida.channel} no cuadra con el corte: ` +
+          `${faltante ? "faltan" : "sobran"} ${formatCents(Math.abs(settlement.varianceCents))} ` +
+          `(Pulso registró ${formatCents(settlement.posSalesCents)}, la plataforma pagará ` +
+          `${formatCents(settlement.netDepositedCents + settlement.commissionCents)}).`,
+        actorId: userId,
+        actionMeta: {
+          type: "RESOLVE_ALERT",
+          label: "Revisar conciliación de plataformas",
+          url: "/dashboard/finance/commissions",
+        },
+        metadata: {
+          title: `Discrepancia en liquidación de ${extraida.channel}`,
+          channel: extraida.channel,
+          periodStart: extraida.periodStart,
+          periodEnd: extraida.periodEnd,
+          posSalesCents: settlement.posSalesCents,
+          grossSalesCents: settlement.grossSalesCents,
+          commissionCents: settlement.commissionCents,
+          netDepositedCents: settlement.netDepositedCents,
+          varianceCents: settlement.varianceCents,
+          evidenceUrls: extraida.evidenceUrls,
+          impact:
+            "El depósito de la plataforma no coincide con la venta registrada en los cortes del periodo.",
+        },
+      });
+    } catch (error) {
+      console.error(
+        "[WorkflowActionRunner] Error en la conciliación de plataformas:",
+        error,
+      );
     }
   }
 

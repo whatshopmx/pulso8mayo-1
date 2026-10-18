@@ -11,6 +11,7 @@ import {
     stockCounts,
 } from "@/lib/db/schema";
 import { eq, and, gte, lte, gt, sql, inArray, desc } from "drizzle-orm";
+import { withBranchContext } from "@/lib/db/tenant-context";
 import { wasteLossEligible } from "@/lib/inventory/waste-kpi";
 
 // ---------------------------------------------------------------------------
@@ -147,10 +148,13 @@ export class InventoryReportsService {
         startDate: Date,
         endDate: Date
     ): Promise<UsageReport> {
+        // SEC-05.inventario-conteos: el reporte lee `stock_counts`, que ya tiene
+        // RLS; el contexto se resuelve desde la sucursal.
+        return withBranchContext(branchId, async (tx) => {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
 
-        const initialCounts = await db.selectDistinctOn([stockCounts.itemId], {
+        const initialCounts = await tx.selectDistinctOn([stockCounts.itemId], {
             itemId: stockCounts.itemId,
             qty: stockCounts.countedQuantity
         })
@@ -161,7 +165,7 @@ export class InventoryReportsService {
         ))
         .orderBy(stockCounts.itemId, desc(stockCounts.countDate));
 
-        const finalCounts = await db.selectDistinctOn([stockCounts.itemId], {
+        const finalCounts = await tx.selectDistinctOn([stockCounts.itemId], {
             itemId: stockCounts.itemId,
             qty: stockCounts.countedQuantity
         })
@@ -173,7 +177,7 @@ export class InventoryReportsService {
         ))
         .orderBy(stockCounts.itemId, desc(stockCounts.countDate));
 
-        const receivedRows = await db.select({
+        const receivedRows = await tx.select({
             itemId: inventoryMovements.itemId,
             received: sql<string>`coalesce(sum(${inventoryMovements.quantityChange}), 0)`,
         })
@@ -201,7 +205,7 @@ export class InventoryReportsService {
             };
         }
 
-        const items = await db.select()
+        const items = await tx.select()
             .from(inventoryItems)
             .where(inArray(inventoryItems.id, [...allItemIds]));
         const itemMap = new Map(items.map(i => [i.id, i]));
@@ -253,6 +257,7 @@ export class InventoryReportsService {
             rows,
             totalUsageCostCents,
         };
+        });
     }
 
     /**
