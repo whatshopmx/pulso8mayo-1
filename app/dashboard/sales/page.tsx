@@ -16,6 +16,7 @@ import {
   Loader2,
   Coins,
   AlertCircle,
+  CheckCircle,
   Settings2,
   BarChart3,
   FileSpreadsheet,
@@ -77,6 +78,8 @@ function SalesDashboardPageContent() {
   const [cutsError, setCutsError] = useState<string | null>(null);
   const [selectedCutForBatches, setSelectedCutForBatches] = useState<string | null>(null);
   const [selectedCutDetail, setSelectedCutDetail] = useState<SalesCut | null>(null);
+  /** Vista inicial: todo (no se ocultan filas por defecto). El chip ya distingue. */
+  const [onlyIssues, setOnlyIssues] = useState(false);
 
   /**
    * Orden de la tabla (P2 #4). Antes no había ninguno: el banner decía "2 cortes
@@ -223,6 +226,16 @@ function SalesDashboardPageContent() {
       return cmp * dir;
     });
   }, [cuts, cutSort]);
+
+  /** Cortes que exigen revisión: diferencia de caja, de terminal u observación. */
+  const issueCount = useMemo(
+    () => sortedCuts.filter((c) => cutStatus(c).needsAttention).length,
+    [sortedCuts],
+  );
+  const visibleCuts = useMemo(
+    () => (onlyIssues ? sortedCuts.filter((c) => cutStatus(c).needsAttention) : sortedCuts),
+    [sortedCuts, onlyIssues],
+  );
 
   /** Encabezado ordenable con `aria-sort` y flecha de estado. */
   const sortableHead = (key: CutSortKey, label: string, align: "left" | "right" = "left") => {
@@ -453,21 +466,47 @@ function SalesDashboardPageContent() {
 
                 {/* Los ocho controles que vivían aquí duplicaban el alcance del
                     encabezado. Queda el eco de lo que se está viendo, para que la
-                    tabla nunca se lea fuera de contexto. */}
-                <p className="text-xs text-muted-foreground">
-                  Mostrando <span className="font-medium text-foreground">{scopeLabel}</span>. Cambia
-                  el alcance desde los controles del encabezado.
-                </p>
-
-                {/* Una lista acotada presentada como completa es una afirmación
-                    falsa sobre cuántos cortes hay. Se dice cuántos se ven y
-                    cuántos existen, como ya hace Control Interno. */}
-                {cutsScope?.truncated && (
-                  <p className="text-xs text-warning-text">
-                    Se muestran {cuts.length} de {cutsTotal} cortes del período. Acota el rango
-                    para ver el resto.
+                    tabla nunca se lea fuera de contexto, más el filtro de triage. */}
+                <div className="flex flex-col gap-2 md:items-end">
+                  <div
+                    className="inline-flex items-center gap-1 rounded-md border p-0.5"
+                    role="group"
+                    aria-label="Filtrar cortes por estado"
+                  >
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={!onlyIssues ? "secondary" : "ghost"}
+                      className="h-7 text-xs"
+                      onClick={() => setOnlyIssues(false)}
+                    >
+                      Todos ({sortedCuts.length})
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={onlyIssues ? "secondary" : "ghost"}
+                      className="h-7 text-xs"
+                      onClick={() => setOnlyIssues(true)}
+                    >
+                      Con diferencia ({issueCount})
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Mostrando <span className="font-medium text-foreground">{scopeLabel}</span>. Cambia
+                    el alcance desde los controles del encabezado.
                   </p>
-                )}
+
+                  {/* Una lista acotada presentada como completa es una afirmación
+                      falsa sobre cuántos cortes hay. Se dice cuántos se ven y
+                      cuántos existen, como ya hace Control Interno. */}
+                  {cutsScope?.truncated && (
+                    <p className="text-xs text-warning-text">
+                      Se muestran {cuts.length} de {cutsTotal} cortes del período. Acota el rango
+                      para ver el resto.
+                    </p>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -496,6 +535,18 @@ function SalesDashboardPageContent() {
                   title="No se encontraron cortes de ventas en el período"
                   description="Sube un archivo exportado del POS o recibe cortes por WhatsApp para empezar a registrar la operación diaria."
                 />
+              ) : visibleCuts.length === 0 ? (
+                <EmptyState
+                  bare
+                  icon={CheckCircle}
+                  title="Ningún corte requiere atención"
+                  description="Todos los cortes del período están cuadrados o sin diferencia de caja y terminal."
+                  action={
+                    <Button variant="outline" size="sm" onClick={() => setOnlyIssues(false)}>
+                      Ver los {sortedCuts.length} cortes
+                    </Button>
+                  }
+                />
               ) : (
                 <div className="border rounded-md overflow-x-auto">
                   <Table>
@@ -522,7 +573,7 @@ function SalesDashboardPageContent() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sortedCuts.map((cut) => {
+                      {visibleCuts.map((cut) => {
                         const estado = cutStatus(cut);
 
                         return (
