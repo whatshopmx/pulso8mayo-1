@@ -722,6 +722,13 @@
       "when": 1792334760455,
       "tag": "0104_rls_receiving",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1792336238263,
+      "tag": "0105_rls_inventory_monitoring",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,7 @@
 // NotificationDispatcher (preferencias por usuario), nunca Wasender directo.
 
 import { db } from "@/lib/db";
+import { withCompanyContext } from "@/lib/db/tenant-context";
 import {
     inventoryBatches,
     inventoryItems,
@@ -191,16 +192,25 @@ export class ExpirationAlertService {
             const managersByCompany = new Map<string, { id: string }[]>();
 
             for (const c of classified) {
-                const inserted = await db
-                    .insert(inventoryExpirationAlerts)
-                    .values({
-                        companyId: c.companyId,
-                        branchId: c.branchId,
-                        batchId: c.batchId,
-                        window: c.window,
-                    })
-                    .onConflictDoNothing()
-                    .returning({ id: inventoryExpirationAlerts.id });
+                // SEC-05.inventario-monitoreo: el cron recorre todas las
+                // empresas, así que la escritura bajo RLS usa el `companyId`
+                // explícito de cada lote (alcance explícito, no un rol
+                // privilegiado). El resto de lecturas del cron no están aún bajo
+                // RLS y conservan su alcance.
+                const inserted = await withCompanyContext(
+                    { companyId: c.companyId, branchId: c.branchId },
+                    (tx) =>
+                        tx
+                            .insert(inventoryExpirationAlerts)
+                            .values({
+                                companyId: c.companyId,
+                                branchId: c.branchId,
+                                batchId: c.batchId,
+                                window: c.window,
+                            })
+                            .onConflictDoNothing()
+                            .returning({ id: inventoryExpirationAlerts.id }),
+                );
 
                 if (inserted.length === 0) {
                     // Ya notificado antes por esta ventana: no re-notificar.
