@@ -8,6 +8,11 @@ import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { branches, companies, evidence, users } from "@/lib/db/schema";
 import { withCompanyContext } from "@/lib/db/tenant-context";
+import {
+  RUNTIME_ROLE,
+  provisionRuntimeRole,
+  runtimeUrl,
+} from "./helpers/runtime-role";
 
 /**
  * SEC-04 (Fase 2) — RLS piloto sobre `evidence` contra base Postgres real.
@@ -24,9 +29,6 @@ import { withCompanyContext } from "@/lib/db/tenant-context";
  */
 
 neonConfig.webSocketConstructor = ws;
-
-const RUNTIME_ROLE = "pulso_app";
-const RUNTIME_PASSWORD = "test-pulso-app";
 
 type Tenant = { companyId: string; branchId: string; userId: string };
 
@@ -68,39 +70,6 @@ async function insertEvidence(t: Tenant, url: string) {
 }
 
 /** URL del pool de runtime con el rol sin bypass. */
-function runtimeUrl(): string {
-  const base = new URL(process.env.TEST_DATABASE_URL!);
-  base.username = RUNTIME_ROLE;
-  base.password = RUNTIME_PASSWORD;
-  return base.toString();
-}
-
-/**
- * Provisiona el rol de runtime del piloto. No se hace en la migración para no
- * sembrar credenciales en el historial; en operación lo hace el aprovisionador
- * del entorno con la misma secuencia. Rol y contraseña son constantes de este
- * archivo (sólo base aislada), por eso `sql.raw` no interpola entrada externa.
- */
-async function provisionRuntimeRole() {
-  const existing = await db.execute(
-    sql`SELECT 1 FROM pg_roles WHERE rolname = ${RUNTIME_ROLE}`,
-  );
-  if (existing.rows.length === 0) {
-    await db.execute(
-      sql.raw(
-        `CREATE ROLE ${RUNTIME_ROLE} LOGIN PASSWORD '${RUNTIME_PASSWORD}' NOBYPASSRLS NOSUPERUSER NOCREATEROLE`,
-      ),
-    );
-  } else {
-    await db.execute(
-      sql.raw(`ALTER ROLE ${RUNTIME_ROLE} LOGIN PASSWORD '${RUNTIME_PASSWORD}'`),
-    );
-  }
-  await db.execute(sql.raw(`GRANT USAGE ON SCHEMA "public" TO "${RUNTIME_ROLE}"`));
-  await db.execute(
-    sql.raw(`GRANT SELECT, INSERT, UPDATE, DELETE ON "evidence" TO "${RUNTIME_ROLE}"`),
-  );
-}
 
 // Pool max 1 a propósito: si el ajuste de sesión se filtrara, la segunda
 // consulta reutilizaría la MISMA conexión y vería la empresa anterior.
@@ -112,7 +81,7 @@ describe("SEC-04 sobre base real: contexto de tenant y RLS en `evidence`", () =>
   let b: Tenant;
 
   beforeEach(async () => {
-    await provisionRuntimeRole();
+    await provisionRuntimeRole(["evidence"]);
     a = await seedTenant("A");
     b = await seedTenant("B");
     await insertEvidence(a, "companies/rls/a.jpg");

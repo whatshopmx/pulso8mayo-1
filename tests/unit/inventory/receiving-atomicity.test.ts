@@ -66,6 +66,7 @@ beforeEach(() => {
   const lineInsert = { values: () => { throw new Error("fallo al guardar la línea"); } };
 
   tx = {
+    execute: vi.fn(async () => undefined),
     insert: (table: unknown) => (table === receivingReports ? reportInsert : lineInsert),
     select: () => ({ from: () => ({ where: () => thenable([]) }) }),
     update: () => ({ set: () => ({ where: async () => [] }) }),

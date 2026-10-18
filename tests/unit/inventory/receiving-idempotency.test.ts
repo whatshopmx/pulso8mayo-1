@@ -56,7 +56,11 @@ beforeEach(() => {
   selectQueue = [];
   returning.mockResolvedValue([{ id: reportId }]);
   vi.mocked(db.insert).mockReturnValue({ values: () => ({ returning }) } as never);
-  const tx = { insert: () => ({ values: () => ({ returning }) }) };
+  const tx = {
+    execute: vi.fn(async () => undefined),
+    insert: () => ({ values: () => ({ returning }) }),
+    select: db.select,
+  };
   vi.mocked(db.transaction).mockImplementation((async (cb: (t: unknown) => unknown) =>
     cb(tx)) as never);
   vi.mocked(db.select).mockImplementation(() => {

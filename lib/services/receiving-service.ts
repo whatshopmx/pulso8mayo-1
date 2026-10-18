@@ -4,6 +4,7 @@
 // extractor and the API don't duplicate stock/batch/PO/CFDI handling).
 
 import { db } from "@/lib/db";
+import { withCompanyContext } from "@/lib/db/tenant-context";
 import { incidents, receivingReports, receivingReportItems, purchaseOrderItems, invoices, invoiceLines, temperatureLogs, users } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
@@ -112,46 +113,49 @@ async function findReceivingByIdempotencyKey(
     idempotencyKey: string,
     branchId: string
 ): Promise<ReceivingResult | null> {
-    const [report] = await db
-        .select()
-        .from(receivingReports)
-        .where(and(
-            eq(receivingReports.companyId, companyId),
-            eq(receivingReports.idempotencyKey, idempotencyKey)
-        ))
-        .limit(1);
+    // SEC-05.recepcion: lectura bajo el contexto de la empresa (RLS).
+    return withCompanyContext({ companyId, branchId }, async (tx) => {
+        const [report] = await tx
+            .select()
+            .from(receivingReports)
+            .where(and(
+                eq(receivingReports.companyId, companyId),
+                eq(receivingReports.idempotencyKey, idempotencyKey)
+            ))
+            .limit(1);
 
-    if (!report) return null;
+        if (!report) return null;
 
-    if (report.branchId !== branchId) {
-        throw ApiError.conflict(
-            "La clave de idempotencia ya fue usada en una recepción de otra sucursal."
-        );
-    }
+        if (report.branchId !== branchId) {
+            throw ApiError.conflict(
+                "La clave de idempotencia ya fue usada en una recepción de otra sucursal."
+            );
+        }
 
-    const items = await db
-        .select()
-        .from(receivingReportItems)
-        .where(eq(receivingReportItems.receivingReportId, report.id));
+        const items = await tx
+            .select()
+            .from(receivingReportItems)
+            .where(eq(receivingReportItems.receivingReportId, report.id));
 
-    return {
-        id: report.id,
-        branchId: report.branchId,
-        receivedAt: report.receivedAt,
-        receivedBy: report.receivedBy,
-        supplierId: report.supplierId,
-        purchaseOrderId: report.purchaseOrderId,
-        invoiceNumber: report.invoiceNumber,
-        items: items.map((it) => ({
-            itemId: it.itemId,
-            quantity: it.receivedQuantity,
-            unitCost: it.unitCost,
-            lineTotal: it.lineTotal,
-            discrepancyType: it.discrepancyType,
-        })),
-        totalItems: items.length,
-        notes: report.notes,
-    };
+        return {
+            id: report.id,
+            branchId: report.branchId,
+            receivedAt: report.receivedAt,
+            receivedBy: report.receivedBy,
+            supplierId: report.supplierId,
+            purchaseOrderId: report.purchaseOrderId,
+            invoiceNumber: report.invoiceNumber,
+            items: items.map((it) => ({
+                itemId: it.itemId,
+                quantity: it.receivedQuantity,
+                unitCost: it.unitCost,
+                lineTotal: it.lineTotal,
+                discrepancyType: it.discrepancyType,
+            })),
+            totalItems: items.length,
+            notes: report.notes,
+        };
+    });
 }
 
 /**
@@ -259,8 +263,13 @@ export async function processReceiving(
     // Núcleo atómico: reporte, lotes, movimientos, líneas, avance de OC y
     // conciliación de factura en UNA transacción. Un fallo intermedio revierte
     // todo y no queda una recepción a medias.
+    // SEC-05.recepcion: el núcleo corre bajo el contexto de la empresa/sucursal
+    // del actor. Con el rol de runtime y RLS, sin contexto el INSERT del reporte
+    // y de sus líneas es rechazado; con el dueño de migración conserva su bypass.
     try {
-        const committed = await db.transaction(async (tx) => {
+        const committed = await withCompanyContext(
+            { companyId, branchId, actorId: actor.user.id },
+            async (tx) => {
             await InventoryService.ensureOpenPeriod(companyId, branchId, tx);
 
             const [created] = await tx.insert(receivingReports).values({
