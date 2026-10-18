@@ -594,6 +594,23 @@ export async function processReceiving(
                 }
             }
 
+            // AUD-01 (Fase 2): la recepción no se confirma sin su auditoría. La
+            // bitácora se escribe en la MISMA transacción: si falla, revierte la
+            // recepción completa (el reintento reutiliza la clave de idempotencia).
+            for (const result of results) {
+                await AuditService.logInventoryAction({
+                    companyId,
+                    branchId,
+                    action: 'CREATE',
+                    entityType: 'RECEIVING',
+                    entityId: result.batchId as string,
+                    newValue: result,
+                    performedBy: actor.user.id,
+                    reason: validatedData.notes || 'Receiving completed',
+                    metadata: { supplierId: validatedData.supplierId, purchaseOrderId: validatedData.purchaseOrderId },
+                }, tx);
+            }
+
             return { report: created, results };
         });
 
@@ -616,20 +633,6 @@ export async function processReceiving(
         } catch (err) {
             console.error("Error executing post-commit receiving effect:", err);
         }
-    }
-
-    for (const result of receivingResults) {
-        AuditService.logInventoryAction({
-            companyId,
-            branchId,
-            action: 'CREATE',
-            entityType: 'RECEIVING',
-            entityId: result.batchId as string,
-            newValue: result,
-            performedBy: actor.user.id,
-            reason: validatedData.notes || 'Receiving completed',
-            metadata: { supplierId: validatedData.supplierId, purchaseOrderId: validatedData.purchaseOrderId },
-        });
     }
 
     return {

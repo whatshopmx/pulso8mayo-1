@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { employeeAuditLogs, inventoryAuditLog } from "@/lib/db/schema";
+import type { DbExecutor } from "./fefo-allocator";
 import { eq, and, desc, sql } from "drizzle-orm";
 
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'VIEW' | 'EXPORT' | 'IMPORT';
@@ -86,9 +87,18 @@ export class AuditService {
         });
     }
 
-    static async logInventoryAction(data: InventoryAuditLogRequest) {
-        try {
-            const [log] = await db.insert(inventoryAuditLog).values({
+    /**
+     * AUD-01 (Fase 2) — bitácora de inventario.
+     *
+     * Con `executor` (la transacción del llamador), la auditoría es parte de la
+     * mutación: un fallo de inserción PROPAGA y revierte todo, de modo que una
+     * operación económica no se confirma sin su rastro durable. Sin `executor`
+     * conserva el comportamiento best-effort previo (registra el error y
+     * devuelve `null`) para los callers que aún no migran.
+     */
+    static async logInventoryAction(data: InventoryAuditLogRequest, executor?: DbExecutor) {
+        const run = async (q: DbExecutor) => {
+            const [log] = await q.insert(inventoryAuditLog).values({
                 companyId: data.companyId,
                 branchId: data.branchId,
                 action: data.action,
@@ -103,6 +113,12 @@ export class AuditService {
             }).returning();
 
             return log;
+        };
+
+        if (executor) return run(executor);
+
+        try {
+            return await run(db);
         } catch (error) {
             console.error("[AuditService] Failed to record inventory audit log:", error);
             return null;

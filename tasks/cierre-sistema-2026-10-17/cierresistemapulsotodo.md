@@ -21,8 +21,8 @@ Estado inicial: todas las tareas pendientes; guardar este plan no acredita imple
 ## Fase 2 — Evidencia, auditoría y aislamiento DB
 
 - [x] EVI-01 — Evidencia común durable y aislada; primer recorrido con workflow. **Hecho (2a):** tabla `evidence` (empresa/sucursal/entidad/autor/tipo/key) + migración `0101` aplicada en base aislada; `EvidenceStore` persiste y exige `companyId` (store/lectura/borrado lógico). **Hecho (2b):** `syncStepEvidence` refleja la evidencia del paso de workflow en la tabla canónica con reemplazo (sin duplicar) y alcance por empresa; enganchado en `WorkflowExecutionService.updateStep`. **Verificado** contra DB real (`tests/integration/evidence-store-db.test.ts`, 5/5; `tests/unit/workflows/step-evidence.test.ts`, 4/4). Pendiente: recorrido API/navegador del PATCH de paso con dos empresas.
-- [ ] AUD-01 — Auditoría durable/atómica en mutaciones sensibles del dominio piloto.
-- [ ] SEC-04 — Contexto transaccional y RLS piloto compatibles con pool/jobs.
+- [x] AUD-01 — Auditoría durable/atómica en mutaciones sensibles del dominio piloto (recepción) y acceso a datos clasificados. **Verificada**: `AuditService.logInventoryAction(..., tx)` es parte de la transacción y la recepción no se confirma sin su bitácora (`tests/integration/audit-atomicity-db.test.ts` 2/2; `receiving-db-atomicity.test.ts` caso AUD-01); `logDataAccess` registra lectura/exportación sensible sin copiar el adjunto. Evidencia: `evidencia/FASE-2/integration-aud01.log`, `tsc-aud01.txt`.
+- [x] SEC-04 — Contexto transaccional y RLS piloto en `evidence` con rol runtime sin bypass. **Verificada**: `lib/db/tenant-context.ts` + migración `0103`; `tests/integration/tenant-rls-db.test.ts` 5/5 (sin fuga entre empresas reutilizando el pool max=1, rechazo por defecto sin contexto, job con alcance explícito, filtro cruzado vacío). Evidencia: `evidencia/FASE-2/integration-sec04.log`.
 - [ ] SEC-05.<dominio> — Crear y cerrar lotes S/M por dominio, incluidas tablas hijas.
 - [ ] Puerta 2 — Reinicio conserva evidencia y ningún contexto de tenant se filtra.
 
@@ -125,5 +125,7 @@ Crear una fila al trabajar cada tarea; subdividir IDs con marcador de dominio an
 | REC-03 | En curso | idem | base configurada (sólo lectura) | `rec03-diagnostico-dryrun.txt` | ajuste no aplicado; 2 lotes ambiguos a conteo |
 | PUERTA-1 | Verificada (técnica) | idem | local + DB aislada | `evidencia/PUERTA-1/`: `tsc-2026-10-17-real.txt` (exit 0), `build-2026-10-17-real.log` (exit 0), `integration-2026-10-17.log` (4/4), `unit-2026-10-17-real.log` (1652/0) | operativo: aplicar `0100` al entorno objetivo; REC-03 |
 | EVI-01 | Verificada (persistencia) | `c9c3192` + cambios locales | local + DB aislada | `evidencia/FASE-2/`: `unit-evi01b.log` (1699/0), `tsc-evi01b.txt` (exit 0), `integration-evi01b.log` (5/5) | falta recorrido API/navegador del PATCH de paso; migración `0101` no aplicada al entorno objetivo |
+| AUD-01 | Verificada | `c9c3192` + cambios locales | local + DB aislada | `evidencia/FASE-2/`: `integration-aud01.log` (2/2 `audit-atomicity-db`), caso AUD-01 en `receiving-db-atomicity` (rollback total), `tsc-aud01.txt` (exit 0); ejecución vigente: `unit-sec04.log` 1730/0 | — |
+| SEC-04 | Verificada | cambios locales | local + DB aislada (`.env.test`) | `evidencia/FASE-2/`: `integration-sec04.log` (5/5), `unit-sec04.log` (1730/0), `tsc-sec04.txt` (exit 0), `build-sec04.log` (exit 0); migración `0103` aplicada en base aislada | operativo: provisionar rol `pulso_app` (NOBYPASSRLS) y aplicar `0103` al entorno objetivo; RLS por dominio = SEC-05 |
 
 Estados: pendiente, en curso, verificada, bloqueada por dato externo. Una tarea «verificada» enlaza comandos/resultados y prueba de sus criterios. Un bloqueo de integración no impide continuar una tarea independiente.

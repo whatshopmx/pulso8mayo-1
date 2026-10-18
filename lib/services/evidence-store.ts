@@ -14,8 +14,8 @@
  */
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { db } from "@/lib/db";
 import { evidence } from "@/lib/db/schema";
+import { setTenantContext, withCompanyContext } from "@/lib/db/tenant-context";
 import type { DbExecutor } from "@/lib/services/fefo-allocator";
 import { uploadToR2, isR2Configured } from "@/lib/storage/r2-client";
 
@@ -129,23 +129,41 @@ class EvidenceStoreImpl {
       }
     }
 
-    const [row] = await (executor ?? db)
-      .insert(evidence)
-      .values({
-        id,
-        companyId: input.companyId,
-        branchId: input.branchId ?? null,
-        entityType: input.entityType,
-        entityId: input.entityId,
-        kind: input.kind,
-        mimeType: input.mimeType ?? null,
-        url,
-        storageKey: storageKey ?? null,
-        aiMetadata: input.aiMetadata ?? {},
-        createdBy: input.createdBy ?? null,
-      })
-      .returning();
+    const insert = (q: DbExecutor) =>
+      q
+        .insert(evidence)
+        .values({
+          id,
+          companyId: input.companyId,
+          branchId: input.branchId ?? null,
+          entityType: input.entityType,
+          entityId: input.entityId,
+          kind: input.kind,
+          mimeType: input.mimeType ?? null,
+          url,
+          storageKey: storageKey ?? null,
+          aiMetadata: input.aiMetadata ?? {},
+          createdBy: input.createdBy ?? null,
+        })
+        .returning();
 
+    // SEC-04: la empresa del actor viaja en la MISMA transacción que escribe la
+    // fila. Con el rol de runtime y RLS activo, sin contexto la inserción es
+    // rechazada; el dueño de migración conserva su bypass. Con `executor` el
+    // contexto se fija en esa transacción y no toca la conexión del pool.
+    const scope = {
+      companyId: input.companyId,
+      branchId: input.branchId,
+      actorId: input.createdBy,
+    };
+
+    if (executor) {
+      await setTenantContext(executor, scope);
+      const [row] = await insert(executor);
+      return toRecord(row);
+    }
+
+    const [row] = await withCompanyContext(scope, (tx) => insert(tx));
     return toRecord(row);
   }
 
@@ -155,51 +173,57 @@ class EvidenceStoreImpl {
     entityType: EvidenceEntityType,
     entityId: string,
   ): Promise<EvidenceRecord[]> {
-    const rows = await db
-      .select()
-      .from(evidence)
-      .where(
-        and(
-          eq(evidence.companyId, companyId),
-          eq(evidence.entityType, entityType),
-          eq(evidence.entityId, entityId),
-          isNull(evidence.deletedAt),
-        ),
-      )
-      .orderBy(desc(evidence.createdAt));
-    return rows.map(toRecord);
+    return withCompanyContext({ companyId }, async (tx) => {
+      const rows = await tx
+        .select()
+        .from(evidence)
+        .where(
+          and(
+            eq(evidence.companyId, companyId),
+            eq(evidence.entityType, entityType),
+            eq(evidence.entityId, entityId),
+            isNull(evidence.deletedAt),
+          ),
+        )
+        .orderBy(desc(evidence.createdAt));
+      return rows.map(toRecord);
+    });
   }
 
   /** All live evidence captured at a branch, scoped to the company. */
   async getByBranch(companyId: string, branchId: string): Promise<EvidenceRecord[]> {
-    const rows = await db
-      .select()
-      .from(evidence)
-      .where(
-        and(
-          eq(evidence.companyId, companyId),
-          eq(evidence.branchId, branchId),
-          isNull(evidence.deletedAt),
-        ),
-      )
-      .orderBy(desc(evidence.createdAt));
-    return rows.map(toRecord);
+    return withCompanyContext({ companyId, branchId }, async (tx) => {
+      const rows = await tx
+        .select()
+        .from(evidence)
+        .where(
+          and(
+            eq(evidence.companyId, companyId),
+            eq(evidence.branchId, branchId),
+            isNull(evidence.deletedAt),
+          ),
+        )
+        .orderBy(desc(evidence.createdAt));
+      return rows.map(toRecord);
+    });
   }
 
   /** One record by id, only if it belongs to the company. */
   async getById(companyId: string, id: string): Promise<EvidenceRecord | null> {
-    const [row] = await db
-      .select()
-      .from(evidence)
-      .where(
-        and(
-          eq(evidence.companyId, companyId),
-          eq(evidence.id, id),
-          isNull(evidence.deletedAt),
-        ),
-      )
-      .limit(1);
-    return row ? toRecord(row) : null;
+    return withCompanyContext({ companyId }, async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(evidence)
+        .where(
+          and(
+            eq(evidence.companyId, companyId),
+            eq(evidence.id, id),
+            isNull(evidence.deletedAt),
+          ),
+        )
+        .limit(1);
+      return row ? toRecord(row) : null;
+    });
   }
 
   /** Attach or merge AI-derived metadata onto an existing evidence record. */
@@ -221,11 +245,13 @@ class EvidenceStoreImpl {
       classification: aiMetadata.classification ?? current.aiMetadata.classification,
     };
 
-    const [row] = await db
-      .update(evidence)
-      .set({ aiMetadata: merged, updatedAt: new Date() })
-      .where(and(eq(evidence.companyId, companyId), eq(evidence.id, id)))
-      .returning();
+    const [row] = await withCompanyContext({ companyId }, async (tx) =>
+      tx
+        .update(evidence)
+        .set({ aiMetadata: merged, updatedAt: new Date() })
+        .where(and(eq(evidence.companyId, companyId), eq(evidence.id, id)))
+        .returning(),
+    );
     return row ? toRecord(row) : null;
   }
 
@@ -234,17 +260,19 @@ class EvidenceStoreImpl {
    * companyId matches no row and returns false.
    */
   async softDelete(companyId: string, id: string): Promise<boolean> {
-    const rows = await db
-      .update(evidence)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(
-        and(
-          eq(evidence.companyId, companyId),
-          eq(evidence.id, id),
-          isNull(evidence.deletedAt),
-        ),
-      )
-      .returning({ id: evidence.id });
+    const rows = await withCompanyContext({ companyId }, async (tx) =>
+      tx
+        .update(evidence)
+        .set({ deletedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(evidence.companyId, companyId),
+            eq(evidence.id, id),
+            isNull(evidence.deletedAt),
+          ),
+        )
+        .returning({ id: evidence.id }),
+    );
     return rows.length > 0;
   }
 }

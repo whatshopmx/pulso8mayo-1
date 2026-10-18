@@ -1,0 +1,13 @@
+[dotenv@17.2.3] injecting env (1) from .env.test -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  13:51:48
+   Duration  10.53s (transform 1.49s, setup 191ms, import 3.48s, tests 4.93s, environment 0ms)
+

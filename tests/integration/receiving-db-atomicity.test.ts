@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
@@ -14,6 +14,7 @@ import {
   users,
 } from "@/lib/db/schema";
 import { processReceiving, type ReceivingActor } from "@/lib/services/receiving-service";
+import { AuditService } from "@/lib/services/audit-service";
 
 /**
  * REC-02b contra base Postgres real (Puerta 1).
@@ -238,5 +239,37 @@ describe("REC-02b sobre base real: atomicidad e idempotencia", () => {
 
     await expect(processReceiving(otherActor, body)).rejects.toMatchObject({ statusCode: 409 });
     expect(await countReports(f.companyId)).toBe(1);
+  });
+
+  it("AUD-01: si la auditoría falla, la recepción completa revierte", async () => {
+    const spy = vi
+      .spyOn(AuditService, "logInventoryAction")
+      .mockRejectedValueOnce(new Error("audit write down"));
+
+    try {
+      await expect(
+        processReceiving(f.actor, {
+          items: [{ itemId: f.item1.id, quantity: 7 }],
+          idempotencyKey: `audit-${randomUUID()}`,
+        }),
+      ).rejects.toBeTruthy();
+
+      // Nada de la recepción debe quedar: la bitácora es parte de la transacción.
+      expect(await countReports(f.companyId)).toBe(0);
+
+      const batches = await db
+        .select({ id: inventoryBatches.id })
+        .from(inventoryBatches)
+        .where(eq(inventoryBatches.branchId, f.branchId));
+      expect(batches).toHaveLength(0);
+
+      const movements = await db
+        .select({ id: inventoryMovements.id })
+        .from(inventoryMovements)
+        .where(eq(inventoryMovements.branchId, f.branchId));
+      expect(movements).toHaveLength(0);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -14,6 +14,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { evidence } from "@/lib/db/schema";
+import { setTenantContext } from "@/lib/db/tenant-context";
 import { EvidenceStore } from "@/lib/services/evidence-store";
 
 /**
@@ -59,6 +60,14 @@ export async function syncStepEvidence(params: SyncStepEvidenceParams): Promise<
   const urls = parseStepEvidenceUrls(params.evidenceUrl);
 
   await db.transaction(async (tx) => {
+    // SEC-04: el reemplazo corre bajo el contexto de la empresa del paso; con
+    // RLS el borrado y la inserción quedan acotados a ese tenant.
+    await setTenantContext(tx, {
+      companyId: params.companyId,
+      branchId: params.branchId,
+      actorId: params.createdBy,
+    });
+
     await tx
       .delete(evidence)
       .where(
