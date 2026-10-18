@@ -30,3 +30,6 @@ export * from './executive-decisions';
 
 // Phase 0 / Control Core: excepción canónica con lifecycle, owner y SLA.
 export * from './exceptions';
+
+// Fase 2 / EVI-01: evidencia común durable (adjunto con empresa, entidad y autor).
+export * from './evidence';

@@ -1,30 +1,32 @@
 /**
- * EvidenceStore — unified evidence facade (Sprint 1 Task 5 foundation).
+ * EvidenceStore — unified evidence facade (Fase 2 / EVI-01).
  *
- * Source: docs/pulso-executive-os-v2.md §6 (Evidence Store foundation).
+ * Antes el registro vivía en un `Map` en memoria y sin filtro de empresa. Ahora
+ * cada adjunto se persiste en la tabla `evidence` (empresa, sucursal, entidad de
+ * origen, autor, tipo y clave de almacenamiento), de modo que la evidencia sigue
+ * consultable tras reiniciar el proceso y toda alta/lectura/borrado exige el
+ * `companyId` del actor (frontera de tenant).
  *
- * Today, evidence is scattered: `incidents.evidence_url`,
- * `workflow_instance_steps.evidence_url`, `workflow_templates.evidence_url`,
- * and ad-hoc document uploads to R2. This class provides ONE API to store and
- * retrieve evidence regardless of source, plus AI metadata fields the Sprint 2
- * engines will populate (transcription for voice notes, classification for
- * photos, verificationResult for AI-checked evidence).
- *
- * Sprint 1 scope (foundation): the API + types are canonical; the registry is
- * in-process. Persistence into a dedicated `evidence` table + R2 listing is
- * deferred to the first Sprint 2 engine that needs cross-request durability —
- * adding a table now without a consumer would be speculative (Rule 0). The
- * `store()` method already pushes the binary to R2 when a buffer is supplied,
- * so the file is durable even though the index is not.
+ * Alcance de este recorrido: la API + persistencia. Los dominios que todavía
+ * guardan `evidence_url` (pasos de workflow, gastos, OS, mermas) conservan su
+ * columna durante la migración por dominio; su wiring a esta tabla se cierra en
+ * la tarea del recorrido correspondiente.
  */
 import { randomUUID } from "node:crypto";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { evidence } from "@/lib/db/schema";
 import { uploadToR2, isR2Configured } from "@/lib/storage/r2-client";
 
-export type EvidenceKind = "PHOTO" | "FILE" | "VOICE" | "VIDEO";
+export type EvidenceKind = "PHOTO" | "FILE" | "VOICE" | "VIDEO" | "TEXT";
 export type EvidenceEntityType =
   | "WORKFLOW_STEP"
   | "INCIDENT"
   | "DOCUMENT"
+  | "EXPENSE"
+  | "SERVICE_ORDER"
+  | "WASTE"
+  | "RECEIVING"
   | "GENERAL";
 
 /** AI-derived metadata attached to evidence (Sprint 2 engines populate these). */
@@ -49,7 +51,7 @@ export interface EvidenceRecord {
   entityId: string;
   branchId?: string;
   companyId: string;
-  /** R2 URL when uploaded, or a caller-supplied reference for pre-stored media. */
+  /** R2 object key (private model) or a legacy/caller-supplied reference. */
   url: string;
   /** R2 object key when uploaded via this store. */
   storageKey?: string;
@@ -75,15 +77,31 @@ export interface StoreEvidenceInput {
   aiMetadata?: EvidenceAiMetadata;
 }
 
-class EvidenceStoreImpl {
-  /** In-process registry — see module doc on persistence deferral. */
-  private readonly registry = new Map<string, EvidenceRecord>();
+type EvidenceRow = typeof evidence.$inferSelect;
 
+function toRecord(row: EvidenceRow): EvidenceRecord {
+  return {
+    id: row.id,
+    entityType: row.entityType as EvidenceEntityType,
+    entityId: row.entityId,
+    branchId: row.branchId ?? undefined,
+    companyId: row.companyId,
+    url: row.url,
+    storageKey: row.storageKey ?? undefined,
+    mimeType: row.mimeType ?? undefined,
+    kind: row.kind as EvidenceKind,
+    aiMetadata: (row.aiMetadata as EvidenceAiMetadata | null) ?? {},
+    createdAt: row.createdAt,
+    createdBy: row.createdBy ?? undefined,
+  };
+}
+
+class EvidenceStoreImpl {
   /**
    * Store evidence. When `buffer` is supplied and R2 is configured, the binary
    * is uploaded and `url`/`storageKey` are set from the upload result. When R2
-   * is not configured (local dev), the record is registered with the caller's
-   * `url` (or a placeholder) so the API still type-checks and tests can run.
+   * is not configured (local dev), the record is persisted with the caller's
+   * `url` (or a placeholder) so the API still works and tests can run.
    */
   async store(input: StoreEvidenceInput): Promise<EvidenceRecord> {
     const id = randomUUID();
@@ -110,57 +128,125 @@ class EvidenceStoreImpl {
       }
     }
 
-    const record: EvidenceRecord = {
-      id,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      branchId: input.branchId,
-      companyId: input.companyId,
-      url,
-      storageKey,
-      mimeType: input.mimeType,
-      kind: input.kind,
-      aiMetadata: input.aiMetadata ?? {},
-      createdAt: new Date(),
-      createdBy: input.createdBy,
-    };
-    this.registry.set(id, record);
-    return record;
+    const [row] = await db
+      .insert(evidence)
+      .values({
+        id,
+        companyId: input.companyId,
+        branchId: input.branchId ?? null,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        kind: input.kind,
+        mimeType: input.mimeType ?? null,
+        url,
+        storageKey: storageKey ?? null,
+        aiMetadata: input.aiMetadata ?? {},
+        createdBy: input.createdBy ?? null,
+      })
+      .returning();
+
+    return toRecord(row);
   }
 
-  /** All evidence attached to a given entity (e.g. a workflow step or incident). */
-  getByEntity(entityType: EvidenceEntityType, entityId: string): EvidenceRecord[] {
-    return [...this.registry.values()].filter(
-      (r) => r.entityType === entityType && r.entityId === entityId,
-    );
+  /** All live evidence attached to a given entity, scoped to the company. */
+  async getByEntity(
+    companyId: string,
+    entityType: EvidenceEntityType,
+    entityId: string,
+  ): Promise<EvidenceRecord[]> {
+    const rows = await db
+      .select()
+      .from(evidence)
+      .where(
+        and(
+          eq(evidence.companyId, companyId),
+          eq(evidence.entityType, entityType),
+          eq(evidence.entityId, entityId),
+          isNull(evidence.deletedAt),
+        ),
+      )
+      .orderBy(desc(evidence.createdAt));
+    return rows.map(toRecord);
   }
 
-  /** All evidence captured at a branch. */
-  getByBranch(branchId: string): EvidenceRecord[] {
-    return [...this.registry.values()].filter((r) => r.branchId === branchId);
+  /** All live evidence captured at a branch, scoped to the company. */
+  async getByBranch(companyId: string, branchId: string): Promise<EvidenceRecord[]> {
+    const rows = await db
+      .select()
+      .from(evidence)
+      .where(
+        and(
+          eq(evidence.companyId, companyId),
+          eq(evidence.branchId, branchId),
+          isNull(evidence.deletedAt),
+        ),
+      )
+      .orderBy(desc(evidence.createdAt));
+    return rows.map(toRecord);
+  }
+
+  /** One record by id, only if it belongs to the company. */
+  async getById(companyId: string, id: string): Promise<EvidenceRecord | null> {
+    const [row] = await db
+      .select()
+      .from(evidence)
+      .where(
+        and(
+          eq(evidence.companyId, companyId),
+          eq(evidence.id, id),
+          isNull(evidence.deletedAt),
+        ),
+      )
+      .limit(1);
+    return row ? toRecord(row) : null;
   }
 
   /** Attach or merge AI-derived metadata onto an existing evidence record. */
-  attachMetadata(id: string, aiMetadata: EvidenceAiMetadata): EvidenceRecord | null {
-    const record = this.registry.get(id);
-    if (!record) return null;
-    record.aiMetadata = {
-      ...record.aiMetadata,
+  async attachMetadata(
+    companyId: string,
+    id: string,
+    aiMetadata: EvidenceAiMetadata,
+  ): Promise<EvidenceRecord | null> {
+    const current = await this.getById(companyId, id);
+    if (!current) return null;
+
+    const merged: EvidenceAiMetadata = {
+      ...current.aiMetadata,
       ...aiMetadata,
       // Deep-merge verificationResult/labels so partial updates don't wipe them.
-      verificationResult: aiMetadata.verificationResult ?? record.aiMetadata.verificationResult,
-      labels: aiMetadata.labels ?? record.aiMetadata.labels,
-      transcription: aiMetadata.transcription ?? record.aiMetadata.transcription,
-      classification: aiMetadata.classification ?? record.aiMetadata.classification,
+      verificationResult: aiMetadata.verificationResult ?? current.aiMetadata.verificationResult,
+      labels: aiMetadata.labels ?? current.aiMetadata.labels,
+      transcription: aiMetadata.transcription ?? current.aiMetadata.transcription,
+      classification: aiMetadata.classification ?? current.aiMetadata.classification,
     };
-    return record;
+
+    const [row] = await db
+      .update(evidence)
+      .set({ aiMetadata: merged, updatedAt: new Date() })
+      .where(and(eq(evidence.companyId, companyId), eq(evidence.id, id)))
+      .returning();
+    return row ? toRecord(row) : null;
   }
 
-  /** Test-only: reset the in-process registry. */
-  __resetForTests(): void {
-    this.registry.clear();
+  /**
+   * Soft-delete a record. Only the owning company can delete; a foreign
+   * companyId matches no row and returns false.
+   */
+  async softDelete(companyId: string, id: string): Promise<boolean> {
+    const rows = await db
+      .update(evidence)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(evidence.companyId, companyId),
+          eq(evidence.id, id),
+          isNull(evidence.deletedAt),
+        ),
+      )
+      .returning({ id: evidence.id });
+    return rows.length > 0;
   }
 }
 
-/** Singleton — evidence is app-global state within a process. */
+/** Singleton — the registry is the `evidence` table, not process memory. */
 export const EvidenceStore = new EvidenceStoreImpl();
