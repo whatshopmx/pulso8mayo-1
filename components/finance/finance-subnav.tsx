@@ -10,6 +10,7 @@ import {
   TrendingUp,
   BarChart3,
   ShieldCheck,
+  Inbox,
   Settings,
   ChevronDown,
 } from "lucide-react";
@@ -60,6 +61,12 @@ const FINANCE_TABS: NavTab[] = [
     href: "/dashboard/finance/results",
     icon: BarChart3,
     aliases: ["/dashboard/finance/labor-cost", "/dashboard/finance/commissions"],
+  },
+  {
+    name: "Aprobaciones",
+    href: "/dashboard/finance/approvals",
+    icon: Inbox,
+    exact: true,
   },
   {
     name: "Cierre y control",
