@@ -12,6 +12,7 @@ import {
   payeeBankAccounts,
   paymentRunStatusEnum,
   paymentRunItemTypeEnum,
+  companyBankAccounts,
   branches,
   payrollRuns,
   payrollPayslips,
@@ -22,6 +23,8 @@ import {
 import { eq, and, inArray, ne, sql, desc } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { ApiError } from "@/lib/api/error";
+import { DekService } from "@/lib/security/dek";
+import { decryptColumnWithDek } from "@/lib/security/column-cipher";
 import { getBankAccountsForPayment as getSupplierBankAccountsForPayment } from "@/lib/services/supplier-bank-account-service";
 import { getBankAccountsForPayment as getPayeeBankAccountsForPayment } from "@/lib/services/payee-bank-account-service";
 import { decryptProfileRecords } from "@/lib/security/employee-cipher";
@@ -398,8 +401,41 @@ export class TreasuryService {
     title: string, 
     runDate: Date, 
     userId: string,
-    branchId?: string | null
+    branchId?: string | null,
+    /**
+     * Cuenta de origen del catálogo propio (`company_bank_accounts`).
+     *
+     * Con cuenta catálogo el `sourceAccount` queda como el número descifrado —
+     * el mismo dato que la columna CUENTA_ORIGEN del layout espera y que el
+     * banco reconoce. Sin cuenta sigue siendo texto libre (compatibilidad con
+     * corridas ya existentes).
+     */
+    sourceBankAccountId?: string | null
   ) {
+    let sourceAccount: string | undefined;
+    if (sourceBankAccountId) {
+      const dek = await DekService.getDek(companyId);
+      const [account] = await db
+        .select()
+        .from(companyBankAccounts)
+        .where(
+          and(
+            eq(companyBankAccounts.id, sourceBankAccountId),
+            eq(companyBankAccounts.companyId, companyId),
+            eq(companyBankAccounts.active, true)
+          )
+        )
+        .limit(1);
+      if (!account) {
+        throw ApiError.badRequest(
+          "La cuenta de origen no existe en el catálogo de esta empresa o está dada de baja."
+        );
+      }
+      const number = decryptColumnWithDek(account.accountNumber, dek);
+      if (!number) throw ApiError.badRequest("La cuenta de origen no tiene número descifrable.");
+      sourceAccount = number;
+    }
+
     const [run] = await db.insert(paymentRuns)
       .values({
         companyId,
@@ -408,6 +444,7 @@ export class TreasuryService {
         runDate,
         preparedBy: userId,
         status: "DRAFT",
+        ...(sourceAccount ? { sourceAccount } : {}),
       })
       .returning();
       

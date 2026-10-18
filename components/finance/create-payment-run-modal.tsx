@@ -14,9 +14,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Building2, AlertCircle, ShieldCheck } from "lucide-react";
+import { Loader2, Plus, Building2, AlertCircle, ShieldCheck, Landmark } from "lucide-react";
 import { toast } from "sonner";
 import { formatCents } from "@/lib/utils";
+
+export interface CompanyBankAccountOption {
+  id: string;
+  label: string;
+  accountLastFour: string;
+  bankName: string;
+}
 
 export interface CreatePaymentRunInitialItem {
   itemType: "INVOICE" | "OPERATING_EXPENSE";
@@ -59,6 +66,9 @@ export function CreatePaymentRunModal({
   const [runDate, setRunDate] = useState("");
   const [branchId, setBranchId] = useState(defaultBranchId || "ALL");
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
+  /** Cuenta de origen del catálogo propio: de dónde saldrá el dinero. */
+  const [bankAccounts, setBankAccounts] = useState<CompanyBankAccountOption[]>([]);
+  const [sourceBankAccountId, setSourceBankAccountId] = useState("");
 
   const initialTotalCents = useMemo(
     () => initialItems?.reduce((sum, it) => sum + it.amountCents, 0) ?? 0,
@@ -93,6 +103,16 @@ export function CreatePaymentRunModal({
           }
         })
         .catch(() => {});
+      // Catálogo de cuentas de origen: sólo las activas. El número completo
+      // no viaja — el servidor descifra al momento de crear la corrida.
+      fetch("/api/finance/bank-accounts?activeOnly=true")
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.success && Array.isArray(json.data)) {
+            setBankAccounts(json.data);
+          }
+        })
+        .catch(() => {});
     }
   }, [open]);
 
@@ -114,6 +134,7 @@ export function CreatePaymentRunModal({
             title,
             runDate,
             branchId: branchId === "ALL" ? null : branchId,
+            sourceBankAccountId: sourceBankAccountId || undefined,
             items:
               initialItems && initialItems.length > 0
                 ? initialItems.map((it) => ({
@@ -143,6 +164,7 @@ export function CreatePaymentRunModal({
         setTitle("");
         setRunDate("");
         setBranchId(defaultBranchId || "ALL");
+        setSourceBankAccountId("");
         if (onSuccess) onSuccess();
       } else {
         toast.error("Error al crear", { description: json.error || "Ocurrió un error inesperado." });
@@ -209,6 +231,32 @@ export function CreatePaymentRunModal({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="sourceBankAccountId" className="flex items-center gap-1.5">
+                <Landmark className="h-3.5 w-3.5 text-muted-foreground" /> Cuenta de origen
+              </Label>
+              <div className="min-w-0">
+                <Select value={sourceBankAccountId} onValueChange={setSourceBankAccountId}>
+                  <SelectTrigger id="sourceBankAccountId" className="w-full min-w-0">
+                    <SelectValue placeholder="De qué cuenta saldrá el pago" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin definir</SelectItem>
+                    {bankAccounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.label} ····· {a.accountLastFour}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {bankAccounts.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No hay cuentas en el catálogo. Regístralas en Configuración → Cuentas bancarias:
+                  sin catálogo el layout de dispersión dejará CUENTA_ORIGEN vacía.
+                </p>
+              )}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="title">Título de la Corrida</Label>

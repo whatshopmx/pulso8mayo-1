@@ -83,6 +83,7 @@ export function FinanceSubnav() {
     pathname.startsWith("/dashboard/finance/payees") ||
     pathname.startsWith("/dashboard/finance/payee-bank-accounts") ||
     pathname.startsWith("/dashboard/finance/supplier-bank-accounts") ||
+    pathname.startsWith("/dashboard/finance/settings") ||
     pathname.startsWith("/dashboard/budgets") ||
     pathname.startsWith("/dashboard/company/operating-config");
 
@@ -151,6 +152,11 @@ export function FinanceSubnav() {
               <DropdownMenuItem asChild>
                 <Link href="/dashboard/finance/supplier-bank-accounts" className="cursor-pointer">
                   Cuentas de proveedores
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/finance/settings/bank-accounts" className="cursor-pointer">
+                  Cuentas de origen (propias)
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
