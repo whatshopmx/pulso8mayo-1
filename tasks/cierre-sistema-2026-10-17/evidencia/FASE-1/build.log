@@ -1,0 +1,7 @@
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+- Experiments (use with caution):
+  · serverActions
+  ✓ turbopackUseSystemTlsCerts
+
+  Creating an optimized production build ...

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { purchaseOrders, purchaseOrderItems, receivingReports, receivingReportItems, suppliers, invoices, invoiceLines } from "@/lib/db/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { requestExceptionSync } from "./exception-sync-trigger";
+import type { DbExecutor } from "./fefo-allocator";
 
 export interface MatchResult {
     isPerfectMatch: boolean;
@@ -46,24 +47,29 @@ export class InvoiceMatchingService {
         receivingReportId: string,
         parsedInvoiceItems: Array<{ itemId: string; quantity: number; unitCostCents: number }>,
         tolerancePercent?: number,
+        executor?: DbExecutor,
     ): Promise<Omit<MatchResult, 'discrepancies' | 'itemComparisons'>> {
+        // Dentro de la transacción de recepción, las lecturas deben usar la misma
+        // conexión: si no, no ven las líneas de recepción recién insertadas y el
+        // 3-way match compararía contra una tabla todavía vacía.
+        const q = executor ?? db;
         // 1. Fetch PO items
-        const poItems = await db.select()
+        const poItems = await q.select()
             .from(purchaseOrderItems)
             .where(eq(purchaseOrderItems.poId, poId));
 
         // 2. Fetch receiving items
-        const recItems = await db.select()
+        const recItems = await q.select()
             .from(receivingReportItems)
             .where(eq(receivingReportItems.receivingReportId, receivingReportId));
 
         // 3. Get PO to find supplier tolerance if not provided
         if (tolerancePercent === undefined) {
-            const po = await db.query.purchaseOrders.findFirst({
+            const po = await q.query.purchaseOrders.findFirst({
                 where: eq(purchaseOrders.id, poId),
             });
             if (po) {
-                const supplier = await db.query.suppliers.findFirst({
+                const supplier = await q.query.suppliers.findFirst({
                     where: eq(suppliers.id, po.supplierId),
                 });
                 tolerancePercent = supplier?.matchTolerancePercent ?? 5;

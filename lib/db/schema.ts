@@ -2734,9 +2734,19 @@ export const receivingReports = pgTable("receiving_reports", {
     invoiceNumber: text("invoice_number"),
     signatureUrl: text("signature_url"),
     photoUrls: jsonb("photo_urls"),
+    /** Clave de idempotencia del cliente/consumidor (API manual o extractor de
+     *  workflow). Un reenvío o reintento con la misma clave devuelve la
+     *  recepción ya creada en vez de volver a crear lote, movimiento y avance de
+     *  OC. Nullable: las recepciones legacy y las que no la envían no la usan. */
+    idempotencyKey: text("idempotency_key"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+    // Unicidad por empresa: el reenvío del mismo actor/instancia choca con la
+    // fila existente (23505) y se traduce a replay, no a duplicado. Postgres
+    // trata los NULL como distintos, así que convive con recepciones sin clave.
+    uniqueIndex("receiving_reports_company_idempotency_idx").on(table.companyId, table.idempotencyKey),
+]);
 
 export const receivingReportItems = pgTable("receiving_report_items", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),

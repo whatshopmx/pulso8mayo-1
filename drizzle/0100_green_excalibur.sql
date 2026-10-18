@@ -1,0 +1,2 @@
+ALTER TABLE "receiving_reports" ADD COLUMN "idempotency_key" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "receiving_reports_company_idempotency_idx" ON "receiving_reports" USING btree ("company_id","idempotency_key");

@@ -1,0 +1,45 @@
+HEAD: e95291ca1bbd830e2ba060f503696fa7598c83cf
+Fecha: 2026-10-17T15:33:54-06:00
+
+Archivos modificados (working tree):
+ M app/actions/inventory-transactions.ts
+ M app/api/equipment/maintenance/route.ts
+ M app/api/inventory/receiving/route.ts
+ M app/api/inventory/sales-entry/route.ts
+ M app/api/workflows/evidence/route.ts
+ M drizzle/meta/_journal.json
+ M lib/db/schema.ts
+ M lib/services/inventory-service.ts
+ M lib/services/invoice-matching-service.ts
+ M lib/services/purchase-order-service.ts
+ M lib/services/receiving-from-workflow.ts
+ M lib/services/receiving-service.ts
+ M lib/services/workflow-action-runner.ts
+?? drizzle/0100_green_excalibur.sql
+?? drizzle/meta/0100_snapshot.json
+?? lib/inventory/receiving-overcount.ts
+?? scripts/diag-receiving-overcount.ts
+?? tasks/cierre-sistema-2026-10-17/evidencia/FASE-1/
+?? tests/unit/inventory/receiving-atomicity.test.ts
+?? tests/unit/inventory/receiving-batch-ownership.test.ts
+?? tests/unit/inventory/receiving-idempotency.test.ts
+?? tests/unit/inventory/receiving-overcount-diagnostic.test.ts
+?? tests/unit/inventory/sales-entry-access.test.ts
+?? tests/unit/workflow-evidence-access.test.ts
+
+Hashes SHA256:
+e767bdd97323fe10aa9d6c546537e020cdd09d0d4c9a1d8ca600a100747c93a2 *app/api/equipment/maintenance/route.ts
+644450562121eea9f270573b2554382cd11817c2cf0845022f9b75047c4f8eff *app/api/workflows/evidence/route.ts
+4062a1bc776a95b5c35705f119a3c182535e110e7ce50e60f88b1878b948fb80 *app/api/inventory/sales-entry/route.ts
+76050816b4c5b1a8c1806ddc8f39e985ccde0e89eca13c36f6eb014909e0707c *app/api/inventory/receiving/route.ts
+4d6c6cb29a9c62e5ce06707788c9368d4a7598c17322755ab67f61b622107bd3 *lib/services/receiving-service.ts
+3bc49a1b8e090426aa1ef0243cb4b6775560419fa15cbb9f80ef0b75e62f2adb *lib/services/inventory-service.ts
+7c36d2c55f558fad30df3e34e29f1be00ada072fb5d40b10d8368a0204585f62 *lib/services/receiving-from-workflow.ts
+e596bdac7d89d52340bb3596557d60b76e4871dc49a73b51a8bb808f2d810be7 *lib/services/purchase-order-service.ts
+6fe135d1946a5fd64d92150efa360fc05b5cc1530b5018c20aa44f06e005b123 *lib/services/invoice-matching-service.ts
+939818accef6d844bb9849cd5bbc7e1add564fc7586c6cbf755b6c2209c85997 *lib/services/workflow-action-runner.ts
+68d5953b0b0d5d4f6132ce54b1c880646b7d2d18b30cb147370420b99c482480 *app/actions/inventory-transactions.ts
+3e6b417fcad3b4ca75c8895c8af81c38f0dbca3eb422b6e14be883b175e57bf8 *lib/inventory/receiving-overcount.ts
+a0cdbae109dfda3340932bff8d2091a7eb6adf4e31513a6890e35006bb876e58 *scripts/diag-receiving-overcount.ts
+32cd756b877c1486af16b31553afd8991284bdb7e956fb38b1f0d7b653732348 *lib/db/schema.ts
+cd4407d0098303d2c6a43a885a09fa7a30e2ba15287f14757b40b79e9375e242 *drizzle/0100_green_excalibur.sql

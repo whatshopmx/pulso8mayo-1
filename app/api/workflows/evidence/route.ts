@@ -3,10 +3,32 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { workflowInstanceSteps, workflowInstances, workflowTemplates, branches, users } from "@/lib/db/schema";
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, or } from "drizzle-orm";
+import { resolveBranchScope } from "@/lib/branch-scope";
 import { resolveEvidenceUrl } from "@/lib/storage/scoped-evidence";
 import { startOfDay, endOfDay } from "date-fns";
 
+/**
+ * Consulta de evidencias de workflow.
+ *
+ * La versión anterior comprobaba empresa, pero no acotaba a un EMPLEADO a sus
+ * propias tareas/evidencias ni imponía la sucursal del rol: el `branchId` salía
+ * del query y era opcional, así que un manipulador de parámetros veía la
+ * evidencia de otros colaboradores de la misma empresa —y el `url` presignado
+ * se derivaba igual, así que ese acceso alcanzaba la descarga.
+ *
+ * Ahora se aplican tres límites en el servidor, en este orden:
+ * 1. EMPRESA: las plantillas de la empresa del actor (frontera de tenant).
+ * 2. ALCANCE DE SUCURSAL: `resolveBranchScope` — a GERENTE/SUPERVISOR los fija
+ *    su sesión y se ignora el `branchId` pedido; un rol acotado sin sucursal
+ *    asignada ve cero. Manipular el query no amplía nada.
+ * 3. ACTOR: un EMPLEADO sólo ve evidencia de las instancias que tiene asignadas
+ *    o de los pasos que él completó. Los mandos y READONLY conservan el alcance
+ *    de la empresa/sucursal.
+ *
+ * La URL firmada se deriva después del filtro, así que respeta el mismo alcance
+ * que el listado: no hay una puerta lateral de descarga.
+ */
 export async function GET(request: NextRequest) {
     try {
         const session = await auth.api.getSession({
@@ -17,6 +39,13 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        const user = session.user as {
+            id: string;
+            role?: string;
+            branchId?: string | null;
+            companyId: string;
+        };
+
         const searchParams = request.nextUrl.searchParams;
         const branchId = searchParams.get("branchId");
         const dateFrom = searchParams.get("dateFrom");
@@ -25,13 +54,37 @@ export async function GET(request: NextRequest) {
 
         // Build base conditions
         const conditions = [
-            eq(workflowTemplates.companyId, session.user.companyId),
+            eq(workflowTemplates.companyId, user.companyId),
             eq(workflowInstances.workflowTemplateId, sql`cast(${workflowTemplates.id} as text)`),
             eq(workflowInstanceSteps.instanceId, workflowInstances.id),
         ];
 
-        if (branchId && branchId !== "all") {
-            conditions.push(eq(workflowInstances.branchId, branchId));
+        // Alcance de sucursal resuelto en el servidor. Para un rol acotado, el
+        // `branchId` pedido se descarta: sólo cuenta su sucursal de sesión.
+        const scope = resolveBranchScope(
+            (user.role as never) ?? "EMPLEADO",
+            user.branchId ?? null,
+            branchId && branchId !== "all" ? branchId : null
+        );
+
+        // Un rol de sucursal sin sucursal asignada no ve nada; nunca cae en
+        // "sin filtro" (= empresa entera).
+        if (scope.kind === "NONE") {
+            return NextResponse.json({ success: true, data: [] });
+        }
+
+        if (scope.kind === "BRANCH") {
+            conditions.push(eq(workflowInstances.branchId, scope.branchId));
+        }
+
+        // Un colaborador sólo ve sus tareas: instancias asignadas a él o pasos
+        // que él mismo completó. Otro `assigneeId` no se puede pedir por query.
+        if (user.role === "EMPLEADO") {
+            const propio = or(
+                eq(workflowInstances.assigneeId, user.id),
+                eq(workflowInstanceSteps.completedBy, user.id)
+            );
+            if (propio) conditions.push(propio);
         }
 
         if (dateFrom) {
@@ -70,7 +123,7 @@ export async function GET(request: NextRequest) {
             .leftJoin(workflowTemplates, eq(workflowInstances.workflowTemplateId, sql`cast(${workflowTemplates.id} as text)`))
             .leftJoin(users, eq(workflowInstances.assigneeId, users.id))
             .leftJoin(branches, eq(workflowInstances.branchId, branches.id))
-            .where(validConditions.length > 0 ? and(...validConditions) : undefined)
+            .where(and(...validConditions))
             .orderBy(desc(workflowInstances.createdAt))
             .limit(200);
 

@@ -1,0 +1,181 @@
+$ vitest run --configLoader bundle
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+[vitest-pool]: Failed to terminate forks worker for test files C:/Users/david/pulso29/lib/workflows/__tests__/today.test.ts. Error: The child process was torn down or never initialized. This is a bug in Vitest.
+    at ForksPoolWorker.get fork [as fork] (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3196:26)
+    at ForksPoolWorker.off (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3145:8)
+    at PoolRunner.stop (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3025:16)
+    at Pool.schedule (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3551:35)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+[vitest-pool]: Failed to terminate forks worker for test files C:/Users/david/pulso29/tests/unit/workflows/step-contract-service.test.ts. Error: The child process was torn down or never initialized. This is a bug in Vitest.
+    at ForksPoolWorker.get fork [as fork] (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3196:26)
+    at ForksPoolWorker.off (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3145:8)
+    at PoolRunner.stop (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3025:16)
+    at Pool.schedule (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3551:35)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+[vitest-pool]: Failed to terminate forks worker for test files C:/Users/david/pulso29/tests/unit/company/financial-config.test.ts. Error: The child process was torn down or never initialized. This is a bug in Vitest.
+    at ForksPoolWorker.get fork [as fork] (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3196:26)
+    at ForksPoolWorker.off (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3145:8)
+    at PoolRunner.stop (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3025:16)
+    at Pool.schedule (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3551:35)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+[vitest-pool]: Failed to terminate forks worker for test files C:/Users/david/pulso29/tests/unit/notifications/preferences-routes.test.ts. Error: The child process was torn down or never initialized. This is a bug in Vitest.
+    at ForksPoolWorker.get fork [as fork] (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3196:26)
+    at ForksPoolWorker.off (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3145:8)
+    at PoolRunner.stop (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3025:16)
+    at Pool.schedule (file:///C:/Users/david/pulso29/node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3551:35)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+
+#
+# Fatal process out of memory: Zone
+#
+----- Native stack trace -----
+
+ 1: 00007FF652C20CD7 node::SetCppgcReference+16599
+ 2: 00007FF652AF64FF node::TriggerNodeReport+74095
+ 3: 00007FF653D5AAA6 v8::base::FatalOOM+54
+ 4: 00007FF6536E1D41 v8::Function::Experimental_IsNopFunction+2801
+ 5: 00007FF6531C4B7B v8::SnapshotCreator::GetIsolate+50059
+ 6: 00007FF653EEC390 v8::internal::compiler::CompilationDependencies::TransitionDependencyOffTheRecord+346176
+ 7: 00007FF653EEDE32 v8::internal::compiler::CompilationDependencies::TransitionDependencyOffTheRecord+352994
+ 8: 00007FF653EED9DC v8::internal::compiler::CompilationDependencies::TransitionDependencyOffTheRecord+351884
+ 9: 00007FF653EEC760 v8::internal::compiler::CompilationDependencies::TransitionDependencyOffTheRecord+347152
+10: 00007FF653EA9CA8 v8::internal::compiler::CompilationDependencies::TransitionDependencyOffTheRecord+74072
+11: 00007FF653EAA45E v8::internal::compiler::CompilationDependencies::TransitionDependencyOffTheRecord+76046
+12: 00007FF653EAA142 v8::internal::compiler::CompilationDependencies::TransitionDependencyOffTheRecord+75250
+13: 00007FF653E7FC53 v8::internal::compiler::CompilationDependencies::~CompilationDependencies+818995
+14: 00007FF653E769B3 v8::internal::compiler::CompilationDependencies::~CompilationDependencies+781459
+15: 00007FF653D8A033 inflateInit2_+105811
+16: 00007FF65305EA85 v8::WasmStreaming::Unpack+976853
+17: 00007FF65305DF9A v8::WasmStreaming::Unpack+974058
+18: 00007FF6530396BD v8::WasmStreaming::Unpack+824333
+19: 00007FF65303EEAF v8::WasmStreaming::Unpack+846847
+20: 00007FF6538E6B96 v8::PropertyDescriptor::writable+1996774
+21: 00007FF652AF9280 DH_get0_priv_key+784
+22: 00007FF652C81393 uv_poll_stop+371
+23: 00007FF65446FA5B inflateValidate+172219
+24: 00007FFB53AADDA7 BaseThreadInitThunk+23
+25: 00007FFB54BFEE4C RtlUserThreadStart+44
+[vitest-pool]: Timeout terminating forks worker for test files C:/Users/david/pulso29/lib/workflows/__tests__/today.test.ts.
+[vitest-pool]: Timeout terminating forks worker for test files C:/Users/david/pulso29/tests/unit/workflows/step-contract-service.test.ts.
+[vitest-pool]: Timeout terminating forks worker for test files C:/Users/david/pulso29/tests/unit/company/financial-config.test.ts.
+[vitest-pool]: Timeout terminating forks worker for test files C:/Users/david/pulso29/tests/unit/notifications/preferences-routes.test.ts.
+{"level":40,"time":1767268800000,"pid":22060,"hostname":"daveescam","component":"rate-limiter","msg":"Redis not available, falling back to in-memory rate limiting"}
+{"level":50,"time":1792282081735,"pid":2476,"hostname":"daveescam","component":"inngest:workflow-extractors","instanceId":"instance-28","extractor":"stock-count","err":"Error: agotó reintentos","msg":"Extractor agotó sus reintentos"}
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 5 unhandled errors during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Worker forks emitted error.
+ ❯ EventEmitter.onTaskError node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3526:21
+ ❯ EventEmitter.emit node:events:518:28
+ ❯ ChildProcess.emitUnexpectedExit node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3092:22
+ ❯ ChildProcess.emit node:events:518:28
+ ❯ Process.ChildProcess._handle.onexit node:internal/child_process:293:12
+
+Caused by: Error: Worker exited unexpectedly
+ ❯ ChildProcess.emitUnexpectedExit node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3090:33
+ ❯ ChildProcess.emit node:events:518:28
+ ❯ Process.ChildProcess._handle.onexit node:internal/child_process:293:12
+
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Failed to start forks worker for test files C:/Users/david/pulso29/lib/workflows/__tests__/today.test.ts.
+ ❯ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:94
+ ❯ processTicksAndRejections node:internal/process/task_queues:105:5
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:5
+
+Caused by: Error: spawn UNKNOWN
+ ❯ ChildProcess.spawn node:internal/child_process:420:11
+ ❯ spawn node:child_process:754:9
+ ❯ fork node:child_process:172:10
+ ❯ ForksPoolWorker.start node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3151:18
+ ❯ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:2966:119
+ ❯ Traces.$ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/traces.DT5aQ62U.js:142:27
+ ❯ PoolRunner.start node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:2966:23
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:18
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3559:15
+ ❯ processTicksAndRejections node:internal/process/task_queues:105:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -4094, code: 'UNKNOWN', syscall: 'spawn' }
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Failed to start forks worker for test files C:/Users/david/pulso29/tests/unit/workflows/step-contract-service.test.ts.
+ ❯ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:94
+ ❯ processTicksAndRejections node:internal/process/task_queues:105:5
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:5
+
+Caused by: Error: spawn UNKNOWN
+ ❯ ChildProcess.spawn node:internal/child_process:420:11
+ ❯ spawn node:child_process:754:9
+ ❯ fork node:child_process:172:10
+ ❯ ForksPoolWorker.start node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3151:18
+ ❯ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:2966:119
+ ❯ Traces.$ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/traces.DT5aQ62U.js:142:27
+ ❯ PoolRunner.start node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:2966:23
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:18
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3559:15
+ ❯ processTicksAndRejections node:internal/process/task_queues:105:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -4094, code: 'UNKNOWN', syscall: 'spawn' }
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Failed to start forks worker for test files C:/Users/david/pulso29/tests/unit/company/financial-config.test.ts.
+ ❯ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:94
+ ❯ processTicksAndRejections node:internal/process/task_queues:105:5
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:5
+
+Caused by: Error: spawn UNKNOWN
+ ❯ ChildProcess.spawn node:internal/child_process:420:11
+ ❯ spawn node:child_process:754:9
+ ❯ fork node:child_process:172:10
+ ❯ ForksPoolWorker.start node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3151:18
+ ❯ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:2966:119
+ ❯ Traces.$ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/traces.DT5aQ62U.js:142:27
+ ❯ PoolRunner.start node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:2966:23
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:18
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3559:15
+ ❯ processTicksAndRejections node:internal/process/task_queues:105:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -4094, code: 'UNKNOWN', syscall: 'spawn' }
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Failed to start forks worker for test files C:/Users/david/pulso29/tests/unit/notifications/preferences-routes.test.ts.
+ ❯ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:94
+ ❯ processTicksAndRejections node:internal/process/task_queues:105:5
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:5
+
+Caused by: Error: spawn UNKNOWN
+ ❯ ChildProcess.spawn node:internal/child_process:420:11
+ ❯ spawn node:child_process:754:9
+ ❯ fork node:child_process:172:10
+ ❯ ForksPoolWorker.start node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3151:18
+ ❯ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:2966:119
+ ❯ Traces.$ node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/traces.DT5aQ62U.js:142:27
+ ❯ PoolRunner.start node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:2966:23
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:18
+ ❯ Pool.schedule node_modules/.pnpm/vitest@4.1.11_@opentelemetr_d250496d46a3ae9db659c2890b77aa7d/node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3559:15
+ ❯ processTicksAndRejections node:internal/process/task_queues:105:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -4094, code: 'UNKNOWN', syscall: 'spawn' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  131 passed (132)
+      Tests  1531 passed | 1 skipped | 1 todo (1534)
+     Errors  5 errors
+   Start at  00:06:35
+   Duration  100.78s (transform 35.68s, setup 0ms, import 494.38s, tests 15.20s, environment 87ms)
+
+[ELIFECYCLE] Command failed with exit code 1.

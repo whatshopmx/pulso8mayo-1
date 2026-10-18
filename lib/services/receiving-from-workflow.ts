@@ -214,6 +214,8 @@ export async function extractReceivingFromInstance(instanceId: string): Promise<
           invoiceId: typeof invoiceId === "string" ? invoiceId : undefined,
           notes,
           photoUrls: photos,
+          // Reintento de Inngest = misma recepción, no otra.
+          idempotencyKey: `wf-receiving:${instanceId}`,
         }
       );
     }
@@ -349,6 +351,8 @@ async function extractV3Items(args: {
       purchaseOrderId: po.id,
       notes,
       photoUrls: photos,
+      // Reintento de Inngest = misma recepción, no otra.
+      idempotencyKey: `wf-receiving:${instance.id}`,
     }
   );
 }

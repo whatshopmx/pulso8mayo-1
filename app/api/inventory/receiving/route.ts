@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { enforceBranchScope } from "@/lib/branch-scope";
 import type { Role } from "@/lib/permissions";
+import { isApiError } from "@/lib/api/error";
 import { processReceiving } from "@/lib/services/receiving-service";
 import { db } from "@/lib/db";
 import { inventoryBatches, inventoryItems, suppliers } from "@/lib/db/schema";
@@ -53,6 +54,14 @@ export async function POST(req: NextRequest) {
         });
     } catch (error) {
         console.error("Receiving workflow error:", error);
+
+        if (isApiError(error)) {
+          // P. ej. 409 por clave de idempotencia ya usada en otra sucursal.
+          return NextResponse.json(
+            { error: error.message, details: error.details },
+            { status: error.statusCode }
+          );
+        }
 
         if (error instanceof z.ZodError) {
           return NextResponse.json(

@@ -48,6 +48,20 @@ async function assertItemsOfCompany(companyId: string, itemIds: string[]): Promi
 /** `tx` de `db.transaction` o `db`: la misma API de queries que usa el servicio. */
 type TxLike = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/** Entrada de `recordMovement`: el movimiento que mueve el saldo del lote. */
+export interface RecordMovementInput {
+  branchId: string;
+  itemId: string;
+  batchId?: string;
+  type: 'RECEIVING' | 'USAGE' | 'ADJUSTMENT' | 'TRANSFER' | 'WASTE' | 'RETURN';
+  quantityChange: number;
+  reason?: string;
+  performedBy: string;
+  referenceId?: string;
+  fromLocationId?: string;
+  toLocationId?: string;
+}
+
 async function loadTransferInTx(tx: TxLike, transferId: string) {
     const [transfer] = await tx.select()
         .from(inventoryTransfers)
@@ -148,7 +162,8 @@ export class InventoryService {
         return item;
     }
 
-    static async updateItem(id: string, data: Partial<typeof inventoryItems.$inferInsert>, userId?: string) {
+    static async updateItem(id: string, data: Partial<typeof inventoryItems.$inferInsert>, userId?: string, executor?: DbExecutor) {
+        const q = executor ?? db;
         // Fase 4: si se enciende isHighValue, validar el límite de 30 SKUs.
         if (data.isHighValue === true) {
             const currentItem = await this.getItem(id);
@@ -166,7 +181,7 @@ export class InventoryService {
         if (data.lastCost !== undefined && userId) {
             const currentItem = await this.getItem(id);
             if (currentItem && currentItem.lastCost !== data.lastCost) {
-                await db.insert(inventoryPriceHistory).values({
+                await q.insert(inventoryPriceHistory).values({
                     itemId: id,
                     previousCost: currentItem.lastCost,
                     newCost: data.lastCost,
@@ -176,7 +191,7 @@ export class InventoryService {
             }
         }
 
-        const [item] = await db.update(inventoryItems)
+        const [item] = await q.update(inventoryItems)
             .set({ ...data, updatedAt: new Date() })
             .where(eq(inventoryItems.id, id))
             .returning();
@@ -202,20 +217,55 @@ export class InventoryService {
         return batch;
     }
 
+    /**
+     * Alta de un lote recibido: crea el lote y registra su movimiento de entrada
+     * en una sola transacción, con **un único dueño del incremento**.
+     *
+     * Antes cada llamador creaba el lote con `currentQuantity = quantity` y
+     * después registraba el movimiento `RECEIVING` con `quantityChange = quantity`;
+     * `recordMovement` vuelve a sumar sobre el lote, así que recibir 10 dejaba 20.
+     * El lote nace en cero y sólo el movimiento lo incrementa: `currentQuantity`
+     * queda como la suma del ledger, no como una segunda fuente de verdad.
+     *
+     * El lote resultante se relee dentro de la transacción para devolver el saldo
+     * ya aplicado (el `INSERT` en cero no es el saldo final) junto con el
+     * movimiento que lo incrementó.
+     */
+    static async createReceivingBatch(
+        batchData: Omit<typeof inventoryBatches.$inferInsert, 'currentQuantity'>,
+        movement: Omit<RecordMovementInput, 'batchId'>,
+        executor?: DbExecutor
+    ) {
+        const run = async (q: DbExecutor) => {
+            const [batch] = await q
+                .insert(inventoryBatches)
+                .values({ ...batchData, currentQuantity: '0' })
+                .returning();
+
+            const recordedMovement = await InventoryService.recordMovement(
+                { ...movement, batchId: batch.id },
+                q
+            );
+
+            const [updated] = await q
+                .select()
+                .from(inventoryBatches)
+                .where(eq(inventoryBatches.id, batch.id))
+                .limit(1);
+
+            return { batch: updated ?? batch, movement: recordedMovement };
+        };
+
+        // Sin executor abre su propia transacción (llamador suelto); con executor
+        // se une a la transacción de la recepción para que lote, movimiento y
+        // reporte sean atómicos.
+        if (!executor) return db.transaction((tx) => run(tx));
+        return run(executor);
+    }
+
     // --- Transactions (Movements) ---
 
-  static async recordMovement(data: {
-   branchId: string;
-   itemId: string;
-   batchId?: string;
-   type: 'RECEIVING' | 'USAGE' | 'ADJUSTMENT' | 'TRANSFER' | 'WASTE' | 'RETURN';
-   quantityChange: number;
-   reason?: string;
-   performedBy: string;
-   referenceId?: string;
-   fromLocationId?: string;
-   toLocationId?: string;
-  }, executor?: DbExecutor) {
+  static async recordMovement(data: RecordMovementInput, executor?: DbExecutor) {
    // Si el llamador ya está dentro de una transacción (p.ej. un `db.transaction`
    // que tomó `FOR UPDATE` en el allocator FEFO), correr en esa misma conexión:
    // abrir otra aquí haría que sus escrituras esperaran el lock del lote que

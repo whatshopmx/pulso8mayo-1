@@ -8,6 +8,7 @@ import { createApprovalRequests, resolveApprovalChain } from "./approval-matrix-
 import { checkBudgetAvailability, validateEmergencyCap } from "./budget-service";
 import { assertBranchOfCompany } from "@/lib/branch-scope";
 import { categoriasDeArticulos, evaluarDelegacion } from "@/lib/purchasing/delegation-policy";
+import type { DbExecutor } from "./fefo-allocator";
 
 type POStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SENT' | 'PARTIALLY_RECEIVED' | 'CLOSED' | 'CANCELLED';
 type POItemStatus = 'PENDING' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
@@ -878,8 +879,8 @@ export class PurchaseOrderService {
 
   // --- Receiving Updates (called from receiving workflow) ---
 
-  static async recordReceivedQuantity(poId: string, itemId: string, receivedQty: number, _userId: string) {
-    const tx = db;
+  static async recordReceivedQuantity(poId: string, itemId: string, receivedQty: number, _userId: string, executor?: DbExecutor) {
+    const tx = executor ?? db;
     const poItem = await tx.query.purchaseOrderItems.findFirst({
       where: and(
         eq(purchaseOrderItems.poId, poId),

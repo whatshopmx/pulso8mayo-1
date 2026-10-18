@@ -1,0 +1,31 @@
+$ next build
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+- Experiments (use with caution):
+  · serverActions
+  ✓ turbopackUseSystemTlsCerts
+
+  Creating an optimized production build ...
+
+<--- Last few GCs --->
+
+[23908:00000158D0773000]     9537 ms: Scavenge 66.2 (86.1) -> 51.4 (85.9) MB, pooled: 0 MB, 2.98 / 0.01 ms  (average mu = 0.997, current mu = 0.997) task; 
+[23908:00000158D0773000]    25506 ms: Mark-Compact (reduce) 52.1 (85.9) -> 51.3 (54.9) MB, pooled: 0 MB, 40.52 / 0.82 ms  (+ 140.1 ms in 0 steps since start of marking, biggest step 0.0 ms, walltime since start of marking 224 ms) (average mu = 0.991, curr
+
+<--- JS stacktrace --->
+
+FATAL ERROR: Committing semi space failed. Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 00007FF652C20CD7 
+ 2: 00007FF652B84568 
+ 3: 00007FF6536F53B1 
+ 4: 00007FF6536E1F36 
+ 5: 00007FF65353E870 
+ 6: 00007FF6534F64CD 
+ 7: 00007FF653547AB3 
+ 8: 00007FF65353793D 
+ 9: 00007FF6535334F5 
+10: 00007FF652EBCF5D 
+[ELIFECYCLE] Command failed with exit code 134.
+EXIT=134

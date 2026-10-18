@@ -4,19 +4,19 @@ Plan: [plan.md](plan.md). Investigación: [INFORME.md](../../audits/2026-10-17-s
 
 Estado inicial: todas las tareas pendientes; guardar este plan no acredita implementación.
 
-## Fase 0 — Línea base
 
-- [ ] BASE-01 — Revalidar código/esquema, seed fallido, pruebas, build y entorno aislado.
 
 ## Fase 1 — P0: accesos y recepción
 
-- [ ] SEC-01 — Autorizar equipo/sucursal y corregir fecha de mantenimiento.
-- [ ] SEC-02 — Restringir consulta/descarga de evidencia por actor y alcance.
-- [ ] SEC-03 — Autorizar ventas legacy y validar receta/sucursal/empresa.
-- [ ] REC-01 — Recibir 10 deja 10; fracciones, conversión y cuarentena correctas.
-- [ ] REC-02 — Recepción atómica e idempotente, incluida su entrega externa.
-- [ ] REC-03 — Diagnóstico histórico y ajustes revisables basados en evidencia/conteos.
-- [ ] Puerta 1 — Accesos cruzados rechazados y recepción exacta con rollback/reintentos.
+- [x] SEC-01 — Autorizar equipo/sucursal y corregir fecha de mantenimiento. **Verificada** (`tests/unit/maintenance-create-access.test.ts`, 5/5).
+- [x] SEC-02 — Restringir consulta/descarga de evidencia por actor y alcance. **Verificada** (`tests/unit/workflow-evidence-access.test.ts`, 4/4).
+- [x] SEC-03 — Autorizar ventas legacy y validar receta/sucursal/empresa. **Verificada** (`tests/unit/inventory/sales-entry-access.test.ts`, 4/4).
+- [x] REC-01 — Recibir 10 deja 10; fracciones, conversión y cuarentena correctas. **Verificada** (`tests/unit/inventory/receiving-batch-ownership.test.ts`, 2/2).
+- [x] REC-02a — Idempotencia: clave única (empresa, clave) + replay en API y extractor. **Verificada unitaria** (`receiving-idempotency.test.ts`, 3/3). Migración `drizzle/0100_green_excalibur.sql`.
+- [x] REC-02b — Núcleo atómico en una transacción; efectos externos post-commit. **Verificada unitaria** (`receiving-atomicity.test.ts`, 1/1) **y contra base Postgres real** (`tests/integration/receiving-db-atomicity.test.ts`, 4/4: rollback total, replay y carrera 23505).
+- [~] REC-03 — Diagnóstico hecho sobre la base configurada: 4 lotes con saldo ≠ ledger (2 ATTRIBUTABLE, 2 AMBIGUOUS). Ajuste **no aplicado** (dry-run); requiere aprobación y conteo físico para los AMBIGUOUS. Evidencia: `evidencia/FASE-1/rec03-diagnostico-dryrun.txt`.
+- [x] Puerta 1 (técnica) — Prueba DB real de rollback/concurrencia (4/4), `tsc --noEmit` (exit 0) y `build` (exit 0) aprobados; unit 1652/0 fallos. Evidencia: `evidencia/PUERTA-1/*`.
+- [ ] Puerta 1 (operativa) — Aplicar migración `0100` al entorno objetivo y decidir los ajustes REC-03 (2 ATTRIBUTABLE) + conteo de los 2 AMBIGUOUS.
 
 ## Fase 2 — Evidencia, auditoría y aislamiento DB
 
@@ -115,6 +115,14 @@ Crear una fila al trabajar cada tarea; subdividir IDs con marcador de dominio an
 
 | ID | Estado | Revisión/commit | Entorno | Evidencia de aceptación | Pendiente/riesgo |
 |---|---|---|---|---|---|
-| — | Sin iniciar | — | — | — | — |
+| BASE-01 | Verificada | `e95291c` (HEAD) + cambios locales | local | `evidencia/BASE-01/*`; `evidencia/PUERTA-1/*`: unit 1652/0 fallos, `tsc` exit 0, `build` exit 0; base aislada `.env.test` (174 tablas) | fallo de seed `clave_prod_serv` descartado (unit 0 fallos) |
+| SEC-01 | Verificada | `e95291c` + cambios locales | local (unit) | `evidencia/FASE-1/unit-fase1.log` (5/5) | falta navegador con 2 empresas |
+| SEC-02 | Verificada | idem | local (unit) | `unit-fase1.log` (4/4) | falta navegador/descarga real |
+| SEC-03 | Verificada | idem | local (unit) | `unit-fase1.log` (4/4) | — |
+| REC-01 | Verificada | idem | local (unit) | `unit-fase1.log` (2/2) | — |
+| REC-02a | Verificada (unitaria) | idem | local (unit) | `unit-fase1.log` (3/3); migración `0100` | migración no aplicada a ninguna base |
+| REC-02b | Verificada | idem | local (unit) + DB real `.env.test` | `evidencia/PUERTA-1/integration-2026-10-17.log` (4/4) | — |
+| REC-03 | En curso | idem | base configurada (sólo lectura) | `rec03-diagnostico-dryrun.txt` | ajuste no aplicado; 2 lotes ambiguos a conteo |
+| PUERTA-1 | Verificada (técnica) | idem | local + DB aislada | `evidencia/PUERTA-1/`: `tsc-2026-10-17-real.txt` (exit 0), `build-2026-10-17-real.log` (exit 0), `integration-2026-10-17.log` (4/4), `unit-2026-10-17-real.log` (1652/0) | operativo: aplicar `0100` al entorno objetivo; REC-03 |
 
 Estados: pendiente, en curso, verificada, bloqueada por dato externo. Una tarea «verificada» enlaza comandos/resultados y prueba de sus criterios. Un bloqueo de integración no impide continuar una tarea independiente.

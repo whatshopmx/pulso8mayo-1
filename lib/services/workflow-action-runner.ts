@@ -241,12 +241,12 @@ export class WorkflowActionRunner {
         // Convert cost to cents
         const unitCostCents = item.unitCost ? Math.round(item.unitCost * 100) : null;
 
-        // Create batch
-        const batch = await InventoryService.createBatch({
+        // Create batch + RECEIVING movement in one transaction; el movimiento es
+        // el único dueño del incremento (evita el doble saldo de recepción).
+        await InventoryService.createReceivingBatch({
           itemId: item.itemId,
           branchId,
           initialQuantity: item.quantity,
-          currentQuantity: item.quantity,
           lotNumber: item.batchNumber || `SC-WF-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           expirationDate: item.expirationDate ? new Date(item.expirationDate) : undefined,
           supplierId,
@@ -258,13 +258,9 @@ export class WorkflowActionRunner {
             notes: `Recibido vía Workflow: ${instance.id}. ${notes}`,
             temperature,
           }
-        });
-
-        // Record receiving movement
-        await InventoryService.recordMovement({
+        }, {
           branchId,
           itemId: item.itemId,
-          batchId: batch.id,
           type: "RECEIVING",
           quantityChange: item.quantity,
           reason: notes,

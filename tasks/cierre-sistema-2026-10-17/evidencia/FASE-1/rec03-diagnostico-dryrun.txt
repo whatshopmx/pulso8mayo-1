@@ -1,0 +1,25 @@
+[dotenv@17.2.3] injecting env (33) from .env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+(node:25984) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Lotes de recepción con saldo ≠ ledger: 4
+  ATTRIBUTABLE (corregibles con exactitud): 2
+  AMBIGUOUS (requieren conteo físico INV-03): 2
+  NO_HISTORY (sin movimiento RECEIVING): 0
+┌─────────┬────────────┬─────────────┬───────────┬───────────┬────────────────────┬───────────┬────────────────┐
+│ (index) │ batch      │ status      │ observed  │ ledger    │ delta              │ receiving │ clase          │
+├─────────┼────────────┼─────────────┼───────────┼───────────┼────────────────────┼───────────┼────────────────┤
+│ 0       │ '0901fd91' │ 'AVAILABLE' │ '98.4900' │ '50.0000' │ 48.489999999999995 │ '50.0000' │ 'AMBIGUOUS'    │
+│ 1       │ 'c194b9a1' │ 'AVAILABLE' │ '90.8800' │ '50.0000' │ 40.879999999999995 │ '50.0000' │ 'AMBIGUOUS'    │
+│ 2       │ 'bca2dc32' │ 'EXPIRED'   │ '80.0000' │ '40.0000' │ 40                 │ '40.0000' │ 'ATTRIBUTABLE' │
+│ 3       │ '6be8178a' │ 'EXPIRED'   │ '70.0000' │ '35.0000' │ 35                 │ '35.0000' │ 'ATTRIBUTABLE' │
+└─────────┴────────────┴─────────────┴───────────┴───────────┴────────────────────┴───────────┴────────────────┘
+
+Dry-run. Nada escrito. Para corregir los ATTRIBUTABLE:
+  npx tsx scripts/diag-receiving-overcount.ts --apply --actor=<uuid> --yes

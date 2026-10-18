@@ -15,24 +15,21 @@ export async function addBatch(itemId: string, formData: FormData) {
     const expirationDate = formData.get("expirationDate") ? new Date(formData.get("expirationDate") as string) : undefined;
     const supplierId = formData.get("supplierId") as string; // Optional
 
-    // 1. Create Batch
-    const batch = await InventoryService.createBatch({
+    // 1. Create batch + RECEIVING movement in one transaction. El lote nace en
+    // cero y el movimiento de entrada es el único dueño del incremento: antes
+    // ambos sumaban y el saldo quedaba al doble.
+    await InventoryService.createReceivingBatch({
         itemId,
         branchId: session.user.branchId,
         initialQuantity: String(quantity), // numeric(12,4): string en TS
-        currentQuantity: String(quantity),
         lotNumber,
         expirationDate,
         supplierId: supplierId || null,
         status: 'AVAILABLE'
         // productionDate...
-    });
-
-    // 2. Record Movement (Receiving)
-    await InventoryService.recordMovement({
+    }, {
         branchId: session.user.branchId,
         itemId,
-        batchId: batch.id,
         type: 'RECEIVING',
         quantityChange: quantity,
         reason: 'Initial Receiving',
