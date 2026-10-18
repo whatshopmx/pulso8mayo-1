@@ -39,54 +39,11 @@ import { useBranches } from "@/hooks/queries/use-branches";
 import type { DateRange } from "@/components/finance/period-selector";
 import { useBranch } from "@/lib/branch-context";
 import Link from "next/link";
-
-/** Alcance que `/api/sales/cuts` aplicó, tal como lo devuelve (A8). */
-interface CutsScope {
-  branchId: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  /** `true` si el rango lo puso la ruta (mes en curso) y no el usuario. */
-  rangoPorDefecto: boolean;
-  limit: number;
-  offset: number;
-  truncated: boolean;
-}
-
-interface SalesCut {
-  id: string;
-  branchId: string;
-  branchName: string;
-  businessDate: string;
-  shift: "MATUTINO" | "VESPERTINO" | "COMPLETO";
-  channel: "SALON" | "DELIVERY" | "EVENTOS" | "TOTAL";
-  totalSales: number;
-  cashSales: number | null;
-  cardSales: number | null;
-  otherPayments: number | null;
-  cashCountedCents: number | null;
-  depositedCents: number | null;
-  aggregatorSales: Record<string, number> | null;
-  /** Fase 4: comisión cobrada por la terminal y depósito recibido. `null` = sin conciliar. */
-  commissionCents: number | null;
-  tpvDepositCents: number | null;
-  ticketCount: number | null;
-  avgTicket: number | null;
-  source: "UPLOAD" | "WHATSAPP" | "MANUAL_FORM";
-  rawFileUrl: string | null;
-  status: "VALIDATED" | "PENDING_REVIEW";
-  validationNotes: string | null;
-  receivedByName: string | null;
-  receivedAt: string;
-  createdAt: string;
-}
-
-/** El canal se guarda como enum; en pantalla se lee como lo nombra la operación. */
-const CHANNEL_LABELS: Record<SalesCut["channel"], string> = {
-  SALON: "Salón",
-  DELIVERY: "Delivery",
-  EVENTOS: "Eventos",
-  TOTAL: "Total",
-};
+import {
+  CHANNEL_LABELS,
+  type CutsScope,
+  type SalesCut,
+} from "@/lib/sales/sales-cut-types";
 
 /**
  * `useSearchParams` exige un límite de Suspense: el rango de fechas ahora vive en
