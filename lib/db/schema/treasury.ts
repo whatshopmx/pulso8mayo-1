@@ -431,7 +431,7 @@ export const bankTransactions = pgTable("bank_transactions", {
 //                factura REAL ya es la partida de CxP (fuente INVOICE) y la
 //                estimación queda como evidencia del período.
 //   CANCELLED  → contrató algo que en este período no aplica (baja de
-//                servicio, pausa avisada). Nunca se borra: la редакция es el
+//                servicio, pausa avisada). Nunca se borra: la marca es el
 //                registro auditable de por qué un período no se pagó.
 //
 // Dedupe por `(contract_id, period_key)`: el cron puede correr diario y cada
