@@ -409,3 +409,77 @@ export const bankTransactions = pgTable("bank_transactions", {
   /** El panel pregunta por movimientos sin cruzar de una cuenta. */
   matchStatusIdx: index("bank_transactions_match_status_idx").on(table.companyId, table.matchStatus),
 }));
+
+// ---------------------------------------------------------------------------
+// Payables recurrentes estimados — la obligación que existe aunque el CFDI no.
+//
+// La renta venció el 1° aunque el arrendador no mande factura hasta el 10:
+// la CxP "no le debías" — mentira que el aging confundía con margen. La
+// proyección de `recurring-contract-projection.ts` ya conocía las fechas (y
+// se apaga si capturas factura) pero era sólo cálculo del calendario de
+// flujo: nada registraba la obligación como partida de CxP.
+//
+// `recurringPayables` es el paso: una fila por (contrato, período) con el
+// monto ESTIMADO (base del contrato), que vive con una tregua hasta que llega
+// la factura. Ciclo de vida:
+//
+//   OPEN       → genera el cron/manual, sin factura todavía. Entra al aging
+//                como RECURRING_ESTIMATE con canPay=false: lo estimado NO
+//                viaja en corridas — el desembolso sólo sale con CFDI.
+//   INVOICED   → llegó el CFDI lincado al contrato (`invoices
+//                .recurring_contract_id`) en la fecha/periodo de la fila; la
+//                factura REAL ya es la partida de CxP (fuente INVOICE) y la
+//                estimación queda como evidencia del período.
+//   CANCELLED  → contrató algo que en este período no aplica (baja de
+//                servicio, pausa avisada). Nunca se borra: la редакция es el
+//                registro auditable de por qué un período no se pagó.
+//
+// Dedupe por `(contract_id, period_key)`: el cron puede correr diario y cada
+// corrida es un no-op — generar una obligación no es una aventura nueva.
+// ---------------------------------------------------------------------------
+
+export const recurringPayableStatusEnum = pgEnum("recurring_payable_status", [
+  'OPEN',
+  'INVOICED',
+  'CANCELLED',
+]);
+
+export const recurringPayables = pgTable("recurring_payables", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  contractId: uuid("contract_id").notNull().references(() => recurringContracts.id),
+
+  /** Snapshot del contrato: sobrevive a su baja sin joins muertos. */
+  supplierId: uuid("supplier_id").notNull(),
+  branchId: uuid("branch_id"),
+  label: text("label").notNull(),
+  contractType: text("contract_type").notNull(),
+  currency: text("currency").default("MXN").notNull(),
+
+  /**
+   * Llave del período: `YYYY-MM` para los mensuales o el día exacto
+   * `YYYY-MM-DD` para semanal/quincenal. `periodKey` + dueDate describen el
+   * mismo momento — el dueDate es el que aging califico.
+   */
+  periodKey: text("period_key").notNull(),
+  dueDate: date("due_date").notNull(),
+  /** Monto estimado en centavos — la base del contrato al generar. */
+  estimatedAmountCents: integer("estimated_amount_cents").notNull(),
+
+  status: recurringPayableStatusEnum("status").default('OPEN').notNull(),
+  /** CFDI que convirtió la estimación en obligación real. */
+  linkedInvoiceId: uuid("linked_invoice_id"),
+  closedAt: timestamp("closed_at"),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  /** Una obligación por contrato y período — tan diario corre el cron. */
+  contractPeriodUnique: uniqueIndex("recurring_payables_contract_period_unique")
+    .on(table.contractId, table.periodKey),
+  companyStatusIdx: index("recurring_payables_company_status_idx").on(
+    table.companyId,
+    table.status
+  ),
+  dueDateIdx: index("recurring_payables_due_date_idx").on(table.dueDate),
+}));
