@@ -12,8 +12,8 @@
 // total de "por pagar a proveedores" dejara de ser comparable con la realidad.
 
 import { db } from "@/lib/db";
-import { invoices, operatingExpenses, suppliers, branches, payees, supplierBankAccounts, payeeBankAccounts } from "@/lib/db/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { invoices, operatingExpenses, suppliers, branches, payees, supplierBankAccounts, payeeBankAccounts, recurringPayables } from "@/lib/db/schema";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   AGING_BUCKET_ORDER,
   PAYABLES_ITEMS_LIMIT,
@@ -81,7 +81,28 @@ export async function getAccountsPayable(
   if (filter.branchId) expenseConditions.push(eq(operatingExpenses.branchId, filter.branchId));
   if (filter.payeeId) expenseConditions.push(eq(operatingExpenses.payeeId, filter.payeeId));
 
-  const [invoiceRows, expenseRows] = await Promise.all([
+  // Estimados de contratos recurrentes sin CFDI todavía. Filas OPEN — las
+  // INVOICED ya pesan como factura real (fuente INVOICE) y contarlas aquí
+  // duplicaria el aging del mismo período.
+  const recurringConditions = [
+    eq(recurringPayables.companyId, filter.companyId),
+    eq(recurringPayables.status, "OPEN"),
+  ];
+  if (filter.branchId) {
+    recurringConditions.push(
+      // Con alcance de sucursal entran los suyos y los corporativos: la
+      // renta del local se paga aunque el contrato esté a nombre del grupo.
+      or(eq(recurringPayables.branchId, filter.branchId), isNull(recurringPayables.branchId))
+    );
+  }
+  if (filter.supplierId) {
+    recurringConditions.push(eq(recurringPayables.supplierId, filter.supplierId));
+  }
+  if (filter.payeeId) {
+    recurringConditions.push(eq(suppliers.payeeId, filter.payeeId));
+  }
+
+  const [invoiceRows, expenseRows, recurringRows] = await Promise.all([
     db
       .select({
         id: invoices.id,
@@ -128,6 +149,25 @@ export async function getAccountsPayable(
           .leftJoin(branches, eq(operatingExpenses.branchId, branches.id))
           .leftJoin(payees, eq(operatingExpenses.payeeId, payees.id))
           .where(and(...expenseConditions)),
+
+    db
+      .select({
+        id: recurringPayables.id,
+        label: recurringPayables.label,
+        contractType: recurringPayables.contractType,
+        periodKey: recurringPayables.periodKey,
+        estimatedAmountCents: recurringPayables.estimatedAmountCents,
+        dueDate: recurringPayables.dueDate,
+        supplierId: recurringPayables.supplierId,
+        supplierName: suppliers.name,
+        payeeId: suppliers.payeeId,
+        branchId: recurringPayables.branchId,
+        branchName: branches.name,
+      })
+      .from(recurringPayables)
+      .leftJoin(suppliers, eq(recurringPayables.supplierId, suppliers.id))
+      .leftJoin(branches, eq(recurringPayables.branchId, branches.id))
+      .where(and(...recurringConditions)),
   ]);
 
   const supplierIds = Array.from(
@@ -296,6 +336,36 @@ export async function getAccountsPayable(
       bankAccountStatus,
       canPay,
       blockedReason,
+    });
+  }
+
+  // La obligación estimada es deuda mientras no llegue el CFDI: el aging la
+  // califica con su dueDate y agrupa por proveedor del contrato. canPay es
+  // SIEMPRE false: dispersar un monto estimado viola el control de origen —
+  // desembolso sólo con CFDI. La propia fila lo dice.
+  for (const row of recurringRows) {
+    const due = row.dueDate ?? null;
+    if (due === null) missingDueDateCount++;
+    const days = due ? daysUntil(due, todayMs) : null;
+
+    items.push({
+      id: row.id,
+      source: "RECURRING_ESTIMATE",
+      reference: `${row.label} · ${row.periodKey}`,
+      counterparty: row.supplierName ?? row.label,
+      supplierId: row.supplierId,
+      payeeId: row.payeeId ?? null,
+      branchId: row.branchId,
+      branchName: row.branchName,
+      amountCents: row.estimatedAmountCents,
+      dueDate: due,
+      daysUntilDue: days,
+      bucket: bucketFor(days),
+      matchStatus: null,
+      hasDiscrepancy: false,
+      bankAccountStatus: undefined,
+      canPay: false,
+      blockedReason: "Obligación estimada: programa el pago con el CFDI cuando llegue",
     });
   }
 

@@ -9,7 +9,11 @@ export type PayableSource =
   /** CFDI recibido de un proveedor. */
   | "INVOICE"
   /** Gasto operativo ya autorizado y todavía sin pagar (renta, servicios...). */
-  | "OPERATING_EXPENSE";
+  | "OPERATING_EXPENSE"
+  /** Obligación recurrente estimada sin CFDI todavía (renta venció el 1°,
+   *  factura llega el 15). Entre medias la CxP no mentía tanto: el aging la
+   *  muestra, pero no viaja en corridas — el desembolso sale con CFDI. */
+  | "RECURRING_ESTIMATE";
 
 /**
  * Tramo de antigüedad relativo a hoy.

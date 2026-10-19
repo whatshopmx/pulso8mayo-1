@@ -83,6 +83,7 @@ const BUCKET_TONE: Record<AgingBucket, Parameters<typeof statusBadgeClasses>[0]>
 const SOURCE_LABEL: Record<PayableItem["source"], string> = {
   INVOICE: "Factura CFDI",
   OPERATING_EXPENSE: "Gasto operativo",
+  RECURRING_ESTIMATE: "Recurrente estimado",
 };
 
 export default function PayablesPage() {
@@ -160,7 +161,9 @@ function PayablesContent() {
     return data.items
       .filter((item) => selectedItemIds.has(item.id))
       .map((item) => ({
-        itemType: item.source,
+        // La estimación recurrente tiene canPay=false y jamás llega aquí:
+        // el checkbox ni se ofrece. El cast documenta el invariante de fuente.
+        itemType: item.source as "INVOICE" | "OPERATING_EXPENSE",
         referenceId: item.id,
         amountCents: item.amountCents,
         reference: item.reference,
