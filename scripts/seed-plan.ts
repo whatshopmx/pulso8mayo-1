@@ -6,6 +6,10 @@ export const SEED_PHASES = [
   "seed-10-final", "seed-11-control-orders", "seed-12-sales-pos",
   "seed-13-receiving-matching", "seed-14-current-operations",
   "seed-15-financial-close", "seed-16-executive-control",
+  // Referencia legal global (no tenant-scoped): idempotente, clean-up la trunca
+  // y hay que re-sembrarla en cada run del seed maestro. Ver
+  // lib/services/labor-rules-resolver.ts: sin esta tabla cae al mapa estático.
+  "seed-labor-law-rules",
 ] as const;
 
 export function assertSeedReset(args: string[], environment?: string): void {

@@ -33,7 +33,8 @@
     "backfill:step-definitions": "npx tsx scripts/backfill-step-definitions.ts",
     "seed:14": "tsx scripts/seed-phase.ts 14",
     "seed:15": "tsx scripts/seed-phase.ts 15",
-    "seed:16": "tsx scripts/seed-phase.ts 16"
+    "seed:16": "tsx scripts/seed-phase.ts 16",
+    "seed:17": "tsx scripts/seed-phase.ts 17"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1029.0",
