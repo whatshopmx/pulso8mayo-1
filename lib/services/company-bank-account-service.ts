@@ -36,6 +36,9 @@ import { bankNameForCode, validateClabe, type ClabeErrorCode } from "@/lib/banki
 import { DekService } from "@/lib/security/dek";
 import { encryptColumnWithDek } from "@/lib/security/column-cipher";
 
+/** Propósito declarado de la cuenta: por dónde dispersa y por dónde recibe. */
+export type AccountPurpose = "DISPERSION" | "RECEPCION" | "MIXTO";
+
 /** Lo que sí puede cruzar a una respuesta HTTP. Nunca incluye el número. */
 export interface SafeCompanyBankAccount {
     id: string;
@@ -47,6 +50,8 @@ export interface SafeCompanyBankAccount {
     clabeLastFour: string | null;
     currency: string;
     active: boolean;
+    /** DISPERSION | RECEPCION | MIXTO. Las cuentas viejas quedaron MIXTO. */
+    purpose: AccountPurpose;
     registeredByName: string | null;
     notes: string | null;
     createdAt: Date;
@@ -61,6 +66,7 @@ const SAFE_COLUMNS = {
     clabeLastFour: companyBankAccounts.clabeLastFour,
     currency: companyBankAccounts.currency,
     active: companyBankAccounts.active,
+    purpose: companyBankAccounts.purpose,
     registeredByName: users.name,
     notes: companyBankAccounts.notes,
     createdAt: companyBankAccounts.createdAt,
@@ -115,6 +121,8 @@ export async function createCompanyBankAccount(input: {
     /** CLABE propia opcional (cifrada, referencia SPEI de contexto). */
     clabe?: string | null;
     currency?: string;
+    /** Propósito declarado; default MIXTO — las cuentas viejas no pierden capacidad. */
+    purpose?: AccountPurpose;
     notes?: string;
     registeredBy: string;
 }): Promise<SafeCompanyBankAccount> {
@@ -201,6 +209,7 @@ export async function createCompanyBankAccount(input: {
             clabe: clabeEncrypted,
             clabeLastFour: clabeLast4,
             currency: input.currency?.trim() || "MXN",
+            purpose: input.purpose ?? "MIXTO",
             active: true,
             registeredBy: input.registeredBy,
             notes: input.notes?.trim() || null,
@@ -221,6 +230,7 @@ export async function createCompanyBankAccount(input: {
             clabeLastFour: companyBankAccounts.clabeLastFour,
             currency: companyBankAccounts.currency,
             active: companyBankAccounts.active,
+            purpose: companyBankAccounts.purpose,
             notes: companyBankAccounts.notes,
             createdAt: companyBankAccounts.createdAt,
         });
@@ -253,4 +263,67 @@ export async function deactivateCompanyBankAccount(
     if (!updated) {
         throw ApiError.notFound("La cuenta no existe o ya estaba dada de baja.");
     }
+}
+
+/** Cambiar el propósito de una cuenta activa. La baja lógica no se toca aquí. */
+export async function setCompanyBankAccountPurpose(input: {
+    accountId: string;
+    companyId: string;
+    purpose: AccountPurpose;
+}): Promise<void> {
+    const [updated] = await db
+        .update(companyBankAccounts)
+        .set({ purpose: input.purpose, updatedAt: new Date() })
+        .where(
+            and(
+                eq(companyBankAccounts.id, input.accountId),
+                eq(companyBankAccounts.companyId, input.companyId),
+                eq(companyBankAccounts.active, true)
+            )
+        )
+        .returning({ id: companyBankAccounts.id });
+    if (!updated) {
+        throw ApiError.notFound("La cuenta no existe o ya estaba dada de baja.");
+    }
+}
+
+/**
+ * Preselección por propósito. Sobre cuentas activas: se toma la primera activa
+ * con el propósito buscado; si ninguna lo declara, la primera activa MIXTO —
+ * nunca se inventa una cuenta: con el catálogo vacío se devuelve `null` y la
+ * UI pide, no adivina. El default no es una jaula: siempre overridable a mano.
+ */
+export async function getDefaultDisbursementAccount(
+    companyId: string
+): Promise<SafeCompanyBankAccount | null> {
+    return pickDefaultAccount(companyId, "DISPERSION");
+}
+
+export async function getDefaultDepositAccount(
+    companyId: string
+): Promise<SafeCompanyBankAccount | null> {
+    return pickDefaultAccount(companyId, "RECEPCION");
+}
+
+async function pickDefaultAccount(
+    companyId: string,
+    purpose: "DISPERSION" | "RECEPCION"
+): Promise<SafeCompanyBankAccount | null> {
+    const accounts = await db
+        .select(SAFE_COLUMNS)
+        .from(companyBankAccounts)
+        .leftJoin(users, eq(users.id, companyBankAccounts.registeredBy))
+        .where(
+            and(
+                eq(companyBankAccounts.companyId, companyId),
+                eq(companyBankAccounts.active, true)
+            )
+        )
+        .orderBy(desc(companyBankAccounts.createdAt));
+
+    return (
+        accounts.find((a) => a.purpose === purpose) ??
+        accounts.find((a) => a.purpose === "MIXTO") ??
+        null
+    );
 }

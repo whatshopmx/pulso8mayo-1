@@ -6,6 +6,8 @@ import {
     createCompanyBankAccount,
     deactivateCompanyBankAccount,
     listCompanyBankAccounts,
+    setCompanyBankAccountPurpose,
+    type AccountPurpose,
 } from "@/lib/services/company-bank-account-service";
 
 /**
@@ -29,11 +31,18 @@ const createSchema = z.object({
     bankCode: z.string().regex(/^\d{3}$/, "Código Banxico inválido.").optional(),
     clabe: z.string().max(18).optional().nullable(),
     currency: z.string().max(3).optional(),
+    purpose: z.enum(["DISPERSION", "RECEPCION", "MIXTO"]).optional(),
     notes: z.string().max(1000).optional(),
 });
 
 const deactivateSchema = z.object({
     accountId: z.string().uuid("La cuenta es inválida."),
+});
+
+/** Cambio de propósito: declara por dónde dispersa y por dónde recibe la cuenta. */
+const purposeSchema = z.object({
+    accountId: z.string().uuid("La cuenta es inválida."),
+    purpose: z.enum(["DISPERSION", "RECEPCION", "MIXTO"]),
 });
 
 /**
@@ -84,6 +93,7 @@ export async function POST(req: NextRequest) {
             bankCode: body.bankCode,
             clabe: body.clabe || null,
             currency: body.currency,
+            purpose: body.purpose as AccountPurpose | undefined,
             notes: body.notes,
             registeredBy: ctx.userId,
         });
@@ -110,6 +120,32 @@ export async function PATCH(req: NextRequest) {
         const body = deactivateSchema.parse(await req.json());
 
         await deactivateCompanyBankAccount(body.accountId, ctx.userCompanyId);
+
+        return ApiHandler.success({ ok: true });
+    } catch (error) {
+        return ApiHandler.error(error);
+    }
+}
+
+/**
+ * PUT /api/finance/bank-accounts — cambio de propósito de una cuenta activa.
+ * Edición de propósito con baja disponible aparte (PATCH): la cuenta no muere
+ * por cambiar de rol — por eso es otro verbo.
+ */
+export async function PUT(req: NextRequest) {
+    try {
+        const { ctx } = await requirePermissionApi("settings", "update", {
+            classification: "FINANCIAL",
+            audit: { action: "UPDATE", req },
+        });
+
+        const body = purposeSchema.parse(await req.json());
+
+        await setCompanyBankAccountPurpose({
+            accountId: body.accountId,
+            companyId: ctx.userCompanyId,
+            purpose: body.purpose as AccountPurpose,
+        });
 
         return ApiHandler.success({ ok: true });
     } catch (error) {
