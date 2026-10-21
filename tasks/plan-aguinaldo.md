@@ -75,17 +75,17 @@ Tres fases que hacen tres cosas: (1) un **servicio puro de cálculo de aguinaldo
 
 ### Phase 3: Polish — UI, diciembre y provisiones
 
-- [ ] **Task 7 (M): UI "Aguinaldo {año}" en `app/dashboard/labor/payroll/page.tsx`.**
+- [x] **Task 7 (M): UI "Aguinaldo {año}" en `app/dashboard/labor/payroll/page.tsx`.**
   - Bloque/pestaña con: preview tabla (empleado, días, bruto, exento, gravado), botón **Ejecutar dispersión**, AGUINALDO runs en el historial, badge de estatus legal (catálogo) y nota "iniciativa 30 días por antigüedad: NO vigente".
   - **AC:** la UI refleja el estatus del catálogo ([H04]); flujo completo usable en dev.
   - **Depends:** Task 6.
 
-- [ ] **Task 8 (S): Recordatorio Inngest de dispersión de aguinaldo (diciembre).**
+- [x] **Task 8 (S): Recordatorio Inngest de dispersión de aguinaldo (diciembre).**
   - Función en `lib/inngest/functions/` con cron `0 8 1-19 12 *` y dedupe por companyId+año: alerta a admins antes del 19-dic (límite legal; multa art. 1002 LFT 50–5,000 UMA) vía `NotificationService`/`NotificationDispatcher`.
   - **AC:** no duplica notificaciones el mismo día; expone el estatus legal del cálculo.
   - **Depends:** Tasks 5, 7.
 
-- [ ] **Task 9 (XS): provisión mensual informativa (decisión resuelta Q3: incluida, informativa).**
+- [x] **Task 9 (XS): provisión mensual informativa (decisión resuelta Q3: incluida, informativa).**
   - Línea informativa "provisión aguinaldo bruto / 12" en `labor-cost-service.ts`/tooltip de `labor-cost-table.tsx`, marcada `DERIVED`/estimación (no crédito contable), con toggle por tenant para ocultarla (la postura contable formal de pasivo queda fuera de este scope).
   - **AC:** no altera el KPI de semáforo; línea desactivable por inquilino.
   - **Depends:** Task 2.

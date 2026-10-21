@@ -50,21 +50,21 @@ catálogo de estatus legal [H04]: 15 días vigentes, iniciativa 30 días = `PEND
 
 ## Phase 3: Polish — UI, diciembre, provisiones
 
-- [ ] **Task 7 (M)** — UI "Aguinaldo {año}" en `app/dashboard/labor/payroll/page.tsx` — depende de Task 6
-  - [ ] Preview por empleado + botón ejecutar + historial runs de aguinaldo
-  - [ ] Badge estatus legal + nota "30 días por antigüedad: NO vigente"
+- [x] **Task 7 (M)** — UI "Aguinaldo {año}" en `app/dashboard/labor/payroll/page.tsx` — depende de Task 6
+  - [x] Preview por empleado + botón ejecutar + historial runs de aguinaldo
+  - [x] Badge estatus legal + nota "30 días por antigüedad: NO vigente"
 
-- [ ] **Task 8 (S)** — Recordatorio Inngest diciembre — depende de Tasks 5, 7
-  - [ ] Cron `0 8 1-19 12 *` + dedupe companyId+año → admins antes del 19-dic
+- [x] **Task 8 (S)** — Recordatorio Inngest diciembre — depende de Tasks 5, 7
+  - [x] Cron `0 8 1-19 12 *` + dedupe companyId+año → admins antes del 19-dic
   - **Verify:** no duplica notificaciones el mismo día
 
-- [ ] **Task 9 (XS)** — Provisión mensual informativa (decisión Q3: dentro) — depende de Task 2
-  - [ ] Línea "provisión aguinaldo estimada / 12" en `labor-cost`/`labor-cost-table`, `DERIVED`, toggle por tenant
+- [x] **Task 9 (XS)** — Provisión mensual informativa (decisión Q3: dentro) — depende de Task 2
+  - [x] Línea "provisión aguinaldo estimada / 12" en `labor-cost`/`labor-cost-table`, `DERIVED`, toggle por tenant
 
 **Checkpoint 3**
-- [ ] Flujo end-to-end en dev (preview→timbrado→payslip)
-- [ ] `pnpm build` + `pnpm run lint` limpios
-- [ ] `docs/user-guide.md` actualizado (aguinaldo, exención, límites)
+- [x] Flujo end-to-end en dev (preview→timbrado→payslip)
+- [x] `pnpm build` + `pnpm run lint` limpios
+- [x] `docs/user-guide.md` actualizado (aguinaldo, exención, límites)
 
 ## Phase 4: Sub-registro — salario efectivo, prácticas, liabilidad
 
