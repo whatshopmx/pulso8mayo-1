@@ -3,11 +3,14 @@ import { z } from "zod";
 import { requirePermissionApi } from "@/lib/rbac/abac";
 import { ApiHandler } from "@/lib/api/response";
 import {
+    confirmDepositMatch,
     confirmMatch,
     ignoreTransaction,
     importBankStatement,
     listBankTransactions,
+    suggestDepositMatches,
     suggestMatches,
+    unmatchDepositTransaction,
     unmatchTransaction,
 } from "@/lib/services/bank-statement-service";
 
@@ -37,8 +40,20 @@ const patchSchema = z.discriminatedUnion("action", [
         notes: z.string().max(500).optional(),
     }),
     z.object({
+        action: z.literal("CONFIRM_DEPOSIT_MATCH"),
+        transactionId: z.string().uuid(),
+        gatewayTransactionId: z.string().uuid(),
+        notes: z.string().max(500).optional(),
+    }),
+    z.object({
         action: z.literal("UNMATCH"),
         transactionId: z.string().uuid(),
+        /**
+         * Deshacer el cruce de ENTRADA (gateway) o el de SALIDA (corrida):
+         * el destino lo decide el que cruza, el endpoint limpia la columna
+         * correcta — ambos vuelven a UNMATCHED y liberan la contraparte.
+         */
+        deposit: z.boolean().optional(),
     }),
     z.object({
         action: z.literal("IGNORE"),
@@ -72,9 +87,13 @@ export async function GET(req: NextRequest) {
 
         // Las sugerencias viajan en la misma respuesta: la bandeja pregunta
         // "qué puedo cruzar hoy" y la sugerencia es la mitad de la respuesta.
-        const suggestions = await suggestMatches({ companyId: ctx.userCompanyId });
+        // Entradas y salidas cada una por su lado — nunca se mezclan.
+        const [suggestions, depositSuggestions] = await Promise.all([
+            suggestMatches({ companyId: ctx.userCompanyId }),
+            suggestDepositMatches({ companyId: ctx.userCompanyId }),
+        ]);
 
-        return ApiHandler.success({ ...page, suggestions });
+        return ApiHandler.success({ ...page, suggestions, depositSuggestions });
     } catch (error) {
         return ApiHandler.error(error);
     }
@@ -133,7 +152,25 @@ export async function PATCH(req: NextRequest) {
             return ApiHandler.success({ ok: true });
         }
 
+        if (body.action === "CONFIRM_DEPOSIT_MATCH") {
+            await confirmDepositMatch({
+                companyId: ctx.userCompanyId,
+                transactionId: body.transactionId,
+                gatewayTransactionId: body.gatewayTransactionId,
+                userId: ctx.userId,
+                notes: body.notes,
+            });
+            return ApiHandler.success({ ok: true });
+        }
+
         if (body.action === "UNMATCH") {
+            if (body.deposit) {
+                await unmatchDepositTransaction({
+                    companyId: ctx.userCompanyId,
+                    transactionId: body.transactionId,
+                });
+                return ApiHandler.success({ ok: true });
+            }
             await unmatchTransaction({
                 companyId: ctx.userCompanyId,
                 transactionId: body.transactionId,

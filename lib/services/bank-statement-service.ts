@@ -838,6 +838,164 @@ export async function confirmMatch(input: {
     });
 }
 
+/**
+ * Confirmar un match de ENTRADA: mismo protocolo atómico que el de salidas —
+ * transacción con cerrojos optimistas en ambos lados y re-check de la fila
+ * gateway en la misma transacción. 0 filas al bloquear = 409 (la fila cambió
+ * debajo de quien cruza: recarga y decide de nuevo).
+ *
+ * Reglas:
+ *   - El movimiento bancario debe seguir UNMATCHED y POSITIVO.
+ *   - La fila gateway debe ser de la misma empresa con abono neto exacto.
+ *   - La cuenta destino declarada de la fila tiene que ser la cuenta del
+ *     movimiento: dinero que aterrizó en otra cuenta no cruza aquí.
+ *   - La fecha no se exige en confirmación — igual que las salidas: es
+ *     criterio de SUGERENCIA, la ventana real la decide el banco.
+ *   - La fila gateway no puede estar ya cruzada por otro movimiento.
+ */
+export async function confirmDepositMatch(input: {
+    companyId: string;
+    transactionId: string;
+    gatewayTransactionId: string;
+    userId: string;
+    notes?: string;
+}): Promise<void> {
+    await db.transaction(async (tx) => {
+        const [txRow] = await tx
+            .select({
+                id: bankTransactions.id,
+                matchStatus: bankTransactions.matchStatus,
+                amountCents: bankTransactions.amountCents,
+                valueDate: bankTransactions.valueDate,
+                sourceBankAccountId: bankTransactions.sourceBankAccountId,
+            })
+            .from(bankTransactions)
+            .where(
+                and(
+                    eq(bankTransactions.id, input.transactionId),
+                    eq(bankTransactions.companyId, input.companyId)
+                )
+            )
+            .for("update")
+            .limit(1);
+
+        if (!txRow) throw ApiError.notFound("El movimiento bancario no existe.");
+        if (txRow.matchStatus !== "UNMATCHED") {
+            throw ApiError.conflict(
+                "Este movimiento ya fue cruzado o ignorado. Recarga la bandeja."
+            );
+        }
+        // Sólo entradas cruzan contra gateway: una salida ya tiene su protocolo.
+        if (txRow.amountCents <= 0) {
+            throw ApiError.badRequest(
+                "Sólo los movimientos positivos (depósitos) cruzan contra pasarela."
+            );
+        }
+
+        const [gwRow] = await tx
+            .select({
+                id: gatewayTransactions.id,
+                netAmountCents: gatewayTransactions.netAmountCents,
+                destinationBankAccountId: gatewayTransactions.destinationBankAccountId,
+            })
+            .from(gatewayTransactions)
+            .where(
+                and(
+                    eq(gatewayTransactions.id, input.gatewayTransactionId),
+                    eq(gatewayTransactions.companyId, input.companyId)
+                )
+            )
+            .for("update")
+            .limit(1);
+
+        if (!gwRow) throw ApiError.notFound("La transacción de pasarela no existe.");
+        if (gwRow.netAmountCents !== txRow.amountCents) {
+            throw ApiError.badRequest(
+                `El monto no es exacto: movimiento ${(txRow.amountCents / 100).toFixed(2)} vs abono neto ${(gwRow.netAmountCents / 100).toFixed(2)}.`
+            );
+        }
+        if (
+            gwRow.destinationBankAccountId === null ||
+            gwRow.destinationBankAccountId !== txRow.sourceBankAccountId
+        ) {
+            throw ApiError.badRequest(
+                "La fila de pasarela no declara aterrizar en la cuenta de este depósito. Asigna la cuenta destino del reporte (o corrige la cuenta del movimiento) antes de cruzar."
+            );
+        }
+
+        // La fila gateway no puede cruzarse dos veces, ni siquiera en ventanas
+        // concurrentes: el `for update` del movimiento no protege esto.
+        const [clash] = await tx
+            .select({ id: bankTransactions.id })
+            .from(bankTransactions)
+            .where(
+                and(
+                    eq(bankTransactions.companyId, input.companyId),
+                    eq(bankTransactions.matchStatus, "MATCHED"),
+                    eq(bankTransactions.matchedGatewayTransactionId, input.gatewayTransactionId)
+                )
+            )
+            .limit(1);
+        if (clash) {
+            throw ApiError.conflict(
+                "Esta transacción de pasarela ya está cruzada por otro movimiento del estado de cuenta."
+            );
+        }
+
+        // Cerrojo optimista final: la fila puede haber cambiado desde la
+        // lectura inicial. 0 filas = la carrera la ganó otra sesión.
+        const updated = await tx
+            .update(bankTransactions)
+            .set({
+                matchStatus: "MATCHED",
+                matchedGatewayTransactionId: input.gatewayTransactionId,
+                matchedAt: new Date(),
+                matchedBy: input.userId,
+                matchNotes: input.notes?.trim() || null,
+            })
+            .where(
+                and(
+                    eq(bankTransactions.id, txRow.id),
+                    eq(bankTransactions.matchStatus, "UNMATCHED")
+                )
+            )
+            .returning({ id: bankTransactions.id });
+
+        if (updated.length === 0) {
+            throw ApiError.conflict(
+                "El movimiento cambió de estado durante el cruce. Recarga y vuelve a intentarlo."
+            );
+        }
+    });
+}
+
+/** Deshacer un match de ENTRADA: vuelve a UNMATCHED y libera la fila gateway. */
+export async function unmatchDepositTransaction(input: {
+    companyId: string;
+    transactionId: string;
+}): Promise<void> {
+    const [updated] = await db
+        .update(bankTransactions)
+        .set({
+            matchStatus: "UNMATCHED",
+            matchedGatewayTransactionId: null,
+            matchedAt: null,
+            matchedBy: null,
+            matchNotes: null,
+        })
+        .where(
+            and(
+                eq(bankTransactions.id, input.transactionId),
+                eq(bankTransactions.companyId, input.companyId),
+                eq(bankTransactions.matchStatus, "MATCHED")
+            )
+        )
+        .returning({ id: bankTransactions.id });
+    if (!updated) {
+        throw ApiError.conflict("El movimiento no estaba cruzado o no existe.");
+    }
+}
+
 /** Deshacer un match: el cruce era un juicio de pareja, no un hecho contable. */
 export async function unmatchTransaction(input: {
     companyId: string;

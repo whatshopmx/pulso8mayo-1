@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
     buildFingerprint,
+    confirmDepositMatch,
     detectDelimiter,
     parseAmount,
     parseBankStatementCsv,
@@ -9,6 +10,119 @@ import {
     scoreDepositCandidate,
     splitCsvLine,
 } from "../bank-statement-service";
+
+/**
+ * Mock de `db` para las pruebas transaccionales de confirmación: el resto del
+ * archivo ejercita funciones puras y no toca la base de datos.
+ */
+vi.mock("@/lib/db", () => {
+    const selectChain = (rows: unknown) => ({
+        from: () => ({
+            where: () => ({
+                for: () => ({ limit: () => Promise.resolve(rows) }),
+                limit: () => Promise.resolve(rows),
+            }),
+        }),
+    });
+    const updateChain = (rows: unknown) => ({
+        set: () => ({ where: () => ({ returning: () => Promise.resolve(rows) }) }),
+    });
+    const transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) =>
+        cb({
+            select: vi.fn(),
+            update: vi.fn(),
+        })
+    );
+    return { db: { transaction } };
+});
+
+import { db } from "@/lib/db";
+
+describe("confirmDepositMatch (protocolo atómico de entradas)", () => {
+    const txUnmatchedRow = {
+        id: "tx-1",
+        matchStatus: "UNMATCHED",
+        amountCents: 47912,
+        valueDate: "2026-02-14",
+        sourceBankAccountId: "acc-1",
+    };
+    const gwRow = {
+        id: "gw-1",
+        netAmountCents: 47912,
+        destinationBankAccountId: "acc-1",
+    };
+    const input = {
+        companyId: "comp-1",
+        transactionId: "tx-1",
+        gatewayTransactionId: "gw-1",
+        userId: "user-1",
+    };
+
+    /** Mock transaccional por índice de select: 1 = bank tx, 2 = gateway, 3 = clash. */
+    const mockTx = (rows: unknown[], updateRows: unknown[]) => ({
+        select: vi.fn(() => {
+            const rowsLeft = rows.length;
+            void rowsLeft;
+            return {
+                from: () => ({
+                    where: () => ({
+                        for: () => ({ limit: () => Promise.resolve([]) }),
+                        limit: () => Promise.resolve([]),
+                    }),
+                }),
+            };
+        }),
+        update: vi.fn(),
+    });
+    void mockTx;
+
+    function txMock(selectRows: unknown[], updateRows: unknown[]) {
+        let call = 0;
+        return {
+            select: vi.fn(
+                () =>
+                    ({
+                        from: () => ({
+                            where: () => ({
+                                for: () => ({
+                                    limit: () => Promise.resolve(selectRows[call++] ?? []),
+                                }),
+                                limit: () =>
+                                    Promise.resolve(
+                                        call >= selectRows.length
+                                            ? []
+                                            : (selectRows[call++] ?? [])
+                                    ),
+                            }),
+                        }),
+                    }) as never
+            ),
+            update: vi.fn(
+                () =>
+                    ({
+                        set: () => ({ where: () => ({ returning: () => Promise.resolve(updateRows) }) }),
+                    }) as never
+            ),
+        };
+    }
+
+    it("doble confirmación simulada: el primer cruce queda MATCHED y el segundo levanta conflicto (409)", async () => {
+        // Primera confirmación: UNMATCHED + fila gateway libre + update aplica.
+        vi.mocked(db.transaction).mockImplementationOnce(async (cb) => cb(txMock([[txUnmatchedRow], [gwRow], []], [{ id: "tx-1" }]) as never));
+        await expect(confirmDepositMatch(input)).resolves.toBeUndefined();
+
+        // Segunda confirmación sobre el mismo par ya cruzado: conflicto.
+        vi.mocked(db.transaction).mockImplementationOnce(async (cb) => cb(txMock([[{ ...txUnmatchedRow, matchStatus: "MATCHED" }]], []) as never));
+        await expect(confirmDepositMatch(input)).rejects.toMatchObject({ statusCode: 409 });
+    });
+
+    it("si el cerrojo optimista final mueve 0 filas, la carrera produjo 409 y nada queda cruzado a medias", async () => {
+        vi.mocked(db.transaction).mockImplementationOnce(async (cb) =>
+            cb(txMock([[txUnmatchedRow], [gwRow], []], []) as never)
+        );
+        await expect(confirmDepositMatch(input)).rejects.toMatchObject({ statusCode: 409 });
+    });
+});
 
 describe("parseAmount", () => {
     it("parsea MX: comas de miles y punto decimal", () => {
