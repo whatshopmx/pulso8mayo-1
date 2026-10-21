@@ -73,6 +73,17 @@ interface GatewayTransactionItem {
   importedByName: string | null;
 }
 
+interface PlatformCrossRow {
+  acquirer: string;
+  transactionCount: number;
+  grossCents: number;
+  feeCents: number;
+  feeVatCents: number;
+  netCents: number;
+  bankMatchedCents: number;
+  effectiveRateBps: number;
+}
+
 interface TransactionsSummary {
   totalGrossCents: number;
   totalFeeCents: number;
@@ -120,9 +131,12 @@ function ReconciliationContent() {
   const [endDate, setEndDate] = useState<string>("");
 
   // Tab activa
-  const [activeTab, setActiveTab] = useState<"transactions" | "audit">("transactions");
+  const [activeTab, setActiveTab] = useState<"transactions" | "audit" | "platforms">("transactions");
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditResult, setAuditResult] = useState<CommissionAuditResult | null>(null);
+  /** Reporte de cruce de plataforma (venta cobrada vs neto aterrizado). */
+  const [platformRows, setPlatformRows] = useState<PlatformCrossRow[]>([]);
+  const [platformLoading, setPlatformLoading] = useState(false);
 
   // Modal de subida
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -220,6 +234,24 @@ function ReconciliationContent() {
     }
   }, [selectedBranchId, acquirerFilter, unassignedOnly, startDate, endDate]);
 
+  const fetchPlatformReport = useCallback(async () => {
+    setPlatformLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (acquirerFilter !== "ALL") params.set("acquirer", acquirerFilter);
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const res = await fetch(`/api/finance/reconciliation/platform-report?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || "Error al cruzar plataformas");
+      setPlatformRows(json.data ?? []);
+    } catch (err) {
+      toast.error((err as Error).message || "No se pudo cruzar el reporte de plataformas.");
+    } finally {
+      setPlatformLoading(false);
+    }
+  }, [acquirerFilter, startDate, endDate]);
+
   const fetchAudit = useCallback(async () => {
     setAuditLoading(true);
     try {
@@ -250,7 +282,8 @@ function ReconciliationContent() {
   useEffect(() => {
     fetchTransactions();
     fetchAudit();
-  }, [fetchTransactions, fetchAudit]);
+    fetchPlatformReport();
+  }, [fetchTransactions, fetchAudit, fetchPlatformReport]);
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -534,7 +567,7 @@ function ReconciliationContent() {
       {/* Pestañas: Transacciones y Auditoría de Comisiones */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full space-y-4">
         <div className="flex items-center justify-between">
-          <TabsList className="grid grid-cols-2 w-[380px]">
+          <TabsList className="grid grid-cols-3 w-[560px]">
             <TabsTrigger value="transactions" className="text-xs">
               Transacciones ({totalCount})
             </TabsTrigger>
@@ -546,6 +579,9 @@ function ReconciliationContent() {
                   {auditResult.discrepanciesCount}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="platforms" className="text-xs">
+              Plataformas
             </TabsTrigger>
           </TabsList>
         </div>
@@ -919,6 +955,92 @@ function ReconciliationContent() {
               </Card>
             </div>
           )}
+        </TabsContent>
+
+        {/* Tab 3: Cruce de Plataformas (venta cobrada vs neto aterrizado) */}
+        <TabsContent value="platforms" className="m-0 space-y-4">
+          <Card>
+            <CardHeader className="pb-3 border-b">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold">
+                  Cruce por plataforma
+                </CardTitle>
+              </div>
+              <span className="text-xs text-muted-foreground block">
+                Venta cobrada por la plataforma vs neto aterrizado al banco. La columna
+                banco viene del cruce confirmado en Conciliación bancaria → Entradas;
+                sin cruce queda visible — no oculto.
+              </span>
+            </CardHeader>
+            <CardContent className="p-0">
+              {platformLoading ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="text-xs">Cruzando plataformas…</span>
+                </div>
+              ) : platformRows.length === 0 ? (
+                <div className="py-12 text-center space-y-3">
+                  <FileSpreadsheet className="h-10 w-10 text-muted-foreground mx-auto" />
+                  <p className="font-semibold text-foreground">
+                    Sin cruces por plataforma en este período
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                    Importa el payout de la plataforma y crúzalo contra el estado de
+                    cuenta en Conciliación bancaria → Entradas.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="text-xs">
+                        <TableHead>Plataforma</TableHead>
+                        <TableHead className="text-right">Depósitos cruzados</TableHead>
+                        <TableHead className="text-right">Venta bruta</TableHead>
+                        <TableHead className="text-right">Comisión</TableHead>
+                        <TableHead className="text-right">IVA (16%)</TableHead>
+                        <TableHead className="text-right">Neto aterrizado</TableHead>
+                        <TableHead className="text-right">Cruzado con banco</TableHead>
+                        <TableHead className="text-right">Comisión efectiva</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {platformRows.map((row) => (
+                        <TableRow key={row.acquirer} className="text-xs">
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs font-medium">
+                              {row.acquirer}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {row.transactionCount}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCents(row.grossCents)}
+                          </TableCell>
+                          <TableCell className="text-right text-warning-text">
+                            {formatCents(row.feeCents)}
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {formatCents(row.feeVatCents)}
+                          </TableCell>
+                          <TableCell className="text-right font-bold">
+                            {formatCents(row.netCents)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-emerald-700">
+                            {formatCents(row.bankMatchedCents)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {(row.effectiveRateBps / 100).toFixed(2)}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

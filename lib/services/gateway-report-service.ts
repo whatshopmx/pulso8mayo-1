@@ -1,9 +1,10 @@
 import { db } from "@/lib/db";
-import { eq, and, gte, lte, sql, desc, isNull } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, isNull, isNotNull } from "drizzle-orm";
 import {
   gatewayTransactions,
   branches,
   companyBankAccounts,
+  bankTransactions,
   users,
 } from "@/lib/db/schema";
 import {
@@ -278,6 +279,64 @@ export class GatewayReportService {
         totalNetCents: aggregates?.sumNet ?? 0,
       },
     };
+  }
+
+  /**
+   * Reporte de cruce de plataforma: "venta cobrada por la plataforma vs neto
+   * aterrizado". Por adquirente y período: SUM(gross), SUM(fee), SUM(net) de
+   * `gateway_transactions` contra los movimientos bancarios MATCHED de las
+   * entradas (fase B), más el % de comisión efectiva. La fila del banco viene
+   * del cruce manual confirmado — sin cruce, el banco queda 0 y el hueco es
+   * visible, no oculto.
+   */
+  static async getPlatformCrossReport(params: {
+    companyId: string;
+    acquirer?: AcquirerType;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const conditions = [
+      eq(bankTransactions.companyId, params.companyId),
+      eq(bankTransactions.matchStatus, "MATCHED"),
+      isNotNull(bankTransactions.matchedGatewayTransactionId),
+    ];
+
+    const gatewayFilter = and(
+      eq(gatewayTransactions.companyId, params.companyId),
+      params.acquirer ? eq(gatewayTransactions.acquirer, params.acquirer) : undefined,
+      params.startDate
+        ? gte(gatewayTransactions.transactionDate, new Date(params.startDate))
+        : undefined,
+      params.endDate
+        ? lte(gatewayTransactions.transactionDate, new Date(params.endDate))
+        : undefined
+    );
+
+    const rows = await db
+      .select({
+        acquirer: gatewayTransactions.acquirer,
+        transactionCount: sql<number>`count(*)::int`,
+        grossCents: sql<number>`coalesce(sum(${gatewayTransactions.grossAmountCents}), 0)::int`,
+        feeCents: sql<number>`coalesce(sum(${gatewayTransactions.feeAmountCents}), 0)::int`,
+        feeVatCents: sql<number>`coalesce(sum(${gatewayTransactions.feeVatCents}), 0)::int`,
+        netCents: sql<number>`coalesce(sum(${gatewayTransactions.netAmountCents}), 0)::int`,
+        bankMatchedCents: sql<number>`coalesce(sum(${bankTransactions.amountCents}), 0)::int`,
+      })
+      .from(bankTransactions)
+      .innerJoin(
+        gatewayTransactions,
+        eq(gatewayTransactions.id, bankTransactions.matchedGatewayTransactionId)
+      )
+      .where(and(...conditions, gatewayFilter))
+      .groupBy(gatewayTransactions.acquirer)
+      .orderBy(desc(sql`coalesce(sum(${gatewayTransactions.netAmountCents}), 0)`));
+
+    return rows.map((row) => ({
+      ...row,
+      /** Comisión efectiva en puntos base (fee / gross). */
+      effectiveRateBps:
+        row.grossCents > 0 ? Math.round((row.feeCents / row.grossCents) * 10_000) : 0,
+    }));
   }
 
   /**
