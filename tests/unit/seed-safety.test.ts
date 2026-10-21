@@ -9,9 +9,13 @@ describe("seed demo", () => {
   });
 
   it("ejecuta las dependencias antes del control ejecutivo", () => {
-    expect(SEED_PHASES).toHaveLength(16);
+    // 16 fases de demo + seed-labor-law-rules (legal global, no tenant) +
+    // seed-18-finance + seed-19-evidence-civil.
+    expect(SEED_PHASES).toHaveLength(19);
     expect(SEED_PHASES[0]).toBe("seed-01-foundation");
     expect(SEED_PHASES[15]).toBe("seed-16-executive-control");
+    expect(SEED_PHASES).toContain("seed-labor-law-rules");
+    expect(SEED_PHASES[18]).toBe("seed-19-evidence-civil");
     expect(new Set(SEED_PHASES).size).toBe(SEED_PHASES.length);
   });
 });
