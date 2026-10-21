@@ -1,0 +1,93 @@
+# TODO: Cierre del circuito bancario
+
+Spec: `plans/2026-cierre-circuito-bancario.md` · Plan detallado: `tasks/plan.md`
+Reglas transversales: centavos firmados · sugerencia nunca es confirmación ·
+sólo last-4 en HTTP · multi-tenant por `companyId` · migraciones sin DROP (`pnpm db:generate`, nunca `db:push`).
+
+## Phase 1: Foundation (Fase A — propósito y destino)
+
+- [x] **Task 1 (M)** — Propósito de cuenta ✱secuencial primero — commits 14b44d9, 2f16e17, 0cc50da
+  - [x] Migración `0110_account_purpose.sql`: enum `account_purpose` (`DISPERSION`/`RECEPCION`/`MIXTO`) + columna `purpose NOT NULL DEFAULT 'MIXTO'` (aplicada; sin DROP)
+  - [x] `getDefaultDisbursementAccount` / `getDefaultDepositAccount` + `setCompanyBankAccountPurpose` en `company-bank-account-service.ts` (`null` si el catálogo no clasifica)
+  - [x] Select de propósito (alta, PUT inline) + badge en `app/dashboard/finance/settings/bank-accounts`
+  - [x] Preselección overridable en `create-payment-run-modal.tsx` (dispersión); la de upload de pasarela llega con Task 3 (captura del destino) para no tocar el form dos veces
+  - **Verify:** ✅ tsc/lint limpios, suite unitaria verde (1 fallo preexistente en seed-safety, ajen aeste cambio); verify manual de UI pendiente en dev
+
+- [ ] **Task 2 (S)** — Migración `0111_gateway_destination.sql` *(paralelizable tras Task 1)*
+  - [ ] `destination_bank_account_id uuid REFERENCES company_bank_accounts(id)` nullable (`null` = aún no conciliado) + índice `(company_id, destination_bank_account_id)`
+  - [ ] Columna exportada en `lib/db/schema/finance.ts` types
+  - **Verify:** `pnpm db:generate` sin DROP; `tsc --noEmit` limpio
+
+- [ ] **Task 3 (M)** — Capture del destino en importación *(paralelizable tras Task 2)*
+  - [ ] `GatewayReportService.importReport` acepta/valida/estampa `destinationBankAccountId`
+  - [ ] Upload API + form con preselección de `getDefaultDepositAccount` y memoria localStorage por sucursal+adquirente
+  - **Verify:** import estampa cuenta; cuenta dada de baja/otra empresa → 400; re-import idempotente
+
+- [ ] **Task 4 (M)** — Asignación retroactiva y visualización *(paralelizable tras Task 2)*
+  - [ ] `PATCH /api/finance/reconciliation/transactions/[id]` con selección múltiple en UI
+  - [ ] `GET` listado/summary devuelven sólo `destinationAccountLastFour`
+  - [ ] Badge "Sin destino" + filtro "sin conciliar" en `app/dashboard/finance/terminals`
+  - **Verify:** badge desaparece al asignar; respuesta sin `accountNumber`/`accountNumberEncrypted` (test)
+
+### ✅ Checkpoint Foundation
+- [ ] Migraciones 0110/0111 aplicadas, sin DROP; lint + `tsc` limpios
+- [ ] Flujo manual end-to-end de Fase A verificado
+- [ ] Test anti-fuga de número completo de cuenta verde
+
+## Phase 2: Core (Fase B — matching de entradas)
+
+- [ ] **Task 5 (S)** — Migración `0112_bank_deposit_match.sql`
+  - [ ] `matched_gateway_transaction_id uuid` SIN FK (criterio igual a `matched_payment_run_item_id`) + índice parcial `where not null`
+  - **Verify:** migración sin DROP; `tsc` limpio
+
+- [ ] **Task 6 (M)** — `suggestDepositMatches` *(depende de Fase A para tener destino poblado)*
+  - [ ] Positivos `UNMATCHED` ↔ `gateway_transactions` misma empresa + misma cuenta destino + `netAmountCents` exacto + ventana `MATCH_DATE_WINDOW_DAYS` (`scoreDepositCandidate`)
+  - [ ] Fila gateway ya cruzada se excluye; respuesta: acquirer + sucursal + last-4
+  - [ ] Alcance 1↔1 declarado; depósito que agrupa lotes queda `UNMATCHED` con nota
+  - **Verify:** tests nuevos en `bank-statement-service.test.ts` (5 casos del spec, incl. negativo jamás sugiere entrada)
+
+- [ ] **Task 7 (M)** — `confirmDepositMatch` / `ignoreDepositMatch`
+  - [ ] Transacción con bloqueo optimista + re-check de fila gateway; 0 filas = 409
+  - [ ] Des-cruzar → `UNMATCHED`; ignore reversible, confirm no
+  - **Verify:** doble confirmación simulada = 1 cruzado + 409
+
+- [ ] **Task 8 (M)** — UI "Entradas" en `bank-reconciliation`
+  - [ ] Tabla de positivos + badge candidato + Confirmar/Ignorar iguales a salidas
+  - [ ] Stats: "depósitos sin cruzar" y "monto cruzado vs gateway"
+  - **Verify:** flujo manual en dev: CSV → confirmar → fila gateway cruzada + movimiento MATCHED
+
+### ✅ Checkpoint Core
+- [ ] Suite `bank-statement-service` verde (entradas + salidas)
+- [ ] `pnpm run build` verde
+
+## Phase 3: Platforms (Fase C)
+
+- [ ] **Task 9 (M)** — Adquirentes de plataforma, migración `0113_aggregator_acquirers.sql`
+  - [ ] `ALTER TYPE terminal_acquirer_enum ADD VALUE` RAPPI / UBER_EATS / DIDI / DOORDASH — **uno por statement, fuera de transacción con otros DDL**
+  - [ ] Parser genérico: mapeo CSV agregador (fecha, orden/folio, bruto, comisión, neto) reusando dedupe `(companyId, acquirer, externalId)`
+  - [ ] Upload UI expone nuevos adquirentes; `aggregatorSales` del negocio NO se toca
+  - **Verify:** payout Rappi sintético → filas fee>0 + folio; re-import no duplica
+  - ⚠️ *Open question: pedir 1 CSV real de cada plataforma antes de implementar el mapping*
+
+- [ ] **Task 10 (M)** — Reporte de cruce de plataforma *(reusa UI de Task 8)*
+  - [ ] SUM(gross)/SUM(fee)/SUM(net) por acquirer/período vs movimientos MATCHED de fase B; % comisión efectiva
+  - **Verify:** 2 payouts de la misma plataforma → cruce cuadra en centavos
+
+### ✅ Checkpoint Platforms
+- [ ] Import de payouts con dedupe verificado; `aggregatorSales` sin cambios
+- [ ] Build + tests verdes
+
+## Phase 4: Deferred (Fase D — bloqueada hasta A+B en producción)
+
+- [ ] **Task 11 — diseño pendiente, NO estimar aún**
+  - [ ] Propuesta escrita: `openingBalanceCents + asOfDate` en `company_bank_accounts`, saldos derivados desde `asOfDate`
+  - [ ] Pregunta de producto abierta: ¿qué cuenta alimenta el cash-flow?
+  - **Verify:** propuesta escrita antes de estimar; sin migración
+
+## Done When (del spec)
+- [ ] Propósito declarado por cuenta + preselección con override a mano
+- [ ] Reporte de pasarela declara destino por fila (o "Sin destino" visible, no oculto)
+- [ ] Entradas con sugerencia, confirmación atómica y reversión — mismo protocolo que salidas
+- [ ] Rappi/Uber Eats/DiDi/DoorDash de primera clase con comisión, dedupe y cruce por plataforma
+- [ ] Cero números de cuenta completos en HTTP; sólo last-4
+- [ ] Suite de `bank-statement-service` cubre entradas; `pnpm run build` y tests verdes
