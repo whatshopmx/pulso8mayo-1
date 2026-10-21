@@ -62,10 +62,17 @@ interface SafeCompanyBankAccount {
     clabeLastFour: string | null;
     currency: string;
     active: boolean;
+    purpose: "DISPERSION" | "RECEPCION" | "MIXTO";
     registeredByName: string | null;
     notes: string | null;
     createdAt: string;
 }
+
+const PURPOSE_LABELS: Record<SafeCompanyBankAccount["purpose"], string> = {
+    DISPERSION: "Dispersión",
+    RECEPCION: "Recepción",
+    MIXTO: "Mixta",
+};
 
 const BANK_OPTIONS = Object.entries(BANXICO_BANK_CODES).map(([code, name]) => ({
     code,
@@ -88,6 +95,7 @@ export default function CompanyBankAccountsPage() {
     const [bankCode, setBankCode] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
     const [clabe, setClabe] = useState("");
+    const [purpose, setPurpose] = useState<SafeCompanyBankAccount["purpose"] | "">("");
     const [notes, setNotes] = useState("");
 
     const fetchAccounts = useCallback(async () => {
@@ -116,6 +124,7 @@ export default function CompanyBankAccountsPage() {
         setBankCode("");
         setAccountNumber("");
         setClabe("");
+        setPurpose("");
         setNotes("");
     };
 
@@ -137,6 +146,7 @@ export default function CompanyBankAccountsPage() {
                     accountNumber: accountNumber.trim(),
                     bankCode: bankCode || undefined,
                     clabe: clabe.trim() || undefined,
+                    purpose: purpose || undefined,
                     notes: notes.trim() || undefined,
                 }),
             });
@@ -176,6 +186,30 @@ export default function CompanyBankAccountsPage() {
             await fetchAccounts();
         } catch (err) {
             toast.error("Error al dar de baja", { description: (err as Error).message });
+        }
+    };
+
+    // La cuenta no muere por cambiar de rol: editar propósito es otro verbo (PUT).
+    const handlePurposeChange = async (
+        accountId: string,
+        nextPurpose: SafeCompanyBankAccount["purpose"]
+    ) => {
+        try {
+            const res = await fetch("/api/finance/bank-accounts", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ accountId, purpose: nextPurpose }),
+            });
+            const json = await res.json();
+            if (!res.ok || json.error) {
+                throw new Error(json.error ?? "No se pudo actualizar el propósito.");
+            }
+            toast.success("Propósito actualizado");
+            await fetchAccounts();
+        } catch (err) {
+            toast.error("Error al actualizar propósito", {
+                description: (err as Error).message,
+            });
         }
     };
 
@@ -236,6 +270,7 @@ export default function CompanyBankAccountsPage() {
                                     <TableRow className="bg-muted/50">
                                         <TableHead>Cuenta</TableHead>
                                         <TableHead>Banco</TableHead>
+                                        <TableHead>Propósito</TableHead>
                                         <TableHead>CLABE</TableHead>
                                         <TableHead>Registró</TableHead>
                                         {canEdit && <TableHead className="text-right">Acción</TableHead>}
@@ -251,6 +286,32 @@ export default function CompanyBankAccountsPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-sm">{a.bankName}</TableCell>
+                                            <TableCell>
+                                                {canEdit ? (
+                                                    <Select
+                                                        value={a.purpose}
+                                                        onValueChange={(val) =>
+                                                            handlePurposeChange(
+                                                                a.id,
+                                                                val as SafeCompanyBankAccount["purpose"]
+                                                            )
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="h-7 w-[130px] text-xs">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {(Object.keys(PURPOSE_LABELS) as Array<SafeCompanyBankAccount["purpose"]>).map((p) => (
+                                                                <SelectItem key={p} value={p}>
+                                                                    {PURPOSE_LABELS[p]}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                ) : (
+                                                    <Badge variant="outline">{PURPOSE_LABELS[a.purpose]}</Badge>
+                                                )}
+                                            </TableCell>
                                             <TableCell className="text-sm text-muted-foreground">
                                                 {a.clabeLastFour ? `····${a.clabeLastFour}` : "—"}
                                             </TableCell>
@@ -386,6 +447,26 @@ export default function CompanyBankAccountsPage() {
                                         ))}
                                     </SelectContent>
                                 </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="cuenta-proposito">Propósito</Label>
+                                <Select value={purpose} onValueChange={(val) => setPurpose(val as SafeCompanyBankAccount["purpose"])}>
+                                    <SelectTrigger id="cuenta-proposito" className="w-full">
+                                        <SelectValue placeholder="Mixta (dispersa y recibe)" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {(Object.keys(PURPOSE_LABELS) as Array<SafeCompanyBankAccount["purpose"]>).map((p) => (
+                                            <SelectItem key={p} value={p}>
+                                                {PURPOSE_LABELS[p]}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    Dispersión = de aquí salen las corridas de pago; Recepción = aquí aterrizan los
+                                    depósitos de pasarela; Mixta = ambas. Los selectores preseleccionan por propósito
+                                    y siempre se pueden cambiar a mano.
+                                </p>
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="cuenta-clabe">
