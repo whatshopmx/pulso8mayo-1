@@ -6,7 +6,11 @@
 //   - Invoices from procurement (CFDI XML received but not linked to a paid expense)
 
 import { db } from "@/lib/db";
-import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users, branches, cashFlowAssumptions, payees } from "@/lib/db/schema";
+import {
+  getAccountAnchorStatus,
+  getComputedAccountBalances,
+} from "./company-bank-account-service";
+import { dailySalesCuts, operatingExpenses, invoices, purchaseOrders, suppliers, employeeContracts, users, branches, cashFlowAssumptions, payees, companyBankAccounts } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, inArray, asc, isNull } from "drizzle-orm";
 import { addCalendarDays, localDateString } from "@/lib/workflows/today";
 import { projectRecurringContracts } from "@/lib/services/recurring-contract-projection";
@@ -45,10 +49,30 @@ export type InflowBasis = "SEASONAL" | "AVERAGE" | "NONE";
  * - `COMPANY`: capturado para el grupo; se usa cuando la sucursal no tiene el suyo.
  * - `NONE`: nadie lo ha capturado. No se inventa.
  */
-export type OpeningBalanceSource = "BRANCH" | "COMPANY" | "NONE";
+/**
+   * De donde sale el saldo inicial de la proyeccion:
+   *   ACCOUNTS = suma de saldos computados (apertura + libro) de las cuentas
+   *              activas todas ancladas — solo en proyeccion de grupo.
+   *   BRANCH   = supuesto capturado para la sucursal.
+   *   COMPANY  = supuesto capturado a nivel grupo (la sucursal no tiene el suyo).
+   *   NONE     = sin nada capturado: la pantalla pide el dato.
+   */
+export type OpeningBalanceSource = "ACCOUNTS" | "BRANCH" | "COMPANY" | "NONE";
 
 export interface OpeningBalance {
   source: OpeningBalanceSource;
+  /**
+   * Cuando el source es ACCOUNTS: desglose por cuenta (solo last-4 — la
+   * regla de las respuestas no cambia).
+   */
+  accountBreakdown?: Array<{
+    id: string;
+    label: string;
+    accountLastFour: string;
+    balanceCents: number;
+  }> | null;
+  /** Con fallback: cuantas cuentas activas siguen sin ancla (aviso cuantificado). */
+  unanchoredAccountsCount?: number;
   /** Fecha a la que corresponde el saldo capturado */
   asOfDate: string | null;
   /** Días transcurridos desde `asOfDate`; `null` sin captura */
@@ -444,13 +468,62 @@ export async function getCashFlowProjection(
   const supuestoGrupo = supuestos.find((s) => s.branchId === null);
   const supuesto = supuestoSucursal ?? supuestoGrupo;
 
-  const openingBalanceSource: OpeningBalanceSource = supuestoSucursal
-    ? "BRANCH"
-    : supuestoGrupo
-      ? "COMPANY"
-      : "NONE";
+  // ── 0b. Conmutación por anclaje de cuentas ──────────────────────
+  //
+  // Si TODAS las cuentas activas del grupo tienen ancla (apertura capturada
+  // a mano + libro importado), la proyección de grupo prefiere la suma de
+  // saldos computados: es el libro real, no un supuesto con fecha vieja.
+  // Si falta una sola ancla, la suma estaría coja — se conserva el supuesto
+  // de siempre y el déficit viaja cuantificado, no como adivinanza.
+  // En proyección por sucursal no aplica: las cuentas son del grupo, el
+  // supuesto de sucursal captura el efectivo de esa caja.
+  let accountBreakdown: OpeningBalance["accountBreakdown"] = null;
+  let unanchoredAccountsCount: number | undefined;
+  if (!branchId) {
+    const anchorStatus = await getAccountAnchorStatus(companyId);
+    if (anchorStatus.activeCount > 0 && anchorStatus.anchoredCount === anchorStatus.activeCount) {
+      const balances = await getComputedAccountBalances(companyId);
+      if (balances.size > 0) {
+        const labels = await db
+          .select({
+            id: companyBankAccounts.id,
+            label: companyBankAccounts.label,
+            accountLastFour: companyBankAccounts.accountLastFour,
+          })
+          .from(companyBankAccounts)
+          .where(
+            and(
+              eq(companyBankAccounts.companyId, companyId),
+              eq(companyBankAccounts.active, true)
+            )
+          );
+        accountBreakdown = labels
+          .filter((a) => balances.has(a.id))
+          .map((a) => ({
+            id: a.id,
+            label: a.label,
+            accountLastFour: a.accountLastFour,
+            balanceCents: balances.get(a.id)!.balanceCents,
+          }));
+      }
+    } else {
+      unanchoredAccountsCount = anchorStatus.activeCount - anchorStatus.anchoredCount;
+    }
+  }
 
-  const initialBalanceCents = supuesto?.openingBalanceCents ?? null;
+  const openingBalanceSource: OpeningBalanceSource =
+    accountBreakdown && accountBreakdown.length > 0
+      ? "ACCOUNTS"
+      : supuestoSucursal
+        ? "BRANCH"
+        : supuestoGrupo
+          ? "COMPANY"
+          : "NONE";
+
+  const initialBalanceCents: number | null =
+    openingBalanceSource === "ACCOUNTS"
+      ? (accountBreakdown as Array<{ balanceCents: number }>).reduce((sum, a) => sum + a.balanceCents, 0)
+      : (supuesto?.openingBalanceCents ?? null);
   const openingAsOfDate = supuesto?.asOfDate ?? null;
   const openingAgeInDays = openingAsOfDate
     ? Math.round(
@@ -1092,6 +1165,8 @@ export async function getCashFlowProjection(
       ageInDays: openingAgeInDays,
       isStale:
         openingAgeInDays !== null && openingAgeInDays > OPENING_BALANCE_STALE_DAYS,
+      accountBreakdown,
+      unanchoredAccountsCount,
     },
     inflow: {
       basis: inflowBasis,

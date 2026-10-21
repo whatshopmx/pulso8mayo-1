@@ -265,6 +265,31 @@ export async function deactivateCompanyBankAccount(
     }
 }
 
+/**
+ * Status de anclaje del catálogo activo: cuántas cuentas hay y cuántas tienen
+ * ancla capturada. Es el interruptor del cash-flow: 100% anclado usa la suma
+ * de saldos computados; falta una sola, fallback al supuesto por sucursal
+ * con aviso cuantificado — sin medias-verdad contables.
+ */
+export async function getAccountAnchorStatus(companyId: string): Promise<{
+    activeCount: number;
+    anchoredCount: number;
+}> {
+    const [row] = await db
+        .select({
+            activeCount: sql<number>`count(*)::int`,
+            anchoredCount: sql<number>`count(${companyBankAccounts.openingBalanceCents})::int`,
+        })
+        .from(companyBankAccounts)
+        .where(
+            and(
+                eq(companyBankAccounts.companyId, companyId),
+                eq(companyBankAccounts.active, true)
+            )
+        );
+    return { activeCount: row?.activeCount ?? 0, anchoredCount: row?.anchoredCount ?? 0 };
+}
+
 /** Cambiar el propósito de una cuenta activa. La baja lógica no se toca aquí. */
 export async function setCompanyBankAccountPurpose(input: {
     accountId: string;

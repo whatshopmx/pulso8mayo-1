@@ -17,10 +17,19 @@ import { Wallet, Loader2, Pencil } from "lucide-react";
  */
 
 export interface OpeningBalanceInfo {
-  source: "BRANCH" | "COMPANY" | "NONE";
+  source: "ACCOUNTS" | "BRANCH" | "COMPANY" | "NONE";
   asOfDate: string | null;
   ageInDays: number | null;
   isStale: boolean;
+  /** Fuente ACCOUNTS: desglose por cuenta (solo last-4). */
+  accountBreakdown?: Array<{
+    id: string;
+    label: string;
+    accountLastFour: string;
+    balanceCents: number;
+  }> | null;
+  /** Fuente con fallback: cuantas cuentas activas siguen sin saldo base. */
+  unanchoredAccountsCount?: number;
 }
 
 interface Props {
@@ -95,6 +104,9 @@ export function OpeningBalanceCard({
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
             <Wallet className="w-4 h-4" />
             Saldo en caja y bancos
+            {openingBalance?.source === "ACCOUNTS" && (
+              <span className="text-primary font-semibold">· computado</span>
+            )}
           </div>
           {canEdit && !editando && (
             <Button
@@ -173,7 +185,31 @@ export function OpeningBalanceCard({
               {openingBalance?.source === "COMPANY" && branchId && (
                 <> · dato del grupo, esta sucursal no tiene el suyo</>
               )}
+              {openingBalance?.source === "ACCOUNTS" && (
+                <> · apertura + libro, no captura a mano</>
+              )}
             </p>
+            {openingBalance?.source === "ACCOUNTS" &&
+              (openingBalance.accountBreakdown?.length ?? 0) > 0 && (
+                <ul className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                  {(openingBalance.accountBreakdown ?? []).map((a) => (
+                    <li key={a.id} className="tabular-nums flex justify-between gap-3">
+                      <span className="truncate">
+                        {a.label} ····{a.accountLastFour}
+                      </span>
+                      <span>{formatCents(a.balanceCents)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            {openingBalance?.unanchoredAccountsCount != null &&
+              openingBalance.unanchoredAccountsCount > 0 && (
+                <p className="text-xs text-warning-text mt-1">
+                  {openingBalance.unanchoredAccountsCount} cuenta(s) activa(s) sin saldo
+                  base capturado — se usa la apertura por sucursal. Anclas en
+                  Configuración → Cuentas bancarias.
+                </p>
+              )}
             {openingBalance?.isStale && (
               <p className="text-xs text-warning-text mt-1">
                 Conviene actualizarlo
