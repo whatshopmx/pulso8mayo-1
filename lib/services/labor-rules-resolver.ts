@@ -34,6 +34,8 @@ export interface ResolvedLaborRule {
     maxExtraHoursPerDay: number;
     maxExtraDaysPerWeek: number;
     minRestBetweenShiftsHours: number;
+    /** Días de aguinaldo legal por año de servicio (Art. 87 LFT; vigente 15). */
+    aguinaldoDaysMxn: number;
     minimumWageMxn: number | null;
     sourceDofUrl: string | null;
     sourcePublishedOn: Date | null;
@@ -91,6 +93,9 @@ export function staticFallbackRule(date: Date): ResolvedLaborRule {
         maxExtraHoursPerDay: r.maxExtraHoursPerDay,
         maxExtraDaysPerWeek: r.maxExtraDaysPerWeek,
         minRestBetweenShiftsHours: r.minRestBetweenShiftsHours,
+        // El aguinaldo de 15 días es ley desde la LFT de 1970 (Art. 87):
+        // no depende del decreto de jornada, válido en cualquier fallback.
+        aguinaldoDaysMxn: 15,
         minimumWageMxn: null,
         sourceDofUrl: "https://www.dof.gob.mx/nota_detalle.php?codigo=5786537&fecha=01/05/2026",
         sourcePublishedOn: null,
@@ -99,7 +104,8 @@ export function staticFallbackRule(date: Date): ResolvedLaborRule {
     };
 }
 
-function rowToResolved(row: LaborLawCalendarRule): ResolvedLaborRule {
+/** Mapeo fila→regla resuelta (exportado para tests). */
+export function rowToResolved(row: LaborLawCalendarRule): ResolvedLaborRule {
     return {
         source: "law-table",
         effectiveFrom: new Date(row.effectiveFrom + "T00:00:00Z"),
@@ -111,6 +117,7 @@ function rowToResolved(row: LaborLawCalendarRule): ResolvedLaborRule {
         maxExtraHoursPerDay: row.maxExtraHoursPerDay,
         maxExtraDaysPerWeek: row.maxExtraDaysPerWeek,
         minRestBetweenShiftsHours: row.minRestBetweenShiftsHours,
+        aguinaldoDaysMxn: row.aguinaldoDaysMxn,
         minimumWageMxn: row.minimumWageMxn ? Number(row.minimumWageMxn) : null,
         sourceDofUrl: row.sourceDofUrl,
         sourcePublishedOn: row.sourcePublishedOn ? new Date(row.sourcePublishedOn + "T00:00:00Z") : null,

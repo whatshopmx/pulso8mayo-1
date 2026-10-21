@@ -39,6 +39,13 @@ export const laborLawCalendarRules = pgTable("labor_law_calendar_rules", {
     maxExtraDaysPerWeek: integer("max_extra_days_per_week").notNull(),
     minRestBetweenShiftsHours: integer("min_rest_between_shifts_hours").notNull().default(12),
 
+    // Días de aguinaldo legal por año de servicio (Art. 87 LFT).
+    // 15 días es la cifra vigente ininterrumpida desde la LFT de 1970 —
+    // por eso el default 15 es seguro incluso para filas históricas.
+    // La propuesta de 30 días progresivos por antigüedad NO es ley
+    // (estatus en labor-reform-status-catalog: AGUINALDO_30_DIAS).
+    aguinaldoDaysMxn: integer("aguinaldo_days_mxn").notNull().default(15),
+
     // Salario mínimo general vigente en el rango (pesos MXN por día).
     // Conservado como numeric para el cálculo de primas tocadas a salarios mínimos.
     minimumWageMxn: numeric("minimum_wage_mxn", { precision: 8, scale: 2 }),

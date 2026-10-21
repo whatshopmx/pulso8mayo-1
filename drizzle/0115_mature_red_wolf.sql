@@ -1,0 +1,1 @@
+ALTER TABLE "labor_law_calendar_rules" ADD COLUMN "aguinaldo_days_mxn" integer DEFAULT 15 NOT NULL;

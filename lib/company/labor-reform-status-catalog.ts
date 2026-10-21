@@ -103,6 +103,14 @@ export const LABOR_REFORM_STATUS_CATALOG: LaborReformStatus[] = [
         serviceFiles: ['lib/services/employee-service.ts (offboardEmployeeWithAntiBuroProtection)'],
     },
     {
+        key: 'AGUINALDO_30_DIAS',
+        status: 'PENDING_INITIATIVE',
+        label: 'Aguinaldo 30 días progresivos por antigüedad',
+        basis: 'Iniciativas MC (jul-2026: 1-2 años→15, 3-4→20, 5+→25, 6+→30) y oct-2024 — NO vigente a oct-2026. Ley vigente: 15 días por año (Art. 87 LFT, DOF LFT 1970).',
+        effectNote: '15 días es la única cifra legal de hoy (labor-rules-resolver). Cualquier cálculo a 30 días es proyección con legalBasis: pending; la nómina jamás desembolsa por norma no vigente.',
+        serviceFiles: ['lib/services/labor-rules-resolver.ts (aguinaldoDaysMxn)', 'lib/services/aguinaldo-service.ts'],
+    },
+    {
         key: 'PRIMA_SUSTITUCION_IA',
         status: 'PENDING_INITIATIVE',
         label: 'Prima por sustitución por IA (+2 meses)',

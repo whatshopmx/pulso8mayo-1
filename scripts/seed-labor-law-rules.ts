@@ -30,6 +30,7 @@ interface SeedRule {
     maxExtraHoursPerDay: number;
     maxExtraDaysPerWeek: number;
     minRestBetweenShiftsHours: number;
+    aguinaldoDaysMxn: number;
     minimumWageMxn: string | null;
     sourceDofUrl: string | null;
     sourcePublishedOn: string | null;
@@ -49,6 +50,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraHoursPerDay: 3,
         maxExtraDaysPerWeek: 3,
         minRestBetweenShiftsHours: 12,
+        aguinaldoDaysMxn: 15,
         minimumWageMxn: "248.93",
         sourceDofUrl: null,
         sourcePublishedOn: null,
@@ -67,6 +69,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraHoursPerDay: 4,
         maxExtraDaysPerWeek: 4,
         minRestBetweenShiftsHours: 12,
+        aguinaldoDaysMxn: 15,
         minimumWageMxn: "278.80",
         sourceDofUrl: DOF_JORNADA_URL,
         sourcePublishedOn: "2026-05-01",
@@ -82,6 +85,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraHoursPerDay: 4,
         maxExtraDaysPerWeek: 4,
         minRestBetweenShiftsHours: 12,
+        aguinaldoDaysMxn: 15,
         minimumWageMxn: null, // anunciar por CONASAMI (dic-2026)
         sourceDofUrl: DOF_JORNADA_URL,
         sourcePublishedOn: "2026-05-01",
@@ -97,6 +101,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraHoursPerDay: 4,
         maxExtraDaysPerWeek: 4,
         minRestBetweenShiftsHours: 12,
+        aguinaldoDaysMxn: 15,
         minimumWageMxn: null,
         sourceDofUrl: DOF_JORNADA_URL,
         sourcePublishedOn: "2026-05-01",
@@ -112,6 +117,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraHoursPerDay: 4,
         maxExtraDaysPerWeek: 4,
         minRestBetweenShiftsHours: 12,
+        aguinaldoDaysMxn: 15,
         minimumWageMxn: null,
         sourceDofUrl: DOF_JORNADA_URL,
         sourcePublishedOn: "2026-05-01",
@@ -127,6 +133,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraHoursPerDay: 4,
         maxExtraDaysPerWeek: 4,
         minRestBetweenShiftsHours: 12,
+        aguinaldoDaysMxn: 15,
         minimumWageMxn: null,
         sourceDofUrl: DOF_JORNADA_URL,
         sourcePublishedOn: "2026-05-01",
@@ -166,6 +173,7 @@ export async function main() {
                     maxExtraHoursPerDay: rule.maxExtraHoursPerDay,
                     maxExtraDaysPerWeek: rule.maxExtraDaysPerWeek,
                     minRestBetweenShiftsHours: rule.minRestBetweenShiftsHours,
+                    aguinaldoDaysMxn: rule.aguinaldoDaysMxn,
                     minimumWageMxn: rule.minimumWageMxn,
                     sourceDofUrl: rule.sourceDofUrl,
                     sourcePublishedOn: rule.sourcePublishedOn,
