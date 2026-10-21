@@ -119,6 +119,36 @@ export interface NominaTimbradoInput {
   desglosePercepciones?: NominaPercepcion[];
   /** Desglose fiscal real de deducciones. Mismo trato que las percepciones. */
   desgloseDeducciones?: NominaDeduccion[];
+  /**
+   * Tipo de nómina del complemento (c_TipoNomina):
+   *  "O" ordinaria (default, retrocompatible) · "E" extraordinaria
+   *  (aguinaldo — CFDI 002 separado, no se mezcla con el periodo).
+   */
+  payrollTypeCode?: "O" | "E";
+  /** Fecha de pago inicial explícita del complemento (ej. 1-ene del año causado). */
+  fechaPagoInicial?: string;
+  /** Fecha de pago final explícita del complemento (ej. 31-dic del año causado). */
+  fechaPagoFinal?: string;
+  /** Fecha de dispersión explícita; si falta, la final del periodo. */
+  fechaPago?: string;
+}
+
+/**
+ * Percepción CFDI de aguinaldo (clave 002 del catálogo c_TipoPercepcion,
+ * "Gratificación anual"), con su parte exenta y gravada separadas — la
+ * exención de 30 UMA del art. 93-XIV LISR se declara en la propia línea.
+ */
+export function percepcionAguinaldo(
+  brutoCents: number,
+  exentoCents: number
+): NominaPercepcion {
+  return {
+    earningTypeCode: "002",
+    code: "002",
+    concept: "Gratificación anual (Aguinaldo)",
+    taxedAmount: brutoCents - exentoCents,
+    exemptAmount: exentoCents,
+  };
 }
 
 export type NominaTimbradoStatus = "TIMBRADO" | "PENDIENTE" | "RECHAZADO" | "ERROR";
@@ -418,7 +448,14 @@ export function construirPayloadNomina(input: NominaTimbradoInput): {
   // lleva IVA trasladado). Verificar contra el timbre es lo delata un mapeo roto.
   const expectedTotal = dosDecimales(percepciones - deducciones);
 
-  const { inicio, fin, dias } = periodoAFechas(input.periodo);
+  // Fechas del complemento: rango explícito si viene (nómina extraordinaria
+  // del año causado: 1-ene a 31-dic), si no el resuelto por el periodo.
+  const { inicio: inicioPeriodo, fin: finPeriodo, dias: diasPeriodo } = periodoAFechas(input.periodo);
+  const inicio = input.fechaPagoInicial ?? inicioPeriodo;
+  const fin = input.fechaPagoFinal ?? finPeriodo;
+  const dias = input.fechaPagoInicial || input.fechaPagoFinal
+    ? Math.round((Date.parse(fin) - Date.parse(inicio)) / 86_400_000) + 1
+    : diasPeriodo;
   // SBC/SDI real si hay contrato; si no, el sintético determinista de sandbox.
   const diario =
     input.empleadoSalarioDiarioCents && input.empleadoSalarioDiarioCents > 0
@@ -473,8 +510,8 @@ export function construirPayloadNomina(input: NominaTimbradoInput): {
     complement: {
       payroll: {
         version: "1.2",
-        payrollTypeCode: "O", // ordinaria
-        paymentDate: fin,
+        payrollTypeCode: input.payrollTypeCode ?? "O", // ordinaria (default retrocompatible)
+        paymentDate: input.fechaPago ?? fin,
         initialPaymentDate: inicio,
         finalPaymentDate: fin,
         daysPaid: dias,

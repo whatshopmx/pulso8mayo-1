@@ -8,6 +8,7 @@ import {
 } from "./support/db";
 import {
   construirPayloadNomina,
+  percepcionAguinaldo,
   timbrarNomina,
 } from "../lib/services/fiscal-service";
 
@@ -289,6 +290,49 @@ test.describe("desglose real de nómina en el payload", () => {
     expect(emp.laborRelationStartDate).toBe("2022-03-01");
     expect(emp.baseSalaryForContributions).toBe(450);
     expect((payload as any).issuer.employerData.employerRegistration).toBe("REG-PAT-E2E");
+  });
+});
+
+test.describe("nómina extraordinaria de aguinaldo (c_TipoNomina E + CFDI 002)", () => {
+  test("tipo E, percepción 002 exenta/gravada separadas y fechas del año causado", () => {
+    const { payload, expectedTotal } = construirPayloadNomina({
+      ...entrada,
+      periodo: "2026",
+      payrollTypeCode: "E",
+      fechaPagoInicial: "2026-01-01",
+      fechaPagoFinal: "2026-12-31",
+      fechaPago: "2026-12-17",
+      totalDeducciones: 0, // extraordinaria sin retenciones aún (Task 13)
+      desglosePercepciones: [percepcionAguinaldo(900_000, 339_420)],
+    });
+
+    const payroll = (payload as any).complement.payroll;
+    expect(payroll.payrollTypeCode).toBe("E");
+    expect(payroll.paymentDate).toBe("2026-12-17");
+    expect(payroll.initialPaymentDate).toBe("2026-01-01");
+    expect(payroll.finalPaymentDate).toBe("2026-12-31");
+    expect(payroll.daysPaid).toBe(365);
+
+    expect(payroll.earnings.earnings).toHaveLength(1);
+    expect(payroll.earnings.earnings[0]).toMatchObject({
+      earningTypeCode: "002", // gratificación anual (agui)
+      taxedAmount: (900_000 - 339_420) / 100, // gravado = bruto − exento
+      exemptAmount: 3_394.2, // exención 30 UMA declarada en la línea
+    });
+
+    // Total: bruto − deducciones (0) cuadra línea por línea.
+    expect(expectedTotal).toBe(9_000);
+
+    // La antigüedad del receptor queda intacta (contratación de entrada).
+    expect((payload as any).recipient.employeeData.seniority).toMatch(/^P\d+W$/);
+  });
+
+  test("default retrocompatible: sin payrollTypeCode la nómina sigue ordinaria tipo O", () => {
+    const { payload } = construirPayloadNomina(entrada);
+    const payroll = (payload as any).complement.payroll;
+    expect(payroll.payrollTypeCode).toBe("O");
+    expect(payroll.earnings.earnings).toHaveLength(1);
+    expect(payroll.earnings.earnings[0].earningTypeCode).toBe("001");
   });
 });
 
