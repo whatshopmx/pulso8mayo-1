@@ -151,6 +151,12 @@ export const terminalAcquirerEnum = pgEnum("terminal_acquirer", [
   "BBVA",
   "BANORTE",
   "SANTANDER",
+  // Plataformas de venta (rapidos de delivery): el payout semanal/quincenal
+  // se importa con el mismo pipeline de `gateway_transactions`.
+  "RAPPI",
+  "UBER_EATS",
+  "DIDI",
+  "DOORDASH",
   "OTHER",
 ]);
 
