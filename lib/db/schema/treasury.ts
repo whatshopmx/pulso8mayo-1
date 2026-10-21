@@ -354,6 +354,15 @@ export const companyBankAccounts = pgTable("company_bank_accounts", {
    */
   purpose: accountPurposeEnum("purpose").default("MIXTO").notNull(),
 
+  /**
+   * Ancla del saldo computado. `null` = cuenta sin ancla: NO tiene saldo
+   * computado y cero no se inventa — es el chisme del banco que sólo la
+   * persona puede capturar. Firmada: negativa es cuenta en rojo (sobregiro).
+   */
+  openingBalanceCents: integer("opening_balance_cents"),
+  /** Fecha valor de la apertura: el saldo derivado suma desde aquí. */
+  openingAsOfDate: date("opening_as_of_date"),
+
   registeredBy: text("registered_by").notNull().references(() => users.id),
 
   notes: text("notes"),
