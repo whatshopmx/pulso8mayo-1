@@ -13,6 +13,8 @@ export const SEED_PHASES = [
   // Banca/finance post-seed-15: cuentas propias, estado de cuenta, gateway
   // TPV, payables recurrentes (derivados del servicio) y CFDI de nómina.
   "seed-18-finance",
+  // Evidencia canónica (EVI-01, espejo de pasos reales) + protección civil.
+  "seed-19-evidence-civil",
 ] as const;
 
 export function assertSeedReset(args: string[], environment?: string): void {
