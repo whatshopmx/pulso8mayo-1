@@ -34,6 +34,31 @@ describe("GatewayReportParser (Importador de Reportes Clip, Mercado Pago, Bancos
   });
 
   describe("parseGatewayReport", () => {
+    it("parsea un payout de plataforma (Rappi): fee, folio de orden como externalId y dedupe por (acquirer, externalId)", async () => {
+      // Payout semanal de Rappi: fecha de venta, orden, bruto cobrado al
+      // cliente, comisión de plataforma, neto que aterriza en el banco.
+      const rappiCsv = `Payout semanal Rappi
+Fecha de venta,ID de orden,Total del pedido,Comisión,Pago neto
+10/09/2026 20:15:00,RP-88121,620.00,96.40,523.60
+10/09/2026 21:02:00,RP-88134,189.00,33.30,155.70
+Total,,,809.00,129.70,679.30`;
+
+      const buffer = Buffer.from(rappiCsv, "utf8");
+      const result = await parseGatewayReport(buffer, "payout_rappi.csv");
+
+      expect(result.acquirer).toBe("RAPPI");
+      expect(result.totalTransactions).toBe(2);
+      expect(result.transactions[0].externalId).toBe("RP-88121");
+      expect(result.transactions[0].grossAmountCents).toBe(62000);
+      expect(result.transactions[0].feeAmountCents).toBe(9640);
+      expect(result.transactions[0].netAmountCents).toBe(52360);
+
+      // La dedupe es tarea del importador, pero la llave nace aquí:
+      // dos filas del mismo payout comparten adquirente y distinto folio.
+      const ids = new Set(result.transactions.map((t) => t.externalId));
+      expect(ids.size).toBe(2);
+    });
+
     it("parsea exitosamente un reporte CSV típico de Clip con segregación de comisión e IVA", async () => {
       const clipCsv = `Reporte de Transacciones Clip - Sucursal Roma
 Fecha de transacción,ID de transacción,Autorización,Tarjeta,Monto,Comisión Clip,IVA Comisión,Monto Neto

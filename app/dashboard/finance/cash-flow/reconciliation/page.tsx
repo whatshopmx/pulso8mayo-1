@@ -468,6 +468,10 @@ function ReconciliationContent() {
                   <SelectItem value="BBVA">BBVA</SelectItem>
                   <SelectItem value="BANORTE">Banorte</SelectItem>
                   <SelectItem value="SANTANDER">Santander</SelectItem>
+                  <SelectItem value="RAPPI">Rappi</SelectItem>
+                  <SelectItem value="UBER_EATS">Uber Eats</SelectItem>
+                  <SelectItem value="DIDI">DiDi</SelectItem>
+                  <SelectItem value="DOORDASH">DoorDash</SelectItem>
                   <SelectItem value="OTHER">Otro</SelectItem>
                 </SelectContent>
               </Select>
@@ -967,6 +971,10 @@ function ReconciliationContent() {
                   <SelectItem value="BBVA">BBVA</SelectItem>
                   <SelectItem value="BANORTE">Banorte</SelectItem>
                   <SelectItem value="SANTANDER">Santander</SelectItem>
+                  <SelectItem value="RAPPI">Rappi</SelectItem>
+                  <SelectItem value="UBER_EATS">Uber Eats</SelectItem>
+                  <SelectItem value="DIDI">DiDi</SelectItem>
+                  <SelectItem value="DOORDASH">DoorDash</SelectItem>
                   <SelectItem value="OTHER">Otro proveedor</SelectItem>
                 </SelectContent>
               </Select>

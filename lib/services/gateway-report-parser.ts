@@ -1,14 +1,10 @@
 import ExcelJS from "exceljs";
 import { parseCsv } from "./sales-ingestion-service";
 import { ApiError } from "@/lib/api/error";
+import { terminalAcquirerEnum } from "@/lib/db/schema";
 
-export type AcquirerType =
-  | "CLIP"
-  | "MERCADO_PAGO"
-  | "BBVA"
-  | "BANORTE"
-  | "SANTANDER"
-  | "OTHER";
+/** Se deriva del schema: nuevas pasarelas del catálogo sin tocar aquí. */
+export type AcquirerType = (typeof terminalAcquirerEnum.enumValues)[number];
 
 export interface ParsedGatewayTransaction {
   externalId: string;
@@ -62,6 +58,12 @@ const COLUMN_SYNONYMS = {
     "id de operacion",
     "id de pago",
     "id pago",
+    // Agregadores (Rappi/Uber/DiDi/DoorDash): el payout trae su orden de venta.
+    "id de orden",
+    "id de pedido",
+    "orden",
+    "order id",
+    "pedido",
     "id",
   ],
   auth: [
@@ -108,6 +110,10 @@ const COLUMN_SYNONYMS = {
     "monto cobrado",
     "bruto",
     "consumo",
+    // Agregadores: la venta cobrada al cliente.
+    "venta bruta",
+    "valor total",
+    "total del pedido",
   ],
   fee: [
     "comision",
@@ -140,6 +146,9 @@ const COLUMN_SYNONYMS = {
     "liquidacion",
     "liquidación",
     "importe neto",
+    // Agregadores: el dinero que aterrizó.
+    "pago neto",
+    "total neto",
   ],
   batch: [
     "lote",
@@ -285,10 +294,16 @@ export async function parseGatewayReport(
     );
   }
 
-  // 3. Determinar adquirente si no se especificó
+  // 3. Determinar adquirente si no se especificó. El nombre de la plataforma
+  // vive en el encabezado comercial del archivo ("Payout semanal Rappi"), no
+  // en la fila de columnas: se lee el preámbulo + encabezados.
   let detectedAcquirer: AcquirerType = preferredAcquirer || "OTHER";
   if (!preferredAcquirer) {
-    const fullHeaderStr = headers.join(" ");
+    const fullHeaderStr =
+      rawRows
+        .slice(0, headerIndex + 1)
+        .map((r) => r.map((c) => String(c ?? "").toLowerCase().trim()).join(" "))
+        .join(" ") || headers.join(" ");
     if (fullHeaderStr.includes("clip")) {
       detectedAcquirer = "CLIP";
     } else if (
@@ -302,6 +317,14 @@ export async function parseGatewayReport(
       detectedAcquirer = "BANORTE";
     } else if (fullHeaderStr.includes("santander")) {
       detectedAcquirer = "SANTANDER";
+    } else if (fullHeaderStr.includes("rappi")) {
+      detectedAcquirer = "RAPPI";
+    } else if (fullHeaderStr.includes("uber")) {
+      detectedAcquirer = "UBER_EATS";
+    } else if (fullHeaderStr.includes("didi")) {
+      detectedAcquirer = "DIDI";
+    } else if (fullHeaderStr.includes("doordash")) {
+      detectedAcquirer = "DOORDASH";
     }
   }
 
