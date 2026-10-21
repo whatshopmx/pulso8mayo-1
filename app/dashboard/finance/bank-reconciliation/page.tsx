@@ -76,7 +76,21 @@ interface BankTransactionItem {
     sourceBankAccountId: string | null;
     accountLabel: string | null;
     matchedPaymentRunItemId: string | null;
+    /** Fila gateway cruzada cuando el match es de ENTRADA. */
+    matchedGatewayTransactionId: string | null;
     matchNotes: string | null;
+}
+
+interface DepositMatchCandidate {
+    gatewayTransactionId: string;
+    acquirer: string;
+    externalId: string | null;
+    authorizationCode: string | null;
+    branchName: string | null;
+    destinationAccountLastFour: string | null;
+    netAmountCents: number;
+    settlementDate: string | null;
+    dateDiffDays: number;
 }
 
 interface SuggestionsPayload {
@@ -91,8 +105,13 @@ interface PagePayload {
         unmatchedCount: number;
         matchedCount: number;
         unmatchedOutflowCents: number;
+        /** Depósitos (positivos) aún sin cruzar contra pasarela. */
+        unmatchedDepositCount: number;
+        /** Dinero de pasarela ya cruzado con el banco (entradas MATCHED). */
+        matchedDepositCents: number;
     };
     suggestions: SuggestionsPayload[];
+    depositSuggestions: { transactionId: string; candidates: DepositMatchCandidate[] }[];
 }
 
 interface CatalogAccount {
@@ -128,6 +147,10 @@ export default function BankReconciliationPage() {
 
     const suggestionsByTx = new Map(
         (data?.suggestions ?? []).map((s) => [s.transactionId, s.candidates])
+    );
+
+    const depositSuggestionsByTx = new Map(
+        (data?.depositSuggestions ?? []).map((s) => [s.transactionId, s.candidates])
     );
 
     const fetchPage = useCallback(async () => {
@@ -271,8 +294,72 @@ export default function BankReconciliationPage() {
         }
     };
 
+    /**
+     * Confirmar el cruce de UNA entrada contra la fila de pasarela sugerida.
+     * Idéntico protocolo que el de salidas: la sugerencia nombra, la persona
+     * confirma; más de una candidata en ventana es ambigüedad que no se
+     * firma a ciegas.
+     */
+    const depositCandidatesFor = (tx: BankTransactionItem) =>
+        depositSuggestionsByTx.get(tx.id) ?? [];
+
+    const describeDepositCandidate = (c: DepositMatchCandidate): string =>
+        `Depositó ${c.acquirer}` +
+        (c.branchName ? ` (Suc. ${c.branchName})` : "") +
+        (c.destinationAccountLastFour ? ` a ····${c.destinationAccountLastFour}` : "");
+
+    const handleConfirmDeposit = async (tx: BankTransactionItem) => {
+        const candidates = depositCandidatesFor(tx);
+        if (candidates.length === 0) {
+            toast.error("Sin sugerencia de pasarela", {
+                description:
+                    "No hay reporte con abono neto exacto aterrizando en esta cuenta en la ventana. Asigna cuenta destino al reporte o ignora el movimiento.",
+            });
+            return;
+        }
+        if (candidates.length > 1) {
+            toast.warning("Más de una candidata", {
+                description:
+                    "Varias filas de pasarela calzan: " +
+                    candidates.slice(0, 3).map(describeDepositCandidate).join(" · ") +
+                    ". Revisa el reporte de pasarela para cruzar manualmente.",
+            });
+            return;
+        }
+        setConfirming(tx.id);
+        try {
+            await doPatch(
+                {
+                    action: "CONFIRM_DEPOSIT_MATCH",
+                    transactionId: tx.id,
+                    gatewayTransactionId: candidates[0].gatewayTransactionId,
+                },
+                `Depósito cruzado: ${describeDepositCandidate(candidates[0])}`,
+            );
+        } catch (err) {
+            toast.error("Error al cruzar", { description: (err as Error).message });
+        } finally {
+            setConfirming(null);
+        }
+    };
+
+    const handleUnmatchDeposit = async (tx: BankTransactionItem) => {
+        try {
+            await doPatch(
+                { action: "UNMATCH", transactionId: tx.id, deposit: true },
+                "Cruce deshecho — el depósito vuelve a la bandeja",
+            );
+        } catch (err) {
+            toast.error("Error al deshacer", { description: (err as Error).message });
+        }
+    };
+
     const items = data?.items ?? [];
     const summary = data?.summary;
+
+    // Entradas: los movimientos positivos viven su propia sección con su
+    // propio protocolo, sin mezclarse con las salidas de corridas.
+    const depositItems = items.filter((tx) => tx.amountCents > 0);
 
     return (
         <div className="container mx-auto py-6 space-y-6">
@@ -370,7 +457,7 @@ export default function BankReconciliationPage() {
             </div>
 
             {summary && (
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     <Card>
                         <CardHeader className="pb-2">
                             <CardDescription className="text-xs">Sin cruzar</CardDescription>
@@ -394,6 +481,26 @@ export default function BankReconciliationPage() {
                             <CardDescription className="text-xs">Cruzados</CardDescription>
                             <CardTitle className="text-xl font-bold tabular-nums">
                                 {summary.matchedCount}
+                            </CardTitle>
+                        </CardHeader>
+                    </Card>
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardDescription className="text-xs">
+                                Depósitos sin cruzar
+                            </CardDescription>
+                            <CardTitle className="text-xl font-bold tabular-nums">
+                                {summary.unmatchedDepositCount}
+                            </CardTitle>
+                        </CardHeader>
+                    </Card>
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardDescription className="text-xs">
+                                Pasarela cruzada con el banco
+                            </CardDescription>
+                            <CardTitle className="text-xl font-bold tabular-nums text-emerald-700">
+                                {formatCents(summary.matchedDepositCents)}
                             </CardTitle>
                         </CardHeader>
                     </Card>
@@ -535,6 +642,144 @@ export default function BankReconciliationPage() {
                                                             size="sm"
                                                             onClick={() => handleUnmatch(tx)}
                                                             title="Deshacer el cruce"
+                                                        >
+                                                            <RotateCcw className="w-3.5 h-3.5" />
+                                                            Deshacer
+                                                        </Button>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">—</span>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* ── Entradas (depósitos de pasarela) ─────────────────────── */}
+            <Card>
+                <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between gap-2">
+                        <div>
+                            <CardTitle className="text-base font-bold">
+                                Entradas (depósitos)
+                            </CardTitle>
+                            <CardDescription className="text-xs max-w-[70ch]">
+                                Los abonos del banco cruzan contra los depósitos de pasarela:
+                                la sugerencia nombra el destino declarado — la confirmación
+                                es tuya, atómica y reversible.
+                            </CardDescription>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {error ? (
+                        <p className="text-sm text-destructive">{error}</p>
+                    ) : loading && !data ? (
+                        <div className="py-12 text-center text-muted-foreground text-sm">
+                            Cargando depósitos…
+                        </div>
+                    ) : depositItems.length === 0 ? (
+                        <EmptyState
+                            icon={CheckCircle2}
+                            title="Sin depósitos en este filtro"
+                            description={
+                                matchFilter === "ALL"
+                                    ? "Los abonos positivos del estado de cuenta aparecen aquí para cruzarse contra los reportes de pasarela."
+                                    : "Sin movimientos positivos con este filtro."
+                            }
+                        />
+                    ) : (
+                        <div className="border rounded-md overflow-x-auto">
+                            <Table>
+                                <TableCaption className="sr-only">
+                                    Depósitos bancarios con sugerencia de pasarela y acción
+                                </TableCaption>
+                                <TableHeader>
+                                    <TableRow className="bg-muted/50">
+                                        <TableHead>Fecha</TableHead>
+                                        <TableHead>Concepto</TableHead>
+                                        <TableHead>Cuenta</TableHead>
+                                        <TableHead className="text-right">Monto</TableHead>
+                                        <TableHead>Sugerencia de pasarela</TableHead>
+                                        <TableHead className="text-right">Acción</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {depositItems.map((tx) => {
+                                        const cands = depositCandidatesFor(tx);
+                                        return (
+                                            <TableRow key={tx.id} className="hover:bg-muted/40">
+                                                <TableCell className="text-sm tabular-nums whitespace-nowrap">
+                                                    {formatISODateShort(tx.valueDate)}
+                                                </TableCell>
+                                                <TableCell className="text-sm max-w-[28ch] truncate">
+                                                    {tx.description}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-muted-foreground">
+                                                    {tx.accountLabel ?? "—"}
+                                                </TableCell>
+                                                <TableCell className="text-right tabular-nums font-semibold text-emerald-700">
+                                                    {formatCents(tx.amountCents)}
+                                                </TableCell>
+                                                <TableCell className="max-w-[36ch]">
+                                                    {tx.matchStatus === "MATCHED" ? (
+                                                        tx.matchedGatewayTransactionId ? (
+                                                            <Badge variant="success">Cruzado con pasarela</Badge>
+                                                        ) : (
+                                                            <Badge variant="success">Cruzado (salida)</Badge>
+                                                        )
+                                                    ) : tx.matchStatus === "IGNORED" ? (
+                                                        <Badge variant="outline">Ignorado</Badge>
+                                                    ) : cands.length > 0 ? (
+                                                        <span className="text-xs">
+                                                            {describeDepositCandidate(cands[0])}
+                                                            {cands.length > 1 && ` (+${cands.length - 1})`}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            Sin candidato — revisa el destino del reporte
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    {tx.matchStatus === "UNMATCHED" ? (
+                                                        <div className="flex gap-1 justify-end">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                disabled={confirming === tx.id}
+                                                                onClick={() => handleConfirmDeposit(tx)}
+                                                                title="Cruzar contra el depósito de pasarela sugerido"
+                                                            >
+                                                                {confirming === tx.id ? (
+                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                ) : (
+                                                                    <Link2 className="w-3.5 h-3.5" />
+                                                                )}
+                                                                Confirmar
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                disabled={ignoring === tx.id}
+                                                                onClick={() => handleIgnore(tx)}
+                                                                title="Depósito legítimo sin match de pasarela (ej. ventanilla)"
+                                                            >
+                                                                <XCircle className="w-3.5 h-3.5" />
+                                                                Ignorar
+                                                            </Button>
+                                                        </div>
+                                                    ) : tx.matchStatus === "MATCHED" && tx.matchedGatewayTransactionId ? (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleUnmatchDeposit(tx)}
+                                                            title="Deshacer el cruce con pasarela"
                                                         >
                                                             <RotateCcw className="w-3.5 h-3.5" />
                                                             Deshacer

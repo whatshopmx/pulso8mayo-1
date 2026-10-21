@@ -337,6 +337,8 @@ export interface BankTransactionItem {
     sourceBankAccountId: string | null;
     accountLabel: string | null;
     matchedPaymentRunItemId: string | null;
+    /** Fila gateway cruzada cuando el match es de ENTRADA. */
+    matchedGatewayTransactionId: string | null;
     matchNotes: string | null;
 }
 
@@ -347,6 +349,10 @@ export interface BankTransactionPage {
         unmatchedCount: number;
         matchedCount: number;
         unmatchedOutflowCents: number;
+        /** Depósitos (positivos) aún sin cruzar contra pasarela. */
+        unmatchedDepositCount: number;
+        /** Dinero de pasarela ya cruzado con el banco (entradas MATCHED). */
+        matchedDepositCents: number;
     };
 }
 
@@ -383,6 +389,7 @@ export async function listBankTransactions(params: {
                 sourceBankAccountId: bankTransactions.sourceBankAccountId,
                 accountLabel: companyBankAccounts.label,
                 matchedPaymentRunItemId: bankTransactions.matchedPaymentRunItemId,
+                matchedGatewayTransactionId: bankTransactions.matchedGatewayTransactionId,
                 matchNotes: bankTransactions.matchNotes,
             })
             .from(bankTransactions)
@@ -397,6 +404,8 @@ export async function listBankTransactions(params: {
                 unmatchedCount: sql<number>`count(*) filter (where ${bankTransactions.matchStatus} = 'UNMATCHED')::int`,
                 matchedCount: sql<number>`count(*) filter (where ${bankTransactions.matchStatus} = 'MATCHED')::int`,
                 unmatchedOutflowCents: sql<number>`coalesce(sum(${bankTransactions.amountCents}) filter (where ${bankTransactions.matchStatus} = 'UNMATCHED' and ${bankTransactions.amountCents} < 0), 0)::int`,
+                unmatchedDepositCount: sql<number>`count(*) filter (where ${bankTransactions.matchStatus} = 'UNMATCHED' and ${bankTransactions.amountCents} > 0)::int`,
+                matchedDepositCents: sql<number>`coalesce(sum(${bankTransactions.amountCents}) filter (where ${bankTransactions.matchStatus} = 'MATCHED' and ${bankTransactions.matchedGatewayTransactionId} is not null), 0)::int`,
             })
             .from(bankTransactions)
             .where(where),
@@ -411,6 +420,8 @@ export async function listBankTransactions(params: {
             unmatchedCount: totalsRow.unmatchedCount,
             matchedCount: totalsRow.matchedCount,
             unmatchedOutflowCents: totalsRow.unmatchedOutflowCents,
+            unmatchedDepositCount: totalsRow.unmatchedDepositCount,
+            matchedDepositCents: totalsRow.matchedDepositCents,
         },
     };
 }
