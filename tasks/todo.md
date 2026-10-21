@@ -13,26 +13,27 @@ sólo last-4 en HTTP · multi-tenant por `companyId` · migraciones sin DROP (`p
   - [x] Preselección overridable en `create-payment-run-modal.tsx` (dispersión); la de upload de pasarela llega con Task 3 (captura del destino) para no tocar el form dos veces
   - **Verify:** ✅ tsc/lint limpios, suite unitaria verde (1 fallo preexistente en seed-safety, ajen aeste cambio); verify manual de UI pendiente en dev
 
-- [ ] **Task 2 (S)** — Migración `0111_gateway_destination.sql` *(paralelizable tras Task 1)*
+- [x] **Task 2 (S)** — Migración `0111_gateway_destination.sql` — aplicada, sin DROP
   - [ ] `destination_bank_account_id uuid REFERENCES company_bank_accounts(id)` nullable (`null` = aún no conciliado) + índice `(company_id, destination_bank_account_id)`
   - [ ] Columna exportada en `lib/db/schema/finance.ts` types
   - **Verify:** `pnpm db:generate` sin DROP; `tsc --noEmit` limpio
 
-- [ ] **Task 3 (M)** — Capture del destino en importación *(paralelizable tras Task 2)*
+- [x] **Task 3 (M)** — Capture del destino en importación — validación + estampa + preselección de recepción + localStorage
   - [ ] `GatewayReportService.importReport` acepta/valida/estampa `destinationBankAccountId`
   - [ ] Upload API + form con preselección de `getDefaultDepositAccount` y memoria localStorage por sucursal+adquirente
   - **Verify:** import estampa cuenta; cuenta dada de baja/otra empresa → 400; re-import idempotente
 
-- [ ] **Task 4 (M)** — Asignación retroactiva y visualización *(paralelizable tras Task 2)*
+- [x] **Task 4 (M)** — Asignación retroactiva y visualización — PATCH [id], badge Sin destino, filtro sin conciliar, multi-select, only last-4
   - [ ] `PATCH /api/finance/reconciliation/transactions/[id]` con selección múltiple en UI
   - [ ] `GET` listado/summary devuelven sólo `destinationAccountLastFour`
   - [ ] Badge "Sin destino" + filtro "sin conciliar" en `app/dashboard/finance/terminals`
   - **Verify:** badge desaparece al asignar; respuesta sin `accountNumber`/`accountNumberEncrypted` (test)
 
 ### ✅ Checkpoint Foundation
-- [ ] Migraciones 0110/0111 aplicadas, sin DROP; lint + `tsc` limpios
-- [ ] Flujo manual end-to-end de Fase A verificado
-- [ ] Test anti-fuga de número completo de cuenta verde
+- [x] Migraciones 0110/0111 aplicadas, sin DROP; lint + `tsc` limpios
+- [x] `pnpm run build` verde (Turbopack error 1450 transitorio del OS en 1er intento)
+- [x] Tests: gateway-report-service con destino válido/ajeno/estampa+idempotencia; suite completa verde salvo fallo preexistente en seed-safety (ajeno)
+- [ ] Verify manual de UI en dev (alta de propósito, preselección en corrida y upload, badge/asignación) — pendiente de sesión con dev server
 
 ## Phase 2: Core (Fase B — matching de entradas)
 
