@@ -1,0 +1,1 @@
+ALTER TABLE "tenant_operating_config" ADD COLUMN "show_aguinaldo_provision" boolean DEFAULT true NOT NULL;

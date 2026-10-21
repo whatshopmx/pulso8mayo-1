@@ -172,6 +172,19 @@ export function LaborCostTable() {
     return lines;
   }, [branches]);
 
+  /** Provisión informativa: marcada DERIVED, no es asiento contable (Task 9). */
+  const provisionAguinaldo = useMemo(() => {
+    let total = 0;
+    let visible = false;
+    for (const b of branches) {
+      if (b.provisionAguinaldoCents != null) {
+        total += b.provisionAguinaldoCents;
+        visible = true;
+      }
+    }
+    return visible ? total : null;
+  }, [branches]);
+
   const statusOf = (ratio: number | null): SemaphoreStatus | null =>
     ratio === null || !targets
       ? null
@@ -266,6 +279,15 @@ export function LaborCostTable() {
                           ) : (
                             <NoteTip note={b.note}>{formatCents(b.laborCostCents)}</NoteTip>
                           )}
+                          {b.provisionAguinaldoCents != null && (
+                            <div className="mt-0.5">
+                              <NoteTip note="Provisión estimada del aguinaldo del período: 15/365 × días laborables × sueldo diario (Art. 87). Número informativo —DERIVED/estimación—, no es crédito contable ni pasivo formal; no cambia el semáforo ni el costo del período.">
+                                <span className="text-xs text-muted-foreground">
+                                  + prov. agui. ~{formatCents(b.provisionAguinaldoCents)}
+                                </span>
+                              </NoteTip>
+                            </div>
+                          )}
                         </TableCell>
 
                         <TableCell className="text-right tabular-nums">
@@ -336,6 +358,11 @@ export function LaborCostTable() {
                         formatCents(totals.cost)
                       ) : (
                         <span className="text-muted-foreground">—</span>
+                      )}
+                      {provisionAguinaldo !== null && (
+                        <div className="text-xs font-normal text-muted-foreground">
+                          + prov. agui. ~{formatCents(provisionAguinaldo)}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">

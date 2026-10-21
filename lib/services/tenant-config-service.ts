@@ -98,6 +98,8 @@ export const DEFAULT_TENANT_OPERATING_CONFIG: Omit<TenantOperatingConfigData, "c
     // puede tener default de módulo.
     laborBurdenFactorPercent: null,
     payrollStateTaxPercent: null,
+    // Task 9 plan-aguinaldo: la provisión informativa es visible por default.
+    showAguinaldoProvision: true,
 };
 
 /**

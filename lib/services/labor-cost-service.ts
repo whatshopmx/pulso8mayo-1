@@ -37,6 +37,11 @@ import {
 import { and, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { getVatRatePercent, resolveSalesBase } from "@/lib/services/sales-base";
 import { getLaborBurden } from "@/lib/services/labor-burden";
+// Provisión informativa del aguinaldo (Task 9): la fórmula vive en el
+// servicio puro compartido; la regla de ley (15 días / UMA) también.
+import { calcularAguinaldoAnual } from "@/lib/services/aguinaldo-service";
+import { resolveLaborLawRules } from "@/lib/services/labor-rules-resolver";
+import { getTenantOperatingConfig } from "@/lib/services/tenant-config-service";
 import { cierreDelPeriodo } from "@/lib/company/period-close";
 import type {
   BranchLaborCost,
@@ -385,6 +390,17 @@ export async function getLaborCostByBranch(
     if (!startHourByKey.has(key)) startHourByKey.set(key, hour);
   }
 
+  // Provisión informativa del aguinaldo (Task 9, plan-aguinaldo). Se resuelve
+  // UNA vez por company (ley por vigencia + toggle del tenant) y se reparte por
+  // sucursal con la MISMA fórmula del servicio compartido. No entra en
+  // totalCostCents ni en el semáforo: es una línea informativa/DERIVED.
+  const [tenantConfig, laborLaw] = await Promise.all([
+    getTenantOperatingConfig(companyId).catch(() => null),
+    resolveLaborLawRules(new Date(`${endDay}T12:00:00Z`)),
+  ]);
+  const provisionar = tenantConfig?.showAguinaldoProvision !== false; // default visible
+  const anioProvision = Number(endDay.slice(0, 4));
+
   return branchIds.map((branchId) => {
     const branchContracts = contractsByBranch.get(branchId) ?? [];
     if (branchContracts.length === 0) {
@@ -393,6 +409,30 @@ export async function getLaborCostByBranch(
 
     const headcount = new Set(branchContracts.map((c) => c.userId)).size;
     const byUser = sessionsByBranch.get(branchId) ?? new Map<string, Map<string, number>>();
+
+    // Provisión del período: el aguinaldo se devenga por TIEMPO de contrato
+    // (días CALENDARIO vigentes en el período), no por turnos — así la
+    // provisión de un año completo acumula exactamente 15 × SD, igual que
+    // el prorrateo del Art. 87. Usar días laborables sub-estimaba ~30% (260
+    // turnos/año × 15/365 = 10.7 días en vez de 15).
+    const provisionAguinaldoCents = provisionar
+      ? branchContracts.reduce((acc, c) => {
+          const inicio = toDayString(c.startDate);
+          const fin = c.endDate ? toDayString(c.endDate) : null;
+          const diasVigencia = days.filter( // calendario, no laborables
+            (d) => d >= inicio && (!fin || d <= fin),
+          ).length;
+          if (diasVigencia === 0) return acc;
+          const sd = dailySalaryCents(c, historyByUser.get(c.userId) ?? [], endDay);
+          if (sd <= 0) return acc;
+          return acc + calcularAguinaldoAnual({
+            anioFiscal: anioProvision,
+            salarioDiarioCents: sd,
+            diasLaborados: diasVigencia,
+            aguinaldoDaysMxn: laborLaw.aguinaldoDaysMxn,
+          }).brutoCents;
+        }, 0)
+      : undefined;
 
     let expectedTotal = 0;
     let workedTotal = 0;
@@ -495,6 +535,7 @@ export async function getLaborCostByBranch(
         headcount,
         source: "MEASURED" as const,
         coveragePercent,
+        provisionAguinaldoCents,
         note:
           `${workedTotal} de ${expectedTotal} días-empleado capturados con turno completado ` +
           `(${headcount} empleados).${holidayNote}${implausibleNote}${hoursNote}${grossNote}`,
@@ -509,6 +550,7 @@ export async function getLaborCostByBranch(
       headcount,
       source: "CONTRACT_ONLY" as const,
       coveragePercent: 0,
+      provisionAguinaldoCents,
       note:
         `Plantilla contratada, no asistencia real: ${headcount} empleados × ${expectedTotal} ` +
         `días-empleado laborables. Sin turnos capturados en el período, así que no incluye ` +
@@ -656,6 +698,7 @@ export async function getLaborCostRatioByBranch(
       coveragePercent: labor.coveragePercent,
       note: `${labor.note}${burden.nota ? ` ${burden.nota}` : ""}`,
       salesDaysCovered: Number(salesRow?.daysCovered ?? 0),
+      provisionAguinaldoCents: labor.provisionAguinaldoCents,
     };
   });
 }

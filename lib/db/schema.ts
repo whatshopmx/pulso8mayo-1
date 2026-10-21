@@ -3316,6 +3316,11 @@ export const tenantOperatingConfig = pgTable("tenant_operating_config", {
     // con razón OTHER y origen `diferencia_conteo`. Default 5%.
     mermaVarianceThresholdPct: numeric("merma_variance_threshold_pct", { precision: 5, scale: 2 }).default("5.00"),
 
+    // Task 9 plan-aguinaldo: visibilidad de la provisión mensual informativa
+    // de aguinaldo en costo laboral (DERIVED/estimación, NO es asiento contable
+    // ni pasivo formal). Default visible; cada inquilino la puede ocultar.
+    showAguinaldoProvision: boolean("show_aguinaldo_provision").notNull().default(true),
+
     /**
      * Tasa de IVA con la que se estima la venta neta cuando el POS no exporta
      * el impuesto (A3.2, decisión D1).

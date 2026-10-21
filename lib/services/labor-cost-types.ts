@@ -36,6 +36,15 @@ export interface BranchLaborCost {
   /** % de días-empleado esperados del período que tienen sesión COMPLETED. */
   coveragePercent: number;
   note: string;
+  /**
+   * Provision estimada del aguinaldo del período (Task 9 plan-aguinaldo).
+   * DERIVED: 15/365 × días laborables del contrato × SD vigente — la MISMA
+   * fórmula del servicio de aguinaldo (`aguinaldo-service`), prorrateo del
+   * Art. 87. Es INFORMATIVA: no entra en totalCostCents ni en el semáforo
+   * del KPI, no es crédito contable ni pasivo formal. `undefined` cuando el
+   * tenant la oculta (`show_aguinaldo_provision = false`) o sin contratos.
+   */
+  provisionAguinaldoCents?: number;
 }
 
 /**
@@ -90,6 +99,8 @@ export interface BranchLaborRatio {
   note: string;
   /** Días del período con corte de venta capturado. */
   salesDaysCovered: number;
+  /** Línea informativa de provisión de aguinaldo (Task 9); ver BranchLaborCost. */
+  provisionAguinaldoCents?: number;
 }
 
 /** Reexportado para que la UI no tenga que importar la capa de datos. */
