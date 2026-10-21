@@ -30,3 +30,24 @@ Si aún no mides una métrica particular que se te exige (Ej. Productividad de M
 1. Ve a **Constructor KPIs** bajo la misma rama.
 2. Inyecta formulas matemáticas y declara variables de umbrales.
 3. Podrás configurar Alarmas Activas (Email/SMS) siempre que un Target rompa su Mínimo (Por ejemplo, desperdicio de insumos).
+
+## 5. Nómina: Aguinaldo por año fiscal (CFDI 002)
+
+El aguinaldo se calcula, previsualiza y timbra desde **Personal → Payroll → bloque "Aguinaldo {año}"**.
+
+### Qué incluye el cálculo (Art. 87 LFT, vigente)
+- **15 días de salario por cada año**, prorrateados por el tiempo trabajado en el año: `15/365 × días × salario diario`.
+- **Días a considerar**: el "días calendario" propuesto por el sistema cuenta del 1-ene (o de tu fecha de antigüedad si deséaste en el año) al 31-dic. Si el empleado tuvo faltas sin goce de sueldo, la columna "días a considerar" es **editable** — vacaciones, festivos, riesgo de trabajo, maternidad y paternidad SÍ cuentan (criterio PROFEDET); faltas injustificadas y permisos sin sueldo NO.
+- **Exención de ISR**: el equivalente a 30 UMA diarias vigentes al pago (~$3,394.20 en 2026 con UMA $113.14) va **exento** y cae saldo **gravado**. La exención no se prorratea.
+- **Solo salario ordinario del contrato**: las propinas (pago a cuenta, CFDI 038) NO generan aguinaldo; las comisiones deben estar en el salario del contrato.
+
+### Cómo se dispersa
+1. Abre el bloque **Aguinaldo {año}**, revisa la columna editable "días a considerar" y la línea de cada empleado (bruto / exento / gravado).
+2. Presiona **"Ejecutar Dispersión"**: se timbra un **CFDI 002 de nómina extraordinaria (tipo "E")** por empleado, con periodo 1-ene a 31-dic del año — separado de la nómina quincenal ordinaria.
+3. El sistema bloquea repetir la dispersión del mismo año (idempotencia). Re-intentar con empleados que fallaron requiere soporte.
+
+### Límites y reglas del sistema
+- **Vigencia legal**: 15 días es la única cifra vigente. La iniciativa de "30 días por antigüedad" **no es ley**; los cálculos a 15 días son deterministas (la UI muestra un badge de estatus legal).
+- **Ventana**: se puede timbrar fuera de diciembre (máx. legal 19-dic; multa Art. 1002 de 50–5,000 UMA), con aviso en la respuesta. Un recordatorio automático se manda a los admins entre el 1 y el 19 de diciembre si el año todavía no está disperso.
+- **ISR del gravado**: la retención se lmana como "decisión futura" (tarifa anual Art. 174 RLISR); el CFDI por ahora declara la parte gravada sin retención en el complemento.
+- **Provisión informativa**: en **Finanzas → Costo Laboral** ve la línea "+ prov. agui. ~" que estima la porción del aguinaldo período a período (fórmula procesal del Art. 87, marcada DERIVED). Es informativa —NO es un asiento contable ni un pasivo formal—, y se puede ocultar por inquilino en la configuración operativa (`show_aguinaldo_provision`).
