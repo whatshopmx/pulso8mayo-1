@@ -3968,9 +3968,16 @@ export const payrollRuns = pgTable("payroll_runs", {
     periodStart: date("period_start").notNull(),
     periodEnd: date("period_end").notNull(),
     status: text("status").notNull().default('DRAFT'), // DRAFT, PROCESSING, COMPLETED, ERROR
+    /** Año fiscal del aguinaldo cuando el run es de nómina extraordinaria (c_TipoNomina E); NULL = run ordinario. */
+    aguinaldoFiscalYear: integer("aguinaldo_fiscal_year"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+    /** Idempotencia del run de aguinaldo: un run por empresa y año causado. */
+    AguinaldoAnualPorEmpresaIdx: uniqueIndex("payroll_runs_company_aguinaldo_year_unique")
+        .on(table.companyId, table.aguinaldoFiscalYear)
+        .where(sql`${table.aguinaldoFiscalYear} is not null`),
+}));
 
 export const payrollPayslips = pgTable("payroll_payslips", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
@@ -3981,6 +3988,8 @@ export const payrollPayslips = pgTable("payroll_payslips", {
     propinasCents: integer("propinas_cents").notNull().default(0),
     holidayPayCents: integer("holiday_pay_cents").notNull().default(0),
     overtimePayCents: integer("overtime_pay_cents").notNull().default(0),
+    /** Aguinaldo timbrado en este payslip (CFDI 002, nómina extraordinaria); 0 en nómina ordinaria. */
+    aguinaldoCents: integer("aguinaldo_cents").notNull().default(0),
     totalPercepcionesCents: integer("total_percepciones_cents").notNull().default(0),
     totalDeduccionesCents: integer("total_deducciones_cents").notNull().default(0),
     

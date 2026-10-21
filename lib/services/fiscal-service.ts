@@ -501,7 +501,9 @@ export function construirPayloadNomina(input: NominaTimbradoInput): {
         satContractTypeId: "01", // plazo indeterminado
         satTaxRegimeTypeId: "02", // sueldos LISR art. 94
         satJobRiskId: "1",
-        satPaymentPeriodicityId: "04", // quincenal
+        // NOM34: la nómina extraordinaria (aguinaldo, tipo E) NO tiene periodo
+        // regular de pago — el catálogo exige "99" (otra periodicidad).
+        satPaymentPeriodicityId: input.payrollTypeCode === "E" ? "99" : "04", // quincenal en ordinaria
         satPayrollStateId: estadoNomina(),
         baseSalaryForContributions: diario,
         integratedDailySalary: diario,

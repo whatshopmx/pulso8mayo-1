@@ -813,6 +813,13 @@
       "when": 1792615931083,
       "tag": "0116_wakeful_energizer",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1792617768120,
+      "tag": "0117_typical_diamondback",
+      "breakpoints": true
     }
   ]
 }

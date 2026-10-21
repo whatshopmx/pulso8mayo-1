@@ -63,9 +63,9 @@ export const LABOR_RULES_CACHE_TAG = "labor-law-calendar-rules";
 
 /** Capa 1a — selector puro por fecha (unit-testable, sin DB). */
 export function pickLawRuleForDate(
-    rows: Pick<LaborLawCalendarRule, "effectiveFrom" | "effectiveTo">[],
+    rows: Pick<LaborLawCalendarRule, "effectiveFrom" | "effectiveTo" | "aguinaldoDaysMxn">[],
     date: Date
-): Pick<LaborLawCalendarRule, "effectiveFrom" | "effectiveTo"> | null {
+): Pick<LaborLawCalendarRule, "effectiveFrom" | "effectiveTo" | "aguinaldoDaysMxn"> | null {
     // Comparaciones por día calendario (las columnas date llegan como
     // "YYYY-MM-DD"); normalizo a UTC mediodía para evitar desfaces de
     // zona horaria en los límites de vigencia.
@@ -129,25 +129,43 @@ export function rowToResolved(row: LaborLawCalendarRule): ResolvedLaborRule {
     };
 }
 
+const cachedLoader = (dateKey: string) =>
+    unstable_cache(
+        async () => {
+            try {
+                return await db.select().from(laborLawCalendarRules);
+            } catch {
+                return [];
+            }
+        },
+        ["labor-law-calendar-rules", dateKey],
+        { revalidate: 300, tags: [LABOR_RULES_CACHE_TAG] },
+    );
+
+/**
+ * Carga de filas de ley: cache de Next (runtime del server) → DB directa
+ * (scripts/tsx, Inngest standalone) → vacío (fallback estático). Sin esto,
+ * `unstable_cache` lanza "incrementalCache missing" fuera del servidor Next
+ * y el resolver entero se cae aunque la DB esté viva.
+ */
+async function loadLaborRows(): Promise<LaborLawCalendarRule[]> {
+    try {
+        return await cachedLoader(new Date().toISOString().slice(0, 10))();
+    } catch {
+        try {
+            return await db.select().from(laborLawCalendarRules);
+        } catch {
+            return [];
+        }
+    }
+}
+
 /**
  * Capa 1 — ley por fecha efectiva. Cache 5 min (mismo patrón que
  * tenant-config-service). Si la DB falla o no hay fila: fallback estático.
  */
 export async function resolveLaborLawRules(date: Date = new Date()): Promise<ResolvedLaborRule> {
-    const load = unstable_cache(
-        async () => {
-            try {
-                const rows = await db.select().from(laborLawCalendarRules);
-                return rows;
-            } catch {
-                return [];
-            }
-        },
-        ["labor-law-calendar-rules", date.toISOString().slice(0, 10)],
-        { revalidate: 300, tags: [LABOR_RULES_CACHE_TAG] },
-    );
-
-    const rows = await load();
+    const rows = await loadLaborRows();
     const picked = pickLawRuleForDate(rows, date);
     if (!picked) return staticFallbackRule(date);
     // Releo la fila completa desde el resultado cacheado.
