@@ -11,12 +11,12 @@ import { LABOR_REFORM_STATUS_CATALOG, getReformStatus, isReformEnforceable } fro
 
 // Rows del formato de la tabla (solo los campos que el selector lee).
 const seedRows = [
-    { effectiveFrom: "2020-01-01", effectiveTo: "2026-04-30" },
-    { effectiveFrom: "2026-05-01", effectiveTo: "2026-12-31" },
-    { effectiveFrom: "2027-01-01", effectiveTo: "2027-12-31" },
-    { effectiveFrom: "2028-01-01", effectiveTo: "2028-12-31" },
-    { effectiveFrom: "2029-01-01", effectiveTo: "2029-12-31" },
-    { effectiveFrom: "2030-01-01", effectiveTo: null },
+    { effectiveFrom: "2020-01-01", effectiveTo: "2026-04-30", aguinaldoDaysMxn: 15 },
+    { effectiveFrom: "2026-05-01", effectiveTo: "2026-12-31", aguinaldoDaysMxn: 15 },
+    { effectiveFrom: "2027-01-01", effectiveTo: "2027-12-31", aguinaldoDaysMxn: 15 },
+    { effectiveFrom: "2028-01-01", effectiveTo: "2028-12-31", aguinaldoDaysMxn: 15 },
+    { effectiveFrom: "2029-01-01", effectiveTo: "2029-12-31", aguinaldoDaysMxn: 15 },
+    { effectiveFrom: "2030-01-01", effectiveTo: null, aguinaldoDaysMxn: 15 },
 ];
 
 function fakeResolved(overrides: Partial<ResolvedLaborRule> = {}): ResolvedLaborRule {
