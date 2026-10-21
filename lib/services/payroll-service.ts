@@ -15,6 +15,8 @@ import {
 import { eq, and, gte, lte, sum, desc } from "drizzle-orm";
 import { timbrarNomina } from "./fiscal-service";
 import type { NominaDeduccion, NominaPercepcion } from "./fiscal-service";
+import { calcularAguinaldoAnual, DIAS_PRORRATEO } from "./aguinaldo-service";
+import { AGUINALDO_DAYS_VIGENTE } from "@/lib/company/labor-reform-status-catalog";
 import { differenceInDays, parseISO } from "date-fns";
 
 export interface PayrollPreStampingValidation {
@@ -38,16 +40,21 @@ export interface PayrollPreStampingValidation {
 }
 
 export interface LFT2026BenefitsConfig {
-  aguinaldoDays: number; // 15 (base LFT) up to 30 days
+  aguinaldoDays: number; // Vigente: 15 (Art. 87); 30 días = AGUINALDO_30_DIAS, PENDING_INITIATIVE (proyección)
   vacationBonusPercent: number; // 25% (base LFT) up to 50%
   paternityLeaveDays: number; // 10 to 15 days
   bereavementLeaveDays: number; // 5 days (Duelo)
   preventiveMedicalLeaveDays: number; // 2-3 days for health checkups
   familyCareLeaveDays: number; // Up to 30 days for elder/ill relative care
+  /** Días trabajados del año fiscal (prorrateo opcional); fuera → año completo. */
+  diasLaborados?: number;
 }
 
 export const DEFAULT_LFT2026_BENEFITS: LFT2026BenefitsConfig = {
-  aguinaldoDays: 30, // Reforma LFT 2026 propuesta progresiva
+  // [H04] La iniciativa de 30 días progresivos NO es ley (catálogo
+  // AGUINALDO_30_DIAS). El default legal es 15 (Art. 87); para proyecciones
+  // a 30 días, pasar config explícita y exponer aguinaldoEstatusLegal.
+  aguinaldoDays: AGUINALDO_DAYS_VIGENTE,
   vacationBonusPercent: 50, // Reforma LFT 2026 prima vacacional
   paternityLeaveDays: 15, // Escenario recomendado IMCO / LFT
   bereavementLeaveDays: 5, // Licencia por duelo
@@ -60,7 +67,16 @@ export function calculateLFT2026Benefits(
   tenureYears: number,
   config: LFT2026BenefitsConfig = DEFAULT_LFT2026_BENEFITS
 ) {
-  const aguinaldoAmount = dailySalaryMXN * config.aguinaldoDays;
+  // Aguinaldo resuelto por el servicio compartido (línea única de verdad):
+  // Art. 87 prorrateado, montos en centavos. Proyección anual → año completo
+  // si no viene diasLaborados.
+  const aguinaldo = calcularAguinaldoAnual({
+    anioFiscal: new Date().getFullYear(),
+    salarioDiarioCents: Math.round(dailySalaryMXN * 100),
+    diasLaborados: config.diasLaborados ?? DIAS_PRORRATEO,
+    aguinaldoDaysMxn: config.aguinaldoDays,
+  });
+  const aguinaldoAmount = aguinaldo.brutoCents / 100;
   // Vacaciones según Ley Dignas (12d año 1, +2d por año hasta 20d, luego +2d por cada 5 años)
   let vacationDays = 12 + Math.max(0, tenureYears - 1) * 2;
   if (tenureYears > 5) {
@@ -73,6 +89,8 @@ export function calculateLFT2026Benefits(
     tenureYears,
     vacationDays,
     aguinaldoAmount: Math.round(aguinaldoAmount * 100) / 100,
+    /** Estatus legal de los días usados ([H04]): LEY_VIGENTE a 15; PROYECCION si config > 15. */
+    aguinaldoEstatusLegal: aguinaldo.estatusLegal,
     vacationBonusAmount: Math.round(vacationBonusAmount * 100) / 100,
     totalAnnualBenefitsCost: Math.round((aguinaldoAmount + vacationBonusAmount) * 100) / 100,
   };

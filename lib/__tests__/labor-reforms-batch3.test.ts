@@ -37,17 +37,37 @@ describe("Batch 3: Task 7 - Off-Hours Event Service & Desconexión Digital", () 
   });
 });
 
-describe("Batch 3: Task 8 - LFT 2026 Benefits Calculator (Aguinaldo 30d, Prima Vacacional 50%)", () => {
-  it("calculates statutory benefits under LFT 2026 progressive reform guidelines", () => {
-    const dailySalary = 500; // $500 MXN / day
-    const tenureYears = 3;
+describe("Batch 3: Task 8 - LFT 2026 Benefits Calculator (Aguinaldo, Prima Vacacional)", () => {
+  const dailySalary = 500; // $500 MXN / day
+  const tenureYears = 3;
+
+  it("usa la ley vigente por default: 15 días del Art. 87 (no la iniciativa de 30)", () => {
+    expect(DEFAULT_LFT2026_BENEFITS.aguinaldoDays).toBe(15);
 
     const benefits = calculateLFT2026Benefits(dailySalary, tenureYears, DEFAULT_LFT2026_BENEFITS);
 
-    expect(benefits.aguinaldoAmount).toBe(15000); // 30 days * $500
+    expect(benefits.aguinaldoAmount).toBe(7500); // 15 días × $500
+    expect(benefits.aguinaldoEstatusLegal.fuente).toBe("LEY_VIGENTE");
     expect(benefits.vacationDays).toBe(16); // 12 + 2*2 = 16 days for year 3
     expect(benefits.vacationBonusAmount).toBe(4000); // (16 * $500) * 50% = $4000
-    expect(benefits.totalAnnualBenefitsCost).toBe(19000);
+    expect(benefits.totalAnnualBenefitsCost).toBe(11500);
+  });
+
+  it("prorrateo opcional por días trabajados (servicio compartido)", () => {
+    const benefits = calculateLFT2026Benefits(dailySalary, tenureYears, {
+      ...DEFAULT_LFT2026_BENEFITS,
+      diasLaborados: 200,
+    });
+    expect(benefits.aguinaldoAmount).toBe(4109.59); // 15/365 × 200 × $500
+  });
+
+  it("config explícita a 30 días = proyección NO vigente (catálogo AGUINALDO_30_DIAS)", () => {
+    const benefits = calculateLFT2026Benefits(dailySalary, tenureYears, {
+      ...DEFAULT_LFT2026_BENEFITS,
+      aguinaldoDays: 30,
+    });
+    expect(benefits.aguinaldoAmount).toBe(15000);
+    expect(benefits.aguinaldoEstatusLegal.fuente).toBe("PROYECCION");
   });
 });
 

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Info, Calculator, Receipt, AlertCircle, TrendingDown, Plus } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { calcularAguinaldoAnual, diasCalendarioEntre } from "@/lib/services/aguinaldo-service";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -49,11 +50,25 @@ export function SettlementCalculator({
     const lastDay = new Date(lastWorkingDay);
     const dailySalary = (employee.baseSalary || 0) / 100; // Cents to units
 
-    // 1. Aguinaldo (Christmas Bonus) - Min 15 days per year
-    const startOfYear = new Date(lastDay.getFullYear(), 0, 1);
-    const dayInYear = Math.ceil((lastDay.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    const aguinaldoDays = (dayInYear / 365) * 15;
-    const aguinaldoAmount = aguinaldoDays * dailySalary;
+    // 1. Aguinaldo proporcional — servicio compartido (Art. 87: 15/365 × días
+    //    trabajados del año hasta el último día, restando altas en año).
+    //    Semántica equivalente a la formula inline previa para altas previas
+    //    a ENE 1; correcta (menor) para altas DENTRO del año: antes contaba
+    //    días anteriores a la alta.
+    const anioFiniquito = lastDay.getFullYear();
+    const altaISO = (employee.seniorityDate || employee.hireDate)?.slice(0, 10);
+    const inicioAnoISO = `${anioFiniquito}-01-01`;
+    const desdeISO = altaISO && altaISO > inicioAnoISO ? altaISO : inicioAnoISO;
+    const lastDayISO = lastDay.toISOString().slice(0, 10);
+    const diasHastaBaja = desdeISO <= lastDayISO
+      ? diasCalendarioEntre(desdeISO, lastDayISO)
+      : 0;
+    const aguinaldo = calcularAguinaldoAnual({
+      anioFiscal: anioFiniquito,
+      salarioDiarioCents: employee.baseSalary || 0, // centavos: no convertir dos veces
+      diasLaborados: diasHastaBaja || undefined,
+    });
+    const aguinaldoAmount = aguinaldo.brutoCents / 100;
 
     // 2. Pro-rata Vacation & Premium (Prima Vacacional 25%)
     // Mexican LFT Vacation Table (Simplified)

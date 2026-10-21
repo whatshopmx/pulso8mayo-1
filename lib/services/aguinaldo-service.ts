@@ -115,6 +115,15 @@ function maxISO(a: string, b: string): string {
     return a.slice(0, 10) > b.slice(0, 10) ? a.slice(0, 10) : b.slice(0, 10);
 }
 
+/**
+ * Días calendario INCLUSIVOS entre dos fechas ISO (mediodía UTC).
+ * Exportado para consumidores que prorratean hasta una fecha distinta
+ * del cierre del año fiscal (finiquito: ENE 1 → último día).
+ */
+export function diasCalendarioEntre(desdeISO: string, hastaISO: string): number {
+    return diasCalendarioInclusive(desdeISO, hastaISO);
+}
+
 /** Estatus legal según el catálogo de reformas [H04]. */
 export function resolverEstatusLegal(aguinaldoDaysMxn: number): AguinaldoLegalEstatus {
     const vigente = AGUINALDO_DAYS_VIGENTE;
