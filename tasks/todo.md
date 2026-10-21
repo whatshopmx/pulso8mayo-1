@@ -80,16 +80,16 @@ sólo last-4 en HTTP · multi-tenant por `companyId` · migraciones sin DROP (`p
 
 ## Phase 4: Saldo por cuenta (Fase D — diseño aprobado: suma de ancladas + fallback)
 
-- [ ] **Task D1 (S/M)** — Ancla por cuenta, migración `0114_account_anchor.sql`
+- [x] **Task D1 (S/M)** — Ancla por cuenta, migración `0114_account_anchor.sql` — aplicada; captura a mano en settings con pareja all-or-nothing y fecha no futura
   - [ ] `opening_balance_cents` (firmada, nullable, SIN default) + `opening_as_of_date` en `company_bank_accounts`
   - [ ] Captura a mano en settings ("Saldo al = $X, fecha"); fecha no futura; pareja all-or-nothing
   - **Verify:** migración sin DROP; ancla sin pareja rechazada; fecha futura 400
-- [ ] **Task D2 (M)** — `getComputedAccountBalances(companyId)`
+- [x] **Task D2 (M)** — `getComputedAccountBalances(companyId)` + `getAccountAnchorStatus` (tests de invariantes)
   - [ ] apertura + SUM(amount_cents) desde `asOfDate`, por cuenta; cuenta sin ancla excluida (no cero inventado)
   - **Verify:** apertura + suma exacta en centavos; cuenta sin ancla no aparece con saldo
-- [ ] **Task D3 (M)** — Saldo visible: columna "Saldo computado" en settings + saldo en selector de corrida (cuentas ancladas) + aviso de anclaje incompleto
+- [x] **Task D3 (M)** — Saldo computado en settings + selector de corrida `· disp. $X` en cuentas ancladas
   - **Verify:** saldo del listing cuadra con banco; cuenta sin ancla muestra "sin ancla", nunca $0
-- [ ] **Task D4 (M/L)** — Conmutación del cash-flow: si 100% de cuentas activas ancladas → línea "Bancos" = suma de saldos computados con desglose; si no → `cash_flow_assumptions.openingBalanceCents` (hoy) + aviso cuantificado
+- [x] **Task D4 (M/L)** — Conmutación del cash-flow: fuente `ACCOUNTS` con desglose por cuenta (solo last-4) a 100% anclado; fallback al supuesto con aviso "N cuenta(s) sin saldo base"; en proyección por sucursal no aplica
   - **Verify:** grupo anclado cuadra en centavos; con 1 cuenta sin ancla vuelve al fallback y nombra cuál falta
 
 ## Done When (del spec) — estado de esta corrida
