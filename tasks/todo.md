@@ -37,22 +37,22 @@ sólo last-4 en HTTP · multi-tenant por `companyId` · migraciones sin DROP (`p
 
 ## Phase 2: Core (Fase B — matching de entradas)
 
-- [ ] **Task 5 (S)** — Migración `0112_bank_deposit_match.sql`
+- [x] **Task 5 (S)** — Migración `0112_bank_deposit_match.sql` — aplicada, sin DROP, índice parcial where not null
   - [ ] `matched_gateway_transaction_id uuid` SIN FK (criterio igual a `matched_payment_run_item_id`) + índice parcial `where not null`
   - **Verify:** migración sin DROP; `tsc` limpio
 
-- [ ] **Task 6 (M)** — `suggestDepositMatches` *(depende de Fase A para tener destino poblado)*
+- [x] **Task 6 (M)** — `suggestDepositMatches` + `scoreDepositCandidate` (espejo exacto + ventana + cuenta destino + fila ya cruzada excluida)
   - [ ] Positivos `UNMATCHED` ↔ `gateway_transactions` misma empresa + misma cuenta destino + `netAmountCents` exacto + ventana `MATCH_DATE_WINDOW_DAYS` (`scoreDepositCandidate`)
   - [ ] Fila gateway ya cruzada se excluye; respuesta: acquirer + sucursal + last-4
   - [ ] Alcance 1↔1 declarado; depósito que agrupa lotes queda `UNMATCHED` con nota
   - **Verify:** tests nuevos en `bank-statement-service.test.ts` (5 casos del spec, incl. negativo jamás sugiere entrada)
 
-- [ ] **Task 7 (M)** — `confirmDepositMatch` / `ignoreDepositMatch`
+- [x] **Task 7 (M)** — `confirmDepositMatch` (tx + FOR UPDATE + cerrojo final 0 filas = 409) + `unmatchDepositTransaction`; ignore reusa `ignoreTransaction`
   - [ ] Transacción con bloqueo optimista + re-check de fila gateway; 0 filas = 409
   - [ ] Des-cruzar → `UNMATCHED`; ignore reversible, confirm no
   - **Verify:** doble confirmación simulada = 1 cruzado + 409
 
-- [ ] **Task 8 (M)** — UI "Entradas" en `bank-reconciliation`
+- [x] **Task 8 (M)** — UI "Entradas" + badge candidato ('Depositó Clip (Suc. X) a ····1234') + Confirmar/Ignorar/Deshacer + stats
   - [ ] Tabla de positivos + badge candidato + Confirmar/Ignorar iguales a salidas
   - [ ] Stats: "depósitos sin cruzar" y "monto cruzado vs gateway"
   - **Verify:** flujo manual en dev: CSV → confirmar → fila gateway cruzada + movimiento MATCHED
