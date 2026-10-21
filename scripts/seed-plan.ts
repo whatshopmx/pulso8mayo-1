@@ -10,6 +10,9 @@ export const SEED_PHASES = [
   // y hay que re-sembrarla en cada run del seed maestro. Ver
   // lib/services/labor-rules-resolver.ts: sin esta tabla cae al mapa estático.
   "seed-labor-law-rules",
+  // Banca/finance post-seed-15: cuentas propias, estado de cuenta, gateway
+  // TPV, payables recurrentes (derivados del servicio) y CFDI de nómina.
+  "seed-18-finance",
 ] as const;
 
 export function assertSeedReset(args: string[], environment?: string): void {
