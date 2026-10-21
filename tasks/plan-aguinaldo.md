@@ -24,14 +24,14 @@ Tres fases que hacen tres cosas: (1) un **servicio puro de cálculo de aguinaldo
 
 ### Phase 1: Foundation — cálculo legal puro
 
-- [ ] **Task 1 (S): Estatuto legal del aguinaldo en el catálogo de reformas.**
+- [x] **Task 1 (S): Estatuto legal del aguinaldo en el catálogo de reformas.**
   - Entrada `AGUINALDO_30_DIAS` en `lib/company/labor-reform-status-catalog.ts` (`PENDING_INITIATIVE`, basis con iniciativas oct-2024/jul-2026, effectNote).
   - `aguinaldoDaysMxn: 15` como regla de ley con vigencia en `lib/db/schema/labor-law-ref.ts` + `lib/services/labor-rules-resolver.ts` + seed (`scripts/seed-labor-law-rules.ts`), igual patrón que `minimumWageMxn`.
   - **AC:** `resolveLaborLawRules(fecha).aguinaldoDaysMxn === 15` para 2026; el catálogo expone el estatus de la iniciativa 30 días.
   - **Files:** `lib/company/labor-reform-status-catalog.ts`, `lib/db/schema/labor-law-ref.ts`, `lib/services/labor-rules-resolver.ts`, `scripts/seed-labor-law-rules.ts`.
   - **Depends:** None.
 
-- [ ] **Task 2 (M): Servicio puro `lib/services/aguinaldo-service.ts`.**
+- [x] **Task 2 (M): Servicio puro `lib/services/aguinaldo-service.ts`.**
   - `calcularAguinaldoAnual({ anioFiscal, salarioDiarioMxn, seniorityDate|diasLaborados })` → `{ diasAguinaldo, bruto, exento, gravado, aguinaldoDaysMxn, estatusLegal }`.
   - Días = `min(15, porAntigüedad proyectada si la reforma entra en vigencia) / 365 × díasLaboradosEnElAno`. `diasLaborados` opcional (ajuste manual en la preview, Task 7: columna editable "días a considerar" por empleado; decisión resuelta Q2: manual primero, automatización en Task 14). Si no viene, fallback a días calendario del año fiscal desde `seniorityDate`.
   - Incidencias manuales: faltas/permisos sin goce/SL general NO cuentan; vacaciones, festivos, riesgo de trabajo, maternidad, paternidad SÍ (criterio PROFEDET para el conteo manual).
@@ -41,7 +41,7 @@ Tres fases que hacen tres cosas: (1) un **servicio puro de cálculo de aguinaldo
   - **AC:** pruebas verdes; la función no toca DB.
   - **Depends:** Task 1.
 
-- [ ] **Task 3 (S): Alinear los dos cálculos existentes al servicio compartido.**
+- [x] **Task 3 (S): Alinear los dos cálculos existentes al servicio compartido.**
   - `calculateLFT2026Benefits` (`lib/services/payroll-service.ts`): default 15 días + prorrateo opcional + `estatusLegal` en el output; el 30 se queda como *config explícita* para proyecciones, con advertencia del catálogo.
   - `settlement-calculator.tsx`: sustituir la fórmula inline por el servicio compartido (sin cambiar UI ni firmas del componente).
   - **AC:** finiquito da el mismo número que antes con 15 días vigentes; test batch3 actualizado.
