@@ -46,6 +46,11 @@ export const laborLawCalendarRules = pgTable("labor_law_calendar_rules", {
     // (estatus en labor-reform-status-catalog: AGUINALDO_30_DIAS).
     aguinaldoDaysMxn: integer("aguinaldo_days_mxn").notNull().default(15),
 
+    // Aguinaldo: UMA diaria vigente en el rango (pesos MXN; anuncio INEGI anual en
+    // feb-2026). La exención del art. 93-XIV LISR es 30 UMA diarias NO prorrateadas
+    // — el cap se resuelve por la UMA vigente en el momento del pago.
+    umaDailyMxn: numeric("uma_daily_mxn", { precision: 8, scale: 2 }),
+
     // Salario mínimo general vigente en el rango (pesos MXN por día).
     // Conservado como numeric para el cálculo de primas tocadas a salarios mínimos.
     minimumWageMxn: numeric("minimum_wage_mxn", { precision: 8, scale: 2 }),

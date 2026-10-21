@@ -13,6 +13,13 @@
  * de Diputados.
  */
 
+/**
+ * Días de aguinaldo VIGENTES por la ley (LFT Art. 87, en vigor desde 1970).
+ * Los 30 días progresivos son AGUINALDO_30_DIAS (PENDING_INITIATIVE) según
+ * abajo — usar esta constante para resolver la tabla de ley y el servicio.
+ */
+export const AGUINALDO_DAYS_VIGENTE = 15;
+
 export type LaborReformLegalStatus =
     | 'LAW' // Ley vigente (DOF publicado, en vigor)
     | 'LAW_PENDING_SECONDARY' // Ley vigente; disposiciones secundarias pendientes

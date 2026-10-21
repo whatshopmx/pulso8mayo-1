@@ -1,0 +1,1 @@
+ALTER TABLE "labor_law_calendar_rules" ADD COLUMN "uma_daily_mxn" numeric(8, 2);

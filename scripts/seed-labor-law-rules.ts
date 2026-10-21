@@ -31,6 +31,7 @@ interface SeedRule {
     maxExtraDaysPerWeek: number;
     minRestBetweenShiftsHours: number;
     aguinaldoDaysMxn: number;
+    umaDailyMxn: string | null;
     minimumWageMxn: string | null;
     sourceDofUrl: string | null;
     sourcePublishedOn: string | null;
@@ -51,6 +52,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraDaysPerWeek: 3,
         minRestBetweenShiftsHours: 12,
         aguinaldoDaysMxn: 15,
+        umaDailyMxn: null, // UMA anual 2020-2025 sin seed granular; la exención se resuelve con la fila vigente al pago
         minimumWageMxn: "248.93",
         sourceDofUrl: null,
         sourcePublishedOn: null,
@@ -70,6 +72,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraDaysPerWeek: 4,
         minRestBetweenShiftsHours: 12,
         aguinaldoDaysMxn: 15,
+        umaDailyMxn: "113.14", // exención aguinaldo art. 93-XIV = 30 × $113.14 = $3,394.20
         minimumWageMxn: "278.80",
         sourceDofUrl: DOF_JORNADA_URL,
         sourcePublishedOn: "2026-05-01",
@@ -86,6 +89,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraDaysPerWeek: 4,
         minRestBetweenShiftsHours: 12,
         aguinaldoDaysMxn: 15,
+        umaDailyMxn: null, // anunciar por INEGI (feb-2027)
         minimumWageMxn: null, // anunciar por CONASAMI (dic-2026)
         sourceDofUrl: DOF_JORNADA_URL,
         sourcePublishedOn: "2026-05-01",
@@ -102,6 +106,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraDaysPerWeek: 4,
         minRestBetweenShiftsHours: 12,
         aguinaldoDaysMxn: 15,
+        umaDailyMxn: null,
         minimumWageMxn: null,
         sourceDofUrl: DOF_JORNADA_URL,
         sourcePublishedOn: "2026-05-01",
@@ -118,6 +123,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraDaysPerWeek: 4,
         minRestBetweenShiftsHours: 12,
         aguinaldoDaysMxn: 15,
+        umaDailyMxn: null,
         minimumWageMxn: null,
         sourceDofUrl: DOF_JORNADA_URL,
         sourcePublishedOn: "2026-05-01",
@@ -134,6 +140,7 @@ const SEED_RULES: SeedRule[] = [
         maxExtraDaysPerWeek: 4,
         minRestBetweenShiftsHours: 12,
         aguinaldoDaysMxn: 15,
+        umaDailyMxn: null,
         minimumWageMxn: null,
         sourceDofUrl: DOF_JORNADA_URL,
         sourcePublishedOn: "2026-05-01",
@@ -174,6 +181,7 @@ export async function main() {
                     maxExtraDaysPerWeek: rule.maxExtraDaysPerWeek,
                     minRestBetweenShiftsHours: rule.minRestBetweenShiftsHours,
                     aguinaldoDaysMxn: rule.aguinaldoDaysMxn,
+                    umaDailyMxn: rule.umaDailyMxn,
                     minimumWageMxn: rule.minimumWageMxn,
                     sourceDofUrl: rule.sourceDofUrl,
                     sourcePublishedOn: rule.sourcePublishedOn,
