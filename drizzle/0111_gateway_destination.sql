@@ -1,0 +1,3 @@
+ALTER TABLE "gateway_transactions" ADD COLUMN "destination_bank_account_id" uuid;--> statement-breakpoint
+ALTER TABLE "gateway_transactions" ADD CONSTRAINT "gateway_transactions_destination_bank_account_id_company_bank_accounts_id_fk" FOREIGN KEY ("destination_bank_account_id") REFERENCES "public"."company_bank_accounts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "gateway_transactions_destination_idx" ON "gateway_transactions" USING btree ("company_id","destination_bank_account_id");

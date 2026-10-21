@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { companies, branches } from "./core";
 import { users } from "./auth";
+import { companyBankAccounts } from "./treasury";
 
 /**
  * Supuestos capturados que alimentan la proyección de flujo de efectivo.
@@ -257,6 +258,16 @@ export const gatewayTransactions = pgTable(
     /** Abono neto depositado o por depositar en centavos (bruto - comisión - iva). */
     netAmountCents: integer("net_amount_cents").notNull(),
 
+    /**
+     * Cuenta propia a la que aterrizó el neto, declarada al importar el reporte
+     * o asignada retroactivamente. `null` = aún no conciliado, NO "sin cuenta".
+     * Referencia al catálogo con FK real — a diferencia del match de entradas
+     * bancarias, aquí la cuenta es un hecho operativo de la propia empresa.
+     */
+    destinationBankAccountId: uuid("destination_bank_account_id").references(
+      () => companyBankAccounts.id
+    ),
+
     /** Fecha valor o liquidación bancaria (si el reporte la indica). */
     settlementDate: date("settlement_date"),
 
@@ -283,6 +294,9 @@ export const gatewayTransactions = pgTable(
     gatewayTransactionsCompanySettlementIdx: index(
       "gateway_transactions_company_settlement_idx"
     ).on(table.companyId, table.settlementDate),
+    gatewayTransactionsDestinationIdx: index(
+      "gateway_transactions_destination_idx"
+    ).on(table.companyId, table.destinationBankAccountId),
   })
 );
 
