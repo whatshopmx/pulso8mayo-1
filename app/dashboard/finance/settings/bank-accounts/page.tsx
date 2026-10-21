@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { formatCents } from "@/lib/utils";
 import { useSession } from "@/hooks/use-session";
 import { roleIsAtLeast } from "@/lib/permissions";
 import { BANXICO_BANK_CODES } from "@/lib/banking/clabe";
@@ -66,6 +67,10 @@ interface SafeCompanyBankAccount {
     registeredByName: string | null;
     notes: string | null;
     createdAt: string;
+    /** Ancla + saldo computado; null = sin ancla (nunca un cero inventado). */
+    openingBalanceCents?: number | null;
+    openingAsOfDate?: string | null;
+    computedBalanceCents?: number | null;
 }
 
 const PURPOSE_LABELS: Record<SafeCompanyBankAccount["purpose"], string> = {
@@ -96,13 +101,20 @@ export default function CompanyBankAccountsPage() {
     const [accountNumber, setAccountNumber] = useState("");
     const [clabe, setClabe] = useState("");
     const [purpose, setPurpose] = useState<SafeCompanyBankAccount["purpose"] | "">("");
+    /** Captura del ancla de saldo (portal del banco → a dedo, con fecha). */
+    const [anchorDialog, setAnchorDialog] = useState<{
+        accountId: string;
+        label: string;
+        balanceInput: string;
+        dateInput: string;
+    } | null>(null);
     const [notes, setNotes] = useState("");
 
     const fetchAccounts = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch("/api/finance/bank-accounts");
+            const res = await fetch("/api/finance/bank-accounts?withBalances=true");
             const json = await res.json();
             if (!res.ok || json.error) {
                 throw new Error(json.error ?? "No se pudo cargar el catálogo");
@@ -213,6 +225,35 @@ export default function CompanyBankAccountsPage() {
         }
     };
 
+    /**
+     * Ancla del saldo computado: captura a mano del portal/corte del banco.
+     * El sistema no puede derivarla — es el único número que entra a dedo y
+     * por eso se firma con fecha. Vaciarla quita el ancla (nunca mitad).
+     */
+    const handleSaveAnchor = async (
+        accountId: string,
+        openingBalanceCents: number | null,
+        openingAsOfDate: string | null
+    ) => {
+        try {
+            const res = await fetch("/api/finance/bank-accounts", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ accountId, openingBalanceCents, openingAsOfDate }),
+            });
+            const json = await res.json();
+            if (!res.ok || json.error) {
+                throw new Error(json.error ?? "No se pudo guardar el saldo base.");
+            }
+            toast.success("Saldo base guardado");
+            await fetchAccounts();
+        } catch (err) {
+            toast.error("Error al guardar saldo base", {
+                description: (err as Error).message,
+            });
+        }
+    };
+
     const active = accounts.filter((a) => a.active);
     const inactive = accounts.filter((a) => !a.active);
 
@@ -271,6 +312,7 @@ export default function CompanyBankAccountsPage() {
                                         <TableHead>Cuenta</TableHead>
                                         <TableHead>Banco</TableHead>
                                         <TableHead>Propósito</TableHead>
+                                        <TableHead>Saldo computado</TableHead>
                                         <TableHead>CLABE</TableHead>
                                         <TableHead>Registró</TableHead>
                                         {canEdit && <TableHead className="text-right">Acción</TableHead>}
@@ -310,6 +352,50 @@ export default function CompanyBankAccountsPage() {
                                                     </Select>
                                                 ) : (
                                                     <Badge variant="outline">{PURPOSE_LABELS[a.purpose]}</Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {a.computedBalanceCents != null ? (
+                                                    <div>
+                                                        <div className="font-semibold tabular-nums text-sm">
+                                                            {formatCents(a.computedBalanceCents)}
+                                                        </div>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-5 px-1 text-[10px] text-muted-foreground"
+                                                            onClick={() =>
+                                                                setAnchorDialog({
+                                                                    accountId: a.id,
+                                                                    label: a.label,
+                                                                    balanceInput: String((a.openingBalanceCents ?? 0) / 100),
+                                                                    dateInput: a.openingAsOfDate ?? "",
+                                                                })
+                                                            }
+                                                        >
+                                                            base {formatCents(a.openingBalanceCents ?? 0)} al {a.openingAsOfDate}
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    canEdit ? (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-7 text-xs"
+                                                            onClick={() =>
+                                                                setAnchorDialog({
+                                                                    accountId: a.id,
+                                                                    label: a.label,
+                                                                    balanceInput: "",
+                                                                    dateInput: new Date().toISOString().slice(0, 10),
+                                                                })
+                                                            }
+                                                        >
+                                                            Capturar saldo base
+                                                        </Button>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">Sin ancla</span>
+                                                    )
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-sm text-muted-foreground">
@@ -384,6 +470,84 @@ export default function CompanyBankAccountsPage() {
                 </Card>
             )}
 
+            <Dialog
+                open={anchorDialog !== null}
+                onOpenChange={(val) => {
+                    if (!val) setAnchorDialog(null);
+                }}
+            >
+                <DialogContent className="sm:max-w-[420px]">
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            if (!anchorDialog) return;
+                            const peso = Number(anchorDialog.balanceInput.replace(/[^0-9.\-]/g, ""));
+                            if (!Number.isFinite(peso) || !anchorDialog.dateInput) {
+                                toast.error("Captura el monto y la fecha del corte del banco.");
+                                return;
+                            }
+                            handleSaveAnchor(
+                                anchorDialog.accountId,
+                                Math.round(peso * 100),
+                                anchorDialog.dateInput
+                            );
+                            setAnchorDialog(null);
+                        }}
+                    >
+                        <DialogHeader>
+                            <DialogTitle>Saldo base — {anchorDialog?.label}</DialogTitle>
+                            <DialogDescription>
+                                Tomado del portal o corte del banco: apertura + movimientos
+                                importados = saldo computado. Es el único número que entra a
+                                dedo; con fecha, no se duplica contra el libro.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="anchor-monto">Monto (MXN, admite negativo)</Label>
+                                <Input
+                                    id="anchor-monto"
+                                    inputMode="decimal"
+                                    value={anchorDialog?.balanceInput ?? ""}
+                                    onChange={(e) =>
+                                        setAnchorDialog((prev) =>
+                                            prev ? { ...prev, balanceInput: e.target.value } : prev
+                                        )
+                                    }
+                                    required
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="anchor-fecha">Fecha del corte</Label>
+                                <Input
+                                    id="anchor-fecha"
+                                    type="date"
+                                    value={anchorDialog?.dateInput ?? ""}
+                                    onChange={(e) =>
+                                        setAnchorDialog((prev) =>
+                                            prev ? { ...prev, dateInput: e.target.value } : prev
+                                        )
+                                    }
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setAnchorDialog(null)}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button type="submit" size="sm">
+                                Guardar
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
             <Dialog
                 open={dialogOpen}
                 onOpenChange={(val) => {

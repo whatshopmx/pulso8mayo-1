@@ -23,6 +23,8 @@ export interface CompanyBankAccountOption {
   label: string;
   accountLastFour: string;
   bankName: string;
+  /** Saldo computado cuando la cuenta tiene ancla; null = sin ancla. */
+  computedBalanceCents?: number | null;
 }
 
 export interface CreatePaymentRunInitialItem {
@@ -104,9 +106,10 @@ export function CreatePaymentRunModal({
         })
         .catch(() => {});
       // Catálogo de cuentas de origen: sólo las activas, con propósito para
-      // preseleccionar la de dispersión. El número completo no viaja — el
-      // servidor descifra al momento de crear la corrida.
-      fetch("/api/finance/bank-accounts?activeOnly=true")
+      // preseleccionar la de dispersión y saldo computado si está anclada.
+      // El número completo no viaja — el servidor descifra al momento de
+      // crear la corrida.
+      fetch("/api/finance/bank-accounts?activeOnly=true&withBalances=true")
         .then((res) => res.json())
         .then((json) => {
           if (json.success && Array.isArray(json.data)) {
@@ -253,6 +256,9 @@ export function CreatePaymentRunModal({
                     {bankAccounts.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
                         {a.label} ····· {a.accountLastFour}
+                        {a.computedBalanceCents != null
+                          ? ` · disp. ${formatCents(a.computedBalanceCents)}`
+                          : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
