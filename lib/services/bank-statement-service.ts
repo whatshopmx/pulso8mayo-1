@@ -25,7 +25,7 @@
 import { createHash } from "node:crypto";
 import { and, desc, eq, gte, inArray, lte, sql, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bankTransactions, paymentRunItems, paymentRuns } from "@/lib/db/schema";
+import { bankTransactions, paymentRunItems, paymentRuns, gatewayTransactions, branches } from "@/lib/db/schema";
 import { companyBankAccounts, paymentRunItemTypeEnum } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api/error";
 
@@ -570,7 +570,177 @@ export async function suggestMatches(params: {
     return suggestions;
 }
 
-/** Confirmar un match: atómico, con cerrojos optimistas en ambos lados. */
+// ── Matching de ENTRADAS (depósitos de pasarela) ────────────────────────────
+
+export interface DepositMatchCandidate {
+    gatewayTransactionId: string;
+    acquirer: string;
+    externalId: string | null;
+    authorizationCode: string | null;
+    branchName: string | null;
+    /** Sólo last-4 de la cuenta destino cuando la fila la declara. */
+    destinationAccountLastFour: string | null;
+    netAmountCents: number;
+    settlementDate: string | null;
+    /** |días| entre fecha valor del banco y settlement de la pasarela. */
+    dateDiffDays: number;
+}
+
+/**
+ * Puro: candidato válido de ENTRADA si el abono neto de la pasarela es el
+ * monto exacto del movimiento bancario y la settlement cae en la ventana.
+ * Misma política exacta que las salidas: el algoritmo no tolera diferencias
+ * de centavo — si no calza a la moneda, la persona que cruza decide.
+ */
+export function scoreDepositCandidate(
+    tx: { valueDate: string; amountCents: number },
+    gateway: { netAmountCents: number; settlementDate: string | null }
+): { ok: boolean; dateDiffDays: number; reason: "MONTO" | "FECHA" | null } {
+    if (gateway.netAmountCents !== tx.amountCents) {
+        return { ok: false, dateDiffDays: Infinity, reason: "MONTO" };
+    }
+    if (!gateway.settlementDate) {
+        return { ok: false, dateDiffDays: Infinity, reason: "FECHA" };
+    }
+    const txDate = new Date(`${tx.valueDate}T00:00:00Z`).getTime();
+    const gwDate = new Date(`${gateway.settlementDate}T00:00:00Z`).getTime();
+    const diff = Math.abs(Math.round((gwDate - txDate) / 86_400_000));
+    if (diff > MATCH_DATE_WINDOW_DAYS) {
+        return { ok: false, dateDiffDays: diff, reason: "FECHA" };
+    }
+    return { ok: true, dateDiffDays: diff, reason: null };
+}
+
+/**
+ * Espejo de `suggestMatches`, para el lado de las entradas: movimientos
+ * positivos UNMATCHED contra `gateway_transactions` que declaran aterrizar en
+ * la MISMA cuenta del movimiento bancario, con neto exacto y settlement en
+ * ventana. El depósito bancario que agrupa varios lotes/días no calza a la
+ * moneda contra una fila gateway: queda UNMATCHED con nota — la extensión 1↔N
+ * es un follow-up propio y no se inventa aquí.
+ *
+ * La sugerencia nunca es confirmación: sólo nombra candidatos.
+ */
+export async function suggestDepositMatches(params: {
+    companyId: string;
+    transactionId?: string;
+}): Promise<{ transactionId: string; candidates: DepositMatchCandidate[] }[]> {
+    const conditions = [
+        eq(bankTransactions.companyId, params.companyId),
+        eq(bankTransactions.matchStatus, "UNMATCHED"),
+        // Sólo entradas: el match de salidas es el protocolo de arriba.
+        sql`${bankTransactions.amountCents} > 0`,
+    ];
+    if (params.transactionId) {
+        conditions.push(eq(bankTransactions.id, params.transactionId));
+    }
+
+    const txs = await db
+        .select({
+            id: bankTransactions.id,
+            valueDate: bankTransactions.valueDate,
+            amountCents: bankTransactions.amountCents,
+            sourceBankAccountId: bankTransactions.sourceBankAccountId,
+        })
+        .from(bankTransactions)
+        .where(and(...conditions))
+        .orderBy(desc(bankTransactions.valueDate))
+        .limit(50);
+
+    if (txs.length === 0) return [];
+
+    // Universo de gateway en la ventana más ancha, una sola query: el filtro
+    // fino (cuenta + monto + días) lo hace scoreDepositCandidate en memoria.
+    const windowStart = new Date(
+        Math.min(...txs.map((t) => new Date(`${t.valueDate}T00:00:00Z`).getTime())) -
+            MATCH_DATE_WINDOW_DAYS * 86_400_000
+    );
+    const windowEnd = new Date(
+        Math.max(...txs.map((t) => new Date(`${t.valueDate}T00:00:00Z`).getTime())) +
+            MATCH_DATE_WINDOW_DAYS * 86_400_000
+    );
+
+    const gatewayRows = await db
+        .select({
+            id: gatewayTransactions.id,
+            acquirer: gatewayTransactions.acquirer,
+            externalId: gatewayTransactions.externalId,
+            authorizationCode: gatewayTransactions.authorizationCode,
+            netAmountCents: gatewayTransactions.netAmountCents,
+            settlementDate: gatewayTransactions.settlementDate,
+            destinationBankAccountId: gatewayTransactions.destinationBankAccountId,
+            destinationAccountLastFour: companyBankAccounts.accountLastFour,
+            branchName: branches.name,
+        })
+        .from(gatewayTransactions)
+        .leftJoin(
+            companyBankAccounts,
+            eq(companyBankAccounts.id, gatewayTransactions.destinationBankAccountId)
+        )
+        .leftJoin(branches, eq(branches.id, gatewayTransactions.branchId))
+        .where(
+            and(
+                eq(gatewayTransactions.companyId, params.companyId),
+                gte(gatewayTransactions.settlementDate, windowStart.toISOString().slice(0, 10)),
+                lte(gatewayTransactions.settlementDate, windowEnd.toISOString().slice(0, 10))
+            )
+        );
+
+    // Una fila gateway ya puede estar cruzada por otro movimiento bancario.
+    const alreadyMatchedGatewayIds = new Set(
+        (
+            await db
+                .select({ id: bankTransactions.matchedGatewayTransactionId })
+                .from(bankTransactions)
+                .where(
+                    and(
+                        eq(bankTransactions.companyId, params.companyId),
+                        eq(bankTransactions.matchStatus, "MATCHED"),
+                        isNotNull(bankTransactions.matchedGatewayTransactionId)
+                    )
+                )
+        ).map((r) => r.id as string)
+    );
+
+    const suggestions = txs.map((tx) => {
+        const candidates = gatewayRows
+            .filter(
+                (gw) =>
+                    // La cuenta destino declarada de la fila gateway debe ser
+                    // exactamente la cuenta del movimiento bancario: dinero
+                    // que cayó en otra cuenta no concilia aquí.
+                    gw.destinationBankAccountId !== null &&
+                    gw.destinationBankAccountId === tx.sourceBankAccountId &&
+                    !alreadyMatchedGatewayIds.has(gw.id)
+            )
+            .map((gw) => ({
+                gw,
+                scored: scoreDepositCandidate(
+                    { valueDate: tx.valueDate, amountCents: tx.amountCents },
+                    { netAmountCents: gw.netAmountCents, settlementDate: gw.settlementDate }
+                ),
+            }))
+            .filter((c) => c.scored.ok)
+            .sort((a, b) => a.scored.dateDiffDays - b.scored.dateDiffDays)
+            .slice(0, 5)
+            .map<DepositMatchCandidate>((c) => ({
+                gatewayTransactionId: c.gw.id,
+                acquirer: c.gw.acquirer,
+                externalId: c.gw.externalId,
+                authorizationCode: c.gw.authorizationCode,
+                branchName: c.gw.branchName,
+                destinationAccountLastFour: c.gw.destinationAccountLastFour,
+                netAmountCents: c.gw.netAmountCents,
+                settlementDate: c.gw.settlementDate,
+                dateDiffDays: c.scored.dateDiffDays,
+            }));
+        return { transactionId: tx.id, candidates };
+    });
+
+    return suggestions;
+}
+
+/** Confirmar un match de salidas: atómico, con cerrojos optimistas en ambos lados. */
 export async function confirmMatch(input: {
     companyId: string;
     transactionId: string;

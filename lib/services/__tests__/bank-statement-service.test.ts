@@ -6,6 +6,7 @@ import {
     parseBankStatementCsv,
     parseDate,
     scoreCandidate,
+    scoreDepositCandidate,
     splitCsvLine,
 } from "../bank-statement-service";
 
@@ -169,5 +170,55 @@ describe("scoreCandidate", () => {
 
     it("partida sin fecha de liquidación no es candidata", () => {
         expect(scoreCandidate(tx, { amountCents: 1500000, settledAt: null }).reason).toBe("FECHA");
+    });
+});
+
+// ── Matching de ENTRADAS (depósitos de pasarela) ────────────────────────────
+
+describe("scoreDepositCandidate", () => {
+    const dep = { valueDate: "2026-02-14", amountCents: 47912 };
+
+    it("abono neto exacto dentro de ventana es candidato", () => {
+        expect(
+            scoreDepositCandidate(dep, {
+                netAmountCents: 47912,
+                settlementDate: "2026-02-16",
+            })
+        ).toEqual({ ok: true, dateDiffDays: expect.any(Number), reason: null });
+    });
+
+    it("monto distinto no es candidato aunque la fecha calce", () => {
+        expect(
+            scoreDepositCandidate(dep, {
+                netAmountCents: 47913,
+                settlementDate: "2026-02-14",
+            }).reason
+        ).toBe("MONTO");
+    });
+
+    it("settlement futura fuera de la ventana de 10 días se rechaza", () => {
+        expect(
+            scoreDepositCandidate(dep, {
+                netAmountCents: 47912,
+                settlementDate: "2026-05-01",
+            }).reason
+        ).toBe("FECHA");
+    });
+
+    it("fila de pasarela sin settlementDate no es candidata", () => {
+        expect(
+            scoreDepositCandidate(dep, { netAmountCents: 47912, settlementDate: null }).reason
+        ).toBe("FECHA");
+    });
+
+    it("un movimiento negativo (salida) nunca produce candidatos de entrada", () => {
+        // Un movimiento bancario negativo (salida) no puede cruzarse contra
+        // una fila gateway de entrada: el monto nunca es espejo por signo.
+        expect(
+            scoreDepositCandidate(
+                { valueDate: "2026-02-14", amountCents: -47912 },
+                { netAmountCents: 47912, settlementDate: "2026-02-14" }
+            ).reason
+        ).toBe("MONTO");
     });
 });
