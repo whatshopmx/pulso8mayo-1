@@ -103,13 +103,20 @@ export function CreatePaymentRunModal({
           }
         })
         .catch(() => {});
-      // Catálogo de cuentas de origen: sólo las activas. El número completo
-      // no viaja — el servidor descifra al momento de crear la corrida.
+      // Catálogo de cuentas de origen: sólo las activas, con propósito para
+      // preseleccionar la de dispersión. El número completo no viaja — el
+      // servidor descifra al momento de crear la corrida.
       fetch("/api/finance/bank-accounts?activeOnly=true")
         .then((res) => res.json())
         .then((json) => {
           if (json.success && Array.isArray(json.data)) {
             setBankAccounts(json.data);
+            // Preselección por propósito: primera DISPERSION, sino MIXTO.
+            // Con catálogo vacío no se preselecciona nada — la UI pide, no
+            // adivina. El default no es jaula: el usuario cambia a mano.
+            const data: Array<CompanyBankAccountOption & { purpose?: string }> = json.data;
+            const current = data.find((a) => a.purpose === "DISPERSION") ?? data.find((a) => a.purpose === "MIXTO");
+            if (current) setSourceBankAccountId(current.id);
           }
         })
         .catch(() => {});
