@@ -30,6 +30,7 @@ import { format, endOfMonth, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { formatCents } from "@/lib/utils";
+import { AguinaldoCard } from "@/components/labor/aguinaldo-card";
 
 interface PayrollRun {
   id: string;
@@ -565,6 +566,8 @@ export default function PayrollPage() {
           </CardContent>
         </Card>
       </div>
+
+      <AguinaldoCard />
 
       {/* Payslip Details Modal */}
       <Dialog open={!!selectedRun} onOpenChange={(open) => !open && setSelectedRun(null)}>

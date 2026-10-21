@@ -53,6 +53,8 @@ export interface AguinaldoPreview {
     estatusLegal: AguinaldoLegalEstatus;
     /** Regla de ley resuelta por fecha (tabla de ley o fallback estático). */
     fuenteRegla: "law-table" | "static-fallback";
+    /** Días legales resueltos para el cálculo (hoy 15, Art. 87). */
+    aguinaldoDaysMxn: number;
     umaDailyCents: number | null;
     totalBrutoCents: number;
     totalExentoCents: number;
@@ -192,6 +194,7 @@ export async function previsualizarAguinaldo(
         rows,
         estatusLegal: regla.estatusLegal,
         fuenteRegla: regla.source,
+        aguinaldoDaysMxn: regla.aguinaldoDaysMxn,
         umaDailyCents: regla.umaDailyCents,
         totalBrutoCents: totales.bruto,
         totalExentoCents: totales.exento,
