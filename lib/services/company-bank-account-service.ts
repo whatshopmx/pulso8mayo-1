@@ -205,9 +205,33 @@ export async function createCompanyBankAccount(input: {
             registeredBy: input.registeredBy,
             notes: input.notes?.trim() || null,
         })
-        .returning(SAFE_COLUMNS);
+        /**
+         * `RETURNING` de Postgres sólo alcanza columnas de la tabla destino:
+         * reutilizar `SAFE_COLUMNS` aquí rompería el insert con "column name
+         * does not exist" porque arrastras `users.name` del join del listado.
+         * El nombre de quien registró se resuelve aparte y no es información
+         * sensible: es el propio autor de la operación.
+         */
+        .returning({
+            id: companyBankAccounts.id,
+            label: companyBankAccounts.label,
+            accountLastFour: companyBankAccounts.accountLastFour,
+            bankCode: companyBankAccounts.bankCode,
+            bankName: companyBankAccounts.bankName,
+            clabeLastFour: companyBankAccounts.clabeLastFour,
+            currency: companyBankAccounts.currency,
+            active: companyBankAccounts.active,
+            notes: companyBankAccounts.notes,
+            createdAt: companyBankAccounts.createdAt,
+        });
 
-    return inserted;
+    const [registeredBy] = await db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, input.registeredBy))
+        .limit(1);
+
+    return { ...inserted, registeredByName: registeredBy?.name ?? null };
 }
 
 /** Baja lógica. Nunca se borra: es evidencia desde dónde se dispersó. */
