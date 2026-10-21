@@ -28,9 +28,9 @@
  * a mitad de camino arriesgaría el circuito de pagos por economía de líneas.
  */
 import { createHmac } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { companyBankAccounts, users } from "@/lib/db/schema";
+import { bankTransactions, companyBankAccounts, users } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api/error";
 import { bankNameForCode, validateClabe, type ClabeErrorCode } from "@/lib/banking/clabe";
 import { DekService } from "@/lib/security/dek";
@@ -285,6 +285,135 @@ export async function setCompanyBankAccountPurpose(input: {
     if (!updated) {
         throw ApiError.notFound("La cuenta no existe o ya estaba dada de baja.");
     }
+}
+
+/**
+ * Capturar el ancla del saldo computado: apertura + fecha, tomada del portal
+ * del banco. Pareja all-or-nothing — un saldo sin fecha (o viceversa) no
+ * significa nada, y limpiar el saldo pone ambas en null (nunca mitad).
+ * La apertura puede ser negativa (sobregiro); la fecha no puede ser futura:
+ * el futuro no se sabe, el saldo del pasado sí se lee del banco.
+ */
+export async function setCompanyBankAccountAnchor(input: {
+    accountId: string;
+    companyId: string;
+    /** Centavos firmados; `null` con asOfDate null limpia el ancla. */
+    openingBalanceCents: number | null;
+    /** ISO yyyy-mm-dd. */
+    openingAsOfDate: string | null;
+}): Promise<void> {
+    const bothNull = input.openingBalanceCents === null && input.openingAsOfDate === null;
+    const bothSet = input.openingBalanceCents !== null && input.openingAsOfDate !== null;
+    if (!bothNull && !bothSet) {
+        throw ApiError.badRequest(
+            "El saldo base y su fecha van juntos: captura ambos, o vacía ambos para quitar el ancla."
+        );
+    }
+    if (!bothNull) {
+        if (!/^(\d{4})-(\d{2})-(\d{2})$/.test(input.openingAsOfDate || "")) {
+            throw ApiError.badRequest("La fecha de la apertura es inválida (yyyy-mm-dd).");
+        }
+        const today = new Date().toISOString().slice(0, 10);
+        if (input.openingAsOfDate! > today) {
+            throw ApiError.badRequest(
+                "La fecha del saldo base no puede ser futura: tómala del corte o portal más reciente del banco."
+            );
+        }
+    }
+
+    const [updated] = await db
+        .update(companyBankAccounts)
+        .set({
+            openingBalanceCents: input.openingBalanceCents,
+            openingAsOfDate: input.openingAsOfDate,
+            updatedAt: new Date(),
+        })
+        .where(
+            and(
+                eq(companyBankAccounts.id, input.accountId),
+                eq(companyBankAccounts.companyId, input.companyId),
+                eq(companyBankAccounts.active, true)
+            )
+        )
+        .returning({ id: companyBankAccounts.id });
+    if (!updated) {
+        throw ApiError.notFound("La cuenta no existe o estaba dada de baja.");
+    }
+}
+
+/**
+ * Saldos computados por cuenta: apertura + SUM(movimientos firmados) desde la
+ * fecha del ancla. Sólo las cuentas ANCLADAS obtienen saldo — una cuenta sin
+ * ancla se excluye en vez de inventarle un cero. Multi-tenant y activas
+ * únicamente: es el tablero del dinero del grupo.
+ */
+export async function getComputedAccountBalances(companyId: string): Promise<
+    Map<string, { balanceCents: number; asOfDate: string; openingBalanceCents: number }>
+> {
+    const accounts = await db
+        .select({
+            id: companyBankAccounts.id,
+            openingBalanceCents: companyBankAccounts.openingBalanceCents,
+            openingAsOfDate: companyBankAccounts.openingAsOfDate,
+        })
+        .from(companyBankAccounts)
+        .where(
+            and(
+                eq(companyBankAccounts.companyId, companyId),
+                eq(companyBankAccounts.active, true),
+                isNotNull(companyBankAccounts.openingBalanceCents),
+                isNotNull(companyBankAccounts.openingAsOfDate)
+            )
+        );
+
+    if (accounts.length === 0) return new Map();
+
+    // Una sola query agrupada en vez de N llamadas: cada cuenta suma sólo
+    // los movimientos DESDE su propia fecha de ancla — los anteriores ya
+    // están contenidos en la apertura. El OR por cuenta respeta esa fecha
+    // individual sin partirlo en N consultas.
+    const sums = await db
+        .select({
+            accountId: bankTransactions.sourceBankAccountId,
+            netCents: sql<number>`coalesce(sum(${bankTransactions.amountCents}), 0)::int`,
+        })
+        .from(bankTransactions)
+        .where(
+            and(
+                eq(bankTransactions.companyId, companyId),
+                inArray(
+                    bankTransactions.sourceBankAccountId,
+                    accounts.map((a) => a.id)
+                ),
+                or(
+                    ...accounts.map((a) =>
+                        and(
+                            eq(bankTransactions.sourceBankAccountId, a.id),
+                            gte(bankTransactions.valueDate, a.openingAsOfDate as string)
+                        )
+                    )
+                )
+            )
+        )
+        .groupBy(bankTransactions.sourceBankAccountId);
+
+    const sumByAccount = new Map(
+        sums
+            .filter((s) => s.accountId !== null)
+            .map((s) => [s.accountId as string, s.netCents])
+    );
+
+    return new Map(
+        accounts.map((a) => [
+            a.id,
+            {
+                balanceCents:
+                    (a.openingBalanceCents ?? 0) + (sumByAccount.get(a.id) ?? 0),
+                asOfDate: a.openingAsOfDate as string,
+                openingBalanceCents: a.openingBalanceCents as number,
+            },
+        ])
+    );
 }
 
 /**

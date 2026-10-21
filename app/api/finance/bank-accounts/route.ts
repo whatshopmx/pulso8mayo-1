@@ -5,7 +5,9 @@ import { ApiHandler } from "@/lib/api/response";
 import {
     createCompanyBankAccount,
     deactivateCompanyBankAccount,
+    getComputedAccountBalances,
     listCompanyBankAccounts,
+    setCompanyBankAccountAnchor,
     setCompanyBankAccountPurpose,
     type AccountPurpose,
 } from "@/lib/services/company-bank-account-service";
@@ -46,6 +48,23 @@ const purposeSchema = z.object({
 });
 
 /**
+ * Ancla del saldo computado: apertura (centavos firmados) + fecha, pareja
+ * all-or-nothing; ambos null quita el ancla. La captura es a mano por que es
+ * el único número que nadie puede derivar: lo dice el banco.
+ */
+const anchorSchema = z.object({
+    accountId: z.string().uuid("La cuenta es inválida."),
+    openingBalanceCents: z.number().int("La apertura es en centavos enteros."),
+    openingAsOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha es inválida (yyyy-mm-dd)."),
+});
+
+const unanchorSchema = z.object({
+    accountId: z.string().uuid("La cuenta es inválida."),
+    openingBalanceCents: z.null(),
+    openingAsOfDate: z.null(),
+});
+
+/**
  * GET /api/finance/bank-accounts — catálogo seguro.
  *
  * Devuelve `accountLastFour`, nunca el número completo: es todo lo que la UI
@@ -64,6 +83,20 @@ export async function GET(req: NextRequest) {
         const accounts = await listCompanyBankAccounts(ctx.userCompanyId, {
             activeOnly,
         });
+
+        // Saldo computado bajo demanda: sólo los llamadores que lo piden
+        // (settings y selector de corrida) cargan la suma del libro.
+        if (searchParams.get("withBalances") === "true") {
+            const balances = await getComputedAccountBalances(ctx.userCompanyId);
+            return ApiHandler.success(
+                accounts.map((a) => ({
+                    ...a,
+                    openingBalanceCents: balances.get(a.id)?.openingBalanceCents ?? null,
+                    openingAsOfDate: balances.get(a.id)?.asOfDate ?? null,
+                    computedBalanceCents: balances.get(a.id)?.balanceCents ?? null,
+                }))
+            );
+        }
 
         return ApiHandler.success(accounts);
     } catch (error) {
@@ -139,8 +172,34 @@ export async function PUT(req: NextRequest) {
             audit: { action: "UPDATE", req },
         });
 
-        const body = purposeSchema.parse(await req.json());
+        const raw = await req.json();
 
+        if (raw && typeof raw === "object" && "purpose" in raw) {
+            const body = purposeSchema.parse(raw);
+            await setCompanyBankAccountPurpose({
+                accountId: body.accountId,
+                companyId: ctx.userCompanyId,
+                purpose: body.purpose as AccountPurpose,
+            });
+            return ApiHandler.success({ ok: true });
+        }
+
+        // Ancla: con valores o limpiándola — ambos caminos son decisiones
+        // capturadas por persona, nunca un default del sistema.
+        if (raw && typeof raw === "object" && "openingBalanceCents" in raw) {
+            const parsed = raw.openingBalanceCents === null
+                ? unanchorSchema.parse(raw)
+                : anchorSchema.parse(raw);
+            await setCompanyBankAccountAnchor({
+                accountId: parsed.accountId,
+                companyId: ctx.userCompanyId,
+                openingBalanceCents: parsed.openingBalanceCents,
+                openingAsOfDate: parsed.openingAsOfDate,
+            });
+            return ApiHandler.success({ ok: true });
+        }
+
+        const body = purposeSchema.parse(raw);
         await setCompanyBankAccountPurpose({
             accountId: body.accountId,
             companyId: ctx.userCompanyId,
