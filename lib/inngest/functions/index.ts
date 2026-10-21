@@ -23,6 +23,9 @@ export { cronCfdiRevalidation } from "./cron-cfdi-revalidation";
 // período y marcar INVOICED cuando el CFDI lincado llega.
 export { cronRecurringPayables } from "./cron-recurring-payables";
 export { checkFinancialAlerts } from "./check-financial-alerts";
+// Task 8 plan-aguinaldo: recordatorio dic 1-19 de dispersión antes del 19-dic
+// (Art. 87; multa Art. 1002), dedupe companyId+año.
+export { cronAguinaldoReminder } from "./cron-aguinaldo-reminder";
 export { cronKpiSnapshotsDaily, cronKpiSnapshotsWeekly, cronKpiSnapshotsMonthly } from "./cron-kpi-snapshots";
 
 export { cronForecastCalculation } from "./cron-forecast-calculation";

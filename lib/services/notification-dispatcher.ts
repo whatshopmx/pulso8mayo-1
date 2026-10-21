@@ -304,6 +304,20 @@ const notificationTemplates: Record<string, NotificationTemplate> = {
     inAppMessage: "{deadlineLabel} vence el {deadlineDate}",
     variables: ["userName", "deadlineLabel", "deadlineDate", "daysLabel"]
   },
+  "aguinaldo_dispersion_reminder": {
+    // Task 8 plan-aguinaldo: límite legal 19-dic (Art. 87), multa 50–5,000 UMA.
+    id: "aguinaldo_dispersion_reminder",
+    name: "Recordatorio de Dispersión de Aguinaldo",
+    eventType: "aguinaldo_dispersion_reminder",
+    channels: ["whatsapp", "in-app"],
+    whatsappTemplate:
+      "🎁 *Recordatorio de Aguinaldo\n\nHola {userName},\n\nEl Art. 87 LFT obliga a pagar el aguinaldo antes del *{limite}\n" +
+      "(multa de 50 a 5,000 UMA, Art. 1002).\n\nDispérsalo como nómina extraordinaria " +
+      "(CFDI 002) desde Personal → Payroll → Aguinaldo\n. Cálculo vigente: 15 días por año prorrateados.",
+    inAppTitle: "Dispersar el aguinaldo {anioFiscal} antes del {limite}",
+    inAppMessage: "Límite legal {limite} (Art. 87); multa Art. 1002. CFDI 002 extraordinario.",
+    variables: ["userName", "limite", "anioFiscal"]
+  },
   "sales_cut_reminder": {
     id: "sales_cut_reminder",
     name: "Recordatorio de Corte de Caja",

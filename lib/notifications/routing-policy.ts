@@ -50,6 +50,7 @@ export type NotificationEventType =
   | "announcement_broadcast"
   | "training_assigned"
   | "imss_deadline"
+  | "aguinaldo_dispersion_reminder"
   | "sales_cut_reminder"
   | "sales_cut_missing"
   | "financial_kpi_deviation"
@@ -242,6 +243,16 @@ const routingRules: Record<NotificationEventType, RoutingRule> = {
   },
   imss_deadline: {
     eventType: "imss_deadline",
+    priority: "high",
+    channels: ["whatsapp", "in-app"],
+    retryAttempts: 3,
+    retryDelayMs: 2000,
+    businessHoursOnly: false,
+  },
+  aguinaldo_dispersion_reminder: {
+    // Límite legal 19-dic (multa Art. 1002 LFT 50–5,000 UMA): misma urgencia
+    // que un vencimiento IMSS.
+    eventType: "aguinaldo_dispersion_reminder",
     priority: "high",
     channels: ["whatsapp", "in-app"],
     retryAttempts: 3,
