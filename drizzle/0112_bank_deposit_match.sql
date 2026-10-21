@@ -1,0 +1,2 @@
+ALTER TABLE "bank_transactions" ADD COLUMN "matched_gateway_transaction_id" uuid;--> statement-breakpoint
+CREATE INDEX "bank_transactions_gateway_match_idx" ON "bank_transactions" USING btree ("matched_gateway_transaction_id") WHERE "bank_transactions"."matched_gateway_transaction_id" is not null;

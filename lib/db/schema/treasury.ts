@@ -412,6 +412,13 @@ export const bankTransactions = pgTable("bank_transactions", {
   matchStatus: bankTransactionMatchEnum("match_status").default('UNMATCHED').notNull(),
   /** Partida de corrida confirmada a la que se cruzó este movimiento. */
   matchedPaymentRunItemId: uuid("matched_payment_run_item_id"),
+  /**
+   * Transacción de pasarela a la que se cruzó este movimiento POSITIVO
+   * (depósito). Referencia lógica SIN FK — igual que
+   * `matched_payment_run_item_id`: cruza tipos de match distintos y la
+   * validez la garantiza la confirmación manual, no el motor.
+   */
+  matchedGatewayTransactionId: uuid("matched_gateway_transaction_id"),
   matchedAt: timestamp("matched_at"),
   matchedBy: text("matched_by").references(() => users.id),
   matchNotes: text("match_notes"),
@@ -425,6 +432,10 @@ export const bankTransactions = pgTable("bank_transactions", {
   accountIdx: index("bank_transactions_account_idx").on(table.sourceBankAccountId),
   /** El panel pregunta por movimientos sin cruzar de una cuenta. */
   matchStatusIdx: index("bank_transactions_match_status_idx").on(table.companyId, table.matchStatus),
+  /** El matching de entradas pregunta por cruces activos de gateway. */
+  gatewayMatchIdx: index("bank_transactions_gateway_match_idx")
+    .on(table.matchedGatewayTransactionId)
+    .where(sql`${table.matchedGatewayTransactionId} is not null`),
 }));
 
 // ---------------------------------------------------------------------------
