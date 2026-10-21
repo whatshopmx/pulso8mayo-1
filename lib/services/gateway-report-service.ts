@@ -3,6 +3,7 @@ import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import {
   gatewayTransactions,
   branches,
+  companyBankAccounts,
   users,
 } from "@/lib/db/schema";
 import {
@@ -20,6 +21,13 @@ export interface ImportGatewayReportParams {
   buffer: Buffer;
   userId: string;
   rawFileUrl?: string;
+  /**
+   * Cuenta propia a la que aterriza el neto del reporte. Opcional: los import
+   * históricos no la traían y `null` significa «aún no conciliado», no
+   * «sin cuenta». La cuenta dada de baja o de otra empresa se rechaza — un id
+   * ajeno no se acepta ni se revela su existencia.
+   */
+  destinationBankAccountId?: string;
 }
 
 export interface ImportGatewayReportResult {
@@ -60,6 +68,7 @@ export class GatewayReportService {
       buffer,
       userId,
       rawFileUrl,
+      destinationBankAccountId,
     } = params;
 
     // 1. Validar que la sucursal existe y pertenece a la compañía
@@ -71,6 +80,28 @@ export class GatewayReportService {
 
     if (!branch) {
       throw ApiError.badRequest("La sucursal seleccionada no es válida.");
+    }
+
+    // 1b. La cuenta destino existe, está activa y es de esta empresa — misma
+    // validación de multi-tenant que la cuenta de origen en
+    // `bank-statement-service.ts` y la partida de `createPaymentRun`.
+    if (destinationBankAccountId) {
+      const [account] = await db
+        .select({ id: companyBankAccounts.id })
+        .from(companyBankAccounts)
+        .where(
+          and(
+            eq(companyBankAccounts.id, destinationBankAccountId),
+            eq(companyBankAccounts.companyId, companyId),
+            eq(companyBankAccounts.active, true)
+          )
+        )
+        .limit(1);
+      if (!account) {
+        throw ApiError.badRequest(
+          "La cuenta destino no existe en el catálogo activo de esta empresa."
+        );
+      }
     }
 
     // 2. Parsear el archivo con detección de formato y columnas
@@ -109,6 +140,7 @@ export class GatewayReportService {
         settlementDate: tx.settlementDate,
         batchNumber: tx.batchNumber,
         status: tx.status,
+        destinationBankAccountId: destinationBankAccountId ?? null,
         rawReportFileUrl: rawFileUrl || null,
         importedBy: userId,
       }));

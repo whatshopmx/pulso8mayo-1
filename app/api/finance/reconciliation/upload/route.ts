@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null;
     const branchId = formData.get("branchId") as string | null;
     const acquirer = (formData.get("acquirer") as AcquirerType | null) || "OTHER";
+    const destinationBankAccountId =
+      (formData.get("destinationBankAccountId") as string | null) || undefined;
 
     if (!file || typeof file === "string") {
       throw ApiError.badRequest("El archivo de reporte es requerido.");
@@ -75,6 +77,7 @@ export async function POST(req: NextRequest) {
       buffer,
       userId: ctx.userId,
       rawFileUrl,
+      destinationBankAccountId,
     });
 
     return ApiHandler.success(result);

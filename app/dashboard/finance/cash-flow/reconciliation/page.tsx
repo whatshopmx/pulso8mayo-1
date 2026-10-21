@@ -123,6 +123,11 @@ function ReconciliationContent() {
   const [uploadAcquirer, setUploadAcquirer] = useState<AcquirerType>("CLIP");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  /** Cuentas activas del catálogo propio y a dónde se declara que aterriza el neto. */
+  const [destinationAccounts, setDestinationAccounts] = useState<
+    Array<{ id: string; label: string; accountLastFour: string; purpose: string }>
+  >([]);
+  const [uploadDestinationId, setUploadDestinationId] = useState<string>("");
 
   // Inicializar sucursal de subida
   useEffect(() => {
@@ -132,6 +137,30 @@ function ReconciliationContent() {
       setUploadBranchId(branches[0].id);
     }
   }, [selectedBranchId, branches, uploadBranchId]);
+
+  // Catálogo de cuentas de destino + memoria del override por sucursal+adquirente.
+  // Preselección por propósito: primera RECEPCION activa, sino MIXTO; la primera
+  // vez gana la memoria local del override — con catálogo vacío no se
+  // preselecciona nada (la UI pide, no adivina) y el default no es jaula.
+  useEffect(() => {
+    if (!uploadOpen) return;
+    fetch("/api/finance/bank-accounts?activeOnly=true")
+      .then((res) => res.json())
+      .then((json) => {
+        if (!json.success || !Array.isArray(json.data)) return;
+        setDestinationAccounts(json.data);
+        const memoryKey = `destBank:${uploadBranchId}:${uploadAcquirer}`;
+        const rememberedId = window.localStorage.getItem(memoryKey);
+        const remembered = rememberedId && json.data.some((a: { id: string }) => a.id === rememberedId)
+          ? rememberedId
+          : null;
+        const purposeDefault =
+          json.data.find((a: { purpose: string }) => a.purpose === "RECEPCION") ??
+          json.data.find((a: { purpose: string }) => a.purpose === "MIXTO");
+        setUploadDestinationId(remembered ?? purposeDefault?.id ?? "");
+      })
+      .catch(() => {});
+  }, [uploadOpen, uploadBranchId, uploadAcquirer]);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -218,6 +247,15 @@ function ReconciliationContent() {
       formData.append("file", uploadFile);
       formData.append("branchId", uploadBranchId);
       formData.append("acquirer", uploadAcquirer);
+      // Recordatorio del override a mano por sucursal+adquirente: memoria
+      // secundaria del usuario, no fuente de verdad — el servidor revalida.
+      if (uploadDestinationId) {
+        formData.append("destinationBankAccountId", uploadDestinationId);
+        window.localStorage.setItem(
+          `destBank:${uploadBranchId}:${uploadAcquirer}`,
+          uploadDestinationId
+        );
+      }
 
       const res = await fetch("/api/finance/reconciliation/upload", {
         method: "POST",
@@ -787,6 +825,32 @@ function ReconciliationContent() {
                   <SelectItem value="OTHER">Otro proveedor</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="uploadDestination" className="text-xs font-medium">
+                Cuenta destino del depósito
+              </Label>
+              <Select
+                value={uploadDestinationId || "none"}
+                onValueChange={(val) => setUploadDestinationId(val === "none" ? "" : val)}
+              >
+                <SelectTrigger id="uploadDestination" className="text-xs">
+                  <SelectValue placeholder="Dónde aterriza el neto" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin definir (por conciliar)</SelectItem>
+                  {destinationAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.label} ····· {a.accountLastFour}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground block">
+                A qué cuenta propia llega el abono neto. Se preselecciona la de
+                Recepción — puede cambiarse a mano o dejarse sin definir.
+              </span>
             </div>
 
             <div className="space-y-1.5">
