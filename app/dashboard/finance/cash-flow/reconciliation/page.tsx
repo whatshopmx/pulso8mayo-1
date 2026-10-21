@@ -67,6 +67,8 @@ interface GatewayTransactionItem {
   settlementDate: string | null;
   batchNumber: string | null;
   status: string;
+  /** Últimos 4 de la cuenta destino declarada. `null` = sin conciliar (visible). */
+  destinationAccountLastFour: string | null;
   importedAt: string;
   importedByName: string | null;
 }
@@ -109,6 +111,11 @@ function ReconciliationContent() {
 
   // Filtros
   const [acquirerFilter, setAcquirerFilter] = useState<string>("ALL");
+  /** Filtro "sin conciliar": filas sin cuenta destino (pueden asignarse siempre). */
+  const [unassignedOnly, setUnassignedOnly] = useState(false);
+  /** Selección múltiple para asignación retroactiva de cuenta destino. */
+  const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set());
+  const [assigning, setAssigning] = useState(false);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
@@ -137,6 +144,19 @@ function ReconciliationContent() {
       setUploadBranchId(branches[0].id);
     }
   }, [selectedBranchId, branches, uploadBranchId]);
+
+  // Catálogo de cuentas de destino para asignación retroactiva: una sola
+  // carga al montar; el modal de upload reusa el mismo listado.
+  useEffect(() => {
+    fetch("/api/finance/bank-accounts?activeOnly=true")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data)) {
+          setDestinationAccounts(json.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Catálogo de cuentas de destino + memoria del override por sucursal+adquirente.
   // Preselección por propósito: primera RECEPCION activa, sino MIXTO; la primera
@@ -172,6 +192,7 @@ function ReconciliationContent() {
       if (acquirerFilter !== "ALL") {
         params.set("acquirer", acquirerFilter);
       }
+      if (unassignedOnly) params.set("unassigned", "true");
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
 
@@ -182,6 +203,7 @@ function ReconciliationContent() {
       const json = await res.json();
       setTransactions(json.data.items || []);
       setTotalCount(json.data.total || 0);
+      setSelectedTxIds(new Set());
       setSummary(
         json.data.summary || {
           totalGrossCents: 0,
@@ -196,7 +218,7 @@ function ReconciliationContent() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBranchId, acquirerFilter, startDate, endDate]);
+  }, [selectedBranchId, acquirerFilter, unassignedOnly, startDate, endDate]);
 
   const fetchAudit = useCallback(async () => {
     setAuditLoading(true);
@@ -281,6 +303,48 @@ function ReconciliationContent() {
     } finally {
       setUploading(false);
     }
+  };
+
+  /**
+   * Asignación retroactiva de cuenta destino a la selección. El filtro "sin
+   * conciliar" no asigna nada solo: cada PATCH es una acción declarada del
+   * usuario sobre filas concretas.
+   */
+  const handleAssignDestination = async (accountId: string) => {
+    if (selectedTxIds.size === 0) return;
+    setAssigning(true);
+    try {
+      let ok = 0;
+      for (const txId of selectedTxIds) {
+        const res = await fetch(
+          `/api/finance/reconciliation/transactions/${txId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ destinationBankAccountId: accountId }),
+          }
+        );
+        if (res.ok) ok += 1;
+      }
+      toast.success(`Cuenta destino asignada a ${ok} transacción(es).`);
+      setSelectedTxIds(new Set());
+      fetchTransactions();
+    } catch (err) {
+      toast.error(
+        (err as Error).message || "No se pudo asignar la cuenta destino."
+      );
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const toggleTxSelection = (txId: string) => {
+    setSelectedTxIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(txId)) next.delete(txId);
+      else next.add(txId);
+      return next;
+    });
   };
 
   return (
@@ -433,6 +497,16 @@ function ReconciliationContent() {
               />
             </div>
 
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground h-9">
+              <input
+                type="checkbox"
+                checked={unassignedOnly}
+                onChange={(e) => setUnassignedOnly(e.target.checked)}
+                className="h-3.5 w-3.5 accent-primary"
+              />
+              Sin conciliar (sin cuenta destino)
+            </label>
+
             {(acquirerFilter !== "ALL" || startDate || endDate) && (
               <div className="self-end pb-0.5">
                 <Button
@@ -484,6 +558,37 @@ function ReconciliationContent() {
                   {transactions.length} mostradas
                 </Badge>
               </div>
+              {selectedTxIds.size > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-2">
+                  <span className="text-xs font-medium">
+                    {selectedTxIds.size} seleccionada(s) — asignar cuenta destino del depósito:
+                  </span>
+                  <Select
+                    onValueChange={(val) => handleAssignDestination(val)}
+                    disabled={assigning}
+                  >
+                    <SelectTrigger className="h-7 w-[240px] text-xs">
+                      <SelectValue placeholder="Elegir cuenta del catálogo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {destinationAccounts.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.label} ····· {a.accountLastFour}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setSelectedTxIds(new Set())}
+                    disabled={assigning}
+                  >
+                    Cancelar selección
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             <CardContent className="p-0">
               {loading ? (
@@ -511,6 +616,21 @@ function ReconciliationContent() {
                   <Table>
                     <TableHeader>
                       <TableRow className="text-xs">
+                        <TableHead className="w-[36px]">
+                          <input
+                            type="checkbox"
+                            checked={transactions.length > 0 && selectedTxIds.size === transactions.length}
+                            onChange={(e) =>
+                              setSelectedTxIds(
+                                e.target.checked
+                                  ? new Set(transactions.map((t) => t.id))
+                                  : new Set()
+                              )
+                            }
+                            className="h-3.5 w-3.5 accent-primary"
+                            aria-label="Seleccionar todas"
+                          />
+                        </TableHead>
                         <TableHead>Fecha / Hora</TableHead>
                         <TableHead>Sucursal</TableHead>
                         <TableHead>Pasarela</TableHead>
@@ -520,12 +640,22 @@ function ReconciliationContent() {
                         <TableHead className="text-right">Comisión</TableHead>
                         <TableHead className="text-right">IVA (16%)</TableHead>
                         <TableHead className="text-right">Neto Liquidado</TableHead>
+                        <TableHead>Cuenta destino</TableHead>
                         <TableHead>Estado</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {transactions.map((tx) => (
                         <TableRow key={tx.id} className="text-xs">
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              checked={selectedTxIds.has(tx.id)}
+                              onChange={() => toggleTxSelection(tx.id)}
+                              className="h-3.5 w-3.5 accent-primary"
+                              aria-label={`Seleccionar transacción ${tx.externalId || tx.id}`}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium whitespace-nowrap">
                             {new Date(tx.transactionDate).toLocaleDateString("es-MX", {
                               year: "numeric",
@@ -569,6 +699,21 @@ function ReconciliationContent() {
                           </TableCell>
                           <TableCell className="text-right font-bold text-foreground">
                             {formatCents(tx.netAmountCents)}
+                          </TableCell>
+                          <TableCell>
+                            {tx.destinationAccountLastFour ? (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs font-medium"
+                                title={`El abono neto aterrizó aquí ·····${tx.destinationAccountLastFour}`}
+                              >
+                                ····{tx.destinationAccountLastFour}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">
+                                Sin destino
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="text-xs">

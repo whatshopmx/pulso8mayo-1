@@ -88,6 +88,97 @@ describe("GatewayReportService (Ingesta y Consulta de Transacciones de Pasarelas
         })
       ).rejects.toThrow("La sucursal seleccionada no es válida.");
     });
+
+    it("rechaza la cuenta destino que no está activa o pertenece a otra empresa", async () => {
+      // 1. Sucursal válida
+      const branchChain = {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValueOnce([{ id: "branch-1" }]),
+          }),
+        }),
+      };
+      // 2. Cuenta destino: vacía => no existe/está inactiva/otra empresa. Un id
+      //    ajeno no se acepta ni se revela su existencia.
+      const accountChain = {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValueOnce([]),
+          }),
+        }),
+      };
+
+      vi.mocked(db.select)
+        .mockReturnValueOnce(branchChain as any)
+        .mockReturnValueOnce(accountChain as any);
+
+      const buffer = Buffer.from("dummy", "utf8");
+
+      await expect(
+        GatewayReportService.importReport({
+          companyId: "comp-1",
+          branchId: "branch-1",
+          acquirer: "CLIP",
+          fileName: "test.csv",
+          buffer,
+          userId: "user-1",
+          destinationBankAccountId: "foreign-or-inactive-account",
+        })
+      ).rejects.toThrow(
+        "La cuenta destino no existe en el catálogo activo de esta empresa."
+      );
+    });
+
+    it("estampa la cuenta destino en las filas insertadas y no re-estampa en re-import (idempotencia)", async () => {
+      // 1. Sucursal válida
+      const branchChain = {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValueOnce([{ id: "branch-1" }]),
+          }),
+        }),
+      };
+      // 2. Cuenta destino activa de la misma empresa
+      const accountChain = {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValueOnce([{ id: "account-1" }]),
+          }),
+        }),
+      };
+
+      const onConflictMock = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValueOnce([{ id: "tx-1" }]),
+      });
+      const valuesSpy = vi.fn().mockReturnValue({ onConflictDoNothing: onConflictMock });
+      vi.mocked(db.insert).mockReturnValue({ values: valuesSpy } as any);
+
+      vi.mocked(db.select)
+        .mockReturnValueOnce(branchChain as any)
+        .mockReturnValueOnce(accountChain as any);
+
+      const sampleCsv = `Fecha de transacción,ID de transacción,Autorización,Tarjeta,Monto,Comisión Clip,IVA Comisión,Monto Neto
+15/09/2026 13:45:00,clp_001,098712,4321,500.00,18.00,2.88,479.12`;
+      const buffer = Buffer.from(sampleCsv, "utf8");
+
+      const result = await GatewayReportService.importReport({
+        companyId: "comp-1",
+        branchId: "branch-1",
+        acquirer: "CLIP",
+        fileName: "clip.csv",
+        buffer,
+        userId: "user-1",
+        destinationBankAccountId: "account-1",
+      });
+
+      // El destino se estampa en cada fila derivada del reporte...
+      const valuesArg = valuesSpy.mock.calls[0][0];
+      const firstRow = Array.isArray(valuesArg) ? valuesArg[0] : valuesArg;
+      expect(firstRow.destinationBankAccountId).toBe("account-1");
+      // ...y el conflicto de dedupe sigue activo: la reimportación no re-estampa.
+      expect(onConflictMock).toHaveBeenCalled();
+      expect(result.insertedCount).toBe(1);
+    });
   });
 
   describe("getTransactions", () => {
@@ -132,10 +223,12 @@ describe("GatewayReportService (Ingesta y Consulta de Transacciones de Pasarelas
         from: vi.fn().mockReturnValue({
           leftJoin: vi.fn().mockReturnValue({
             leftJoin: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                orderBy: vi.fn().mockReturnValue({
-                  limit: vi.fn().mockReturnValue({
-                    offset: vi.fn().mockResolvedValueOnce(fakeItems),
+              leftJoin: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  orderBy: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockReturnValue({
+                      offset: vi.fn().mockResolvedValueOnce(fakeItems),
+                    }),
                   }),
                 }),
               }),

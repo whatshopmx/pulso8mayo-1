@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     const acquirer = (searchParams.get("acquirer") as AcquirerType) || undefined;
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
+    const unassigned = searchParams.get("unassigned") === "true";
     const limit = searchParams.get("limit")
       ? parseInt(searchParams.get("limit")!, 10)
       : 100;
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
       acquirer,
       startDate,
       endDate,
+      unassigned,
       limit,
       offset,
     });

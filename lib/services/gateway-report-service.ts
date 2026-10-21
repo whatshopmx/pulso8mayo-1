@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, isNull } from "drizzle-orm";
 import {
   gatewayTransactions,
   branches,
@@ -48,6 +48,8 @@ export interface GetGatewayTransactionsQuery {
   acquirer?: AcquirerType;
   startDate?: string;
   endDate?: string;
+  /** Sólo filas sin cuenta destino declarada ("sin conciliar"). */
+  unassigned?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -185,6 +187,7 @@ export class GatewayReportService {
       acquirer,
       startDate,
       endDate,
+      unassigned,
       limit = 100,
       offset = 0,
     } = query;
@@ -196,6 +199,11 @@ export class GatewayReportService {
     }
     if (acquirer) {
       conditions.push(eq(gatewayTransactions.acquirer, acquirer));
+    }
+    if (unassigned) {
+      // "Sin conciliar" = aún sin cuenta destino declarada, no "sin cuenta":
+      // la fila puede asignarse después.
+      conditions.push(isNull(gatewayTransactions.destinationBankAccountId));
     }
     if (startDate) {
       conditions.push(
@@ -232,11 +240,16 @@ export class GatewayReportService {
         settlementDate: gatewayTransactions.settlementDate,
         batchNumber: gatewayTransactions.batchNumber,
         status: gatewayTransactions.status,
+        destinationAccountLastFour: companyBankAccounts.accountLastFour,
         importedAt: gatewayTransactions.createdAt,
         importedByName: users.name,
       })
       .from(gatewayTransactions)
       .leftJoin(branches, eq(gatewayTransactions.branchId, branches.id))
+      .leftJoin(
+        companyBankAccounts,
+        eq(companyBankAccounts.id, gatewayTransactions.destinationBankAccountId)
+      )
       .leftJoin(users, eq(gatewayTransactions.importedBy, users.id))
       .where(whereClause)
       .orderBy(desc(gatewayTransactions.transactionDate))
@@ -265,5 +278,59 @@ export class GatewayReportService {
         totalNetCents: aggregates?.sumNet ?? 0,
       },
     };
+  }
+
+  /**
+   * Asignar (o corregir) la cuenta destino de filas ya importadas — la
+   * asignación retroactiva del import histórico. La cuenta se valida contra
+   * el catálogo ACTIVO de la misma empresa (mismo criterio de importReport);
+   * `null` significa "sin conciliar de nuevo", visible como badge, nunca
+   * oculto. La fila movida conserva su idempotencia de import — esto no es
+   * re-estampado, es la conciliación de la persona que cruza.
+   */
+  static async assignDestination(input: {
+    companyId: string;
+    transactionId: string;
+    /** `null` = desasignar (corrección de dedo), visible de nuevo como "Sin destino". */
+    destinationBankAccountId: string | null;
+  }): Promise<void> {
+    if (input.destinationBankAccountId) {
+      const [account] = await db
+        .select({ id: companyBankAccounts.id })
+        .from(companyBankAccounts)
+        .where(
+          and(
+            eq(companyBankAccounts.id, input.destinationBankAccountId),
+            eq(companyBankAccounts.companyId, input.companyId),
+            eq(companyBankAccounts.active, true)
+          )
+        )
+        .limit(1);
+      if (!account) {
+        throw ApiError.badRequest(
+          "La cuenta destino no existe en el catálogo activo de esta empresa."
+        );
+      }
+    }
+
+    const [updated] = await db
+      .update(gatewayTransactions)
+      .set({
+        destinationBankAccountId: input.destinationBankAccountId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(gatewayTransactions.id, input.transactionId),
+          eq(gatewayTransactions.companyId, input.companyId)
+        )
+      )
+      .returning({ id: gatewayTransactions.id });
+
+    if (!updated) {
+      throw ApiError.notFound(
+        "La transacción de pasarela no existe en esta empresa."
+      );
+    }
   }
 }
