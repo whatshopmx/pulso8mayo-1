@@ -28,25 +28,25 @@ catálogo de estatus legal [H04]: 15 días vigentes, iniciativa 30 días = `PEND
 
 ## Phase 2: Core — nómina + timbrado
 
-- [ ] **Task 4 (M)** — Percepción 002 + nómina extraordinaria en `fiscal-service.ts` — depende de Task 2
-  - [ ] `payrollTypeCode: 'O' | 'E'` (default 'O') + fechas del año causado
-  - [ ] Desglose 002 taxed/exempt
+- [x] **Task 4 (M)** — Percepción 002 + nómina extraordinaria en `fiscal-service.ts` — depende de Task 2
+  - [x] `payrollTypeCode: 'O' | 'E'` (default 'O') + fechas del año causado
+  - [x] Desglose 002 taxed/exempt
   - **Verify:** test del payload: tipo E, 002, `expectedTotal` cuadra; ordinaria sin cambios
 
-- [ ] **Task 5 (M)** — Run de aguinaldo: esquema + `aguinaldo-payroll-service.ts` — depende de Tasks 2, 4
-  - [ ] Migración: `payroll_runs.aguinaldoFiscalYear` + `payroll_payslips.aguinaldoCents` (sin DROP)
-  - [ ] `previsualizarAguinaldo(companyId, anioFiscal, branchId?)`
-  - [ ] `executeAguinaldoRun` con idempotencia por companyId+año
+- [x] **Task 5 (M)** — Run de aguinaldo: esquema + `aguinaldo-payroll-service.ts` — depende de Tasks 2, 4
+  - [x] Migración: `payroll_runs.aguinaldoFiscalYear` + `payroll_payslips.aguinaldoCents` (sin DROP)
+  - [x] `previsualizarAguinaldo(companyId, anioFiscal, branchId?)`
+  - [x] `executeAguinaldoRun` con idempotencia por companyId+año
   - **Verify:** migración generada revisada; smoke sandbox: preview → run → payslip tipo E
 
-- [ ] **Task 6 (S)** — API `app/api/payroll/aguinaldo/route.ts` — depende de Task 5
-  - [ ] GET preview / POST execute; `getSession()` + scoping companyId; warning fuera de diciembre
+- [x] **Task 6 (S)** — API `app/api/payroll/aguinaldo/route.ts` — depende de Task 5
+  - [x] GET preview / POST execute; `getSession()` + scoping companyId; warning fuera de diciembre
   - **Verify:** 401 sin sesión; datos de otro tenant no accesibles
 
 ### Checkpoint 2
-- [ ] Migración aplicada sin DROP
-- [ ] Smoke dev: preview → timbrado E → payslip con uuid
-- [ ] `pnpm test:unit` verde
+- [x] Migración aplicada sin DROP
+- [x] Smoke dev: preview → timbrado E → payslip con uuid
+- [x] `pnpm test:unit` verde
 
 ## Phase 3: Polish — UI, diciembre, provisiones
 

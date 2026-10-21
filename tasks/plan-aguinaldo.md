@@ -51,14 +51,14 @@ Tres fases que hacen tres cosas: (1) un **servicio puro de cálculo de aguinaldo
 
 ### Phase 2: Core Features — nómina + timbrado
 
-- [ ] **Task 4 (M): Percepción 002 + nómina extraordinaria en `fiscal-service.ts`.**
+- [x] **Task 4 (M): Percepción 002 + nómina extraordinaria en `fiscal-service.ts`.**
   - `NominaTimbradoInput`: `payrollTypeCode?: 'O' | 'E'` (default 'O', retrocompatible) y permitir fechas `paymentDate/initialPaymentDate/finalPaymentDate` del año causado.
   - `construirDesgloseNomina` (en `payroll-service.ts`) o variante aguinaldo: genera percepción `{ earningTypeCode: "002", concept: "Gratificación anual (Aguinaldo)", taxedAmount, exemptAmount }`.
   - Test del payload: tipo E + 002 exenta/gravada + `seniority` intacto.
   - **AC:** payload CFDI de nómina extraordinaria con 002 construye y suma línea por línea (cuadra `expectedTotal`).
   - **Depends:** Task 2.
 
-- [ ] **Task 5 (M): Run de aguinaldo — esquema + servicio.**
+- [x] **Task 5 (M): Run de aguinaldo — esquema + servicio.**
   - Migración (`tasks/` la numera; `pnpm db:generate`): `payroll_runs.aguinaldoFiscalYear int NULL` (o `payrollType` en runs) + `payroll_payslips.aguinaldoCents int NOT NULL DEFAULT 0`. Sin DROP.
   - Nuevo `lib/services/aguinaldo-payroll-service.ts`:
     - `previsualizarAguinaldo(companyId, anioFiscal, branchId?)`: por empleado activo con contrato → días, bruto, exento, gravado (usa Task 2 + `employeeContracts.baseSalary` y `employeeProfiles`).
@@ -66,7 +66,7 @@ Tres fases que hacen tres cosas: (1) un **servicio puro de cálculo de aguinaldo
   - **AC:** preview suma al total de la pre-flight; run timbra en sandbox EKU9003173C9 y guarda payslip; re-run bloqueado.
   - **Depends:** Tasks 2, 4.
 
-- [ ] **Task 6 (S): API `app/api/payroll/aguinaldo/route.ts`.**
+- [x] **Task 6 (S): API `app/api/payroll/aguinaldo/route.ts`.**
   - GET preview y POST execute; `getSession()` + scoping por `companyId` (multi-tenant estricto); guard de ventana (sólo >=01-dic tolerado, fuera con warning en la respuesta, no bloqueo duro).
   - **AC:** 401 sin sesión; respuestas acotadas al tenant; errores del timbrado están en `results[]` como en `executePayrollRun`.
   - **Depends:** Task 5.
