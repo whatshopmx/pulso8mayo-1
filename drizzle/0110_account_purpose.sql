@@ -1,0 +1,2 @@
+CREATE TYPE "public"."account_purpose" AS ENUM('DISPERSION', 'RECEPCION', 'MIXTO');--> statement-breakpoint
+ALTER TABLE "company_bank_accounts" ADD COLUMN "purpose" "account_purpose" DEFAULT 'MIXTO' NOT NULL;

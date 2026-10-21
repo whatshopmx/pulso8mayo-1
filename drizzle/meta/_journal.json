@@ -764,6 +764,13 @@
       "when": 1792368239402,
       "tag": "0109_recurring_payables",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1792597712634,
+      "tag": "0110_account_purpose",
+      "breakpoints": true
     }
   ]
 }

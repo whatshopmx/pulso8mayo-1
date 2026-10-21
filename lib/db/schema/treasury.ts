@@ -310,6 +310,16 @@ export const payeeBankAccounts = pgTable("payee_bank_accounts", {
  * `active` es baja lógica: una cuenta siempre es evidencia de de dónde salió
  * un pago. El selector de corridas solo muestra las activas.
  */
+/**
+ * Propósito de la cuenta propia: por dónde dispersa y por dónde recibe el grupo.
+ * MIXTO preserva el comportamiento anterior — una cuenta sola hace ambos lados.
+ */
+export const accountPurposeEnum = pgEnum("account_purpose", [
+  "DISPERSION",
+  "RECEPCION",
+  "MIXTO",
+]);
+
 export const companyBankAccounts = pgTable("company_bank_accounts", {
   id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
   companyId: uuid("company_id").notNull().references(() => companies.id),
@@ -336,6 +346,13 @@ export const companyBankAccounts = pgTable("company_bank_accounts", {
 
   /** Baja lógica. Nunca se borra: es evidencia desde dónde se dispersó. */
   active: boolean("active").default(true).notNull(),
+
+  /**
+   * DISPERSION = alimenta corridas de pago; RECEPCION = aterrizan depósitos de
+   * pasarela; MIXTO = ambas. El default no es una jaula: todo preselección por
+   * propósito es overridable a mano.
+   */
+  purpose: accountPurposeEnum("purpose").default("MIXTO").notNull(),
 
   registeredBy: text("registered_by").notNull().references(() => users.id),
 
