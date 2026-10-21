@@ -63,14 +63,14 @@ sólo last-4 en HTTP · multi-tenant por `companyId` · migraciones sin DROP (`p
 
 ## Phase 3: Platforms (Fase C)
 
-- [ ] **Task 9 (M)** — Adquirentes de plataforma, migración `0113_aggregator_acquirers.sql`
+- [x] **Task 9 (M)** — Adquirentes de plataforma (0113 aplicada, ADD VALUE por statement fuera de transacción) + parser de payouts + UI
   - [ ] `ALTER TYPE terminal_acquirer_enum ADD VALUE` RAPPI / UBER_EATS / DIDI / DOORDASH — **uno por statement, fuera de transacción con otros DDL**
   - [ ] Parser genérico: mapeo CSV agregador (fecha, orden/folio, bruto, comisión, neto) reusando dedupe `(companyId, acquirer, externalId)`
   - [ ] Upload UI expone nuevos adquirentes; `aggregatorSales` del negocio NO se toca
   - **Verify:** payout Rappi sintético → filas fee>0 + folio; re-import no duplica
   - ⚠️ *Open question: pedir 1 CSV real de cada plataforma antes de implementar el mapping*
 
-- [ ] **Task 10 (M)** — Reporte de cruce de plataforma *(reusa UI de Task 8)*
+- [x] **Task 10 (M)** — Reporte de cruce por plataforma: tab Plataformas en conciliación de pasarelas (+ API platform-report)
   - [ ] SUM(gross)/SUM(fee)/SUM(net) por acquirer/período vs movimientos MATCHED de fase B; % comisión efectiva
   - **Verify:** 2 payouts de la misma plataforma → cruce cuadra en centavos
 
@@ -85,7 +85,16 @@ sólo last-4 en HTTP · multi-tenant por `companyId` · migraciones sin DROP (`p
   - [ ] Pregunta de producto abierta: ¿qué cuenta alimenta el cash-flow?
   - **Verify:** propuesta escrita antes de estimar; sin migración
 
-## Done When (del spec)
+## Done When (del spec) — estado de esta corrida
+- [x] Propósito declarado por cuenta + preselección con override a mano (Tasks 1-4)
+- [x] Reporte de pasarela declara destino por fila (o "Sin destino" visible, no oculto) — Tasks 2-4
+- [x] Entradas con sugerencia, confirmación atómica y reversión — mismo protocolo que salidas (Tasks 5-8)
+- [x] Rappi/Uber Eats/DiDi/DoorDash de primera clase con comisión, dedupe y cruce por plataforma (Tasks 9-10)
+- [x] Cero números de cuenta completos en HTTP; sólo last-4 (proyección en todos los joins nuevos)
+- [x] `pnpm run build` verde; suite unitaria verde (fallo preexistente en seed-safety, ajeno)
+- [ ] **Verify manual en dev pendiente:** import CSV con depósito → confirmar → cruce visible en ambos lados; 2 payouts de la misma plataforma → cuadre en centavos (necesita dev server + datos; Task 11 bloqueada igualmente por diseño pendiente)
+
+
 - [ ] Propósito declarado por cuenta + preselección con override a mano
 - [ ] Reporte de pasarela declara destino por fila (o "Sin destino" visible, no oculto)
 - [ ] Entradas con sugerencia, confirmación atómica y reversión — mismo protocolo que salidas
