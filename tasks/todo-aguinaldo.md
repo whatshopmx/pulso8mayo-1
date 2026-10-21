@@ -7,20 +7,20 @@ catálogo de estatus legal [H04]: 15 días vigentes, iniciativa 30 días = `PEND
 ## Phase 1: Foundation — cálculo legal puro
 
 - [x] **Task 1 (S)** — Estatuto legal del aguinaldo
-  - [ ] `AGUINALDO_30_DIAS` en `lib/company/labor-reform-status-catalog.ts` (`PENDING_INITIATIVE`)
-  - [ ] `aguinaldoDaysMxn` con vigencia por fecha en `labor-law-ref` + `labor-rules-resolver` + seed
-  - **Verify:** `pnpm test:unit` — `resolveLaborLawRules(hoy).aguinaldoDaysMxn === 15`
+  - [x] `AGUINALDO_30_DIAS` en `lib/company/labor-reform-status-catalog.ts` (`PENDING_INITIATIVE`)
+  - [x] `aguinaldoDaysMxn` con vigencia por fecha en `labor-law-ref` + `labor-rules-resolver` + seed
+  - **✅Verify:** `pnpm test:unit` — `resolveLaborLawRules(hoy).aguinaldoDaysMxn === 15`
 
 - [x] **Task 2 (M)** — Servicio puro `lib/services/aguinaldo-service.ts` — depende de Task 1
-  - [ ] `calcularAguinaldoAnual`: dias = 15/365 × días año fiscal; prorrateo; exención min(30 × UMA fecha)
-  - [ ] Tests `lib/__tests__/aguinaldo-service.test.ts`: año completo, 200 días, comisionista, faltas, cap exención, <1 año
-  - **Verify:** `pnpm test:unit -- aguinaldo` verde; función sin DB
+  - [x] `calcularAguinaldoAnual`: dias = 15/365 × días año fiscal; prorrateo; exención min(30 × UMA fecha)
+  - [x] Tests `lib/__tests__/aguinaldo-service.test.ts`: año completo, 200 días, comisionista, faltas, cap exención, <1 año
+  - **✅Verify:** `pnpm test:unit -- aguinaldo` verde; función sin DB
 
 - [x] **Task 3 (S)** — Alinear cálculos existentes — depende de Task 2
-  - [ ] `calculateLFT2026Benefits`: default 15 + prorrateo + `estatusLegal`
-  - [ ] `settlement-calculator.tsx` usa el servicio compartido (misma UI)
-  - [ ] Test batch3 actualizado
-  - **Verify:** `pnpm test:unit` verde · números de finiquito sin regresión
+  - [x] `calculateLFT2026Benefits`: default 15 + prorrateo + `estatusLegal`
+  - [x] `settlement-calculator.tsx` usa el servicio compartido (misma UI)
+  - [x] Test batch3 actualizado
+  - **✅Verify:** `pnpm test:unit` verde · números de finiquito sin regresión
 
 ### Checkpoint 1
 - [x] `pnpm test:unit` verde (fallo preexistente fuera de scope: seed-safety)
