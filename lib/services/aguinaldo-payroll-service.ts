@@ -25,7 +25,7 @@ import {
     employeeContracts,
 } from "@/lib/db/schema";
 import { eq, and, desc, gte } from "drizzle-orm";
-import { calcularAguinaldoAnual, diasCalendarioAguinaldo, resolverEstatusLegal, type AguinaldoCalculo, type AguinaldoLegalEstatus, type AguinaldoBase } from "./aguinaldo-service";
+import { calcularAguinaldoAnual, diasCalendarioAguinaldo, resolverEstatusLegal, DIAS_PRORRATEO, type AguinaldoCalculo, type AguinaldoLegalEstatus, type AguinaldoBase } from "./aguinaldo-service";
 import { resolveLaborLawRules } from "./labor-rules-resolver";
 import { timbrarNomina, percepcionAguinaldo } from "./fiscal-service";
 import { calcularRetencionAguinaldoArt174 } from "./isr-annual-withholding";
@@ -203,6 +203,13 @@ export async function previsualizarAguinaldo(
     if (!Number.isInteger(anioFiscal) || anioFiscal < 1970 || anioFiscal > 2200) {
         throw new RangeError(`anioFiscal inválido: ${anioFiscal}`);
     }
+    // Validar antes de resolver fuentes o crear el run: null/NaN/string no
+    // significan "sin override" y cero es un ajuste manual válido.
+    for (const value of Object.values(dias.diasLaboradosPorUsuario ?? {})) {
+        if (!Number.isInteger(value) || value < 0 || value > DIAS_PRORRATEO + 1) {
+            throw new RangeError(`diasLaborados inválido (0..${DIAS_PRORRATEO + 1}): ${value}`);
+        }
+    }
     const regla = await resolverReglaLey();
     const rowsBase = await cargarPlantillaAguinaldo(companyId, anioFiscal, branchId);
 
@@ -235,7 +242,7 @@ export async function previsualizarAguinaldo(
         const calculo = calcularAguinaldoAnual({
             anioFiscal,
             salarioDiarioCents: row.salarioDiarioCents,
-            diasLaborados: diasLaborados || undefined,
+            diasLaborados,
             aguinaldoDaysMxn: regla.aguinaldoDaysMxn,
             umaDailyCents: regla.umaDailyCents,
             base: "REGISTERED",
@@ -246,7 +253,7 @@ export async function previsualizarAguinaldo(
             : calcularAguinaldoAnual({
                 anioFiscal,
                 salarioDiarioCents: row.salarioEfectivoCents,
-                diasLaborados: diasLaborados || undefined,
+                diasLaborados,
                 aguinaldoDaysMxn: regla.aguinaldoDaysMxn,
                 umaDailyCents: regla.umaDailyCents,
                 base: "EFFECTIVE",
