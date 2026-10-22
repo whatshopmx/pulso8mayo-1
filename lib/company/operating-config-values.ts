@@ -40,6 +40,9 @@ export interface OperatingConfigValues {
   laborBurdenFactorPercent?: string | null;
   payrollStateTaxPercent?: string | null;
   mermaVarianceThresholdPct?: string | null;
+  // Task 10 plan-aguinaldo — práctica de nómina y base del aguinaldo.
+  payrollPracticeMode?: string | null;
+  aguinaldoBase?: string | null;
 }
 
 export interface OperatingDimensionsValues {
@@ -84,6 +87,10 @@ export interface FiscalParamsValues {
   stateTax: string;
   /** Umbral de varianza de conteo (%). Vacío = `null` = 5% del sistema. */
   mermaThreshold: string;
+  /** Práctica de nómina. "" = `null` = FORMAL (comportamiento actual). */
+  payrollPracticeMode: string;
+  /** Base del aguinaldo. "" = `null` = REGISTERED (salario de registro). */
+  aguinaldoBase: string;
 }
 
 export interface OperatingConfigFormState {
@@ -193,6 +200,12 @@ export function valoresIniciales(config: OperatingConfigValues | null): Operatin
       laborBurden: percentONulo(config?.laborBurdenFactorPercent, ""),
       stateTax: percentONulo(config?.payrollStateTaxPercent, ""),
       mermaThreshold: percentONulo(config?.mermaVarianceThresholdPct, "5"),
+      // Task 10: "" = `null` = default (FORMAL / REGISTERED). FORMAL guardado
+      // explícito se muestra como "" — comportamentalmente son el mismo estado.
+      payrollPracticeMode:
+        config?.payrollPracticeMode === "MIXED" ? "MIXED" : "",
+      aguinaldoBase:
+        config?.aguinaldoBase === "EFFECTIVE" ? "EFFECTIVE" : "",
     },
   };
 }
@@ -218,6 +231,8 @@ export interface ConfigBody {
   laborBurdenFactorPercent: number | null;
   payrollStateTaxPercent: number | null;
   mermaVarianceThresholdPct: number | null;
+  payrollPracticeMode: string | null;
+  aguinaldoBase: string | null;
 }
 
 export function cuerpoDeConfiguracion(state: OperatingConfigFormState): ConfigBody {
@@ -255,6 +270,10 @@ export function cuerpoDeConfiguracion(state: OperatingConfigFormState): ConfigBo
     laborBurdenFactorPercent: porcentajeONulo(fiscal.laborBurden),
     payrollStateTaxPercent: porcentajeONulo(fiscal.stateTax),
     mermaVarianceThresholdPct: porcentajeONulo(fiscal.mermaThreshold),
+    // Vacío = `null` = default del inquilino; nunca se escribe "FORMAL"/"REGISTERED"
+    // explícito porque el estado default ya significa eso.
+    payrollPracticeMode: fiscal.payrollPracticeMode.trim() === "" ? null : fiscal.payrollPracticeMode,
+    aguinaldoBase: fiscal.aguinaldoBase.trim() === "" ? null : fiscal.aguinaldoBase,
   };
 }
 

@@ -91,6 +91,10 @@ const updateConfigSchema = z
     vatRatePercent: nullablePercentSchema,
     laborBurdenFactorPercent: nullablePercentSchema,
     payrollStateTaxPercent: nullablePercentSchema,
+    // Task 10 plan-aguinaldo: práctica de nómina y base del aguinaldo.
+    // `null` = default (FORMAL / REGISTERED) — inquilino sin configurar.
+    payrollPracticeMode: z.enum(["FORMAL", "MIXED"]).nullable(),
+    aguinaldoBase: z.enum(["REGISTERED", "EFFECTIVE"]).nullable(),
   })
   .partial()
   .superRefine((data, ctx) => {

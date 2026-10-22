@@ -569,3 +569,50 @@ export class EmployeeService {
     });
   }
 }
+
+/**
+ * Task 10 plan-aguinaldo — práctica de nómina y salario efectivo.
+ *
+ * Funciones puras (sin DB): la lectura de `employeeContracts`/
+ * `tenantOperatingConfig` queda en el consumidor; esto normaliza NULL y el gap
+ * para que nómina, aguinado, finiquito y costo laboral no repliquen la regla.
+ */
+
+export type PayrollPracticeMode = 'FORMAL' | 'MIXED';
+export type AguinaldoBase = 'REGISTERED' | 'EFFECTIVE';
+
+export interface SalarioEfectivoResuelto {
+    /** Salario de registro del contrato (CFDI/nómina). */
+    baseRegistradaCents: number;
+    /** Salario realmente recibido: la parte en efectivo es derivada, nunca se captura suelta. */
+    salarioEfectivoCents: number;
+    /** efectivo − registrado. 0 = empleado formal (sin gap). Puede ser negativo si el dato así llega. */
+    gapCents: number;
+    /** true cuando no hay dato efectivo o es igual al base — regresión cero. */
+    esFormal: boolean;
+}
+
+/** NULL = FORMAL: todo inquilino sin configurar sigue como hoy. */
+export function resolvePayrollPracticeMode(mode: string | null | undefined): PayrollPracticeMode {
+    return mode === 'MIXED' ? 'MIXED' : 'FORMAL';
+}
+
+/** NULL = REGISTERED: el aguinado se paga sobre el salario de registro (default legal/práctica dominante). */
+export function resolveAguinaldoBase(base: string | null | undefined): AguinaldoBase {
+    return base === 'EFFECTIVE' ? 'EFFECTIVE' : 'REGISTERED';
+}
+
+export function resolveEffectiveSalary(
+    baseSalaryCents: number,
+    effectiveSalaryCents: number | null | undefined,
+): SalarioEfectivoResuelto {
+    const efectivo = effectiveSalaryCents != null && effectiveSalaryCents > 0
+        ? effectiveSalaryCents
+        : baseSalaryCents;
+    return {
+        baseRegistradaCents: baseSalaryCents,
+        salarioEfectivoCents: efectivo,
+        gapCents: efectivo - baseSalaryCents,
+        esFormal: efectivo === baseSalaryCents,
+    };
+}

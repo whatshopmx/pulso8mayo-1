@@ -3,7 +3,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Percent, Receipt, Landmark, Scale } from "lucide-react";
+import { Percent, Receipt, Landmark, Scale, Users } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { FiscalParamsValues } from "@/lib/company/operating-config-values";
 
 /**
@@ -138,6 +145,62 @@ export function FiscalParamsSection({ values, onChange, errors = {} }: FiscalPar
             error={errors.mermaThreshold}
             icon={Scale}
           />
+        </div>
+
+        {/* Task 10 plan-aguinaldo — práctica de nómina y base del aguinaldo.
+            Selección, no número: deciden QUÉ Featuren calcula el motor, y el
+            default (FORMAL / REGISTERED) es lo que ya hace el sistema hoy. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-1.5 p-3.5 rounded-lg bg-muted/20 border border-border/60">
+            <Label htmlFor="payrollPracticeMode" className="text-xs font-semibold flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              Práctica de nómina
+            </Label>
+            <Select
+              value={values.payrollPracticeMode}
+              onValueChange={(v) => onChange("payrollPracticeMode", v)}
+            >
+              <SelectTrigger id="payrollPracticeMode" className="text-sm font-medium">
+                <SelectValue placeholder="FORMAL (default)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="FORMAL">FORMAL — todo el salario por nómina</SelectItem>
+                <SelectItem value="MIXED">MIXED — parte del salario se paga fuera de nómina</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground leading-tight">
+              En MIXED los contratos permiten capturar el salario efectivo real. La
+              parte en efectivo se ve siempre como gap y nunca se mezcla con el timbrado.
+            </p>
+            {errors.payrollPracticeMode && (
+              <p role="alert" className="text-xs text-destructive">{errors.payrollPracticeMode}</p>
+            )}
+          </div>
+          <div className="space-y-1.5 p-3.5 rounded-lg bg-muted/20 border border-border/60">
+            <Label htmlFor="aguinaldoBase" className="text-xs font-semibold flex items-center gap-1.5">
+              <Receipt className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              Base del aguinaldo
+            </Label>
+            <Select
+              value={values.aguinaldoBase}
+              onValueChange={(v) => onChange("aguinaldoBase", v)}
+            >
+              <SelectTrigger id="aguinaldoBase" className="text-sm font-medium">
+                <SelectValue placeholder="Salario de registro (default)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="REGISTERED">Salario de registro — lo que timbra el CFDI</SelectItem>
+                <SelectItem value="EFFECTIVE">Salario efectivo — el real recibido</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground leading-tight">
+              Con EFFECTIVE el aguinaldo se calcula sobre el salario real; la parte
+              que excede lo timbrable se dispersa aparte, con bitácora y sin CFDI.
+            </p>
+            {errors.aguinaldoBase && (
+              <p role="alert" className="text-xs text-destructive">{errors.aguinaldoBase}</p>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

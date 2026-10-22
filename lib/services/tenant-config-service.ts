@@ -100,6 +100,12 @@ export const DEFAULT_TENANT_OPERATING_CONFIG: Omit<TenantOperatingConfigData, "c
     payrollStateTaxPercent: null,
     // Task 9 plan-aguinaldo: la provisión informativa es visible por default.
     showAguinaldoProvision: true,
+    // Task 10 plan-aguinaldo: práctica de nómina y base del aguinaldo. `null`
+    // es el default y significa "FORMAL" / "REGISTERED": todo inquilino sin
+    // estos campos configurados sigue calculando exactamente como hoy. Sólo un
+    // inquilino MIXED puede capturar `effectiveSalaryCents` en contratos.
+    payrollPracticeMode: null,
+    aguinaldoBase: null,
 };
 
 /**
