@@ -1927,6 +1927,13 @@ export const employeeContracts = pgTable("employee_contracts", {
     weeklySalary: integer("weekly_salary"), // Calculated weekly salary
     currency: text("currency").default('MXN'),
 
+    // Task 10 plan-aguinaldo: salario REAL recibido por el empleado, en centavos
+    // diarios (incluye la parte que se paga fuera de nómina). La parte en
+    // efectivo es DERIVADA (`effective − baseSalary`) y jamás se captura por
+    // separado. NULL o igual a `baseSalary` = empleado FORMAL: todo el sistema
+    // (nómina, CFDI, finiquito, costo laboral) se comporta exactamente como hoy.
+    effectiveSalaryCents: integer("effective_salary_cents"),
+
     // Benefits
     hasHealthInsurance: boolean("has_health_insurance").default(false),
     hasLifeInsurance: boolean("has_life_insurance").default(false),
@@ -3315,6 +3322,17 @@ export const tenantOperatingConfig = pgTable("tenant_operating_config", {
     // calculado que, cuando el faltante lo supera, genera merma automática
     // con razón OTHER y origen `diferencia_conteo`. Default 5%.
     mermaVarianceThresholdPct: numeric("merma_variance_threshold_pct", { precision: 5, scale: 2 }).default("5.00"),
+
+    // Task 10 plan-aguinaldo: práctica de nómina. `text` a propósito (no enum
+    // pg) porque son dimensiones nuevas con reglas de transición aún abiertas.
+    // `payrollPracticeMode`: FORMAL (default cuando NULL) | MIXED — en MIXED es
+    // legítimo capturar `employeeContracts.effectiveSalaryCents`. La parte en
+    // efectivo SIEMPRE se ve como gap: nunca se mezcla con el timbrado (riesgo
+    // de sub-registro, R: "la config podría normalizar la práctica informal").
+    // `aguinaldoBase`: qué base paga el aguinaldo: REGISTERED (default) | EFFECTIVE.
+    // La lectura resuelve NULL → REGISTERED/FORMAL; el consumidor nunca ve undefined.
+    payrollPracticeMode: text("payroll_practice_mode"),
+    aguinaldoBase: text("aguinaldo_base"),
 
     // Task 9 plan-aguinaldo: visibilidad de la provisión mensual informativa
     // de aguinaldo en costo laboral (DERIVED/estimación, NO es asiento contable
