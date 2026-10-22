@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CheckCircle, AlertCircle, Gift, Banknote, Landmark, Building2 } from "lucide-react";
+import { Loader2, CheckCircle, AlertCircle, Gift, Banknote, Landmark, Building2, HandCoins } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +27,10 @@ interface AguinaldoRow {
   name: string;
   rfc: string | null;
   salarioDiarioCents: number;
+  /** Task 11: salario efectivo real; formal = igual al registrado. */
+  salarioEfectivoCents: number;
+  gapSalarioCents: number;
+  esFormal: boolean;
   diasCalendario: number;
   diasLaborados: number;
   fechaAntiguedad: string | null;
@@ -36,6 +40,7 @@ interface AguinaldoRow {
     gravadoCents: number;
     diasAguinaldo: number;
   } | null;
+  diferenciaCents: number;
   error?: string;
 }
 
@@ -45,11 +50,24 @@ interface AguinaldoPreview {
   estatusLegal: { fuente: "LEY_VIGENTE" | "PROYECCION"; basis: string; diasLegalesVigente: number };
   aguinaldoDaysMxn: number;
   umaDailyCents: number | null;
+  /** Task 11: base configurada del inquilino y práctica de nómina. */
+  base: "REGISTERED" | "EFFECTIVE";
+  practiceMode: "FORMAL" | "MIXED";
   totalBrutoCents: number;
   totalExentoCents: number;
   totalGravadoCents: number;
+  totalDiferenciaCents: number;
   empleadosATimbrar: number;
   empleadosSinRFC: number;
+}
+
+interface DispersionBitacora {
+  id: string;
+  userName: string | null;
+  montoCents: number;
+  motivo: string;
+  source: string;
+  fechaDispersion: string;
 }
 
 interface AguinaldoRun {
@@ -81,6 +99,12 @@ export function AguinaldoCard() {
   const [running, setRunning] = useState(false);
   const [runs, setRuns] = useState<AguinaldoRun[]>([]);
   const [loadingRuns, setLoadingRuns] = useState(true);
+  // Task 11 (Q5): dispersión manual del excedente en efectivo (sin CFDI).
+  const [dispUserId, setDispUserId] = useState<string>("");
+  const [dispMonto, setDispMonto] = useState<string>("");
+  const [dispMotivo, setDispMotivo] = useState<string>("");
+  const [dispensing, setDispensing] = useState(false);
+  const [bitacora, setBitacora] = useState<DispersionBitacora[]>([]);
 
   const { toast } = useToast();
 
@@ -140,6 +164,65 @@ export function AguinaldoCard() {
     fetchBranches();
     fetchRuns();
   }, [fetchBranches, fetchRuns]);
+
+  const fetchBitacora = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/payroll/aguinaldo?anioFiscal=${anioFiscal}&dispersiones=1`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBitacora((data.data.dispersiones ?? []) as DispersionBitacora[]);
+      }
+    } catch (err) {
+      console.error("Error fetching dispersiones:", err);
+    }
+  }, [anioFiscal]);
+
+  useEffect(() => {
+    fetchBitacora();
+  }, [fetchBitacora]);
+
+  const handleDispersionManual = async () => {
+    const montoCents = Math.round(Number(dispMonto) * 100);
+    if (!dispUserId || !Number.isFinite(montoCents) || montoCents <= 0 || !dispMotivo.trim()) {
+      toast({
+        title: "Datos de dispersión incompletos",
+        description: "Selecciona empleado, captura un monto mayor a cero y escribe el motivo.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setDispensing(true);
+    try {
+      const res = await fetch("/api/payroll/aguinaldo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anioFiscal,
+          action: "DISPERSION",
+          dispersion: { userId: dispUserId, montoCents, motivo: dispMotivo.trim() },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Error registrando la dispersión en efectivo");
+      }
+      toast({
+        title: "Excedente registrado en bitácora",
+        description: "Dispersión en efectivo sin CFDI: queda con empleado, monto, fecha, autorizador y motivo.",
+      });
+      setDispMonto("");
+      setDispMotivo("");
+      fetchBitacora();
+    } catch (err: unknown) {
+      toast({
+        title: "No se pudo registrar",
+        description: err instanceof Error ? err.message : "Error de dispersión manual",
+        variant: "destructive",
+      });
+    } finally {
+      setDispensing(false);
+    }
+  };
 
   useEffect(() => {
     cargarPreview();
@@ -204,25 +287,42 @@ export function AguinaldoCard() {
   const calculoLocal = (row: AguinaldoRow) => {
     if (!preview || row.error) return null;
     const dias = diasEditados[row.userId] ?? row.diasLaborados;
-    return calcularAguinaldoAnual({
+    const calculo = calcularAguinaldoAnual({
       anioFiscal: preview.anioFiscal,
       salarioDiarioCents: row.salarioDiarioCents,
       diasLaborados: dias || undefined,
       aguinaldoDaysMxn: preview.aguinaldoDaysMxn,
       umaDailyCents: preview.umaDailyCents,
+      base: "REGISTERED",
     });
+    const calculoEfectivo = row.esFormal
+      ? null
+      : calcularAguinaldoAnual({
+          anioFiscal: preview.anioFiscal,
+          salarioDiarioCents: row.salarioEfectivoCents,
+          diasLaborados: dias || undefined,
+          aguinaldoDaysMxn: preview.aguinaldoDaysMxn,
+          umaDailyCents: preview.umaDailyCents,
+          base: "EFFECTIVE",
+        });
+    return {
+      calculo,
+      brutoEfectivo: calculoEfectivo?.brutoCents ?? null,
+      diferencia: calculoEfectivo ? calculoEfectivo.brutoCents - calculo.brutoCents : 0,
+    };
   };
   const totales = rowsTimbrables.reduce(
     (acc, r) => {
       const c = calculoLocal(r);
       if (c) {
-        acc.bruto += c.brutoCents;
-        acc.exento += c.exentoCents;
-        acc.gravado += c.gravadoCents;
+        acc.bruto += c.calculo.brutoCents;
+        acc.exento += c.calculo.exentoCents;
+        acc.gravado += c.calculo.gravadoCents;
+        acc.diferencia += c.diferencia;
       }
       return acc;
     },
-    { bruto: 0, exento: 0, gravado: 0 }
+    { bruto: 0, exento: 0, gravado: 0, diferencia: 0 }
   );
 
   return (
@@ -296,9 +396,11 @@ export function AguinaldoCard() {
                 <TableRow className="bg-muted/40">
                   <TableHead className="text-xs">Empleado</TableHead>
                   <TableHead className="text-xs text-center">Días a considerar</TableHead>
-                  <TableHead className="text-xs text-right">Bruto</TableHead>
+                  <TableHead className="text-xs text-right">Bruto (registro)</TableHead>
                   <TableHead className="text-xs text-right">Exento (30 UMA)</TableHead>
                   <TableHead className="text-xs text-right">Gravado</TableHead>
+                  <TableHead className="text-xs text-right">Bruto (efectivo)</TableHead>
+                  <TableHead className="text-xs text-right">{preview?.base === "EFFECTIVE" ? "Excedente en efectivo" : "Liabilidad contingente"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -308,6 +410,11 @@ export function AguinaldoCard() {
                       <div className="font-semibold">{row.name}</div>
                       <div className="text-muted-foreground font-mono">
                         {row.rfc ?? "sin RFC"} · SD {formatCents(row.salarioDiarioCents)}
+                        {row.gapSalarioCents !== 0 && (
+                          <span className="text-amber-600 dark:text-amber-400" title="Salario efectivo: incluye la parte fuera de nómina">
+                            {" ·"} real {formatCents(row.salarioEfectivoCents)} (gap +{formatCents(row.gapSalarioCents)})
+                          </span>
+                        )}
                       </div>
                       {row.error && (
                         <div className="text-destructive flex items-start gap-1 mt-0.5">
@@ -335,18 +442,30 @@ export function AguinaldoCard() {
                       )}
                       {calculoLocal(row) && !row.error && (
                         <div className="text-[10px] text-muted-foreground mt-0.5">
-                          = {(calculoLocal(row)!.diasAguinaldo).toFixed(2)} días agui. · calendario {row.diasCalendario}
+                          = {(calculoLocal(row)!.calculo.diasAguinaldo).toFixed(2)} días agui. · calendario {row.diasCalendario}
                         </div>
                       )}
                     </TableCell>
                     <TableCell className="text-xs font-mono text-right font-semibold">
-                      {calculoLocal(row) ? formatCents(calculoLocal(row)!.brutoCents) : "—"}
+                      {calculoLocal(row) ? formatCents(calculoLocal(row)!.calculo.brutoCents) : "—"}
                     </TableCell>
                     <TableCell className="text-xs font-mono text-right text-emerald-600 dark:text-emerald-400">
-                      {calculoLocal(row) ? formatCents(calculoLocal(row)!.exentoCents) : "—"}
+                      {calculoLocal(row) ? formatCents(calculoLocal(row)!.calculo.exentoCents) : "—"}
                     </TableCell>
                     <TableCell className="text-xs font-mono text-right">
-                      {calculoLocal(row) ? formatCents(calculoLocal(row)!.gravadoCents) : "—"}
+                      {calculoLocal(row) ? formatCents(calculoLocal(row)!.calculo.gravadoCents) : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-right">
+                      {calculoLocal(row)?.brutoEfectivo != null
+                        ? formatCents(calculoLocal(row)!.brutoEfectivo!)
+                        : <span className="text-muted-foreground" title="Formal: efectivo = registro">=</span>}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-right">
+                      {calculoLocal(row) && calculoLocal(row)!.diferencia > 0 ? (
+                        <span className="font-semibold text-amber-600 dark:text-amber-400">{formatCents(calculoLocal(row)!.diferencia)}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -356,6 +475,8 @@ export function AguinaldoCard() {
                   <TableCell className="text-xs font-mono text-right font-bold">{formatCents(totales.bruto)}</TableCell>
                   <TableCell className="text-xs font-mono text-right font-bold text-emerald-600 dark:text-emerald-400">{formatCents(totales.exento)}</TableCell>
                   <TableCell className="text-xs font-mono text-right font-bold">{formatCents(totales.gravado)}</TableCell>
+                  <TableCell />
+                  <TableCell className="text-xs font-mono text-right font-bold text-amber-600 dark:text-amber-400">{formatCents(totales.diferencia)}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -385,6 +506,21 @@ export function AguinaldoCard() {
               <span>Timbrables / Sin RFC:</span>
               <span className="font-mono">{preview ? `${preview.empleadosATimbrar} / ${preview.empleadosSinRFC}` : "—"}</span>
             </div>
+            {preview && totales.diferencia > 0 && (
+              <div className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-800 dark:text-amber-200">
+                {preview.base === "EFFECTIVE" ? (
+                  <>
+                    <strong>Base EFFECTIVE:</strong> el excedente de {formatCents(totales.diferencia)} se dispersa
+                    en efectivo con bitácora; el CFDI 002 sólo cubre la parte registrada.
+                  </>
+                ) : (
+                  <>
+                    <strong>Base REGISTERED:</strong> gap de {formatCents(totales.diferencia)} NO se paga:
+                    liabilidad contingente (prescripción 1 año, LFT art. 516; base real: J. 1a./J. 24/2023).
+                  </>
+                )}
+              </div>
+            )}
             <Button
               onClick={handleEjecutar}
               className="w-full text-xs font-semibold h-9 mt-1"
@@ -400,6 +536,72 @@ export function AguinaldoCard() {
               )}
             </Button>
           </div>
+
+          {/* Task 11 (Q5): dispersión manual del excedente (sin CFDI), sólo base EFFECTIVE */}
+          {preview?.base === "EFFECTIVE" && (
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-xs">
+              <div className="font-semibold text-foreground flex items-center gap-1.5">
+                <HandCoins className="h-3.5 w-3.5" /> Excedente en efectivo (bitácora, sin CFDI)
+              </div>
+              <p className="text-muted-foreground leading-tight">
+                La parte del aguinado que excede lo timbrable se paga fuera de nómina y queda
+                registrada con fecha, autorizador y motivo. Nunca se disfraza de percepción timbrada.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Select value={dispUserId} onValueChange={setDispUserId}>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue placeholder="Empleado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {preview.rows.map((r) => (
+                      <SelectItem key={r.userId} value={r.userId}>{r.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="h-7 text-xs font-mono"
+                  placeholder="Monto (MXN)"
+                  value={dispMonto}
+                  onChange={(e) => setDispMonto(e.target.value)}
+                  aria-label="Monto de la dispersión en pesos"
+                />
+              </div>
+              <Input
+                className="h-7 text-xs"
+                placeholder="Motivo (obligatorio) — p. ej. aguinado real pagado fuera de nómina"
+                value={dispMotivo}
+                onChange={(e) => setDispMotivo(e.target.value)}
+                aria-label="Motivo de la dispersión"
+              />
+              <Button
+                onClick={handleDispersionManual}
+                className="w-full text-xs font-semibold h-8"
+                variant="outline"
+                disabled={dispensing}
+              >
+                {dispensing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Registrar en bitácora
+              </Button>
+              {bitacora.length > 0 && (
+                <div className="max-h-32 overflow-y-auto divide-y divide-border border border-border rounded">
+                  {bitacora.map((b) => (
+                    <div key={b.id} className="px-2 py-1.5 flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-mono font-semibold">{formatCents(b.montoCents)} · {b.userName ?? b.id}</div>
+                        <div className="text-[10px] text-muted-foreground leading-tight">{b.motivo}</div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          {format(new Date(`${b.fechaDispersion.slice(0, 19)}Z`), "dd MMM yyyy", { locale: es })} · {b.source}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="rounded-md border border-border">
             <div className="px-3 py-2 border-b border-border text-xs font-bold text-foreground">

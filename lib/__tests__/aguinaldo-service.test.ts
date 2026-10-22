@@ -171,3 +171,46 @@ describe("guardas de entrada", () => {
         expect(r.diasAguinaldo).toBeCloseTo(15, 9); // sigue 15 días sobre 365
     });
 });
+
+describe("Task 11 — base REGISTERED vs EFFECTIVE (sub-registro)", () => {
+    /** Empleado mixto: registrado $300, real $500 (parte en efectivo $200). */
+    const REG = 30_000;
+    const EFF = 50_000;
+
+    it("la misma fórmula aplica sobre la base elegida; el gap del aguinaldo es lineal en el salario", () => {
+        const reg = calcularAguinaldoAnual({
+            anioFiscal: 2026, salarioDiarioCents: REG, diasLaborados: 365,
+            umaDailyCents: UMA_2026_CENTS, base: "REGISTERED",
+        });
+        const eff = calcularAguinaldoAnual({
+            anioFiscal: 2026, salarioDiarioCents: EFF, diasLaborados: 365,
+            umaDailyCents: UMA_2026_CENTS, base: "EFFECTIVE",
+        });
+        expect(reg.brutoCents).toBe(450_000); // $300 × 15
+        expect(eff.brutoCents).toBe(750_000); // $500 × 15
+        // Diferencia = liabilidad contingente (base REGISTERED) o excedente a
+        // dispersar (base EFFECTIVE) — misma cifra, distinta postura.
+        expect(eff.brutoCents - reg.brutoCents).toBe(300_000); // $3,000
+    });
+
+    it("el excedente siempre se determina contra lo timbrable: el CFDI cubre sólo la parte registrada", () => {
+        const reg = calcularAguinaldoAnual({
+            anioFiscal: 2026, salarioDiarioCents: REG, diasLaborados: 365,
+            umaDailyCents: UMA_2026_CENTS, base: "REGISTERED",
+        });
+        // bruto registrado $4,500 < cap $3,394.20? NO: $4,500 > cap → exento parcial.
+        expect(reg.exentoCents).toBe(CAP_EXENCION_2026);
+        expect(reg.exentoCents + reg.gravadoCents).toBe(reg.brutoCents);
+    });
+
+    it("la exención de 30 UMA se aplica sobre el bruto de cada base, no se comparte", () => {
+        const salaris = [REG, EFF];
+        for (const s of salaris) {
+            const r = calcularAguinaldoAnual({
+                anioFiscal: 2026, salarioDiarioCents: s, diasLaborados: 365,
+                umaDailyCents: UMA_2026_CENTS,
+            });
+            expect(r.exentoCents).toBe(Math.min(r.brutoCents, CAP_EXENCION_2026));
+        }
+    });
+});
