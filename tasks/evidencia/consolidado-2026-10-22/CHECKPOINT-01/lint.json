@@ -1,0 +1,6 @@
+{
+  "command": "pnpm.cmd exec eslint lib/services/aguinaldo-payroll-service.ts lib/__tests__/aguinaldo-payroll-service.test.ts lib/__tests__/fiscal-fixtures.test.ts tests/fixtures/fiscal-2026.ts",
+  "startedAt": "2026-10-22T20:04:27.369Z",
+  "finishedAt": "2026-10-22T20:06:54.037Z",
+  "exit": 0
+}

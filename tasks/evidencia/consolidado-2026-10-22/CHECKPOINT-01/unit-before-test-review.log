@@ -1,0 +1,116 @@
+pnpm.cmd run test:unit --maxWorkers=2
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+ ❯ lib/__tests__/aguinaldo-payroll-service.test.ts (11 tests | 1 failed) 101ms
+     × MANUAL positivo prevalece al automático en ambas bases 33ms
+seed run 1: seed-01-foundation OK
+seed run 1: seed-02-hr-profiles OK
+seed run 1: seed-03-equipment OK
+seed run 1: seed-04-inventory OK
+seed run 1: seed-05-workflows OK
+seed run 1: seed-06-labor OK
+seed run 1: seed-07-compliance-kpi OK
+seed run 1: seed-08-hr-advanced OK
+seed run 1: seed-09-whatsapp OK
+seed run 1: seed-10-final OK
+seed run 1: seed-11-control-orders OK
+seed run 1: seed-12-sales-pos OK
+seed run 1: seed-13-receiving-matching OK
+seed run 1: seed-14-current-operations OK
+seed run 1: seed-15-financial-close OK
+seed run 1: seed-16-executive-control OK
+seed run 1: seed-labor-law-rules OK
+seed run 1: seed-18-finance OK
+seed run 1: seed-19-evidence-civil OK
+seed run 2: seed-01-foundation OK
+seed run 2: seed-02-hr-profiles OK
+seed run 2: seed-03-equipment OK
+seed run 2: seed-04-inventory OK
+seed run 2: seed-05-workflows OK
+seed run 2: seed-06-labor OK
+seed run 2: seed-07-compliance-kpi OK
+seed run 2: seed-08-hr-advanced OK
+seed run 2: seed-09-whatsapp OK
+seed run 2: seed-10-final OK
+seed run 2: seed-11-control-orders OK
+seed run 2: seed-12-sales-pos OK
+seed run 2: seed-13-receiving-matching OK
+seed run 2: seed-14-current-operations OK
+seed run 2: seed-15-financial-close OK
+seed run 2: seed-16-executive-control OK
+seed run 2: seed-labor-law-rules OK
+seed run 2: seed-18-finance OK
+seed run 2: seed-19-evidence-civil OK
+{"level":40,"time":1767268800000,"pid":28316,"hostname":"daveescam","component":"rate-limiter","msg":"Redis not available, falling back to in-memory rate limiting"}
+{"level":50,"time":1792700255242,"pid":12548,"hostname":"daveescam","component":"inngest:workflow-extractors","instanceId":"instance-28","extractor":"stock-count","err":"Error: agotó reintentos","msg":"Extractor agotó sus reintentos"}
+
+ Test Files  1 failed | 156 passed (157)
+      Tests  1 failed | 1877 passed | 1 skipped | 1 todo (1880)
+   Start at  20:13:07
+   Duration  321.42s (transform 43.68s, setup 0ms, import 412.39s, tests 78.70s, environment 53ms)
+
+[ELIFECYCLE] Command failed with exit code 1.
+$ vitest run --configLoader bundle "--maxWorkers=2"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  lib/__tests__/aguinaldo-payroll-service.test.ts > AGU-01 — días explícitos en preview y run (DB/proveedor simulados) > MANUAL positivo prevalece al automático en ambas bases
+AssertionError: expected "vi.fn()" to be called with arguments: [ ObjectContaining{…} ]
+
+Received:
+
+  1st vi.fn() call:
+
+  [
+-   ObjectContaining {
+-     "totalDeducciones": 0,
++   {
++     "companyId": "company",
++     "desgloseDeducciones": [
++       {
++         "amount": 4023,
++         "code": "002",
++         "concept": "ISR retenido del aguinaldo 2026 (Art. 174 RLISR)",
++         "deductionTypeCode": "002",
++       },
++     ],
++     "desglosePercepciones": [
++       {
++         "amount": 36986,
++         "exemptAmount": 36986,
++       },
++     ],
++     "empleadoFechaContratacion": "2026-01-01",
++     "empleadoNombre": "Empleado",
++     "empleadoRfc": "TEST010101AAA",
++     "empleadoSalarioDiarioCents": 30000,
++     "fechaPago": "2026-10-22",
++     "fechaPagoFinal": "2026-12-31",
++     "fechaPagoInicial": "2026-01-01",
++     "payrollTypeCode": "E",
++     "performedBy": "actor",
++     "periodo": "2026-AGU",
++     "totalDeducciones": 4023,
+      "totalPercepciones": 36986,
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ lib/__tests__/aguinaldo-payroll-service.test.ts:86:31
+     84|         state.reads = [[], roster];
+     85|         await executeAguinaldoRun("company", 2026, "actor", { diasLabo…
+     86|         expect(state.timbrar).toHaveBeenCalledWith(expect.objectContai…
+       |                               ^
+     87|         expect(state.writes.find((w) => w.table === payrollPayslips)?.…
+     88|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+EXIT=1

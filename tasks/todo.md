@@ -93,6 +93,8 @@ sólo last-4 en HTTP · multi-tenant por `companyId` · migraciones sin DROP (`p
   - **Verify:** grupo anclado cuadra en centavos; con 1 cuenta sin ancla vuelve al fallback y nombra cuál falta
 
 ## Done When (del spec) — estado de esta corrida
+
+Seguimiento consolidado: [TRACK-01](todo-consolidado-faltante.md). Las marcas siguientes conservan la evidencia de implementación de la corrida original; la aceptación DB/UI de BAN-01–04 y BAN-05/06 continúa pendiente en ese checklist. No equivalen a despliegue ni a conciliación operativa acreditada.
 - [x] Propósito declarado por cuenta + preselección con override a mano (Tasks 1-4)
 - [x] Reporte de pasarela declara destino por fila (o "Sin destino" visible, no oculto) — Tasks 2-4
 - [x] Entradas con sugerencia, confirmación atómica y reversión — mismo protocolo que salidas (Tasks 5-8)
@@ -100,11 +102,3 @@ sólo last-4 en HTTP · multi-tenant por `companyId` · migraciones sin DROP (`p
 - [x] Cero números de cuenta completos en HTTP; sólo last-4 (proyección en todos los joins nuevos)
 - [x] `pnpm run build` verde; suite unitaria verde (fallo preexistente en seed-safety, ajeno)
 - [ ] **Verify manual en dev pendiente:** import CSV con depósito → confirmar → cruce visible en ambos lados; 2 payouts de la misma plataforma → cuadre en centavos (necesita dev server + datos; Task 11 bloqueada igualmente por diseño pendiente)
-
-
-- [ ] Propósito declarado por cuenta + preselección con override a mano
-- [ ] Reporte de pasarela declara destino por fila (o "Sin destino" visible, no oculto)
-- [ ] Entradas con sugerencia, confirmación atómica y reversión — mismo protocolo que salidas
-- [ ] Rappi/Uber Eats/DiDi/DoorDash de primera clase con comisión, dedupe y cruce por plataforma
-- [ ] Cero números de cuenta completos en HTTP; sólo last-4
-- [ ] Suite de `bank-statement-service` cubre entradas; `pnpm run build` y tests verdes

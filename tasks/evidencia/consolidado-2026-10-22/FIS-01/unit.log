@@ -1,0 +1,175 @@
+pnpm.cmd : $ vitest run --configLoader bundle "--" "lib/__tests__/fiscal-fixtures.test.ts"
+En línea: 2 Carácter: 1
++ pnpm.cmd run test:unit -- lib/__tests__/fiscal-fixtures.test.ts *> ta ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ vitest run --...xtures.test.ts":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the
+default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"`
+in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+seed run 1: seed-01-foundation OK
+seed run 1: seed-02-hr-profiles OK
+seed run 1: seed-03-equipment OK
+seed run 1: seed-04-inventory OK
+seed run 1: seed-05-workflows OK
+seed run 1: seed-06-labor OK
+seed run 1: seed-07-compliance-kpi OK
+seed run 1: seed-08-hr-advanced OK
+seed run 1: seed-09-whatsapp OK
+seed run 1: seed-10-final OK
+seed run 1: seed-11-control-orders OK
+seed run 1: seed-12-sales-pos OK
+seed run 1: seed-13-receiving-matching OK
+seed run 1: seed-14-current-operations OK
+seed run 1: seed-15-financial-close OK
+{"level":40,"time":1767268800000,"pid":23300,"hostname":"daveescam","component":"rate-limiter","msg":"Redis not available, falling back to in-memory rate limiting"}
+seed run 1: seed-16-executive-control OK
+seed run 1: seed-labor-law-rules OK
+seed run 1: seed-18-finance OK
+seed run 1: seed-19-evidence-civil OK
+seed run 2: seed-01-foundation OK
+seed run 2: seed-02-hr-profiles OK
+seed run 2: seed-03-equipment OK
+seed run 2: seed-04-inventory OK
+seed run 2: seed-05-workflows OK
+seed run 2: seed-06-labor OK
+seed run 2: seed-07-compliance-kpi OK
+seed run 2: seed-08-hr-advanced OK
+seed run 2: seed-09-whatsapp OK
+seed run 2: seed-10-final OK
+seed run 2: seed-11-control-orders OK
+seed run 2: seed-12-sales-pos OK
+seed run 2: seed-13-receiving-matching OK
+seed run 2: seed-14-current-operations OK
+seed run 2: seed-15-financial-close OK
+seed run 2: seed-16-executive-control OK
+seed run 2: seed-labor-law-rules OK
+seed run 2: seed-18-finance OK
+seed run 2: seed-19-evidence-civil OK
+{"level":50,"time":1792699090117,"pid":27644,"hostname":"daveescam","component":"inngest:workflow-extractors","instanceId":"instance-28","extractor":"stock-count","err":"Error: agotó reintentos","msg":"Extractor agotó sus reintentos"}
+ ❯ lib/__tests__/fiscal-fixtures.test.ts (17 tests | 4 failed) 68ms
+     × Art. 96: 1000000 centavos, mes 1 25ms
+     × Art. 96: 1000000 centavos, mes 2 3ms
+     × Art. 96: 1149266 centavos, mes 12 5ms
+     × Art. 96: 1149267 centavos, mes 12 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  lib/__tests__/fiscal-fixtures.test.ts > FIS-01 — oráculos oficiales independientes > Art. 96: 1000000 centavos,
+mes 1
+AssertionError: expected { impuestoCents: 72902, …(3) } to match object { impuestoCents: 72878, …(2) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "impuestoCents": 72878,
+-   "impuestoNetoCents": 19257,
++   "impuestoCents": 72902,
++   "impuestoNetoCents": 19281,
+    "subsidioCents": 53621,
+  }
+
+ ❯ lib/__tests__/fiscal-fixtures.test.ts:9:66
+      7| describe("FIS-01 — oráculos oficiales independientes", () => {
+      8|     it.each(monthlyIsrFixtures)("Art. 96: $baseCents centavos, mes $mo…
+      9|         expect(calcularISRMensual96(f.baseCents, 2026, f.month)).toMat…
+       |                                                                  ^
+     10|             impuestoCents: f.taxCents,
+     11|             subsidioCents: f.subsidyCents,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  lib/__tests__/fiscal-fixtures.test.ts > FIS-01 — oráculos oficiales independientes > Art. 96: 1000000 centavos,
+mes 2
+AssertionError: expected { impuestoCents: 72902, …(3) } to match object { impuestoCents: 72878, …(2) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "impuestoCents": 72878,
+-   "impuestoNetoCents": 19313,
++   "impuestoCents": 72902,
++   "impuestoNetoCents": 19337,
+    "subsidioCents": 53565,
+  }
+
+ ❯ lib/__tests__/fiscal-fixtures.test.ts:9:66
+      7| describe("FIS-01 — oráculos oficiales independientes", () => {
+      8|     it.each(monthlyIsrFixtures)("Art. 96: $baseCents centavos, mes $mo…
+      9|         expect(calcularISRMensual96(f.baseCents, 2026, f.month)).toMat…
+       |                                                                  ^
+     10|             impuestoCents: f.taxCents,
+     11|             subsidioCents: f.subsidyCents,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  lib/__tests__/fiscal-fixtures.test.ts > FIS-01 — oráculos oficiales independientes > Art. 96: 1149266 centavos,
+mes 12
+AssertionError: expected { impuestoCents: 89142, …(3) } to match object { impuestoCents: 89118, …(2) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "impuestoCents": 89118,
+-   "impuestoNetoCents": 35553,
++   "impuestoCents": 89142,
++   "impuestoNetoCents": 35577,
+    "subsidioCents": 53565,
+  }
+
+ ❯ lib/__tests__/fiscal-fixtures.test.ts:9:66
+      7| describe("FIS-01 — oráculos oficiales independientes", () => {
+      8|     it.each(monthlyIsrFixtures)("Art. 96: $baseCents centavos, mes $mo…
+      9|         expect(calcularISRMensual96(f.baseCents, 2026, f.month)).toMat…
+       |                                                                  ^
+     10|             impuestoCents: f.taxCents,
+     11|             subsidioCents: f.subsidyCents,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  lib/__tests__/fiscal-fixtures.test.ts > FIS-01 — oráculos oficiales independientes > Art. 96: 1149267 centavos,
+mes 12
+AssertionError: expected { impuestoCents: 89142, …(3) } to match object { impuestoCents: 89118, …(2) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "impuestoCents": 89118,
+-   "impuestoNetoCents": 89118,
++   "impuestoCents": 89142,
++   "impuestoNetoCents": 89142,
+    "subsidioCents": 0,
+  }
+
+ ❯ lib/__tests__/fiscal-fixtures.test.ts:9:66
+      7| describe("FIS-01 — oráculos oficiales independientes", () => {
+      8|     it.each(monthlyIsrFixtures)("Art. 96: $baseCents centavos, mes $mo…
+      9|         expect(calcularISRMensual96(f.baseCents, 2026, f.month)).toMat…
+       |                                                                  ^
+     10|             impuestoCents: f.taxCents,
+     11|             subsidioCents: f.subsidyCents,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed | 155 passed (156)
+      Tests  4 failed | 1863 passed | 1 skipped | 1 todo (1869)
+   Start at  19:56:46
+   Duration  99.72s (transform 42.74s, setup 0ms, import 460.21s, tests 74.77s, environment 64ms)
+
+[ELIFECYCLE] Command failed with exit code 1.
+EXIT=1

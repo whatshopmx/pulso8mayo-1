@@ -1,0 +1,3 @@
+pnpm.cmd exec eslint lib/services/aguinaldo-payroll-service.ts lib/__tests__/aguinaldo-payroll-service.test.ts lib/__tests__/fiscal-fixtures.test.ts tests/fixtures/fiscal-2026.ts
+
+EXIT=0

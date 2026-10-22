@@ -4,6 +4,8 @@ Plan: [plan.md](plan.md). Investigación: [INFORME.md](../../audits/2026-10-17-s
 
 Estado inicial: todas las tareas pendientes; guardar este plan no acredita implementación.
 
+Actualización TRACK-01 (2026-10-22): [plan consolidado](../../plans/2026-plan-consolidado-trabajo-faltante.md) y [línea base](../evidencia/consolidado-2026-10-22/BASE-01/README.md). H02 corresponde a nómina, H03 a excepciones y H07 a producto terminado (PROD-01/02); temperatura de recepción es REC-TEMP. Existen sync/flag reversible de excepciones, importación/matching bancario y snapshots P&L; las casillas abiertas requieren aceptación del recorrido, no reimplementar esos avances. BAN-01–04 no se cierran con mocks. Tasks 10–14 de aguinaldo se conservan y se corrigen con FIS/AGU/DIA. IMSS continúa en [su tracker](../todo-imss.md).
+
 
 
 ## Fase 1 — P0: accesos y recepción

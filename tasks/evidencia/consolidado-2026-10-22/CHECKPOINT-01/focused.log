@@ -1,0 +1,16 @@
+pnpm.cmd run test:unit lib/__tests__/aguinaldo-payroll-service.test.ts lib/__tests__/fiscal-fixtures.test.ts
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+
+ Test Files  2 passed (2)
+      Tests  28 passed (28)
+   Start at  20:28:22
+   Duration  25.70s (transform 4.24s, setup 0ms, import 21.81s, tests 191ms, environment 0ms)
+
+$ vitest run --configLoader bundle "lib/__tests__/aguinaldo-payroll-service.test.ts" "lib/__tests__/fiscal-fixtures.test.ts"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+EXIT=0
