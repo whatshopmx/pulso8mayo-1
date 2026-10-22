@@ -31,6 +31,7 @@ import { timbrarNomina, percepcionAguinaldo } from "./fiscal-service";
 import { calcularRetencionAguinaldoArt174 } from "./isr-annual-withholding";
 import { getTenantOperatingConfig } from "./tenant-config-service";
 import { resolveAguinaldoBase, resolveEffectiveSalary } from "./employee-service";
+import { conteoDiasLaboradosAnual, type FuenteDias } from "./dias-laborados-service";
 
 export interface AguinaldoPreviewRow {
     userId: string;
@@ -61,6 +62,14 @@ export interface AguinaldoPreviewRow {
      * con bitácora. 0 cuando es formal.
      */
     diferenciaCents: number;
+    /**
+     * Task 14: fuente de los días usados. MANUAL = el admin tocó el campo
+     * (prevalece); TURNOS_Y_PERMISOS = conteo automático cruzado;
+     * CALENDARIO = fallback calendario sin turnos/permisos capturados.
+     */
+    fuenteDias?: FuenteDias | "MANUAL" | "CALENDARIO";
+    /** Días propuestos por el conteo automático (NULL si no hay datos). */
+    diasAutomaticos: number | null;
     /** Dato faltante o contrato no activo: no puede timbrar. */
     error?: string;
 }
@@ -156,6 +165,7 @@ async function cargarPlantillaAguinaldo(companyId: string, anioFiscal: number, b
             calculo: null,
             calculoEfectivo: null,
             diferenciaCents: 0,
+            diasAutomaticos: null,
         };
 
         if (!tieneContrato) {
@@ -196,6 +206,10 @@ export async function previsualizarAguinaldo(
     const regla = await resolverReglaLey();
     const rowsBase = await cargarPlantillaAguinaldo(companyId, anioFiscal, branchId);
 
+    // Task 14: conteo automático turnos COMPLETED ∪ permisos pagados.
+    // Propuesto ≡ ajustable: el valor manual del admin prevalece.
+    const conteo = await conteoDiasLaboradosAnual(companyId, anioFiscal);
+
     // Task 11: la base y práctica de nómina salen de la config del inquilino.
     const config = await getTenantOperatingConfig(companyId);
     const base = resolveAguinaldoBase(config.aguinaldoBase);
@@ -204,7 +218,19 @@ export async function previsualizarAguinaldo(
     const rows: AguinaldoPreviewRow[] = rowsBase.map((row) => {
         if (row.error) return row;
         const manual = dias.diasLaboradosPorUsuario?.[row.userId];
-        const diasLaborados = typeof manual === "number" ? manual : row.diasCalendario;
+        const auto = conteo.porUsuario[row.userId];
+        let diasLaborados: number;
+        let fuenteDias: "MANUAL" | "TURNOS_Y_PERMISOS" | "CALENDARIO";
+        if (typeof manual === "number") {
+            diasLaborados = manual;
+            fuenteDias = "MANUAL";
+        } else if (auto && auto.dias > 0) {
+            diasLaborados = auto.dias;
+            fuenteDias = "TURNOS_Y_PERMISOS";
+        } else {
+            diasLaborados = row.diasCalendario;
+            fuenteDias = "CALENDARIO";
+        }
         // El CFDI 002 SIEMPRE cubre la parte registrada; el gap jamás se timbra.
         const calculo = calcularAguinaldoAnual({
             anioFiscal,
@@ -228,7 +254,15 @@ export async function previsualizarAguinaldo(
         const diferenciaCents = calculoEfectivo
             ? calculoEfectivo.brutoCents - calculo.brutoCents
             : 0;
-        return { ...row, diasLaborados, calculo, calculoEfectivo, diferenciaCents };
+        return {
+            ...row,
+            diasLaborados,
+            fuenteDias,
+            diasAutomaticos: auto && auto.dias > 0 ? auto.dias : row.diasAutomaticos,
+            calculo,
+            calculoEfectivo,
+            diferenciaCents,
+        };
     });
 
     const totales = rows.reduce(

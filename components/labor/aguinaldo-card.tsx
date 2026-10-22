@@ -33,6 +33,9 @@ interface AguinaldoRow {
   esFormal: boolean;
   diasCalendario: number;
   diasLaborados: number;
+  /** Task 14: fuente de los días — MANUAL, TURNOS_Y_PERMISOS o CALENDARIO. */
+  fuenteDias?: "MANUAL" | "TURNOS_Y_PERMISOS" | "CALENDARIO";
+  diasAutomaticos: number | null;
   fechaAntiguedad: string | null;
   calculo: {
     brutoCents: number;
@@ -442,7 +445,12 @@ export function AguinaldoCard() {
                       )}
                       {calculoLocal(row) && !row.error && (
                         <div className="text-[10px] text-muted-foreground mt-0.5">
-                          = {(calculoLocal(row)!.calculo.diasAguinaldo).toFixed(2)} días agui. · calendario {row.diasCalendario}
+                          = {(calculoLocal(row)!.calculo.diasAguinaldo).toFixed(2)} días agui. ·{" "}
+                          {row.fuenteDias === "TURNOS_Y_PERMISOS"
+                            ? `auto: turnos+permisos (${row.diasAutomaticos})`
+                            : row.fuenteDias === "MANUAL"
+                              ? `ajuste manual · auto ${row.diasAutomaticos ?? "s/datos"} · calendario ${row.diasCalendario}`
+                              : `calendario ${row.diasCalendario} (sin turnos/permisos)`}
                         </div>
                       )}
                     </TableCell>

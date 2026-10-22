@@ -93,20 +93,22 @@ catálogo de estatus legal [H04]: 15 días vigentes, iniciativa 30 días = `PEND
 
 ## Phase 5: Follow-ups con decisión resuelta
 
-- [ ] **Task 13 (M)** — Retención ISR Art. 174 RLISR (decisión Q1) — después del Checkpoint 2
-  - [ ] `lib/services/isr-annual-withholding.ts`: tarifa anual + subsidio al empleo, aguinaldo como ingreso separado
-  - [ ] Integración a `executeAguinaldoRun` y después a la nómina ordinaria (hoy deducciones en 0)
-  - **Verify:** caso numérico de estudio en test verde
+- [x] **Task 13 (M)** — Retención ISR Art. 174 RLISR (decisión Q1) — después del Checkpoint 2
+  - [x] `lib/services/isr-annual-withholding.ts`: tarifa mensual/anual 2026 (Anexo 8 RMF, DOF 28-dic-2025) + subsidio al empleo (Decreto 31-dic-2025; tope $11,492.66, enero 15.59%)
+  - [x] Integración a `executeAguinaldoRun`: tarifa del año/mes de dispersión, retención sobre el aguinaldo íntegro, deducción clave 002 en el CFDI; nómina ordinaria queda acoplada al módulo (`calcularISRMensual96` exportado)
+  - **✅Verify:** caso de estudio verde — SD $600 (mensual $18,240), aguinaldo $9,000 → retención $1,922.37; ejemplo SAT $15,000 → $1,402.82 y contigüidad de renglones verificados en `isr-annual-withholding.test.ts`
 
-- [ ] **Task 14 (M)** — Conteo automático de días laborados (decisión Q2 fase 2) — depende de Tasks 2, 7
-  - [ ] Cruce `shiftSessions` + `leaveRequests` → `diasLaboradosPorEmpleado(year)` con fuente declarada
-  - [ ] Prellenar el campo editable de la preview; el ajuste manual del admin prevalece
-  - **Verify:** conteo reproducible; ajuste manual se respeta
+- [x] **Task 14 (M)** — Conteo automático de días laborados (decisión Q2 fase 2) — depende de Tasks 2, 7
+  - [x] Cruce `shiftSessions` (COMPLETED) + `leaveRequests` (APPROVED/COMPLETED, `leaveTypes.isPaid`) → `conteoDiasLaboradosAnual(year)` con unión unique (sin doble conteo); fuente declarada por empleado
+  - [x] Prellenar el campo editable de la preview: MANUAL prevalece > TURNOS_Y_PERMISOS > CALENDARIO; la punta de la celda verbaliza la fuente
+  - **✅Verify:** helpers puros en `dias-laborados.test.ts` verdes; ajuste manual se respeta (semántica `diasLaboradosPorUsuario` intacta)
 
 **Checkpoint 5**
-- [ ] Retención ISR con caso de estudio verde
-- [ ] Conteo de días reproducible con fuente declarada
-- [ ] `pnpm test:unit` + `pnpm build` limpios
+- [x] Retención ISR con caso de estudio verde
+- [x] Conteo de días reproducible con fuente declarada
+- [x] `pnpm test:unit` (1850 verdes) + `pnpm run build` limpio (EXIT=0 con NODE_OPTIONS=--max-old-space-size=8192)
+
+## ESTADO: PLAN COMPLETO (Phases 1–5, Tasks 1–14)
 
 ## Decisiones resueltas (2026-10-20)
 1. **Q1 ISR** → Tarifa anual Art. 174 RLISR en Task 13, independiente del hito de diciembre
