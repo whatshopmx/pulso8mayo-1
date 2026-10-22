@@ -19,28 +19,47 @@ import { db } from "@/lib/db";
 import {
     payrollRuns,
     payrollPayslips,
+    payrollAguinaldoDispersiones,
     users,
     employeeProfiles,
     employeeContracts,
 } from "@/lib/db/schema";
 import { eq, and, desc, gte } from "drizzle-orm";
-import { calcularAguinaldoAnual, diasCalendarioAguinaldo, resolverEstatusLegal, type AguinaldoCalculo, type AguinaldoLegalEstatus } from "./aguinaldo-service";
+import { calcularAguinaldoAnual, diasCalendarioAguinaldo, resolverEstatusLegal, type AguinaldoCalculo, type AguinaldoLegalEstatus, type AguinaldoBase } from "./aguinaldo-service";
 import { resolveLaborLawRules } from "./labor-rules-resolver";
 import { timbrarNomina, percepcionAguinaldo } from "./fiscal-service";
+import { getTenantOperatingConfig } from "./tenant-config-service";
+import { resolveAguinaldoBase, resolveEffectiveSalary } from "./employee-service";
 
 export interface AguinaldoPreviewRow {
     userId: string;
     name: string;
     rfc: string | null;
     branchId: string | null;
+    /** Salario de registro del contrato (lo que timbra el CFDI). */
     salarioDiarioCents: number;
+    /** Task 11: salario efectivo real; sin capturar/tiempo formal = igual al registrado. */
+    salarioEfectivoCents: number;
+    /** Gap efectivo − registro. 0 = formal. Nunca se oculta en la preview. */
+    gapSalarioCents: number;
+    esFormal: boolean;
     /** Días calendario del año fiscal desde la antigüedad (fallback). */
     diasCalendario: number;
     /** Días a cobrar: manual por el admin si viene; fallback al calendario. */
     diasLaborados: number;
     /** Fecha fuente de la antigüedad usada para el fallback. */
     fechaAntiguedad: string | null;
+    /** Cálculo TIMBRABLE: salario de registro (el CFDI 002 sólo cubre la parte registrada). */
     calculo: AguinaldoCalculo | null;
+    /** Cálculo sobre el salario efectivo real; NULL cuando el empleado es formal. */
+    calculoEfectivo: AguinaldoCalculo | null;
+    /**
+     * bruto efectivo − bruto registrado. Con base REGISTERED es liabilidad
+     * contingente (pagable sólo si el trabajador reclama, prescripción 1 año
+     * LFT art. 516); con base EFFECTIVE es excedente a dispersar en efectivo
+     * con bitácora. 0 cuando es formal.
+     */
+    diferenciaCents: number;
     /** Dato faltante o contrato no activo: no puede timbrar. */
     error?: string;
 }
@@ -56,9 +75,15 @@ export interface AguinaldoPreview {
     /** Días legales resueltos para el cálculo (hoy 15, Art. 87). */
     aguinaldoDaysMxn: number;
     umaDailyCents: number | null;
+    /** Base configurada del inquilino (Task 11): REGISTERED default, o EFFECTIVE (sub-registro). */
+    base: AguinaldoBase;
+    /** Inquilinos en MIXED pueden capturar salario efectivo; FORMAL nunca hay gap. */
+    practiceMode: "FORMAL" | "MIXED";
     totalBrutoCents: number;
     totalExentoCents: number;
     totalGravadoCents: number;
+    /** Suma de la diferencia efectivo vs registro de los timbrables (~liabilidad o excedente). */
+    totalDiferenciaCents: number;
     empleadosATimbrar: number;
     empleadosSinRFC: number;
 }
@@ -91,6 +116,7 @@ async function cargarPlantillaAguinaldo(companyId: string, anioFiscal: number, b
             seniorityDate: employeeProfiles.seniorityDate,
             isActive: employeeProfiles.isActive,
             baseSalary: employeeContracts.baseSalary,
+            effectiveSalaryCents: employeeContracts.effectiveSalaryCents,
             contractStatus: employeeContracts.status,
         })
         .from(users)
@@ -112,6 +138,7 @@ async function cargarPlantillaAguinaldo(companyId: string, anioFiscal: number, b
         const tieneContrato = emp.contractStatus === "ACTIVE" && emp.baseSalary != null;
         const fechaAntiguedad = isoFecha(emp.seniorityDate) ?? isoFecha(emp.hireDate);
         const diasCalendario = diasCalendarioAguinaldo(anioFiscal, fechaAntiguedad ?? undefined);
+        const efectivo = resolveEffectiveSalary(emp.baseSalary ?? 0, emp.effectiveSalaryCents);
 
         const base: AguinaldoPreviewRow = {
             userId: emp.userId,
@@ -119,10 +146,15 @@ async function cargarPlantillaAguinaldo(companyId: string, anioFiscal: number, b
             rfc,
             branchId: emp.branchId ?? null,
             salarioDiarioCents: emp.baseSalary ?? 0,
+            salarioEfectivoCents: efectivo.salarioEfectivoCents,
+            gapSalarioCents: efectivo.gapCents,
+            esFormal: efectivo.esFormal,
             diasCalendario,
             diasLaborados: diasCalendario,
             fechaAntiguedad,
             calculo: null,
+            calculoEfectivo: null,
+            diferenciaCents: 0,
         };
 
         if (!tieneContrato) {
@@ -163,18 +195,39 @@ export async function previsualizarAguinaldo(
     const regla = await resolverReglaLey();
     const rowsBase = await cargarPlantillaAguinaldo(companyId, anioFiscal, branchId);
 
+    // Task 11: la base y práctica de nómina salen de la config del inquilino.
+    const config = await getTenantOperatingConfig(companyId);
+    const base = resolveAguinaldoBase(config.aguinaldoBase);
+    const practiceMode = config.payrollPracticeMode === "MIXED" ? "MIXED" as const : "FORMAL" as const;
+
     const rows: AguinaldoPreviewRow[] = rowsBase.map((row) => {
         if (row.error) return row;
         const manual = dias.diasLaboradosPorUsuario?.[row.userId];
         const diasLaborados = typeof manual === "number" ? manual : row.diasCalendario;
+        // El CFDI 002 SIEMPRE cubre la parte registrada; el gap jamás se timbra.
         const calculo = calcularAguinaldoAnual({
             anioFiscal,
             salarioDiarioCents: row.salarioDiarioCents,
             diasLaborados: diasLaborados || undefined,
             aguinaldoDaysMxn: regla.aguinaldoDaysMxn,
             umaDailyCents: regla.umaDailyCents,
+            base: "REGISTERED",
         });
-        return { ...row, diasLaborados, calculo };
+        // Segunda columna: bruto si se pagara sobre el salario efectivo real.
+        const calculoEfectivo = row.esFormal
+            ? null
+            : calcularAguinaldoAnual({
+                anioFiscal,
+                salarioDiarioCents: row.salarioEfectivoCents,
+                diasLaborados: diasLaborados || undefined,
+                aguinaldoDaysMxn: regla.aguinaldoDaysMxn,
+                umaDailyCents: regla.umaDailyCents,
+                base: "EFFECTIVE",
+            });
+        const diferenciaCents = calculoEfectivo
+            ? calculoEfectivo.brutoCents - calculo.brutoCents
+            : 0;
+        return { ...row, diasLaborados, calculo, calculoEfectivo, diferenciaCents };
     });
 
     const totales = rows.reduce(
@@ -183,9 +236,10 @@ export async function previsualizarAguinaldo(
             acc.bruto += r.calculo.brutoCents;
             acc.exento += r.calculo.exentoCents;
             acc.gravado += r.calculo.gravadoCents;
+            acc.diferencia += r.diferenciaCents;
             return acc;
         },
-        { bruto: 0, exento: 0, gravado: 0 }
+        { bruto: 0, exento: 0, gravado: 0, diferencia: 0 }
     );
 
     return {
@@ -196,9 +250,12 @@ export async function previsualizarAguinaldo(
         fuenteRegla: regla.source,
         aguinaldoDaysMxn: regla.aguinaldoDaysMxn,
         umaDailyCents: regla.umaDailyCents,
+        base,
+        practiceMode,
         totalBrutoCents: totales.bruto,
         totalExentoCents: totales.exento,
         totalGravadoCents: totales.gravado,
+        totalDiferenciaCents: totales.diferencia,
         empleadosATimbrar: rows.filter((r) => !r.error).length,
         empleadosSinRFC: rows.filter((r) => !r.error && !r.rfc).length,
     };
@@ -233,6 +290,11 @@ export async function executeAguinaldoRun(
     if (existente) throw new AguinaldoRunDuplicadoError(anioFiscal);
 
     const preview = await previsualizarAguinaldo(companyId, anioFiscal, branchId, dias);
+    // Task 11: con base EFFECTIVE, la parte del aguinado que excede lo timbrable
+    // (el gap de salario) se dispersa en efectivo y se registra en bitácora SIN
+    // CFDI; el CFDI 002 sólo cubre la parte registrada.
+    const config = await getTenantOperatingConfig(companyId);
+    const debeDispersarExcedente = resolveAguinaldoBase(config.aguinaldoBase) === "EFFECTIVE";
 
     const [run] = await db
         .insert(payrollRuns)
@@ -289,6 +351,21 @@ export async function executeAguinaldoRun(
                 .returning();
 
             results.push({ success: true, userId: row.userId, payslip });
+
+            // Bitácora del excedente en efectivo: registro con fecha, autorizador
+            // y motivo — jamás una percepción CFDI. Nadie lo verá en nómina timbrada.
+            if (debeDispersarExcedente && row.diferenciaCents > 0) {
+                await db.insert(payrollAguinaldoDispersiones).values({
+                    companyId,
+                    runId: run.id,
+                    source: "RUN",
+                    userId: row.userId,
+                    anioFiscal,
+                    montoCents: row.diferenciaCents,
+                    motivo: `Excedente del aguinado ${anioFiscal} pagado fuera de nómina: el CFDI 002 cubre sólo la parte de salario de registro; el gap se pagó en efectivo porque la base configurada del inquilino es EFFECTIVE (base real, J. 1a./J. 24/2023).`,
+                    performedBy: performedBy ?? "system",
+                });
+            }
         } catch (err: unknown) {
             const mensaje = err instanceof Error ? err.message : String(err);
             console.error(`Error timbrando aguinaldo ${anioFiscal} para ${row.userId}:`, mensaje);
@@ -327,4 +404,101 @@ export async function getAguinaldoRuns(companyId: string) {
         .from(payrollRuns)
         .where(and(eq(payrollRuns.companyId, companyId), gte(payrollRuns.aguinaldoFiscalYear, 1970)))
         .orderBy(desc(payrollRuns.createdAt));
+}
+
+/** Error de negocio del registro manual del excedente (400 para la API). */
+export class AguinaldoDispersionInvalidaError extends Error {
+    constructor(mensaje: string) {
+        super(mensaje);
+        this.name = "AguinaldoDispersionInvalidaError";
+    }
+}
+
+export interface RegistrarDispersionInput {
+    anioFiscal: number;
+    userId: string;
+    montoCents: number;
+    motivo: string;
+    performedBy: string;
+}
+
+/**
+ * Task 11 (decisión Q5) — dispersión manual del excedente en efectivo,
+ * con bitácora y sin CFDI: acción POST propia de la API de Task 6.
+ *
+ * Reglas:
+ *   • Sólo inquilinos con `aguinaldoBase = EFFECTIVE`: en REGISTERED el gap es
+ *     liabilidad contingente, NO se paga (pagar en efectivo y no registrarlo
+ *     profundiza el sub-registro).
+ *   • El empleado debe existir en la empresa; el monto es positivo y entero.
+ *   • Motivo obligatorio: la bitácora vale como prueba de dispersión real.
+ */
+export async function registrarDispersionExcedente(
+    companyId: string,
+    input: RegistrarDispersionInput
+): Promise<typeof payrollAguinaldoDispersiones.$inferSelect> {
+    if (!Number.isInteger(input.montoCents) || input.montoCents <= 0) {
+        throw new AguinaldoDispersionInvalidaError(
+            `El monto a dispersar debe ser un entero positivo de centavos: ${input.montoCents}`
+        );
+    }
+    if (!input.motivo?.trim()) {
+        throw new AguinaldoDispersionInvalidaError("El motivo de la dispersión en efectivo es obligatorio.");
+    }
+
+    const config = await getTenantOperatingConfig(companyId);
+    if (resolveAguinaldoBase(config.aguinaldoBase) !== "EFFECTIVE") {
+        throw new AguinaldoDispersionInvalidaError(
+            "La base del aguinado configurada es REGISTERED: el gap es liabilidad contingente, no se paga ni se dispersa en efectivo."
+        );
+    }
+
+    const empleado = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, input.userId), eq(users.companyId, companyId)))
+        .limit(1);
+    if (empleado.length === 0) {
+        throw new AguinaldoDispersionInvalidaError("Empleado no encontrado en esta empresa.");
+    }
+
+    const [row] = await db
+        .insert(payrollAguinaldoDispersiones)
+        .values({
+            companyId,
+            source: "MANUAL",
+            userId: input.userId,
+            anioFiscal: input.anioFiscal,
+            montoCents: input.montoCents,
+            motivo: input.motivo.trim(),
+            performedBy: input.performedBy,
+        })
+        .returning();
+    return row;
+}
+
+/** Bitácora de las dispersiones de excedente (por empresa y año para la UI). */
+export async function listarDispersionesExcedente(companyId: string, anioFiscal?: number) {
+    return await db
+        .select({
+            id: payrollAguinaldoDispersiones.id,
+            userId: payrollAguinaldoDispersiones.userId,
+            userName: users.name,
+            anioFiscal: payrollAguinaldoDispersiones.anioFiscal,
+            montoCents: payrollAguinaldoDispersiones.montoCents,
+            motivo: payrollAguinaldoDispersiones.motivo,
+            source: payrollAguinaldoDispersiones.source,
+            fechaDispersion: payrollAguinaldoDispersiones.fechaDispersion,
+            performedBy: payrollAguinaldoDispersiones.performedBy,
+        })
+        .from(payrollAguinaldoDispersiones)
+        .innerJoin(users, eq(users.id, payrollAguinaldoDispersiones.userId))
+        .where(
+            and(
+                eq(payrollAguinaldoDispersiones.companyId, companyId),
+                ...(anioFiscal ? [eq(payrollAguinaldoDispersiones.anioFiscal, anioFiscal)] : [])
+            )
+        )
+        .orderBy(desc(payrollAguinaldoDispersiones.fechaDispersion))
+        .limit(200);
 }

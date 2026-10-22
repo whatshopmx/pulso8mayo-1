@@ -4024,6 +4024,38 @@ export const payrollPayslips = pgTable("payroll_payslips", {
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+/**
+ * Task 11 plan-aguinaldo — bitácora de dispersión de excedente en efectivo.
+ *
+ * Cuando `aguinaldoBase = EFFECTIVE` y el salario efectivo excede el registrado,
+ * la parte del aguinaldo que excede lo timbrable se paga FUERA de nómina: se
+ * registra aquí con empleado, monto, fecha, autorizador y motivo — SIN CFDI.
+ * Nunca se disfraza de percepción timbrada: esta bitácora es prueba de la
+ * dispersión real para defensa laboral (J. 1a./J. 24/2023: base de salario real)
+ * y para el cierre contable, no una percepción fiscal.
+ *
+ * `runId` NULL con `source = MANUAL`: dispersión manual posterior registrada
+ * desde la UI (acción POST de la API de Task 6), sin run asociado.
+ */
+export const payrollAguinaldoDispersiones = pgTable("payroll_aguinaldo_dispersiones", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    runId: uuid("run_id").references(() => payrollRuns.id, { onDelete: 'set null' }),
+    /** RUN = dispersada automáticamente al ejecutar el run; MANUAL = registrada después desde la UI. */
+    source: text("source").notNull().default("RUN"), // RUN | MANUAL
+    userId: text("user_id").notNull().references(() => users.id),
+    anioFiscal: integer("anio_fiscal").notNull(),
+    montoCents: integer("monto_cents").notNull(),
+    /** Obligatorio: por qué se dispersó el excedente (trazable en juicio). */
+    motivo: text("motivo").notNull(),
+    fechaDispersion: timestamp("fecha_dispersion").defaultNow().notNull(),
+    performedBy: text("performed_by").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+    anioEmpresaIdx: index("payroll_aguinaldo_dispersiones_company_year_idx")
+        .on(table.companyId, table.anioFiscal, table.userId),
+}));
+
 // ---------------------------------------------------------------------------
 // Cierre Financiero Mensual, Cajeros por Corte y Liquidación de Agregadores
 // ---------------------------------------------------------------------------

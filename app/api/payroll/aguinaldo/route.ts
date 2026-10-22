@@ -5,9 +5,13 @@ import { ApiHandler } from "@/lib/api/response";
 import {
     previsualizarAguinaldo,
     executeAguinaldoRun,
+    registrarDispersionExcedente,
+    listarDispersionesExcedente,
     AguinaldoRunDuplicadoError,
+    AguinaldoDispersionInvalidaError,
     type AguinaldoPreview,
 } from "@/lib/services/aguinaldo-payroll-service";
+import { ApiError } from "@/lib/api/error";
 
 const anioFiscalSchema = z.object({
     anioFiscal: z
@@ -18,6 +22,16 @@ const anioFiscalSchema = z.object({
         .default(new Date().getFullYear()),
     branchId: z.string().uuid().optional(),
     diasLaboradosPorUsuario: z.record(z.string().uuid(), z.number().int().min(0).max(366)).optional(),
+    /** Task 11 (Q5): acción POST "EXECUTE" (default, timbrado) | "DISPERSION" (bitácora sin CFDI). */
+    action: z.enum(["EXECUTE", "DISPERSION"]).default("EXECUTE"),
+    // Sólo para action = DISPERSION: monto positivo en centavos y motivo obligatorio.
+    dispersion: z
+        .object({
+            userId: z.string().uuid(),
+            montoCents: z.number().int().positive().max(2147483647),
+            motivo: z.string().trim().min(1).max(1000),
+        })
+        .optional(),
 });
 
 /**
@@ -52,6 +66,12 @@ export async function GET(req: NextRequest) {
             return ApiHandler.error(parse.error, 400);
         }
 
+        // Bitácora de dispersiones de excedente en efectivo (Task 11).
+        if (url.searchParams.get("dispersiones") === "1") {
+            const dispersiones = await listarDispersionesExcedente(ctx.userCompanyId, parse.data.anioFiscal);
+            return ApiHandler.success({ dispersiones });
+        }
+
         const preview = await previsualizarAguinaldo(
             ctx.userCompanyId,
             parse.data.anioFiscal,
@@ -74,6 +94,25 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const data = anioFiscalSchema.parse(body);
 
+        if (data.action === "DISPERSION") {
+            // Task 11 (Q5): dispersión en efectivo del excedente con bitácora,
+            // SIN CFDI — nunca se disfraza de percepción timbrada.
+            if (!data.dispersion) {
+                return ApiHandler.error(
+                    ApiError.badRequest("La action DISPERSION requiere dispersion: { userId, montoCents, motivo }"),
+                    400
+                );
+            }
+            const row = await registrarDispersionExcedente(ctx.userCompanyId, {
+                anioFiscal: data.anioFiscal,
+                userId: data.dispersion.userId,
+                montoCents: data.dispersion.montoCents,
+                motivo: data.dispersion.motivo,
+                performedBy: ctx.userId,
+            });
+            return ApiHandler.success({ dispersion: row });
+        }
+
         const result = await executeAguinaldoRun(
             ctx.userCompanyId,
             data.anioFiscal,
@@ -89,6 +128,9 @@ export async function POST(req: NextRequest) {
     } catch (error) {
         if (error instanceof AguinaldoRunDuplicadoError) {
             return ApiHandler.error(error, 409);
+        }
+        if (error instanceof AguinaldoDispersionInvalidaError) {
+            return ApiHandler.error(error, 400);
         }
         return ApiHandler.error(error);
     }
