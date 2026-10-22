@@ -165,6 +165,8 @@ interface ContractRow {
   userId: string;
   branchId: string | null;
   baseSalary: number;
+  /** Task 12: salario efectivo real (NULL = formal). El costo laboral lo usa como piso cuando excede el registrado. */
+  effectiveSalaryCents: number | null;
   monthlySalary: number | null;
   workDays: number[] | null;
   workStartTime: string | null;
@@ -210,6 +212,11 @@ function standardMinutes(c: ContractRow): { minutes: number; declared: boolean }
 /**
  * Sueldo diario vigente en `day`: último `salary_history.newSalary` con
  * `effectiveDate <= day`, normalizado a diario; fallback a `baseSalary`.
+ *
+ * Task 12: si el contrato captura salario efectivo y excede la cifra de
+ * registro (o de history), el costo laboral usa el efectivo — el semáforo de
+ * nómina estaba torcido por este gap exacto. La nota del renglón declara
+ * cuándo la cifra trae la parte fuera de nómina.
  */
 function dailySalaryCents(c: ContractRow, history: SalaryRow[], day: string): number {
   const dayTs = new Date(`${day}T23:59:59Z`).getTime();
@@ -218,13 +225,30 @@ function dailySalaryCents(c: ContractRow, history: SalaryRow[], day: string): nu
     if (h.effectiveDate.getTime() > dayTs) continue;
     if (!latest || h.effectiveDate.getTime() > latest.effectiveDate.getTime()) latest = h;
   }
-  if (!latest) return c.baseSalary;
+  const diario =
+    !latest
+      ? c.baseSalary
+      : (() => {
+          const looksMonthly =
+            c.baseSalary > 0 && latest.newSalary >= c.baseSalary * MONTHLY_SALARY_RATIO_THRESHOLD;
+          return looksMonthly
+            ? Math.round(latest.newSalary / MONTHLY_TO_DAILY_DIVISOR)
+            : latest.newSalary;
+        })();
+  // Piso del salario real recibido: nunca menor que lo registrado.
+  return c.effectiveSalaryCents != null && c.effectiveSalaryCents > diario
+    ? c.effectiveSalaryCents
+    : diario;
+}
 
-  const looksMonthly =
-    c.baseSalary > 0 && latest.newSalary >= c.baseSalary * MONTHLY_SALARY_RATIO_THRESHOLD;
-  return looksMonthly
-    ? Math.round(latest.newSalary / MONTHLY_TO_DAILY_DIVISOR)
-    : latest.newSalary;
+/**
+ * Task 12: cuando la cifra del renglón trae la parte fuera de nómina, lo
+ * declara. La base real demandable (J. 1a./J. 24/2023) y el recargo IMSS por
+ * diferencia de cotización (LSS art. 280-B) viven detrás de este gap.
+ */
+function notaSalarioEfectivo(contratosConEfectivo: number): string {
+  if (contratosConEfectivo === 0) return "";
+  return ` Incluye la parte fuera de nómina: ${contratosConEfectivo} empleado(s) con salario efectivo capturado (base real: J. 1a./J. 24/2023; diferencia de cotización IMSS si no se reportó: LSS art. 280-B).`;
 }
 
 /** Días del período en que este contrato estaba vigente y tocaba trabajar. */
@@ -291,6 +315,7 @@ export async function getLaborCostByBranch(
       userId: employeeContracts.userId,
       branchId: sql<string | null>`COALESCE(${employeeContracts.branchId}, ${users.branchId})`,
       baseSalary: employeeContracts.baseSalary,
+      effectiveSalaryCents: employeeContracts.effectiveSalaryCents,
       monthlySalary: employeeContracts.monthlySalary,
       workDays: employeeContracts.workDays,
       workStartTime: employeeContracts.workStartTime,
@@ -442,6 +467,8 @@ export async function getLaborCostByBranch(
     let implausibleDays = 0;
     let anyContractDeclaresHours = false;
     let contractOnlyCostCents = 0;
+    // Task 12: contratos con salario efectivo capturado (gap sub-registro).
+    let contratosConEfectivo = 0;
 
     for (const c of branchContracts) {
       const expected = expectedWorkDays(c, days);
@@ -457,6 +484,7 @@ export async function getLaborCostByBranch(
       for (const day of expected) {
         contractOnlyCostCents += dailySalaryCents(c, userHistory, day);
       }
+      if (c.effectiveSalaryCents != null && c.effectiveSalaryCents > c.baseSalary) contratosConEfectivo += 1;
 
       const workedDays = byUser.get(c.userId);
       if (!workedDays) continue;
@@ -538,7 +566,8 @@ export async function getLaborCostByBranch(
         provisionAguinaldoCents,
         note:
           `${workedTotal} de ${expectedTotal} días-empleado capturados con turno completado ` +
-          `(${headcount} empleados).${holidayNote}${implausibleNote}${hoursNote}${grossNote}`,
+          `(${headcount} empleados).${holidayNote}${implausibleNote}${hoursNote}${grossNote}` +
+          notaSalarioEfectivo(contratosConEfectivo),
       };
     }
 
@@ -554,7 +583,7 @@ export async function getLaborCostByBranch(
       note:
         `Plantilla contratada, no asistencia real: ${headcount} empleados × ${expectedTotal} ` +
         `días-empleado laborables. Sin turnos capturados en el período, así que no incluye ` +
-        `faltas ni horas extra.${hoursNote}${grossNote}`,
+        `faltas ni horas extra.${hoursNote}${grossNote}` + notaSalarioEfectivo(contratosConEfectivo),
     };
   });
 }

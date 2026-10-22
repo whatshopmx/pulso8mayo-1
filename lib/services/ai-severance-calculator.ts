@@ -7,6 +7,13 @@
 
 export interface SeveranceCalculationInput {
   dailyIntegratedSalaryMXN: number; // Salario Diario Integrado (SDI)
+  /**
+   * Task 12: salario diario de REGISTRO (lo timbrado), cuando exista gap sub-
+   * registro. Opcional — se utiliza únicamente para declarar la fuente de la
+   * cifra y el tamaño del gap demandable (J. 1a./J. 24/2023, prescripción 1 año
+   * art. 516 LFT); el cálculo corre sobre el salario real recibido.
+   */
+  registeredSalaryMXN?: number | null;
   tenureYears: number;
   isAiReplacement: boolean; // True if termination is caused by AI substitution
   unpaidVacationDays?: number;
@@ -30,6 +37,8 @@ export interface SeveranceCalculationResult {
     aiReplacementPremiumStatus: string;
     /** Salario mínimo usado para el tope de la prima de antigüedad. */
     minimumWageUsed: number;
+    /** Task 12: salario de registro declarado cuando es MENOR al real usado; NULL = sin gap o sin dato. */
+    registeredSalaryDeclared: number | null;
   };
 }
 
@@ -96,6 +105,11 @@ export class AISeveranceCalculator {
         legalNote,
         /** Estatuto del calendario de reformas: la prima IA NO es ley. */aiReplacementPremiumStatus: primaIA?.status ?? 'PENDING_INITIATIVE',
         minimumWageUsed: minimumWage,
+        // Task 12: gap sub-registro declarado lado a lado (sin ocultamiento).
+        registeredSalaryDeclared:
+          input.registeredSalaryMXN != null && input.registeredSalaryMXN < sdi
+            ? input.registeredSalaryMXN
+            : null,
       },
     };
   }

@@ -172,6 +172,12 @@ export function FiscalParamsSection({ values, onChange, errors = {} }: FiscalPar
               En MIXED los contratos permiten capturar el salario efectivo real. La
               parte en efectivo se ve siempre como gap y nunca se mezcla con el timbrado.
             </p>
+            <p className="text-[11px] rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-800 dark:text-amber-200 leading-tight">
+              <strong>Sub-registro (notas legales):</strong> diferencias de prestaciones demandables
+              (J. 1a./J. 24/2023, prescripción 1 año — LFT art. 516) y recargos IMSS por
+              diferencia de cotización (LSS art. 280-B). Nada de esto desaparece por omitirlo;
+              se calcula y se declara en cada cifra que lo trae.
+            </p>
             {errors.payrollPracticeMode && (
               <p role="alert" className="text-xs text-destructive">{errors.payrollPracticeMode}</p>
             )}

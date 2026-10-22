@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { users, employeeProfiles, employeeContracts, employeeOnboarding, onboardingSteps, salaryHistory, employeeDocuments, employeeBenefits, employeeTraining, vacationAccruals } from "@/lib/db/schema";
-import { eq, and, isNull, desc, or, ilike, sql } from "drizzle-orm";
+import { eq, and, isNull, desc, or, ilike, sql, inArray } from "drizzle-orm";
 import { ApiError } from "../api/error";
 import { AuditService } from "./audit-service";
 import {
@@ -109,6 +109,11 @@ export class EmployeeService {
         companyId: users.companyId,
         branchId: users.branchId,
         phone: users.phone,
+        // Task 12: salario del contrato ACTIVO para herramientas de cálculo
+        // (finiquito). La parte en efectivo llega como `effectiveSalaryCents`
+        // (NULL = formal) — el gap nunca se oculta en las pantallas que deciden.
+        contractBaseSalary: employeeContracts.baseSalary,
+        effectiveSalaryCents: employeeContracts.effectiveSalaryCents,
         // Profile fields
         employeeNumber: employeeProfiles.employeeNumber,
         department: employeeProfiles.department,
@@ -138,9 +143,45 @@ export class EmployeeService {
 
     const total = Number(totalResult[0]?.count || 0);
 
+    // Task 12: salario del contrato ACTIVO por empleado (una fila por usuario,
+    // el contrato más reciente). Consulta aparte para no multiplicar la
+    // paginación con el join si hubiera más de un contrato activo.
+    const userIds = data.map((row) => row.id);
+    const contratosActivos = userIds.length
+      ? await db
+          .select({
+            userId: employeeContracts.userId,
+            baseSalary: employeeContracts.baseSalary,
+            effectiveSalaryCents: employeeContracts.effectiveSalaryCents,
+          })
+          .from(employeeContracts)
+          .where(
+            and(
+              inArray(employeeContracts.userId, userIds),
+              eq(employeeContracts.companyId, companyId),
+              eq(employeeContracts.status, "ACTIVE")
+            )
+          )
+          .orderBy(desc(employeeContracts.startDate))
+      : [];
+    const contratoPorUsuario = new Map<string, { baseSalary: number; effectiveSalaryCents: number | null }>();
+    for (const c of contratosActivos) {
+      if (!contratoPorUsuario.has(c.userId)) {
+        contratoPorUsuario.set(c.userId, { baseSalary: c.baseSalary, effectiveSalaryCents: c.effectiveSalaryCents });
+      }
+    }
+
     // Decrypt any encrypted PII fields on the returned rows (no-op for plaintext).
     const decryptedData = await Promise.all(
-      data.map((row) => decryptProfileRecord(companyId, row as Record<string, unknown>)),
+      data.map((row) => {
+        const contrato = contratoPorUsuario.get(row.id);
+        const enriquecida = {
+          ...row,
+          contractBaseSalary: contrato?.baseSalary ?? null,
+          effectiveSalaryCents: contrato?.effectiveSalaryCents ?? null,
+        };
+        return decryptProfileRecord(companyId, enriquecida as Record<string, unknown>);
+      }),
     );
 
     return {

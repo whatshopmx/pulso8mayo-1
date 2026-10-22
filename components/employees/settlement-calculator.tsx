@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Info, Calculator, Receipt, AlertCircle, TrendingDown, Plus } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { calcularAguinaldoAnual, diasCalendarioEntre } from "@/lib/services/aguinaldo-service";
+import { resolveEffectiveSalary } from "@/lib/services/employee-service";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -30,6 +31,10 @@ export function SettlementCalculator({
     vacationPay: 0,
     vacationPremium: 0,
     aguinaldo: 0,
+    calculadoSobre: "REGISTRO" as "REGISTRO" | "EFECTIVO",
+    salarioRegistroDiario: 0,
+    salarioEfectivoDiario: 0,
+    aguinaldoSobreRegistro: null as number | null,
     seniorityBonus: 0,
     severancePay: 0,
     deductions: 0,
@@ -48,7 +53,17 @@ export function SettlementCalculator({
     // --- LFT Calculation Logic ---
     const hireDate = new Date(employee.hireDate || employee.seniorityDate || new Date());
     const lastDay = new Date(lastWorkingDay);
-    const dailySalary = (employee.baseSalary || 0) / 100; // Cents to units
+
+    // Task 12: en juicio las prestaciones se calculan sobre el salario REAL
+    // recibido (J. 1a./J. 24/2023). Sin dato efectivo, el cálculo es idéntico
+    // al de siempre (regresión cero); con gap, ambos números se ven y la
+    // fuente de cada uno queda declarada en la UI.
+    const efectivo = resolveEffectiveSalary(
+      employee.baseSalary || 0,
+      employee.effectiveSalaryCents ?? employee.contracts?.[0]?.effectiveSalaryCents ?? null,
+    );
+    const dailySalary = efectivo.salarioEfectivoCents / 100;
+    const salaryBase = efectivo.baseRegistradaCents / 100;
 
     // 1. Aguinaldo proporcional — servicio compartido (Art. 87: 15/365 × días
     //    trabajados del año hasta el último día, restando altas en año).
@@ -65,10 +80,18 @@ export function SettlementCalculator({
       : 0;
     const aguinaldo = calcularAguinaldoAnual({
       anioFiscal: anioFiniquito,
-      salarioDiarioCents: employee.baseSalary || 0, // centavos: no convertir dos veces
+      salarioDiarioCents: efectivo.salarioEfectivoCents, // centavos: no convertir dos veces
       diasLaborados: diasHastaBaja || undefined,
     });
     const aguinaldoAmount = aguinaldo.brutoCents / 100;
+    // La parte del aguinaldo cubierta por el salario de registro (lo timbrable).
+    const aguinaldoRegistrado = efectivo.esFormal
+      ? null
+      : calcularAguinaldoAnual({
+          anioFiscal: anioFiniquito,
+          salarioDiarioCents: efectivo.baseRegistradaCents,
+          diasLaborados: diasHastaBaja || undefined,
+        }).brutoCents / 100;
 
     // 2. Pro-rata Vacation & Premium (Prima Vacacional 25%)
     // Mexican LFT Vacation Table (Simplified)
@@ -107,6 +130,11 @@ export function SettlementCalculator({
       vacationPay: Math.round(vacationPay * 100) / 100,
       vacationPremium: Math.round(vacationPremium * 100) / 100,
       aguinaldo: Math.round(aguinaldoAmount * 100) / 100,
+      // Task 12: fuente declarada del cálculo (efectivo vs registro).
+      calculadoSobre: (efectivo.esFormal ? "REGISTRO" : "EFECTIVO") as "REGISTRO" | "EFECTIVO",
+      salarioRegistroDiario: salaryBase,
+      salarioEfectivoDiario: Math.round(efectivo.salarioEfectivoCents) / 100,
+      aguinaldoSobreRegistro: aguinaldoRegistrado,
       seniorityBonus: (reason.includes("TERMINATION") || yearsOfService >= 15) ? Math.round(seniorityBonus * 100) / 100 : 0,
       severancePay: Math.round(severancePay * 100) / 100,
       deductions: formConfig.manualDeductions,
@@ -137,8 +165,16 @@ export function SettlementCalculator({
               <Info className="h-4 w-4 text-blue-500" /> Datos de Referencia
             </h4>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="text-muted-foreground">Salario Diario:</div>
+              <div className="text-muted-foreground">Salario Diario (registro):</div>
               <div className="font-medium text-right">${((employee?.baseSalary || 0) / 100).toFixed(2)}</div>
+              {calculation.salarioEfectivoDiario > (employee?.baseSalary || 0) / 100 && (
+                <>
+                  <div className="text-amber-700 dark:text-amber-400">Salario Diario (efectivo):</div>
+                  <div className="font-medium text-right text-amber-700 dark:text-amber-400">
+                    ${calculation.salarioEfectivoDiario.toFixed(2)}
+                  </div>
+                </>
+              )}
               <div className="text-muted-foreground">Fecha de Alta:</div>
               <div className="font-medium text-right">
                 {employee?.hireDate ? format(new Date(employee.hireDate), "dd MMM yyyy", { locale: es }) : "—"}
@@ -188,6 +224,16 @@ export function SettlementCalculator({
           <h4 className="text-sm font-semibold flex items-center gap-2">
             <Receipt className="h-4 w-4 text-green-500" /> Desglose de Pago
           </h4>
+          {calculation.calculadoSobre === "EFECTIVO" && (
+            <p className="text-xs rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-amber-800 dark:text-amber-200">
+              <strong>Base real:</strong> este cálculo usa el salario efectivo realmente recibido
+              ($ {calculation.salarioEfectivoDiario.toFixed(2)}/día), no el de registro
+              (${calculation.salarioRegistroDiario.toFixed(2)}/día). En juicio las prestaciones se
+              calculan sobre el real (J. 1a./J. 24/2023, prescripción 1 año: LFT art. 516); el
+              aguinaldo timbrado con salario de registro sería ${calculation.aguinaldoSobreRegistro?.toLocaleString() ?? "—"}.
+              Diferencias no reportadas al IMSS pueden implicar recargos (LSS art. 280-B).
+            </p>
+          )}
           
           <div className="space-y-2.5">
             <div className="flex justify-between text-sm">

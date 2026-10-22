@@ -68,28 +68,28 @@ catálogo de estatus legal [H04]: 15 días vigentes, iniciativa 30 días = `PEND
 
 ## Phase 4: Sub-registro — salario efectivo, prácticas, liabilidad
 
-- [ ] **Task 10 (M)** — Esquema de compensación configurable — puede ir en paralelo con Phase 2
-  - [ ] Migración: `employeeContracts.effectiveSalaryCents` (NULL = formal) SIN DROP
-  - [ ] `tenantOperatingConfig.payrollPracticeMode` (FORMAL/MIXED) + `aguinaldoBase` (REGISTERED/EFFECTIVE)
-  - [ ] Captura de salario efectivo en perfil/contrato
-  - **Verify:** empleados sin dato efectivo con cero regresión
+- [x] **Task 10 (M)** — Esquema de compensación configurable — puede ir en paralelo con Phase 2
+  - [x] Migración: `employeeContracts.effectiveSalaryCents` (NULL = formal) SIN DROP — `drizzle/0119*
+  - [x] `tenantOperatingConfig.payrollPracticeMode` (FORMAL/MIXED) + `aguinaldoBase` (REGISTERED/EFFECTIVE)
+  - [x] Captura de salario efectivo en perfil/contrato (contract-dialog + PATCH `app/api/employees/contracts/[id]/route.ts`)
+  - **✅Verify:** `pnpm test:unit` verde — `lib/__tests__/effective-salary.test.ts` fija regresión cero; empleados sin dato efectivo se comportan igual que hoy
 
-- [ ] **Task 11 (M)** — Aguinaldo base configurable + liabilidad contingente + excedente en efectivo — depende de Tasks 4-6, 10
-  - [ ] `aguinaldo-service` acepta base REGISTERED/EFFECTIVE (exención 30 UMA sobre el bruto elegido)
-  - [ ] Preview SIEMPRE con ambas columnas + liabilidad contingente (art. 516 LFT, J. 1a./J. 24/2023)
-  - [ ] Dispersión del excedente con bitácora, SIN CFDI
-  - **Verify:** el gap nunca se oculta; excedente con bitácora y fecha
+- [x] **Task 11 (M)** — Aguinaldo base configurable + liabilidad contingente + excedente en efectivo — depende de Tasks 4-6, 10
+  - [x] `aguinaldo-service` acepta base REGISTERED/EFFECTIVE (exención 30 UMA sobre el bruto elegido) — tests de ambas bases en `aguinaldo-service.test.ts`
+  - [x] Preview SIEMPRE con ambas columnas + liabilidad contingente (art. 516 LFT, J. 1a./J. 24/2023) — `diferenciaCents` por fila y total
+  - [x] Dispersión del excedente con bitácora (tabla `payroll_aguinaldo_dispersiones`, migración 0120) SIN CFDI: automática en el run + POST manual `action: "DISPERSION"` + GET `?dispersiones=1`
+  - **✅Verify:** el gap nunca se oculta (columnas lado a lado); excedente con bitácora y fecha
 
-- [ ] **Task 12 (S)** — Finiquito y costo laboral sobre salario efectivo — depende de Task 10 (+ Tasks 2-3)
-  - [ ] `settlement-calculator` / `ai-severance-calculator` con gap visible lado a lado
-  - [ ] `labor-cost` usa salario efectivo; nota verbaliza si trae la parte de efectivo
-  - [ ] Notas legales de sub-registro en la UI (IMSS LSS 280-B, demandas de prestaciones, prescripción 1 año)
-  - **Verify:** formales idénticos; con gap, ambos números con fuente declarada
+- [x] **Task 12 (S)** — Finiquito y costo laboral sobre salario efectivo — depende de Task 10 (+ Tasks 2-3)
+  - [x] `settlement-calculator` con gap visible lado a lado y fuente declarada; `ai-severance-calculator` acepta `registeredSalaryMXN` y declara el gap (`registeredSalaryDeclared`)
+  - [x] `labor-cost` usa salario efectivo como piso; nota del renglón verbaliza si trae la parte de efectivo
+  - [x] Notas legales de sub-registro en la UI de config (IMSS LSS 280-B, demandas de prestaciones, prescripción 1 año)
+  - **✅Verify:** formales idénticos (regresión cero en tests); con gap, ambos números con fuente declarada
 
 **Checkpoint 4**
-- [ ] Migración sin DROP; cero regresión en empleados formales
-- [ ] Preview de aguinaldo con dos bases
-- [ ] `pnpm test:unit` + `pnpm build` limpios
+- [x] Migración sin DROP (0119 + 0120); cero regresión en empleados formales
+- [x] Preview de aguinaldo con dos bases
+- [x] `pnpm test:unit` (1799 verdes) + `pnpm run build` limpio (EXIT=0, requería NODE_OPTIONS=--max-old-space-size=8192 en esta máquina: fallo de heap ambiental, no del código)
 
 ## Phase 5: Follow-ups con decisión resuelta
 
