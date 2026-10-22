@@ -28,6 +28,7 @@ import { eq, and, desc, gte } from "drizzle-orm";
 import { calcularAguinaldoAnual, diasCalendarioAguinaldo, resolverEstatusLegal, type AguinaldoCalculo, type AguinaldoLegalEstatus, type AguinaldoBase } from "./aguinaldo-service";
 import { resolveLaborLawRules } from "./labor-rules-resolver";
 import { timbrarNomina, percepcionAguinaldo } from "./fiscal-service";
+import { calcularRetencionAguinaldoArt174 } from "./isr-annual-withholding";
 import { getTenantOperatingConfig } from "./tenant-config-service";
 import { resolveAguinaldoBase, resolveEffectiveSalary } from "./employee-service";
 
@@ -310,12 +311,25 @@ export async function executeAguinaldoRun(
     const periodo = `${anioFiscal}-AGU`;
     const fechaPago = new Date().toISOString().slice(0, 10);
     const results: AguinaldoRunResult["results"] = [];
+    /** El mes hipotético del Art. 174 usa el mes REAL de dispersión (subsidio de enero especial). */
+    const mesPago = new Date().getMonth() + 1;
 
     for (const row of preview.rows) {
         try {
             if (row.error) throw new Error(row.error);
             if (!row.rfc) throw new Error(`Empleado ${row.name} no tiene RFC configurado.`);
             if (!row.calculo) throw new Error(`Empleado ${row.name} sin cálculo de aguinaldo.`);
+
+            // Task 13 (Q1): tarifa anual Art. 174 RLISR. Tarifa del año y mes
+            // de DISPERSIÓN (el Art. 96 del mes hipotético aplica al periodo
+            // en el que se retiene, aunque el aguinaldo sea del año anterior).
+            const anioPago = new Date().getFullYear();
+            const retencion = calcularRetencionAguinaldoArt174({
+                anioPago,
+                mesPago,
+                aguinaldoBrutoCents: row.calculo.brutoCents,
+                salarioDiarioCents: row.salarioDiarioCents,
+            });
 
             const timbrado = await timbrarNomina({
                 companyId,
@@ -329,11 +343,22 @@ export async function executeAguinaldoRun(
                 fechaPagoInicial: `${anioFiscal}-01-01`,
                 fechaPagoFinal: `${anioFiscal}-12-31`,
                 fechaPago,
-                // Percepción única: bruto con exento/gravado separados;
-                // retención en 0 (decisión Q1: Task 13 integra la tarifa anual).
+                // Percepción única: bruto con exento/gravado separados.
                 desglosePercepciones: [percepcionAguinaldo(row.calculo.brutoCents, row.calculo.exentoCents)],
                 totalPercepciones: row.calculo.brutoCents,
-                totalDeducciones: 0,
+                // Retención de ISR del gravado: tarifa anual Art. 174 RLISR
+                // (Task 13, decisión Q1) — método favorable al trabajador;
+                // se aplica sobre el aguinaldo íntegro, no por cada run.
+                totalDeducciones: retencion.retencionCents > 0 ? retencion.retencionCents : 0,
+                desgloseDeducciones:
+                    retencion.retencionCents > 0
+                        ? [{
+                            deductionTypeCode: "002",
+                            code: "002",
+                            concept: `ISR retenido del aguinaldo ${anioFiscal} (Art. 174 RLISR)`,
+                            amount: retencion.retencionCents,
+                        }]
+                        : undefined,
             });
 
             const [payslip] = await db
@@ -343,7 +368,7 @@ export async function executeAguinaldoRun(
                     userId: row.userId,
                     aguinaldoCents: row.calculo.brutoCents,
                     totalPercepcionesCents: row.calculo.brutoCents,
-                    totalDeduccionesCents: 0,
+                    totalDeduccionesCents: retencion.retencionCents > 0 ? retencion.retencionCents : 0,
                     cfdiUuid: timbrado.uuid || null,
                     cfdiStatus: timbrado.status,
                     selloDigital: timbrado.selloDigital,
