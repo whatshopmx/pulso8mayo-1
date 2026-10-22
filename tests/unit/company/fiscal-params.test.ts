@@ -74,13 +74,26 @@ describe("C14.1 — ida y vuelta de los cuatro parámetros", () => {
       mermaVarianceThresholdPct: "2.50",
     };
     const valores = valoresIniciales({ ...fila, ...guardado } as never);
-    expect(valores.fiscal).toEqual({ vatRate: "8", laborBurden: "25", stateTax: "3", mermaThreshold: "2.5" });
+    expect(valores.fiscal).toEqual({ vatRate: "8", laborBurden: "25", stateTax: "3", mermaThreshold: "2.5", payrollPracticeMode: "", aguinaldoBase: "" });
 
     const cuerpo = cuerpoDeConfiguracion(valores);
     expect(cuerpo.vatRatePercent).toBe(8);
     expect(cuerpo.laborBurdenFactorPercent).toBe(25);
     expect(cuerpo.payrollStateTaxPercent).toBe(3);
     expect(cuerpo.mermaVarianceThresholdPct).toBe(2.5);
+
+    // Task 10 plan-aguinaldo: los seleccionables de práctica de nómina/aguinaldo
+    // guardan explícito y recargan al mismo estado; vacío es null (default).
+    expect(cuerpo.payrollPracticeMode).toBeNull();
+    expect(cuerpo.aguinaldoBase).toBeNull();
+
+    const conPractica = { ...valores, fiscal: { ...valores.fiscal, payrollPracticeMode: "MIXED", aguinaldoBase: "EFFECTIVE" } };
+    const cuerpoPractica = cuerpoDeConfiguracion(conPractica);
+    expect(cuerpoPractica.payrollPracticeMode).toBe("MIXED");
+    expect(cuerpoPractica.aguinaldoBase).toBe("EFFECTIVE");
+    const recargadaPractica = valoresIniciales({ ...fila, ...cuerpoPractica } as never);
+    expect(recargadaPractica.fiscal.payrollPracticeMode).toBe("MIXED");
+    expect(recargadaPractica.fiscal.aguinaldoBase).toBe("EFFECTIVE");
 
     // Y el recálculo del cuerpo vuelve al mismo estado: el viaje es estable.
     const recargado = valoresIniciales({ ...fila, ...cuerpo } as never);
@@ -94,7 +107,7 @@ describe("C14.1 — ida y vuelta de los cuatro parámetros", () => {
       payrollStateTaxPercent: null,
       mermaVarianceThresholdPct: null,
     } as never);
-    expect(valores.fiscal).toEqual({ vatRate: "", laborBurden: "", stateTax: "", mermaThreshold: "" });
+    expect(valores.fiscal).toEqual({ vatRate: "", laborBurden: "", stateTax: "", mermaThreshold: "", payrollPracticeMode: "", aguinaldoBase: "" });
 
     const cuerpo = cuerpoDeConfiguracion(valores);
     expect(cuerpo.vatRatePercent).toBeNull();
@@ -104,7 +117,7 @@ describe("C14.1 — ida y vuelta de los cuatro parámetros", () => {
   });
 
   it("una empresa sin fila ve los defaults del módulo: IVA 16, merma 5, carga e ISN sin capturar", () => {
-    expect(valoresIniciales(null).fiscal).toEqual({ vatRate: "16", laborBurden: "", stateTax: "", mermaThreshold: "5" });
+    expect(valoresIniciales(null).fiscal).toEqual({ vatRate: "16", laborBurden: "", stateTax: "", mermaThreshold: "5", payrollPracticeMode: "", aguinaldoBase: "" });
   });
 
   it("un texto no numérico en un parámetro fiscal bloquea el guardado", () => {

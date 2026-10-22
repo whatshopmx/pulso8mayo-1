@@ -48,6 +48,9 @@ const contractSchema = z.object({
   probationPeriodDays: z.number().min(0).optional(),
   signatureDate: z.date().optional(),
   baseSalary: z.number().min(0, "Base salary must be positive"),
+  // Task 10 plan-aguinaldo: salario efectivo. `null` = sin capturar (empleado
+  // formal). Sólo la UI lo muestra cuando la práctica de nómina es MIXED.
+  effectiveSalary: z.number().min(0, "No puede ser negativo").nullable().optional(),
   monthlySalary: z.number().min(0).optional(),
   weeklySalary: z.number().min(0).optional(),
   currency: z.string(),
@@ -90,8 +93,30 @@ export function ContractDialog({
   const [loading, setLoading] = useState(false);
   const isEditing = !!contract;
 
+  // Task 10: la captura de salario efectivo sólo existe con práctica MIXED.
+  // El default FORMAL oculta el campo y el servidor lo rechazaría igual.
+  const [practiceMode, setPracticeMode] = useState<"FORMAL" | "MIXED">("FORMAL");
+
   const t = useTranslations("labor.employees.contract");
   const tCommon = useTranslations("common");
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch("/api/company/operating-config")
+      .then(async (res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const mode = data?.data?.payrollPracticeMode ?? null;
+        setPracticeMode(mode === "MIXED" ? "MIXED" : "FORMAL");
+      })
+      .catch(() => {
+        if (!cancelled) setPracticeMode("FORMAL");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const form = useForm<ContractFormData>({
     resolver: zodResolver(contractSchema),
@@ -127,6 +152,10 @@ export function ContractDialog({
         probationPeriodDays: contract.probationPeriodDays || undefined,
         signatureDate: contract.signatureDate ? new Date(contract.signatureDate) : undefined,
         baseSalary: contract.baseSalary / 100 || 0, // Convert from cents
+        effectiveSalary:
+          typeof contract.effectiveSalaryCents === "number"
+            ? contract.effectiveSalaryCents / 100
+            : null,
         monthlySalary: contract.monthlySalary ? contract.monthlySalary / 100 : undefined,
         weeklySalary: contract.weeklySalary ? contract.weeklySalary / 100 : undefined,
         currency: contract.currency || 'MXN',
@@ -170,6 +199,35 @@ export function ContractDialog({
   const onSubmit = async (data: ContractFormData) => {
     setLoading(true);
     try {
+      const baseCents = Math.round(data.baseSalary * 100);
+      const effCents =
+        data.effectiveSalary && data.effectiveSalary > 0
+          ? Math.round(data.effectiveSalary * 100)
+          : null;
+
+      // Task 10: la compensación se persiste por la ruta enfocada, de forma
+      // independiente del guardado del resto del contrato.
+      if (isEditing) {
+        const compensationCambiada =
+          baseCents !== contract.baseSalary ||
+          (practiceMode === "MIXED" && (effCents ?? null) !== (contract.effectiveSalaryCents ?? null));
+        if (compensationCambiada) {
+          const compPayload: Record<string, number | null> = {
+            baseSalaryCents: baseCents,
+          };
+          if (practiceMode === "MIXED") compPayload.effectiveSalaryCents = effCents;
+          const compRes = await fetch(`/api/employees/contracts/${contract.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(compPayload),
+          });
+          if (!compRes.ok) {
+            const compError = await compRes.json().catch(() => null);
+            toast.error(compError?.error || "No se pudo actualizar la compensación.");
+          }
+        }
+      }
+
       const payload = {
         ...data,
         userId: employeeId,
@@ -435,6 +493,39 @@ export function ContractDialog({
                     </FormItem>
                   )}
                 />
+
+                {practiceMode === "MIXED" && (
+                  <FormField
+                    control={form.control}
+                    name="effectiveSalary"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Salario efectivo (diario)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={field.value ?? ""}
+                            {...field}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              field.onChange(raw === "" ? null : parseFloat(raw));
+                            }}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Salario realmente recibido, incluyendo la parte fuera de nómina. La
+                          diferencia frente al salario de registro se muestra siempre como
+                          gap: nunca se mezcla con el CFDI ni con el timbrado. Nómina, aguinaldo
+                          y finiquito declaran la fuente de cada cifra. El salario de registro
+                          que se timbra es decisión manual de la empresa; el sistema no lo calcula.
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
       <FormField
