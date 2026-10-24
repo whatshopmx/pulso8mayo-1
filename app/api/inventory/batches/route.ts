@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { eq, and, gte, desc, sql } from 'drizzle-orm';
+import { eq, and, gte, desc } from 'drizzle-orm';
+import { hasPermission, type Role } from '@/lib/permissions';
+import { resolveBranchScope } from '@/lib/branch-scope';
+import { ApiError, isApiError } from '@/lib/api/error';
 import {
   inventoryBatches,
   branches,
@@ -12,8 +15,6 @@ import {
   recipes,
   inventoryWaste,
   inventoryMovements,
-  users,
-  type inventoryBatchStatusEnum,
 } from '@/lib/db/schema';
 import { z } from 'zod';
 
@@ -23,19 +24,51 @@ const updateStatusSchema = z.object({
   notes: z.string().optional(),
 });
 
+const querySchema = z.object({
+  id: z.string().uuid().optional(),
+  batchId: z.string().uuid().optional(),
+  itemId: z.string().uuid().optional(),
+  branchId: z.string().uuid().optional(),
+  status: updateStatusSchema.shape.status.optional(),
+  trace: z.enum(['true', 'false']).optional(),
+}).refine(data => data.trace !== 'true' || data.id || data.batchId, 'Falta identificar el lote')
+  .refine(data => !data.id || !data.batchId || data.id === data.batchId, 'Identificadores incompatibles');
+
+function batchScope(user: { companyId: string; role?: string; branchId?: string | null }, requestedBranchId?: string) {
+  // EMPLEADO sigue el alcance local del ABAC; el helper histórico sólo incluye gerente/supervisor.
+  const role = user.role === 'EMPLEADO' ? 'SUPERVISOR' : user.role as Role;
+  const scope = resolveBranchScope(role, user.branchId, requestedBranchId);
+  if (scope.kind === 'NONE' || (scope.kind === 'BRANCH' && !z.string().uuid().safeParse(scope.branchId).success)) {
+    throw ApiError.forbidden('Se requiere una sucursal asignada válida');
+  }
+  if (scope.kind === 'BRANCH' && requestedBranchId && scope.branchId !== requestedBranchId) {
+    throw ApiError.forbidden('No tienes acceso a la sucursal solicitada');
+  }
+  return and(eq(branches.companyId, user.companyId), eq(inventoryItems.companyId, user.companyId),
+    scope.kind === 'BRANCH' ? eq(inventoryBatches.branchId, scope.branchId) : undefined);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await auth.api.getSession({
       headers: request.headers,
     });
 
-    if (!session?.user) {
+    if (!session?.user?.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!hasPermission(session.user.role as Role, 'inventory', 'read')) {
+      throw ApiError.forbidden('No tienes permisos para consultar lotes');
     }
 
     const { searchParams } = new URL(request.url);
-    const batchId = searchParams.get('id') || searchParams.get('batchId');
-    const isTrace = searchParams.get('trace') === 'true';
+    const filters = querySchema.parse(Object.fromEntries(
+      ['id', 'batchId', 'itemId', 'branchId', 'status', 'trace']
+        .filter(key => searchParams.has(key)).map(key => [key, searchParams.get(key)])
+    ));
+    const batchId = filters.id || filters.batchId;
+    const isTrace = filters.trace === 'true';
+    const scope = batchScope(session.user, filters.branchId);
 
     // Trazabilidad profunda de un lote específico
     if (batchId && isTrace) {
@@ -65,8 +98,8 @@ export async function GET(request: NextRequest) {
         .from(inventoryBatches)
         .innerJoin(branches, eq(inventoryBatches.branchId, branches.id))
         .innerJoin(inventoryItems, eq(inventoryBatches.itemId, inventoryItems.id))
-        .leftJoin(suppliers, eq(inventoryBatches.supplierId, suppliers.id))
-        .where(eq(inventoryBatches.id, batchId))
+        .leftJoin(suppliers, and(eq(inventoryBatches.supplierId, suppliers.id), eq(suppliers.companyId, session.user.companyId)))
+        .where(and(scope, eq(inventoryBatches.id, batchId)))
         .limit(1);
 
       if (!batch) {
@@ -85,8 +118,9 @@ export async function GET(request: NextRequest) {
         })
         .from(productionIngredients)
         .innerJoin(productionResults, eq(productionIngredients.resultId, productionResults.id))
-        .leftJoin(recipes, eq(productionResults.recipeId, recipes.id))
-        .where(eq(productionIngredients.batchId, batchId))
+        .leftJoin(recipes, and(eq(productionResults.recipeId, recipes.id), eq(recipes.companyId, session.user.companyId)))
+        .where(and(eq(productionIngredients.batchId, batchId), eq(productionIngredients.itemId, batch.itemId),
+          eq(productionResults.companyId, session.user.companyId), eq(productionResults.branchId, batch.branchId)))
         .orderBy(desc(productionResults.productionDate));
 
       // 2. Mermas registradas
@@ -100,7 +134,8 @@ export async function GET(request: NextRequest) {
           createdAt: inventoryWaste.createdAt,
         })
         .from(inventoryWaste)
-        .where(eq(inventoryWaste.batchId, batchId))
+        .where(and(eq(inventoryWaste.batchId, batchId), eq(inventoryWaste.companyId, session.user.companyId),
+          eq(inventoryWaste.branchId, batch.branchId), eq(inventoryWaste.itemId, batch.itemId)))
         .orderBy(desc(inventoryWaste.createdAt));
 
       // 3. Movimientos del kardex
@@ -113,7 +148,8 @@ export async function GET(request: NextRequest) {
           timestamp: inventoryMovements.timestamp,
         })
         .from(inventoryMovements)
-        .where(eq(inventoryMovements.batchId, batchId))
+        .where(and(eq(inventoryMovements.batchId, batchId), eq(inventoryMovements.branchId, batch.branchId),
+          eq(inventoryMovements.itemId, batch.itemId)))
         .orderBy(desc(inventoryMovements.timestamp));
 
       return NextResponse.json({
@@ -131,25 +167,20 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const itemId = searchParams.get('itemId');
-    const branchId = searchParams.get('branchId');
-    const status = searchParams.get('status');
+    const { itemId, status } = filters;
 
     // Build where clause
     let whereClause = and(
-      gte(inventoryBatches.currentQuantity, '0')
+      scope, gte(inventoryBatches.currentQuantity, '0'),
+      batchId ? eq(inventoryBatches.id, batchId) : undefined
     );
 
     if (itemId) {
-      whereClause = and(whereClause, eq(inventoryBatches.itemId, itemId as any));
-    }
-
-    if (branchId) {
-      whereClause = and(whereClause, eq(inventoryBatches.branchId, branchId as any));
+      whereClause = and(whereClause, eq(inventoryBatches.itemId, itemId));
     }
 
     if (status) {
-      whereClause = and(whereClause, eq(inventoryBatches.status, status as any));
+      whereClause = and(whereClause, eq(inventoryBatches.status, status));
     }
 
     // Fetch batches with branch info
@@ -185,6 +216,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ batches });
   } catch (error) {
+    if (isApiError(error)) return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    if (error instanceof z.ZodError) return NextResponse.json({ error: 'Filtros inválidos' }, { status: 400 });
     console.error('Error fetching batches:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
