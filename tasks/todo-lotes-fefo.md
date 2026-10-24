@@ -11,11 +11,14 @@ Cada cierre requiere evidencia en `tasks/evidencia/lotes-fefo/<ID>/`. Archivos i
   - Aceptación: inventario de todos los escritores/lectores de lotes, incluidas API, workflows y cron; reporte de negativos, fechas faltantes, vencidos disponibles y discrepancias entre saldo/movimientos; clasificación sin modificar registros.
   - Verificación: ejecutar reporte de solo lectura en entorno autorizado y contrastar casos controlados; documentar vacíos de historial y pruebas existentes aprovechables.
   - Archivos candidatos: nuevo reporte en `scripts/`, `inventory-service.ts`, documento de evidencia y pruebas del reporte.
-- [ ] **FEFO-02 (S): contrato operativo y diseño mínimo.** Depende de 01.
+- [x] **FEFO-02 (S): contrato operativo y diseño mínimo.** Depende de 01.
+  - Contrato en `docs/lotes-fefo-contrato.md`, aceptado por el usuario en esta sesión («Aceptar las reglas propuestas»). Evidencia: `tasks/evidencia/lotes-fefo/FEFO-02/README.md`.
   - Aceptación: resolver fecha/huso horario, fecha nula, faltantes físicos/teóricos, reservas, excepciones y reversión; definir identidad del lote y existencia local; acordar compatibilidad de esquema y comportamiento.
   - Verificación: tabla de ejemplos con resultados esperados; revisión operativa de decisiones abiertas antes de programar comportamiento dependiente.
   - Archivos: plan y documento de contrato en `docs/`.
 - [ ] **FEFO-03 (M): permisos de lotes.** Depende de 01.
+  - [x] **FEFO-03A:** aislamiento y permiso de lectura de listado/trazabilidad; validar filtros y cerrar casos de rol/sucursal ausentes. 54 pruebas de alcance/diagnóstico/regresión pasan; evidencia en `tasks/evidencia/lotes-fefo/FEFO-03A/README.md`.
+  - [ ] **FEFO-03B:** PATCH con transiciones autorizadas, motivo obligatorio y auditoría transaccional; captura del motivo en la interfaz existente.
   - Aceptación: empresa/sucursal/rol en listado, trazabilidad y PATCH; impedir cambios ajenos y estados no autorizados; auditoría de cambios con motivo y responsable.
   - Verificación: pruebas API con dos empresas, sucursales y roles; identificadores ajenos no revelan ni modifican datos.
   - Archivos: `app/api/inventory/batches/route.ts`, helper de alcance existente y pruebas enfocadas.
