@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
 import { inventoryItems, inventoryBatches, inventoryMovements, suppliers, inventoryPriceHistory, inventoryTransfers, inventoryTransferItems, inventoryWaste, inventoryPeriods, companies, branches } from "@/lib/db/schema";
-import { eq, and, sql, desc, inArray, gte, lte, or, ilike, ne } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, gte, lte, or, ilike, ne, isNull } from "drizzle-orm";
 import { ApiError } from "@/lib/api/error";
-import { allocateFEFO, type DbExecutor } from "./fefo-allocator";
+import { allocateScopedBatches, type DbExecutor } from "./fefo-allocator";
 
 /**
  * C17.3 — pertenencia de sucursales y artículos a la empresa, para el recorrido
@@ -702,103 +702,72 @@ export class InventoryService {
       throw ApiError.notFound("Transferencia no encontrada");
     }
 
-    if (transfer.status !== 'APPROVED') {
-      throw new Error("Transfer must be approved before shipping");
+    if (transfer.status !== 'APPROVED' || transfer.shippedAt) {
+      throw ApiError.conflict("La transferencia ya fue enviada o no está aprobada para envío");
     }
 
-    // Get transfer items with batch info
-    const items = await tx.select({
-      transferItem: inventoryTransferItems,
-      batch: inventoryBatches,
-    })
-      .from(inventoryTransferItems)
-      .leftJoin(inventoryBatches, eq(inventoryTransferItems.batchId, inventoryBatches.id))
-      .where(eq(inventoryTransferItems.transferId, transferId));
-
-    // Update transfer status
+    // Reclamar el envío antes de descontar. El UPDATE mantiene el lock de la
+    // cabecera en esta tx; si otro envío cambió el estado, no vuelve a enviar.
     const [updatedTransfer] = await tx.update(inventoryTransfers)
     .set({
       status: 'IN_TRANSIT',
       shippedBy,
       shippedAt: new Date(),
     })
-    .where(eq(inventoryTransfers.id, transferId))
+    .where(and(eq(inventoryTransfers.id, transferId), eq(inventoryTransfers.status, 'APPROVED'), isNull(inventoryTransfers.shippedAt)))
     .returning();
+    if (!updatedTransfer) throw ApiError.conflict("La transferencia cambió de estado; recárgala antes de enviarla");
 
-    // Disminuye stock del origen. Regla loteprod §11.2: toda mercancía viaja
-    // con documento y lote — si la línea no trae batchId explícito, se asigna
-    // FEFO sobre los lotes AVAILABLE de la sucursal origen (el mismo allocator
-    // que producción/consumo). Si el stock no alcanza, la transacción falla:
-    // jamás se mueve sin lote.
-    for (const { transferItem: item } of items) {
+    // Leer las aprobaciones con la cabecera ya reclamada: otra aprobación
+    // pudo completarse mientras este envío esperaba el UPDATE anterior.
+    const items = await tx.select()
+      .from(inventoryTransferItems)
+      .where(eq(inventoryTransferItems.transferId, transferId))
+      .orderBy(inventoryTransferItems.itemId, inventoryTransferItems.id);
+    if (items.length === 0) throw ApiError.conflict("La transferencia no tiene líneas para enviar");
+
+    // FEFO y lote explícito comparten alcance, fecha, estado, saldo y locks.
+    // Un faltante revierte toda la transferencia, incluidas líneas anteriores.
+    for (const item of items) {
         const qtyToShip = Number(item.approvedQuantity ?? item.requestedQuantity);
+        if (!Number.isFinite(qtyToShip) || qtyToShip <= 0) throw ApiError.badRequest("La cantidad de envío debe ser positiva");
+        const plan = await allocateScopedBatches(tx, { companyId, branchId: transfer.fromBranchId,
+            itemId: item.itemId, quantity: qtyToShip, batchId: item.batchId ?? undefined });
+        if (plan.shortfallQuantity > 0) {
+            throw ApiError.conflict(`Stock elegible insuficiente en origen: se requieren ${plan.requestedQuantity}, hay ${plan.allocatedQuantity}. Revisa el lote y su caducidad.`);
+        }
 
-        if (item.batchId) {
-            // Decrease from specific batch
+        let primaryBatchId = item.batchId;
+        let primaryQty = -1;
+        for (const alloc of plan.allocations) {
             await tx.update(inventoryBatches)
                 .set({
-                    currentQuantity: sql`${inventoryBatches.currentQuantity} - ${qtyToShip}`,
+                    currentQuantity: sql`${inventoryBatches.currentQuantity} - ${alloc.quantity}`,
                     updatedAt: new Date(),
                 })
-                .where(eq(inventoryBatches.id, item.batchId));
+                .where(eq(inventoryBatches.id, alloc.batchId));
 
-            // Record movement
             await tx.insert(inventoryMovements).values({
                 branchId: transfer.fromBranchId,
                 itemId: item.itemId,
-                batchId: item.batchId,
+                batchId: alloc.batchId,
                 type: 'TRANSFER',
-                quantityChange: String(-qtyToShip), // numeric(12,4): string en TS
-                reason: `Transfer to branch ${transfer.toBranchId}`,
+                quantityChange: String(-alloc.quantity),
+                reason: `Transfer to branch ${transfer.toBranchId}${item.batchId ? '' : ' (FEFO)'}`,
                 performedBy: shippedBy,
                 referenceId: transferId,
             });
-        } else {
-            const allocations = await allocateFEFO(tx as unknown as DbExecutor, item.itemId, transfer.fromBranchId, qtyToShip);
-            const allocated = allocations.reduce((sum, a) => sum + a.quantity, 0);
-            if (allocated < qtyToShip) {
-                throw new Error(`Stock insuficiente en origen para el item ${item.itemId}: se pidieron ${qtyToShip}, hay ${allocated}. El transfer no sale sin lote.`);
+
+            // Compatibilidad del lector actual: FEFO-07A/B persistirá el
+            // desglose completo y conservará cada caducidad en destino.
+            if (alloc.quantity > primaryQty) {
+                primaryQty = alloc.quantity;
+                primaryBatchId = alloc.batchId;
             }
-
-            let primaryBatchId = item.batchId;
-            let primaryQty = -1;
-            for (const alloc of allocations) {
-                await tx.update(inventoryBatches)
-                    .set({
-                        currentQuantity: sql`${inventoryBatches.currentQuantity} - ${alloc.quantity}`,
-                        updatedAt: new Date(),
-                    })
-                    .where(eq(inventoryBatches.id, alloc.batchId));
-
-                await tx.insert(inventoryMovements).values({
-                    branchId: transfer.fromBranchId,
-                    itemId: item.itemId,
-                    batchId: alloc.batchId,
-                    type: 'TRANSFER',
-                    quantityChange: String(-alloc.quantity), // numeric(12,4): string en TS
-                    reason: `Transfer to branch ${transfer.toBranchId} (FEFO)`,
-                    performedBy: shippedBy,
-                    referenceId: transferId,
-                });
-
-                // El lote de mayor cantidad asignada queda como lote primario:
-                // receiveTransfer hereda su lotNumber/expirationDate al crear el
-                // lote destino (trazabilidad FEFO, loteprod §5.5).
-                if (alloc.quantity > primaryQty) {
-                    primaryQty = alloc.quantity;
-                    primaryBatchId = alloc.batchId;
-                }
-            }
-
-            await tx.update(inventoryTransferItems)
-                .set({ shippedQuantity: qtyToShip, batchId: primaryBatchId })
-                .where(eq(inventoryTransferItems.id, item.id));
-            continue; // shippedQuantity ya quedó actualizado arriba
         }
 
-        // Update shipped quantity
         await tx.update(inventoryTransferItems)
-            .set({ shippedQuantity: qtyToShip })
+            .set({ shippedQuantity: plan.requestedQuantity, batchId: primaryBatchId })
             .where(eq(inventoryTransferItems.id, item.id));
     }
 

@@ -330,68 +330,8 @@ describe("C17.3 — las transiciones rechazan lo ajeno antes de tocar la fila", 
 });
 
 describe("C17.4 — el recorrido completo no duplica movimientos", () => {
-  it("el envío descuenta el origen y registra un TRANSFER negativo; la recepción, un positivo", async () => {
-    const estado = simularDb({
-      branches: [...sucursalesDeA],
-      inventoryTransfers: [
-        {
-          id: TRANSFERENCIA,
-          transferNumber: "TRF-202610-0001",
-          fromBranchId: SUCURSAL_A_1,
-          toBranchId: SUCURSAL_A_2,
-          status: "APPROVED",
-        },
-      ],
-      inventoryTransferItems: [
-        {
-          id: "linea-1",
-          transferId: TRANSFERENCIA,
-          itemId: ARTICULO_A,
-          batchId: LOTE_A,
-          requestedQuantity: 5,
-          approvedQuantity: 5,
-          shippedQuantity: null,
-          receivedQuantity: null,
-        },
-      ],
-      inventoryBatches: [{ id: LOTE_A, branchId: SUCURSAL_A_1, currentQuantity: "20" }],
-      inventoryMovements: [],
-    }, { [LOTE_A]: 20 });
-
-    await InventoryService.shipTransfer(TRANSFERENCIA, EMPRESA_A, "user-gerente-a1");
-    await InventoryService.receiveTransfer(TRANSFERENCIA, EMPRESA_A, "user-admin-a");
-
-    const movimientos = estado.escrituras.filter((e) => e.tabla === "inventoryMovements");
-    expect(movimientos).toHaveLength(2);
-
-    const [salida, entrada] = movimientos.map((m) => m.valores);
-    // Un movimiento en origen (negativo) y uno en destino (positivo): el envío
-    // mueve el stock, no lo clona. Mismo lote de salida, misma referencia.
-    expect(salida).toMatchObject({
-      branchId: SUCURSAL_A_1,
-      itemId: ARTICULO_A,
-      type: "TRANSFER",
-      quantityChange: "-5",
-      referenceId: TRANSFERENCIA,
-    });
-    expect(entrada).toMatchObject({
-      branchId: SUCURSAL_A_2,
-      itemId: ARTICULO_A,
-      type: "TRANSFER",
-      quantityChange: "5",
-      referenceId: TRANSFERENCIA,
-    });
-
-    // El descuento del lote ocurre una sola vez, y el lote destino se crea una
-    // sola vez heredando la trazabilidad del origen. El descuento es un `set`
-    // con `currentQuantity` pero sin `initialQuantity`; la creación del lote
-    // destino trae las dos, así que se separan por `initialQuantity`.
-    const lotes = estado.escrituras.filter((e) => e.tabla === "inventoryBatches");
-    expect(
-      lotes.filter((l) => l.valores.currentQuantity !== undefined && l.valores.initialQuantity === undefined),
-    ).toHaveLength(1);
-    expect(lotes.filter((l) => l.valores.initialQuantity !== undefined)).toHaveLength(1);
-  });
+  // El recorrido exitoso pasó a transfer-fefo-db.test.ts: SQL real comprueba
+  // saldo/kardex y creación única en destino con el allocator y sus locks.
 
   it("un envío entre empresas no mueve ningún lote ni registra movimiento", async () => {
     const estado = simularDb({
@@ -497,47 +437,8 @@ describe("C17.3 — la ruta de transiciones traduce a status HTTP", () => {
     expect(estado.escrituras.some((e) => e.tabla === "inventoryTransfers" && e.valores.status === "APPROVED")).toBe(true);
   });
 
-  it("el gerente del origen envía y no el del destino", async () => {
-    const conEstadoAprobada = () => ({
-      branches: [...sucursalesDeA],
-      inventoryTransfers: [
-        {
-          id: TRANSFERENCIA,
-          transferNumber: "TRF-202610-0001",
-          fromBranchId: SUCURSAL_A_1,
-          toBranchId: SUCURSAL_A_2,
-          status: "APPROVED",
-        },
-      ],
-      inventoryTransferItems: [
-        {
-          id: "linea-1",
-          transferId: TRANSFERENCIA,
-          itemId: ARTICULO_A,
-          batchId: LOTE_A,
-          requestedQuantity: 5,
-          approvedQuantity: 5,
-          shippedQuantity: null,
-          receivedQuantity: null,
-        },
-      ],
-      inventoryBatches: [{ id: LOTE_A, branchId: SUCURSAL_A_1, currentQuantity: "20" }],
-      inventoryMovements: [],
-    });
-
-    // El destino no envía: el envío lo hace el origen, que es quien tiene el lote.
-    simularDb(conEstadoAprobada());
-    sesion({ id: "user-gerente-a2", role: "GERENTE", companyId: EMPRESA_A, branchId: SUCURSAL_A_2 });
-    const resDelDestino = await patch({ action: "ship" });
-    expect(resDelDestino.status).toBe(403);
-
-    const estado = simularDb(conEstadoAprobada(), { [LOTE_A]: 20 });
-    sesion({ id: "user-gerente-a1", role: "GERENTE", companyId: EMPRESA_A, branchId: SUCURSAL_A_1 });
-    const resDelOrigen = await patch({ action: "ship" });
-
-    expect(resDelOrigen.status).toBe(200);
-    expect(estado.escrituras.filter((e) => e.tabla === "inventoryMovements")).toHaveLength(1);
-  });
+  // El caso HTTP de origen/destino también se verifica con SQL real en
+  // transfer-fefo-db.test.ts; no se simula FOR UPDATE ni los joins de alcance.
 
   it("el detalle de una transferencia ajena responde 404", async () => {
     simularDb({
