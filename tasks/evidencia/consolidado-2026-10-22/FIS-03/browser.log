@@ -1,0 +1,16 @@
+pnpm.cmd exec playwright test --config tests/playwright-severance.config.ts
+
+Running 3 tests using 1 worker
+
+(node:19168) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:6920) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+11:23:14 a.m. [vite] (client) [optimizer] bundling dependencies...
+  ✓  1 tests\e2e\severance-minimum-wage.spec.ts:31:5 › exige zona, aplica mínimo por fecha y bloquea un año desconocido sin conservar total anterior (21.7s)
+  ✓  2 tests\e2e\severance-minimum-wage.spec.ts:53:5 › muestra el gap efectivo y no genera importes cuando falta salario (10.1s)
+  ✓  3 tests\e2e\severance-minimum-wage.spec.ts:64:5 › selector por teclado y bloqueo visibles en escritorio y móvil (4.1s)
+
+  3 passed (2.3m)
+
+EXIT=0

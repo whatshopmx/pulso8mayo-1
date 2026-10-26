@@ -1,0 +1,4 @@
+﻿{
+    "command":  "pnpm.cmd exec playwright test --config tests/playwright-aguinaldo.config.ts -g recupera",
+    "exitCode":  1
+}

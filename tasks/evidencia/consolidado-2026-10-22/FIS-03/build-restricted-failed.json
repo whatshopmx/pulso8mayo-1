@@ -1,0 +1,6 @@
+{
+  "command": "pnpm.cmd run build",
+  "startedAt": "2026-10-23T17:20:53.378Z",
+  "finishedAt": "2026-10-23T17:26:52.736Z",
+  "exit": 1
+}

@@ -1,4 +1,9 @@
 import { z } from "zod";
+import { isRegistroPatronal } from '@/lib/services/compliance/imss-registro';
+
+const imssRegistroPatronalSchema = z.string().trim().toUpperCase()
+  .refine(value => value === '' || isRegistroPatronal(value), 'Registro patronal: 11 caracteres, primero letra o número y después 10 dígitos')
+  .transform(value => value || null).nullable().optional();
 
 // Schema for operating hours configuration
 export const operatingHoursSchema = z.object({
@@ -94,6 +99,7 @@ export const createBranchSchema = z
   .object({
     name: z.string().min(2, "El nombre de la sucursal es requerido"),
     code: z.string().optional(),
+    imssRegistroPatronal: imssRegistroPatronalSchema,
     address: z.string().optional(),
     timezone: z.string().default("America/Mexico_City"),
     companyId: z.string().uuid().optional(),
@@ -108,6 +114,7 @@ export const updateBranchSchema = z
   .object({
     name: z.string().min(2).optional(),
     code: z.string().optional(),
+    imssRegistroPatronal: imssRegistroPatronalSchema,
     address: z.string().optional(),
     timezone: z.string().optional(),
     active: z.boolean().optional(),

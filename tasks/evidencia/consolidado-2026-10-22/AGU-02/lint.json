@@ -1,0 +1,7 @@
+{
+  "command": "pnpm.cmd exec eslint lib/services/isr-annual-withholding.ts lib/__tests__/isr-annual-withholding.test.ts tests/fixtures/fiscal-2026.ts lib/services/aguinaldo-payroll-service.ts lib/__tests__/aguinaldo-payroll-service.test.ts",
+  "started": "2026-10-23T18:05:51.764Z",
+  "finished": "2026-10-23T18:07:11.331Z",
+  "exitCode": 0,
+  "signal": null
+}

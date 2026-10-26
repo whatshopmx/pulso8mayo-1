@@ -1,0 +1,6 @@
+﻿{
+    "exitCode":  0,
+    "command":  "pnpm.cmd run test:unit --maxWorkers=2",
+    "finished":  "2026-10-24T00:36:13.1160056Z",
+    "started":  "2026-10-24T00:30:43.7797441Z"
+}

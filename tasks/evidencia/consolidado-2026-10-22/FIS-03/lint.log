@@ -1,0 +1,18 @@
+pnpm.cmd exec eslint lib/services/severance-minimum-wage.ts lib/services/ai-severance-calculator.ts lib/__tests__/severance-minimum-wage.test.ts lib/__tests__/labor-reforms-batch3.test.ts lib/__tests__/employee-severance-source.test.ts components/employees/settlement-calculator.tsx app/dashboard/employees/offboarding/new/page.tsx tests/support/severance-browser-server.ts tests/e2e/severance-minimum-wage.spec.ts tests/playwright-severance.config.ts
+
+C:\Users\david\pulso29\app\dashboard\employees\offboarding\new\page.tsx
+    6:29  warning  'CardDescription' is defined but never used  @typescript-eslint/no-unused-vars
+   12:55  warning  'Building2' is defined but never used        @typescript-eslint/no-unused-vars
+   45:44  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+   58:58  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+   59:46  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  152:21  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+
+C:\Users\david\pulso29\components\employees\settlement-calculator.tsx
+  17:13  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 8 problems (0 errors, 8 warnings)
+
+
+EXIT=0

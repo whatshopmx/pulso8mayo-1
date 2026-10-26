@@ -19,6 +19,8 @@ Cada cierre requiere evidencia en `tasks/evidencia/lotes-fefo/<ID>/`. Archivos i
 - [ ] **FEFO-03 (M): permisos de lotes.** Depende de 01.
   - [x] **FEFO-03A:** aislamiento y permiso de lectura de listado/trazabilidad; validar filtros y cerrar casos de rol/sucursal ausentes. 54 pruebas de alcance/diagnóstico/regresión pasan; evidencia en `tasks/evidencia/lotes-fefo/FEFO-03A/README.md`.
   - [ ] **FEFO-03B:** PATCH con transiciones autorizadas, motivo obligatorio y auditoría transaccional; captura del motivo en la interfaz existente.
+    - [x] **FEFO-03B-1:** verificar implementación local de API y auditoría: 75/75 pruebas enfocadas con Drizzle/PGlite, rollback por fallo de auditoría y aislamiento. Suite general: 172 archivos aprobados, 2,129 pruebas pasadas; lint general: 0 errores (2,454 advertencias). Evidencia: `tasks/evidencia/lotes-fefo/FEFO-03B/README.md`.
+    - [ ] **FEFO-03B-2:** cierre de navegador y build. Se añadieron 8 escenarios reproducibles en `tests/e2e/fefo-status.spec.ts`, configuración y servidor aislado. La automatización no logró montar la pantalla (timeouts); prueba manual de motivo/confirmación/foco sí funcionó. Build restringido falla al descargar Geist; reintento con red falla por heap de Node. No declarar este cierre ni Checkpoint 1 aprobado hasta resolver y repetir estas verificaciones. Ejecutar sin otros builds concurrentes.
   - Aceptación: empresa/sucursal/rol en listado, trazabilidad y PATCH; impedir cambios ajenos y estados no autorizados; auditoría de cambios con motivo y responsable.
   - Verificación: pruebas API con dos empresas, sucursales y roles; identificadores ajenos no revelan ni modifican datos.
   - Archivos: `app/api/inventory/batches/route.ts`, helper de alcance existente y pruebas enfocadas.

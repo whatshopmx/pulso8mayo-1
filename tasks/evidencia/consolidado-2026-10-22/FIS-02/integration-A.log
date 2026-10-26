@@ -1,0 +1,17 @@
+pnpm.cmd run test:integration tests/integration/labor-law-seed-db.test.ts [system CA enabled; types/build heap 6144 MB for this child only]
+$ vitest run --configLoader bundle --config vitest.integration.config.ts "tests/integration/labor-law-seed-db.test.ts"
+[dotenv@17.2.3] injecting env (1) from .env.test -- tip: ⚙️  write to custom object with { processEnv: myObject }
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  02:28:46
+   Duration  22.44s (transform 846ms, setup 89ms, import 2.25s, tests 19.29s, environment 0ms)
+
+
+EXIT=0

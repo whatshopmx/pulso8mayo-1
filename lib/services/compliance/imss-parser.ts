@@ -6,27 +6,10 @@
  * IDSE = IMSS Desde Su Empresa (Employee movements: alta, baja, modificación)
  */
 
-export interface IMSSEmployee {
-  nss: string;          // Número de Seguro Social (11 dígitos)
-  curp: string;         // CURP (18 caracteres)
-  rfc: string;          // RFC (13 caracteres)
-  name: string;         // Apellido Paterno + Materno + Nombre(s)
-  apellidoPaterno: string;
-  apellidoMaterno: string;
-  nombres: string;
-  baseSalaryDaily: number;  // Salario base diario en pesos
-  sdi: number;          // Salario Diario Integrado
-  hireDate: string;     // DDMMAAAA
-  terminationDate?: string;
-  workerType: string;   // Tipo de trabajador (1=Permanente, 2=Eventual)
-  workWeek: string;     // Jornada (1=Normal, 2=Mixta, 3=Nocturna)
-  movementType?: string; // 08=Alta, 02=Baja, 07=Mod salario
-}
-
 /**
  * Calculate SDI (Salario Diario Integrado)
  * SDI = Salario Diario × Factor de Integración
- * Factor primer año = 1.0452 (incluye aguinaldo 15 días + prima vacacional 25% de 12 días)
+ * Factor primer año ≈ 1.0493 (aguinaldo 15 días + prima vacacional 25% de 12 días).
  */
 export function calculateSDI(dailySalary: number, yearsOfService: number = 0): number {
   // Vacation days per Mexican LFT
@@ -62,141 +45,94 @@ function padRight(str: string, length: number): string {
 }
 
 /**
- * Format a number to fixed width with left zero padding
- */
-function padLeft(str: string, length: number, char: string = '0'): string {
-  return (str || '').substring(0, length).padStart(length, char);
-}
-
-/**
  * Format date from ISO to DDMMAAAA
  */
 function formatDateIMSS(dateStr: string): string {
-  if (!dateStr) return '00000000';
-  const d = new Date(dateStr);
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = String(d.getFullYear());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) throw new Error('Fecha IMSS inválida');
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  if (!Number.isFinite(d.getTime()) || d.toISOString().slice(0, 10) !== dateStr) throw new Error('Fecha IMSS inválida');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = String(d.getUTCFullYear());
   return `${dd}${mm}${yyyy}`;
 }
 
-/**
- * Format salary for IMSS files (7 digits, 2 decimal places, no separator)
- * Example: 350.50 -> "0035050"
- */
-function formatSalary(salary: number): string {
-  const cents = Math.round(salary * 100);
-  return padLeft(cents.toString(), 7);
+export interface ImssFileMovement {
+  userId: string;
+  nss: string;
+  curp: string;
+  rfc: string;
+  name: string;
+  hireDate: string;
+  effectiveDate: string;
+  baseSalaryCents: number;
+  sdiCents: number;
+  movementType: 'ALTA' | 'BAJA' | 'MOD_SALARIO';
 }
 
-// ============================================================
-// SUA FORMAT GENERATOR
-// ============================================================
+interface BuildOptions {
+  registroPatronal: string;
+  fechaMovimiento: string;
+  layoutVersion?: string;
+}
 
-/**
- * Generate SUA format file content
- * Used for salary modification reports (actualizaciones salariales)
- * 
- * Format: Fixed-width text file
- * Each line = 1 employee record
- */
-export function generateSUAFile(
-  employees: IMSSEmployee[],
-  registroPatronal: string,
-  fechaMovimiento: string
-): string {
-  const lines: string[] = [];
+const MOVEMENT_CODES = { ALTA: '08', BAJA: '02', MOD_SALARIO: '07' } as const;
 
-  for (const emp of employees) {
-    // SUA line format (common format, ~130 chars per line):
-    // Pos 1-11:   NSS (11 chars)
-    // Pos 12-18:  Salario (7 chars, cents)
-    // Pos 19-26:  Fecha movimiento (DDMMAAAA)
-    // Pos 27-37:  Registro patronal (11 chars)
-    // Pos 38-64:  Apellido paterno (27 chars)
-    // Pos 65-91:  Apellido materno (27 chars)
-    // Pos 92-118: Nombre(s) (27 chars)
-    // Pos 119-120: Tipo trabajador (2 chars)
-    // Pos 121-122: Tipo jornada (2 chars)
-    // Pos 123-130: Fecha alta IMSS (DDMMAAAA)
-
-    const line = [
-      padLeft(emp.nss, 11),                           // NSS
-      formatSalary(emp.sdi),                          // SDI en centavos
-      formatDateIMSS(fechaMovimiento),                // Fecha movimiento
-      padRight(registroPatronal, 11),                 // Registro patronal
-      padRight(emp.apellidoPaterno.toUpperCase(), 27),// Apellido paterno
-      padRight(emp.apellidoMaterno.toUpperCase(), 27),// Apellido materno
-      padRight(emp.nombres.toUpperCase(), 27),        // Nombre(s)
-      padLeft(emp.workerType || '1', 2),              // Tipo trabajador
-      padLeft(emp.workWeek || '1', 2),                // Tipo jornada
-      formatDateIMSS(emp.hireDate),                   // Fecha alta
-    ].join('');
-
-    lines.push(line);
+function validateMovements(movements: ImssFileMovement[], options: BuildOptions) {
+  if (!movements.length) throw new Error('El archivo no puede estar vacío');
+  if (!/^[A-Z0-9]\d{10}$/.test(options.registroPatronal)) throw new Error('Registro patronal inválido');
+  formatDateIMSS(options.fechaMovimiento);
+  for (const row of movements) {
+    if (!Number.isSafeInteger(row.sdiCents) || row.sdiCents <= 0 || row.sdiCents > 9999999) throw new Error('SDI inválido para el layout IMSS');
+    if (!Number.isSafeInteger(row.baseSalaryCents) || row.baseSalaryCents <= 0) throw new Error('Salario base inválido');
+    if (!validateNSS(row.nss) || !validateCURP(row.curp) || !validateRFC(row.rfc)) throw new Error('Identidad IMSS incompleta');
+    if (!MOVEMENT_CODES[row.movementType]) throw new Error('Tipo de movimiento inválido');
+    formatDateIMSS(row.effectiveDate);
+    formatDateIMSS(row.hireDate);
   }
+}
 
+function employeeName(row: ImssFileMovement) {
+  const parts = row.name.trim().toUpperCase().split(/\s+/);
+  return [parts[0] || '', parts[1] || '', parts.slice(2).join(' ') || parts[0] || ''];
+}
+
+function renderIdse(movements: ImssFileMovement[], options: BuildOptions) {
+  validateMovements(movements, options);
+  const lines = [`HD|${options.registroPatronal}|${String(movements.length).padStart(5, '0')}|${formatDateIMSS(options.fechaMovimiento)}|PULSO_SISTEMA`];
+  for (const row of movements) {
+    const names = employeeName(row);
+    lines.push(['DT', row.nss, row.curp.toUpperCase(), padRight(row.rfc.toUpperCase(), 13),
+      ...names.map(name => padRight(name, 27)), row.sdiCents.toString().padStart(7, '0'), MOVEMENT_CODES[row.movementType],
+      formatDateIMSS(row.effectiveDate), '1', '1', row.movementType === 'BAJA' ? formatDateIMSS(row.effectiveDate) : '00000000'].join('|'));
+  }
+  lines.push(`TR|${String(movements.length).padStart(5, '0')}`);
   return lines.join('\r\n');
 }
 
-// ============================================================
-// IDSE FORMAT GENERATOR
-// ============================================================
+function renderSua(movements: ImssFileMovement[], options: BuildOptions) {
+  validateMovements(movements, options);
+  if (movements.some(row => row.movementType !== 'MOD_SALARIO')) throw new Error('SUA solo admite modificación salarial');
+  return movements.map(row => [row.nss, row.sdiCents.toString().padStart(7, '0'), formatDateIMSS(row.effectiveDate), options.registroPatronal,
+    ...employeeName(row).map(name => padRight(name, 27)), '01', '01', formatDateIMSS(row.hireDate)].join('')).join('\r\n');
+}
 
-/**
- * Generate IDSE format batch file for employee movements
- * 
- * Movement types:
- * 08 = Alta (new registration)
- * 02 = Baja (deregistration)
- * 07 = Modificación de salario
- */
-export function generateIDSEFile(
-  employees: IMSSEmployee[],
-  registroPatronal: string,
-  movementType: '08' | '02' | '07'
-): string {
-  const lines: string[] = [];
+async function fileResult(content: string, lineCount: number, layoutVersion: string) {
+  // Web Crypto evita importar node:crypto en las pantallas que usan validadores.
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(content));
+  const sha256 = Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('');
+  return { content, sha256, lineCount, layoutVersion };
+}
 
-  // Header line
-  const header = [
-    'HD',                                              // Header identifier
-    padRight(registroPatronal, 11),                   // Registro patronal
-    padLeft(employees.length.toString(), 5),           // Total registros
-    new Date().toISOString().slice(0, 10).replace(/-/g, ''), // Fecha generación AAAAMMDD
-    padRight('PULSO_SISTEMA', 20),                    // Sistema generador
-  ].join('|');
-  lines.push(header);
+/** Archivos de trabajo: layout todavía no validado contra el portal IMSS. */
+export async function buildIdseFile(movements: ImssFileMovement[], options: BuildOptions) {
+  if (options.layoutVersion && options.layoutVersion !== 'IDSE_2025_v1') throw new Error('La versión IDSE no está soportada');
+  return fileResult(renderIdse(movements, options), movements.length, 'IDSE_2025_v1');
+}
 
-  // Employee lines
-  for (const emp of employees) {
-    const line = [
-      'DT',                                            // Detail identifier
-      padLeft(emp.nss, 11),                            // NSS
-      padRight(emp.curp, 18),                          // CURP
-      padRight(emp.rfc, 13),                           // RFC
-      padRight(emp.apellidoPaterno.toUpperCase(), 27), // Apellido paterno
-      padRight(emp.apellidoMaterno.toUpperCase(), 27), // Apellido materno
-      padRight(emp.nombres.toUpperCase(), 27),         // Nombre(s)
-      formatSalary(emp.sdi),                           // SDI
-      movementType,                                    // Tipo movimiento
-      formatDateIMSS(emp.hireDate),                    // Fecha movimiento
-      padLeft(emp.workerType || '1', 1),               // Tipo trabajador
-      padLeft(emp.workWeek || '1', 1),                 // Tipo jornada
-      emp.terminationDate ? formatDateIMSS(emp.terminationDate) : '00000000', // Fecha baja
-    ].join('|');
-
-    lines.push(line);
-  }
-
-  // Trailer line
-  const trailer = [
-    'TR',                                              // Trailer identifier
-    padLeft(employees.length.toString(), 5),            // Total registros
-  ].join('|');
-  lines.push(trailer);
-
-  return lines.join('\r\n');
+export async function buildSuaFile(movements: ImssFileMovement[], options: BuildOptions) {
+  if (options.layoutVersion && options.layoutVersion !== 'SUA_AFIL_v1') throw new Error('La versión SUA no está soportada');
+  return fileResult(renderSua(movements, options), movements.length, 'SUA_AFIL_v1');
 }
 
 /**

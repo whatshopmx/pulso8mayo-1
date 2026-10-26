@@ -1,0 +1,6 @@
+{
+  "command": "pnpm.cmd run test:unit lib/__tests__/labor-law-seed-data.test.ts",
+  "startedAt": "2026-10-23T02:18:59.890Z",
+  "finishedAt": "2026-10-23T02:19:06.440Z",
+  "exit": 1
+}

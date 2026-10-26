@@ -5,13 +5,14 @@ import { ApiHandler } from "@/lib/api/response";
 import {
     previsualizarAguinaldo,
     executeAguinaldoRun,
+    recuperarAguinaldoRun,
     registrarDispersionExcedente,
     listarDispersionesExcedente,
     AguinaldoRunDuplicadoError,
     AguinaldoDispersionInvalidaError,
-    type AguinaldoPreview,
 } from "@/lib/services/aguinaldo-payroll-service";
 import { ApiError } from "@/lib/api/error";
+import { hoyCivilAguinaldo, resolverFechaPagoAguinaldo } from "@/lib/services/aguinaldo-payment";
 
 const anioFiscalSchema = z.object({
     anioFiscal: z
@@ -21,6 +22,9 @@ const anioFiscalSchema = z.object({
         .max(2200)
         .default(new Date().getFullYear()),
     branchId: z.string().uuid().optional(),
+    fechaPago: z.string().refine((value) => {
+        try { resolverFechaPagoAguinaldo(value); return true; } catch { return false; }
+    }, "fechaPago debe ser una fecha civil válida YYYY-MM-DD").optional(),
     diasLaboradosPorUsuario: z.record(z.string().uuid(), z.number().int().min(0).max(366)).optional(),
     /** Task 11 (Q5): acción POST "EXECUTE" (default, timbrado) | "DISPERSION" (bitácora sin CFDI). */
     action: z.enum(["EXECUTE", "DISPERSION"]).default("EXECUTE"),
@@ -61,6 +65,7 @@ export async function GET(req: NextRequest) {
                 ? Number(url.searchParams.get("anioFiscal"))
                 : new Date().getFullYear(),
             branchId: url.searchParams.get("branchId") ?? undefined,
+            fechaPago: url.searchParams.get("fechaPago") ?? hoyCivilAguinaldo(),
         });
         if (!parse.success) {
             return ApiHandler.error(parse.error, 400);
@@ -75,11 +80,13 @@ export async function GET(req: NextRequest) {
         const preview = await previsualizarAguinaldo(
             ctx.userCompanyId,
             parse.data.anioFiscal,
-            parse.data.branchId
+            parse.data.branchId,
+            { fechaPago: parse.data.fechaPago }
         );
 
         return ApiHandler.success(preview);
     } catch (error) {
+        if (error instanceof RangeError) return ApiHandler.error(error, 400);
         return ApiHandler.error(error);
     }
 }
@@ -92,6 +99,10 @@ export async function POST(req: NextRequest) {
         });
 
         const body = await req.json();
+        if (body?.action === "RECOVER") {
+            const recovery = z.object({ action: z.literal("RECOVER"), runId: z.string().uuid() }).strict().parse(body);
+            return ApiHandler.success(await recuperarAguinaldoRun(ctx.userCompanyId, recovery.runId));
+        }
         const data = anioFiscalSchema.parse(body);
 
         if (data.action === "DISPERSION") {
@@ -113,19 +124,21 @@ export async function POST(req: NextRequest) {
             return ApiHandler.success({ dispersion: row });
         }
 
+        if (!data.fechaPago) return ApiHandler.error(ApiError.badRequest("La ejecución requiere fechaPago de la preview autorizada."));
         const result = await executeAguinaldoRun(
             ctx.userCompanyId,
             data.anioFiscal,
             ctx.userId,
-            { diasLaboradosPorUsuario: data.diasLaboradosPorUsuario },
+            { diasLaboradosPorUsuario: data.diasLaboradosPorUsuario, fechaPago: data.fechaPago },
             data.branchId
         );
 
         return ApiHandler.success({
             ...result,
-            windowWarning: advertenciaVentana(data.anioFiscal),
+            windowWarning: advertenciaVentana(data.anioFiscal, data.fechaPago),
         });
     } catch (error) {
+        if (error instanceof RangeError) return ApiHandler.error(error, 400);
         if (error instanceof AguinaldoRunDuplicadoError) {
             return ApiHandler.error(error, 409);
         }
@@ -137,13 +150,12 @@ export async function POST(req: NextRequest) {
 }
 
 /** mes de diciembre respecto del año causado */
-function esDiciembreDelAnioCausado(anioFiscal: number): boolean {
-    const hoy = new Date();
-    return hoy.getFullYear() === anioFiscal && hoy.getMonth() === 11; // 0-index: 11 = DIC
+function esDiciembreDelAnioCausado(anioFiscal: number, fechaPago: string): boolean {
+    return fechaPago.startsWith(`${anioFiscal}-12-`);
 }
 
 /** Aviso no bloqueante si la dispersión cae fuera de la ventana de diciembre. */
-function advertenciaVentana(anioFiscal: number): string | null {
-    if (esDiciembreDelAnioCausado(anioFiscal)) return null;
+function advertenciaVentana(anioFiscal: number, fechaPago: string): string | null {
+    if (esDiciembreDelAnioCausado(anioFiscal, fechaPago)) return null;
     return `Estás dispersando el aguinaldo ${anioFiscal} fuera de diciembre del año causado (límite legal: 19-dic, multa Art. 1002 LFT). El CFDI usa el periodo 1-ene a 31-dic ${anioFiscal} igual si es tardío.`;
 }

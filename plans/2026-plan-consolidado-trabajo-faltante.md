@@ -108,6 +108,8 @@ Las ramas independientes pueden avanzar sin esperar cierre global; una dependenc
 
 **Entradas previstas:** scripts/seed-labor-law-rules.ts; labor-rules-resolver.ts; pruebas y migración de datos revisada si hace falta.
 
+Desglosado antes de implementar en FIS-02A (catálogo/seed), FIS-02B (resolución/caché) y FIS-02C (bloqueo de aguinaldo), con pruebas y estado en el checklist. [Evidencia de ejecución local](../tasks/evidencia/consolidado-2026-10-22/FIS-02/README.md); el rollout del catálogo público es OPS-03.
+
 **Verificación:** V1+V2; ejecutar seed dos veces en aislado, probar cambio de vigencia y refresco de caché.
 
 #### FIS-03 — Resolver el mínimo del finiquito por fecha efectiva y zona antes del cálculo puro.
@@ -117,6 +119,8 @@ Las ramas independientes pueden avanzar sin esperar cierre global; una dependenc
 **Aceptación:** Quitar default 278.80; mantener el factor legal de tope separado del monto mínimo; salario/fecha/zona faltantes generan bloqueo explícito en cálculo exigible y no un dato inventado.
 
 **Entradas previstas:** ai-severance-calculator.ts; capa de orquestación; settlement-calculator.tsx; pruebas.
+
+Implementación desglosada en FIS-03A (resolución/cálculo puro), FIS-03B (pantalla) y FIS-03C (transporte salarial del listado, cuyo SQL inválido se reprodujo al integrar). Catálogo geográfico compartido con fuente y vigencias acotadas; la tabla global existente solo representa GENERAL. [Evidencia, resultados y límites](../tasks/evidencia/consolidado-2026-10-22/FIS-03/README.md). La autorización/persistencia del importe exigible sigue en REF-04/05.
 
 **Verificación:** V1; dos fechas publicadas y dos zonas; regresión del caso formal y gap efectivo.
 

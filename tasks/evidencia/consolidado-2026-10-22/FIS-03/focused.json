@@ -1,0 +1,6 @@
+{
+  "command": "pnpm.cmd run test:unit lib/__tests__/severance-minimum-wage.test.ts lib/__tests__/employee-severance-source.test.ts lib/__tests__/labor-reforms-batch3.test.ts lib/__tests__/fiscal-fixtures.test.ts --maxWorkers=2",
+  "startedAt": "2026-10-23T17:19:56.494Z",
+  "finishedAt": "2026-10-23T17:20:10.769Z",
+  "exit": 0
+}

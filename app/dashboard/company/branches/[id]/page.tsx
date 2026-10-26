@@ -28,6 +28,7 @@ interface Branch {
     name: string;
     address: string | null;
     timezone: string;
+    imssRegistroPatronal: string | null;
     operatingHours: any;
     location: any;
     managerId: string | null;
@@ -76,11 +77,12 @@ export default function BranchDetailsPage({ params }: { params: Promise<{ id: st
     const [invitePhone, setInvitePhone] = useState("");
     const [whatsappPulsoPhone, setWhatsappPulsoPhone] = useState<string | null>(null);
 
-    const form = useForm<z.infer<typeof updateBranchSchema>>({
+    const form = useForm<z.input<typeof updateBranchSchema>, unknown, z.output<typeof updateBranchSchema>>({
         resolver: zodResolver(updateBranchSchema),
         defaultValues: {
             name: "",
             address: "",
+            imssRegistroPatronal: "",
             timezone: "America/Mexico_City",
             operatingHours: undefined,
             managerId: null,
@@ -112,6 +114,7 @@ export default function BranchDetailsPage({ params }: { params: Promise<{ id: st
                 form.reset({
                     name: data.name,
                     address: data.address || "",
+                    imssRegistroPatronal: data.imssRegistroPatronal || "",
                     timezone: data.timezone || "America/Mexico_City",
                     operatingHours: data.operatingHours,
                     managerId: data.managerId || null,
@@ -367,6 +370,20 @@ export default function BranchDetailsPage({ params }: { params: Promise<{ id: st
                                                     <FormControl>
                                                         <Input placeholder="Calle 123..." {...field} />
                                                     </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="imssRegistroPatronal"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Registro patronal IMSS</FormLabel>
+                                                    <FormControl>
+                                                        <Input {...field} value={field.value ?? ""} maxLength={11} autoCapitalize="characters" placeholder="A1234567890" />
+                                                    </FormControl>
+                                                    <FormDescription>11 caracteres de la tarjeta patronal de esta sucursal. Requerido para generar movimientos IMSS.</FormDescription>
                                                     <FormMessage />
                                                 </FormItem>
                                             )}

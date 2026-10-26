@@ -21,8 +21,19 @@ interface Employee {
   email: string;
   role?: string;
   baseSalary?: number;
+  effectiveSalaryCents?: number | null;
   hireDate?: string;
   seniorityDate?: string;
+}
+
+interface EmployeeListRow {
+  id: string;
+  userName: string | null;
+  userEmail: string | null;
+  userRole?: string;
+  contractBaseSalary: number | null;
+  effectiveSalaryCents?: number | null;
+  hireDate?: string;
 }
 
 export default function NewOffboardingPage() {
@@ -54,8 +65,15 @@ export default function NewOffboardingPage() {
         const res = await fetch("/api/employees?isActive=true");
         if (res.ok) {
           const data = await res.json();
-          // The /api/employees endpoint likely returns { data: [...] }
-          setEmployees(data.data || []);
+          setEmployees((data.data || []).map((employee: EmployeeListRow) => ({
+            id: employee.id,
+            name: employee.userName || employee.userEmail || "Empleado",
+            email: employee.userEmail || "",
+            role: employee.userRole,
+            baseSalary: employee.contractBaseSalary,
+            effectiveSalaryCents: employee.effectiveSalaryCents,
+            hireDate: employee.hireDate,
+          })));
         }
       } catch (e) {
         console.error("Error fetching employees:", e);
@@ -90,6 +108,10 @@ export default function NewOffboardingPage() {
     }
     if (!form.reason) {
       toast.error("Selecciona el motivo de la baja");
+      return;
+    }
+    if (!calculationData) {
+      toast.error("Resuelve los datos del finiquito antes de guardar la baja");
       return;
     }
     if (!session?.user?.companyId) {
@@ -172,7 +194,7 @@ export default function NewOffboardingPage() {
               <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Empleado *</Label>
-                  <Select value={form.userId} onValueChange={v => setForm(f => ({ ...f, userId: v }))}>
+                  <Select value={form.userId} onValueChange={v => { setCalculationData(null); setForm(f => ({ ...f, userId: v })); }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona..." />
                     </SelectTrigger>
@@ -188,7 +210,7 @@ export default function NewOffboardingPage() {
 
                 <div className="space-y-2">
                   <Label>Sucursal *</Label>
-                  <Select value={form.branchId} onValueChange={v => setForm(f => ({ ...f, branchId: v }))}>
+                  <Select value={form.branchId} onValueChange={v => { setCalculationData(null); setForm(f => ({ ...f, branchId: v })); }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona..." />
                     </SelectTrigger>
@@ -204,7 +226,7 @@ export default function NewOffboardingPage() {
 
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Motivo de la Baja *</Label>
-                  <Select value={form.reason} onValueChange={v => setForm(f => ({ ...f, reason: v }))}>
+                  <Select value={form.reason} onValueChange={v => { setCalculationData(null); setForm(f => ({ ...f, reason: v })); }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona el motivo..." />
                     </SelectTrigger>
@@ -241,7 +263,7 @@ export default function NewOffboardingPage() {
                   <Input 
                     type="date" 
                     value={form.lastWorkingDay} 
-                    onChange={e => setForm(f => ({ ...f, lastWorkingDay: e.target.value }))}
+                    onChange={e => { setCalculationData(null); setForm(f => ({ ...f, lastWorkingDay: e.target.value })); }}
                     required
                   />
                 </div>
@@ -251,6 +273,7 @@ export default function NewOffboardingPage() {
             {/* Settlement Calculator */}
             {selectedEmployee ? (
               <SettlementCalculator 
+                key={`${form.userId}:${form.branchId}`}
                 employee={selectedEmployee}
                 lastWorkingDay={form.lastWorkingDay}
                 reason={form.reason}
@@ -287,7 +310,7 @@ export default function NewOffboardingPage() {
             </Card>
 
             <div className="sticky bottom-6 pt-4">
-              <Button type="submit" className="w-full shadow-lg h-12" disabled={loading || !form.userId}>
+              <Button type="submit" className="w-full shadow-lg h-12" disabled={loading || !form.userId || !calculationData}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                 Finalizar y Guardar Baja
               </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useSession } from "@/hooks/use-session";
+import { hasPermission, type Role } from "@/lib/permissions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 // ── Configuración de estados y fechas ──
 
@@ -106,6 +110,9 @@ function ExpiryBadge({ days }: { days: number | null }) {
  */
 export default function LotsPage() {
   const branches = useBranches();
+  const { session } = useSession();
+  const canUpdate = hasPermission(session?.user.role as Role, "inventory", "update");
+  const canManage = hasPermission(session?.user.role as Role, "inventory", "manage");
 
   const [branchFilter, setBranchFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -115,6 +122,11 @@ export default function LotsPage() {
   // Modales de acciones
   const [traceBatch, setTraceBatch] = useState<InventoryBatch | null>(null);
   const [wasteBatch, setWasteBatch] = useState<InventoryBatch | null>(null);
+  const [quarantineBatch, setQuarantineBatch] = useState<InventoryBatch | null>(null);
+  const [statusReason, setStatusReason] = useState("");
+  const [statusError, setStatusError] = useState("");
+  const [savingStatus, setSavingStatus] = useState(false);
+  const statusReturnLot = useRef<string | null>(null);
 
   const batches = useBatches({
     branchId: branchFilter !== "ALL" ? branchFilter : undefined,
@@ -153,8 +165,12 @@ export default function LotsPage() {
     return { active, expired, soon, valueCents };
   }, [batches.data, hideDepleted]);
 
-  const handleToggleQuarantine = async (batch: InventoryBatch) => {
+  const handleToggleQuarantine = async () => {
+    if (!quarantineBatch || !statusReason.trim() || savingStatus) return;
+    const batch = quarantineBatch;
     const nextStatus: BatchStatus = batch.status === "QUARANTINED" ? "AVAILABLE" : "QUARANTINED";
+    setSavingStatus(true);
+    setStatusError("");
     try {
       const res = await fetch("/api/inventory/batches", {
         method: "PATCH",
@@ -162,6 +178,7 @@ export default function LotsPage() {
         body: JSON.stringify({
           batchId: batch.id,
           status: nextStatus,
+          notes: statusReason.trim(),
         }),
       });
       const data = await res.json();
@@ -171,12 +188,15 @@ export default function LotsPage() {
             ? `Lote ${batch.lotNumber || ""} puesto en cuarentena (excluido de FEFO)`
             : `Lote ${batch.lotNumber || ""} liberado a Disponible`
         );
+        setQuarantineBatch(null);
         batches.refetch();
       } else {
-        toast.error(data.error || "Error al actualizar estado del lote");
+        setStatusError(data.error || "Error al actualizar estado del lote");
       }
     } catch {
-      toast.error("Error al actualizar estado del lote");
+      setStatusError("No se pudo actualizar el lote. Conservamos tu motivo para que puedas volver a intentarlo.");
+    } finally {
+      setSavingStatus(false);
     }
   };
 
@@ -303,7 +323,11 @@ export default function LotsPage() {
                       batch={batch}
                       onTrace={() => setTraceBatch(batch)}
                       onWaste={() => setWasteBatch(batch)}
-                      onToggleQuarantine={() => handleToggleQuarantine(batch)}
+                      onToggleQuarantine={
+                        (batch.status === "AVAILABLE" && canUpdate) || (batch.status === "QUARANTINED" && canManage)
+                          ? () => { statusReturnLot.current = batch.id; setQuarantineBatch(batch); setStatusReason(""); setStatusError(""); }
+                          : undefined
+                      }
                     />
                   ))}
                 </tbody>
@@ -326,6 +350,38 @@ export default function LotsPage() {
         onOpenChange={(open) => !open && setWasteBatch(null)}
         onSuccess={() => batches.refetch()}
       />
+
+      <Dialog open={Boolean(quarantineBatch)} onOpenChange={(open) => !open && !savingStatus && setQuarantineBatch(null)}>
+        <DialogContent className="shadow-none" showCloseButton={!savingStatus} onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          (document.getElementById(`lot-actions-${statusReturnLot.current}`) ?? document.getElementById("filtro-sucursal"))?.focus();
+        }}>
+          <DialogHeader>
+            <DialogTitle>{quarantineBatch?.status === "QUARANTINED" ? "Liberar lote a disponible" : "Poner lote en cuarentena"}</DialogTitle>
+            <DialogDescription>
+              {quarantineBatch?.itemName} · Lote {quarantineBatch?.lotNumber || "sin código"}.
+              {quarantineBatch?.status === "QUARANTINED"
+                ? " Se comprobarán el saldo y la caducidad antes de liberarlo."
+                : " Quedará fuera del consumo hasta que un gerente lo libere."}
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void handleToggleQuarantine(); }}>
+            <div className="space-y-2">
+              <Label htmlFor="motivo-estado-lote">Motivo del cambio</Label>
+              <Textarea id="motivo-estado-lote" value={statusReason} onChange={(event) => setStatusReason(event.target.value)}
+                required maxLength={1000} rows={3} disabled={savingStatus} aria-describedby="ayuda-motivo-lote" />
+              <p id="ayuda-motivo-lote" className="text-xs text-muted-foreground">Se registrarán el responsable y el motivo del cambio.</p>
+            </div>
+            {statusError && <p role="alert" className="text-sm text-destructive">{statusError}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={savingStatus} onClick={() => setQuarantineBatch(null)}>Cancelar</Button>
+              <Button type="submit" disabled={savingStatus || !statusReason.trim()}>
+                {savingStatus ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando…</> : "Confirmar cambio"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -339,7 +395,7 @@ function LotRow({
   batch: InventoryBatch;
   onTrace: () => void;
   onWaste: () => void;
-  onToggleQuarantine: () => void;
+  onToggleQuarantine?: () => void;
 }) {
   const remainingPct =
     batch.initialQuantity > 0
@@ -392,7 +448,7 @@ function LotRow({
       <td className="py-3 pl-3 align-top text-right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button id={`lot-actions-${batch.id}`} variant="ghost" size="icon" className="h-8 w-8">
               <MoreVertical className="h-4 w-4 text-muted-foreground" />
               <span className="sr-only">Acciones de lote</span>
             </Button>
@@ -406,7 +462,7 @@ function LotRow({
               <Trash2 className="h-4 w-4" />
               Mandar a Merma
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            {onToggleQuarantine && <><DropdownMenuSeparator />
             <DropdownMenuItem onClick={onToggleQuarantine} className="gap-2 cursor-pointer">
               {batch.status === "QUARANTINED" ? (
                 <>
@@ -419,7 +475,7 @@ function LotRow({
                   Poner en Cuarentena
                 </>
               )}
-            </DropdownMenuItem>
+            </DropdownMenuItem></>}
           </DropdownMenuContent>
         </DropdownMenu>
       </td>

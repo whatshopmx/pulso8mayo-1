@@ -1,0 +1,7 @@
+{
+  "command": "pnpm.cmd run test:unit",
+  "started": "2026-10-23T18:54:53.966Z",
+  "finished": "2026-10-23T18:57:45.211Z",
+  "exitCode": 0,
+  "signal": null
+}

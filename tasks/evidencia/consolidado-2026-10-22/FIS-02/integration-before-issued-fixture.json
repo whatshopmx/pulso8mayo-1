@@ -1,0 +1,6 @@
+{
+  "command": "pnpm.cmd run test:integration tests/integration/labor-law-seed-db.test.ts",
+  "startedAt": "2026-10-23T03:02:49.432Z",
+  "finishedAt": "2026-10-23T03:03:24.435Z",
+  "exit": 0
+}

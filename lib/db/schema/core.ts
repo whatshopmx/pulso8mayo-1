@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, uuid, jsonb, uniqueIndex, foreignKey, integer, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, jsonb, uniqueIndex, foreignKey, integer, pgEnum, numeric } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./auth";
 
@@ -24,6 +24,12 @@ export const companies = pgTable("companies", {
   courtesyWasteMonthlyCapCents: integer("courtesy_waste_monthly_cap_cents"),
   costingMethod: text("costing_method").default('LAST_PRICE'), // 'LAST_PRICE' | 'AVERAGE_COST'
   taxRate: integer("tax_rate").default(16), // IVA percentage default 16%
+  /**
+   * Prima de riesgo de trabajo (plan-imss, decisión 4): se captura como DATO DE
+   * REGISTRO y no alimenta ningún cálculo. Las cuotas obrero-patronales (SBC,
+   * topes UMA, ramas de seguro, SIPARE) están fuera del alcance de este módulo.
+   */
+  imssPrimaRiesgoTrabajo: numeric("imss_prima_riesgo_trabajo", { precision: 5, scale: 4 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -45,6 +51,15 @@ export const branches = pgTable("branches", {
   managerInviteToken: uuid("manager_invite_token").default(sql`gen_random_uuid()`),
   active: boolean("active").default(true),
   costingMethod: text("costing_method"), // 'LAST_COST' | 'AVERAGE_COST' — overrides company default
+
+  /**
+   * Registro patronal IMSS de ESTE centro de trabajo (plan-imss, decisión 4).
+   * 11 caracteres: primera posición alfanumérica y 10 dígitos. El registro se asigna
+   * por centro de trabajo, no por empresa, y IDSE/SUA se envían por registro —
+   * por eso el generador se NIEGA a mezclar dos registros en un mismo archivo
+   * en vez de emitir un archivo inválido en silencio.
+   */
+  imssRegistroPatronal: text("imss_registro_patronal"),
 
   // ── Pilar 4: franchise isolation (docs §8.2) ──
   ownershipType: branchOwnershipEnum("ownership_type").default('OWNED').notNull(),

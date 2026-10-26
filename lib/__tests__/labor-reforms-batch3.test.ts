@@ -77,6 +77,7 @@ describe("Batch 3: Task 9 - AI Severance Calculator & AI Transparency Log", () =
       dailyIntegratedSalaryMXN: 600,
       tenureYears: 2,
       isAiReplacement: true,
+      minimumWageMxn: 315.04,
     });
 
     expect(calculation.constitutionalIndemnityMXN).toBe(54000); // 90 days * $600
@@ -90,6 +91,7 @@ describe("Batch 3: Task 9 - AI Severance Calculator & AI Transparency Log", () =
       dailyIntegratedSalaryMXN: 600,
       tenureYears: 2,
       isAiReplacement: false,
+      minimumWageMxn: 315.04,
     });
 
     expect(calculation.constitutionalIndemnityMXN).toBe(54000);

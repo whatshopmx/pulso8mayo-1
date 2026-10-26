@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { laborLawCalendarRules, type LaborLawCalendarRule } from "@/lib/db/schema";
 import { LaborCalendarRulesService } from "./labor-calendar-rules";
+import { ApiError } from "@/lib/api/error";
 
 /**
  * Resolución de parámetros laborales en 3 capas (plan
@@ -62,10 +63,10 @@ export interface MergeResult {
 export const LABOR_RULES_CACHE_TAG = "labor-law-calendar-rules";
 
 /** Capa 1a — selector puro por fecha (unit-testable, sin DB). */
-export function pickLawRuleForDate(
-    rows: Pick<LaborLawCalendarRule, "effectiveFrom" | "effectiveTo" | "aguinaldoDaysMxn">[],
+export function pickLawRuleForDate<T extends Pick<LaborLawCalendarRule, "effectiveFrom" | "effectiveTo" | "aguinaldoDaysMxn">>(
+    rows: T[],
     date: Date
-): Pick<LaborLawCalendarRule, "effectiveFrom" | "effectiveTo" | "aguinaldoDaysMxn"> | null {
+): T | null {
     // Comparaciones por día calendario (las columnas date llegan como
     // "YYYY-MM-DD"); normalizo a UTC mediodía para evitar desfaces de
     // zona horaria en los límites de vigencia.
@@ -77,6 +78,9 @@ export function pickLawRuleForDate(
             return from <= isoDate && (!to || isoDate <= to);
         })
         .sort((a, b) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime());
+    if (candidates.length > 1) {
+        throw ApiError.conflict("Vigencias legales ambiguas o solapadas; revisar el catálogo antes de calcular.");
+    }
     return candidates[0] ?? null;
 }
 
@@ -138,7 +142,8 @@ const cachedLoader = (dateKey: string) =>
                 return [];
             }
         },
-        ["labor-law-calendar-rules", dateKey],
+        // Cambia el espacio de caché al desplegar la corrección de vigencias.
+        ["labor-law-calendar-rules-fiscal-v2", dateKey],
         { revalidate: 300, tags: [LABOR_RULES_CACHE_TAG] },
     );
 
@@ -168,9 +173,43 @@ export async function resolveLaborLawRules(date: Date = new Date()): Promise<Res
     const rows = await loadLaborRows();
     const picked = pickLawRuleForDate(rows, date);
     if (!picked) return staticFallbackRule(date);
-    // Releo la fila completa desde el resultado cacheado.
-    const full = rows.find((r) => r.effectiveFrom === picked.effectiveFrom);
-    return full ? rowToResolved(full) : staticFallbackRule(date);
+    return rowToResolved(picked);
+}
+
+export type FiscalLaborField = "umaDailyMxn" | "minimumWageMxn";
+type LawRuleReader = Pick<typeof db, "select">;
+
+/**
+ * Ejecución fiscal: lectura fresca, sin caché ni fallback informativo.
+ * Cada consumidor declara los parámetros que su cálculo realmente necesita.
+ * El reader transaccional permite conservar el mismo snapshot del consumidor.
+ */
+export async function resolveFiscalLaborLawRules(
+    date: Date = new Date(),
+    requiredFields: readonly [FiscalLaborField, ...FiscalLaborField[]] = ["umaDailyMxn", "minimumWageMxn"],
+    reader: LawRuleReader = db,
+): Promise<ResolvedLaborRule> {
+    const dateKey = date.toISOString().slice(0, 10);
+    let rows: LaborLawCalendarRule[];
+    try {
+        rows = await reader.select().from(laborLawCalendarRules);
+    } catch {
+        // No exponer detalles de conexión/SQL ni autorizar importes inventados.
+        throw new ApiError("No se pudieron verificar las reglas fiscales vigentes. Cálculo fiscal bloqueado hasta recuperar la fuente.", 503);
+    }
+    const picked = pickLawRuleForDate(rows, date);
+    if (!picked) throw ApiError.conflict(`No hay una regla fiscal vigente para ${dateKey}. Cálculo fiscal bloqueado.`);
+    const rule = rowToResolved(picked);
+    const missing = requiredFields.filter((field) => {
+        const value = rule[field];
+        return value == null || !Number.isFinite(value) || value <= 0;
+    });
+    if (missing.length || !rule.sourceDofUrl || !rule.sourcePublishedOn) {
+        const labels: string[] = missing.map((f) => f === "umaDailyMxn" ? "UMA diaria" : "salario mínimo general");
+        if (!rule.sourceDofUrl || !rule.sourcePublishedOn) labels.push("fuente publicada");
+        throw ApiError.conflict(`Datos fiscales no disponibles para ${dateKey}: ${labels.join(", ")}. Cálculo fiscal bloqueado.`, { missingFields: missing, date: dateKey });
+    }
+    return rule;
 }
 
 /**

@@ -1,0 +1,294 @@
+{
+  "status": "applied",
+  "approvedAt": "2026-10-24: GO explícito en conversación",
+  "target": {
+    "host": "ep-dawn-scene-ayy93r15-pooler.c-5.us-east-2.aws.neon.tech",
+    "database": "neondb",
+    "role": "neondb_owner"
+  },
+  "hash": "594bea70b9fadd396567fae4517c39272197b228a69f23e12292e55f88a9e660",
+  "expectedJournalTime": 1792691071337,
+  "objects": {
+    "files": "imss_files",
+    "movements": "imss_movements",
+    "journal": "drizzle.__drizzle_migrations"
+  },
+  "migrations": [
+    {
+      "id": 138,
+      "hash": "594bea70b9fadd396567fae4517c39272197b228a69f23e12292e55f88a9e660",
+      "created_at": "1792691071337"
+    },
+    {
+      "id": 137,
+      "hash": "a5d1943a418633d3f17612b4014f64259377f83f1623d3392e6c0fc91389b2ec",
+      "created_at": "1792630269665"
+    },
+    {
+      "id": 136,
+      "hash": "b77841ac04950035de0f065097132864f97871d842bbcbefc4664294367dd470",
+      "created_at": "1792629196856"
+    },
+    {
+      "id": 135,
+      "hash": "c1b93bd479225bb96a24b9460e72095f2d5a2046c4b10715b59b8fd7bbe26113",
+      "created_at": "1792621334222"
+    },
+    {
+      "id": 134,
+      "hash": "a88d899d7d0909253ce0705e1215622a57ac9e5a5502d9d26a2f0da6cde391ee",
+      "created_at": "1792617768120"
+    }
+  ],
+  "columns": [
+    {
+      "table_name": "branches",
+      "column_name": "imss_registro_patronal",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "companies",
+      "column_name": "imss_prima_riesgo_trabajo",
+      "data_type": "numeric",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "company_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "layout",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "layout_version",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "movement_type",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "fecha_movimiento",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "file_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "content_sha256",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "line_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "status",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "acuse_folio",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "acuse_received_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "rejection_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "storage_key",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "content_unavailable",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "generated_by",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_files",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "company_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "user_id",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "file_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "movement_type",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "movement_code",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "effective_date",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "registro_patronal",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "base_salary_cents",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "sdi_cents",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "status",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "blocked_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "confirmed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "rejection_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "imss_movements",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    }
+  ],
+  "indexes": [
+    {
+      "indexname": "imss_files_company_created_idx"
+    },
+    {
+      "indexname": "imss_files_company_fecha_idx"
+    },
+    {
+      "indexname": "imss_files_company_sha_unique"
+    },
+    {
+      "indexname": "imss_files_pkey"
+    },
+    {
+      "indexname": "imss_movements_company_effective_date_idx"
+    },
+    {
+      "indexname": "imss_movements_company_status_idx"
+    },
+    {
+      "indexname": "imss_movements_company_user_idx"
+    },
+    {
+      "indexname": "imss_movements_idempotency_unique"
+    },
+    {
+      "indexname": "imss_movements_pkey"
+    }
+  ],
+  "rls": [
+    {
+      "relname": "imss_files",
+      "relrowsecurity": false
+    },
+    {
+      "relname": "imss_movements",
+      "relrowsecurity": false
+    }
+  ]
+}

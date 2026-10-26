@@ -58,6 +58,70 @@ export interface EmployeeUpdateData {
   [key: string]: unknown;
 }
 
+/**
+ * Motivos de baja válidos — los mismos del enum `offboarding_reason` y del
+ * schema de `app/api/employees/lifecycle/route.ts`. Un motivo fuera del
+ * catálogo no se puede persistir, así que se rechaza en el tipo.
+ */
+export type EmployeeTerminationReason =
+  | 'VOLUNTARY_RESIGNATION'
+  | 'TERMINATION_WITH_CAUSE'
+  | 'TERMINATION_WITHOUT_CAUSE'
+  | 'CONTRACT_EXPIRED'
+  | 'RETIREMENT'
+  | 'DEATH'
+  | 'MUTUAL_AGREEMENT'
+  | 'OTHER';
+
+export interface EmployeeTermination {
+  reason: EmployeeTerminationReason;
+  /** Último día laborado / fecha efectiva de la baja. Nunca se infiere. */
+  effectiveDate: string | Date;
+  notes?: string;
+}
+
+function toDate(value: string | Date): Date {
+  return value instanceof Date ? value : new Date(value);
+}
+
+/**
+ * Columnas `timestamp` de `employee_profiles` que la UI captura como texto
+ * (`YYYY-MM-DD`). Drizzle tipa estas columnas como `Date` y en `set()` llama
+ * `value.toISOString()`, así que un string —o el `""` que manda el formulario
+ * cuando el campo está vacío— revienta con «toISOString is not a function» /
+ * «Invalid time value».
+ *
+ * Importa para IMSS (H4): la baja desde la UI se guarda por este camino, no por
+ * `offboardEmployeeWithAntiBuroProtection` (que hoy no tiene callers). Si la
+ * fecha de baja no persiste, el aviso de baja nunca puede contar su plazo.
+ */
+const PROFILE_DATE_FIELDS = ['hireDate', 'seniorityDate', 'probationEndDate', 'terminationDate'] as const;
+
+function coerceProfileDateFields(fields: Record<string, unknown>): Record<string, unknown> {
+  for (const key of PROFILE_DATE_FIELDS) {
+    if (!(key in fields)) continue;
+    const raw = fields[key];
+
+    if (raw === null) continue; // null explícito = limpiar el campo
+    if (raw instanceof Date) continue;
+
+    // Cadena vacía = el usuario dejó el campo en blanco (no es una fecha inválida).
+    if (typeof raw === 'string' && raw.trim() === '') {
+      fields[key] = null;
+      continue;
+    }
+
+    const parsed = new Date(raw as string | number);
+    if (Number.isNaN(parsed.getTime())) {
+      // Rechazar en el borde: una fecha de baja corrupta que se guarda como NULL
+      // es peor que un 400, porque el plazo IMSS se calcula sobre ella.
+      throw ApiError.badRequest(`Fecha inválida en '${key}': ${String(raw)}`);
+    }
+    fields[key] = parsed;
+  }
+  return fields;
+}
+
 export class EmployeeService {
   static async listEmployees(
     companyId: string,
@@ -109,11 +173,8 @@ export class EmployeeService {
         companyId: users.companyId,
         branchId: users.branchId,
         phone: users.phone,
-        // Task 12: salario del contrato ACTIVO para herramientas de cálculo
-        // (finiquito). La parte en efectivo llega como `effectiveSalaryCents`
-        // (NULL = formal) — el gap nunca se oculta en las pantallas que deciden.
-        contractBaseSalary: employeeContracts.baseSalary,
-        effectiveSalaryCents: employeeContracts.effectiveSalaryCents,
+        // El contrato activo se incorpora abajo por usuario y empresa, sin
+        // multiplicar la paginación ni referenciar tablas ajenas a este FROM.
         // Profile fields
         employeeNumber: employeeProfiles.employeeNumber,
         department: employeeProfiles.department,
@@ -455,10 +516,7 @@ export class EmployeeService {
         Object.entries(profileFields).filter(([_, v]) => v !== undefined)
       );
 
-      // Convert hireDate string to Date if present
-      if (filteredProfileFields.hireDate && typeof filteredProfileFields.hireDate === 'string') {
-        filteredProfileFields.hireDate = new Date(filteredProfileFields.hireDate);
-      }
+      coerceProfileDateFields(filteredProfileFields);
 
       if (Object.keys(filteredProfileFields).length > 0) {
         const encryptedProfileFields = await encryptProfileRecord(companyId, filteredProfileFields);
@@ -478,10 +536,7 @@ export class EmployeeService {
       createdBy: performedBy,
       updatedBy: performedBy,
     };
-    // Convert hireDate string to Date if present
-    if (insertValues.hireDate && typeof insertValues.hireDate === 'string') {
-      insertValues.hireDate = new Date(insertValues.hireDate);
-    }
+    coerceProfileDateFields(insertValues);
     await tx.insert(employeeProfiles)
     .values(
       (await encryptProfileRecord(companyId, insertValues)) as any,
@@ -569,12 +624,28 @@ export class EmployeeService {
   /**
    * Offboard employee enforcing LFT 2026 Anti-Buró Laboral protection.
    * Purges restrictive notes and blacklisting tags to ensure data compliance.
+   *
+   * H4 (plan-imss): el offboard SOLO escribía `employeeStatus='TERMINATED'`;
+   * `terminationDate`/`terminationReason` quedaban NULL y el aviso de baja
+   * IMSS no tenía fecha con la que contar el plazo. Ahora ambos se escriben
+   * desde la baja real (fecha y motivo de la request), nunca `new Date()` a
+   * ciegas.
    */
   static async offboardEmployeeWithAntiBuroProtection(
     userId: string,
     performedBy: string,
-    terminationReason: string = 'BAJA_REGULAR'
+    termination: EmployeeTermination,
   ) {
+    const effectiveDate = toDate(termination.effectiveDate);
+    if (!effectiveDate || Number.isNaN(effectiveDate.getTime())) {
+      throw new ApiError('La fecha de baja es requerida para cerrar el expediente', 400);
+    }
+
+    const reason = termination.reason;
+    // Rescisión/renuncia son estados de perfil distintos y las bajas IMSS los
+    // listan por igual; el motivo real queda en `termination_reason`.
+    const employeeStatus = reason === 'VOLUNTARY_RESIGNATION' ? 'RESIGNED' : 'TERMINATED';
+
     return await db.transaction(async (tx) => {
       // 1. Deactivate user and profile
       await tx
@@ -586,7 +657,9 @@ export class EmployeeService {
         .update(employeeProfiles)
         .set({
           isActive: false,
-          employeeStatus: 'TERMINATED',
+          employeeStatus,
+          terminationDate: effectiveDate,
+          terminationReason: reason,
           updatedAt: new Date(),
         })
         .where(eq(employeeProfiles.userId, userId));
@@ -598,12 +671,19 @@ export class EmployeeService {
         action: 'UPDATE',
         entityType: 'PROFILE',
         entityId: userId,
-        newValue: { status: 'TERMINATED', reason: terminationReason },
+        newValue: {
+          status: employeeStatus,
+          reason,
+          terminationDate: effectiveDate.toISOString(),
+          notes: termination.notes,
+        },
       });
 
       return {
         userId,
-        status: 'TERMINATED',
+        status: employeeStatus,
+        terminationDate: effectiveDate.toISOString(),
+        terminationReason: reason,
         antiBuroProtectionApplied: true,
         message: 'Baja procesada cumpliendo la prohibición de Buró Laboral (LFT 2026). Sin metadatos restrictivos de reempleo.',
       };

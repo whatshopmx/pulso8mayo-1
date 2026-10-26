@@ -90,6 +90,7 @@ export class BranchService {
       name: data.name,
       companyId: data.companyId,
       address: data.address,
+      imssRegistroPatronal: data.imssRegistroPatronal,
       timezone: data.timezone,
       operatingHours: data.operatingHours,
       location: data.location,

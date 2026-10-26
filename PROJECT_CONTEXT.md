@@ -81,7 +81,11 @@ npx tsx scripts/seed-demo-data.ts
 - [x] Templates para workflow assignments, due soon, overdue, incidents, stock alerts
 - [x] Fallback con logging cuando servicios no están configurados
 
-### Fase 2: Reportes - COMPLETADA ✅
+### Fase 2: Reportes — circuito IMSS verificado (2026-10-25)
+
+El circuito IMSS conserva movimientos y archivos por empresa, registra acuses con folio o motivo, y permite incorporar plantilla histórica mediante vista previa y nota auditada. Altas, bajas, SUA e historial consumen el estado persistido; resumen y pestaña IMSS comparten indicadores. Generar un archivo no confirma el registro.
+
+**Límite vigente:** layout propio, datos validados / importabilidad no verificada contra el portal IMSS. Son archivos de trabajo; SUA cubre actualización salarial, sin cálculo de cuotas. Sin R2 configurado se conserva hash y metadatos, y el historial declara el contenido no disponible. Avance y evidencia: `tasks/todo-imss.md`.
 
 **Archivos creados:**
 - `app/api/imss/sua-generate/route.ts` - Generador SUA

@@ -1,0 +1,82 @@
+pnpm.cmd exec playwright test --config tests/playwright-severance.config.ts
+
+Running 3 tests using 1 worker
+
+(node:20952) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+11:15:54 a.m. [vite] (client) [optimizer] bundling dependencies...
+  ✘  1 tests\e2e\severance-minimum-wage.spec.ts:30:5 › exige zona, aplica mínimo por fecha y bloquea un año desconocido sin conservar total anterior (37.3s)
+(node:18148) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+11:16:56 a.m. [vite] (client) [optimizer] bundling dependencies...
+  ✘  2 tests\e2e\severance-minimum-wage.spec.ts:50:5 › muestra el gap efectivo y no genera importes cuando falta salario (24.6s)
+(node:15880) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+11:17:56 a.m. [vite] (client) [optimizer] bundling dependencies...
+  ✓  3 tests\e2e\severance-minimum-wage.spec.ts:61:5 › selector por teclado y bloqueo visibles en escritorio y móvil (15.5s)
+
+
+  1) tests\e2e\severance-minimum-wage.spec.ts:30:5 › exige zona, aplica mínimo por fecha y bloquea un año desconocido sin conservar total anterior 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  getByTestId('seniority-amount')
+    Expected: "$15,121.92"
+    Received: "$15,142.63"
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "toHaveText" with timeout 15000ms
+      - waiting for getByTestId('seniority-amount')
+        31 × locator resolved to <span data-testid="seniority-amount">$15,142.63</span>
+           - unexpected value "$15,142.63"
+
+
+      34 |   await expect(save).toBeDisabled();
+      35 |   await page.getByLabel("Zona salarial del lugar de trabajo").selectOption("GENERAL");
+    > 36 |   await expect(page.getByTestId("seniority-amount")).toHaveText("$15,121.92");
+         |                                                      ^
+      37 |   await expect(page.getByRole("link", { name: "Fuente CONASAMI" })).toHaveAttribute("href", /5775534$/);
+      38 |   await expect(save).toBeEnabled();
+      39 |   await page.getByLabel("Zona salarial del lugar de trabajo").selectOption("ZLFN");
+        at C:\Users\david\pulso29\tests\e2e\severance-minimum-wage.spec.ts:36:54
+
+    Error Context: test-results\severance-minimum-wage-exi-192f1-in-conservar-total-anterior\error-context.md
+
+    Error Context: test-results\severance-minimum-wage-exi-192f1-in-conservar-total-anterior\error-context.md
+
+  2) tests\e2e\severance-minimum-wage.spec.ts:50:5 › muestra el gap efectivo y no genera importes cuando falta salario 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  getByTestId('seniority-amount')
+    Expected: "$15,121.92"
+    Received: "$15,142.63"
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "toHaveText" with timeout 15000ms
+      - waiting for getByTestId('seniority-amount')
+        32 × locator resolved to <span data-testid="seniority-amount">$15,142.63</span>
+           - unexpected value "$15,142.63"
+
+
+      51 |   await openCalculator(page, { baseSalary: 31_504, effectiveSalaryCents: 100_000 });
+      52 |   await page.getByLabel("Zona salarial del lugar de trabajo").selectOption("GENERAL");
+    > 53 |   await expect(page.getByTestId("seniority-amount")).toHaveText("$15,121.92");
+         |                                                      ^
+      54 |   await expect(page.getByText("Base real:", { exact: false })).toBeVisible();
+      55 |   await openCalculator(page, { baseSalary: null });
+      56 |   await page.getByLabel("Zona salarial del lugar de trabajo").selectOption("GENERAL");
+        at C:\Users\david\pulso29\tests\e2e\severance-minimum-wage.spec.ts:53:54
+
+    Error Context: test-results\severance-minimum-wage-mue-4b151-portes-cuando-falta-salario\error-context.md
+
+    Error Context: test-results\severance-minimum-wage-mue-4b151-portes-cuando-falta-salario\error-context.md
+
+  2 failed
+    tests\e2e\severance-minimum-wage.spec.ts:30:5 › exige zona, aplica mínimo por fecha y bloquea un año desconocido sin conservar total anterior 
+    tests\e2e\severance-minimum-wage.spec.ts:50:5 › muestra el gap efectivo y no genera importes cuando falta salario 
+  1 passed (3.0m)
+
+EXIT=1

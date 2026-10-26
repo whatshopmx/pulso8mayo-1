@@ -1,0 +1,6 @@
+{
+  "command": "pnpm.cmd exec eslint lib/services/severance-minimum-wage.ts lib/services/ai-severance-calculator.ts lib/__tests__/severance-minimum-wage.test.ts lib/__tests__/labor-reforms-batch3.test.ts lib/__tests__/employee-severance-source.test.ts components/employees/settlement-calculator.tsx app/dashboard/employees/offboarding/new/page.tsx tests/support/severance-browser-server.ts tests/e2e/severance-minimum-wage.spec.ts tests/playwright-severance.config.ts",
+  "startedAt": "2026-10-23T17:22:19.492Z",
+  "finishedAt": "2026-10-23T17:23:58.876Z",
+  "exit": 0
+}

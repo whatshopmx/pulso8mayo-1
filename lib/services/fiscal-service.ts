@@ -19,6 +19,7 @@ import { cfdiNominaTimbrados } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { DEFAULT_TEST_ISSUER } from "@/lib/fiscal/fiscalapi";
 import { loadCsdForTin, resolveTestPerson, SAT_TEST_FISICAS } from "@/lib/fiscal/sat-test-data";
+import { entregarAguinaldo, AguinaldoNoEnviadoError } from "./aguinaldo-fiscal-delivery";
 
 const FISCALAPI_BASE_TEST = "https://test.fiscalapi.com/api/v4";
 const FISCALAPI_BASE_PROD = "https://live.fiscalapi.com/api/v4";
@@ -587,6 +588,41 @@ export function construirPayloadNomina(input: NominaTimbradoInput): {
 export async function timbrarNomina(
   input: NominaTimbradoInput
 ): Promise<NominaTimbradoResult> {
+  if (/^\d{4}-AGU$/.test(input.periodo)) {
+    // Un intento durable por obligación: jamás cambiar serie para evadir dedup.
+    const fila = await entregarAguinaldo(input, async () => {
+      const { apiKey, tenant, baseUrl, configured } = getConfig();
+      let preparada: ReturnType<typeof construirPayloadNomina>;
+      try {
+        if (!configured) throw new Error("FiscalAPI no está configurado para timbrar nómina.");
+        preparada = construirPayloadNomina(input);
+        if (Math.round(preparada.expectedTotal * 100) !== input.totalPercepciones - input.totalDeducciones) {
+          throw new Error("Los conceptos fiscales no coinciden con el neto autorizado.");
+        }
+      } catch (error) { throw new AguinaldoNoEnviadoError(error instanceof Error ? error.message : String(error)); }
+      const response = await fetch(`${baseUrl}/invoices`, {
+        method: "POST", headers: { "X-API-KEY": apiKey!, ...(tenant ? { "X-TENANT-KEY": tenant } : {}),
+          "X-TIME-ZONE": "America/Mexico_City", "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(preparada.payload),
+      });
+      if (!response.ok) return { status: "PENDIENTE", data: { error: await response.text(), http_status: response.status } };
+      const envelope = await response.json() as ApiResponse;
+      if (envelope.succeeded === false) return {
+        // Un false genérico no prueba que no se haya emitido; exigir rechazo explícito sin folio/ID.
+        status: !respuestaEsDuplicado(envelope) && !envelope.data?.id && !envelope.data?.uuid &&
+          ["RECHAZADO", "REJECTED"].includes(String(envelope.data?.status).toUpperCase()) ? "RECHAZADO" : "PENDIENTE",
+        data: { ...envelope.data, error: envelope.message ?? "", details: envelope.details },
+      };
+      const data = envelope.data ?? {};
+      const totalDistinto = typeof data.total === "number" && Math.round(data.total * 100) !== Math.round(preparada.expectedTotal * 100);
+      return {
+        status: data.uuid && !totalDistinto ? "TIMBRADO" : "PENDIENTE",
+        data: { ...data, sello_digital: data.seal ?? null, total_esperado: preparada.expectedTotal, totalDistinto },
+        fecha: data.fechaTimbrado,
+      };
+    });
+    return comoResultado(fila);
+  }
   const yaTimbrado = await db
     .select()
     .from(cfdiNominaTimbrados)

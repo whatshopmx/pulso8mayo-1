@@ -1,0 +1,6 @@
+{
+  "command": "pnpm.cmd run test:unit lib/__tests__/labor-law-seed-data.test.ts lib/__tests__/labor-rules-resolver.test.ts lib/__tests__/labor-fiscal-resolution.test.ts lib/__tests__/aguinaldo-payroll-service.test.ts lib/__tests__/fiscal-fixtures.test.ts --maxWorkers=2",
+  "startedAt": "2026-10-23T02:30:50.693Z",
+  "finishedAt": "2026-10-23T02:31:00.992Z",
+  "exit": 1
+}

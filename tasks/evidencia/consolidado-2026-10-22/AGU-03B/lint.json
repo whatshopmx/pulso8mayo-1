@@ -1,0 +1,13 @@
+{
+  "command": "pnpm.cmd exec eslint lib/services/aguinaldo-snapshot.ts lib/services/aguinaldo-payroll-service.ts lib/__tests__/aguinaldo-snapshot.test.ts lib/__tests__/aguinaldo-snapshot-storage.test.ts lib/__tests__/aguinaldo-snapshot-execution.test.ts lib/__tests__/aguinaldo-payroll-service.test.ts",
+  "exitCode": 0,
+  "output": "",
+  "date": "2026-10-23",
+  "schemaCheck": {
+    "command": "pnpm.cmd exec eslint lib/db/schema.ts (incluido en la primera ejecución focalizada)",
+    "exitCode": 0,
+    "errors": 0,
+    "preexistingWarnings": 3,
+    "warning": "session, verifications y magicLinks: imports sin uso"
+  }
+}

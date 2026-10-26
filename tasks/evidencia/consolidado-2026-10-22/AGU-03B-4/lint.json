@@ -1,0 +1,7 @@
+{
+  "command": "pnpm.cmd exec eslint lib/services/aguinaldo-fiscal-delivery.ts lib/services/fiscal-service.ts lib/services/aguinaldo-run-execution.ts lib/services/aguinaldo-payroll-service.ts lib/services/aguinaldo-snapshot.ts lib/__tests__/aguinaldo-fiscal-delivery.test.ts lib/__tests__/fiscal-aguinaldo-recovery.test.ts lib/__tests__/aguinaldo-snapshot-execution.test.ts lib/__tests__/aguinaldo-payroll-service.test.ts app/api/payroll/aguinaldo/route.ts tests/unit/aguinaldo-api.test.ts components/labor/aguinaldo-card.tsx tests/e2e/aguinaldo-payment.spec.ts",
+  "exitCode": 0,
+  "errors": 0,
+  "warnings": 0,
+  "date": "2026-10-23"
+}

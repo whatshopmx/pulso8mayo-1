@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatCents } from "@/lib/utils";
 // Cálculo puro (sin DB): la UI recalcula al editar "días a considerar".
 import { calcularAguinaldoAnual } from "@/lib/services/aguinaldo-service";
+import { calcularPagoAguinaldo, hoyCivilAguinaldo } from "@/lib/services/aguinaldo-payment";
 
 interface AguinaldoRow {
   userId: string;
@@ -49,6 +50,7 @@ interface AguinaldoRow {
 
 interface AguinaldoPreview {
   anioFiscal: number;
+  fechaPago: string;
   rows: AguinaldoRow[];
   estatusLegal: { fuente: "LEY_VIGENTE" | "PROYECCION"; basis: string; diasLegalesVigente: number };
   aguinaldoDaysMxn: number;
@@ -80,6 +82,7 @@ interface AguinaldoRun {
   createdAt: string;
   periodStart: string;
   periodEnd: string;
+  aguinaldoSnapshot?: { version: number; fechaPago: string } | null;
 }
 
 interface Branch {
@@ -90,6 +93,7 @@ interface Branch {
 export function AguinaldoCard() {
   const currentYear = new Date().getFullYear();
   const [anioFiscal, setAnioFiscal] = useState<number>(currentYear);
+  const [fechaPago, setFechaPago] = useState(hoyCivilAguinaldo);
   const anios = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
 
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -102,6 +106,8 @@ export function AguinaldoCard() {
   const [running, setRunning] = useState(false);
   const [runs, setRuns] = useState<AguinaldoRun[]>([]);
   const [loadingRuns, setLoadingRuns] = useState(true);
+  const [recoveringRunId, setRecoveringRunId] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState<{ runId: string; message: string; errors: string[] } | null>(null);
   // Task 11 (Q5): dispersión manual del excedente en efectivo (sin CFDI).
   const [dispUserId, setDispUserId] = useState<string>("");
   const [dispMonto, setDispMonto] = useState<string>("");
@@ -135,23 +141,26 @@ export function AguinaldoCard() {
     }
   }, []);
 
-  const cargarPreview = useCallback(async () => {
+  const cargarPreview = useCallback(async (signal?: AbortSignal) => {
     setLoadingPreview(true);
+    setPreview(null);
     try {
-      const params = new URLSearchParams({ anioFiscal: String(anioFiscal) });
+      const params = new URLSearchParams({ anioFiscal: String(anioFiscal), fechaPago });
       if (selectedBranch !== "all") params.set("branchId", selectedBranch);
-      const res = await fetch(`/api/payroll/aguinaldo?${params.toString()}`);
+      const res = await fetch(`/api/payroll/aguinaldo?${params.toString()}`, { signal });
       const data = await res.json();
+      if (signal?.aborted) return;
       if (res.ok && data.success) {
         const p = data.data as AguinaldoPreview;
         setPreview(p);
         setDiasEditados(
-          Object.fromEntries(p.rows.filter((r) => !r.error).map((r) => [r.userId, r.diasLaborados]))
+          Object.fromEntries(p.rows.filter((r) => r.calculo).map((r) => [r.userId, r.diasLaborados]))
         );
       } else {
         throw new Error(data.error?.message || "Error en la preview de aguinaldo");
       }
     } catch (err: unknown) {
+      if (signal?.aborted) return;
       setPreview(null);
       toast({
         title: "Error de Preview",
@@ -159,9 +168,9 @@ export function AguinaldoCard() {
         variant: "destructive",
       });
     } finally {
-      setLoadingPreview(false);
+      if (!signal?.aborted) setLoadingPreview(false);
     }
-  }, [anioFiscal, selectedBranch, toast]);
+  }, [anioFiscal, selectedBranch, fechaPago, toast]);
 
   useEffect(() => {
     fetchBranches();
@@ -183,6 +192,24 @@ export function AguinaldoCard() {
   useEffect(() => {
     fetchBitacora();
   }, [fetchBitacora]);
+
+  const handleRecovery = async (run: AguinaldoRun) => {
+    if (running || recoveringRunId) return;
+    setRecoveringRunId(run.id);
+    setRecovery({ runId: run.id, message: "Recuperando con la fecha y los importes autorizados…", errors: [] });
+    try {
+      const res = await fetch("/api/payroll/aguinaldo", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "RECOVER", runId: run.id }) });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error?.message || "No se pudo recuperar la corrida.");
+      const results = data.data.results as Array<{ success: boolean; employeeName?: string; error?: string }>;
+      const errors = results.filter((result) => !result.success).map((result) => `${result.employeeName ?? "Empleado"}: ${result.error ?? "Requiere revisión."}`);
+      setRecovery({ runId: run.id, message: errors.length ? `Recibos por revisar: ${errors.length}.` : "Recuperación completada. Los recibos confirmados se conservaron.", errors });
+      await Promise.all([fetchRuns(), fetchBitacora()]);
+    } catch (error) {
+      setRecovery({ runId: run.id, message: "No se pudo completar la recuperación.", errors: [error instanceof Error ? error.message : "Error de conexión. Puedes volver a consultar la corrida."] });
+    } finally { setRecoveringRunId(null); }
+  };
 
   const handleDispersionManual = async () => {
     const montoCents = Math.round(Number(dispMonto) * 100);
@@ -228,10 +255,13 @@ export function AguinaldoCard() {
   };
 
   useEffect(() => {
-    cargarPreview();
+    const controller = new AbortController();
+    cargarPreview(controller.signal);
+    return () => controller.abort();
   }, [cargarPreview]);
 
   const handleEjecutar = async () => {
+    if (!preview || loadingPreview || preview.fechaPago !== fechaPago || preview.anioFiscal !== anioFiscal) return;
     setRunning(true);
     try {
       const res = await fetch("/api/payroll/aguinaldo", {
@@ -239,6 +269,7 @@ export function AguinaldoCard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           anioFiscal,
+          fechaPago: preview.fechaPago,
           branchId: selectedBranch !== "all" ? selectedBranch : undefined,
           diasLaboradosPorUsuario: Object.keys(diasEditados).length > 0 ? diasEditados : undefined,
         }),
@@ -284,16 +315,14 @@ export function AguinaldoCard() {
     }
   };
 
-  const rowsTimbrables = preview?.rows.filter((r) => !r.error) ?? [];
-
   /** Recalcula localmente la fila al editar los días (el cálculo es puro). */
   const calculoLocal = (row: AguinaldoRow) => {
-    if (!preview || row.error) return null;
+    if (!preview || !row.calculo) return null;
     const dias = diasEditados[row.userId] ?? row.diasLaborados;
     const calculo = calcularAguinaldoAnual({
       anioFiscal: preview.anioFiscal,
       salarioDiarioCents: row.salarioDiarioCents,
-      diasLaborados: dias || undefined,
+      diasLaborados: dias,
       aguinaldoDaysMxn: preview.aguinaldoDaysMxn,
       umaDailyCents: preview.umaDailyCents,
       base: "REGISTERED",
@@ -303,17 +332,28 @@ export function AguinaldoCard() {
       : calcularAguinaldoAnual({
           anioFiscal: preview.anioFiscal,
           salarioDiarioCents: row.salarioEfectivoCents,
-          diasLaborados: dias || undefined,
+          diasLaborados: dias,
           aguinaldoDaysMxn: preview.aguinaldoDaysMxn,
           umaDailyCents: preview.umaDailyCents,
           base: "EFFECTIVE",
         });
+    let pago: ReturnType<typeof calcularPagoAguinaldo> | null = null;
+    let error: string | undefined;
+    try {
+      pago = calcularPagoAguinaldo(calculo, row.salarioDiarioCents, preview.fechaPago);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
     return {
       calculo,
+      pago,
+      error,
       brutoEfectivo: calculoEfectivo?.brutoCents ?? null,
       diferencia: calculoEfectivo ? calculoEfectivo.brutoCents - calculo.brutoCents : 0,
     };
   };
+  const rowsTimbrables = preview?.rows.filter((r) => calculoLocal(r)?.pago && r.rfc) ?? [];
+  const hayBloqueos = preview?.rows.some((r) => !r.rfc || !calculoLocal(r)?.pago) ?? true;
   const totales = rowsTimbrables.reduce(
     (acc, r) => {
       const c = calculoLocal(r);
@@ -321,11 +361,13 @@ export function AguinaldoCard() {
         acc.bruto += c.calculo.brutoCents;
         acc.exento += c.calculo.exentoCents;
         acc.gravado += c.calculo.gravadoCents;
+        acc.deducciones += c.pago?.totalDeduccionesCents ?? 0;
+        acc.neto += c.pago?.netoCents ?? 0;
         acc.diferencia += c.diferencia;
       }
       return acc;
     },
-    { bruto: 0, exento: 0, gravado: 0, diferencia: 0 }
+    { bruto: 0, exento: 0, gravado: 0, deducciones: 0, neto: 0, diferencia: 0 }
   );
 
   return (
@@ -341,7 +383,12 @@ export function AguinaldoCard() {
               Art. 87 LFT: 15 días por año, prorrateados por tiempo trabajado en el año · límite de dispersión: 19-dic
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-xs text-muted-foreground">
+              Fecha de pago
+              <Input type="date" className="h-8 w-40 text-xs" value={fechaPago}
+                onChange={(e) => { setPreview(null); setFechaPago(e.target.value); }} disabled={running} />
+            </label>
             {preview?.estatusLegal.fuente === "LEY_VIGENTE" ? (
               <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-0 text-xs font-medium">
                 <CheckCircle className="mr-1 h-3 w-3 text-emerald-600" /> Ley vigente: 15 días (Art. 87)
@@ -349,7 +396,7 @@ export function AguinaldoCard() {
             ) : (
               <Badge variant="destructive" className="text-xs font-medium">Cálculo NO vigente</Badge>
             )}
-            <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+            <Select value={selectedBranch} disabled={running} onValueChange={(value) => { setPreview(null); setSelectedBranch(value); }}>
               <SelectTrigger className="h-7 w-[150px] text-xs">
                 <Building2 className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
                 <SelectValue placeholder="Todas las sucursales" />
@@ -361,7 +408,7 @@ export function AguinaldoCard() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={String(anioFiscal)} onValueChange={(v) => setAnioFiscal(Number(v))}>
+            <Select value={String(anioFiscal)} disabled={running} onValueChange={(v) => { setPreview(null); setAnioFiscal(Number(v)); }}>
               <SelectTrigger className="h-7 w-[110px] text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -402,6 +449,8 @@ export function AguinaldoCard() {
                   <TableHead className="text-xs text-right">Bruto (registro)</TableHead>
                   <TableHead className="text-xs text-right">Exento (30 UMA)</TableHead>
                   <TableHead className="text-xs text-right">Gravado</TableHead>
+                  <TableHead className="text-xs text-right">ISR retenido</TableHead>
+                  <TableHead className="text-xs text-right">Neto (registro)</TableHead>
                   <TableHead className="text-xs text-right">Bruto (efectivo)</TableHead>
                   <TableHead className="text-xs text-right">{preview?.base === "EFFECTIVE" ? "Excedente en efectivo" : "Liabilidad contingente"}</TableHead>
                 </TableRow>
@@ -419,32 +468,34 @@ export function AguinaldoCard() {
                           </span>
                         )}
                       </div>
-                      {row.error && (
+                      {(calculoLocal(row)?.error || (!row.calculo && row.error) || !row.rfc) && (
                         <div className="text-destructive flex items-start gap-1 mt-0.5">
                           <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
-                          <span className="leading-tight">{row.error}</span>
+                          <span className="leading-tight">{calculoLocal(row)?.error || row.error || "Falta RFC para timbrar."}</span>
                         </div>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      {row.error ? (
+                      {!row.calculo ? (
                         <span className="text-xs text-muted-foreground">—</span>
                       ) : (
                         <Input
                           type="number"
                           min={0}
                           max={366}
+                          step={1}
+                          disabled={running}
                           className="h-7 w-20 text-xs font-mono text-center mx-auto"
                           value={diasEditados[row.userId] ?? row.diasLaborados}
                           onChange={(e) => {
                             const v = Number(e.target.value);
-                            if (!Number.isNaN(v)) setDiasEditados((prev) => ({ ...prev, [row.userId]: Math.max(0, Math.min(366, v)) }));
+                            if (Number.isInteger(v)) setDiasEditados((prev) => ({ ...prev, [row.userId]: Math.max(0, Math.min(366, v)) }));
                           }}
                           aria-label={`Días a considerar para ${row.name}`}
                         />
                       )}
-                      {calculoLocal(row) && !row.error && (
-                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {calculoLocal(row) && (
+                        <div className="text-xs text-muted-foreground mt-0.5">
                           = {(calculoLocal(row)!.calculo.diasAguinaldo).toFixed(2)} días agui. ·{" "}
                           {row.fuenteDias === "TURNOS_Y_PERMISOS"
                             ? `auto: turnos+permisos (${row.diasAutomaticos})`
@@ -462,6 +513,12 @@ export function AguinaldoCard() {
                     </TableCell>
                     <TableCell className="text-xs font-mono text-right">
                       {calculoLocal(row) ? formatCents(calculoLocal(row)!.calculo.gravadoCents) : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-right">
+                      {calculoLocal(row)?.pago ? formatCents(calculoLocal(row)!.pago!.totalDeduccionesCents) : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-right font-semibold">
+                      {calculoLocal(row)?.pago ? formatCents(calculoLocal(row)!.pago!.netoCents) : "—"}
                     </TableCell>
                     <TableCell className="text-xs font-mono text-right">
                       {calculoLocal(row)?.brutoEfectivo != null
@@ -483,6 +540,8 @@ export function AguinaldoCard() {
                   <TableCell className="text-xs font-mono text-right font-bold">{formatCents(totales.bruto)}</TableCell>
                   <TableCell className="text-xs font-mono text-right font-bold text-emerald-600 dark:text-emerald-400">{formatCents(totales.exento)}</TableCell>
                   <TableCell className="text-xs font-mono text-right font-bold">{formatCents(totales.gravado)}</TableCell>
+                  <TableCell className="text-xs font-mono text-right font-bold">{formatCents(totales.deducciones)}</TableCell>
+                  <TableCell className="text-xs font-mono text-right font-bold">{formatCents(totales.neto)}</TableCell>
                   <TableCell />
                   <TableCell className="text-xs font-mono text-right font-bold text-amber-600 dark:text-amber-400">{formatCents(totales.diferencia)}</TableCell>
                 </TableRow>
@@ -496,7 +555,7 @@ export function AguinaldoCard() {
           <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground flex items-center gap-1.5">
-                <Banknote className="h-3.5 w-3.5" /> Total a dispersar (bruto)
+                <Banknote className="h-3.5 w-3.5" /> Bruto (registro)
               </span>
               <span className="font-mono font-bold text-foreground">{formatCents(totales.bruto)}</span>
             </div>
@@ -507,15 +566,24 @@ export function AguinaldoCard() {
               <span className="font-mono text-emerald-600 dark:text-emerald-400">{formatCents(totales.exento)}</span>
             </div>
             <div className="flex items-center justify-between border-t border-border pt-2">
-              <span className="text-muted-foreground">Gravado de ISR (retención: futura, Art. 174 RLISR)</span>
+              <span className="text-muted-foreground">Gravado de ISR</span>
               <span className="font-mono font-medium">{formatCents(totales.gravado)}</span>
             </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">ISR retenido (Art. 174)</span>
+              <span className="font-mono">{formatCents(totales.deducciones)}</span>
+            </div>
+            <div className="flex items-center justify-between font-semibold">
+              <span>Neto a pagar (registro)</span>
+              <span className="font-mono">{formatCents(totales.neto)}</span>
+            </div>
+            {hayBloqueos && preview && <p role="status" className="text-destructive">Resuelve los bloqueos de los empleados antes de ejecutar.</p>}
             <div className="flex items-center justify-between text-muted-foreground">
               <span>Timbrables / Sin RFC:</span>
-              <span className="font-mono">{preview ? `${preview.empleadosATimbrar} / ${preview.empleadosSinRFC}` : "—"}</span>
+              <span className="font-mono">{preview ? `${rowsTimbrables.length} / ${preview.empleadosSinRFC}` : "—"}</span>
             </div>
             {preview && totales.diferencia > 0 && (
-              <div className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-800 dark:text-amber-200">
+              <div className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-800 dark:text-amber-200">
                 {preview.base === "EFFECTIVE" ? (
                   <>
                     <strong>Base EFFECTIVE:</strong> el excedente de {formatCents(totales.diferencia)} se dispersa
@@ -532,7 +600,7 @@ export function AguinaldoCard() {
             <Button
               onClick={handleEjecutar}
               className="w-full text-xs font-semibold h-9 mt-1"
-              disabled={running || !preview || preview.empleadosATimbrar === 0}
+              disabled={running || !!recoveringRunId || loadingPreview || !preview || preview.fechaPago !== fechaPago || hayBloqueos || rowsTimbrables.length === 0}
             >
               {running ? (
                 <>
@@ -599,8 +667,8 @@ export function AguinaldoCard() {
                     <div key={b.id} className="px-2 py-1.5 flex items-start justify-between gap-2">
                       <div>
                         <div className="font-mono font-semibold">{formatCents(b.montoCents)} · {b.userName ?? b.id}</div>
-                        <div className="text-[10px] text-muted-foreground leading-tight">{b.motivo}</div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
+                        <div className="text-xs text-muted-foreground leading-tight">{b.motivo}</div>
+                        <div className="text-xs text-muted-foreground font-mono">
                           {format(new Date(`${b.fechaDispersion.slice(0, 19)}Z`), "dd MMM yyyy", { locale: es })} · {b.source}
                         </div>
                       </div>
@@ -624,11 +692,14 @@ export function AguinaldoCard() {
             ) : (
               <div className="max-h-48 overflow-y-auto divide-y divide-border">
                 {runs.map((r) => (
-                  <div key={r.id} className="px-3 py-2 flex items-center justify-between text-xs">
-                    <div>
+                  <div key={r.id} className="px-3 py-2 space-y-2 text-xs">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
                       <div className="font-mono font-semibold">{r.aguinaldoFiscalYear} ({format(new Date(`${r.createdAt.slice(0, 10)}T12:00:00Z`), "dd MMM yyyy", { locale: es })})</div>
                       <div className="text-muted-foreground font-mono">{r.periodStart} – {r.periodEnd}</div>
+                      {r.aguinaldoSnapshot && <div className="text-muted-foreground">Pago autorizado: {r.aguinaldoSnapshot.fechaPago}</div>}
                     </div>
+                    <div className="flex flex-wrap items-center gap-2">
                     <Badge
                       className={
                         r.status === "COMPLETED"
@@ -638,6 +709,21 @@ export function AguinaldoCard() {
                     >
                       {r.status === "COMPLETED" ? "Exitoso" : r.status === "COMPLETED_WITH_ERRORS" ? "Con errores" : r.status}
                     </Badge>
+                    {r.status !== "COMPLETED" && r.aguinaldoSnapshot?.version === 1 && <Button variant="outline" size="sm"
+                      className="text-xs" disabled={running || !!recoveringRunId}
+                      aria-label={`${recoveringRunId === r.id ? "Recuperando" : "Recuperar"} corrida ${r.aguinaldoFiscalYear}`}
+                      onClick={() => handleRecovery(r)}>
+                      {recoveringRunId === r.id && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                      {recoveringRunId === r.id ? "Recuperando…" : "Recuperar"}
+                    </Button>}
+                    </div>
+                    </div>
+                    {recovery?.runId === r.id && <div role="status" aria-live="polite" className="space-y-1 break-words text-muted-foreground">
+                      <p>{recovery.message}</p>
+                      {recovery.errors.length > 0 && <ul className="list-disc space-y-1 pl-4 text-destructive">
+                        {recovery.errors.map((error, index) => <li key={index}>{error}</li>)}
+                      </ul>}
+                    </div>}
                   </div>
                 ))}
               </div>

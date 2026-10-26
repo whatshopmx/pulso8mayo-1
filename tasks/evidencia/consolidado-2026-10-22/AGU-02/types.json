@@ -1,0 +1,7 @@
+{
+  "command": "pnpm.cmd exec tsc --noEmit --incremental false",
+  "started": "2026-10-23T18:05:53.370Z",
+  "finished": "2026-10-23T18:16:28.270Z",
+  "exitCode": 0,
+  "signal": null
+}

@@ -1,0 +1,34 @@
+pnpm.cmd exec playwright test --config tests/playwright-severance.config.ts
+
+Running 2 tests using 1 worker
+
+(node:20764) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17288) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 tests\e2e\severance-minimum-wage.spec.ts:29:5 › exige zona, aplica mínimo por fecha y bloquea un año desconocido sin conservar total anterior (2ms)
+  -  2 tests\e2e\severance-minimum-wage.spec.ts:49:5 › muestra el gap efectivo y no genera importes cuando falta salario
+
+
+  1) tests\e2e\severance-minimum-wage.spec.ts:29:5 › exige zona, aplica mínimo por fecha y bloquea un año desconocido sin conservar total anterior 
+
+    "beforeAll" hook timeout of 120000ms exceeded.
+
+      3 |
+      4 | let harness: Awaited<ReturnType<typeof startSeveranceBrowserServer>>;
+    > 5 | test.beforeAll(async () => { harness = await startSeveranceBrowserServer(); });
+        |      ^
+      6 | test.afterAll(async () => { await harness?.server.close(); });
+      7 |
+      8 | async function openCalculator(page: Page, employee = {}) {
+        at C:\Users\david\pulso29\tests\e2e\severance-minimum-wage.spec.ts:5:6
+
+    Error Context: test-results\severance-minimum-wage-exi-192f1-in-conservar-total-anterior\error-context.md
+
+    Error Context: test-results\severance-minimum-wage-exi-192f1-in-conservar-total-anterior\error-context.md
+
+  1 failed
+    tests\e2e\severance-minimum-wage.spec.ts:29:5 › exige zona, aplica mínimo por fecha y bloquea un año desconocido sin conservar total anterior 
+  1 did not run
+
+EXIT=1

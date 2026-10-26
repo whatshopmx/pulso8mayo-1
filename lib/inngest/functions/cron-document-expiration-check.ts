@@ -1,5 +1,6 @@
 import { inngest } from "@/lib/inngest/client";
 import { runDocumentExpirationCheck } from "@/lib/cron/document-expiration-check";
+import { runImssFileRetention } from '@/lib/cron/imss-file-retention';
 
 export const cronDocumentExpirationCheck = inngest.createFunction(
   {
@@ -8,6 +9,8 @@ export const cronDocumentExpirationCheck = inngest.createFunction(
     retries: 2,
   },
   async ({ step }) => {
-    return await step.run("run-document-expiration-check", () => runDocumentExpirationCheck());
+    const documents = await step.run("run-document-expiration-check", () => runDocumentExpirationCheck());
+    const imssRetention = await step.run('purge-expired-imss-files', () => runImssFileRetention());
+    return { ...documents, imssRetention };
   }
 );

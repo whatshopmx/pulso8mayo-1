@@ -38,9 +38,9 @@ export interface InventoryAuditLogRequest {
 
 export class AuditService {
 
-    static async logEmployeeAction(data: AuditLogRequest) {
-        try {
-            const [log] = await db.insert(employeeAuditLogs).values({
+    static async logEmployeeAction(data: AuditLogRequest, executor?: DbExecutor) {
+        const run = async (q: DbExecutor) => {
+            const [log] = await q.insert(employeeAuditLogs).values({
                 userId: data.userId,
                 action: data.action,
                 entityType: data.entityType,
@@ -58,6 +58,12 @@ export class AuditService {
             }).returning();
 
             return log;
+        };
+        // En una transición transaccional, fallar el audit revierte la mutación.
+        // Los callers anteriores conservan su semántica best-effort.
+        if (executor) return run(executor);
+        try {
+            return await run(db);
         } catch (error) {
             console.error("[AuditService] Failed to record audit log:", error);
             return null;

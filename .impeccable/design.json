@@ -1,11 +1,15 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-19T00:43:00.000Z",
+  "generatedAt": "2026-10-23T19:20:00.000Z",
   "title": "Design System: Pulso HORECA",
   "extensions": {
     "colorMeta": {
       "primary": { "role": "primary", "displayName": "Operational Red", "canonical": "oklch(0.52 0.17 25)", "tonalRamp": ["oklch(0.15 0.17 25)", "oklch(0.25 0.17 25)", "oklch(0.35 0.17 25)", "oklch(0.45 0.17 25)", "oklch(0.52 0.17 25)", "oklch(0.65 0.12 25)", "oklch(0.78 0.08 25)", "oklch(0.92 0.04 25)"] },
       "primary-foreground": { "role": "neutral", "displayName": "Primary Foreground", "canonical": "oklch(0.99 0 0)" },
+      "secondary": { "role": "neutral", "displayName": "Secondary Surface", "canonical": "oklch(0.96 0.01 85)" },
+      "secondary-foreground": { "role": "neutral", "displayName": "Secondary Foreground", "canonical": "oklch(0.30 0.03 25)" },
+      "accent": { "role": "semantic", "displayName": "Operational Accent", "canonical": "oklch(0.94 0.04 30)" },
+      "accent-foreground": { "role": "semantic", "displayName": "Accent Foreground", "canonical": "oklch(0.35 0.12 25)" },
       "background": { "role": "neutral", "displayName": "Background", "canonical": "oklch(1 0 0)" },
       "foreground": { "role": "neutral", "displayName": "Foreground", "canonical": "oklch(0.16 0.01 30)" },
       "muted": { "role": "neutral", "displayName": "Muted", "canonical": "oklch(0.965 0.005 85)" },

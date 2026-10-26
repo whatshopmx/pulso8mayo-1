@@ -1,0 +1,151 @@
+{
+  "endpoint": "ep-solitary-hill-b4bbyj4d.c-6.us-east-2.aws.neon.tech/neondb",
+  "isolatedFromConfiguredOperational": true,
+  "identity": [
+    {
+      "database": "neondb",
+      "role": "neondb_owner",
+      "version": "180006"
+    }
+  ],
+  "roles": [
+    {
+      "rolsuper": false,
+      "rolbypassrls": true
+    }
+  ],
+  "columns": [
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "id"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "effective_from"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "effective_to"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "max_weekly_hours"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "max_double_overtime_hours"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "max_triple_overtime_hours"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "max_daily_sum_hours"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "max_extra_hours_per_day"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "max_extra_days_per_week"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "min_rest_between_shifts_hours"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "minimum_wage_mxn"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "source_dof_url"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "source_published_on"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "legal_note"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "created_at"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "updated_at"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "aguinaldo_days_mxn"
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "column_name": "uma_daily_mxn"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "id"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "run_id"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "user_id"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "base_salary_cents"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "propinas_cents"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "holiday_pay_cents"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "overtime_pay_cents"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "total_percepciones_cents"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "total_deducciones_cents"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "cfdi_uuid"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "cfdi_status"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "sello_digital"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "created_at"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "updated_at"
+    },
+    {
+      "table_name": "payroll_payslips",
+      "column_name": "aguinaldo_cents"
+    }
+  ]
+}

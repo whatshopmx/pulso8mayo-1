@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { NOM251Report } from "@/components/compliance/nom251-report";
 import { NOM035Report } from "@/components/compliance/nom035-report";
 import { ComplianceDashboard } from "@/components/compliance/compliance-dashboard";
@@ -10,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MetricGrid, MetricCard } from "@/components/ui/metric-card";
-import { EmptyState, PageHeader } from "@/components/shared";
+import { EmptyState, PageHeader, ErrorState } from "@/components/shared";
 import { ComplianceServicesList } from "@/components/equipment/compliance-services-list";
 import { useBranch } from "@/lib/branch-context";
 import {
@@ -26,13 +24,13 @@ import {
   ArrowRight,
   Users,
   AlertTriangle,
-  CheckCircle,
   PlusCircle,
   FolderCheck,
   LandPlot,
-  Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import { ImssLoading, ImssSummaryMetrics } from '@/components/compliance/imss-status';
+import { imssQuery, useImssResource, type ImssSummary } from '@/components/compliance/imss-client';
 
 interface BranchLite {
   id: string;
@@ -42,14 +40,6 @@ interface BranchLite {
 interface CompliancePageClientProps {
   branches: BranchLite[];
   companyId?: string;
-}
-
-interface IMSSQuickStats {
-  totalEmployees: number;
-  pendingAltas: number;
-  pendingBajas: number;
-  overdueAltas: number;
-  overdueBajas: number;
 }
 
 /**
@@ -102,112 +92,10 @@ function SelectBranchNotice({
  * Live IMSS Overview Tab Component with real-time stats and direct action links.
  */
 function IMSSOverviewTab({ branchId }: { branchId?: string | null } = {}) {
-  const [stats, setStats] = useState<IMSSQuickStats>({
-    totalEmployees: 0,
-    pendingAltas: 0,
-    pendingBajas: 0,
-    overdueAltas: 0,
-    overdueBajas: 0,
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      setLoading(true);
-      try {
-        const query = branchId && branchId !== "all" && branchId !== "ALL" ? `?branchId=${branchId}` : "";
-        const [altasRes, bajasRes, employeesRes] = await Promise.allSettled([
-          fetch(`/api/imss/altas${query}`),
-          fetch(`/api/imss/bajas${query}`),
-          fetch(`/api/employees${query}`),
-        ]);
-
-        let pendingAltas = 0;
-        let pendingBajas = 0;
-        let overdueAltas = 0;
-        let overdueBajas = 0;
-        let totalEmployees = 0;
-
-        if (altasRes.status === "fulfilled" && altasRes.value.ok) {
-          const altasData = await altasRes.value.json();
-          pendingAltas = (altasData.summary?.ready || 0) + (altasData.summary?.pending || 0);
-          overdueAltas = altasData.summary?.overdue || 0;
-        }
-        if (bajasRes.status === "fulfilled" && bajasRes.value.ok) {
-          const bajasData = await bajasRes.value.json();
-          pendingBajas = (bajasData.summary?.ready || 0) + (bajasData.summary?.pending || 0);
-          overdueBajas = bajasData.summary?.overdue || 0;
-        }
-        if (employeesRes.status === "fulfilled" && employeesRes.value.ok) {
-          const empData = await employeesRes.value.json();
-          totalEmployees = empData.pagination?.total || 0;
-        }
-
-        setStats({
-          totalEmployees,
-          pendingAltas,
-          pendingBajas,
-          overdueAltas,
-          overdueBajas,
-        });
-      } catch (e) {
-        console.error("Error loading IMSS stats", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, [branchId]);
-
-  const complianceRate =
-    stats.totalEmployees > 0
-      ? Math.round(
-          ((stats.totalEmployees - stats.overdueAltas - stats.overdueBajas) / stats.totalEmployees) *
-            100
-        )
-      : 100;
-
-  return (
-    <div className="space-y-6">
-      {/* IMSS KPI Metric Cards */}
-      {loading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
-      ) : (
-        <MetricGrid columns={4}>
-          <MetricCard
-            label="Empleados Activos"
-            value={stats.totalEmployees}
-            icon={<Users className="h-4 w-4" />}
-            subtitle="Registrados ante IMSS"
-          />
-          <MetricCard
-            label="Altas Pendientes"
-            value={stats.pendingAltas}
-            icon={<AlertTriangle className="h-4 w-4" />}
-            tone={stats.pendingAltas > 0 ? "warning" : "neutral"}
-            subtitle="Plazo legal: 5 días hábiles"
-          />
-          <MetricCard
-            label="Bajas Pendientes"
-            value={stats.pendingBajas}
-            icon={<AlertTriangle className="h-4 w-4" />}
-            tone={stats.pendingBajas > 0 ? "destructive" : "neutral"}
-            subtitle="Plazo legal: 5 días hábiles"
-          />
-          <MetricCard
-            label="Cumplimiento IMSS"
-            value={`${complianceRate}%`}
-            icon={<CheckCircle className="h-4 w-4" />}
-            tone={complianceRate >= 90 ? "success" : complianceRate >= 70 ? "warning" : "destructive"}
-            subtitle="Movimientos en tiempo"
-            progress={{ value: complianceRate }}
-          />
-        </MetricGrid>
-      )}
-
+  const resource = useImssResource<{ stats: ImssSummary }>(`/api/imss/summary${imssQuery(branchId)}`);
+  const stats = resource.data?.stats;
+  return (<div className="space-y-6">
+    {resource.loading ? <ImssLoading /> : resource.error ? <ErrorState message={resource.error} onRetry={resource.refresh} /> : stats ? <ImssSummaryMetrics stats={stats} /> : null}
       {/* Action Modules Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Module 1: Altas */}
@@ -217,8 +105,8 @@ function IMSSOverviewTab({ branchId }: { branchId?: string | null } = {}) {
               <div className="p-2 rounded-lg bg-primary/10 text-primary">
                 <PlusCircle className="h-5 w-5" />
               </div>
-              <Badge variant={stats.pendingAltas > 0 ? "destructive" : "secondary"} className="text-xs">
-                {stats.pendingAltas} pendientes
+              <Badge variant={(stats?.pendingAltas ?? 0) > 0 ? "destructive" : "secondary"} className="text-xs">
+                {stats?.pendingAltas ?? '—'} pendientes
               </Badge>
             </div>
             <CardTitle className="text-sm font-bold pt-2">Altas de Personal</CardTitle>
@@ -242,8 +130,8 @@ function IMSSOverviewTab({ branchId }: { branchId?: string | null } = {}) {
               <div className="p-2 rounded-lg bg-destructive/10 text-destructive">
                 <AlertTriangle className="h-5 w-5" />
               </div>
-              <Badge variant={stats.pendingBajas > 0 ? "destructive" : "secondary"} className="text-xs">
-                {stats.pendingBajas} pendientes
+              <Badge variant={(stats?.pendingBajas ?? 0) > 0 ? "destructive" : "secondary"} className="text-xs">
+                {stats?.pendingBajas ?? '—'} pendientes
               </Badge>
             </div>
             <CardTitle className="text-sm font-bold pt-2">Bajas de Personal</CardTitle>
@@ -348,7 +236,7 @@ function IMSSOverviewTab({ branchId }: { branchId?: string | null } = {}) {
             </div>
             <CardTitle className="text-sm font-bold pt-2">Historial IDSE / IMSS</CardTitle>
             <CardDescription className="text-xs">
-              Acuses de recibo y comprobantes de movimientos oficiales
+              Archivos generados y acuses registrados por administración
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">

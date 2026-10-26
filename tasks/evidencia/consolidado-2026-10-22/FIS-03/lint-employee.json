@@ -1,0 +1,7 @@
+{
+  "command": "pnpm.cmd exec eslint lib/services/employee-service.ts",
+  "exit": 0,
+  "errors": 0,
+  "warnings": 20,
+  "evidence": "Resultado observado de exec session 43701, 2026-10-23; advertencias no-explicit-any y no-unused-vars fuera de la proyección corregida."
+}

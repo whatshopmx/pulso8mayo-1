@@ -1,0 +1,7 @@
+{
+  "command": "pnpm.cmd exec tsc --noEmit --incremental false",
+  "exitCode": 0,
+  "output": "",
+  "date": "2026-10-23",
+  "note": "La última corrección posterior fue texto del contador en la UI y un comentario; el build final incluye TypeScript."
+}

@@ -1,0 +1,16 @@
+
+Running 8 tests using 1 worker
+
+(node:8896) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+6:44:09 p.m. [vite] (client) [optimizer] bundling dependencies...
+  ✓  1 tests\e2e\imss-ui.spec.ts:82:5 › altas: listo y vencido seleccionables; bloqueado y confirmado protegidos; descarga guardada (7.9s)
+  ✓  2 tests\e2e\imss-ui.spec.ts:99:5 › adopción histórica exige preview; cambiar nota vuelve a bloquear la confirmación (2.6s)
+  ✓  3 tests\e2e\imss-ui.spec.ts:119:5 › SUA muestra salario y SDI reales; sin contrato está bloqueado; envía el importe visible (3.5s)
+  ✓  4 tests\e2e\imss-ui.spec.ts:136:5 › reportes consulta archivos reales y exige motivo para registrar un rechazo (2.0s)
+  ✓  5 tests\e2e\imss-ui.spec.ts:153:5 › mismo porcentaje y denominador en resumen y pestaña IMSS (3.0s)
+  ✓  6 tests\e2e\imss-ui.spec.ts:165:5 › baja con fecha y motivo reales; legible en móvil y teclado operativo (1.6s)
+  ✓  7 tests\e2e\imss-ui.spec.ts:177:5 › historial vacío muestra — y los permisos ocultan el registro de acuses (1.3s)
+  ✓  8 tests\e2e\imss-ui.spec.ts:186:5 › pantallas contenidas a 320, 768, 1024 y 1440 píxeles (15.8s)
+
+  8 passed (1.0m)

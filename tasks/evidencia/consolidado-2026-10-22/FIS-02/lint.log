@@ -1,0 +1,9 @@
+pnpm.cmd exec eslint scripts/seed-labor-law-rules.ts lib/services/labor-law-seed-data.ts lib/services/labor-rules-resolver.ts lib/services/aguinaldo-payroll-service.ts lib/__tests__/labor-law-seed-data.test.ts lib/__tests__/labor-fiscal-resolution.test.ts lib/__tests__/aguinaldo-payroll-service.test.ts tests/integration/labor-law-seed-db.test.ts [system CA enabled; types/build heap 6144 MB for this child only]
+
+C:\Users\david\pulso29\lib\services\labor-rules-resolver.ts
+  240:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 1 problem (0 errors, 1 warning)
+
+
+EXIT=0

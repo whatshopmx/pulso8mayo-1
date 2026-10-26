@@ -5,6 +5,7 @@ import { eq, and, gte, desc } from 'drizzle-orm';
 import { hasPermission, type Role } from '@/lib/permissions';
 import { resolveBranchScope } from '@/lib/branch-scope';
 import { ApiError, isApiError } from '@/lib/api/error';
+import { AuditService } from '@/lib/services/audit-service';
 import {
   inventoryBatches,
   branches,
@@ -21,8 +22,8 @@ import { z } from 'zod';
 const updateStatusSchema = z.object({
   batchId: z.string().uuid(),
   status: z.enum(['AVAILABLE', 'RESERVED', 'EXPIRED', 'QUARANTINED', 'DEPLETED']),
-  notes: z.string().optional(),
-});
+  notes: z.string().trim().min(1).max(1000),
+}).strict();
 
 const querySchema = z.object({
   id: z.string().uuid().optional(),
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
     ));
     const batchId = filters.id || filters.batchId;
     const isTrace = filters.trace === 'true';
-    const scope = batchScope(session.user, filters.branchId);
+    const scope = batchScope({ ...session.user, companyId: session.user.companyId }, filters.branchId);
 
     // Trazabilidad profunda de un lote específico
     if (batchId && isTrace) {
@@ -232,25 +233,51 @@ export async function PATCH(request: NextRequest) {
       headers: request.headers,
     });
 
-    if (!session?.user) {
+    if (!session?.user?.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const user = { ...session.user, companyId: session.user.companyId };
+    if (!hasPermission(user.role as Role, 'inventory', 'update')) {
+      throw ApiError.forbidden('No tienes permisos para cambiar el estado de lotes');
+    }
+    const scope = batchScope(user);
 
     const body = await request.json();
     const validated = updateStatusSchema.parse(body);
 
-    const [updated] = await db
-      .update(inventoryBatches)
-      .set({
-        status: validated.status as (typeof inventoryBatches.$inferInsert)['status'],
-        updatedAt: new Date(),
-      })
-      .where(eq(inventoryBatches.id, validated.batchId))
-      .returning();
+    const updated = await db.transaction(async tx => {
+      const [row] = await tx.select({ batch: inventoryBatches }).from(inventoryBatches)
+        .innerJoin(branches, eq(inventoryBatches.branchId, branches.id))
+        .innerJoin(inventoryItems, eq(inventoryBatches.itemId, inventoryItems.id))
+        .where(and(scope, eq(inventoryBatches.id, validated.batchId)))
+        .limit(1).for('update', { of: inventoryBatches });
+      if (!row) throw ApiError.notFound('Lote no encontrado');
+      const batch = row.batch;
+      if (batch.status === validated.status) return batch;
 
-    if (!updated) {
-      return NextResponse.json({ error: 'Lote no encontrado' }, { status: 404 });
-    }
+      const immobilize = batch.status === 'AVAILABLE' && validated.status === 'QUARANTINED';
+      const reserve = batch.status === 'AVAILABLE' && validated.status === 'RESERVED';
+      const release = (batch.status === 'QUARANTINED' || batch.status === 'RESERVED') && validated.status === 'AVAILABLE';
+      if (!immobilize && !reserve && !release) {
+        throw ApiError.conflict('El cambio de estado no está permitido; agotamiento y vencimiento se determinan por saldo y fecha');
+      }
+      if (!immobilize && !hasPermission(user.role as Role, 'inventory', 'manage')) {
+        throw ApiError.forbidden('Se requiere un gerente o superior para reservar o liberar lotes');
+      }
+      if (release && (Number(batch.currentQuantity) <= 0 || !batch.expirationDate || batch.expirationDate <= new Date())) {
+        // Hasta contar con política explícita sin caducidad, fecha nula es dato faltante.
+        throw ApiError.conflict('Para liberar el lote se requiere saldo positivo y fecha de caducidad vigente');
+      }
+
+      const [changed] = await tx.update(inventoryBatches)
+        .set({ status: validated.status, updatedAt: new Date() })
+        .where(eq(inventoryBatches.id, batch.id)).returning();
+      await AuditService.logInventoryAction({ companyId: user.companyId, branchId: batch.branchId,
+        entityType: 'BATCH', entityId: batch.id, action: 'UPDATE', performedBy: user.id,
+        reason: validated.notes, oldValue: { status: batch.status }, newValue: { status: validated.status },
+      }, tx);
+      return changed;
+    });
 
     return NextResponse.json({
       success: true,
@@ -261,6 +288,8 @@ export async function PATCH(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (isApiError(error)) return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    if (error instanceof SyntaxError) return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
     console.error('Error updating batch status:', error);
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Datos inválidos', details: error.issues }, { status: 400 });

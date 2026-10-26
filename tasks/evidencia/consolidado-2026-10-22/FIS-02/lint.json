@@ -1,0 +1,6 @@
+{
+  "command": "pnpm.cmd exec eslint scripts/seed-labor-law-rules.ts lib/services/labor-law-seed-data.ts lib/services/labor-rules-resolver.ts lib/services/aguinaldo-payroll-service.ts lib/__tests__/labor-law-seed-data.test.ts lib/__tests__/labor-fiscal-resolution.test.ts lib/__tests__/aguinaldo-payroll-service.test.ts tests/integration/labor-law-seed-db.test.ts",
+  "startedAt": "2026-10-23T03:27:06.564Z",
+  "finishedAt": "2026-10-23T03:27:31.881Z",
+  "exit": 0
+}

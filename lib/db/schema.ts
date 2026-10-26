@@ -6,6 +6,7 @@
 
 import { pgTable, text, timestamp, time, date, boolean, uuid, jsonb, integer, uniqueIndex, foreignKey, pgEnum, numeric, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import type { AguinaldoSnapshotCabecera, AguinaldoEmpleadoSnapshot } from "../services/aguinaldo-snapshot";
 
 // Import auth tables and enums for internal use within this file
 import { account, users, session, sessions, verifications, magicLinks, roleEnum } from './schema/auth';
@@ -3993,6 +3994,8 @@ export const payrollRuns = pgTable("payroll_runs", {
     status: text("status").notNull().default('DRAFT'), // DRAFT, PROCESSING, COMPLETED, ERROR
     /** Año fiscal del aguinaldo cuando el run es de nómina extraordinaria (c_TipoNomina E); NULL = run ordinario. */
     aguinaldoFiscalYear: integer("aguinaldo_fiscal_year"),
+    /** Autorización versionada; NULL en corridas legacy/ordinarias, nunca se reconstruye desde datos vivos. */
+    aguinaldoSnapshot: jsonb("aguinaldo_snapshot").$type<AguinaldoSnapshotCabecera>(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
@@ -4006,6 +4009,8 @@ export const payrollPayslips = pgTable("payroll_payslips", {
     id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
     runId: uuid("run_id").notNull().references(() => payrollRuns.id, { onDelete: 'cascade' }),
     userId: text("user_id").notNull().references(() => users.id),
+    /** Cálculo autorizado por empleado antes de contactar al proveedor; no confirma pago. */
+    aguinaldoSnapshot: jsonb("aguinaldo_snapshot").$type<AguinaldoEmpleadoSnapshot>(),
     
     baseSalaryCents: integer("base_salary_cents").notNull().default(0),
     propinasCents: integer("propinas_cents").notNull().default(0),
@@ -4022,7 +4027,11 @@ export const payrollPayslips = pgTable("payroll_payslips", {
     
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+    /** No impone unicidad retroactiva a recibos históricos que necesitan revisión. */
+    aguinaldoSnapshotEmpleadoUnique: uniqueIndex("payroll_payslips_aguinaldo_snapshot_employee_unique")
+        .on(table.runId, table.userId).where(sql`${table.aguinaldoSnapshot} is not null`),
+}));
 
 /**
  * Task 11 plan-aguinaldo — bitácora de dispersión de excedente en efectivo.
@@ -4112,3 +4121,92 @@ export const aggregatorSettlements = pgTable("aggregator_settlements", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IMSS — circuito afiliatorio (tasks/plan-imss.md, Fase 1)
+//
+// Un MOVIMIENTO por empleado y por tipo, no un campo de estado en el perfil:
+// el estado afiliatorio es el último movimiento (decisión 1). Un ARCHIVO
+// generado contiene N movimientos (decisión 2), que es el modelo real del
+// IMSS: un envío = N movimientos.
+//
+// `generar ≠ registrar` (decisión 3): nada llega a CONFIRMADO por generar el
+// archivo; sólo lo confirma un humano con el folio de acuse del IDSE.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const imssMovementTypeEnum = pgEnum("imss_movement_type", ['ALTA', 'BAJA', 'MOD_SALARIO']);
+export const imssMovementStatusEnum = pgEnum("imss_movement_status", ['PENDIENTE', 'EN_ARCHIVO', 'CONFIRMADO', 'RECHAZADO']);
+export const imssFileStatusEnum = pgEnum("imss_file_status", ['GENERADO', 'ENVIADO', 'ACEPTADO', 'RECHAZADO']);
+
+/**
+ * Un archivo generado (`.txt` IDSE o SUA). `contentSha256` es la llave de
+ * deduplicación: reenviar exactamente lo mismo no crea un archivo nuevo.
+ * El binario se conserva en R2 (`storageKey`); si el entorno no tiene R2,
+ * `contentUnavailable` lo declara para que nadie ofrezca una descarga que no
+ * existe.
+ */
+export const imssFiles = pgTable("imss_files", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    branchId: uuid("branch_id").references(() => branches.id),
+    layout: text("layout").notNull(),                    // 'IDSE' | 'SUA'
+    layoutVersion: text("layout_version").notNull(),     // 'IDSE_2025_v1' | 'SUA_AFIL_v1'
+    movementType: imssMovementTypeEnum("movement_type"),
+    fechaMovimiento: date("fecha_movimiento").notNull(),
+    fileName: text("file_name").notNull(),
+    contentSha256: text("content_sha256").notNull(),
+    lineCount: integer("line_count").notNull(),
+    status: imssFileStatusEnum("status").notNull().default('GENERADO'),
+    acuseFolio: text("acuse_folio"),
+    acuseReceivedAt: timestamp("acuse_received_at", { withTimezone: true }),
+    rejectionReason: text("rejection_reason"),
+    storageKey: text("storage_key"),
+    contentUnavailable: boolean("content_unavailable").notNull().default(false),
+    generatedBy: text("generated_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    // Reenviar el mismo contenido no duplica el archivo ni el acuse.
+    imssFilesCompanyShaUnique: uniqueIndex("imss_files_company_sha_unique")
+        .on(table.companyId, table.contentSha256),
+    imssFilesCompanyCreatedIdx: index("imss_files_company_created_idx")
+        .on(table.companyId, table.createdAt),
+    imssFilesCompanyFechaIdx: index("imss_files_company_fecha_idx")
+        .on(table.companyId, table.fechaMovimiento),
+}));
+
+/**
+ * Un movimiento afiliatorio de un empleado. `effectiveDate` es la fecha del
+ * hecho (alta = `hireDate`, baja = `terminationDate`, modificación = fecha
+ * capturada) y es parte de la llave de idempotencia junto con empresa, empleado
+ * y tipo: correr `ensurePendingMovements` dos veces no duplica nada.
+ *
+ * `baseSalaryCents` / `sdiCents` son SNAPSHOT al momento del movimiento: si el
+ * contrato cambia después, el archivo ya enviado sigue siendo auditable.
+ */
+export const imssMovements = pgTable("imss_movements", {
+    id: uuid("id").default(sql`gen_random_uuid()`).primaryKey().notNull(),
+    companyId: uuid("company_id").notNull().references(() => companies.id),
+    userId: text("user_id").notNull().references(() => users.id),
+    fileId: uuid("file_id").references(() => imssFiles.id),
+    movementType: imssMovementTypeEnum("movement_type").notNull(),
+    movementCode: text("movement_code").notNull(),       // '08' alta | '02' baja | '07' mod. salario
+    effectiveDate: date("effective_date").notNull(),
+    registroPatronal: text("registro_patronal"),
+    baseSalaryCents: integer("base_salary_cents"),
+    sdiCents: integer("sdi_cents"),
+    status: imssMovementStatusEnum("status").notNull().default('PENDIENTE'),
+    /** Por qué NO se puede armar: 'SIN_NSS' | 'SIN_CURP' | 'SIN_RFC' | 'SIN_SALARIO_BASE' | 'SIN_REGISTRO_PATRONAL'. */
+    blockedReason: text("blocked_reason"),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    rejectionReason: text("rejection_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    imssMovementsIdempotencyUnique: uniqueIndex("imss_movements_idempotency_unique")
+        .on(table.companyId, table.userId, table.movementType, table.effectiveDate),
+    imssMovementsCompanyUserIdx: index("imss_movements_company_user_idx")
+        .on(table.companyId, table.userId),
+    imssMovementsCompanyStatusIdx: index("imss_movements_company_status_idx")
+        .on(table.companyId, table.status),
+    imssMovementsCompanyEffectiveDateIdx: index("imss_movements_company_effective_date_idx")
+        .on(table.companyId, table.effectiveDate),
+}));

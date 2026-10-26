@@ -5,15 +5,16 @@
  * Cada empleado recibe UN CFDI 002 por año causado con el periodo
  * 1-ene a 31-dic —jamás se mezcla con la nómina ordinaria del
  * periodo—. La exención (30 UMA) y el gravado se declaran en la
- * percepción 002 (`percepcionAguinaldo`); la RETENCIÓN va en 0
- * (decisión Q1: tarifa anual Art. 174 RLISR en Task 13).
+ * percepción 002 (`percepcionAguinaldo`); la retención opcional Art. 174
+ * usa la parte gravada y el procedimiento mensual, con tarifa exacta por año.
  *
  * Idempotencia en dos capas:
  *   • DB: índice parcial único `payroll_runs_company_aguinaldo_year_unique`
  *     — un run por empresa y año causado.
  *   • Servicio: guarda previa antes de ejecutar (409 lógico si ya existe
- *     un run del mismo companyId+año, TIMBRADO's dedupe por
- *     (companyId, rfc, periodo "AAAA-AGU") protege el reintento por empleado).
+ *     un run del mismo companyId+año). El servicio fiscal deduplica TIMBRADO
+ *     por (companyId, rfc, periodo "AAAA-AGU"). La recuperación comparte el
+ *     consumidor de snapshots y conserva las intenciones fiscales inciertas.
  */
 import { db } from "@/lib/db";
 import {
@@ -26,9 +27,12 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, desc, gte } from "drizzle-orm";
 import { calcularAguinaldoAnual, diasCalendarioAguinaldo, resolverEstatusLegal, DIAS_PRORRATEO, type AguinaldoCalculo, type AguinaldoLegalEstatus, type AguinaldoBase } from "./aguinaldo-service";
-import { resolveLaborLawRules } from "./labor-rules-resolver";
-import { timbrarNomina, percepcionAguinaldo } from "./fiscal-service";
-import { calcularRetencionAguinaldoArt174 } from "./isr-annual-withholding";
+import { resolveFiscalLaborLawRules } from "./labor-rules-resolver";
+import { recuperarAguinaldoRun } from "./aguinaldo-run-execution";
+export { recuperarAguinaldoRun } from "./aguinaldo-run-execution";
+import { calcularPagoAguinaldo, hoyCivilAguinaldo, resolverFechaPagoAguinaldo, type AguinaldoPago } from "./aguinaldo-payment";
+import { resolverTarifaParaAnio } from "./isr-annual-withholding";
+import { crearSnapshotAguinaldo } from "./aguinaldo-snapshot";
 import { getTenantOperatingConfig } from "./tenant-config-service";
 import { resolveAguinaldoBase, resolveEffectiveSalary } from "./employee-service";
 import { conteoDiasLaboradosAnual, type FuenteDias } from "./dias-laborados-service";
@@ -53,6 +57,7 @@ export interface AguinaldoPreviewRow {
     fechaAntiguedad: string | null;
     /** Cálculo TIMBRABLE: salario de registro (el CFDI 002 sólo cubre la parte registrada). */
     calculo: AguinaldoCalculo | null;
+    pago: AguinaldoPago | null;
     /** Cálculo sobre el salario efectivo real; NULL cuando el empleado es formal. */
     calculoEfectivo: AguinaldoCalculo | null;
     /**
@@ -77,6 +82,7 @@ export interface AguinaldoPreviewRow {
 export interface AguinaldoPreview {
     companyId: string;
     anioFiscal: number;
+    fechaPago: string;
     /** Fila por empleado activo con o sin contrato. */
     rows: AguinaldoPreviewRow[];
     estatusLegal: AguinaldoLegalEstatus;
@@ -92,6 +98,8 @@ export interface AguinaldoPreview {
     totalBrutoCents: number;
     totalExentoCents: number;
     totalGravadoCents: number;
+    totalDeduccionesCents: number;
+    totalNetoCents: number;
     /** Suma de la diferencia efectivo vs registro de los timbrables (~liabilidad o excedente). */
     totalDiferenciaCents: number;
     empleadosATimbrar: number;
@@ -99,6 +107,8 @@ export interface AguinaldoPreview {
 }
 
 export interface ExecuteAguinaldoDias {
+    /** Fecha civil del pago; se conserva en preview y ejecución, separada del año causado. */
+    fechaPago?: string;
     /** Ajuste manual "días a considerar" por usuario (semántica PROFEDET ya aplicada). */
     diasLaboradosPorUsuario?: Record<string, number>;
 }
@@ -133,7 +143,7 @@ async function cargarPlantillaAguinaldo(companyId: string, anioFiscal: number, b
         .innerJoin(employeeProfiles, eq(users.id, employeeProfiles.userId))
         .leftJoin(
             employeeContracts,
-            and(eq(users.id, employeeContracts.userId), eq(employeeContracts.status, "ACTIVE"))
+            and(eq(users.id, employeeContracts.userId), eq(employeeContracts.companyId, companyId), eq(employeeContracts.status, "ACTIVE"))
         )
         .where(
             and(
@@ -163,6 +173,7 @@ async function cargarPlantillaAguinaldo(companyId: string, anioFiscal: number, b
             diasLaborados: diasCalendario,
             fechaAntiguedad,
             calculo: null,
+            pago: null,
             calculoEfectivo: null,
             diferenciaCents: 0,
             diasAutomaticos: null,
@@ -178,9 +189,9 @@ async function cargarPlantillaAguinaldo(companyId: string, anioFiscal: number, b
     });
 }
 
-async function resolverReglaLey() {
-    // Vigencia al pago (hoy): Art. 87 y exención de 30 UMA vigentes en la fecha de dispersión.
-    const law = await resolveLaborLawRules(new Date());
+async function resolverReglaLey(fechaPago: string) {
+    // Mediodía UTC conserva la fecha civil en el selector de vigencias.
+    const law = await resolveFiscalLaborLawRules(new Date(`${fechaPago}T12:00:00Z`), ["umaDailyMxn"]);
     return {
         aguinaldoDaysMxn: law.aguinaldoDaysMxn,
         umaDailyCents: law.umaDailyMxn != null ? Math.round(law.umaDailyMxn * 100) : null,
@@ -210,7 +221,10 @@ export async function previsualizarAguinaldo(
             throw new RangeError(`diasLaborados inválido (0..${DIAS_PRORRATEO + 1}): ${value}`);
         }
     }
-    const regla = await resolverReglaLey();
+    const fecha = resolverFechaPagoAguinaldo(dias.fechaPago === undefined ? hoyCivilAguinaldo() : dias.fechaPago);
+    // Incluso un importe cero exige una publicación fiscal del año exacto.
+    resolverTarifaParaAnio(fecha.anioPago);
+    const regla = await resolverReglaLey(fecha.fechaPago);
     const rowsBase = await cargarPlantillaAguinaldo(companyId, anioFiscal, branchId);
 
     // Task 14: conteo automático turnos COMPLETED ∪ permisos pagados.
@@ -261,12 +275,21 @@ export async function previsualizarAguinaldo(
         const diferenciaCents = calculoEfectivo
             ? calculoEfectivo.brutoCents - calculo.brutoCents
             : 0;
+        let pago: AguinaldoPago | null = null;
+        let error: string | undefined;
+        try {
+            pago = calcularPagoAguinaldo(calculo, row.salarioDiarioCents, fecha.fechaPago);
+        } catch (err) {
+            error = err instanceof Error ? err.message : String(err);
+        }
         return {
             ...row,
             diasLaborados,
             fuenteDias,
             diasAutomaticos: auto && auto.dias > 0 ? auto.dias : row.diasAutomaticos,
             calculo,
+            pago,
+            error,
             calculoEfectivo,
             diferenciaCents,
         };
@@ -274,19 +297,22 @@ export async function previsualizarAguinaldo(
 
     const totales = rows.reduce(
         (acc, r) => {
-            if (!r.calculo) return acc;
+            if (!r.calculo || r.error || !r.pago || !r.rfc) return acc;
             acc.bruto += r.calculo.brutoCents;
             acc.exento += r.calculo.exentoCents;
             acc.gravado += r.calculo.gravadoCents;
+            acc.deducciones += r.pago.totalDeduccionesCents;
+            acc.neto += r.pago.netoCents;
             acc.diferencia += r.diferenciaCents;
             return acc;
         },
-        { bruto: 0, exento: 0, gravado: 0, diferencia: 0 }
+        { bruto: 0, exento: 0, gravado: 0, deducciones: 0, neto: 0, diferencia: 0 }
     );
 
     return {
         companyId,
         anioFiscal,
+        fechaPago: fecha.fechaPago,
         rows,
         estatusLegal: regla.estatusLegal,
         fuenteRegla: regla.source,
@@ -297,8 +323,10 @@ export async function previsualizarAguinaldo(
         totalBrutoCents: totales.bruto,
         totalExentoCents: totales.exento,
         totalGravadoCents: totales.gravado,
+        totalDeduccionesCents: totales.deducciones,
+        totalNetoCents: totales.neto,
         totalDiferenciaCents: totales.diferencia,
-        empleadosATimbrar: rows.filter((r) => !r.error).length,
+        empleadosATimbrar: rows.filter((r) => !r.error && r.rfc && r.pago).length,
         empleadosSinRFC: rows.filter((r) => !r.error && !r.rfc).length,
     };
 }
@@ -332,128 +360,29 @@ export async function executeAguinaldoRun(
     if (existente) throw new AguinaldoRunDuplicadoError(anioFiscal);
 
     const preview = await previsualizarAguinaldo(companyId, anioFiscal, branchId, dias);
-    // Task 11: con base EFFECTIVE, la parte del aguinado que excede lo timbrable
-    // (el gap de salario) se dispersa en efectivo y se registra en bitácora SIN
-    // CFDI; el CFDI 002 sólo cubre la parte registrada.
-    const config = await getTenantOperatingConfig(companyId);
-    const debeDispersarExcedente = resolveAguinaldoBase(config.aguinaldoBase) === "EFFECTIVE";
-
-    const [run] = await db
-        .insert(payrollRuns)
-        .values({
-            companyId,
-            periodStart: `${anioFiscal}-01-01`,
-            periodEnd: `${anioFiscal}-12-31`,
-            status: "PROCESSING",
-            aguinaldoFiscalYear: anioFiscal,
-        })
-        .returning();
-
-    const periodo = `${anioFiscal}-AGU`;
-    const fechaPago = new Date().toISOString().slice(0, 10);
-    const results: AguinaldoRunResult["results"] = [];
-    /** El mes hipotético del Art. 174 usa el mes REAL de dispersión (subsidio de enero especial). */
-    const mesPago = new Date().getMonth() + 1;
-
-    for (const row of preview.rows) {
-        try {
-            if (row.error) throw new Error(row.error);
-            if (!row.rfc) throw new Error(`Empleado ${row.name} no tiene RFC configurado.`);
-            if (!row.calculo) throw new Error(`Empleado ${row.name} sin cálculo de aguinaldo.`);
-
-            // Task 13 (Q1): tarifa anual Art. 174 RLISR. Tarifa del año y mes
-            // de DISPERSIÓN (el Art. 96 del mes hipotético aplica al periodo
-            // en el que se retiene, aunque el aguinaldo sea del año anterior).
-            const anioPago = new Date().getFullYear();
-            const retencion = calcularRetencionAguinaldoArt174({
-                anioPago,
-                mesPago,
-                aguinaldoBrutoCents: row.calculo.brutoCents,
-                salarioDiarioCents: row.salarioDiarioCents,
-            });
-
-            const timbrado = await timbrarNomina({
-                companyId,
-                performedBy,
-                empleadoRfc: row.rfc,
-                empleadoNombre: row.name,
-                empleadoFechaContratacion: row.fechaAntiguedad ?? undefined,
-                empleadoSalarioDiarioCents: row.salarioDiarioCents,
-                periodo,
-                payrollTypeCode: "E",
-                fechaPagoInicial: `${anioFiscal}-01-01`,
-                fechaPagoFinal: `${anioFiscal}-12-31`,
-                fechaPago,
-                // Percepción única: bruto con exento/gravado separados.
-                desglosePercepciones: [percepcionAguinaldo(row.calculo.brutoCents, row.calculo.exentoCents)],
-                totalPercepciones: row.calculo.brutoCents,
-                // Retención de ISR del gravado: tarifa anual Art. 174 RLISR
-                // (Task 13, decisión Q1) — método favorable al trabajador;
-                // se aplica sobre el aguinaldo íntegro, no por cada run.
-                totalDeducciones: retencion.retencionCents > 0 ? retencion.retencionCents : 0,
-                desgloseDeducciones:
-                    retencion.retencionCents > 0
-                        ? [{
-                            deductionTypeCode: "002",
-                            code: "002",
-                            concept: `ISR retenido del aguinaldo ${anioFiscal} (Art. 174 RLISR)`,
-                            amount: retencion.retencionCents,
-                        }]
-                        : undefined,
-            });
-
-            const [payslip] = await db
-                .insert(payrollPayslips)
-                .values({
-                    runId: run.id,
-                    userId: row.userId,
-                    aguinaldoCents: row.calculo.brutoCents,
-                    totalPercepcionesCents: row.calculo.brutoCents,
-                    totalDeduccionesCents: retencion.retencionCents > 0 ? retencion.retencionCents : 0,
-                    cfdiUuid: timbrado.uuid || null,
-                    cfdiStatus: timbrado.status,
-                    selloDigital: timbrado.selloDigital,
-                })
-                .returning();
-
-            results.push({ success: true, userId: row.userId, payslip });
-
-            // Bitácora del excedente en efectivo: registro con fecha, autorizador
-            // y motivo — jamás una percepción CFDI. Nadie lo verá en nómina timbrada.
-            if (debeDispersarExcedente && row.diferenciaCents > 0) {
-                await db.insert(payrollAguinaldoDispersiones).values({
-                    companyId,
-                    runId: run.id,
-                    source: "RUN",
-                    userId: row.userId,
-                    anioFiscal,
-                    montoCents: row.diferenciaCents,
-                    motivo: `Excedente del aguinado ${anioFiscal} pagado fuera de nómina: el CFDI 002 cubre sólo la parte de salario de registro; el gap se pagó en efectivo porque la base configurada del inquilino es EFFECTIVE (base real, J. 1a./J. 24/2023).`,
-                    performedBy: performedBy ?? "system",
-                });
-            }
-        } catch (err: unknown) {
-            const mensaje = err instanceof Error ? err.message : String(err);
-            console.error(`Error timbrando aguinaldo ${anioFiscal} para ${row.userId}:`, mensaje);
-            results.push({ success: false, userId: row.userId, error: mensaje });
-            await db.insert(payrollPayslips).values({
-                runId: run.id,
-                userId: row.userId,
-                aguinaldoCents: row.calculo?.brutoCents ?? 0,
-                totalPercepcionesCents: row.calculo?.brutoCents ?? 0,
-                totalDeduccionesCents: 0,
-                cfdiStatus: "ERROR",
-            });
-        }
+    const bloqueos = preview.rows.filter((row) => row.error || !row.rfc || !row.calculo || !row.pago);
+    if (bloqueos.length > 0) {
+        throw new RangeError(bloqueos.map((row) => `${row.name}: ${row.error ?? "Falta RFC o cálculo de pago."}`).join(" · "));
     }
+    if (preview.rows.length === 0) throw new RangeError("No hay empleados para ejecutar el aguinaldo.");
+    const snapshot = crearSnapshotAguinaldo(preview, performedBy ?? "system", branchId);
+    // Una sola transacción: ningún folio se solicita antes de conservar TODOS
+    // los importes autorizados. No mantener la transacción abierta frente al PAC.
+    const { run } = await db.transaction(async (tx) => {
+        const [run] = await tx.insert(payrollRuns).values({
+            companyId, periodStart: `${anioFiscal}-01-01`, periodEnd: `${anioFiscal}-12-31`,
+            status: "PROCESSING", aguinaldoFiscalYear: anioFiscal, aguinaldoSnapshot: snapshot.cabecera,
+        }).onConflictDoNothing().returning();
+        if (!run) throw new AguinaldoRunDuplicadoError(anioFiscal);
+        const pendientes = await tx.insert(payrollPayslips).values(snapshot.empleados.map((row) => ({
+            runId: run.id, userId: row.userId, aguinaldoSnapshot: row,
+            aguinaldoCents: row.calculo.brutoCents, totalPercepcionesCents: row.calculo.brutoCents,
+            totalDeduccionesCents: row.pago.totalDeduccionesCents, cfdiStatus: "PENDIENTE",
+        }))).returning();
+        return { run, pendientes };
+    });
 
-    const hasErrors = results.some((r) => !r.success);
-    await db
-        .update(payrollRuns)
-        .set({ status: hasErrors ? "COMPLETED_WITH_ERRORS" : "COMPLETED", updatedAt: new Date() })
-        .where(eq(payrollRuns.id, run.id));
-
-    return { runId: run.id, results };
+    return recuperarAguinaldoRun(companyId, run.id);
 }
 
 /** Runs de aguinaldo de la empresa (historial para la UI de Task 7). */

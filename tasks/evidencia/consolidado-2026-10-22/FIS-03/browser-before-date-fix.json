@@ -1,0 +1,6 @@
+{
+  "command": "pnpm.cmd exec playwright test --config tests/playwright-severance.config.ts",
+  "startedAt": "2026-10-23T17:15:13.788Z",
+  "finishedAt": "2026-10-23T17:18:19.367Z",
+  "exit": 1
+}

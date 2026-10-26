@@ -1,0 +1,207 @@
+pnpm.cmd run test:unit lib/__tests__/labor-law-seed-data.test.ts lib/__tests__/labor-rules-resolver.test.ts lib/__tests__/labor-fiscal-resolution.test.ts lib/__tests__/aguinaldo-payroll-service.test.ts lib/__tests__/fiscal-fixtures.test.ts --maxWorkers=2 [system CA enabled; types/build heap 6144 MB for this child only]
+$ vitest run --configLoader bundle "lib/__tests__/labor-law-seed-data.test.ts" "lib/__tests__/labor-rules-resolver.test.ts" "lib/__tests__/labor-fiscal-resolution.test.ts" "lib/__tests__/aguinaldo-payroll-service.test.ts" "lib/__tests__/fiscal-fixtures.test.ts" "--maxWorkers=2"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+ ❯ lib/__tests__/aguinaldo-payroll-service.test.ts (12 tests | 1 failed) 90ms
+     × FIS-02C: sin UMA verificada preview/run bloquean antes de timbrar o crear una corrida 26ms
+ ❯ lib/__tests__/labor-fiscal-resolution.test.ts (9 tests | 9 failed) 48ms
+     × el selector conserva la fila completa y rechaza dos vigencias activas 23ms
+     × la lectura fiscal ve la corrección aunque la lectura general tenga caché anterior 4ms
+     × DB vacía permite fallback informativo pero no un cálculo fiscal exigible 3ms
+     × no trata UMA null como exención cero 3ms
+     × no trata UMA 0.00 como exención cero 1ms
+     × no trata UMA -1.00 como exención cero 1ms
+     × no trata UMA NaN como exención cero 1ms
+     × una falla de lectura no inventa valores ni expone detalles de conexión 1ms
+     × enero 2027 solo permite la UMA conocida; no inventa mínimo ni UMA desde febrero 3ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  lib/__tests__/aguinaldo-payroll-service.test.ts > AGU-01 — días explícitos en preview y run (DB/proveedor simulados) > FIS-02C: sin UMA verificada preview/run bloquean antes de timbrar o crear una corrida
+AssertionError: promise resolved "{ companyId: 'company', …(14) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "aguinaldoDaysMxn": 15,
++   "anioFiscal": 2026,
++   "base": "EFFECTIVE",
++   "companyId": "company",
++   "empleadosATimbrar": 1,
++   "empleadosSinRFC": 0,
++   "estatusLegal": {
++     "basis": "LFT Art. 87 (vigente): 15 días de salario por año cumplido, prorrateados por tiempo trabajado en el año.",
++     "diasLegalesVigente": 15,
++     "fuente": "LEY_VIGENTE",
++   },
++   "fuenteRegla": "law-table",
++   "practiceMode": "MIXED",
++   "rows": [
++     {
++       "branchId": "branch",
++       "calculo": {
++         "aguinaldoDaysMxn": 15,
++         "anioFiscal": 2026,
++         "base": "REGISTERED",
++         "brutoCents": 246575,
++         "diasAguinaldo": 8.21917808219178,
++         "diasCalendario": 0,
++         "diasLaborados": 200,
++         "estatusLegal": {
++           "basis": "LFT Art. 87 (vigente): 15 días de salario por año cumplido, prorrateados por tiempo trabajado en el año.",
++           "diasLegalesVigente": 15,
++           "fuente": "LEY_VIGENTE",
++         },
++         "exencionCapCents": null,
++         "exentoCents": 0,
++         "fuenteDias": "MANUAL",
++         "gravadoCents": 246575,
++       },
++       "calculoEfectivo": {
++         "aguinaldoDaysMxn": 15,
++         "anioFiscal": 2026,
++         "base": "EFFECTIVE",
++         "brutoCents": 493151,
++         "diasAguinaldo": 8.21917808219178,
++         "diasCalendario": 0,
++         "diasLaborados": 200,
++         "estatusLegal": {
++           "basis": "LFT Art. 87 (vigente): 15 días de salario por año cumplido, prorrateados por tiempo trabajado en el año.",
++           "diasLegalesVigente": 15,
++           "fuente": "LEY_VIGENTE",
++         },
++         "exencionCapCents": null,
++         "exentoCents": 0,
++         "fuenteDias": "MANUAL",
++         "gravadoCents": 493151,
++       },
++       "diasAutomaticos": 200,
++       "diasCalendario": 365,
++       "diasLaborados": 200,
++       "diferenciaCents": 246576,
++       "esFormal": false,
++       "fechaAntiguedad": "2026-01-01",
++       "fuenteDias": "TURNOS_Y_PERMISOS",
++       "gapSalarioCents": 30000,
++       "name": "Empleado",
++       "rfc": "TEST010101AAA",
++       "salarioDiarioCents": 30000,
++       "salarioEfectivoCents": 60000,
++       "userId": "employee",
++     },
++   ],
++   "totalBrutoCents": 246575,
++   "totalDiferenciaCents": 246576,
++   "totalExentoCents": 0,
++   "totalGravadoCents": 246575,
++   "umaDailyCents": null,
+  }
+
+ ❯ lib/__tests__/aguinaldo-payroll-service.test.ts:113:62
+    111|     it("FIS-02C: sin UMA verificada preview/run bloquean antes de timb…
+    112|         state.fiscalAvailable = false;
+    113|         await expect(previsualizarAguinaldo("company", 2026)).rejects.…
+       |                                                              ^
+    114|         state.reads = [[], roster];
+    115|         await expect(executeAguinaldoRun("company", 2026, "actor")).re…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  lib/__tests__/labor-fiscal-resolution.test.ts > FIS-02B — datos fiscales exigibles y caché > el selector conserva la fila completa y rechaza dos vigencias activas
+AssertionError: expected [Function] to throw an error
+
+- Expected:
+null
+
++ Received:
+undefined
+
+ ❯ lib/__tests__/labor-fiscal-resolution.test.ts:28:103
+     26|         const a = row();
+     27|         expect(pickLawRuleForDate([a], date)).toBe(a);
+     28|         expect(() => pickLawRuleForDate([a, row("2026-01-01", { effect…
+       |                                                                                                       ^
+     29|     });
+     30|     it("la lectura fiscal ve la corrección aunque la lectura general t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  lib/__tests__/labor-fiscal-resolution.test.ts > FIS-02B — datos fiscales exigibles y caché > la lectura fiscal ve la corrección aunque la lectura general tenga caché anterior
+TypeError: resolveFiscalLaborLawRules is not a function
+ ❯ lib/__tests__/labor-fiscal-resolution.test.ts:35:22
+     33|         state.rows = [row()];
+     34|         expect((await resolveLaborLawRules(date)).umaDailyMxn).toBe(11…
+     35|         expect(await resolveFiscalLaborLawRules(date)).toMatchObject({…
+       |                      ^
+     36|         state.rows = [row("2026-02-01", { umaDailyMxn: null })];
+     37|         await expect(resolveFiscalLaborLawRules(date)).rejects.toMatch…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  lib/__tests__/labor-fiscal-resolution.test.ts > FIS-02B — datos fiscales exigibles y caché > DB vacía permite fallback informativo pero no un cálculo fiscal exigible
+TypeError: resolveFiscalLaborLawRules is not a function
+ ❯ lib/__tests__/labor-fiscal-resolution.test.ts:42:29
+     40|         state.rows = [];
+     41|         expect((await resolveLaborLawRules(date)).source).toBe("static…
+     42|         const error = await resolveFiscalLaborLawRules(date).catch((e:…
+       |                             ^
+     43|         const silence = vi.spyOn(console, "error").mockImplementation(…
+     44|         try {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  lib/__tests__/labor-fiscal-resolution.test.ts > FIS-02B — datos fiscales exigibles y caché > no trata UMA null como exención cero
+ FAIL  lib/__tests__/labor-fiscal-resolution.test.ts > FIS-02B — datos fiscales exigibles y caché > no trata UMA 0.00 como exención cero
+ FAIL  lib/__tests__/labor-fiscal-resolution.test.ts > FIS-02B — datos fiscales exigibles y caché > no trata UMA -1.00 como exención cero
+ FAIL  lib/__tests__/labor-fiscal-resolution.test.ts > FIS-02B — datos fiscales exigibles y caché > no trata UMA NaN como exención cero
+TypeError: resolveFiscalLaborLawRules is not a function
+ ❯ lib/__tests__/labor-fiscal-resolution.test.ts:52:22
+     50|     it.each([null, "0.00", "-1.00", "NaN"])("no trata UMA %s como exen…
+     51|         state.rows = [row("2026-02-01", { umaDailyMxn: uma })];
+     52|         await expect(resolveFiscalLaborLawRules(date)).rejects.toMatch…
+       |                      ^
+     53|     });
+     54|     it("una falla de lectura no inventa valores ni expone detalles de …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  lib/__tests__/labor-fiscal-resolution.test.ts > FIS-02B — datos fiscales exigibles y caché > una falla de lectura no inventa valores ni expone detalles de conexión
+TypeError: resolveFiscalLaborLawRules is not a function
+ ❯ lib/__tests__/labor-fiscal-resolution.test.ts:56:29
+     54|     it("una falla de lectura no inventa valores ni expone detalles de …
+     55|         state.fail = true;
+     56|         const error = await resolveFiscalLaborLawRules(date).catch((e:…
+       |                             ^
+     57|         expect(error).toMatchObject({ statusCode: 503 });
+     58|         expect(String(error)).not.toContain("private-database-detail");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  lib/__tests__/labor-fiscal-resolution.test.ts > FIS-02B — datos fiscales exigibles y caché > enero 2027 solo permite la UMA conocida; no inventa mínimo ni UMA desde febrero
+TypeError: resolveFiscalLaborLawRules is not a function
+ ❯ lib/__tests__/labor-fiscal-resolution.test.ts:62:22
+     60|     it("enero 2027 solo permite la UMA conocida; no inventa mínimo ni …
+     61|         state.rows = [row("2027-01-01"), row("2027-02-01")];
+     62|         await expect(resolveFiscalLaborLawRules(new Date("2027-01-15")…
+       |                      ^
+     63|         expect((await resolveFiscalLaborLawRules(new Date("2027-01-15"…
+     64|         await expect(resolveFiscalLaborLawRules(new Date("2027-02-01")…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+
+ Test Files  2 failed | 3 passed (5)
+      Tests  10 failed | 57 passed (67)
+   Start at  02:30:53
+   Duration  7.11s (transform 2.75s, setup 0ms, import 10.02s, tests 217ms, environment 1ms)
+
+[ELIFECYCLE] Command failed with exit code 1.
+
+EXIT=1

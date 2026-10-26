@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Info, Calculator, Receipt, AlertCircle, TrendingDown, Plus } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { Info, Calculator, Receipt, AlertCircle, TrendingDown } from "lucide-react";
 import { calcularAguinaldoAnual, diasCalendarioEntre } from "@/lib/services/aguinaldo-service";
 import { resolveEffectiveSalary } from "@/lib/services/employee-service";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { calculateSeniorityPremiumCents, resolveSeveranceMinimumWage, type MinimumWageZone } from "@/lib/services/severance-minimum-wage";
 
 interface SettlementCalculatorProps {
   employee: any;
@@ -26,6 +26,28 @@ export function SettlementCalculator({
   reason,
   onCalculationChange,
 }: SettlementCalculatorProps) {
+  const [wageZone, setWageZone] = useState<MinimumWageZone | "">("");
+  let calculationError: string | null = null;
+  let minimumWageCents = 0;
+  let wageSourceUrl = "";
+  try {
+    const rule = resolveSeveranceMinimumWage(lastWorkingDay, wageZone as MinimumWageZone);
+    minimumWageCents = rule.dailyCents;
+    wageSourceUrl = rule.sourceUrl;
+    const registered = employee?.baseSalary;
+    const effective = employee?.effectiveSalaryCents ?? employee?.contracts?.[0]?.effectiveSalaryCents;
+    if (!Number.isSafeInteger(registered) || registered <= 0 ||
+        (effective != null && (!Number.isSafeInteger(effective) || effective <= 0))) {
+      throw new Error("Falta un salario diario válido en centavos; revisa el contrato del empleado.");
+    }
+    const hire = (employee?.seniorityDate || employee?.hireDate)?.slice(0, 10);
+    const parsed = new Date(`${hire}T12:00:00Z`);
+    if (!hire || !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== hire || hire > lastWorkingDay) {
+      throw new Error("Falta una fecha de alta válida anterior o igual al último día de trabajo.");
+    }
+  } catch (error) {
+    calculationError = error instanceof Error ? error.message : "No se pudo resolver el mínimo del finiquito.";
+  }
   const [calculation, setCalculation] = useState({
     accruedVacationDays: 0,
     vacationPay: 0,
@@ -48,11 +70,14 @@ export function SettlementCalculator({
   });
 
   useEffect(() => {
-    if (!employee || !lastWorkingDay) return;
+    if (calculationError) {
+      onCalculationChange(null);
+      return;
+    }
 
     // --- LFT Calculation Logic ---
-    const hireDate = new Date(employee.hireDate || employee.seniorityDate || new Date());
-    const lastDay = new Date(lastWorkingDay);
+    const hireDate = new Date(`${(employee.seniorityDate || employee.hireDate).slice(0, 10)}T12:00:00Z`);
+    const lastDay = new Date(`${lastWorkingDay}T12:00:00Z`);
 
     // Task 12: en juicio las prestaciones se calculan sobre el salario REAL
     // recibido (J. 1a./J. 24/2023). Sin dato efectivo, el cálculo es idéntico
@@ -70,7 +95,7 @@ export function SettlementCalculator({
     //    Semántica equivalente a la formula inline previa para altas previas
     //    a ENE 1; correcta (menor) para altas DENTRO del año: antes contaba
     //    días anteriores a la alta.
-    const anioFiniquito = lastDay.getFullYear();
+    const anioFiniquito = lastDay.getUTCFullYear();
     const altaISO = (employee.seniorityDate || employee.hireDate)?.slice(0, 10);
     const inicioAnoISO = `${anioFiniquito}-01-01`;
     const desdeISO = altaISO && altaISO > inicioAnoISO ? altaISO : inicioAnoISO;
@@ -105,15 +130,17 @@ export function SettlementCalculator({
     }
 
     // Days since last anniversary
-    const lastAnniversary = new Date(hireDate.getFullYear() + yearsOfService, hireDate.getMonth(), hireDate.getDate());
+    const lastAnniversary = new Date(Date.UTC(hireDate.getUTCFullYear() + yearsOfService, hireDate.getUTCMonth(), hireDate.getUTCDate(), 12));
     const daysSinceAnniversary = Math.ceil((lastDay.getTime() - lastAnniversary.getTime()) / (1000 * 60 * 60 * 24));
     const accruedVacation = (daysSinceAnniversary / 365) * yearlyEntitlement;
     const vacationPay = accruedVacation * dailySalary;
     const vacationPremium = vacationPay * 0.25;
 
     // 3. Seniority Bonus (Prima de Antigüedad) - 12 days per year (capped at 2x min wage)
-    // Simplified: Using current salary for estimate
-    const seniorityBonus = (yearsOfService + daysSinceAnniversary / 365) * dailySalary * 12;
+    const seniorityBonus = calculateSeniorityPremiumCents(
+      efectivo.salarioEfectivoCents, yearsOfService + daysSinceAnniversary / 365, minimumWageCents,
+    ) / 100;
+    const eligibleForSeniority = reason.includes("TERMINATION") || yearsOfService >= 15;
 
     // 4. Severance (Indemnización) - 3 months + 20 days per year
     let severancePay = 0;
@@ -122,7 +149,7 @@ export function SettlementCalculator({
     }
 
     const totalSettlement = aguinaldoAmount + vacationPay + vacationPremium + 
-                          (reason.includes("TERMINATION") ? seniorityBonus : 0) + 
+                          (eligibleForSeniority ? seniorityBonus : 0) +
                           severancePay + formConfig.manualBonuses - formConfig.manualDeductions;
 
     const newCalc = {
@@ -135,7 +162,7 @@ export function SettlementCalculator({
       salarioRegistroDiario: salaryBase,
       salarioEfectivoDiario: Math.round(efectivo.salarioEfectivoCents) / 100,
       aguinaldoSobreRegistro: aguinaldoRegistrado,
-      seniorityBonus: (reason.includes("TERMINATION") || yearsOfService >= 15) ? Math.round(seniorityBonus * 100) / 100 : 0,
+      seniorityBonus: eligibleForSeniority ? seniorityBonus : 0,
       severancePay: Math.round(severancePay * 100) / 100,
       deductions: formConfig.manualDeductions,
       total: Math.max(0, Math.round(totalSettlement * 100) / 100),
@@ -143,7 +170,7 @@ export function SettlementCalculator({
 
     setCalculation(newCalc);
     onCalculationChange(newCalc);
-  }, [employee, lastWorkingDay, reason, formConfig]);
+  }, [employee, lastWorkingDay, reason, formConfig, calculationError, minimumWageCents, onCalculationChange]);
 
   return (
     <Card className="border-primary/20 shadow-lg">
@@ -153,11 +180,34 @@ export function SettlementCalculator({
             <Calculator className="h-5 w-5 text-primary" />
             <CardTitle>Calculadora de Finiquito / Liquidación</CardTitle>
           </div>
-          <Badge variant="outline" className="bg-white">Estándar LFT 2026</Badge>
+          <Badge variant="outline">Simulación</Badge>
         </div>
         <CardDescription>Cálculo estimado basado en salario diario e historial laboral</CardDescription>
       </CardHeader>
       <CardContent className="pt-6 space-y-6">
+        <div className="space-y-2">
+          <Label htmlFor="settlement-wage-zone">Zona salarial del lugar de trabajo</Label>
+          <select id="settlement-wage-zone" value={wageZone}
+            onChange={(event) => setWageZone(event.target.value as MinimumWageZone | "")}
+            className="w-full min-h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+            aria-describedby="settlement-wage-help">
+            <option value="">Selecciona la zona salarial</option>
+            <option value="GENERAL">General</option>
+            <option value="ZLFN">Zona Libre de la Frontera Norte (ZLFN)</option>
+          </select>
+          <p id="settlement-wage-help" className="text-xs text-muted-foreground">
+            Corresponde al municipio donde se presta el trabajo. Si abarca ambas zonas, requiere revisión individual.
+          </p>
+        </div>
+        {calculationError ? (
+          <p role="alert" className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />{calculationError}
+          </p>
+        ) : (<>
+        <p className="text-xs text-muted-foreground">
+          Mínimo diario: ${(minimumWageCents / 100).toFixed(2)} · {wageZone} · Fecha efectiva: {lastWorkingDay}. Tope de antigüedad: 2 × mínimo.{' '}
+          <a href={wageSourceUrl} target="_blank" rel="noreferrer" className="underline">Fuente CONASAMI</a>
+        </p>
         {/* Info Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
@@ -177,11 +227,11 @@ export function SettlementCalculator({
               )}
               <div className="text-muted-foreground">Fecha de Alta:</div>
               <div className="font-medium text-right">
-                {employee?.hireDate ? format(new Date(employee.hireDate), "dd MMM yyyy", { locale: es }) : "—"}
+                {employee?.hireDate ? format(new Date(`${employee.hireDate.slice(0, 10)}T12:00:00Z`), "dd MMM yyyy", { locale: es }) : "—"}
               </div>
               <div className="text-muted-foreground">Último Día:</div>
               <div className="font-medium text-right text-primary">
-                {lastWorkingDay ? format(new Date(lastWorkingDay), "dd MMM yyyy", { locale: es }) : "No seleccionada"}
+                {lastWorkingDay ? format(new Date(`${lastWorkingDay}T12:00:00Z`), "dd MMM yyyy", { locale: es }) : "No seleccionada"}
               </div>
             </div>
           </div>
@@ -253,7 +303,7 @@ export function SettlementCalculator({
               <div className="pt-2 mt-2 border-t border-dashed space-y-2.5">
                 <div className="flex justify-between text-sm text-primary font-medium">
                   <span>Prima de Antigüedad (LFT)</span>
-                  <span>${calculation.seniorityBonus.toLocaleString()}</span>
+                  <span data-testid="seniority-amount">${calculation.seniorityBonus.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 {calculation.severancePay > 0 && (
                   <div className="flex justify-between text-sm text-primary font-medium">
@@ -286,6 +336,7 @@ export function SettlementCalculator({
             * Este cálculo es informativo y proporcional a la fecha seleccionada. El monto final puede variar según IMSS/ISR y horas extra pendientes.
           </p>
         </div>
+        </>)}
       </CardContent>
     </Card>
   );

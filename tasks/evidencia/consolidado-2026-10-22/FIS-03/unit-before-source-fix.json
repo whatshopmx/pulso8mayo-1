@@ -1,0 +1,6 @@
+{
+  "command": "pnpm.cmd run test:unit --maxWorkers=2",
+  "startedAt": "2026-10-23T17:07:19.836Z",
+  "finishedAt": "2026-10-23T17:16:39.410Z",
+  "exit": 0
+}

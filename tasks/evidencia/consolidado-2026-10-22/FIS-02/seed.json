@@ -1,0 +1,6 @@
+{
+  "command": "pnpm.cmd run test:unit tests/unit/seed-integration.test.ts",
+  "startedAt": "2026-10-23T03:03:41.223Z",
+  "finishedAt": "2026-10-23T03:04:26.864Z",
+  "exit": 0
+}

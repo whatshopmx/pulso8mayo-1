@@ -40,7 +40,7 @@
 | 3.6 | Trabajo en día festivo obligatorio: salario del día + doble | LFT Art. 75 | ⬜ implementado como 3x plano, verificar contra nómina real |
 | 3.7 | Descansos obligatorios detectados sin falsos negativos (`lft-conflict-detector`) | LFT Art. 63 | ⬜ |
 | 3.8 | Nómina calculada = f(asistencias, incidencias, extras) y es **reproducible**: mismos inputs → mismo resultado | Test de determinismo `payroll-calculator` | ⬜ |
-| 3.9 | Cálculos IMSS/SUA (`imss-parser`, `payroll-calculator`) cuadran con tablas oficiales vigentes | Tablas IMSS/INFONAVIT vigentes | ⬜ verificar contra fuente |
+| 3.9 | Movimientos IMSS/SUA: identidad, contrato, registro patronal y SDI validados; generar no equivale a registrar (solo acuse o adopción histórica auditada). No calcula cuotas obrero-patronales | `tasks/plan-imss.md`; parser único con archivos de trabajo | ⚠️ Layout propio, datos validados / importabilidad no verificada contra el portal IMSS |
 
 ## 4. Workflows y cumplimiento (NOM-251 / NOM-035)
 

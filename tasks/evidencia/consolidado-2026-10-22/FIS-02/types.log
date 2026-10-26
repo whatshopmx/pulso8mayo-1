@@ -1,0 +1,3 @@
+pnpm.cmd exec tsc --noEmit --incremental false [system CA enabled; types/build heap 6144 MB for this child only]
+
+EXIT=0
