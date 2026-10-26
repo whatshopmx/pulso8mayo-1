@@ -1,5 +1,13 @@
 # FEFO-03B — Estados con motivo y auditoría
 
+## Cierre del 2026-10-26: build completo aprobado
+
+FEFO-03B-2b, FEFO-03 y Checkpoint 1 quedan cerrados. El build sobre la base de código de `ff5c9af` terminó con **código 0**, incluida verificación de TypeScript y generación de **430/430 páginas**. Compilación: 2.3 minutos. Sólo había cambios de planificación y una prueba de integración nueva excluida del build; no se modificó código de aplicación durante esta ejecución.
+
+Comando PowerShell: `$env:NODE_OPTIONS='--max-old-space-size=3072'; pnpm.cmd run build`. El intento restringido volvió a fallar por descarga de Geist/Geist Mono; el reintento con acceso de red autorizado y el mismo límite de 3 GB sí completó todas las etapas. Se ejecutó sin suites ni otros builds propios simultáneos. No se deshabilitó TypeScript ni se alteró configuración del producto para aprobarlo.
+
+El build emitió el aviso de deprecación de `fetchConnectionCache` y un mensaje `DYNAMIC_SERVER_USAGE` de `/dashboard/labor/documents`, que quedó como ruta dinámica; no provocaron fallo. No se corrigieron como parte de FEFO. La suite general interrumpida anteriormente no se presenta como aprobada: el cierre de este checkpoint se apoya en las 75 pruebas enfocadas, 8 escenarios de navegador, lint enfocado y ahora el build completo. Los registros siguientes conservan los intentos históricos y sus limitaciones.
+
 ## Continuación del 2026-10-26: navegador resuelto
 
 El árbol de Git estaba limpio al comenzar esta continuación; los cambios descritos anteriormente ya pertenecen al checkpoint `642c6ba`. Se corrigió una causa concreta de la pantalla vacía: `page.route('**/api/**')` sustituía no sólo endpoints sino también imports Vite como `/lib/api/client-error.ts`. El servidor devolvía para ese módulo la respuesta de denegación de la fixture y la página no terminaba de montar. Ahora el matcher comprueba `url.pathname.startsWith('/api/')`, manteniendo sesión y HTTP de aplicación aislados.

@@ -16,23 +16,27 @@ Cada cierre requiere evidencia en `tasks/evidencia/lotes-fefo/<ID>/`. Archivos i
   - Aceptación: resolver fecha/huso horario, fecha nula, faltantes físicos/teóricos, reservas, excepciones y reversión; definir identidad del lote y existencia local; acordar compatibilidad de esquema y comportamiento.
   - Verificación: tabla de ejemplos con resultados esperados; revisión operativa de decisiones abiertas antes de programar comportamiento dependiente.
   - Archivos: plan y documento de contrato en `docs/`.
-- [ ] **FEFO-03 (M): permisos de lotes.** Depende de 01.
+- [x] **FEFO-03 (M): permisos de lotes.** Depende de 01.
   - [x] **FEFO-03A:** aislamiento y permiso de lectura de listado/trazabilidad; validar filtros y cerrar casos de rol/sucursal ausentes. 54 pruebas de alcance/diagnóstico/regresión pasan; evidencia en `tasks/evidencia/lotes-fefo/FEFO-03A/README.md`.
-  - [ ] **FEFO-03B:** PATCH con transiciones autorizadas, motivo obligatorio y auditoría transaccional; captura del motivo en la interfaz existente.
+  - [x] **FEFO-03B:** PATCH con transiciones autorizadas, motivo obligatorio y auditoría transaccional; captura del motivo en la interfaz existente.
     - [x] **FEFO-03B-1:** verificar implementación local de API y auditoría: 75/75 pruebas enfocadas con Drizzle/PGlite, rollback por fallo de auditoría y aislamiento. Suite general: 172 archivos aprobados, 2,129 pruebas pasadas; lint general: 0 errores (2,454 advertencias). Evidencia: `tasks/evidencia/lotes-fefo/FEFO-03B/README.md`.
-    - [ ] **FEFO-03B-2:** cierre de navegador y build.
+    - [x] **FEFO-03B-2:** cierre de navegador y build.
       - [x] **FEFO-03B-2a — navegador:** resuelto el 2026-10-26, **8/8 escenarios aprobados**. La fixture interceptaba también módulos Vite bajo `/lib/api/`; ahora sólo sustituye endpoints cuyo pathname empieza por `/api/`. Se repitieron 75/75 pruebas de API/diagnóstico/alcance y lint enfocado, todos aprobados.
-      - [ ] **FEFO-03B-2b — build:** el intento actual compiló en 3.8 min y se interrumpió en TypeScript tras observar sólo 61 MiB de RAM libre en una máquina de 7,418 MiB. La suite general iniciada con un worker también se interrumpió para liberar recursos: no cuenta como aprobada. Los intentos anteriores fallaron por descarga de Geist y heap de Node. No cerrar FEFO-03/Checkpoint 1 hasta obtener build completo; ejecutar sin otros builds concurrentes y con recursos suficientes.
+      - [x] **FEFO-03B-2b — build:** completado el 2026-10-26 con **código 0**, TypeScript y 430/430 páginas. Comando: `$env:NODE_OPTIONS='--max-old-space-size=3072'; pnpm.cmd run build`, con acceso de red autorizado tras fallo restringido de descarga de Geist. No se omitieron verificaciones. Los intentos anteriores por memoria y la suite general interrumpida conservan su registro en evidencia; no se presentan como aprobados.
   - Aceptación: empresa/sucursal/rol en listado, trazabilidad y PATCH; impedir cambios ajenos y estados no autorizados; auditoría de cambios con motivo y responsable.
   - Verificación: pruebas API con dos empresas, sucursales y roles; identificadores ajenos no revelan ni modifican datos.
   - Archivos: `app/api/inventory/batches/route.ts`, helper de alcance existente y pruebas enfocadas.
-- [ ] **Checkpoint 1:** diagnóstico y decisiones disponibles; permisos verificados; pruebas enfocadas y lint pasan.
+- [x] **Checkpoint 1:** diagnóstico y decisiones disponibles; permisos verificados; 75 pruebas enfocadas, 8 escenarios de navegador, lint enfocado y build completo aprobados. Cierre: 2026-10-26; evidencia en FEFO-03B.
 
 ## Fase 2 — Consumo confiable
 
 - [ ] **FEFO-04 (M): elegibilidad y asignación común.** Depende de 02, 03.
   - [x] **FEFO-04A (preparación, S):** motor puro de elegibilidad, orden FEFO/FIFO y reparto exacto a cuatro decimales. **32 pruebas aprobadas**, incluida conservación con 300 repartos generados; TypeScript y lint enfocados aprobados. Evidencia: `tasks/evidencia/lotes-fefo/FEFO-04A/README.md`. Sólo depende del contrato FEFO-02; no se conecta a salidas ni cierra FEFO-04 mientras FEFO-03 esté pendiente.
   - [ ] **FEFO-04B (M):** integrar el motor en `fefo-allocator.ts` y selección explícita del servidor con alcance y bloqueo; depende de 03 y 04A. Pruebas reales de consulta y regresión de consumidores antes de activar.
+    - [ ] **FEFO-04B-1:** consulta común con empresa/producto/sucursal, bloqueo sólo de lotes, reloj posterior al bloqueo y política conservadora del servidor; integración con SQL real en PGlite. Preparación sin modificar aún consumidores.
+    - [ ] **FEFO-04B-2:** envío de transferencia automático/por lote explícito mediante la consulta común; rechazo íntegro del faltante y regresión de alcance.
+    - [ ] **FEFO-04B-3:** consumo de producción automático/manual con la misma elegibilidad, conservando la transacción que sostiene el bloqueo; dividir API/workflows si el recorrido excede cinco archivos.
+    - [ ] **FEFO-04B-4:** migrar consumo teórico y retirar el allocator anterior cuando no queden consumidores. El registro de faltantes sin negativos corresponde a FEFO-05C; no declararlo resuelto por cambiar la selección.
   - [ ] **FEFO-04C (M):** alinear selector/preview con elegibilidad efectiva y revalidación del servidor; depende de 04B. Verificación API/navegador. Descomponer 04B/04C si los recorridos exigen más de cinco archivos.
   - Aceptación: FEFO/FIFO estable según política; validación de fecha, estado, saldo, producto y sucursal, también para lote explícito; fecha nula sigue contrato.
   - Verificación: orden inverso al de recepción, empates, fecha límite, cron detenido, reserva y cuarentena; precisión en reparto entre lotes.

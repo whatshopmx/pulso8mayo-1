@@ -1,7 +1,7 @@
 # Plan de corrección de lotes y FEFO
 
 Fecha: 2026-10-24.
-Estado: FEFO-01/02 y FEFO-03A completados. FEFO-03B tiene API/auditoría verificadas y 8/8 escenarios de navegador aprobados el 2026-10-26; falta build completo aprobado para cerrar FEFO-03/Checkpoint 1. El último intento compiló y se interrumpió en TypeScript por presión de memoria del sistema. FEFO-04A preparado y verificado con 32 pruebas, TypeScript y lint: [evidencia](evidencia/lotes-fefo/FEFO-04A/README.md). FEFO-04B/C y las fases siguientes siguen pendientes; el motor nuevo aún no está conectado a salidas. Investigación de base: [estado-2026-10-26.md](evidencia/lotes-fefo/estado-2026-10-26.md).
+Estado: FEFO-01/02/03 y Checkpoint 1 completados el 2026-10-26: 75 pruebas enfocadas, 8 escenarios de navegador, lint y build completo con TypeScript/430 páginas aprobados; [evidencia de cierre](evidencia/lotes-fefo/FEFO-03B/README.md). FEFO-04A preparado y verificado con 32 pruebas, TypeScript y lint: [evidencia](evidencia/lotes-fefo/FEFO-04A/README.md). Continúa FEFO-04B por incrementos de consulta, transferencias, producción y consumo teórico; el motor nuevo aún no está conectado a salidas. Investigación de base: [estado-2026-10-26.md](evidencia/lotes-fefo/estado-2026-10-26.md).
 Seguimiento: [todo-lotes-fefo.md](todo-lotes-fefo.md).
 
 ## Objetivo y alcance
@@ -62,6 +62,10 @@ Cada tarea es una sesión enfocada. Tamaño S: 1–2 archivos; M: 3–5. Las rut
 | FEFO-04 | Elegibilidad y asignación FEFO/FIFO común | 02, 03 | M |
 | FEFO-04A | Preparar motor puro y pruebas, sin activar salidas | 02 | S |
 | FEFO-04B | Integrar asignación y selección explícita en servidor | 03, 04A | M |
+| FEFO-04B-1 | Consulta con alcance/bloqueo y pruebas SQL, sin activar consumidores | 04A; activación tras 03 | M |
+| FEFO-04B-2 | Integrar envío de transferencia automático y explícito | 03, 04B-1 | M |
+| FEFO-04B-3 | Integrar producción automática y manual | 03, 04B-1 | M |
+| FEFO-04B-4 | Integrar consumo teórico y retirar allocator anterior | 03, 04B-1, 04B-2, 04B-3 | M |
 | FEFO-04C | Alinear selector/preview y revalidación | 04B | M |
 | FEFO-05A | Descuento transaccional e idempotencia | 04 | M |
 | FEFO-05B | Merma y ajustes consistentes | 05A | M |
