@@ -31,6 +31,9 @@ Cada cierre requiere evidencia en `tasks/evidencia/lotes-fefo/<ID>/`. Archivos i
 ## Fase 2 — Consumo confiable
 
 - [ ] **FEFO-04 (M): elegibilidad y asignación común.** Depende de 02, 03.
+  - [x] **FEFO-04A (preparación, S):** motor puro de elegibilidad, orden FEFO/FIFO y reparto exacto a cuatro decimales. **32 pruebas aprobadas**, incluida conservación con 300 repartos generados; TypeScript y lint enfocados aprobados. Evidencia: `tasks/evidencia/lotes-fefo/FEFO-04A/README.md`. Sólo depende del contrato FEFO-02; no se conecta a salidas ni cierra FEFO-04 mientras FEFO-03 esté pendiente.
+  - [ ] **FEFO-04B (M):** integrar el motor en `fefo-allocator.ts` y selección explícita del servidor con alcance y bloqueo; depende de 03 y 04A. Pruebas reales de consulta y regresión de consumidores antes de activar.
+  - [ ] **FEFO-04C (M):** alinear selector/preview con elegibilidad efectiva y revalidación del servidor; depende de 04B. Verificación API/navegador. Descomponer 04B/04C si los recorridos exigen más de cinco archivos.
   - Aceptación: FEFO/FIFO estable según política; validación de fecha, estado, saldo, producto y sucursal, también para lote explícito; fecha nula sigue contrato.
   - Verificación: orden inverso al de recepción, empates, fecha límite, cron detenido, reserva y cuarentena; precisión en reparto entre lotes.
   - Archivos: `fefo-allocator.ts`, helper de política, selector/preview consumidor y pruebas.
