@@ -1,5 +1,20 @@
 # FEFO-03B — Estados con motivo y auditoría
 
+## Continuación del 2026-10-26: navegador resuelto
+
+El árbol de Git estaba limpio al comenzar esta continuación; los cambios descritos anteriormente ya pertenecen al checkpoint `642c6ba`. Se corrigió una causa concreta de la pantalla vacía: `page.route('**/api/**')` sustituía no sólo endpoints sino también imports Vite como `/lib/api/client-error.ts`. El servidor devolvía para ese módulo la respuesta de denegación de la fixture y la página no terminaba de montar. Ahora el matcher comprueba `url.pathname.startsWith('/api/')`, manteniendo sesión y HTTP de aplicación aislados.
+
+Verificaciones de esta continuación:
+
+- `pnpm exec playwright test --config tests/playwright-fefo.config.ts`: **8/8 aprobados**, código 0, 1.1 minutos. Motivo vacío/espacios, motivo recortado, confirmación por teclado, retorno del foco, rechazo con conservación del motivo, cancelación, roles SUPERVISOR/EMPLEADO/READONLY/GERENTE y diálogo a 320/768/1024/1440 px. Se ejecuta la página real; HTTP y sesión son fixtures. No demuestra escritura en la base real.
+- `pnpm run test:unit tests/unit/inventory/batch-access.test.ts tests/unit/inventory/batch-diagnostic.test.ts tests/unit/inventory/transfer-scope.test.ts tests/unit/inventory/production-scope.test.ts`: **75/75 aprobadas**, 4 archivos, código 0; Drizzle/PGlite aislado.
+- `pnpm exec eslint tests/e2e/fefo-status.spec.ts tests/support/fefo-browser-server.ts tests/playwright-fefo.config.ts app/api/inventory/batches/route.ts lib/services/audit-service.ts app/dashboard/inventory/lotes/page.tsx tests/unit/inventory/batch-access.test.ts`: **aprobado**, código 0, sin salida.
+- `git diff --check`: aprobado; Git avisa de normalización LF/CRLF.
+- `pnpm run build`: **compilación aprobada en 3.8 min; build completo no aprobado**. Se interrumpió durante TypeScript ante presión de memoria. Lecturas con `node:os`: 7,418 MiB totales, primero 139 MiB y luego 61 MiB libres. No se incrementó el heap ni se omitió TypeScript; no se terminaron procesos ajenos.
+- `pnpm run test:unit --maxWorkers=1`: ejecución iniciada y después interrumpida para liberar memoria al build; no hubo resumen final ni se declara aprobada. Los 75 casos enfocados sí finalizaron con código 0. El resultado histórico de la suite completa se conserva abajo con su fecha/contexto.
+
+El cierre de FEFO-03B-2 y Checkpoint 1 sigue condicionado a un build completo aprobado. Los resultados siguientes conservan el registro histórico de los intentos anteriores; sus timeouts de navegador quedan resueltos por esta ejecución.
+
 Continuación: 2026-10-25/26. Se encontraron cambios locales ya implementados en API, auditoría, pantalla y pruebas de API. Se conservaron y verificaron; no se atribuyen como implementación nueva de esta continuación. Se agregaron pruebas reproducibles de navegador. FEFO-03B permanece abierto por verificación de navegador y build pendiente.
 
 ## Comportamiento revisado

@@ -1,7 +1,7 @@
 # Plan de corrección de lotes y FEFO
 
 Fecha: 2026-10-24.
-Estado: implementación iniciada por instrucción del usuario; FEFO-01 completado con diagnóstico de solo lectura y contraste en demo Condesa. Continúa FEFO-02/03.
+Estado: FEFO-01/02 y FEFO-03A completados. FEFO-03B tiene API/auditoría verificadas y 8/8 escenarios de navegador aprobados el 2026-10-26; falta build completo aprobado para cerrar FEFO-03/Checkpoint 1. El intento actual compiló y se interrumpió en TypeScript por presión de memoria del sistema. FEFO-04 en adelante siguen pendientes. Investigación actual: [estado-2026-10-26.md](evidencia/lotes-fefo/estado-2026-10-26.md).
 Seguimiento: [todo-lotes-fefo.md](todo-lotes-fefo.md).
 
 ## Objetivo y alcance

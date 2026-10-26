@@ -20,7 +20,9 @@ async function prepare(page: Page, status = 'AVAILABLE', failure = false) {
         itemSku: 'FEFO-UI', itemUnit: 'KG', lotNumber: 'FEFO-UI-01', status,
         initialQuantity: 2, currentQuantity: 1.125, unitCost: 100, expirationDate: '2099-01-01T00:00:00Z' };
     const patches: Record<string, unknown>[] = [];
-    await page.route('**/api/**', async route => {
+    // Vite sirve también módulos como /lib/api/client-error.ts: sólo sustituir
+    // endpoints de la aplicación, nunca imports cuyo directorio se llame api.
+    await page.route(url => url.pathname.startsWith('/api/'), async route => {
         const request = route.request();
         const url = new URL(request.url());
         if (url.pathname === '/api/branches') return route.fulfill({ json: { success: true, data: [{ id: batch.branchId, name: batch.branchName }] } });
