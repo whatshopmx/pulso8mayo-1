@@ -1,7 +1,7 @@
 # Plan de corrección de lotes y FEFO
 
 Fecha: 2026-10-24.
-Estado: FEFO-01/02/03 y Checkpoint 1 completados el 2026-10-26: 75 pruebas enfocadas, 8 escenarios de navegador, lint y build completo con TypeScript/430 páginas aprobados; [evidencia de cierre](evidencia/lotes-fefo/FEFO-03B/README.md). FEFO-04A preparado y verificado con 32 pruebas, TypeScript y lint: [evidencia](evidencia/lotes-fefo/FEFO-04A/README.md). Continúa FEFO-04B por incrementos de consulta, transferencias, producción y consumo teórico; el motor nuevo aún no está conectado a salidas. Investigación de base: [estado-2026-10-26.md](evidencia/lotes-fefo/estado-2026-10-26.md).
+Estado: FEFO-01/02/03 y Checkpoint 1 completados el 2026-10-26: 75 pruebas enfocadas, 8 escenarios de navegador, lint y build completo con TypeScript/430 páginas aprobados; [evidencia de cierre](evidencia/lotes-fefo/FEFO-03B/README.md). FEFO-04A y FEFO-04B-1 completados como preparación del motor y consulta común: 47 pruebas enfocadas, suite general de 174 archivos/2,176 pruebas pasadas, lint y build completo aprobados; [evidencia](evidencia/lotes-fefo/FEFO-04B-1/README.md). Continúa FEFO-04B-2 (transferencias), después producción y consumo teórico; la consulta nueva aún no está conectada a salidas. Investigación de base: [estado-2026-10-26.md](evidencia/lotes-fefo/estado-2026-10-26.md).
 Seguimiento: [todo-lotes-fefo.md](todo-lotes-fefo.md).
 
 ## Objetivo y alcance

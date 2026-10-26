@@ -16,8 +16,9 @@
 // para una asignación de solo lectura.
 
 import { db } from "@/lib/db";
-import { inventoryBatches } from "@/lib/db/schema";
+import { branches, inventoryBatches, inventoryItems } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { allocateEligibleBatches, type AllocationRequest, type BatchAllocationPlan } from './batch-allocation-policy';
 
 /** El `tx` que entrega `db.transaction` callback — derivado, sin `any`. */
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -30,6 +31,40 @@ export interface FefoAllocation {
   /** Cantidad a descontar de este lote (exacta; la frontera integer es del llamador). */
   quantity: number;
   unitCost: number | null;
+}
+
+export type ScopedAllocationRequest = Pick<AllocationRequest, 'companyId' | 'branchId' | 'itemId' | 'quantity' | 'batchId'>;
+
+/**
+ * FEFO-04B-1: consulta común con alcance explícito y política del servidor.
+ * Para descontar, executor debe ser la transacción que escribirá saldo/kardex:
+ * pasar db sólo sirve como preview; el lock termina al finalizar la consulta.
+ * No acepta reloj ni política del cliente. Hasta FEFO-10A, política desconocida
+ * exige fecha y usa FEFO. El faltante se devuelve separado, sin escrituras.
+ */
+export async function allocateScopedBatches(executor: DbExecutor, request: ScopedAllocationRequest): Promise<BatchAllocationPlan> {
+  const { companyId, branchId, itemId, quantity, batchId } = request;
+  const scope = { companyId, branchId, itemId, quantity, batchId };
+  // Validar la cantidad/alcance antes de consultar o tomar locks.
+  allocateEligibleBatches([], { ...scope, now: new Date() });
+  const batches = await executor.select({
+    id: inventoryBatches.id, companyId: inventoryItems.companyId,
+    branchId: inventoryBatches.branchId, itemId: inventoryBatches.itemId,
+    status: inventoryBatches.status, currentQuantity: inventoryBatches.currentQuantity,
+    unitCost: inventoryBatches.unitCost, expirationDate: inventoryBatches.expirationDate,
+    receivedAt: inventoryBatches.receivedAt, createdAt: inventoryBatches.createdAt,
+  }).from(inventoryBatches)
+    .innerJoin(inventoryItems, eq(inventoryBatches.itemId, inventoryItems.id))
+    .innerJoin(branches, eq(inventoryBatches.branchId, branches.id))
+    .where(and(eq(inventoryItems.companyId, companyId), eq(branches.companyId, companyId),
+      eq(inventoryBatches.branchId, branchId), eq(inventoryBatches.itemId, itemId),
+      eq(inventoryBatches.status, 'AVAILABLE'), sql`${inventoryBatches.currentQuantity} > 0`,
+      batchId !== undefined ? eq(inventoryBatches.id, batchId) : undefined))
+    // Tomar locks en orden estable; el motor ordena después por FEFO.
+    .orderBy(inventoryBatches.id)
+    .for('update', { of: inventoryBatches });
+  // El reloj se toma DESPUÉS del await: un lote puede vencer mientras espera.
+  return allocateEligibleBatches(batches, { ...scope, now: new Date() });
 }
 
 /**
