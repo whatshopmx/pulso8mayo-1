@@ -1,0 +1,24 @@
+pnpm.cmd : $ vitest run --configLoader bundle --config vitest.integration.config.ts
+"tests/integration/aguinaldo-recovery-db.test.ts"
+En línea: 2 Carácter: 135
++ ... system-ca'; pnpm.cmd run test:integration tests/integration/aguinaldo ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ vitest run --...ery-db.test.ts":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+[dotenv@17.2.3] injecting env (1) from .env.test -- tip: ⚙️  suppress all logs with { quiet: true }
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the
+default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `"type":
+"module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  21:49:13
+   Duration  50.84s (transform 546ms, setup 62ms, import 1.55s, tests 48.64s, environment 0ms)
+
+EXIT=0
