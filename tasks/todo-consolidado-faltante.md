@@ -81,10 +81,20 @@ Aguinaldo Tasks 10–14 implementadas con commits 2229604, a0b6366, bb9b116, a37
   - Depende: BASE-01. Verificar: V1+V2+V3; guardar/leer y dos tenants. No borrar la tabla automáticamente.
 - [ ] **LEG-03** (S) — Cerrar regresiones de validadores y corregir el conteo/documentación de reformas.
   - Depende: LEG-01, LEG-02. Verificar: V1; límites y sus vecinos para Art. 66/68; PUERTA de fase.
-- [ ] **OPS-01** (S) — Preparar manifiesto de migraciones pendientes del entorno objetivo y reversión verificable.
+- [x] **OPS-01** (M, preparación local del lote 0122) — Preparar manifiesto de migraciones pendientes del entorno objetivo y reversión verificable.
   - Depende: BASE-01. Verificar: V2; comparar esquema esperado/real y ensayo de recuperación. Aplicación operativa es acción separada.
+  - [x] **OPS-01A** — Diagnóstico de sólo lectura de journal completo, hashes/LF/CRLF, columnas/índices, roles y RLS; operativo y aislado identificados. Unitarias 6/6 y lint exit 0.
+  - [x] **OPS-01B** — Respaldo/restauración lógica y SQL real 0122 en esquemas privados de Postgres; 1/1, exit 0, históricos conservados e índice parcial comprobado. Runbook y [evidencia](evidencia/consolidado-2026-10-22/OPS-01/README.md).
+  - Operativo: 0122 falta; conexión con dueño/bypass y sin pulso_app. Historial divergente requiere revisión; no ejecutar migrador global ni reescribir journal. Ensayo de dos tablas sintéticas no sustituye respaldo operativo integral previo a OPS-03; actualizar manifiesto por cada lote nuevo.
 - [ ] **OPS-02.<dominio>** (M por lote) — Extender RLS empezando por nómina/tesorería, luego inventario y los demás dominios liberados.
   - Depende: OPS-01 y esquema estable del dominio. Verificar: V2; dos empresas, pool max=1, HTTP/job y consulta sin contexto. Subdividir antes de superar cinco archivos.
+  - Nómina desglosada antes de implementar: [tablas y consumidores reales](../docs/nomina-rls-rollout.md).
+  - [ ] **OPS-02.nomina.A** — Contexto del protocolo fiscal y recuperación; transacciones breves sin retener pool ante PAC.
+  - [ ] **OPS-02.nomina.B** — Autorización/listados/bitácora y nómina ordinaria; hijos adicionales por grupos de hasta cinco archivos.
+  - [ ] **OPS-02.nomina.C** — Consultas/bloqueos/layout de tesorería con el contexto en su transacción real.
+  - [ ] **OPS-02.nomina.D** — Cron/job por empresa; corregir dependencia de OWNER inexistente y no equiparar timbrado con pago.
+  - [ ] **OPS-02.nomina.E** — Migración generada de políticas padre/hijas y grants; actualizar manifiesto sin activación operativa.
+  - [ ] **OPS-02.nomina.F** — Aceptación runtime HTTP/job con políticas reales, dos empresas y pool max=1; hereda AGU-03C.3.
 - [ ] **OPS-03** (S por lote) — Aplicar únicamente el lote revisado al entorno identificado y comprobarlo.
   - Depende: OPS-01 y puertas locales del lote. Verificar: V2+V3; no acredita despliegue la sola existencia del SQL ni una prueba aislada.
 
@@ -227,5 +237,6 @@ Aguinaldo Tasks 10–14 implementadas con commits 2229604, a0b6366, bb9b116, a37
 | AGU-03B.4A/B/C | Completo local; AGU-03B cerrado como implementación | Base bf2c386 / 2026-10-23, cambios locales conservados | PGlite + fiscal real/HTTP simulado + API/Chromium | Protocolo 4/4; fiscal 8/8; SQL 11/11; API 18/18; suite 168 archivos/2059 passed; tsc/lint/build exit 0; navegador final 3/3 | [Evidencia y límites](evidencia/consolidado-2026-10-22/AGU-03B-4/README.md); intención durable, respuestas inciertas detenidas y recuperación desde snapshot; AGU-03C conserva aceptación V2 completa; sin migración nueva ni despliegue |
 | AGU-03C.1 | Aceptación local de recuperación; padre abierto | Base 534c5a8 / 2026-10-26 | Postgres aislado, esquema privado, dos conexiones Neon/pool max=1, PAC HTTP simulado | Integración 9/9, exit 0; lint exit 0; controles globales detallados en evidencia | [Evidencia y límites](evidencia/consolidado-2026-10-22/AGU-03C-1/README.md); C.2 recorrido inicial y C.3 runtime/RLS pendientes; sin despliegue |
 | AGU-03C.2 | Aceptación local inicial completa; padre abierto por C.3 | Base 10fb4d0 / 2026-10-26 | Postgres aislado, fuentes SQL privadas, dos conexiones/pool max=1 y PAC HTTP simulado | Integración 15/15, exit 0; lint exit 0 | [Evidencia y límites](evidencia/consolidado-2026-10-22/AGU-03C-2/README.md); rollback de dos recibos, carrera forzada, payload/importes/fecha, cero y subsidio; sin RLS ni despliegue |
+| OPS-01A/B | Preparación local completa para 0122; rollout pendiente | Base f8ad689 / 2026-10-26 | Diagnósticos READ ONLY operativo/aislado; restauración sintética en esquemas privados | Unitarias 6/6; restauración 1/1; lint exit 0 | [Manifiestos, ensayo y runbook](evidencia/consolidado-2026-10-22/OPS-01/README.md); 0122 pendiente, divergencias históricas explícitas, runtime operativo sin preparar; sin migraciones compartidas |
 
 Al implementar: crear hijos antes de tareas que excedan cinco archivos, conservar ID del padre y cerrar solo con criterios completos. Un bloqueo por conteo físico/entorno/archivo real no detiene las ramas independientes.

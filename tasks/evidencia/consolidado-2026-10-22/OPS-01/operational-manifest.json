@@ -1,0 +1,2925 @@
+{
+  "generatedAt": "2026-10-27T02:45:47.757Z",
+  "target": {
+    "host": "ep-dawn-scene-ayy93r15-pooler.c-5.us-east-2.aws.neon.tech",
+    "database": "neondb",
+    "role": "neondb_owner",
+    "read_only": "on"
+  },
+  "journalExists": true,
+  "history": {
+    "entries": [
+      {
+        "idx": 0,
+        "version": "7",
+        "when": 1784815642393,
+        "tag": "0000_mixed_arclight",
+        "breakpoints": true,
+        "hash": "e18fdb26deeed1e6337099de61e3c62821ac5a5bff097206e97924d1db5735ec",
+        "lineEndingHashes": [
+          "e18fdb26deeed1e6337099de61e3c62821ac5a5bff097206e97924d1db5735ec",
+          "780226ce7d5c51a6b705a42ca75eeb0092e512b964ad3444a8d64a93a15f1352"
+        ],
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "idx": 1,
+        "version": "7",
+        "when": 1784815702393,
+        "tag": "0001_solid_blonde_phantom",
+        "breakpoints": true,
+        "hash": "0724caafc4c904a3eb1aa4129dc4fe6e583487319409b041ababf41c1a760996",
+        "lineEndingHashes": [
+          "0724caafc4c904a3eb1aa4129dc4fe6e583487319409b041ababf41c1a760996",
+          "0724caafc4c904a3eb1aa4129dc4fe6e583487319409b041ababf41c1a760996"
+        ],
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "idx": 2,
+        "version": "7",
+        "when": 1784815762393,
+        "tag": "0002_melodic_silverclaw",
+        "breakpoints": true,
+        "hash": "5d84aa8c59173b970d023f61a4c06c5e5fff724413473a90f2d4fd84d11d3f25",
+        "lineEndingHashes": [
+          "5d84aa8c59173b970d023f61a4c06c5e5fff724413473a90f2d4fd84d11d3f25",
+          "ba249d3b433225df4d52278fc90b0ad1d7b4d2904b7210a358eeb9a896006adc"
+        ],
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "idx": 3,
+        "version": "7",
+        "when": 1784815822393,
+        "tag": "0003_sudden_mister_fear",
+        "breakpoints": true,
+        "hash": "064d1e0ac046dbd05c2698666833181cedc771aff045636cd8938f036a0c4da6",
+        "lineEndingHashes": [
+          "064d1e0ac046dbd05c2698666833181cedc771aff045636cd8938f036a0c4da6",
+          "064d1e0ac046dbd05c2698666833181cedc771aff045636cd8938f036a0c4da6"
+        ],
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "idx": 4,
+        "version": "7",
+        "when": 1784815882393,
+        "tag": "0004_secret_vance_astro",
+        "breakpoints": true,
+        "hash": "d2a8ca04a62023a72d05f9aa9a7f864bfeff72a89d564c0bd2d2859b4ad45be7",
+        "lineEndingHashes": [
+          "d2a8ca04a62023a72d05f9aa9a7f864bfeff72a89d564c0bd2d2859b4ad45be7",
+          "3273c9b7cc2db223aef6b91b28e989941b6619b55f37dae73b9a2959f19f9df7"
+        ],
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "idx": 5,
+        "version": "7",
+        "when": 1784815942393,
+        "tag": "0005_cuddly_unus",
+        "breakpoints": true,
+        "hash": "57aa437c04c6fd5b14aaf6a8b0b2207d1cd9f8937df164d6ecaf2cd286358622",
+        "lineEndingHashes": [
+          "57aa437c04c6fd5b14aaf6a8b0b2207d1cd9f8937df164d6ecaf2cd286358622",
+          "e0b0882fa5fde2e0b867635b34264e0952c23430b08f7d971822cfbda75d75da"
+        ],
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "idx": 6,
+        "version": "7",
+        "when": 1784816002393,
+        "tag": "0006_faithful_sumo",
+        "breakpoints": true,
+        "hash": "f36e7e6e6747655bbda46863d0959360433cd4f3be80ec6cb41e68fb74c9d4e4",
+        "lineEndingHashes": [
+          "f36e7e6e6747655bbda46863d0959360433cd4f3be80ec6cb41e68fb74c9d4e4",
+          "950654175696e27e16e5d12edb495efdfdabe82166ab0c32bfc2bcb086f197d8"
+        ],
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "idx": 7,
+        "version": "7",
+        "when": 1784816062393,
+        "tag": "0007_add_manager_invite_token",
+        "breakpoints": true,
+        "hash": "9faa937d3eff6f9288235e97d68b17f3e58628ed61bdfec7b6e9d071b5e30036",
+        "lineEndingHashes": [
+          "9faa937d3eff6f9288235e97d68b17f3e58628ed61bdfec7b6e9d071b5e30036",
+          "d5675cb5d2d5b4585fa05132c0d96d9a1708a8322fed8f0b26d57b262cab3f98"
+        ],
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "idx": 8,
+        "version": "7",
+        "when": 1784816122393,
+        "tag": "0008_simple_wolf_cub",
+        "breakpoints": true,
+        "hash": "c1e6f65c7faffb61e875081c6082347a153b7f7615dfd242b0034ac92d9b96c0",
+        "lineEndingHashes": [
+          "c1e6f65c7faffb61e875081c6082347a153b7f7615dfd242b0034ac92d9b96c0",
+          "a731dddc010e7cac563d88689675d652b7321359aba920fc0c68f1944816fd1b"
+        ],
+        "status": "HASH_MISMATCH"
+      },
+      {
+        "idx": 9,
+        "version": "7",
+        "when": 1784905189002,
+        "tag": "0009_naive_luminals",
+        "breakpoints": true,
+        "hash": "ee29b14779321d9e1e0a0b1b714a2d6206fdb8f5046bca58a0c56cccec7b7779",
+        "lineEndingHashes": [
+          "ee29b14779321d9e1e0a0b1b714a2d6206fdb8f5046bca58a0c56cccec7b7779",
+          "0f11717955bf5fedcc066e1db03dcc050157f3bca310671318180793e825ccc8"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 10,
+        "version": "7",
+        "when": 1784906575993,
+        "tag": "0010_clean_leech",
+        "breakpoints": true,
+        "hash": "8e2ccacf85ba36cfba324832261ab80f8c4adcd442d636a0d375ee87a972c247",
+        "lineEndingHashes": [
+          "8e2ccacf85ba36cfba324832261ab80f8c4adcd442d636a0d375ee87a972c247",
+          "7f27fefff9fc6dc484d322da061595cb0e2ca757ed75f795f0e7804241e97435"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 11,
+        "version": "7",
+        "when": 1784906986760,
+        "tag": "0011_sour_roughhouse",
+        "breakpoints": true,
+        "hash": "795eaf9f3a82c65efd23984bfbde1c19ad5000522844b81ec642882594dcb2b8",
+        "lineEndingHashes": [
+          "795eaf9f3a82c65efd23984bfbde1c19ad5000522844b81ec642882594dcb2b8",
+          "ff69732037006f218fa2afb99bbab4c385bf881e1d8d5968b516e61855510c93"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 12,
+        "version": "7",
+        "when": 1784985645668,
+        "tag": "0012_sudden_madripoor",
+        "breakpoints": true,
+        "hash": "6e2f0113eb4ba8478df09f9438d2bf7ae5bc2fbeb8b461cce07759f16697f68d",
+        "lineEndingHashes": [
+          "6e2f0113eb4ba8478df09f9438d2bf7ae5bc2fbeb8b461cce07759f16697f68d",
+          "9d45219d5bfd819ccc28cc6330a083d7db577d4e995d05e17e9cc26f12927534"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 13,
+        "version": "7",
+        "when": 1785005432837,
+        "tag": "0013_pale_robin_chapel",
+        "breakpoints": true,
+        "hash": "cdf2686ae56c36bc57c4d77186d824e0b2c18670c4adbb13a11dbb18b41b3011",
+        "lineEndingHashes": [
+          "cdf2686ae56c36bc57c4d77186d824e0b2c18670c4adbb13a11dbb18b41b3011",
+          "cb617cc7e8d1fe8877203b6b434be016699fa822dc33ff780eb405faa1e31507"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 14,
+        "version": "7",
+        "when": 1785155152194,
+        "tag": "0014_elite_mandrill",
+        "breakpoints": true,
+        "hash": "c205e53dd65f509317bff639b8767dc41d3e9ad0a61846b033704cd20c249d07",
+        "lineEndingHashes": [
+          "c205e53dd65f509317bff639b8767dc41d3e9ad0a61846b033704cd20c249d07",
+          "3eb5ad25b107a478491bc45183b5f95ed5792a2d59cb1cc9a4fd81c45129e96d"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 15,
+        "version": "7",
+        "when": 1785155599220,
+        "tag": "0015_fine_thena",
+        "breakpoints": true,
+        "hash": "52c4ce9756daa5cd16b5320602c3f7d2973ee6653dc56db99db62e02dfe86544",
+        "lineEndingHashes": [
+          "52c4ce9756daa5cd16b5320602c3f7d2973ee6653dc56db99db62e02dfe86544",
+          "10d1b74a692b4f1fa53f95a7baf86e5739d6e540810170f7afd676e2a0f41c97"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 16,
+        "version": "7",
+        "when": 1785155655420,
+        "tag": "0016_classy_post",
+        "breakpoints": true,
+        "hash": "28d0e1ceb207b0f362d5dd2b18a56763e7bad42a1240f287ee07228af4b11014",
+        "lineEndingHashes": [
+          "28d0e1ceb207b0f362d5dd2b18a56763e7bad42a1240f287ee07228af4b11014",
+          "8eff45957a908a6c1bd5b99cf31f94c8f641b53df082395f64553e384e0f446b"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 17,
+        "version": "7",
+        "when": 1785160757418,
+        "tag": "0017_mean_sharon_carter",
+        "breakpoints": true,
+        "hash": "f2e86b12fb4fe7659fa0457f3359d67c6c54b80c42b1aeef6c4ca180bb9aa7cc",
+        "lineEndingHashes": [
+          "f2e86b12fb4fe7659fa0457f3359d67c6c54b80c42b1aeef6c4ca180bb9aa7cc",
+          "b8cc2e3f9fd8dcf72705b70613c8ba7f331556da87eae07b6a66f4e2afdf0c10"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 18,
+        "version": "7",
+        "when": 1785209010727,
+        "tag": "0018_sad_bloodstorm",
+        "breakpoints": true,
+        "hash": "02fb1350f3ce8c7e22f46f0f376038b1dd243d33f864a2eca7dd7923ce9c2853",
+        "lineEndingHashes": [
+          "02fb1350f3ce8c7e22f46f0f376038b1dd243d33f864a2eca7dd7923ce9c2853",
+          "2bdeb23bec59be62fb8db978360d36d31c022d0e771a755c47af217186e025af"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 19,
+        "version": "7",
+        "when": 1785251787256,
+        "tag": "0019_next_ricochet",
+        "breakpoints": true,
+        "hash": "22ad15dcf3db469b4e2fb75164bd8adf664e69a454bffd58fe4f3f8bf7a44f94",
+        "lineEndingHashes": [
+          "22ad15dcf3db469b4e2fb75164bd8adf664e69a454bffd58fe4f3f8bf7a44f94",
+          "7ae346e2187ff5d41b8fd8520ddf9978be3ebe1d91be3d09eecc81255991c962"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 20,
+        "version": "7",
+        "when": 1785253105889,
+        "tag": "0020_volatile_dormammu",
+        "breakpoints": true,
+        "hash": "8bf6c3cfcd0447cc0cc6507df581c26cf5be0f6b1b2320f8b12f4f30c9e24073",
+        "lineEndingHashes": [
+          "8bf6c3cfcd0447cc0cc6507df581c26cf5be0f6b1b2320f8b12f4f30c9e24073",
+          "a0701906023e746c82da0744099f832ca81d6579375b1eaf81fbf5f94908297d"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 21,
+        "version": "7",
+        "when": 1785716676483,
+        "tag": "0021_striped_wallop",
+        "breakpoints": true,
+        "hash": "c8713d45602abfbd0dbb739bd32e50696203ebcef7f4dff8c5c72f7b5829a1be",
+        "lineEndingHashes": [
+          "c8713d45602abfbd0dbb739bd32e50696203ebcef7f4dff8c5c72f7b5829a1be",
+          "d367915572b218a8b54c9dbedb5c72cb0ae5d17d0abda5eeb3364353e1528e1a"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 22,
+        "version": "7",
+        "when": 1785723666237,
+        "tag": "0022_flat_wonder_man",
+        "breakpoints": true,
+        "hash": "d2ca478db62466b5f1fca6ccd85e292773405b2cb40919ea26395ec9c4761f55",
+        "lineEndingHashes": [
+          "d2ca478db62466b5f1fca6ccd85e292773405b2cb40919ea26395ec9c4761f55",
+          "c9d0427dfd3d577b24e834056fe4354e545738abbc23cb5754f52a4c6d3c98a8"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 23,
+        "version": "7",
+        "when": 1785731101332,
+        "tag": "0023_amazing_unus",
+        "breakpoints": true,
+        "hash": "91b7d2eba56823ab182c75b7c5c19f11f4b133d0c8fb6ef320cc3a6b85406d10",
+        "lineEndingHashes": [
+          "91b7d2eba56823ab182c75b7c5c19f11f4b133d0c8fb6ef320cc3a6b85406d10",
+          "fedf1cca449f5371358596221830d0cc729215d89dc1ab5124d2a5a7e208a116"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 24,
+        "version": "7",
+        "when": 1785731721404,
+        "tag": "0024_cuddly_gertrude_yorkes",
+        "breakpoints": true,
+        "hash": "09bd0a49c26db621682993a8993e8cf731d7bb351ea950e116bb3f414dbb459f",
+        "lineEndingHashes": [
+          "09bd0a49c26db621682993a8993e8cf731d7bb351ea950e116bb3f414dbb459f",
+          "fe9b524c0a4f0a83e894a1bacbf7c27e8d410bc73e73a544dd353a1a2c2e4761"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 25,
+        "version": "7",
+        "when": 1785761034446,
+        "tag": "0025_new_kylun",
+        "breakpoints": true,
+        "hash": "702cbb70f57110d21c75f3a32c0d2b1e03188d3249146de1c47817ee977d1246",
+        "lineEndingHashes": [
+          "702cbb70f57110d21c75f3a32c0d2b1e03188d3249146de1c47817ee977d1246",
+          "710ea88d3bf2513541e90fed2be7caadd5a06c020120d710692536f728004865"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 26,
+        "version": "7",
+        "when": 1785766837906,
+        "tag": "0026_useful_ikaris",
+        "breakpoints": true,
+        "hash": "2b10fa68978bc593c972b9c09b8d928e1cabc3bd2a2c987870e8cdb161ca26b6",
+        "lineEndingHashes": [
+          "2b10fa68978bc593c972b9c09b8d928e1cabc3bd2a2c987870e8cdb161ca26b6",
+          "e832638d727fbd2951b9fbb6dc2e6149399e9b94bb0157362240cd53605db507"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 27,
+        "version": "7",
+        "when": 1785864755469,
+        "tag": "0027_sleepy_nocturne",
+        "breakpoints": true,
+        "hash": "95df46f2dca5feba0014147814f1928dd55054f375c931ca9e2de3a759014829",
+        "lineEndingHashes": [
+          "95df46f2dca5feba0014147814f1928dd55054f375c931ca9e2de3a759014829",
+          "45cf397bfb4309207e2a19280b4bf474e7125ffc5c96be3b27faf03fd06a05f8"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 28,
+        "version": "7",
+        "when": 1785875436325,
+        "tag": "0028_melted_reavers",
+        "breakpoints": true,
+        "hash": "fba04366f2ef807adae2a8afc894167da5280f8ed9967ebc2a68c24a87666e01",
+        "lineEndingHashes": [
+          "fba04366f2ef807adae2a8afc894167da5280f8ed9967ebc2a68c24a87666e01",
+          "9a92d28a18580c87c550b72ef34723df2ffae7f057f7a0a1996203d5b1fb0dad"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 29,
+        "version": "7",
+        "when": 1785877886523,
+        "tag": "0029_vengeful_scarlet_spider",
+        "breakpoints": true,
+        "hash": "9ec51bb27806fb0d3f5e17979b6a0d886fc0780553a4eef32c4753053f6507d6",
+        "lineEndingHashes": [
+          "9ec51bb27806fb0d3f5e17979b6a0d886fc0780553a4eef32c4753053f6507d6",
+          "9300c7917803986acb453633d5f26a2fec661c83a2658d27d19d5c7616050af3"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 30,
+        "version": "7",
+        "when": 1785955997211,
+        "tag": "0030_pnl_snapshots",
+        "breakpoints": true,
+        "hash": "00eceeac5e1ebcd6da8dcee8934e3e1c4682b8dae387ac68edf1bc827b7a1399",
+        "lineEndingHashes": [
+          "00eceeac5e1ebcd6da8dcee8934e3e1c4682b8dae387ac68edf1bc827b7a1399",
+          "6d79c81d0abe6d55717a7c18871c296a0679525455105e8f77acedb7fe4c3552"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 31,
+        "version": "7",
+        "when": 1785959220110,
+        "tag": "0031_closed_vampiro",
+        "breakpoints": true,
+        "hash": "840fe498f4278d7804d1aa6e18dc6aedb431bce1cae7e5a0c9a26190478f6291",
+        "lineEndingHashes": [
+          "840fe498f4278d7804d1aa6e18dc6aedb431bce1cae7e5a0c9a26190478f6291",
+          "840fe498f4278d7804d1aa6e18dc6aedb431bce1cae7e5a0c9a26190478f6291"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 32,
+        "version": "7",
+        "when": 1785960912829,
+        "tag": "0032_arqueo-cierre-turno",
+        "breakpoints": true,
+        "hash": "ea02449a1118793bd018a3bb030514ce6a4ae989539f1e23e9264a431c4d3f64",
+        "lineEndingHashes": [
+          "532eeaca2a605e91f9bade564c9cd3b9fa449fcab42ef904fb7ea8c933e431bb",
+          "ea02449a1118793bd018a3bb030514ce6a4ae989539f1e23e9264a431c4d3f64"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 33,
+        "version": "7",
+        "when": 1785960952526,
+        "tag": "0033_desglose-agregadores",
+        "breakpoints": true,
+        "hash": "20d5696419c96c1a2b893488fdd0605194a361d63e30797198a835e94abae35b",
+        "lineEndingHashes": [
+          "20d5696419c96c1a2b893488fdd0605194a361d63e30797198a835e94abae35b",
+          "20d5696419c96c1a2b893488fdd0605194a361d63e30797198a835e94abae35b"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 34,
+        "version": "7",
+        "when": 1785961105235,
+        "tag": "0034_sku-alto-valor",
+        "breakpoints": true,
+        "hash": "c61df18a37b2b434f6640bfa58722a20f03455512b717d9d46a3d7f47b376e5d",
+        "lineEndingHashes": [
+          "c61df18a37b2b434f6640bfa58722a20f03455512b717d9d46a3d7f47b376e5d",
+          "c61df18a37b2b434f6640bfa58722a20f03455512b717d9d46a3d7f47b376e5d"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 35,
+        "version": "7",
+        "when": 1786031904384,
+        "tag": "0035_gaps-avanzados",
+        "breakpoints": true,
+        "hash": "880eb35d2cb56297e8d295ba0675bd8742c3683db11388ec2af5ced17bdf6fb6",
+        "lineEndingHashes": [
+          "78c0e81b357a3303f7063c24850f25a9f0041c202e5eb90d2c602a246ecaf748",
+          "880eb35d2cb56297e8d295ba0675bd8742c3683db11388ec2af5ced17bdf6fb6"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 36,
+        "version": "7",
+        "when": 1786051189302,
+        "tag": "0036_tags-inventory-items",
+        "breakpoints": true,
+        "hash": "dd0819d87972f640c9b55bdf1bbadf1184af0fb2f60b1140e0eb9f317f3d90d4",
+        "lineEndingHashes": [
+          "dd0819d87972f640c9b55bdf1bbadf1184af0fb2f60b1140e0eb9f317f3d90d4",
+          "dd0819d87972f640c9b55bdf1bbadf1184af0fb2f60b1140e0eb9f317f3d90d4"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 37,
+        "version": "7",
+        "when": 1786111597033,
+        "tag": "0037_lush_malice",
+        "breakpoints": true,
+        "hash": "0293aa027097a66c167760ca7d200531bf2340713a7f093655dfa456cbf16e13",
+        "lineEndingHashes": [
+          "6a4c84e8dccadb94d7ef5e0df5106579fcae705cf2692d658d4708306bfee7c3",
+          "0293aa027097a66c167760ca7d200531bf2340713a7f093655dfa456cbf16e13"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 38,
+        "version": "7",
+        "when": 1786150938231,
+        "tag": "0038_builder-settings-arrays",
+        "breakpoints": true,
+        "hash": "a5f3ef166d2404610f48c8421e4112f4d1300cd07fd93b76aa015faecf5f7a2a",
+        "lineEndingHashes": [
+          "1bc231d41f1b9fac77e0f0e2b6a847fbbcafcbaf94358fe648cf8790fed259ef",
+          "a5f3ef166d2404610f48c8421e4112f4d1300cd07fd93b76aa015faecf5f7a2a"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 39,
+        "version": "7",
+        "when": 1786197611355,
+        "tag": "0039_objetivos-financieros-tenant",
+        "breakpoints": true,
+        "hash": "036906f8f7659b3dd9deaa63116e29e4e9fffff53c8026124005752bf4c55bf8",
+        "lineEndingHashes": [
+          "2c29ea77cdfea1601d5217871f6d03bb1635e1318119f8bbe791c73ee1689158",
+          "036906f8f7659b3dd9deaa63116e29e4e9fffff53c8026124005752bf4c55bf8"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 40,
+        "version": "7",
+        "when": 1786198857644,
+        "tag": "0040_cuentas-por-pagar",
+        "breakpoints": true,
+        "hash": "0685353b0ec29fa61de4a8ad96300c5d51d8f5e679a77e0cf37994843d944af7",
+        "lineEndingHashes": [
+          "226784131f785186a318a6664c2690caa876058d5bcda72ec3bc259eb2e0a91e",
+          "0685353b0ec29fa61de4a8ad96300c5d51d8f5e679a77e0cf37994843d944af7"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 41,
+        "version": "7",
+        "when": 1786245446777,
+        "tag": "0041_supplier-bank-accounts",
+        "breakpoints": true,
+        "hash": "9cac608f36296fd6b27853fadedbd7608bc691bce24679b368bf5db9c3c92544",
+        "lineEndingHashes": [
+          "a522ae4f808e54f037594dd146875b2ed5f65f39f4706ab3182ef10a78eb48fd",
+          "9cac608f36296fd6b27853fadedbd7608bc691bce24679b368bf5db9c3c92544"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 42,
+        "version": "7",
+        "when": 1786282931686,
+        "tag": "0042_nebulous_alex_wilder",
+        "breakpoints": true,
+        "hash": "08959e6c9a6b92a0f0017135bbc839ba8ed89a73da805e128d90a8be6a5fc780",
+        "lineEndingHashes": [
+          "08959e6c9a6b92a0f0017135bbc839ba8ed89a73da805e128d90a8be6a5fc780",
+          "08959e6c9a6b92a0f0017135bbc839ba8ed89a73da805e128d90a8be6a5fc780"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 43,
+        "version": "7",
+        "when": 1786284799621,
+        "tag": "0043_workflow-review-fields",
+        "breakpoints": true,
+        "hash": "3ddcb948b990ac87cd14d653b89ab1c8cea7f7ed880c1ac4ee716a3dbf10916e",
+        "lineEndingHashes": [
+          "c83f8b98d728a33a731bc20f3b26cb3e90efe979aeb6eb17dd0dd5a6328335d5",
+          "3ddcb948b990ac87cd14d653b89ab1c8cea7f7ed880c1ac4ee716a3dbf10916e"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 44,
+        "version": "7",
+        "when": 1786299163578,
+        "tag": "0044_smartlink-session-optional",
+        "breakpoints": true,
+        "hash": "a408a6a2a1d99d2cb3e134bf01137efd750604c3bea055277c4c67eddcb3e78b",
+        "lineEndingHashes": [
+          "a408a6a2a1d99d2cb3e134bf01137efd750604c3bea055277c4c67eddcb3e78b",
+          "a408a6a2a1d99d2cb3e134bf01137efd750604c3bea055277c4c67eddcb3e78b"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 45,
+        "version": "7",
+        "when": 1786317692091,
+        "tag": "0045_regular_sebastian_shaw",
+        "breakpoints": true,
+        "hash": "47920b0dadafbe37c0d4dcd3594141161ed8ca75a05acbfc9fc4a46dfe57c277",
+        "lineEndingHashes": [
+          "47920b0dadafbe37c0d4dcd3594141161ed8ca75a05acbfc9fc4a46dfe57c277",
+          "4f8dd9af91a517c022b0448b791b8810cc2866c552dee45ccccf88b133c001eb"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 46,
+        "version": "7",
+        "when": 1786321075751,
+        "tag": "0046_tricky_wendigo",
+        "breakpoints": true,
+        "hash": "95492e1024d0a8928a5d375c6990274b768e59a6c6cb4aee13bbb8af29ef1c1a",
+        "lineEndingHashes": [
+          "95492e1024d0a8928a5d375c6990274b768e59a6c6cb4aee13bbb8af29ef1c1a",
+          "95492e1024d0a8928a5d375c6990274b768e59a6c6cb4aee13bbb8af29ef1c1a"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 47,
+        "version": "7",
+        "when": 1786326157386,
+        "tag": "0047_same_jack_power",
+        "breakpoints": true,
+        "hash": "335febe044aaf437353e9233ea4aea760288e7b73fc49f64393cd948bb666c76",
+        "lineEndingHashes": [
+          "335febe044aaf437353e9233ea4aea760288e7b73fc49f64393cd948bb666c76",
+          "092f610cd3c35deafdd27339ce647005db047dcb09e0c6dad3e86c273cd4afc5"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 48,
+        "version": "7",
+        "when": 1786327548119,
+        "tag": "0048_majestic_ozymandias",
+        "breakpoints": true,
+        "hash": "624977cc58359ca084adc1110e086e48242fc007960a8360dc6a88cba1010171",
+        "lineEndingHashes": [
+          "624977cc58359ca084adc1110e086e48242fc007960a8360dc6a88cba1010171",
+          "adfbbafae6044f43bedb1756a3d7f3d80e76803c6525c5523ad0450b2384fd23"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 49,
+        "version": "7",
+        "when": 1786329881842,
+        "tag": "0049_organic_puck",
+        "breakpoints": true,
+        "hash": "4ae9a8f5a993389d48c011db7a7f6f78bb0ed3b9378c02165ae6a2035548c34e",
+        "lineEndingHashes": [
+          "4ae9a8f5a993389d48c011db7a7f6f78bb0ed3b9378c02165ae6a2035548c34e",
+          "4ae9a8f5a993389d48c011db7a7f6f78bb0ed3b9378c02165ae6a2035548c34e"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 50,
+        "version": "7",
+        "when": 1786468130515,
+        "tag": "0050_step-definition-freeze",
+        "breakpoints": true,
+        "hash": "f76c1c6b7784693fd2b18b8b615523c6c82df593705d0a40a8eb094c16816a93",
+        "lineEndingHashes": [
+          "05650e776fde977e1c4bde3396d1271cab92832c3c0b1484e74a00691faa745a",
+          "f76c1c6b7784693fd2b18b8b615523c6c82df593705d0a40a8eb094c16816a93"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 51,
+        "version": "7",
+        "when": 1786474571267,
+        "tag": "0051_merma-decimal-quantities",
+        "breakpoints": true,
+        "hash": "aedce4d28992da5f051ab146adba9bc7257bb075560a34a3ff329e5fbcc18a46",
+        "lineEndingHashes": [
+          "f75b64d2fa114fe11c6a2d689f1e92349bc878db9fd9d25415ca4b4b756853da",
+          "aedce4d28992da5f051ab146adba9bc7257bb075560a34a3ff329e5fbcc18a46"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 52,
+        "version": "7",
+        "when": 1786891301639,
+        "tag": "0052_supuestos-flujo-efectivo",
+        "breakpoints": true,
+        "hash": "8937e5003dfc9008ee5cfe5788a89114c86e1f6af24c0dca0fe63e3d21428fb6",
+        "lineEndingHashes": [
+          "6473a9a73e6ab6e3951de37c96c5bea08c84e3f381f2d06e5b900ea09df9d9a8",
+          "8937e5003dfc9008ee5cfe5788a89114c86e1f6af24c0dca0fe63e3d21428fb6"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 53,
+        "version": "7",
+        "when": 1787075456159,
+        "tag": "0053_demonic_viper",
+        "breakpoints": true,
+        "hash": "87fbdd88455efff37bf70cc904c959b31987cef85a7514c3c6fda8b0c25a62a6",
+        "lineEndingHashes": [
+          "87fbdd88455efff37bf70cc904c959b31987cef85a7514c3c6fda8b0c25a62a6",
+          "1b3d2d945e3a8f2bf3137365d6e7431fc10c45830ac20e0ea75731d741a137af"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 54,
+        "version": "7",
+        "when": 1787269031562,
+        "tag": "0054_produccion-cantidades-decimales",
+        "breakpoints": true,
+        "hash": "b666c6f3bf344671d3e1b0c4475eb2fd6d1c8b8c020c6e84743a1c7212925cb0",
+        "lineEndingHashes": [
+          "d1b2bd5492d3b2d5cc722042d4e6e879e89e524ea2f166a21922969021d2d339",
+          "b666c6f3bf344671d3e1b0c4475eb2fd6d1c8b8c020c6e84743a1c7212925cb0"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 55,
+        "version": "7",
+        "when": 1787271353454,
+        "tag": "0055_idempotencia-extractores",
+        "breakpoints": true,
+        "hash": "1ef94ee459467630515173ff4581e67867dee45f1379f9bc7297bbf4f30c2ede",
+        "lineEndingHashes": [
+          "68e3f042c7cffa97dd87ad1e0eef54e41c20cb226a638b51e2784fa28957030b",
+          "1ef94ee459467630515173ff4581e67867dee45f1379f9bc7297bbf4f30c2ede"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 56,
+        "version": "7",
+        "when": 1787329216499,
+        "tag": "0056_cfdi-nomina-timbrados",
+        "breakpoints": true,
+        "hash": "f84cda75b3aafe01ecfe01fa71a18910a4370bcd0caf76b20dc42ffe4c73dbb4",
+        "lineEndingHashes": [
+          "78da00416d88e7f2754e9354cd724b2c74d88c5b07634f31e1b315410e64a9c7",
+          "f84cda75b3aafe01ecfe01fa71a18910a4370bcd0caf76b20dc42ffe4c73dbb4"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 57,
+        "version": "7",
+        "when": 1787546120144,
+        "tag": "0057_omniscient_colossus",
+        "breakpoints": true,
+        "hash": "2e7b768d6fe50974e12ce19d9709142b555f819a3f500976e39afe9e48cb4de5",
+        "lineEndingHashes": [
+          "2e7b768d6fe50974e12ce19d9709142b555f819a3f500976e39afe9e48cb4de5",
+          "2e7b768d6fe50974e12ce19d9709142b555f819a3f500976e39afe9e48cb4de5"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 58,
+        "version": "7",
+        "when": 1787599075181,
+        "tag": "0058_add-waste-evidence-url",
+        "breakpoints": true,
+        "hash": "df3209252c1069b6b7f798ad0fc8815b72402f44622beb64fbcbef6bf3cf7907",
+        "lineEndingHashes": [
+          "df3209252c1069b6b7f798ad0fc8815b72402f44622beb64fbcbef6bf3cf7907",
+          "df3209252c1069b6b7f798ad0fc8815b72402f44622beb64fbcbef6bf3cf7907"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 59,
+        "version": "7",
+        "when": 1787622373537,
+        "tag": "0059_add_invoice_number_to_receiving_reports",
+        "breakpoints": true,
+        "hash": "1c78b06f44a07175af71ee795dba5c032a3fda5717c088e4b7de653a355b76db",
+        "lineEndingHashes": [
+          "1c78b06f44a07175af71ee795dba5c032a3fda5717c088e4b7de653a355b76db",
+          "1c78b06f44a07175af71ee795dba5c032a3fda5717c088e4b7de653a355b76db"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 60,
+        "version": "7",
+        "when": 1787668177468,
+        "tag": "0060_mysterious_pride",
+        "breakpoints": true,
+        "hash": "b505dc99a4e3eb8fc41ccc5d0cf9f80e7dbdd43053cb023fe0fd38290e37b537",
+        "lineEndingHashes": [
+          "b505dc99a4e3eb8fc41ccc5d0cf9f80e7dbdd43053cb023fe0fd38290e37b537",
+          "7fd17eed47f1e6dce2ae88f9b3826ab38777183a00c53e2f5d8527a0d9710ac1"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 61,
+        "version": "7",
+        "when": 1787676032929,
+        "tag": "0061_cute_the_captain",
+        "breakpoints": true,
+        "hash": "b1e925822ded128162d46db3914b8e3e2ef20b79cb9dff5e8097c33613a9bf17",
+        "lineEndingHashes": [
+          "b1e925822ded128162d46db3914b8e3e2ef20b79cb9dff5e8097c33613a9bf17",
+          "be27ff19055689253b434cc5c970a3295a7fd1811bfd401ea91312a2b4eb9b63"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 62,
+        "version": "7",
+        "when": 1787681354218,
+        "tag": "0062_loving_paibok",
+        "breakpoints": true,
+        "hash": "da2dfe6eed66f1bd2a78440597878e4333814aa0ccc1cf9f5e84b8b2e817b55e",
+        "lineEndingHashes": [
+          "da2dfe6eed66f1bd2a78440597878e4333814aa0ccc1cf9f5e84b8b2e817b55e",
+          "fc2f935939b3a78d3a842121dd2e80ff56f3553a82639ed47cbfa67d049520ed"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 63,
+        "version": "7",
+        "when": 1787683142176,
+        "tag": "0063_square_mister_sinister",
+        "breakpoints": true,
+        "hash": "2a010424ea941db97bf3e492e58caa65f15418a186240055e73054ce289f0d52",
+        "lineEndingHashes": [
+          "2a010424ea941db97bf3e492e58caa65f15418a186240055e73054ce289f0d52",
+          "2a010424ea941db97bf3e492e58caa65f15418a186240055e73054ce289f0d52"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 64,
+        "version": "7",
+        "when": 1787686873818,
+        "tag": "0064_closed_shen",
+        "breakpoints": true,
+        "hash": "acfa11a7d09757e84077ba71a60f175fa081df79e3fb5346fd4e4076d1852279",
+        "lineEndingHashes": [
+          "acfa11a7d09757e84077ba71a60f175fa081df79e3fb5346fd4e4076d1852279",
+          "acfa11a7d09757e84077ba71a60f175fa081df79e3fb5346fd4e4076d1852279"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 65,
+        "version": "7",
+        "when": 1787688340570,
+        "tag": "0065_blushing_ronan",
+        "breakpoints": true,
+        "hash": "7b6a7459a1f370747cb09ee489b7539094d0783ce981d4cb0cb574421672ef88",
+        "lineEndingHashes": [
+          "7b6a7459a1f370747cb09ee489b7539094d0783ce981d4cb0cb574421672ef88",
+          "483d1b64c26e336bac8abee5684ce4452c8660894a76834f998f8a291911a3cd"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 66,
+        "version": "7",
+        "when": 1787695074732,
+        "tag": "0066_sudden_stepford_cuckoos",
+        "breakpoints": true,
+        "hash": "870f62ac516b0a95a3d2639fecbf28541a51ff7d912b40e6ecff839e950792cf",
+        "lineEndingHashes": [
+          "870f62ac516b0a95a3d2639fecbf28541a51ff7d912b40e6ecff839e950792cf",
+          "f8be45bf4baec8b8476fe5afa8b98466d63e31a52111ac2577a7fa7db77ff257"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 68,
+        "version": "7",
+        "when": 1787713145668,
+        "tag": "0068_new_ben_grimm",
+        "breakpoints": true,
+        "hash": "23298dae5eb83c52e06675b865b814020c45342a953d3b203154d1c2fbdeb859",
+        "lineEndingHashes": [
+          "23298dae5eb83c52e06675b865b814020c45342a953d3b203154d1c2fbdeb859",
+          "7f6027215ec72547e486cb2cc47422ed14ee9dc3f4ba64484e223b502167dd0a"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 69,
+        "version": "7",
+        "when": 1787754080326,
+        "tag": "0069_freezing_mathemanic",
+        "breakpoints": true,
+        "hash": "86103fe4b6116b6463da5eac1245afa847b1af5a0d9cf3d68842b1386d131613",
+        "lineEndingHashes": [
+          "0192c1e8771aadb22567808cfa423ba19f329edb8ca50d03e1adc55d4a15d180",
+          "86103fe4b6116b6463da5eac1245afa847b1af5a0d9cf3d68842b1386d131613"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 70,
+        "version": "7",
+        "when": 1787756116625,
+        "tag": "0070_faulty_joystick",
+        "breakpoints": true,
+        "hash": "42abe3b665561dcf2dd79357ec5b4bf469dbe595858f733ab59b120eb581c8c4",
+        "lineEndingHashes": [
+          "6c7788e9323c58e7c481b64b87d7eed7c73f6ee31ae4568bf3c2ed4b6d6e411f",
+          "42abe3b665561dcf2dd79357ec5b4bf469dbe595858f733ab59b120eb581c8c4"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 71,
+        "version": "7",
+        "when": 1787757256616,
+        "tag": "0071_busy_felicia_hardy",
+        "breakpoints": true,
+        "hash": "8b57bbcba2939b8355727e4a7b05dd82ad97382a366af5b0565147e6e987f89a",
+        "lineEndingHashes": [
+          "c8a3abed8e85fd405debbf920424b89bc36ab153c76cc75b324c2826134b7619",
+          "8b57bbcba2939b8355727e4a7b05dd82ad97382a366af5b0565147e6e987f89a"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 72,
+        "version": "7",
+        "when": 1787761063070,
+        "tag": "0072_nosy_bloodstrike",
+        "breakpoints": true,
+        "hash": "f0d62eb459e2bcc61d83e995d70f064899740eb429ec315f8fadff4b8bbd636e",
+        "lineEndingHashes": [
+          "77ca83547711b04505b11edb9271b25d2bbdc85be18fb9e571d24891fef45f34",
+          "f0d62eb459e2bcc61d83e995d70f064899740eb429ec315f8fadff4b8bbd636e"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 73,
+        "version": "7",
+        "when": 1787772001277,
+        "tag": "0073_solid_blizzard",
+        "breakpoints": true,
+        "hash": "71b1caf4fed7ec74f6f4b5b85e960ef3e0f611dc99d3fc47903246b2a31c5a0c",
+        "lineEndingHashes": [
+          "7eb542d55a8e594cd1764871844c442f25d75a51067df4e973c24ba794e1c339",
+          "71b1caf4fed7ec74f6f4b5b85e960ef3e0f611dc99d3fc47903246b2a31c5a0c"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 74,
+        "version": "7",
+        "when": 1787786199620,
+        "tag": "0074_brief_gressill",
+        "breakpoints": true,
+        "hash": "aa01b2853a284f3cff2cdd3b4294e1b9e5ac0376736ecc0bdb4573606f047513",
+        "lineEndingHashes": [
+          "aa01b2853a284f3cff2cdd3b4294e1b9e5ac0376736ecc0bdb4573606f047513",
+          "e7054f758b9db733e824a487b58eb3cd0a411937d48e255037957b5e496fb39b"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 75,
+        "version": "7",
+        "when": 1787802162079,
+        "tag": "0075_modern_hex",
+        "breakpoints": true,
+        "hash": "e84c8a3ec7e8381608da31abfd9bfa23cea09217711a3022d3aafbd45b5e9118",
+        "lineEndingHashes": [
+          "e84c8a3ec7e8381608da31abfd9bfa23cea09217711a3022d3aafbd45b5e9118",
+          "0688f9c482fb5ae7bc80f2e285263feea19291ba902c8a42792d7718bfa81163"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 76,
+        "version": "7",
+        "when": 1787947204915,
+        "tag": "0076_magenta_tenebrous",
+        "breakpoints": true,
+        "hash": "eee0c715a1e24e54aefba38b57d9e43e6de8827a705740c929ae2b3be30889bb",
+        "lineEndingHashes": [
+          "eee0c715a1e24e54aefba38b57d9e43e6de8827a705740c929ae2b3be30889bb",
+          "11f06599ce52cd801a09b9dab9d2628e89982b32e939f518f9c3d1bf15ea07ec"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 77,
+        "version": "7",
+        "when": 1787947439918,
+        "tag": "0077_tranquil_living_mummy",
+        "breakpoints": true,
+        "hash": "62152690f5853a0fad5c6ce27a591d3c42e8c5083973ba3fd87dd816d77f865f",
+        "lineEndingHashes": [
+          "62152690f5853a0fad5c6ce27a591d3c42e8c5083973ba3fd87dd816d77f865f",
+          "a55a5db5c0ab29978fe78721d52be061360086854ff4dbf2e1293ea426a40550"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 78,
+        "version": "7",
+        "when": 1787948727553,
+        "tag": "0078_blue_peter_parker",
+        "breakpoints": true,
+        "hash": "e40c3caa165c9faf8b8d4f185228c925f7ed290ef8287ba302cb286584191673",
+        "lineEndingHashes": [
+          "e40c3caa165c9faf8b8d4f185228c925f7ed290ef8287ba302cb286584191673",
+          "cba609e58368afda4de290d39da1590cff03ddcf4e677d4c62269b7a4bc70a24"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 79,
+        "version": "7",
+        "when": 1788235638918,
+        "tag": "0079_remarkable_la_nuit",
+        "breakpoints": true,
+        "hash": "c0cbcf1989ed9beea4e6d844a555aebf8e73b5ff2067811ac1d78bd3b78bb8b2",
+        "lineEndingHashes": [
+          "8148d785b381e60985fc2c8d4053794c3181f0d0a230f0659662233cd5a33ed8",
+          "c0cbcf1989ed9beea4e6d844a555aebf8e73b5ff2067811ac1d78bd3b78bb8b2"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 80,
+        "version": "7",
+        "when": 1788272464337,
+        "tag": "0080_naive_siren",
+        "breakpoints": true,
+        "hash": "bdbda0b8f52cc299db24529c9a1b905cbec1707d4b441e1d285190f5f0890295",
+        "lineEndingHashes": [
+          "477223306f4149fc183bd1fe75d1a348a097b9815da4cb0450b90e1d812584c7",
+          "bdbda0b8f52cc299db24529c9a1b905cbec1707d4b441e1d285190f5f0890295"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 81,
+        "version": "7",
+        "when": 1788279946150,
+        "tag": "0081_fat_glorian",
+        "breakpoints": true,
+        "hash": "2105a6d152083a5bbe32399d7e9e8508480c83f213bbeaed73a735c4f94f7aa0",
+        "lineEndingHashes": [
+          "2105a6d152083a5bbe32399d7e9e8508480c83f213bbeaed73a735c4f94f7aa0",
+          "2105a6d152083a5bbe32399d7e9e8508480c83f213bbeaed73a735c4f94f7aa0"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 82,
+        "version": "7",
+        "when": 1788366346150,
+        "tag": "0082_factura-contrato-recurrente",
+        "breakpoints": true,
+        "hash": "fefd5242749ad6ccd3519a9b8acf72e3c1f7cf4692c0452359993178cbe7a0eb",
+        "lineEndingHashes": [
+          "44119eacf963ee4d215b3d10d9c3051a5644796e69a2887f4e6e24eed1083694",
+          "fefd5242749ad6ccd3519a9b8acf72e3c1f7cf4692c0452359993178cbe7a0eb"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 83,
+        "version": "7",
+        "when": 1788366347150,
+        "tag": "0083_deep_barracuda",
+        "breakpoints": true,
+        "hash": "4baebdaf05594022cd08017d3bedac217088359fa2566d9d67b725a0156bd9c1",
+        "lineEndingHashes": [
+          "5cb5a2efcbd552fc6e4578931ac5ebbf832c33fca5c866370ab8be41495aac7f",
+          "4baebdaf05594022cd08017d3bedac217088359fa2566d9d67b725a0156bd9c1"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 84,
+        "version": "7",
+        "when": 1788366348150,
+        "tag": "0084_marvelous_agent_brand",
+        "breakpoints": true,
+        "hash": "e2dc1fec4466325698ef0b8f0a08c7143928dccb844811ad2d1f764ac4efafed",
+        "lineEndingHashes": [
+          "079b1d57cc02d81edb32b7919746aa683231f196049e273be339107264dd967d",
+          "e2dc1fec4466325698ef0b8f0a08c7143928dccb844811ad2d1f764ac4efafed"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 85,
+        "version": "7",
+        "when": 1788366349150,
+        "tag": "0085_natural_wrecking_crew",
+        "breakpoints": true,
+        "hash": "39c5f34ac8673652fd2140ef44aaaa8bf52cc5765ba0cde80c85a2e903d01c41",
+        "lineEndingHashes": [
+          "f381db0ec7cbba73bcf738ea1a540a9e8ddad264e580f6e5c90683b08579cf8f",
+          "39c5f34ac8673652fd2140ef44aaaa8bf52cc5765ba0cde80c85a2e903d01c41"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 86,
+        "version": "7",
+        "when": 1788366350150,
+        "tag": "0086_plain_arclight",
+        "breakpoints": true,
+        "hash": "5a97c618297748800e695b01a0d7dc46a988c985a90b98030655981e9a509553",
+        "lineEndingHashes": [
+          "e2dacee2f8ae9ba4fc250795f800f2ecbc506cb84d83daf3496e21e09631f5a1",
+          "5a97c618297748800e695b01a0d7dc46a988c985a90b98030655981e9a509553"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 87,
+        "version": "7",
+        "when": 1788366351150,
+        "tag": "0087_volatile_blue_blade",
+        "breakpoints": true,
+        "hash": "8e81d33f014f7af1cbe4ce290b7c6d894dd60c7cb92fb4c047212c87a766a22c",
+        "lineEndingHashes": [
+          "efc1569b37f9f223ba8374380b1f15fe00d607fe542e101775801d81524ba5db",
+          "8e81d33f014f7af1cbe4ce290b7c6d894dd60c7cb92fb4c047212c87a766a22c"
+        ],
+        "status": "LINE_ENDINGS_DIFFER"
+      },
+      {
+        "idx": 88,
+        "version": "7",
+        "when": 1788495126176,
+        "tag": "0088_black_archangel",
+        "breakpoints": true,
+        "hash": "10bc3c3c336fbf713ab7dcc9135a35422bcb08af3f9e6ff1cd5ff4a1e3c8080b",
+        "lineEndingHashes": [
+          "10bc3c3c336fbf713ab7dcc9135a35422bcb08af3f9e6ff1cd5ff4a1e3c8080b",
+          "27ebc571878f60c247963caa1cf4d723f69d082340d64d4bf92d386b65a29276"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 89,
+        "version": "7",
+        "when": 1788536263769,
+        "tag": "0089_slim_katie_power",
+        "breakpoints": true,
+        "hash": "c1057bf127b5475accc1c9b0faea759e0c4a38f282b498ef10d85ba45d59c485",
+        "lineEndingHashes": [
+          "c1057bf127b5475accc1c9b0faea759e0c4a38f282b498ef10d85ba45d59c485",
+          "a0d3e7b83f9432c19eeb55f727054876171a1e9e91eaefa346052737788e896c"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 90,
+        "version": "7",
+        "when": 1789561143909,
+        "tag": "0090_modern_luminals",
+        "breakpoints": true,
+        "hash": "bddd5686c8475f9c2235015455b6835a68be5724d173007837a410f568037089",
+        "lineEndingHashes": [
+          "bddd5686c8475f9c2235015455b6835a68be5724d173007837a410f568037089",
+          "d7687493567d3fd09fe10e7901fce21b8f083f682fb22dc1c58ee0387a8feb92"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 91,
+        "version": "7",
+        "when": 1789668621065,
+        "tag": "0091_known_namorita",
+        "breakpoints": true,
+        "hash": "c06cc87c23e7a2642ef7ffacd10ebc8e4a2218b0190b9708588aa1eeb5fbbd8a",
+        "lineEndingHashes": [
+          "c06cc87c23e7a2642ef7ffacd10ebc8e4a2218b0190b9708588aa1eeb5fbbd8a",
+          "ac50999a63713c2f38ccc1e468a34b75b383515f57b58daf82bb586843e626d0"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 92,
+        "version": "7",
+        "when": 1791698386584,
+        "tag": "0092_remarkable_ben_urich",
+        "breakpoints": true,
+        "hash": "b6fa7bc9a034524d05c56444c47404639ff1c3a80d7069077e033ef36e304e67",
+        "lineEndingHashes": [
+          "b6fa7bc9a034524d05c56444c47404639ff1c3a80d7069077e033ef36e304e67",
+          "0fa0cbb8cd54f4077ee0d320d3d43c43d6b760c0853f28475dd38bffe176ea66"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 93,
+        "version": "7",
+        "when": 1791823860444,
+        "tag": "0093_slippery_meggan",
+        "breakpoints": true,
+        "hash": "ff9feb6c13bb2113a217fb40520d3fe06a5bbe1d4005cd5d8a47f0988fba8161",
+        "lineEndingHashes": [
+          "ff9feb6c13bb2113a217fb40520d3fe06a5bbe1d4005cd5d8a47f0988fba8161",
+          "7686ec793a4e64b00c8dab7296e9b28e842399a04c2c2d6920cf1d8de94ccadc"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 94,
+        "version": "7",
+        "when": 1791826900589,
+        "tag": "0094_minor_jasper_sitwell",
+        "breakpoints": true,
+        "hash": "ea5170d7a799e71ee8bd3ba07bc380a1d252d7d7007910ea64c1a8bfaa0c82a4",
+        "lineEndingHashes": [
+          "ea5170d7a799e71ee8bd3ba07bc380a1d252d7d7007910ea64c1a8bfaa0c82a4",
+          "ea5170d7a799e71ee8bd3ba07bc380a1d252d7d7007910ea64c1a8bfaa0c82a4"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 95,
+        "version": "7",
+        "when": 1791921209819,
+        "tag": "0095_square_gladiator",
+        "breakpoints": true,
+        "hash": "89661c8bf7664d14d4a648b96a64fffbea08be2522d65efbd2149f9d91bad5a3",
+        "lineEndingHashes": [
+          "89661c8bf7664d14d4a648b96a64fffbea08be2522d65efbd2149f9d91bad5a3",
+          "1732dcf7a07405782d901317bb2c9b12d1b4f07b4f18a506f566d9610f337bec"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 96,
+        "version": "7",
+        "when": 1792022400000,
+        "tag": "0096_workflow_completion_outbox",
+        "breakpoints": true,
+        "hash": "25a1cc9bd1fdbabbc615076617149ce21990e894f6c397cb4410cb21d8d11835",
+        "lineEndingHashes": [
+          "25a1cc9bd1fdbabbc615076617149ce21990e894f6c397cb4410cb21d8d11835",
+          "77633ccecd94340e3b880a1f8804cfe63a9759ec6e7672edf5c42fbfad5153e9"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 97,
+        "version": "7",
+        "when": 1792165092226,
+        "tag": "0097_cooing_william_stryker",
+        "breakpoints": true,
+        "hash": "f246707a20974026004a43a6c737f66f69c39e6eebad14285204c68a110dc2e2",
+        "lineEndingHashes": [
+          "f246707a20974026004a43a6c737f66f69c39e6eebad14285204c68a110dc2e2",
+          "fe2cad2c997201841730c2047f27132982f28beffc12f3c8f9670ddf9991ce0d"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 98,
+        "version": "7",
+        "when": 1792182596053,
+        "tag": "0098_closed_lenny_balinger",
+        "breakpoints": true,
+        "hash": "cca0904dc5c2e22f073821dc5db637638b83a75c731cad1dfad9c4ff5c94c8bc",
+        "lineEndingHashes": [
+          "cca0904dc5c2e22f073821dc5db637638b83a75c731cad1dfad9c4ff5c94c8bc",
+          "cca0904dc5c2e22f073821dc5db637638b83a75c731cad1dfad9c4ff5c94c8bc"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 99,
+        "version": "7",
+        "when": 1792255192618,
+        "tag": "0099_exotic_warpath",
+        "breakpoints": true,
+        "hash": "6d1ec524e79f8d5853b8f6fd38a441659679743ba2cdd7e4971d34cf98838576",
+        "lineEndingHashes": [
+          "6d1ec524e79f8d5853b8f6fd38a441659679743ba2cdd7e4971d34cf98838576",
+          "5860091a4a71b2ed493db4699a9cb5e0f8fc080a8a676b1984c104f796435fb0"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 100,
+        "version": "7",
+        "when": 1792265703972,
+        "tag": "0100_green_excalibur",
+        "breakpoints": true,
+        "hash": "cd4407d0098303d2c6a43a885a09fa7a30e2ba15287f14757b40b79e9375e242",
+        "lineEndingHashes": [
+          "cd4407d0098303d2c6a43a885a09fa7a30e2ba15287f14757b40b79e9375e242",
+          "3820d2ea39fdd8a93eaaca0f83ded2b781a68fa7f1868f4f642ade2e9e8181ce"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 101,
+        "version": "7",
+        "when": 1792297057246,
+        "tag": "0101_clammy_talkback",
+        "breakpoints": true,
+        "hash": "b43c105a6ff5669c89f75d4858ebc55a7dfeb1f650cdafbb9dd6f511d914968c",
+        "lineEndingHashes": [
+          "b43c105a6ff5669c89f75d4858ebc55a7dfeb1f650cdafbb9dd6f511d914968c",
+          "f7b1fc2729ac4963749f74f59a50580fb9144d0effcf50a526580f72514eb688"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 102,
+        "version": "7",
+        "when": 1792301587985,
+        "tag": "0102_parallel_red_skull",
+        "breakpoints": true,
+        "hash": "bfc26f0d4fe97e4d5c5cfa3fa21976f72a99a7d3f95ac6c165539d7d231ee8f3",
+        "lineEndingHashes": [
+          "bfc26f0d4fe97e4d5c5cfa3fa21976f72a99a7d3f95ac6c165539d7d231ee8f3",
+          "05a1c31dc3271859b9208e483bd0755c5940b2504040970ff56e3a8801845df6"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 103,
+        "version": "7",
+        "when": 1792333118084,
+        "tag": "0103_tenant_rls_evidence",
+        "breakpoints": true,
+        "hash": "b61d84b2bf7bf1ac2aa9e7fb1ecaabdb4729f99f97b6bde67b3c609ba97de218",
+        "lineEndingHashes": [
+          "b61d84b2bf7bf1ac2aa9e7fb1ecaabdb4729f99f97b6bde67b3c609ba97de218",
+          "8bf7da86b748e8ef26d80c134e7f0ca2cf62a04a597833de88997df85d33aa90"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 104,
+        "version": "7",
+        "when": 1792334760455,
+        "tag": "0104_rls_receiving",
+        "breakpoints": true,
+        "hash": "c5b2b379841deb63902489dfe4d36853eba672a76c771e1e0859f6574f070e69",
+        "lineEndingHashes": [
+          "c5b2b379841deb63902489dfe4d36853eba672a76c771e1e0859f6574f070e69",
+          "7119dd6b2c51da2c1852dc18451d79322bc0c805dc5b8af58b521b87768d2db3"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 105,
+        "version": "7",
+        "when": 1792336238263,
+        "tag": "0105_rls_inventory_monitoring",
+        "breakpoints": true,
+        "hash": "104510d1ce92df9ac5a3f344eaef623dafe7a9a8f4726b1bbe6de41d8ad8b228",
+        "lineEndingHashes": [
+          "104510d1ce92df9ac5a3f344eaef623dafe7a9a8f4726b1bbe6de41d8ad8b228",
+          "880013e6d3eaef70e047d6ec40728f71f64db2df572250d38cd140ee37235691"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 106,
+        "version": "7",
+        "when": 1792352624936,
+        "tag": "0106_rls_stock_counts",
+        "breakpoints": true,
+        "hash": "1050eb5f34589b8f198d1b11d604a110556c454e8c766bbf0a57503b1b86925a",
+        "lineEndingHashes": [
+          "1050eb5f34589b8f198d1b11d604a110556c454e8c766bbf0a57503b1b86925a",
+          "10489fa14ce01c7ece0655aa3eabfda4c5e12aa32f12259fa9589453b8d432f5"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 107,
+        "version": "7",
+        "when": 1792362318608,
+        "tag": "0107_company_bank_accounts",
+        "breakpoints": true,
+        "hash": "212d5290728152429ff167512bcb06bb135852e404508a38f8969bd085592495",
+        "lineEndingHashes": [
+          "212d5290728152429ff167512bcb06bb135852e404508a38f8969bd085592495",
+          "eb4931367036001abff09aeda69cbf8485401eb8c64c5227da8ab111298bb6d3"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 108,
+        "version": "7",
+        "when": 1792366780360,
+        "tag": "0108_bank_transactions",
+        "breakpoints": true,
+        "hash": "26666994a04682d7fa3e0ce0d9790eceab4c64710d9a95db8f4674397c1b817d",
+        "lineEndingHashes": [
+          "26666994a04682d7fa3e0ce0d9790eceab4c64710d9a95db8f4674397c1b817d",
+          "23131b59fe89a5ce1b10e0b5d7e01f2165445e78bcd9eeb2cadaa35b33d03bbe"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 109,
+        "version": "7",
+        "when": 1792368239402,
+        "tag": "0109_recurring_payables",
+        "breakpoints": true,
+        "hash": "19da92f1d7d2183711afa010bdbc2a6b3dfff8cf78a3c4c0bf2c4cbaa8ad621b",
+        "lineEndingHashes": [
+          "19da92f1d7d2183711afa010bdbc2a6b3dfff8cf78a3c4c0bf2c4cbaa8ad621b",
+          "4b0d22f10bcfac205618c85dcaf57f42b20e343fe38473ef4e5ddda870ccce2e"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 110,
+        "version": "7",
+        "when": 1792597712634,
+        "tag": "0110_account_purpose",
+        "breakpoints": true,
+        "hash": "7eaed904dbeeec89871bbfce289c3a3263058e2beb5e859c03eb818733c0fa00",
+        "lineEndingHashes": [
+          "7eaed904dbeeec89871bbfce289c3a3263058e2beb5e859c03eb818733c0fa00",
+          "161b2634652ee9f86e98c3243882aab106b9e05818944e2fc794220e70e6f3d0"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 111,
+        "version": "7",
+        "when": 1792599120230,
+        "tag": "0111_gateway_destination",
+        "breakpoints": true,
+        "hash": "a28bb69154756deec14e2f4ddf6ba79b45067ae08f34609788deb4ccb7a89094",
+        "lineEndingHashes": [
+          "a28bb69154756deec14e2f4ddf6ba79b45067ae08f34609788deb4ccb7a89094",
+          "b2bf676285fae0bc17e3a2a09e49e7c7ba1388d8d98b78fe4f48a65bc5df2749"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 112,
+        "version": "7",
+        "when": 1792602523048,
+        "tag": "0112_bank_deposit_match",
+        "breakpoints": true,
+        "hash": "a5a1bb1f7208f43f7442ba5e49726f601f0414bd3f6ae3ff457bed5206dd6d85",
+        "lineEndingHashes": [
+          "a5a1bb1f7208f43f7442ba5e49726f601f0414bd3f6ae3ff457bed5206dd6d85",
+          "f04c83050275fd4762d051ded090ed620b2dc9fa38a5eed0ad4934183fd67c22"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 113,
+        "version": "7",
+        "when": 1792605423290,
+        "tag": "0113_aggregator_acquirers",
+        "breakpoints": true,
+        "hash": "65bb697de9354f3b52ddb5132ba8a794dd649f9685fc8dc59ef803c62fa5b3c3",
+        "lineEndingHashes": [
+          "65bb697de9354f3b52ddb5132ba8a794dd649f9685fc8dc59ef803c62fa5b3c3",
+          "7570f6e52ac26906103014d81171f75a734572bb3814644d1f882ab381136bfc"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 114,
+        "version": "7",
+        "when": 1792607646574,
+        "tag": "0114_account_anchor",
+        "breakpoints": true,
+        "hash": "388b4881063816402b9849f642d04166402a3cbca620b83cb1856a407e1bfdcf",
+        "lineEndingHashes": [
+          "388b4881063816402b9849f642d04166402a3cbca620b83cb1856a407e1bfdcf",
+          "aaef41b80be692e0ccb03237eb727ddafa1c4d2ed51f8eb4027804b589499acc"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 115,
+        "version": "7",
+        "when": 1792615712236,
+        "tag": "0115_mature_red_wolf",
+        "breakpoints": true,
+        "hash": "0bf4105a6a0eaf4bf9d3d39fa69a2268d42b342e4d3ad6f19ababa9dcade7c01",
+        "lineEndingHashes": [
+          "0bf4105a6a0eaf4bf9d3d39fa69a2268d42b342e4d3ad6f19ababa9dcade7c01",
+          "0bf4105a6a0eaf4bf9d3d39fa69a2268d42b342e4d3ad6f19ababa9dcade7c01"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 116,
+        "version": "7",
+        "when": 1792615931083,
+        "tag": "0116_wakeful_energizer",
+        "breakpoints": true,
+        "hash": "ed8e9fa2103e707ad26dc899f5eee69e6fdde07a65265e344cd86d09fd3b2f16",
+        "lineEndingHashes": [
+          "ed8e9fa2103e707ad26dc899f5eee69e6fdde07a65265e344cd86d09fd3b2f16",
+          "ed8e9fa2103e707ad26dc899f5eee69e6fdde07a65265e344cd86d09fd3b2f16"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 117,
+        "version": "7",
+        "when": 1792617768120,
+        "tag": "0117_typical_diamondback",
+        "breakpoints": true,
+        "hash": "a88d899d7d0909253ce0705e1215622a57ac9e5a5502d9d26a2f0da6cde391ee",
+        "lineEndingHashes": [
+          "a88d899d7d0909253ce0705e1215622a57ac9e5a5502d9d26a2f0da6cde391ee",
+          "42d8713a734871168a3e3d5780c7baa7326c201d4770f4a1659a29544ff8f7dd"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 118,
+        "version": "7",
+        "when": 1792621334222,
+        "tag": "0118_steady_vance_astro",
+        "breakpoints": true,
+        "hash": "c1b93bd479225bb96a24b9460e72095f2d5a2046c4b10715b59b8fd7bbe26113",
+        "lineEndingHashes": [
+          "c1b93bd479225bb96a24b9460e72095f2d5a2046c4b10715b59b8fd7bbe26113",
+          "c1b93bd479225bb96a24b9460e72095f2d5a2046c4b10715b59b8fd7bbe26113"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 119,
+        "version": "7",
+        "when": 1792629196856,
+        "tag": "0119_redundant_unicorn",
+        "breakpoints": true,
+        "hash": "b77841ac04950035de0f065097132864f97871d842bbcbefc4664294367dd470",
+        "lineEndingHashes": [
+          "b77841ac04950035de0f065097132864f97871d842bbcbefc4664294367dd470",
+          "bf47ab8c2144f56501bda49f37f0437a126f85ed9507a6f90a37422f82b9ee02"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 120,
+        "version": "7",
+        "when": 1792630269665,
+        "tag": "0120_sparkling_carnage",
+        "breakpoints": true,
+        "hash": "a5d1943a418633d3f17612b4014f64259377f83f1623d3392e6c0fc91389b2ec",
+        "lineEndingHashes": [
+          "a5d1943a418633d3f17612b4014f64259377f83f1623d3392e6c0fc91389b2ec",
+          "857c1d3aed67328faae87c6e567616d7ed565752d24a93b57bca7b2a699f4023"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 121,
+        "version": "7",
+        "when": 1792691071337,
+        "tag": "0121_imss_movimientos",
+        "breakpoints": true,
+        "hash": "594bea70b9fadd396567fae4517c39272197b228a69f23e12292e55f88a9e660",
+        "lineEndingHashes": [
+          "594bea70b9fadd396567fae4517c39272197b228a69f23e12292e55f88a9e660",
+          "d616313dc0e8cbb518e73215ad70987fabd518e58edd1ba48eb9d1e412863d96"
+        ],
+        "status": "APPLIED"
+      },
+      {
+        "idx": 122,
+        "version": "7",
+        "when": 1792801464567,
+        "tag": "0122_aguinaldo_snapshot",
+        "breakpoints": true,
+        "hash": "33050c36633c5d586cad0f8c453499f1e1743d9af86317c33addf00c01950595",
+        "lineEndingHashes": [
+          "33050c36633c5d586cad0f8c453499f1e1743d9af86317c33addf00c01950595",
+          "1a6dc8e688e1640d52ec17baefbc5972d2cb7c1ddff276790128f761e725b80b"
+        ],
+        "status": "PENDING"
+      }
+    ],
+    "duplicateTimes": [
+      1785960912829,
+      1786031904384,
+      1786111597033,
+      1786150938231,
+      1786197611355,
+      1786245446777,
+      1786284799621,
+      1786468130515,
+      1786474571267,
+      1786891301639,
+      1787269031562,
+      1787271353454,
+      1787329216499
+    ],
+    "unknownApplied": [
+      {
+        "id": 54,
+        "hash": "99f23e56b6606d53c87bb8b51441eb3772a943e3d279f7426282f8547cfb8ea4",
+        "created_at": "1786732300816"
+      }
+    ],
+    "requiresReview": true
+  },
+  "comparison": {
+    "expectedSnapshot": "0122_aguinaldo_snapshot",
+    "missingColumns": [
+      "payroll_payslips.aguinaldo_snapshot",
+      "payroll_runs.aguinaldo_snapshot"
+    ],
+    "missingIndexes": [
+      "payroll_payslips.payroll_payslips_aguinaldo_snapshot_employee_unique"
+    ],
+    "scope": "Existencia de columnas e índices; no certifica tipos/defaults/FK/enums ni datos."
+  },
+  "roles": [
+    {
+      "rolname": "neondb_owner",
+      "rolsuper": false,
+      "rolbypassrls": true
+    }
+  ],
+  "security": [
+    {
+      "table_name": "account",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "aggregator_settlements",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "approval_matrix_rules",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "approval_requests",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "arco_requests",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "bank_transactions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "branch_budgets",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "branch_compliance_services",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "branch_equipments",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "branch_terminals",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "branches",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "break_compliance_rules",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "break_logs",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "break_reminder_logs",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "cash_flow_assumptions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "cfdi_nomina_timbrados",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "cfdi_recibidos",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "channel_commission_rates",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "civil_protection_drills",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "communication_read_receipts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "companies",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "company_bank_accounts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "company_subscriptions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "compliance_alerts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "compliance_service_history",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "config_change_logs",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "corporate_twins",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "cost_centers",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "cost_records",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "credit_notes",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "daily_sales_cuts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "data_access_logs",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "data_consents",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "domain_events",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "electronic_registry_readiness",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "employee_audit_logs",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "employee_benefits",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "employee_communications",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "employee_contracts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "employee_documents",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "employee_offboarding",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "employee_onboarding",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "employee_profiles",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "employee_training",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "employee_training_records",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "equipment_alerts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "equipment_catalog",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "equipment_maintenance_history",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "equipment_maintenance_schedules",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "equipment_warranties",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "event_triggers",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "evidence",
+      "owner": "neondb_owner",
+      "rls": true,
+      "force_rls": false,
+      "policy_count": 1
+    },
+    {
+      "table_name": "exceptions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "executive_decisions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "exit_checklist_items",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "expense_authorization_rules",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "extinguisher_inspections",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "financial_periods",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "folio_counters",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "forecast_results",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "gateway_transactions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "holidays",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "imss_files",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "imss_movements",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "incidents",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "inventory_alerts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "inventory_audit_log",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "inventory_batches",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "inventory_expiration_alerts",
+      "owner": "neondb_owner",
+      "rls": true,
+      "force_rls": false,
+      "policy_count": 1
+    },
+    {
+      "table_name": "inventory_items",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "inventory_knowledge_graph",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "inventory_movements",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "inventory_periods",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "inventory_price_history",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "inventory_snapshots",
+      "owner": "neondb_owner",
+      "rls": true,
+      "force_rls": false,
+      "policy_count": 1
+    },
+    {
+      "table_name": "inventory_transfer_items",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "inventory_transfers",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "inventory_waste",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "invoice_lines",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "invoices",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "kpi_alerts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "kpi_definitions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "kpi_history",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "kpi_snapshot_logs",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "labor_law_calendar_rules",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "leave_balances",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "leave_requests",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "leave_types",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "magic_links",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "message_templates",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "morning_briefs",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "nom035_action_plans",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "notification_preferences",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "notifications",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "onboarding_steps",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "operating_expenses",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "operational_twins",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "payee_bank_accounts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "payees",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "payment_approvals",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "payment_run_items",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "payment_runs",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "payroll_aguinaldo_dispersiones",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "payroll_payslips",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "payroll_runs",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "performance_goals",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "performance_review_criteria",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "performance_review_responses",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "performance_reviews",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "petty_cash_funds",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "petty_cash_transactions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "planned_shifts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "playbook_publications",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "playbook_versions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "pnl_snapshots",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "policy_overrides",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "pos_mapping_templates",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "privacy_notices",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "production_batches",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "production_ingredients",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "production_orders",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "production_plan_items",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "production_plans",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "production_results",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "propina_asignaciones",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "propinas",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "psychosocial_surveys",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "purchase_delegation_rules",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "purchase_order_items",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "purchase_orders",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "receiving_report_items",
+      "owner": "neondb_owner",
+      "rls": true,
+      "force_rls": false,
+      "policy_count": 1
+    },
+    {
+      "table_name": "receiving_reports",
+      "owner": "neondb_owner",
+      "rls": true,
+      "force_rls": false,
+      "policy_count": 1
+    },
+    {
+      "table_name": "recipe_items",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "recipe_versions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "recipes",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "recurring_contracts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "recurring_payables",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "remediation_actions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "report_execution_history",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "report_templates",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "requisition_items",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "requisitions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "salary_history",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "sales_cut_cashiers",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "sales_entries",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "saved_searches",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "schedule_configs",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "service_order_evidence",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "service_order_quotes",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "service_orders",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "service_providers",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "session",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "sessions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "shift_approvals",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "shift_assignments",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "shift_change_requests",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "shift_sessions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "shift_templates",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "stock_counts",
+      "owner": "neondb_owner",
+      "rls": true,
+      "force_rls": false,
+      "policy_count": 1
+    },
+    {
+      "table_name": "storage_locations",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "subscription_tiers",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "supplier_bank_accounts",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "supplier_claims",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "supplier_items",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "suppliers",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "temperature_logs",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "tenant_keys",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "tenant_operating_config",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "tpv_shift_batches",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "unit_conversions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "users",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "vacation_accruals",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "vacation_requests",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "verifications",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "whatsapp_conversation_states",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "whatsapp_messages",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "whatsapp_sessions",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "workflow_assignments",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "workflow_completion_outbox",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "workflow_instance_steps",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "workflow_instances",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "workflow_schedules",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    },
+    {
+      "table_name": "workflow_templates",
+      "owner": "neondb_owner",
+      "rls": false,
+      "force_rls": false,
+      "policy_count": 0
+    }
+  ],
+  "operationalChanges": false
+}
