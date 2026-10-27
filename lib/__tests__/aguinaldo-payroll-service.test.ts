@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/db", () => { const db = {
+    execute: async () => ({ rows: [] }),
     select: () => {
         let table: unknown;
         const rows = () => {

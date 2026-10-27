@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { withCompanyContext } from "@/lib/db/tenant-context";
 import { cfdiNominaTimbrados } from "@/lib/db/schema";
 import type { NominaTimbradoInput, NominaTimbradoStatus, RespuestaPac } from "./fiscal-service";
 
@@ -28,18 +28,19 @@ export async function entregarAguinaldo(input: NominaTimbradoInput, enviar: () =
     status: "PENDIENTE" as const, uuid: null, selloDigital: null, cadenaOriginal: null,
     rawResponse: { pulsoAguinaldoDelivery: intencion }, timbradoPor: input.performedBy ?? null, updatedAt: new Date(),
   };
-  const [adquirida] = await db.insert(cfdiNominaTimbrados).values(valores).onConflictDoUpdate({
+  const scope = { companyId: input.companyId, actorId: input.performedBy };
+  const [adquirida] = await withCompanyContext(scope, (tx) => tx.insert(cfdiNominaTimbrados).values(valores).onConflictDoUpdate({
     target: [cfdiNominaTimbrados.companyId, cfdiNominaTimbrados.empleadoRfc, cfdiNominaTimbrados.periodo],
     set: valores,
     setWhere: and(eq(cfdiNominaTimbrados.status, "RECHAZADO"),
       sql`${cfdiNominaTimbrados.rawResponse}->'pulsoAguinaldoDelivery'->>'fingerprint' = ${fingerprint}`,
       sql`${cfdiNominaTimbrados.rawResponse}->'pulsoAguinaldoDelivery'->>'outcome' = 'REJECTED'`),
-  }).returning();
+  }).returning());
   if (!adquirida) {
-    const [existente] = await db.select().from(cfdiNominaTimbrados).where(and(
+    const [existente] = await withCompanyContext(scope, (tx) => tx.select().from(cfdiNominaTimbrados).where(and(
       eq(cfdiNominaTimbrados.companyId, input.companyId), eq(cfdiNominaTimbrados.empleadoRfc, input.empleadoRfc),
       eq(cfdiNominaTimbrados.periodo, input.periodo),
-    )).limit(1);
+    )).limit(1));
     const guardada = (existente?.rawResponse as { pulsoAguinaldoDelivery?: Intencion } | null)?.pulsoAguinaldoDelivery;
     if (!existente || guardada?.fingerprint !== fingerprint) {
       throw new RangeError("La huella de la solicitud fiscal no coincide o falta: requiere conciliación del comprobante existente.");
@@ -47,13 +48,13 @@ export async function entregarAguinaldo(input: NominaTimbradoInput, enviar: () =
     return existente;
   }
   const guardar = async (resultado: EntregaResultado, outcome: string) => {
-    const [fila] = await db.update(cfdiNominaTimbrados).set({
+    const [fila] = await withCompanyContext(scope, (tx) => tx.update(cfdiNominaTimbrados).set({
       status: resultado.status, uuid: resultado.data.uuid || null, selloDigital: String(resultado.data.sello_digital ?? "") || null,
       cadenaOriginal: String(resultado.data.cadena_original ?? "") || null,
       fechaTimbrado: resultado.fecha ? new Date(resultado.fecha) : null,
       rawResponse: { ...resultado.data, pulsoAguinaldoDelivery: { ...intencion, outcome } }, updatedAt: new Date(),
     }).where(and(eq(cfdiNominaTimbrados.id, adquirida.id), eq(cfdiNominaTimbrados.status, "PENDIENTE"),
-      sql`${cfdiNominaTimbrados.rawResponse}->'pulsoAguinaldoDelivery'->>'attemptId' = ${intencion.attemptId}`)).returning();
+      sql`${cfdiNominaTimbrados.rawResponse}->'pulsoAguinaldoDelivery'->>'attemptId' = ${intencion.attemptId}`)).returning());
     if (!fila) throw new Error("La intención fiscal cambió durante el envío; requiere conciliación.");
     return fila;
   };

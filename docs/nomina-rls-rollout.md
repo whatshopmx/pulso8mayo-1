@@ -1,6 +1,6 @@
 # OPS-02.nomina — Mapa previo a activar RLS
 
-2026-10-26. Preparación documental, sin políticas activadas ni cambios de rol. Fuente del entorno: manifiestos de OPS-01. El operativo conecta como dueño con bypass y no tiene pulso_app; la base aislada sí tiene pulso_app sin superuser/bypass, pero las cuatro tablas todavía no tienen políticas.
+2026-10-26; actualizado 2026-10-27. Fuente del entorno: manifiestos de OPS-01. El operativo conecta como dueño con bypass y no tiene pulso_app; la base aislada sí tiene pulso_app sin superuser/bypass, pero las cuatro tablas de public todavía no tienen políticas. OPS-02.nomina.A adapta el protocolo y la recuperación y acredita ese recorrido con login runtime y políticas exclusivamente privadas de prueba. No se activan políticas ni se cambian roles operativos.
 
 ## Tablas del lote
 
@@ -30,7 +30,7 @@ CodeGraph devolvió la definición de payrollRuns, pero no los callers conocidos
 
 ## Incrementos antes de activar
 
-1. **NOMINA-A:** protocolo fiscal/consumidor de recuperación con transacciones breves y pruebas; no mantener conexión ante el PAC.
+1. **NOMINA-A — completo local:** protocolo fiscal/consumidor de recuperación con transacciones breves y pruebas; no mantiene conexión ante el PAC. Runtime 6/6; integración conjunta 21/21; focalizadas 51/51; lint/build con TypeScript exit 0. [Evidencia y límites](../tasks/evidencia/consolidado-2026-10-22/OPS-02-nomina-A/README.md). Las políticas son privadas de contrato; el lote definitivo y HTTP/job completo siguen en E/F.
 2. **NOMINA-B:** autorización/historial/bitácora de aguinaldo y nómina ordinaria, separando hijos si código+tests supera cinco archivos.
 3. **NOMINA-C:** lecturas/bloqueos de tesorería con contexto en el tx real y regresiones HTTP/layout.
 4. **NOMINA-D:** cron/job por empresa, sin depender de sesión ni de bypass. Revisar también OWNER (no existe en el enum de roles) y el lenguaje que equipara corrida COMPLETED con dispersión; AGU-04 conserva esa aceptación funcional.

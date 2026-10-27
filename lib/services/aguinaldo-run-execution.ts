@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { withCompanyContext } from "@/lib/db/tenant-context";
 import { payrollRuns, payrollPayslips, payrollAguinaldoDispersiones } from "@/lib/db/schema";
 import { percepcionAguinaldo, timbrarNomina, type NominaTimbradoResult } from "./fiscal-service";
 import { resolverFechaPagoAguinaldo } from "./aguinaldo-payment";
@@ -9,7 +10,7 @@ type Recibo = typeof payrollPayslips.$inferSelect;
 
 /** Mismo bloqueo breve para todos los finalizadores; nunca abarca una llamada al PAC. */
 async function conCorrida<T>(companyId: string, runId: string, work: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>) {
-  return db.transaction(async (tx) => {
+  return withCompanyContext({ companyId }, async (tx) => {
     const [run] = await tx.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.companyId, companyId))).for("update").limit(1);
     if (!run) throw new RangeError("Corrida no encontrada en esta empresa.");
     return work(tx);
@@ -66,13 +67,14 @@ async function actualizarEstado(companyId: string, run: Run) {
 
 /** Único consumidor de autorizaciones persistidas, tanto para ejecución inicial como recuperación. */
 export async function recuperarAguinaldoRun(companyId: string, runId: string) {
-  const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.companyId, companyId))).limit(1);
+  const [run] = await withCompanyContext({ companyId }, (tx) => tx.select().from(payrollRuns)
+    .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.companyId, companyId))).limit(1));
   if (!run) throw new RangeError("Corrida no encontrada en esta empresa.");
   const auth = run.aguinaldoSnapshot;
   if (!auth || auth.version !== 1 || auth.companyId !== companyId || auth.anioFiscal !== run.aguinaldoFiscalYear
     || run.periodStart !== `${auth.anioFiscal}-01-01` || run.periodEnd !== `${auth.anioFiscal}-12-31`) throw new RangeError("Falta snapshot de autorización válido: no se reconstruye con datos actuales.");
   resolverFechaPagoAguinaldo(auth.fechaPago);
-  const pendientes = await db.select().from(payrollPayslips).where(eq(payrollPayslips.runId, runId));
+  const pendientes = await withCompanyContext({ companyId }, (tx) => tx.select().from(payrollPayslips).where(eq(payrollPayslips.runId, runId)));
   if (!pendientes.length) throw new RangeError("La corrida no contiene recibos autorizados.");
   for (const slip of pendientes) {
     const row = slip.aguinaldoSnapshot;
