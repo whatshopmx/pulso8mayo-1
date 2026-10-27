@@ -22,6 +22,7 @@ vi.mock("@/lib/fiscal/sat-test-data", () => ({
 }));
 import { recuperarAguinaldoRun } from "@/lib/services/aguinaldo-run-execution";
 import { executeAguinaldoRun, getAguinaldoRuns, registrarDispersionExcedente, listarDispersionesExcedente } from "@/lib/services/aguinaldo-payroll-service";
+import { timbrarNomina, getTimbrado, type NominaTimbradoInput } from "@/lib/services/fiscal-service";
 
 neonConfig.webSocketConstructor = ws;
 state.context = new AsyncLocalStorage<Database>();
@@ -84,6 +85,11 @@ async function fiscalSource() {
     maxWeeklyHours: 48, maxDoubleOvertimeHours: 9, maxTripleOvertimeHours: 0, maxDailySumHours: 12,
     maxExtraHoursPerDay: 3, maxExtraDaysPerWeek: 3, umaDailyMxn: "113.14", minimumWageMxn: "315.04",
     sourceDofUrl: "https://www.inegi.org.mx/temas/uma/", sourcePublishedOn: "2025-01-10" });
+}
+function ordinaryInput(companyId = companyA): NominaTimbradoInput {
+  return { companyId, performedBy: "autoriza-ordinaria", empleadoRfc: "AAA010101AAA", empleadoNombre: "Empleado SQL",
+    empleadoSalarioDiarioCents: 60000, periodo: "2026-01-01 - 2026-01-15", payrollTypeCode: "O",
+    totalPercepciones: 900000, totalDeducciones: 50000 };
 }
 
 describe("OPS-02.nomina.A — recuperación con login runtime y políticas privadas", () => {
@@ -296,5 +302,61 @@ describe("OPS-02.nomina.A — recuperación con login runtime y políticas priva
     expect((await admin.query("SELECT performed_by FROM payroll_aguinaldo_dispersiones")).rows)
       .toEqual([{ performed_by: runs[0].aguinaldo_snapshot.performedBy }]);
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("B.2: timbra ordinaria con RLS y reutiliza el confirmado aun sin configuración del PAC", async () => {
+    const input = ordinaryInput(); const fetcher = pac();
+    fetcher.mockResolvedValueOnce(Response.json({ succeeded: true, data: { uuid: randomUUID(), total: 8500 } }));
+    const result = await state.context!.run(actors[0], () => timbrarNomina(input));
+    expect(result.status).toBe("TIMBRADO");
+    vi.stubEnv("FISCALAPI_API_KEY", "");
+    expect(await state.context!.run(actors[1], () => timbrarNomina(input))).toMatchObject({ uuid: result.uuid, status: "TIMBRADO" });
+    expect(await state.context!.run(actors[0], () => getTimbrado(companyA, input.empleadoRfc, input.periodo)))
+      .toMatchObject({ uuid: result.uuid, status: "TIMBRADO" });
+    expect(await state.context!.run(actors[0], () => getTimbrado(companyB, input.empleadoRfc, input.periodo))).toBeNull();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect((await admin.query("SELECT total_percepciones_cents,total_deducciones_cents,timbrado_por FROM cfdi_nomina_timbrados")).rows)
+      .toEqual([{ total_percepciones_cents: 900000, total_deducciones_cents: 50000, timbrado_por: "autoriza-ordinaria" }]);
+    expect((await pools[0].query("SELECT * FROM cfdi_nomina_timbrados")).rows).toHaveLength(0);
+  });
+
+  it("B.2: mismo RFC/período en dos empresas produce comprobantes separados", async () => {
+    const fetcher = pac();
+    fetcher.mockImplementation(async () => Response.json({ succeeded: true, data: { uuid: randomUUID(), total: 8500 } }));
+    const results = await Promise.all(actors.map((actor, i) => state.context!.run(actor,
+      () => timbrarNomina(ordinaryInput(i === 0 ? companyA : companyB)))));
+    expect(results.map((row) => row.status)).toEqual(["TIMBRADO", "TIMBRADO"]);
+    expect(results[0].uuid).not.toBe(results[1].uuid);
+    for (const [i, companyId] of [companyA, companyB].entries()) {
+      expect(await state.context!.run(actors[0], () => getTimbrado(companyId, ordinaryInput().empleadoRfc, ordinaryInput().periodo)))
+        .toMatchObject({ uuid: results[i].uuid });
+    }
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("B.2: el PAC no retiene contexto/pool y una respuesta tardía no pisa un confirmado", async () => {
+    const input = ordinaryInput(); const confirmed = randomUUID();
+    const fetcher = vi.fn(async () => {
+      expect((await pools[0].query("SELECT current_setting('app.current_company_id',true) company")).rows[0].company).toBeFalsy();
+      await owner.insert(schema.cfdiNominaTimbrados).values({ companyId: companyA, empleadoRfc: input.empleadoRfc,
+        empleadoNombre: input.empleadoNombre, periodo: input.periodo, uuid: confirmed, status: "TIMBRADO",
+        totalPercepcionesCents: 900000, totalDeduccionesCents: 50000 });
+      return Response.json({ succeeded: true, data: { uuid: randomUUID(), total: 8500 } });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    expect(await state.context!.run(actors[0], () => timbrarNomina(input))).toMatchObject({ uuid: confirmed, status: "TIMBRADO" });
+    expect((await admin.query("SELECT uuid FROM cfdi_nomina_timbrados")).rows).toEqual([{ uuid: confirmed }]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("B.2: persiste un rechazo y actualiza el mismo registro tras el siguiente intento", async () => {
+    const input = ordinaryInput(); const uuid = randomUUID(); const fetcher = pac();
+    fetcher.mockResolvedValueOnce(Response.json({ succeeded: false, message: "Rechazo explícito", data: { status: "REJECTED" } }));
+    fetcher.mockResolvedValueOnce(Response.json({ succeeded: true, data: { uuid, total: 8500 } }));
+    expect((await state.context!.run(actors[0], () => timbrarNomina(input))).status).toBe("RECHAZADO");
+    const before = (await admin.query("SELECT id FROM cfdi_nomina_timbrados")).rows[0].id;
+    expect(await state.context!.run(actors[1], () => timbrarNomina(input))).toMatchObject({ uuid, status: "TIMBRADO" });
+    expect((await admin.query("SELECT id,uuid FROM cfdi_nomina_timbrados")).rows).toEqual([{ id: before, uuid }]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

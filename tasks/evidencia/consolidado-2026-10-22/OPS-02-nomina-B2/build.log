@@ -1,0 +1,33 @@
+$ next build
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+- Experiments (use with caution):
+  · serverActions
+  ✓ turbopackUseSystemTlsCerts
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.3min
+  Running TypeScript ...
+
+<--- Last few GCs --->
+
+[19364:0000025EAECB3000]   253383 ms: Mark-Compact 2041.0 (2089.1) -> 2033.7 (2088.8) MB, pooled: 0 MB, 1229.60 / 0.01 ms  (average mu = 0.250, current mu = 0.317) allocation failure; scavenge might not succeed
+[19364:0000025EAECB3000]   258452 ms: Mark-Compact 2037.7 (2088.8) -> 2033.8 (2086.6) MB, pooled: 3 MB, 5038.08 / 0.00 ms  (average mu = 0.071, current mu = 0.006) allocation failure; scavenge might not succeed
+
+
+<--- JS stacktrace --->
+
+FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 00007FF6E3B80CD7 node::SetCppgcReference+16599
+ 2: 00007FF6E3AE4568 v8::base::CPU::num_virtual_address_bits+103336
+ 3: 00007FF6E46553B1 v8::Isolate::ReportExternalAllocationLimitReached+65
+ 4: 00007FF6E4641F36 v8::Function::Experimental_IsNopFunction+3302
+ 5: 00007FF6E449E870 v8::internal::StrongRootAllocatorBase::StrongRootAllocatorBase+33904
+ 6: 00007FF6E4497CBA v8::internal::StrongRootAllocatorBase::StrongRootAllocatorBase+6330
+ 7: 00007FF6E44934F5 v8::internal::ThreadIsolation::JitPageReference::Size+190613
+ 8: 00007FF6E3E1CF5D BIO_ssl_shutdown+189
+ 9: 7FF8000000000000
+Next.js build worker exited with code: 134 and signal: null
+[ELIFECYCLE] Command failed with exit code 134.

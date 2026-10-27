@@ -14,7 +14,7 @@
 // laborales se rellenan con valores deterministas de sandbox. Idempotencia:
 // tests/timbrado-idempotente.spec.ts.
 
-import { db } from "@/lib/db";
+import { withCompanyContext } from "@/lib/db/tenant-context";
 import { cfdiNominaTimbrados } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { DEFAULT_TEST_ISSUER } from "@/lib/fiscal/fiscalapi";
@@ -333,7 +333,7 @@ export async function getTimbrado(
   empleadoRfc: string,
   periodo: string
 ): Promise<NominaTimbradoResult | null> {
-  const [fila] = await db
+  const [fila] = await withCompanyContext({ companyId }, (tx) => tx
     .select()
     .from(cfdiNominaTimbrados)
     .where(
@@ -343,7 +343,7 @@ export async function getTimbrado(
         eq(cfdiNominaTimbrados.periodo, periodo)
       )
     )
-    .limit(1);
+    .limit(1));
 
   return fila ? comoResultado(fila) : null;
 }
@@ -623,7 +623,8 @@ export async function timbrarNomina(
     });
     return comoResultado(fila);
   }
-  const yaTimbrado = await db
+  const scope = { companyId: input.companyId, actorId: input.performedBy };
+  const yaTimbrado = await withCompanyContext(scope, (tx) => tx
     .select()
     .from(cfdiNominaTimbrados)
     .where(
@@ -633,7 +634,7 @@ export async function timbrarNomina(
         eq(cfdiNominaTimbrados.periodo, input.periodo)
       )
     )
-    .limit(1);
+    .limit(1));
 
   if (yaTimbrado[0]?.status === "TIMBRADO") {
     return comoResultado(yaTimbrado[0]);
@@ -670,7 +671,7 @@ export async function timbrarNomina(
       updatedAt: new Date(),
     };
 
-    const [fila] = await db
+    const [fila] = await withCompanyContext(scope, (tx) => tx
       .insert(cfdiNominaTimbrados)
       .values(valores)
       .onConflictDoUpdate({
@@ -685,13 +686,13 @@ export async function timbrarNomina(
         // intento: se quedaría el comprobante equivocado en la fila.
         setWhere: ne(cfdiNominaTimbrados.status, "TIMBRADO"),
       })
-      .returning();
+      .returning());
 
     if (fila) return fila;
 
     // `setWhere` bloqueó el UPDATE, así que no hubo `RETURNING`: la fila ya
     // estaba timbrada por quien ganó la carrera. Esa es la buena.
-    const [ganadora] = await db
+    const [ganadora] = await withCompanyContext(scope, (tx) => tx
       .select()
       .from(cfdiNominaTimbrados)
       .where(
@@ -701,7 +702,7 @@ export async function timbrarNomina(
           eq(cfdiNominaTimbrados.periodo, input.periodo)
         )
       )
-      .limit(1);
+      .limit(1));
 
     return ganadora;
   };
