@@ -46,7 +46,7 @@ vi.mock("@/lib/db", () => { const db = {
     } }) }),
     transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
         const before = state.writes.length;
-        try { const value = await fn(db); state.committed = true; return value; }
+        try { const value = await fn(db); if (state.writes.length > before) state.committed = true; return value; }
         catch (error) { state.writes.splice(before); throw error; }
     },
 }; return { db }; });

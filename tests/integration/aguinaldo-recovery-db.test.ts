@@ -319,7 +319,9 @@ describe("AGU-03C.1 — recuperación en Postgres independiente, PAC HTTP simula
     const gate = new Promise<void>((resolve) => { release = resolve; });
     const spies = actors.map((actor) => {
       const transaction = actor.transaction.bind(actor);
-      return vi.spyOn(actor, "transaction").mockImplementationOnce(async (fn, config) => {
+      return vi.spyOn(actor, "transaction")
+        .mockImplementationOnce((fn, config) => transaction(fn, config)) // Precheck con contexto, sin escrituras.
+        .mockImplementationOnce(async (fn, config) => {
         if (++entered === 2) release();
         await gate;
         return transaction(fn, config);

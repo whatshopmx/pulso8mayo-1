@@ -7,28 +7,33 @@ import { drizzle } from "drizzle-orm/neon-serverless";
 import ws from "ws";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { payrollRuns, payrollPayslips } from "@/lib/db/schema";
+import * as schema from "@/lib/db/schema";
 import type { AguinaldoEmpleadoSnapshot, AguinaldoSnapshotCabecera } from "@/lib/services/aguinaldo-snapshot";
 import { RUNTIME_ROLE, runtimeUrl } from "./helpers/runtime-role";
 
 type Database = ReturnType<typeof drizzle>;
 const state = vi.hoisted(() => ({ context: null as AsyncLocalStorage<Database> | null }));
 vi.mock("@/lib/db", () => ({ get db() { return state.context?.getStore(); } }));
+vi.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn, revalidateTag: vi.fn() }));
 vi.mock("@/lib/fiscal/sat-test-data", () => ({
   loadCsdForTin: () => ({}), resolveTestPerson: () => null,
   SAT_TEST_MORALES: [{ tin: "EKU9003173C9", legalName: "Emisor de prueba", zipCode: "64000", taxRegimeCode: "601" }],
   SAT_TEST_FISICAS: [{ tin: "AAA010101AAA", legalName: "Prueba", zipCode: "64000" }],
 }));
 import { recuperarAguinaldoRun } from "@/lib/services/aguinaldo-run-execution";
+import { executeAguinaldoRun, getAguinaldoRuns, registrarDispersionExcedente, listarDispersionesExcedente } from "@/lib/services/aguinaldo-payroll-service";
 
 neonConfig.webSocketConstructor = ws;
 state.context = new AsyncLocalStorage<Database>();
 const namespace = `nomina_a_${randomUUID().replaceAll("-", "")}`;
 const options = `-c search_path=${namespace},public -c statement_timeout=15000 -c lock_timeout=10000`;
 const admin = new Pool({ connectionString: process.env.TEST_DATABASE_URL, max: 1, allowExitOnIdle: true, connectionTimeoutMillis: 5000, options });
-const owner = drizzle(admin);
+const owner = drizzle(admin, { schema });
 const pools = [0, 1].map(() => new Pool({ connectionString: runtimeUrl(), max: 1, allowExitOnIdle: true, connectionTimeoutMillis: 5000, options }));
-const actors = pools.map((pool) => drizzle(pool));
+const actors = pools.map((pool) => drizzle(pool, { schema }));
 const tables = ["payroll_runs", "payroll_payslips", "payroll_aguinaldo_dispersiones", "cfdi_nomina_timbrados"];
+const sources = ["users", "employee_profiles", "employee_contracts", "shift_sessions", "leave_requests", "leave_types",
+  "labor_law_calendar_rules", "tenant_operating_config"];
 const companyA = randomUUID(); const companyB = randomUUID();
 let created = false;
 
@@ -60,6 +65,26 @@ function pac() {
   vi.stubGlobal("fetch", fetcher);
   return fetcher;
 }
+function execute(actor: number, companyId = companyA) {
+  return state.context!.run(actors[actor], () => executeAguinaldoRun(companyId, 2025, `autoriza-${actor}`, { fechaPago: "2026-01-31" }));
+}
+async function sourceEmployee(companyId = companyA, rfc = "AAA010101AAA") {
+  const userId = randomUUID();
+  await owner.insert(schema.users).values({ id: userId, name: "Empleado SQL", email: `${userId}@example.test`,
+    companyId, createdAt: new Date(), updatedAt: new Date() });
+  await owner.insert(schema.employeeProfiles).values({ userId, rfc, isActive: true,
+    hireDate: new Date("2025-01-01T12:00:00Z"), createdBy: "fixture" });
+  await owner.insert(schema.employeeContracts).values({ userId, companyId, contractNumber: userId,
+    startDate: new Date("2025-01-01T12:00:00Z"), baseSalary: 60000, effectiveSalaryCents: 90000, createdBy: "fixture" });
+  await owner.insert(schema.tenantOperatingConfig).values({ companyId, payrollPracticeMode: "MIXED", aguinaldoBase: "EFFECTIVE" }).onConflictDoNothing();
+  return userId;
+}
+async function fiscalSource() {
+  await owner.insert(schema.laborLawCalendarRules).values({ effectiveFrom: "2026-01-01", effectiveTo: "2026-01-31",
+    maxWeeklyHours: 48, maxDoubleOvertimeHours: 9, maxTripleOvertimeHours: 0, maxDailySumHours: 12,
+    maxExtraHoursPerDay: 3, maxExtraDaysPerWeek: 3, umaDailyMxn: "113.14", minimumWageMxn: "315.04",
+    sourceDofUrl: "https://www.inegi.org.mx/temas/uma/", sourcePublishedOn: "2025-01-10" });
+}
 
 describe("OPS-02.nomina.A — recuperación con login runtime y políticas privadas", () => {
   beforeAll(async () => {
@@ -76,9 +101,12 @@ describe("OPS-02.nomina.A — recuperación con login runtime y políticas priva
       FROM pg_roles WHERE rolname=$1`, [RUNTIME_ROLE])).rows;
     expect(role).toEqual([{ rolsuper: false, rolbypassrls: false, owner_member: false }]);
     await admin.query(`CREATE SCHEMA "${namespace}"`); created = true;
-    for (const table of tables) await admin.query(`CREATE TABLE "${namespace}".${table} (LIKE public.${table} INCLUDING ALL)`);
+    for (const table of [...tables, ...sources]) await admin.query(`CREATE TABLE "${namespace}".${table} (LIKE public.${table} INCLUDING ALL)`);
     for (const table of tables.slice(0, 2)) await admin.query(`ALTER TABLE "${namespace}".${table} ADD COLUMN IF NOT EXISTS aguinaldo_snapshot jsonb`);
+    await admin.query(`CREATE UNIQUE INDEX IF NOT EXISTS payroll_payslips_aguinaldo_snapshot_employee_unique
+      ON "${namespace}".payroll_payslips(run_id,user_id) WHERE aguinaldo_snapshot IS NOT NULL`);
     await admin.query(`GRANT USAGE ON SCHEMA "${namespace}" TO "${RUNTIME_ROLE}"`);
+    for (const table of sources) await admin.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON "${namespace}".${table} TO "${RUNTIME_ROLE}"`);
     const context = "NULLIF(current_setting('app.current_company_id',true),'')::uuid";
     for (const table of tables) {
       await admin.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON "${namespace}".${table} TO "${RUNTIME_ROLE}"`);
@@ -95,7 +123,8 @@ describe("OPS-02.nomina.A — recuperación con login runtime y políticas priva
   });
   beforeEach(async () => {
     await admin.query(`DROP TRIGGER IF EXISTS reject_confirmation ON "${namespace}".payroll_payslips`);
-    await admin.query(`TRUNCATE ${tables.map((table) => `"${namespace}".${table}`).join(",")}`);
+    await admin.query(`DROP TRIGGER IF EXISTS reject_authorization ON "${namespace}".payroll_payslips`);
+    await admin.query(`TRUNCATE ${[...tables, ...sources].map((table) => `"${namespace}".${table}`).join(",")}`);
     vi.stubEnv("FISCALAPI_API_KEY", "simulada-sin-red"); vi.stubEnv("FISCALAPI_ENV", "test");
   });
   afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
@@ -197,5 +226,75 @@ describe("OPS-02.nomina.A — recuperación con login runtime y políticas priva
     expect(fetcher).not.toHaveBeenCalled();
     expect((await admin.query("SELECT * FROM cfdi_nomina_timbrados")).rows).toHaveLength(0);
     expect((await pools[0].query("SELECT * FROM payroll_runs")).rows).toHaveLength(0);
+  });
+
+  it("B.1: autoriza desde fuentes SQL y lista historial/bitácora sólo de su empresa", async () => {
+    await fiscalSource(); await sourceEmployee(); await sourceEmployee(companyB); const fetcher = pac();
+    const [a, b] = await Promise.all([execute(0), execute(1, companyB)]);
+    expect(a.results[0].success).toBe(true); expect(b.results[0].success).toBe(true);
+    const history = await state.context!.run(actors[0], () => getAguinaldoRuns(companyA));
+    expect(history.map((row) => row.id)).toEqual([a.runId]);
+    const audit = await state.context!.run(actors[0], () => listarDispersionesExcedente(companyA, 2025));
+    expect(audit).toMatchObject([{ montoCents: 450000, performedBy: "autoriza-0", source: "RUN" }]);
+    await expect(execute(0)).rejects.toThrow(/2025/);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("B.1: registra bitácora manual para su empleado y rechaza el de otra empresa", async () => {
+    const a = await sourceEmployee(); const b = await sourceEmployee(companyB);
+    const input = { anioFiscal: 2025, userId: a, montoCents: 12345, motivo: "Registro manual de revisión", performedBy: "manual" };
+    const row = await state.context!.run(actors[0], () => registrarDispersionExcedente(companyA, input));
+    expect(row).toMatchObject({ companyId: companyA, userId: a, montoCents: 12345, source: "MANUAL", runId: null });
+    await expect(state.context!.run(actors[0], () => registrarDispersionExcedente(companyA, { ...input, userId: b })))
+      .rejects.toThrow(/Empleado no encontrado/);
+    expect(await state.context!.run(actors[0], () => listarDispersionesExcedente(companyB, 2025))).toEqual([]);
+    expect(await state.context!.run(actors[0], () => listarDispersionesExcedente(companyA, 2025)))
+      .toMatchObject([{ id: row.id, userId: a, performedBy: "manual" }]);
+    expect((await admin.query("SELECT * FROM payroll_aguinaldo_dispersiones")).rows).toHaveLength(1);
+    expect((await pools[0].query("SELECT * FROM payroll_aguinaldo_dispersiones")).rows).toHaveLength(0);
+  });
+
+  it("B.1: fallo de autorización revierte corrida y recibo antes del PAC y permite otro autorizador", async () => {
+    await fiscalSource(); await sourceEmployee(); const fetcher = pac();
+    await sourceEmployee(companyA, "BBB010101BBB");
+    await admin.query(`CREATE FUNCTION "${namespace}".reject_authorization() RETURNS trigger LANGUAGE plpgsql
+      AS $$ BEGIN RAISE EXCEPTION 'fallo de autorización'; END $$`);
+    await admin.query(`CREATE TRIGGER reject_authorization BEFORE INSERT ON "${namespace}".payroll_payslips
+      FOR EACH ROW WHEN (NEW.aguinaldo_snapshot->>'rfc'='BBB010101BBB') EXECUTE FUNCTION "${namespace}".reject_authorization()`);
+    await expect(execute(0)).rejects.toThrow();
+    for (const table of tables) expect((await admin.query(`SELECT * FROM ${table}`)).rows).toHaveLength(0);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect((await pools[0].query("SELECT * FROM payroll_runs")).rows).toHaveLength(0);
+    await admin.query(`DROP TRIGGER reject_authorization ON "${namespace}".payroll_payslips`);
+    expect((await execute(1)).results.map((result) => result.success)).toEqual([true, true]);
+    expect((await admin.query("SELECT * FROM payroll_payslips")).rows).toHaveLength(2);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("B.1: dos autorizadores con runtime compiten al guardar y sólo uno solicita folio", async () => {
+    await fiscalSource(); await sourceEmployee(); const fetcher = pac();
+    let entered = 0; let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const spies = actors.map((actor) => {
+      const transaction = actor.transaction.bind(actor);
+      return vi.spyOn(actor, "transaction")
+        .mockImplementationOnce((fn, config) => transaction(fn, config))
+        .mockImplementationOnce(async (fn, config) => {
+          if (++entered === 2) release(); await gate;
+          return transaction(fn, config);
+        });
+    });
+    let results;
+    try { results = await Promise.allSettled([execute(0), execute(1)]); }
+    finally { spies.forEach((spy) => spy.mockRestore()); }
+    expect(entered).toBe(2);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    const runs = (await admin.query("SELECT aguinaldo_snapshot FROM payroll_runs")).rows;
+    expect(runs).toHaveLength(1);
+    expect((await admin.query("SELECT * FROM payroll_payslips")).rows).toHaveLength(1);
+    expect((await admin.query("SELECT performed_by FROM payroll_aguinaldo_dispersiones")).rows)
+      .toEqual([{ performed_by: runs[0].aguinaldo_snapshot.performedBy }]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });

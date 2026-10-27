@@ -32,6 +32,9 @@ CodeGraph devolvió la definición de payrollRuns, pero no los callers conocidos
 
 1. **NOMINA-A — completo local:** protocolo fiscal/consumidor de recuperación con transacciones breves y pruebas; no mantiene conexión ante el PAC. Runtime 6/6; integración conjunta 21/21; focalizadas 51/51; lint/build con TypeScript exit 0. [Evidencia y límites](../tasks/evidencia/consolidado-2026-10-22/OPS-02-nomina-A/README.md). Las políticas son privadas de contrato; el lote definitivo y HTTP/job completo siguen en E/F.
 2. **NOMINA-B:** autorización/historial/bitácora de aguinaldo y nómina ordinaria, separando hijos si código+tests supera cinco archivos.
+   - **B.1 completo local:** autorización/historial/bitácora de aguinaldo; integración conjunta 25/25, focalizadas 39/39 y lint/build con TypeScript exit 0. [Evidencia](../tasks/evidencia/consolidado-2026-10-22/OPS-02-nomina-B1/README.md).
+   - **B.2 pendiente:** consulta/reutilización/persistencia fiscal ordinaria.
+   - **B.3 pendiente:** corridas/listados/recibos ordinarios y caller HTTP con empresa explícita.
 3. **NOMINA-C:** lecturas/bloqueos de tesorería con contexto en el tx real y regresiones HTTP/layout.
 4. **NOMINA-D:** cron/job por empresa, sin depender de sesión ni de bypass. Revisar también OWNER (no existe en el enum de roles) y el lenguaje que equipara corrida COMPLETED con dispersión; AGU-04 conserva esa aceptación funcional.
 5. **NOMINA-E:** generar/revisar la migración aditiva de políticas y grants del rol preaprovisionado; inventariar el nuevo lote en OPS-01. No crear credenciales en SQL versionado ni aplicar al operativo.

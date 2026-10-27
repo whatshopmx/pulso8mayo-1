@@ -17,6 +17,7 @@
  *     consumidor de snapshots y conserva las intenciones fiscales inciertas.
  */
 import { db } from "@/lib/db";
+import { withCompanyContext } from "@/lib/db/tenant-context";
 import {
     payrollRuns,
     payrollPayslips,
@@ -352,11 +353,11 @@ export async function executeAguinaldoRun(
     branchId?: string
 ): Promise<AguinaldoRunResult> {
     // Guarda de idempotencia (el índice único es la red de la carrera).
-    const [existente] = await db
+    const [existente] = await withCompanyContext({ companyId }, (tx) => tx
         .select({ id: payrollRuns.id, status: payrollRuns.status })
         .from(payrollRuns)
         .where(and(eq(payrollRuns.companyId, companyId), eq(payrollRuns.aguinaldoFiscalYear, anioFiscal)))
-        .limit(1);
+        .limit(1));
     if (existente) throw new AguinaldoRunDuplicadoError(anioFiscal);
 
     const preview = await previsualizarAguinaldo(companyId, anioFiscal, branchId, dias);
@@ -368,7 +369,7 @@ export async function executeAguinaldoRun(
     const snapshot = crearSnapshotAguinaldo(preview, performedBy ?? "system", branchId);
     // Una sola transacción: ningún folio se solicita antes de conservar TODOS
     // los importes autorizados. No mantener la transacción abierta frente al PAC.
-    const { run } = await db.transaction(async (tx) => {
+    const { run } = await withCompanyContext({ companyId, branchId, actorId: snapshot.cabecera.performedBy }, async (tx) => {
         const [run] = await tx.insert(payrollRuns).values({
             companyId, periodStart: `${anioFiscal}-01-01`, periodEnd: `${anioFiscal}-12-31`,
             status: "PROCESSING", aguinaldoFiscalYear: anioFiscal, aguinaldoSnapshot: snapshot.cabecera,
@@ -387,7 +388,7 @@ export async function executeAguinaldoRun(
 
 /** Runs de aguinaldo de la empresa (historial para la UI de Task 7). */
 export async function getAguinaldoRuns(companyId: string) {
-    return await db
+    return withCompanyContext({ companyId }, (tx) => tx
         .select({
             id: payrollRuns.id,
             aguinaldoFiscalYear: payrollRuns.aguinaldoFiscalYear,
@@ -398,7 +399,7 @@ export async function getAguinaldoRuns(companyId: string) {
         })
         .from(payrollRuns)
         .where(and(eq(payrollRuns.companyId, companyId), gte(payrollRuns.aguinaldoFiscalYear, 1970)))
-        .orderBy(desc(payrollRuns.createdAt));
+        .orderBy(desc(payrollRuns.createdAt)));
 }
 
 /** Error de negocio del registro manual del excedente (400 para la API). */
@@ -448,33 +449,35 @@ export async function registrarDispersionExcedente(
         );
     }
 
-    const empleado = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(and(eq(users.id, input.userId), eq(users.companyId, companyId)))
-        .limit(1);
-    if (empleado.length === 0) {
-        throw new AguinaldoDispersionInvalidaError("Empleado no encontrado en esta empresa.");
-    }
+    return withCompanyContext({ companyId, actorId: input.performedBy }, async (tx) => {
+        const empleado = await tx
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.id, input.userId), eq(users.companyId, companyId)))
+            .limit(1);
+        if (empleado.length === 0) {
+            throw new AguinaldoDispersionInvalidaError("Empleado no encontrado en esta empresa.");
+        }
 
-    const [row] = await db
-        .insert(payrollAguinaldoDispersiones)
-        .values({
-            companyId,
-            source: "MANUAL",
-            userId: input.userId,
-            anioFiscal: input.anioFiscal,
-            montoCents: input.montoCents,
-            motivo: input.motivo.trim(),
-            performedBy: input.performedBy,
-        })
-        .returning();
-    return row;
+        const [row] = await tx
+            .insert(payrollAguinaldoDispersiones)
+            .values({
+                companyId,
+                source: "MANUAL",
+                userId: input.userId,
+                anioFiscal: input.anioFiscal,
+                montoCents: input.montoCents,
+                motivo: input.motivo.trim(),
+                performedBy: input.performedBy,
+            })
+            .returning();
+        return row;
+    });
 }
 
 /** Bitácora de las dispersiones de excedente (por empresa y año para la UI). */
 export async function listarDispersionesExcedente(companyId: string, anioFiscal?: number) {
-    return await db
+    return withCompanyContext({ companyId }, (tx) => tx
         .select({
             id: payrollAguinaldoDispersiones.id,
             userId: payrollAguinaldoDispersiones.userId,
@@ -495,5 +498,5 @@ export async function listarDispersionesExcedente(companyId: string, anioFiscal?
             )
         )
         .orderBy(desc(payrollAguinaldoDispersiones.fechaDispersion))
-        .limit(200);
+        .limit(200));
 }
