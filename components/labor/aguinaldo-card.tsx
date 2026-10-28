@@ -34,9 +34,26 @@ interface AguinaldoRow {
   esFormal: boolean;
   diasCalendario: number;
   diasLaborados: number;
-  /** Task 14: fuente de los días — MANUAL, TURNOS_Y_PERMISOS o CALENDARIO. */
-  fuenteDias?: "MANUAL" | "TURNOS_Y_PERMISOS" | "CALENDARIO";
+  /** DIA-02: MANUAL sólo si el admin tocó el campo; el resto es propuesta/calendario. */
+  fuenteDias?: "MANUAL" | "PROPUESTA_AUDITABLE" | "CALENDARIO";
   diasAutomaticos: number | null;
+  /** DIA-02: auditoría de la propuesta (corte, zona, pendientes, proyección). */
+  propuestaDias?: {
+    desde: string;
+    hasta: string;
+    fechaCorte: string;
+    zona: string;
+    diasCalendario: number;
+    diasNoComputables: number;
+    diasPropuestos: number;
+    diasConTurno: number;
+    pendientes: number;
+    conflictos: number;
+    requiereRevision: boolean;
+    contieneProyeccion: boolean;
+    coberturaFuentes: "PARCIAL";
+    fechasNoComputables: string[];
+  };
   fechaAntiguedad: string | null;
   calculo: {
     brutoCents: number;
@@ -64,6 +81,8 @@ interface AguinaldoPreview {
   totalDiferenciaCents: number;
   empleadosATimbrar: number;
   empleadosSinRFC: number;
+  /** DIA-02: avisos de cobertura/zona; informativos, no bloquean por sí solos. */
+  advertenciasDias?: string[];
 }
 
 interface DispersionBitacora {
@@ -153,9 +172,9 @@ export function AguinaldoCard() {
       if (res.ok && data.success) {
         const p = data.data as AguinaldoPreview;
         setPreview(p);
-        setDiasEditados(
-          Object.fromEntries(p.rows.filter((r) => r.calculo).map((r) => [r.userId, r.diasLaborados]))
-        );
+        // DIA-02: la propuesta auditable es el valor por omisión; el estado de
+        // overrides arranca VACÍO para no enviar como MANUAL lo que nadie tocó.
+        setDiasEditados({});
       } else {
         throw new Error(data.error?.message || "Error en la preview de aguinaldo");
       }
@@ -352,8 +371,17 @@ export function AguinaldoCard() {
       diferencia: calculoEfectivo ? calculoEfectivo.brutoCents - calculo.brutoCents : 0,
     };
   };
-  const rowsTimbrables = preview?.rows.filter((r) => calculoLocal(r)?.pago && r.rfc) ?? [];
-  const hayBloqueos = preview?.rows.some((r) => !r.rfc || !calculoLocal(r)?.pago) ?? true;
+  /** DIA-02: un bloqueo por revisión se confirma con el override manual, no se oculta. */
+  const revisionConfirmada = (row: AguinaldoRow) =>
+    !!row.propuestaDias?.requiereRevision && Object.hasOwn(diasEditados, row.userId);
+
+  const errorFila = (row: AguinaldoRow): string | undefined =>
+    calculoLocal(row)?.error
+    ?? (row.error && !revisionConfirmada(row) ? row.error : undefined)
+    ?? (row.rfc ? undefined : "Falta RFC para timbrar.");
+
+  const rowsTimbrables = preview?.rows.filter((r) => !errorFila(r) && calculoLocal(r)?.pago && r.rfc) ?? [];
+  const hayBloqueos = preview?.rows.some((r) => !!errorFila(r) || !r.rfc || !calculoLocal(r)?.pago) ?? true;
   const totales = rowsTimbrables.reduce(
     (acc, r) => {
       const c = calculoLocal(r);
@@ -369,6 +397,23 @@ export function AguinaldoCard() {
     },
     { bruto: 0, exento: 0, gravado: 0, deducciones: 0, neto: 0, diferencia: 0 }
   );
+
+  /** DIA-02: explicación corta de la procedencia de los días de la fila. */
+  const textoDias = (row: AguinaldoRow) => {
+    const editado = Object.hasOwn(diasEditados, row.userId);
+    const p = row.propuestaDias;
+    const partes: string[] = [
+      editado ? "ajuste manual" : row.fuenteDias === "PROPUESTA_AUDITABLE" ? "propuesta auditable" : "calendario",
+    ];
+    if (p) {
+      partes.push(`calendario ${p.diasCalendario}`);
+      if (p.diasNoComputables > 0) partes.push(`−${p.diasNoComputables} no computables`);
+      partes.push(`corte ${p.fechaCorte} · ${p.zona}`);
+    } else {
+      partes.push(`calendario ${row.diasCalendario}`);
+    }
+    return partes.join(" · ");
+  };
 
   return (
     <Card className="border border-border bg-card">
@@ -468,10 +513,10 @@ export function AguinaldoCard() {
                           </span>
                         )}
                       </div>
-                      {(calculoLocal(row)?.error || (!row.calculo && row.error) || !row.rfc) && (
+                      {errorFila(row) && (
                         <div className="text-destructive flex items-start gap-1 mt-0.5">
                           <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
-                          <span className="leading-tight">{calculoLocal(row)?.error || row.error || "Falta RFC para timbrar."}</span>
+                          <span className="leading-tight">{errorFila(row)}</span>
                         </div>
                       )}
                     </TableCell>
@@ -495,15 +540,32 @@ export function AguinaldoCard() {
                         />
                       )}
                       {calculoLocal(row) && (
-                        <div className="text-xs text-muted-foreground mt-0.5">
+                        <div className="text-xs text-muted-foreground mt-0.5 leading-tight">
                           = {(calculoLocal(row)!.calculo.diasAguinaldo).toFixed(2)} días agui. ·{" "}
-                          {row.fuenteDias === "TURNOS_Y_PERMISOS"
-                            ? `auto: turnos+permisos (${row.diasAutomaticos})`
-                            : row.fuenteDias === "MANUAL"
-                              ? `ajuste manual · auto ${row.diasAutomaticos ?? "s/datos"} · calendario ${row.diasCalendario}`
-                              : `calendario ${row.diasCalendario} (sin turnos/permisos)`}
+                          <span title={row.propuestaDias?.fechasNoComputables.join(", ")}>{textoDias(row)}</span>
                         </div>
                       )}
+                      <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1">
+                        {row.propuestaDias?.requiereRevision && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-medium border-amber-500/50 text-amber-700 dark:text-amber-300"
+                            title={`${row.propuestaDias.pendientes} permiso(s) sin clasificar · ${row.propuestaDias.conflictos} conflicto(s)`}
+                          >
+                            {Object.hasOwn(diasEditados, row.userId) ? "Revisión confirmada manualmente" : "Revisar días"}
+                          </Badge>
+                        )}
+                        {row.propuestaDias?.contieneProyeccion && (
+                          <Badge variant="outline" className="text-[10px] font-medium" title="El corte es anterior al cierre del año: los días posteriores no son faltas.">
+                            Proyección
+                          </Badge>
+                        )}
+                        {row.propuestaDias?.diasConTurno === 0 && row.propuestaDias.diasNoComputables === 0 && (
+                          <Badge variant="outline" className="text-[10px] font-medium" title="Sin turnos capturados: la propuesta usa el calendario, no una lista de faltas.">
+                            Sin checadas
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-xs font-mono text-right font-semibold">
                       {calculoLocal(row) ? formatCents(calculoLocal(row)!.calculo.brutoCents) : "—"}
@@ -552,6 +614,16 @@ export function AguinaldoCard() {
 
         {/* Panel de ejecución e historial */}
         <div className="space-y-4">
+          {preview && preview.advertenciasDias && preview.advertenciasDias.length > 0 && (
+            <div role="status" className="rounded-lg border border-border bg-muted/30 p-3 text-xs space-y-1">
+              <div className="font-semibold text-foreground">Días propuestos: cobertura y límites</div>
+              <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+                {preview.advertenciasDias.map((advertencia, index) => (
+                  <li key={index}>{advertencia}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground flex items-center gap-1.5">
@@ -577,7 +649,7 @@ export function AguinaldoCard() {
               <span>Neto a pagar (registro)</span>
               <span className="font-mono">{formatCents(totales.neto)}</span>
             </div>
-            {hayBloqueos && preview && <p role="status" className="text-destructive">Resuelve los bloqueos de los empleados antes de ejecutar.</p>}
+            {hayBloqueos && preview && <p role="status" className="text-destructive">Resuelve los bloqueos (incluidos los días por revisar) antes de ejecutar.</p>}
             <div className="flex items-center justify-between text-muted-foreground">
               <span>Timbrables / Sin RFC:</span>
               <span className="font-mono">{preview ? `${rowsTimbrables.length} / ${preview.empleadosSinRFC}` : "—"}</span>

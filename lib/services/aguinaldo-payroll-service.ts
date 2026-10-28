@@ -36,7 +36,8 @@ import { resolverTarifaParaAnio } from "./isr-annual-withholding";
 import { crearSnapshotAguinaldo } from "./aguinaldo-snapshot";
 import { getTenantOperatingConfig } from "./tenant-config-service";
 import { resolveAguinaldoBase, resolveEffectiveSalary } from "./employee-service";
-import { conteoDiasLaboradosAnual, type FuenteDias } from "./dias-laborados-service";
+import { cargarFuentesDiasAguinaldo } from "./aguinaldo-days-adapter";
+import { proponerDiasAguinaldo } from "./aguinaldo-days-policy";
 
 export interface AguinaldoPreviewRow {
     userId: string;
@@ -52,7 +53,7 @@ export interface AguinaldoPreviewRow {
     esFormal: boolean;
     /** Días calendario del año fiscal desde la antigüedad (fallback). */
     diasCalendario: number;
-    /** Días a cobrar: manual por el admin si viene; fallback al calendario. */
+    /** Días a cobrar: override manual si viene; si no, propuesta auditable o calendario. */
     diasLaborados: number;
     /** Fecha fuente de la antigüedad usada para el fallback. */
     fechaAntiguedad: string | null;
@@ -69,13 +70,31 @@ export interface AguinaldoPreviewRow {
      */
     diferenciaCents: number;
     /**
-     * Task 14: fuente de los días usados. MANUAL = el admin tocó el campo
-     * (prevalece); TURNOS_Y_PERMISOS = conteo automático cruzado;
-     * CALENDARIO = fallback calendario sin turnos/permisos capturados.
+     * DIA-02: fuente de los días usados. MANUAL = el admin tocó el campo
+     * (prevalece, incluido cero); PROPUESTA_AUDITABLE = calendario de vigencia
+     * menos ausencias aprobadas desde las fuentes reales; CALENDARIO = sin
+     * propuesta calculable (fallback).
      */
-    fuenteDias?: FuenteDias | "MANUAL" | "CALENDARIO";
-    /** Días propuestos por el conteo automático (NULL si no hay datos). */
+    fuenteDias?: "MANUAL" | "PROPUESTA_AUDITABLE" | "CALENDARIO";
+    /** Días propuestos por la propuesta auditable (NULL si no se pudo calcular). */
     diasAutomaticos: number | null;
+    /** Auditoría de la propuesta de días (DIA-01/DIA-02): corte, zona y pendientes. */
+    propuestaDias?: {
+        desde: string;
+        hasta: string;
+        fechaCorte: string;
+        zona: string;
+        diasCalendario: number;
+        diasNoComputables: number;
+        diasPropuestos: number;
+        diasConTurno: number;
+        pendientes: number;
+        conflictos: number;
+        requiereRevision: boolean;
+        contieneProyeccion: boolean;
+        coberturaFuentes: "PARCIAL";
+        fechasNoComputables: string[];
+    };
     /** Dato faltante o contrato no activo: no puede timbrar. */
     error?: string;
 }
@@ -105,6 +124,8 @@ export interface AguinaldoPreview {
     totalDiferenciaCents: number;
     empleadosATimbrar: number;
     empleadosSinRFC: number;
+    /** DIA-02: avisos de cobertura/zona de la propuesta de días (no bloqueantes). */
+    advertenciasDias: string[];
 }
 
 export interface ExecuteAguinaldoDias {
@@ -228,9 +249,14 @@ export async function previsualizarAguinaldo(
     const regla = await resolverReglaLey(fecha.fechaPago);
     const rowsBase = await cargarPlantillaAguinaldo(companyId, anioFiscal, branchId);
 
-    // Task 14: conteo automático turnos COMPLETED ∪ permisos pagados.
-    // Propuesto ≡ ajustable: el valor manual del admin prevalece.
-    const conteo = await conteoDiasLaboradosAnual(companyId, anioFiscal);
+    // DIA-02: propuesta auditable desde las fuentes reales (calendario de
+    // vigencia − ausencias aprobadas), no un conteo de checadas. El override
+    // manual sigue prevaleciendo, incluido el cero explícito.
+    const fuentes = await cargarFuentesDiasAguinaldo({
+        companyId,
+        anioFiscal,
+        empleados: rowsBase.map((row) => ({ userId: row.userId, branchId: row.branchId })),
+    });
 
     // Task 11: la base y práctica de nómina salen de la config del inquilino.
     const config = await getTenantOperatingConfig(companyId);
@@ -240,15 +266,50 @@ export async function previsualizarAguinaldo(
     const rows: AguinaldoPreviewRow[] = rowsBase.map((row) => {
         if (row.error) return row;
         const manual = dias.diasLaboradosPorUsuario?.[row.userId];
-        const auto = conteo.porUsuario[row.userId];
+        const fuente = fuentes.porUsuario[row.userId];
+        let propuesta: ReturnType<typeof proponerDiasAguinaldo> | null = null;
+        let errorPropuesta: string | undefined;
+        if (fuente && row.fechaAntiguedad) {
+            try {
+                propuesta = proponerDiasAguinaldo({
+                    anioFiscal,
+                    fechaAntiguedad: row.fechaAntiguedad,
+                    fechaCorte: fuentes.fechaCorte,
+                    zona: fuente.zona,
+                    diasConTurno: fuente.diasConTurno,
+                    ausencias: fuente.ausencias,
+                });
+            } catch (err) {
+                // Un dato corrupto de un empleado no debe tumbar la preview completa.
+                errorPropuesta = `No se pudo proponer días: ${err instanceof Error ? err.message : String(err)}`;
+            }
+        }
+        const propuestaDias: AguinaldoPreviewRow["propuestaDias"] = propuesta
+            ? {
+                desde: propuesta.desde,
+                hasta: propuesta.hasta,
+                fechaCorte: propuesta.fechaCorte,
+                zona: propuesta.zona,
+                diasCalendario: propuesta.diasCalendario,
+                diasNoComputables: propuesta.diasNoComputables,
+                diasPropuestos: propuesta.diasPropuestos,
+                diasConTurno: propuesta.diasConTurno,
+                pendientes: propuesta.pendientes.length,
+                conflictos: propuesta.conflictos.length,
+                requiereRevision: propuesta.requiereRevision,
+                contieneProyeccion: propuesta.contieneProyeccion,
+                coberturaFuentes: propuesta.coberturaFuentes,
+                fechasNoComputables: propuesta.fechasNoComputables,
+            }
+            : undefined;
         let diasLaborados: number;
-        let fuenteDias: "MANUAL" | "TURNOS_Y_PERMISOS" | "CALENDARIO";
+        let fuenteDias: "MANUAL" | "PROPUESTA_AUDITABLE" | "CALENDARIO";
         if (typeof manual === "number") {
             diasLaborados = manual;
             fuenteDias = "MANUAL";
-        } else if (auto && auto.dias > 0) {
-            diasLaborados = auto.dias;
-            fuenteDias = "TURNOS_Y_PERMISOS";
+        } else if (propuesta) {
+            diasLaborados = propuesta.diasPropuestos;
+            fuenteDias = "PROPUESTA_AUDITABLE";
         } else {
             diasLaborados = row.diasCalendario;
             fuenteDias = "CALENDARIO";
@@ -283,11 +344,21 @@ export async function previsualizarAguinaldo(
         } catch (err) {
             error = err instanceof Error ? err.message : String(err);
         }
+        if (errorPropuesta && !error) error = errorPropuesta;
+        // DIA-01/DIA-02: una clasificación pendiente o un conflicto no se
+        // entrega como conteo definitivo autorizado; el override manual —aun
+        // cero— es la vía explícita para confirmarlo.
+        if (typeof manual !== "number" && propuesta?.requiereRevision && !error) {
+            error = `Días por revisar: ${propuesta.pendientes.length} permiso(s) sin clasificar y `
+                + `${propuesta.conflictos.length} conflicto(s) entre ausencia y día protegido. `
+                + "Confirma los días manualmente o corrige el catálogo de permisos.";
+        }
         return {
             ...row,
             diasLaborados,
             fuenteDias,
-            diasAutomaticos: auto && auto.dias > 0 ? auto.dias : row.diasAutomaticos,
+            diasAutomaticos: propuesta ? propuesta.diasPropuestos : null,
+            propuestaDias,
             calculo,
             pago,
             error,
@@ -329,6 +400,12 @@ export async function previsualizarAguinaldo(
         totalDiferenciaCents: totales.diferencia,
         empleadosATimbrar: rows.filter((r) => !r.error && r.rfc && r.pago).length,
         empleadosSinRFC: rows.filter((r) => !r.error && !r.rfc).length,
+        advertenciasDias: [
+            ...fuentes.advertencias,
+            ...(rows.some((r) => r.propuestaDias?.contieneProyeccion)
+                ? ["Proyección anual: el corte consultado es anterior al cierre del año causado; los días posteriores no son faltas."]
+                : []),
+        ],
     };
 }
 

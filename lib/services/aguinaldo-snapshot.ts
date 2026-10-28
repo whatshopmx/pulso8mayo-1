@@ -24,7 +24,8 @@ export interface AguinaldoSnapshotCabecera {
 
 export type AguinaldoEmpleadoSnapshot = Pick<AguinaldoPreviewRow,
   "userId" | "name" | "branchId" | "salarioDiarioCents" | "salarioEfectivoCents" |
-  "fechaAntiguedad" | "diasLaborados" | "fuenteDias" | "diasAutomaticos" | "calculoEfectivo" | "diferenciaCents"
+  "fechaAntiguedad" | "diasLaborados" | "fuenteDias" | "diasAutomaticos" | "propuestaDias" |
+  "calculoEfectivo" | "diferenciaCents"
 > & { version: 1; rfc: string; calculo: AguinaldoCalculo; pago: AguinaldoPago };
 
 function centavos(value: number): boolean {
@@ -62,7 +63,7 @@ export function crearSnapshotAguinaldo(preview: AguinaldoPreview, performedBy: s
       version: 1, userId: row.userId, name: row.name, rfc, branchId: row.branchId,
       salarioDiarioCents: row.salarioDiarioCents, salarioEfectivoCents: row.salarioEfectivoCents,
       fechaAntiguedad: row.fechaAntiguedad, diasLaborados: row.diasLaborados,
-      fuenteDias: row.fuenteDias, diasAutomaticos: row.diasAutomaticos,
+      fuenteDias: row.fuenteDias, diasAutomaticos: row.diasAutomaticos, propuestaDias: row.propuestaDias,
       calculo: c, calculoEfectivo: row.calculoEfectivo, pago: p, diferenciaCents: row.diferenciaCents,
     });
   });

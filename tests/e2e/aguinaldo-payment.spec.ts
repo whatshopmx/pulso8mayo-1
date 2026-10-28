@@ -109,6 +109,83 @@ test("fecha de pago, ISR, neto y cero editado llegan al POST", async ({ page }) 
   await page.screenshot({ path: "tasks/evidencia/consolidado-2026-10-22/AGU-03B-4/browser-desktop.png", fullPage: true });
 });
 
+test("DIA-02: la propuesta auditable no se envía como override y la cobertura es visible", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const posts: unknown[] = [];
+  await page.clock.install({ time: new Date("2026-10-28T18:00:00Z") });
+  await page.route("**/api/**", async (route) => {
+    const req = route.request(); const requestUrl = new URL(req.url());
+    if (req.method() === "POST") { posts.push(req.postDataJSON()); return route.fulfill({ json: { success: true, data: { results: [{ success: true }], runId: "run-test" } } }); }
+    if (requestUrl.pathname === "/api/payroll/aguinaldo" && !requestUrl.searchParams.has("dispersiones")) {
+      const preview = basePreview("2026-10-28");
+      preview.rows[0] = { ...preview.rows[0], diasLaborados: 363, diasAutomaticos: 363,
+        fuenteDias: "PROPUESTA_AUDITABLE", propuestaDias: {
+          desde: "2026-01-01", hasta: "2026-12-31", fechaCorte: "2026-10-28", zona: "America/Mexico_City",
+          diasCalendario: 365, diasNoComputables: 2, diasPropuestos: 363, diasConTurno: 0,
+          pendientes: 0, conflictos: 0, requiereRevision: false, contieneProyeccion: true,
+          coberturaFuentes: "PARCIAL", fechasNoComputables: ["2026-03-02", "2026-03-03"] } };
+      return route.fulfill({ json: { success: true, data: {
+        ...preview, advertenciasDias: ["Cobertura PARCIAL: los turnos COMPLETED acreditan actividad, no prueban ausencia en días sin checada."] } } });
+    }
+    return route.fulfill({ json: { success: true, data: [] } });
+  });
+  await page.goto(url);
+  const row = page.getByRole("row").filter({ hasText: "Empleado Prueba" });
+  await expect(page.getByText(/Cobertura PARCIAL: los turnos COMPLETED/)).toBeVisible();
+  await expect(row).toContainText("propuesta auditable");
+  await expect(row).toContainText("−2 no computables");
+  await expect(row).toContainText("corte 2026-10-28 · America/Mexico_City");
+  await expect(row.getByText("Proyección")).toBeVisible();
+  await page.getByRole("button", { name: "Ejecutar Dispersión 2026" }).click();
+  await expect.poll(() => posts.length).toBe(1);
+  // Nadie tocó los días: no viajan como MANUAL/override.
+  expect(posts[0]).not.toHaveProperty("diasLaboradosPorUsuario");
+  await page.getByLabel("Días a considerar para Empleado Prueba").fill("355");
+  await page.getByRole("button", { name: "Ejecutar Dispersión 2026" }).click();
+  await expect.poll(() => posts.length).toBe(2);
+  expect(posts[1]).toMatchObject({ anioFiscal: 2026, diasLaboradosPorUsuario: { [employeeId]: 355 } });
+  expect(errors).toEqual([]);
+  await page.screenshot({ path: "tasks/evidencia/consolidado-2026-10-22/DIA-02/browser-preview.png", fullPage: true });
+});
+
+test("DIA-02: revisión pendiente bloquea; el cero manual la confirma y se envía", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const posts: unknown[] = [];
+  await page.clock.install({ time: new Date("2026-10-28T18:00:00Z") });
+  await page.route("**/api/**", async (route) => {
+    const req = route.request(); const requestUrl = new URL(req.url());
+    if (req.method() === "POST") { posts.push(req.postDataJSON()); return route.fulfill({ json: { success: true, data: { results: [{ success: true }], runId: "run-test" } } }); }
+    if (requestUrl.pathname === "/api/payroll/aguinaldo" && !requestUrl.searchParams.has("dispersiones")) {
+      const preview = basePreview("2026-10-28");
+      preview.rows[0] = { ...preview.rows[0], diasLaborados: 365, diasAutomaticos: 365, fuenteDias: "PROPUESTA_AUDITABLE",
+        error: "Días por revisar: 1 permiso(s) sin clasificar y 0 conflicto(s) entre ausencia y día protegido. Confirma los días manualmente o corrige el catálogo de permisos.",
+        propuestaDias: {
+          desde: "2026-01-01", hasta: "2026-12-31", fechaCorte: "2026-10-28", zona: "America/Mexico_City",
+          diasCalendario: 365, diasNoComputables: 0, diasPropuestos: 365, diasConTurno: 0,
+          pendientes: 1, conflictos: 0, requiereRevision: true, contieneProyeccion: true,
+          coberturaFuentes: "PARCIAL", fechasNoComputables: [] } };
+      return route.fulfill({ json: { success: true, data: preview } });
+    }
+    return route.fulfill({ json: { success: true, data: [] } });
+  });
+  await page.goto(url);
+  const row = page.getByRole("row").filter({ hasText: "Empleado Prueba" });
+  await expect(row.getByText("Revisar días")).toBeVisible();
+  await expect(row).toContainText("Días por revisar");
+  await expect(page.getByRole("button", { name: "Ejecutar Dispersión 2026" })).toBeDisabled();
+  await page.getByLabel("Días a considerar para Empleado Prueba").fill("0");
+  await expect(row.getByText("Revisión confirmada manualmente")).toBeVisible();
+  await expect(row).not.toContainText("Días por revisar");
+  await expect(page.getByRole("button", { name: "Ejecutar Dispersión 2026" })).toBeEnabled();
+  await page.getByRole("button", { name: "Ejecutar Dispersión 2026" }).click();
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0]).toMatchObject({ diasLaboradosPorUsuario: { [employeeId]: 0 } });
+  expect(errors).toEqual([]);
+  await page.screenshot({ path: "tasks/evidencia/consolidado-2026-10-22/DIA-02/browser-revision.png", fullPage: true });
+});
+
 test("recupera por ID y fecha original; bloquea doble clic y muestra conciliación pendiente sin depender de la preview", async ({ page }) => {
   const runId = "22222222-2222-4222-8222-222222222222";
   const posts: unknown[] = [];

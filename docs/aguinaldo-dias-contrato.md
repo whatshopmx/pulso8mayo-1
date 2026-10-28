@@ -1,6 +1,6 @@
 # Contrato de días computables de aguinaldo — DIA-01
 
-Versión 1. Fecha de revisión: 2026-10-26. Implementación pura: `lib/services/aguinaldo-days-policy.ts`. La consulta y los consumidores se conectan en DIA-02; este contrato no declara completo ese recorrido.
+Versión 1. Fecha de revisión: 2026-10-26. Implementación pura: `lib/services/aguinaldo-days-policy.ts`. El adaptador de fuentes reales y su conexión a la preview están en `lib/services/aguinaldo-days-adapter.ts` y `lib/services/aguinaldo-payroll-service.ts` (DIA-02A/B/C, 2026-10-28); la aceptación V2 con Postgres aislado y dos empresas reales sigue en DIA-02D.
 
 ## Fuente y reglas aplicables
 
@@ -50,4 +50,4 @@ Los rangos civiles capturados en solicitudes se leen como fechas civiles, sin co
 | Baja efectiva 30-jun-2026 | 181 | 0 | 181 |
 | Todo 2024 | 366 | 0 | 366 días civiles |
 
-V1: `pnpm.cmd run test:unit tests/unit/aguinaldo-days-policy.test.ts`, 12/12. Fechas imposibles, zona desconocida y manual negativo/fraccionario se rechazan. DIA-02 conserva V2 para consultas reales, dos empresas, turnos nocturnos/solapamientos y preview→run; AGU-04 conserva la aceptación del recorrido completo.
+V1: `pnpm.cmd run test:unit tests/unit/aguinaldo-days-policy.test.ts`, 12/12. Fechas imposibles, zona desconocida y manual negativo/fraccionario se rechazan. DIA-02A/B/C conectan las fuentes reales y la preview con clasificación explícita, cruce sin duplicar y overrides no precargados (14/14 adaptador, 5/5 navegador). DIA-02D conserva V2 para consultas reales en Postgres aislado, dos empresas y preview→run; AGU-04 conserva la aceptación del recorrido completo.

@@ -11,8 +11,11 @@ vi.mock("@/lib/services/labor-rules-resolver", () => ({
 vi.mock("@/lib/services/tenant-config-service", () => ({
   getTenantOperatingConfig: async () => ({ aguinaldoBase: state.base, payrollPracticeMode: "MIXED" }),
 }));
-vi.mock("@/lib/services/dias-laborados-service", () => ({
-  conteoDiasLaboradosAnual: async () => ({ porUsuario: {} }),
+vi.mock("@/lib/services/aguinaldo-days-adapter", () => ({
+  cargarFuentesDiasAguinaldo: async () => ({
+    anioFiscal: 2026, fechaCorte: "2026-12-31", porUsuario: {},
+    advertencias: [], coberturaFuentes: "PARCIAL",
+  }),
 }));
 vi.mock("@/lib/fiscal/sat-test-data", () => ({ loadCsdForTin: () => ({}), resolveTestPerson: () => null,
   SAT_TEST_MORALES: [{ tin: "EKU9003173C9", legalName: "Emisor de prueba", zipCode: "64000", taxRegimeCode: "601" }],

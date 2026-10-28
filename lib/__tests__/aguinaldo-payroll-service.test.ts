@@ -4,7 +4,11 @@ const state = vi.hoisted(() => ({
     reads: [] as unknown[][],
     writes: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
     base: "EFFECTIVE",
-    automaticDays: 200 as number | null,
+    corte: null as string | null,
+    ausencias: {} as Record<string, Array<{
+        id: string; desde: string; hasta: string; aprobada: boolean;
+        tratamiento: "COMPUTABLE" | "NO_COMPUTABLE" | "REVISAR";
+    }>>,
     fiscalAvailable: true,
     fiscalDate: "",
     failPayslip: false,
@@ -61,8 +65,20 @@ vi.mock("@/lib/services/labor-rules-resolver", () => ({
 vi.mock("@/lib/services/tenant-config-service", () => ({
     getTenantOperatingConfig: async () => ({ aguinaldoBase: state.base, payrollPracticeMode: "MIXED" }),
 }));
-vi.mock("@/lib/services/dias-laborados-service", () => ({
-    conteoDiasLaboradosAnual: async () => ({ porUsuario: state.automaticDays === null ? {} : { employee: { dias: state.automaticDays } } }),
+vi.mock("@/lib/services/aguinaldo-days-adapter", () => ({
+    cargarFuentesDiasAguinaldo: async ({ anioFiscal, empleados, fechaCorte }: {
+        anioFiscal: number; fechaCorte?: string;
+        empleados: Array<{ userId: string; branchId: string | null }>;
+    }) => ({
+        anioFiscal,
+        fechaCorte: fechaCorte ?? state.corte ?? (anioFiscal >= 2026 ? "2026-12-15" : `${anioFiscal}-12-31`),
+        porUsuario: Object.fromEntries(empleados.map((empleado) => [empleado.userId, {
+            zona: "America/Mexico_City", diasConTurno: [],
+            ausencias: state.ausencias[empleado.userId] ?? [],
+        }])),
+        advertencias: ["Cobertura PARCIAL: los turnos COMPLETED acreditan actividad, no prueban ausencia."],
+        coberturaFuentes: "PARCIAL" as const,
+    }),
 }));
 vi.mock("@/lib/services/fiscal-service", () => ({
     timbrarNomina: state.timbrar,
@@ -90,7 +106,8 @@ beforeEach(() => {
     state.reads = [roster];
     state.writes = [];
     state.base = "EFFECTIVE";
-    state.automaticDays = 200;
+    state.corte = null;
+    state.ausencias = {};
     state.fiscalAvailable = true;
     state.fiscalDate = "";
     state.failPayslip = false;
@@ -286,10 +303,36 @@ describe("AGU-01 — días explícitos en preview y run (DB/proveedor simulados)
         expect(state.writes.find((w) => w.table === payrollPayslips)?.values.aguinaldoCents).toBe(36_986);
     });
 
-    it("sin override conserva automático; sin datos conserva calendario", async () => {
-        expect((await previsualizarAguinaldo("company", 2026)).rows[0]).toMatchObject({ diasLaborados: 200, fuenteDias: "TURNOS_Y_PERMISOS" });
-        state.reads = [roster]; state.automaticDays = null;
-        expect((await previsualizarAguinaldo("company", 2026)).rows[0]).toMatchObject({ diasLaborados: 365, fuenteDias: "CALENDARIO" });
+    it("sin override usa la propuesta auditable: calendario de vigencia menos ausencias aprobadas", async () => {
+        expect((await previsualizarAguinaldo("company", 2026)).rows[0]).toMatchObject({
+            diasLaborados: 365, fuenteDias: "PROPUESTA_AUDITABLE", diasAutomaticos: 365,
+            propuestaDias: { fechaCorte: "2026-12-15", diasNoComputables: 0, requiereRevision: false, coberturaFuentes: "PARCIAL" },
+        });
+        state.ausencias = { employee: [
+            { id: "falta", desde: "2026-03-02", hasta: "2026-03-03", aprobada: true, tratamiento: "NO_COMPUTABLE" },
+        ] };
+        state.reads = [roster];
+        expect((await previsualizarAguinaldo("company", 2026)).rows[0])
+            .toMatchObject({ diasLaborados: 363, fuenteDias: "PROPUESTA_AUDITABLE", propuestaDias: { diasNoComputables: 2 } });
+    });
+
+    it("una clasificación pendiente bloquea sin override y el manual 0 la confirma", async () => {
+        state.ausencias = { employee: [
+            { id: "duda", desde: "2026-03-02", hasta: "2026-03-02", aprobada: true, tratamiento: "REVISAR" },
+        ] };
+        const bloqueada = await previsualizarAguinaldo("company", 2026);
+        expect(bloqueada.rows[0]).toMatchObject({
+            error: expect.stringMatching(/Días por revisar/),
+            propuestaDias: { pendientes: 1, requiereRevision: true },
+        });
+        expect(bloqueada).toMatchObject({ empleadosATimbrar: 0, totalBrutoCents: 0 });
+        state.reads = [[], roster];
+        await expect(executeAguinaldoRun("company", 2026, "actor")).rejects.toThrow(/Días por revisar/);
+        expect(state.timbrar).not.toHaveBeenCalled();
+        state.reads = [roster];
+        const confirmada = await previsualizarAguinaldo("company", 2026, undefined, { diasLaboradosPorUsuario: { employee: 0 } });
+        expect(confirmada.rows[0]).toMatchObject({ diasLaborados: 0, fuenteDias: "MANUAL", error: undefined });
+        expect(confirmada.rows[0].propuestaDias?.requiereRevision).toBe(true);
     });
 
     it.each([NaN, Infinity, -1, 1.5, 367, null, "30"])("rechaza días inválidos %s antes de generar efectos", async (value) => {

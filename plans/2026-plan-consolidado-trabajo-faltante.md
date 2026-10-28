@@ -174,6 +174,8 @@ Implementación desglosada en FIS-03A (resolución/cálculo puro), FIS-03B (pant
 
 **Verificación:** V1+V2; consultas reales en aislado, dos empresas, turnos nocturnos/solapamientos y preview→run.
 
+Implementación desglosada en DIA-02A (adaptador de fuentes reales y clasificación explícita), DIA-02B (preview/snapshot y bloqueo por revisión) y DIA-02C (UI de overrides y cobertura). [Evidencia y límites](../tasks/evidencia/consolidado-2026-10-22/DIA-02/README.md). DIA-02D conserva la aceptación V2 con Postgres aislado, dos empresas reales y preview→run; la tarea no se declara cerrada.
+
 #### AGU-04 — Revalidar las funciones de bases/gap existentes y la veracidad de la bitácora de dispersión.
 
 **Dependencias:** AGU-03, DIA-02. **Tamaño:** M.

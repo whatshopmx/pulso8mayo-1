@@ -95,9 +95,9 @@ function diasCalendarioInclusive(desdeISO: string | null, hastaISO: string): num
 /**
  * Fallback de días trabajados: calendario COMPLETO del año fiscal desde la
  * fecha de antigüedad (el aguinaldo anual se paga por el año; para un año
- * futuro cuenta 0). El ajuste fino por faltas/incapacidades es el override
- * manual `diasLaborados` (criterio PROFEDET aplicado por el admin). Cuando
- * exista el conteo automático (Task 14) llenará esa columna.
+ * futuro cuenta 0). La propuesta auditable (DIA-01/DIA-02) resta las
+ * ausencias aprobadas no computables; el override manual del admin —incluido
+ * cero— siempre prevalece.
  */
 export function diasCalendarioAguinaldo(
     anioFiscal: number,
