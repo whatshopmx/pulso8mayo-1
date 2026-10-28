@@ -5,6 +5,12 @@
 [build.environment]
   # Node version
   NODE_VERSION = "22"
+  # El chequeo de tipos de `next build` (Next 16 / Turbopack) recorre ~1.650
+  # archivos TS y en CI supera el límite de heap por defecto (~2 GB), muriendo con
+  # "JavaScript heap out of memory" después de "Compiled successfully".
+  # Medición local en frío de `tsc --noEmit`: ~209 s y ~1.4 GB de RSS. 4 GB deja
+  # margen suficiente sin acercarse a la RAM del contenedor de build.
+  NODE_OPTIONS = "--max-old-space-size=4096"
   # Skip secrets scanning for documentation files
   SECRETS_SCAN_OMIT_PATHS = ".opencode/**,.opencode/agents/**,.opencode/get-shit-done/**,.github/**"
 

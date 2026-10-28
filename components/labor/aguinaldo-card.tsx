@@ -311,8 +311,10 @@ export function AguinaldoCard() {
         });
       } else {
         toast({
-          title: "Aguinaldo disperso y timbrado",
-          description: `${ok} CFDI 002 extraordinarios generados (tipo E por año fiscal).`,
+          // Timbrado ≠ pago: el CFDI 002 acredita la nómina extraordinaria, no
+          // la entrega del dinero. La dispersión real se registra aparte.
+          title: "Aguinaldo timbrado · pago sin confirmar",
+          description: `${ok} CFDI 002 extraordinarios generados (tipo E por año fiscal). El timbre no acredita la entrega del dinero: registra la dispersión cuando haya salido.`,
         });
       }
 

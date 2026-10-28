@@ -2,21 +2,38 @@
 // aguinaldo — diciembre, días 1 a 19, 08:00.
 //
 // El Art. 87 LFT obliga a pagar el aguinaldo antes del 19 de diciembre;
-// incumplir es multa de 50 a 5,000 UMA (Art. 1002). Este cron alerta a los
-// admins cuando el año todavía NO tiene run de aguinaldo COMPLETED.
+// incumplir es multa de 50 a 5,000 UMA (Art. 1002). Este cron alerta a la
+// dirección cuando el año todavía NO tiene corrida de aguinaldo, cuando la
+// corrida no terminó de timbrarse y cuando está timbrada pero la dispersión
+// real no está confirmada.
 //
-// Dedupe (companyId + año): una sola notificación por año por empresa —
-// si ya se avisó (o ya se dispersó), silencio. [AC: no duplica
-// notificaciones el mismo día, no duplica en todo diciembre].
+// OPS-02.nomina.D:
+//   • Cada empresa se lee en su propia transacción con contexto
+//     (`withCompanyContext`). La lectura multiempresa anterior dependía del
+//     bypass del dueño y se apagaría con el lote RLS de nómina.
+//   • Los destinatarios salen de `ROLES_RECORDATORIO` (roles que el RBAC de
+//     rutas reconoce y que pueden ejecutar la nómina). No se depende de
+//     `OWNER`, que no existe en `UserRole`.
+//   • Una corrida `COMPLETED` es timbrado, no pago: el aviso `TIMBRADO` pide
+//     confirmar la dispersión real y no la declara pagada.
+//
+// Dedupe por empresa + año + estado: un aviso por transición (sin corrida →
+// timbrado) y ninguno repetido el mismo año. [AC: no duplica notificaciones el
+// mismo día, no duplica en todo diciembre].
 
 import { inngest } from "../client";
 import { db } from "@/lib/db";
-import { notifications, payrollRuns, users } from "@/lib/db/schema";
-import { and, eq, gte, inArray, ilike, or } from "drizzle-orm";
+import { notifications } from "@/lib/db/schema";
+import { and, eq, inArray } from "drizzle-orm";
 import { NotificationDispatcher } from "@/lib/services/notification-dispatcher";
-
-const RECIPIENT_ROLES = ["OWNER", "ADMIN"] as const;
-const LIMITE = "19 de diciembre";
+import {
+  clasificarEstadoAguinaldo,
+  construirRecordatorio,
+  destinatariosPorEmpresa,
+  enumerarEmpresasRecordatorio,
+  leerEstadoAguinaldo,
+  type EstadoAguinaldoEmpresa,
+} from "@/lib/services/aguinaldo-reminder-service";
 
 export const cronAguinaldoReminder = inngest.createFunction(
   {
@@ -26,77 +43,63 @@ export const cronAguinaldoReminder = inngest.createFunction(
   },
   async ({ step }) => {
     const hoy = new Date();
-    const anio = String(hoy.getFullYear()); // el aguinaldo del año vence el 19-dic del mismo año
+    const anio = hoy.getFullYear(); // el aguinaldo del año vence el 19-dic del mismo año
 
-    // 1. Empresas con dispersión PENDIENTE: sin run COMPLETED del año.
-    const pendientes = await step.run("empresas-sin-run-aguinaldo", async () => {
-      const companies = await db
-        .select({ companyId: users.companyId })
-        .from(users)
-        .where(and(inArray(users.role, [...RECIPIENT_ROLES]), eq(users.active, true)))
-        .groupBy(users.companyId);
+    // 1. Empresas con dirección activa. `sinDestinatario` son empresas cuyo
+    //    único rol de dirección no existe en el RBAC de rutas (p. ej. OWNER):
+    //    no se notifican, pero quedan en el resultado del job.
+    const empresas = await step.run("empresas-recordatorio", () =>
+      enumerarEmpresasRecordatorio(),
+    );
 
-      const ids = companies.map((c) => c.companyId).filter((id): id is string => id != null);
-      if (ids.length === 0) return [];
+    if (empresas.conDestinatario.length === 0) {
+      return {
+        anio,
+        empresas: 0,
+        sinDestinatario: empresas.sinDestinatario.length,
+        notificadas: 0,
+      };
+    }
 
-      // Una corrida con errores NO cuenta como dispersa (falta timbrar a los
-      // que fallaron); el run se re-ejecuta cuando venga.
-      const runsHechos = await db
-        .select({ companyId: payrollRuns.companyId })
-        .from(payrollRuns)
-        .where(
-          and(
-            inArray(payrollRuns.companyId, ids),
-            eq(payrollRuns.aguinaldoFiscalYear, Number(anio)),
-            eq(payrollRuns.status, "COMPLETED"),
-          ),
-        );
+    // 2. Destinatarios por empresa (una sola lectura, sin RLS en `users`).
+    const destinatarios = await step.run("destinatarios", () =>
+      destinatariosPorEmpresa(empresas.conDestinatario),
+    );
 
-      const yaDispersos = new Set(runsHechos.map((r) => r.companyId));
-      return ids.filter((id) => !yaDispersos.has(id));
-    });
+    // 3. Estado del aguinaldo POR EMPRESA, cada uno con su contexto.
+    const estados: EstadoAguinaldoEmpresa[] = [];
+    for (const companyId of empresas.conDestinatario) {
+      // `step.run` devuelve el objeto serializado (campos opcionales): se
+      // reconstruye el contrato explícitamente en vez de castear.
+      const leido = await step.run(`estado-${companyId}`, () =>
+        leerEstadoAguinaldo(companyId, anio),
+      );
+      const estadoCorrida = leido.estadoCorrida ?? null;
+      estados.push({
+        companyId: leido.companyId ?? companyId,
+        anioFiscal: leido.anioFiscal ?? anio,
+        estado: leido.estado ?? clasificarEstadoAguinaldo(estadoCorrida),
+        estadoCorrida,
+        timbradoCompleto: leido.timbradoCompleto ?? false,
+      });
+    }
 
-    if (pendientes.length === 0) return { anio, pendientes: 0, notificadas: 0 };
-
-    // 2. Destinatarios por empresa.
-    const recipPorEmpresa = await step.run("destinatarios", async () => {
-      const rows = await db
-        .select({ id: users.id, companyId: users.companyId })
-        .from(users)
-        .where(
-          and(
-            inArray(users.companyId, pendientes),
-            inArray(users.role, [...RECIPIENT_ROLES]),
-            eq(users.active, true),
-          ),
-        );
-      const map: Record<string, string[]> = {};
-      for (const row of rows) {
-        if (!row.companyId) continue;
-        (map[row.companyId] ??= []).push(row.id);
-      }
-      return map;
-    });
-
-    // 3. Envío con dedupe (companyId + año): la notificación in-app que envió
-    //    el recordatorio lleva el año en el título; el run del día 1 basta
-    //    para todo el diciembre.
-    const desdeDiciembre = new Date(`${anio}-12-01T00:00:00Z`);
-
+    // 4. Un aviso por empresa y estado, con dedupe por título exacto.
     let notificadas = 0;
-    for (const companyId of pendientes) {
-      const recipients = recipPorEmpresa[companyId] ?? [];
+    for (const estado of estados) {
+      const recipients = destinatarios[estado.companyId] ?? [];
       if (recipients.length === 0) continue;
 
-      notificadas += await step.run(`avisar-${companyId}`, async () => {
+      const recordatorio = construirRecordatorio(estado);
+
+      notificadas += await step.run(`avisar-${estado.companyId}`, async () => {
         const yaAvisados = await db
           .select({ id: notifications.id })
           .from(notifications)
           .where(
             and(
               inArray(notifications.userId, recipients),
-              gte(notifications.createdAt, desdeDiciembre),
-              or(ilike(notifications.title, `%aguinaldo ${anio}%`), ilike(notifications.title, `%dispersar el aguinaldo ${anio}%`)),
+              eq(notifications.title, recordatorio.titulo),
             ),
           )
           .limit(1);
@@ -107,32 +110,37 @@ export const cronAguinaldoReminder = inngest.createFunction(
           try {
             await NotificationDispatcher.sendNotification({
               userId,
-              title: `Recordatorio: dispersar el aguinaldo ${anio} antes del ${LIMITE}`,
-              message:
-                `El Art. 87 LFT obliga a pagar el aguinaldo antes del ${LIMITE} ` +
-                `(multa de 50 a 5,000 UMA por incumplir, Art. 1002). La dispersión se timbra ` +
-                `como nómina extraordinaria (CFDI 002) desde Personal → Payroll → Aguinaldo ` +
-                `${anio}. Cálculo vigente: 15 días por año prorrateados (la iniciativa de ` +
-                `30 días por antigüedad NO es ley).`,
-              type: "warning",
-              eventType: "aguinaldo_dispersion_reminder",
+              title: recordatorio.titulo,
+              message: recordatorio.mensaje,
+              type: recordatorio.tipo,
+              eventType: recordatorio.eventType,
               actionUrl: "/dashboard/labor/payroll",
               actionLabel: "Ir a Payroll",
               metadata: {
-                companyId,
+                companyId: estado.companyId,
                 anioFiscal: anio,
-                dedupe: `aguinaldo-${companyId}-${anio}`,
+                estado: recordatorio.estado,
+                estadoCorrida: estado.estadoCorrida,
+                dedupe: recordatorio.dedupe,
               },
             });
             delivered++;
           } catch (err) {
-            console.warn(`[cronAguinaldoReminder] Falló el envío para empresa ${companyId} → ${userId}:`, err);
+            console.warn(
+              `[cronAguinaldoReminder] Falló el envío para empresa ${estado.companyId} → ${userId}:`,
+              err,
+            );
           }
         }
         return delivered;
       });
     }
 
-    return { anio, pendientes: pendientes.length, notificadas };
+    return {
+      anio,
+      empresas: estados.length,
+      sinDestinatario: empresas.sinDestinatario.length,
+      notificadas,
+    };
   },
 );

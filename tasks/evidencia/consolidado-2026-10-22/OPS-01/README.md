@@ -19,6 +19,12 @@ Se crean datos sintéticos de dos empresas, incluidos recibos históricos duplic
 
 Este ensayo acredita recuperación lógica del lote de dos tablas con datos sintéticos. **No es un respaldo ni una restauración integral del proyecto Neon operativo**, ni acredita FK/RLS de las tablas clonadas. El respaldo operativo previo al rollout sigue siendo una condición de OPS-03.
 
+## Lote RLS de nómina 0123 — inventario, sin aplicar
+
+`drizzle/0123_rls_nomina.sql` (journal idx 123) es aditivo: habilita RLS en `payroll_runs`, `payroll_payslips`, `payroll_aguinaldo_dispersiones` y `cfdi_nomina_timbrados`, otorga DML a `pulso_app` sólo si el rol ya existe y crea una política por tabla con `USING`/`WITH CHECK`. Los recibos se aíslan por su corrida padre (también al cambiar `run_id`); la dispersión exige coherencia entre `company_id` y la corrida referenciada.
+
+Los dos manifiestos de esta carpeta se generaron antes del lote y **siguen describiendo el estado previo**: no incluyen 0123 y no autorizan activar RLS bajo el dueño con bypass. Antes de OPS-03 hay que regenerarlos con archivo/clave explícitos y confirmar: las cuatro tablas sin RLS, 0123 como único lote RLS pendiente, `pulso_app` existente (o el aprovisionamiento previsto) y el journal con idx 123. La prueba de E aplica el SQL en un esquema privado; no sustituye ese inventario ni la aceptación HTTP/job de F.
+
 ## Runbook del lote revisable
 
 1. Regenerar ambos manifiestos con archivo/clave explícitos. Confirmar host/base/rol, HEAD y hash exacto de `0122_aguinaldo_snapshot.sql`; no renumerar 0121.
@@ -26,7 +32,7 @@ Este ensayo acredita recuperación lógica del lote de dos tablas con datos sint
 3. Preparar revisión operativa separada de **sólo 0122** con precondiciones del esquema, respaldo recuperable del entorno y registro de aplicación. No incluir RLS ni otros SQL incidentalmente. No aplicar desde esta herramienta; OPS-03 conserva la operación.
 4. Tras aplicación autorizada: confirmar columnas jsonb nullable, índice parcial, entrada/hash/fecha del journal y recorrido fiscal simulado del entorno. Nunca emitir CFDI reales como sanity check.
 5. Reversión preferida: detener ejecuciones nuevas y volver al consumidor anterior manteniendo las columnas aditivas y todos los snapshots/intenciones emitidos. No borrar columnas ni recibos, no restaurar datos operativos a ciegas y no reenviar un timbre incierto. Si se necesita restauración de datos, comparar primero contra emisiones/auditoría posteriores al respaldo y ejecutar un plan específico revisado.
-6. El lote RLS de nómina exige preparar consumidores HTTP/job y rol runtime antes de activar políticas; añadir ese lote al manifiesto cuando exista. El manifiesto actual no autoriza activar RLS bajo el dueño con bypass.
+6. El lote RLS de nómina 0123 ya existe y está inventariado arriba; añadirlo al manifiesto regenerado y preparar consumidores HTTP/job y rol runtime antes de activar políticas. El manifiesto actual no autoriza activar RLS bajo el dueño con bypass.
 
 ## Comandos y límites
 
