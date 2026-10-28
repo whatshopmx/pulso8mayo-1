@@ -140,6 +140,9 @@ export function crearSimulador(
       orderBy: () => cadena(tabla, proyeccion, where),
       innerJoin: () => cadena(tabla, proyeccion, where),
       leftJoin: () => cadena(tabla, proyeccion, where),
+      // `FOR UPDATE` del asignador FEFO: el simulador no modela locks, pero la
+      // cadena debe seguir siendo awaitable.
+      for: () => cadena(tabla, proyeccion, where),
       limit: async () => filasDe().slice(0, 1),
       // Thenable para que `await cadena(...)` devuelva filas. Los parámetros no
       // se llaman `resolver`: tapa `filasDe` y la promesa se resolvía con

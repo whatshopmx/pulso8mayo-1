@@ -89,11 +89,22 @@ function base(): Record<string, unknown[]> {
       { id: RECETA_B, companyId: EMPRESA_B, name: "Receta ajena", holdTimeMinutes: null },
     ],
     inventoryItems: [
-      { id: ARTICULO_A, companyId: EMPRESA_A, name: "Chile" },
-      { id: ARTICULO_B, companyId: EMPRESA_B, name: "Chile de otra empresa" },
+      { id: ARTICULO_A, companyId: EMPRESA_A, name: "Chile", unit: "KG" },
+      { id: ARTICULO_B, companyId: EMPRESA_B, name: "Chile de otra empresa", unit: "KG" },
     ],
     inventoryBatches: [
-      { id: LOTE_A, branchId: SUCURSAL_A_1, itemId: ARTICULO_A, currentQuantity: "20" },
+      {
+        id: LOTE_A,
+        companyId: EMPRESA_A,
+        branchId: SUCURSAL_A_1,
+        itemId: ARTICULO_A,
+        currentQuantity: "20",
+        status: "AVAILABLE",
+        unitCost: 20,
+        expirationDate: new Date("2027-01-01T00:00:00Z"),
+        receivedAt: null,
+        createdAt: null,
+      },
       { id: LOTE_B, branchId: SUCURSAL_B_1, itemId: ARTICULO_B, currentQuantity: "50" },
     ],
     productionOrders: [
