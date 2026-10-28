@@ -1,0 +1,6 @@
+
+C:\Users\david\pulso29\lib\services\payroll-service.ts
+   11:3   warning  'leaveRequests' is defined but never used  @typescript-eslint/no-unused-vars
+  507:19  warning  Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+
+✖ 2 problems (0 errors, 2 warnings)

@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { withCompanyContext } from "@/lib/db/tenant-context";
+import { ApiError } from "@/lib/api/error";
 import { 
   propinas, 
   propinaAsignaciones, 
@@ -420,6 +422,7 @@ export async function executePayrollRun(
   /** Quién corrió la nómina. Viaja al timbrado, que ahora deja constancia. */
   performedBy?: string
 ) {
+  const scope = { companyId, actorId: performedBy };
   // 0. Pre-Flight Validation Check (Módulo 7.1 & 7.2)
   const validation = await validatePayrollPreStamping(companyId, startDate, endDate);
   if (!validation.canStamp) {
@@ -433,12 +436,12 @@ export async function executePayrollRun(
   }
 
   // 1. Create a payroll run
-  const [run] = await db.insert(payrollRuns).values({
+  const [run] = await withCompanyContext(scope, (tx) => tx.insert(payrollRuns).values({
     companyId,
     periodStart: startDate,
     periodEnd: endDate,
     status: 'PROCESSING'
-  }).returning();
+  }).returning());
 
   // 2. Get all active employees in company
   const activeStaff = await db
@@ -486,7 +489,7 @@ export async function executePayrollRun(
       });
 
       // Save payslip
-      const [payslip] = await db.insert(payrollPayslips).values({
+      const [payslip] = await withCompanyContext(scope, (tx) => tx.insert(payrollPayslips).values({
         runId: run.id,
         userId: emp.userId,
         baseSalaryCents: payrollCalc.baseSalaryCents,
@@ -498,7 +501,7 @@ export async function executePayrollRun(
         cfdiUuid: timbrado.uuid,
         cfdiStatus: timbrado.status,
         selloDigital: timbrado.selloDigital,
-      }).returning();
+      }).returning());
       
       results.push({ success: true, userId: emp.userId, payslip });
     } catch (err: any) {
@@ -506,7 +509,7 @@ export async function executePayrollRun(
       results.push({ success: false, userId: emp.userId, error: err.message });
       // Guardar payslip con error
       const payrollCalc = await calculateEmployeePayroll(emp.userId, startDate, endDate);
-      await db.insert(payrollPayslips).values({
+      await withCompanyContext(scope, (tx) => tx.insert(payrollPayslips).values({
         runId: run.id,
         userId: emp.userId,
         baseSalaryCents: payrollCalc.baseSalaryCents,
@@ -516,15 +519,15 @@ export async function executePayrollRun(
         totalPercepcionesCents: payrollCalc.totalPercepcionesCents,
         totalDeduccionesCents: payrollCalc.totalDeduccionesCents,
         cfdiStatus: "ERROR",
-      });
+      }));
     }
   }
 
   // Update run status
   const hasErrors = results.some(r => !r.success);
-  await db.update(payrollRuns).set({
+  await withCompanyContext(scope, (tx) => tx.update(payrollRuns).set({
     status: hasErrors ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED'
-  }).where(eq(payrollRuns.id, run.id));
+  }).where(and(eq(payrollRuns.id, run.id), eq(payrollRuns.companyId, companyId))));
 
   return {
     runId: run.id,
@@ -533,26 +536,32 @@ export async function executePayrollRun(
 }
 
 export async function getPayrollRuns(companyId: string) {
-  return await db.select()
+  return withCompanyContext({ companyId }, (tx) => tx.select()
     .from(payrollRuns)
     .where(eq(payrollRuns.companyId, companyId))
-    .orderBy(desc(payrollRuns.periodStart));
+    .orderBy(desc(payrollRuns.periodStart)));
 }
 
-export async function getPayrollPayslips(runId: string) {
-  return await db.select({
-    id: payrollPayslips.id,
-    userId: payrollPayslips.userId,
-    userName: users.name,
-    baseSalaryCents: payrollPayslips.baseSalaryCents,
-    propinasCents: payrollPayslips.propinasCents,
-    holidayPayCents: payrollPayslips.holidayPayCents,
-    overtimePayCents: payrollPayslips.overtimePayCents,
-    totalPercepcionesCents: payrollPayslips.totalPercepcionesCents,
-    cfdiUuid: payrollPayslips.cfdiUuid,
-    cfdiStatus: payrollPayslips.cfdiStatus,
-  })
-  .from(payrollPayslips)
-  .innerJoin(users, eq(payrollPayslips.userId, users.id))
-  .where(eq(payrollPayslips.runId, runId));
+export async function getPayrollPayslips(companyId: string, runId: string) {
+  return withCompanyContext({ companyId }, async (tx) => {
+    const [run] = await tx.select({ id: payrollRuns.id }).from(payrollRuns)
+      .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.companyId, companyId))).limit(1);
+    if (!run) throw ApiError.notFound("Corrida de nómina no encontrada");
+    return tx.select({
+      id: payrollPayslips.id,
+      userId: payrollPayslips.userId,
+      userName: users.name,
+      baseSalaryCents: payrollPayslips.baseSalaryCents,
+      propinasCents: payrollPayslips.propinasCents,
+      holidayPayCents: payrollPayslips.holidayPayCents,
+      overtimePayCents: payrollPayslips.overtimePayCents,
+      totalPercepcionesCents: payrollPayslips.totalPercepcionesCents,
+      cfdiUuid: payrollPayslips.cfdiUuid,
+      cfdiStatus: payrollPayslips.cfdiStatus,
+    })
+      .from(payrollPayslips)
+      .innerJoin(payrollRuns, eq(payrollPayslips.runId, payrollRuns.id))
+      .innerJoin(users, and(eq(payrollPayslips.userId, users.id), eq(users.companyId, companyId)))
+      .where(and(eq(payrollPayslips.runId, runId), eq(payrollRuns.companyId, companyId)));
+  });
 }

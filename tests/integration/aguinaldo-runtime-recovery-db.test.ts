@@ -23,6 +23,7 @@ vi.mock("@/lib/fiscal/sat-test-data", () => ({
 import { recuperarAguinaldoRun } from "@/lib/services/aguinaldo-run-execution";
 import { executeAguinaldoRun, getAguinaldoRuns, registrarDispersionExcedente, listarDispersionesExcedente } from "@/lib/services/aguinaldo-payroll-service";
 import { timbrarNomina, getTimbrado, type NominaTimbradoInput } from "@/lib/services/fiscal-service";
+import { executePayrollRun, getPayrollRuns, getPayrollPayslips } from "@/lib/services/payroll-service";
 
 neonConfig.webSocketConstructor = ws;
 state.context = new AsyncLocalStorage<Database>();
@@ -34,7 +35,7 @@ const pools = [0, 1].map(() => new Pool({ connectionString: runtimeUrl(), max: 1
 const actors = pools.map((pool) => drizzle(pool, { schema }));
 const tables = ["payroll_runs", "payroll_payslips", "payroll_aguinaldo_dispersiones", "cfdi_nomina_timbrados"];
 const sources = ["users", "employee_profiles", "employee_contracts", "shift_sessions", "leave_requests", "leave_types",
-  "labor_law_calendar_rules", "tenant_operating_config"];
+  "labor_law_calendar_rules", "tenant_operating_config", "vacation_requests", "propinas", "propina_asignaciones", "holidays"];
 const companyA = randomUUID(); const companyB = randomUUID();
 let created = false;
 
@@ -90,6 +91,15 @@ function ordinaryInput(companyId = companyA): NominaTimbradoInput {
   return { companyId, performedBy: "autoriza-ordinaria", empleadoRfc: "AAA010101AAA", empleadoNombre: "Empleado SQL",
     empleadoSalarioDiarioCents: 60000, periodo: "2026-01-01 - 2026-01-15", payrollTypeCode: "O",
     totalPercepciones: 900000, totalDeducciones: 50000 };
+}
+async function ordinaryEmployee(companyId = companyA) {
+  const userId = await sourceEmployee(companyId);
+  await owner.insert(schema.shiftSessions).values({ userId, branchId: randomUUID(), status: "COMPLETED",
+    startedAt: new Date("2026-01-02T12:00:00Z") });
+  return userId;
+}
+function executeOrdinary(actor: number, companyId = companyA) {
+  return state.context!.run(actors[actor], () => executePayrollRun(companyId, "2026-01-01", "2026-01-15", "autoriza-ordinaria"));
 }
 
 describe("OPS-02.nomina.A — recuperación con login runtime y políticas privadas", () => {
@@ -358,5 +368,40 @@ describe("OPS-02.nomina.A — recuperación con login runtime y políticas priva
     expect(await state.context!.run(actors[1], () => timbrarNomina(input))).toMatchObject({ uuid, status: "TIMBRADO" });
     expect((await admin.query("SELECT id,uuid FROM cfdi_nomina_timbrados")).rows).toEqual([{ id: before, uuid }]);
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("B.3: crea/cierra corridas ordinarias y consulta recibos de su empresa con fuentes SQL", async () => {
+    const a = await ordinaryEmployee(); const b = await ordinaryEmployee(companyB); const fetcher = pac();
+    fetcher.mockImplementation(async () => Response.json({ succeeded: true, data: { uuid: randomUUID(), total: 9000 } }));
+    const [first, second] = await Promise.all([executeOrdinary(0), executeOrdinary(1, companyB)]);
+    expect(first.results).toMatchObject([{ success: true, userId: a }]);
+    expect(second.results).toMatchObject([{ success: true, userId: b }]);
+    expect((await state.context!.run(actors[0], () => getPayrollRuns(companyA))).map((row) => row.id)).toEqual([first.runId]);
+    expect(await state.context!.run(actors[0], () => getPayrollPayslips(companyA, first.runId)))
+      .toMatchObject([{ userId: a, baseSalaryCents: 900000, totalPercepcionesCents: 900000, cfdiStatus: "TIMBRADO" }]);
+    await expect(state.context!.run(actors[0], () => getPayrollPayslips(companyB, first.runId))).rejects.toMatchObject({ statusCode: 404 });
+    expect((await admin.query("SELECT status FROM payroll_runs ORDER BY id")).rows).toEqual([{ status: "COMPLETED" }, { status: "COMPLETED" }]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect((await pools[0].query("SELECT * FROM payroll_payslips")).rows).toHaveLength(0);
+  });
+  it("B.3: conserva el recibo de error y cierra la corrida dentro del contexto", async () => {
+    const userId = await ordinaryEmployee(); const fetcher = pac();
+    fetcher.mockRejectedValueOnce(new Error("PAC no disponible"));
+    const result = await executeOrdinary(0);
+    expect(result.results).toMatchObject([{ success: false, userId }]);
+    expect(await state.context!.run(actors[0], () => getPayrollPayslips(companyA, result.runId)))
+      .toMatchObject([{ userId, baseSalaryCents: 900000, cfdiStatus: "ERROR" }]);
+    expect((await admin.query("SELECT status FROM payroll_runs")).rows).toEqual([{ status: "COMPLETED_WITH_ERRORS" }]);
+    expect((await pools[0].query("SELECT * FROM payroll_payslips")).rows).toEqual([]);
+  });
+
+  it("B.3: distingue corrida propia vacía de corrida ajena o inexistente", async () => {
+    const [run] = await owner.insert(schema.payrollRuns).values({ companyId: companyA,
+      periodStart: "2026-01-01", periodEnd: "2026-01-15", status: "DRAFT" }).returning();
+    expect(await state.context!.run(actors[0], () => getPayrollPayslips(companyA, run.id))).toEqual([]);
+    await expect(state.context!.run(actors[1], () => getPayrollPayslips(companyB, run.id)))
+      .rejects.toMatchObject({ statusCode: 404 });
+    await expect(state.context!.run(actors[0], () => getPayrollPayslips(companyA, randomUUID())))
+      .rejects.toMatchObject({ statusCode: 404 });
   });
 });

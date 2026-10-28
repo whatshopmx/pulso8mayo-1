@@ -1,0 +1,888 @@
+pnpm.cmd : $ vitest run --configLoader bundle
+En línea: 2 Carácter: 1
++ pnpm.cmd run test:unit *> tasks/evidencia/consolidado-2026-10-22/OPS- ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ vitest run --configLoader bundle:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the
+default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"`
+in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+ ❯ tests/unit/inventory/production-fefo-db.test.ts (20 tests | 19 failed) 36101ms
+     × manual descuenta una vez, registra USAGE y cierra la orden en la misma transacción 850ms
+     × rechaza ingrediente explícito EXPIRED y revierte todo 530ms
+     × rechaza ingrediente explícito RESERVED y revierte todo 244ms
+     × rechaza ingrediente explícito QUARANTINED y revierte todo 138ms
+     × rechaza ingrediente explícito DEPLETED y revierte todo 362ms
+     × rechaza ingrediente explícito null y revierte todo 262ms
+     × rechaza caducidad Mon Oct 26 2026 12:00:00 GMT+0000 (hora universal coordinada) sin depender del cron 240ms
+     × rechaza caducidad Mon Oct 26 2026 11:59:59 GMT+0000 (hora universal coordinada) sin depender del cron 286ms
+     × rechaza caducidad null sin depender del cron 210ms
+     × un faltante físico no produce parcialmente ni genera merma ficticia 281ms
+     × revierte el primer ingrediente si falla el segundo 304ms
+     × no sobreasigna un lote repetido en dos líneas 153ms
+     × rechaza lote de otro producto aunque esté en la misma sucursal 345ms
+     × no completa una orden de otra empresa 163ms
+     × sin lote explícito aplica FEFO y distribuye cantidad/costo/esperado sin duplicar 121ms
+     × convierte unidades una vez con la conversión de su empresa y el mismo ejecutor 304ms
+     × no usa una conversión de otra empresa ni asume equivalencias 179ms
+     × un fallo real de kardex revierte resultado, insumos, saldos y orden 248ms
+     × un fallo al insertar insumos revierte también el descuento anterior 597ms
+seed run 1: seed-01-foundation OK
+seed run 1: seed-02-hr-profiles OK
+seed run 1: seed-03-equipment OK
+seed run 1: seed-04-inventory OK
+seed run 1: seed-05-workflows OK
+seed run 1: seed-06-labor OK
+seed run 1: seed-07-compliance-kpi OK
+seed run 1: seed-08-hr-advanced OK
+seed run 1: seed-09-whatsapp OK
+seed run 1: seed-10-final OK
+seed run 1: seed-11-control-orders OK
+seed run 1: seed-12-sales-pos OK
+seed run 1: seed-13-receiving-matching OK
+seed run 1: seed-14-current-operations OK
+seed run 1: seed-15-financial-close OK
+seed run 1: seed-16-executive-control OK
+seed run 1: seed-labor-law-rules OK
+seed run 1: seed-18-finance OK
+seed run 1: seed-19-evidence-civil OK
+seed run 2: seed-01-foundation OK
+seed run 2: seed-02-hr-profiles OK
+seed run 2: seed-03-equipment OK
+seed run 2: seed-04-inventory OK
+seed run 2: seed-05-workflows OK
+seed run 2: seed-06-labor OK
+seed run 2: seed-07-compliance-kpi OK
+seed run 2: seed-08-hr-advanced OK
+seed run 2: seed-09-whatsapp OK
+seed run 2: seed-10-final OK
+seed run 2: seed-11-control-orders OK
+seed run 2: seed-12-sales-pos OK
+seed run 2: seed-13-receiving-matching OK
+seed run 2: seed-14-current-operations OK
+seed run 2: seed-15-financial-close OK
+seed run 2: seed-16-executive-control OK
+seed run 2: seed-labor-law-rules OK
+seed run 2: seed-18-finance OK
+seed run 2: seed-19-evidence-civil OK
+{"level":40,"time":1767268800000,"pid":18304,"hostname":"daveescam","component":"rate-limiter","msg":"Redis not available, falling back to in-memory rate limiting"}
+{"level":50,"time":1793137001243,"pid":16892,"hostname":"daveescam","component":"inngest:workflow-extractors","instanceId":"instance-28","extractor":"stock-count","err":"Error: agotó reintentos","msg":"Extractor agotó sus reintentos"}
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 19 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > manual
+descuenta una vez, registra USAGE y cierra la orden en la misma transacción
+AssertionError: expected [] to match object [ { …(7) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "batchId": "aaaaaaaa-0000-4000-8000-000000000101",
+-     "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
+-     "itemId": "aaaaaaaa-0000-4000-8000-000000000021",
+-     "performedBy": "actor-a",
+-     "quantityChange": "-1.0000",
+-     "referenceId": "49e4a4bb-eeee-41d7-8ce5-786675350cfa",
+-     "type": "USAGE",
+-   },
+- ]
++ []
+
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:93:63
+     91|     expect(result).toMatchObject({ ingredientCost: 125, shortfalls: []…
+     92|     expect((await db.select().from(tables.inventoryBatches))[0].curren…
+     93|     expect(await db.select().from(tables.inventoryMovements)).toMatchO…
+       |                                                               ^
+     94|       branchId: branch, type: 'USAGE', quantityChange: '-1.0000', refe…
+     95|     expect((await db.select().from(tables.productionOrders).where(eq(t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > rechaza
+ingrediente explícito EXPIRED y revierte todo
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "3eae8ab0-e3d8-4af7-85fb-0fbd39722bb8",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:98:53
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > rechaza
+ingrediente explícito RESERVED y revierte todo
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "ace75dea-0dea-4b5f-95cb-b23c5f64e79d",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:98:53
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > rechaza
+ingrediente explícito QUARANTINED y revierte todo
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "987cf7c0-42b0-41f0-a7cf-c044b255d626",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:98:53
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > rechaza
+ingrediente explícito DEPLETED y revierte todo
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "60d341c2-997e-44bb-bfe5-2e5afa718191",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:98:53
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > rechaza
+ingrediente explícito null y revierte todo
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "3269e215-6806-49c2-823c-769f2d16200b",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:98:53
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > rechaza
+caducidad Mon Oct 26 2026 12:00:00 GMT+0000 (hora universal coordinada) sin depender del cron
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "bea7ed0d-a609-440f-a735-806ecdfaf6b3",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:101:43
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > rechaza
+caducidad Mon Oct 26 2026 11:59:59 GMT+0000 (hora universal coordinada) sin depender del cron
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "e397a95f-5dcb-413f-b786-d8d59cbbb4ef",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:101:43
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > rechaza
+caducidad null sin depender del cron
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "38d52630-70d0-4c0f-a3ab-d20fd42bf593",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:101:43
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > un faltante
+físico no produce parcialmente ni genera merma ficticia
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "9a666d7c-17fd-4770-aea5-2bc4ca91a053",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [
++     {
++       "batchId": "aaaaaaaa-0000-4000-8000-000000000101",
++       "itemId": "aaaaaaaa-0000-4000-8000-000000000021",
++       "missing": 0.6,
++       "unit": "KG",
++     },
++   ],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:104:54
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > revierte el
+primer ingrediente si falla el segundo
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "f053a15e-3234-429b-b82d-2d715d543bfe",
++   "ingredientCost": 250,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:108:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > no
+sobreasigna un lote repetido en dos líneas
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "1492836b-da2b-4333-9bb9-2eff124721a0",
++   "ingredientCost": 250,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [
++     {
++       "batchId": "aaaaaaaa-0000-4000-8000-000000000101",
++       "itemId": "aaaaaaaa-0000-4000-8000-000000000021",
++       "missing": 0.5,
++       "unit": "KG",
++     },
++   ],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:112:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > rechaza
+lote de otro producto aunque esté en la misma sucursal
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "913dc8cd-3b3c-4b27-8eff-cf8998744c22",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:115:43
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > no completa
+una orden de otra empresa
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "7203b2c3-06df-4538-a8e2-1d63344504a4",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "bbbbbbbb-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:118:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > sin lote
+explícito aplica FEFO y distribuye cantidad/costo/esperado sin duplicar
+AssertionError: expected { …(20) } to match object { ingredientCost: 155 }
+(19 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ingredientCost": 155,
++   "ingredientCost": 0,
+  }
+
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:123:123
+    121|     await batch(101, { currentQuantity: '0.6000' });
+    122|     await batch(102, { currentQuantity: '0.4000', expirationDate: new …
+    123|     expect(await record({ ingredients: [ingredient({ batchId: undefine…
+       |
+            ^
+    124|     const rows = await db.select().from(tables.productionIngredients).…
+    125|     expect(rows.map(r => [r.batchId, r.actualQuantity, r.expectedQuant…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > convierte
+unidades una vez con la conversión de su empresa y el mismo ejecutor
+AssertionError: expected { …(20) } to match object { ingredientCost: 31 }
+(19 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ingredientCost": 31,
++   "ingredientCost": 31250,
+  }
+
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:131:116
+    129|   it('convierte unidades una vez con la conversión de su empresa y el …
+    130|     await batch(); await db.insert(tables.unitConversions).values({ co…
+    131|     expect(await record({ ingredients: [ingredient({ unit: 'G', actual…
+       |
+     ^
+    132|     expect((await db.select().from(tables.inventoryBatches))[0].curren…
+    133|     expect((await db.select().from(tables.productionIngredients))[0]).…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > no usa una
+conversión de otra empresa ni asume equivalencias
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "9f42c064-16d4-4c34-9c6e-f7190212fced",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ rejectsUnchanged tests/unit/inventory/production-fefo-db.test.ts:55:25
+
+     53| async function rejectsUnchanged(action: () => Promise<unknown>, status…
+     54|   const before = await snapshot();
+     55|   await expect(action()).rejects.toMatchObject({ statusCode });
+       |                         ^
+     56|   expect(await snapshot()).toEqual(before);
+     57| }
+ Test Files  1 failed | 178 passed (179)
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:137:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > un fallo
+real de kardex revierte resultado, insumos, saldos y orden
+AssertionError: promise resolved "{ …(20) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++   "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++   "createdAt": 2026-10-26T12:00:00.000Z,
++   "discardedAt": null,
++   "discardedBy": null,
++   "discardedQuantity": null,
++   "expiresAt": null,
++   "holdAlertNotifiedAt": null,
++   "id": "6b93a9b3-6a60-401a-bb02-9448f54f182a",
++   "ingredientCost": 125,
++   "notes": null,
++   "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++   "producedQuantity": 1,
++   "productionDate": 2026-10-26T12:00:00.000Z,
++   "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++   "recordedBy": "actor-a",
++   "shortfalls": [],
++   "unit": "PORTION",
++   "updatedAt": 2026-10-26T12:00:00.000Z,
++   "workflowInstanceId": null,
+  }
+
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:142:33
+    140|     await batch(); const before = await snapshot();
+    141|     await db.execute(sql`ALTER TABLE inventory_movements ADD CONSTRAIN…
+      Tests  19 failed | 2230 passed | 1 skipped | 1 todo (2251)
+   Start at  21:34:15
+   Duration  165.93s (transform 49.52s, setup 0ms, import 636.26s, tests 304.21s, environment 104ms)
+
+    142|     try { await expect(record()).rejects.toMatchObject({ cause: { code…
+       |                                 ^
+    143|     finally { await db.execute(sql`ALTER TABLE inventory_movements DRO…
+    144|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/19]⎯
+
+ FAIL  tests/unit/inventory/production-fefo-db.test.ts > FEFO-04B-3: registro de producción con SQL real > un fallo al
+insertar insumos revierte también el descuento anterior
+AssertionError: expected [ [ { …(17) } ], [ { …(19) } ], …(4) ] to deeply equal [ [ { …(17) } ], [], [], …(3) ]
+
+- Expected
++ Received
+
+@@ -1,11 +1,11 @@
+  [
+    [
+      {
+        "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
+        "createdAt": 2026-10-20T00:00:00.000Z,
+-       "currentQuantity": "2.0000",
++       "currentQuantity": "1.0000",
+        "expirationDate": 2026-11-01T00:00:00.000Z,
+        "id": "aaaaaaaa-0000-4000-8000-000000000101",
+        "initialQuantity": "2.0000",
+        "itemId": "aaaaaaaa-0000-4000-8000-000000000021",
+        "lotNumber": null,
+@@ -18,11 +18,33 @@
+        "supplierId": null,
+        "unitCost": 125,
+        "updatedAt": 2026-10-26T12:00:00.000Z,
+      },
+    ],
+-   [],
++   [
++     {
++       "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
++       "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
++       "createdAt": 2026-10-26T12:00:00.000Z,
++       "discardedAt": null,
++       "discardedBy": null,
++       "discardedQuantity": null,
++       "expiresAt": null,
++       "holdAlertNotifiedAt": null,
++       "id": "b4cfc404-d557-4d7f-8611-c22e89a582d6",
++       "ingredientCost": 0,
++       "notes": null,
++       "orderId": "aaaaaaaa-0000-4000-8000-000000000041",
++       "producedQuantity": 1,
++       "productionDate": 2026-10-26T12:00:00.000Z,
++       "recipeId": "aaaaaaaa-0000-4000-8000-000000000031",
++       "recordedBy": "actor-a",
++       "unit": "PORTION",
++       "updatedAt": 2026-10-26T12:00:00.000Z,
++       "workflowInstanceId": null,
++     },
++   ],
+    [],
+    [
+      {
+        "branchId": "aaaaaaaa-0000-4000-8000-000000000011",
+        "companyId": "aaaaaaaa-0000-4000-8000-000000000001",
+
+ ❯ tests/unit/inventory/production-fefo-db.test.ts:148:112
+    146|     await batch(); const before = await snapshot();
+    147|     await db.execute(sql`ALTER TABLE production_ingredients ADD CONSTR…
+    148|     try { await expect(record()).rejects.toMatchObject({ cause: { code…
+       |
+ ^
+    149|     finally { await db.execute(sql`ALTER TABLE production_ingredients …
+    150|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/19]⎯
+
+[ELIFECYCLE] Command failed with exit code 1.
