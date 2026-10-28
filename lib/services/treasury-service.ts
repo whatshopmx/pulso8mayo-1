@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { setTenantContext, withCompanyContext } from "@/lib/db/tenant-context";
 import {
   paymentRuns,
   paymentRunItems,
@@ -324,6 +325,7 @@ async function estadoDeObligacion(
     return documento.status;
   }
   if (itemType === "PAYROLL") {
+    await setTenantContext(tx, { companyId });
     const [documento] = await tx.select({ status: payrollRuns.status }).from(payrollRuns)
       .where(and(eq(payrollRuns.id, referenceId), eq(payrollRuns.companyId, companyId))).for("update");
     if (!documento) throw ApiError.notFound("Corrida de nómina no encontrada");
@@ -384,8 +386,8 @@ async function corridasQueRetienen(
 }
 
 /** Listados y alta usan la misma definición: una corrida cancelada no retiene. */
-async function referenciasProgramadas(companyId: string, itemType: PaymentRunItemType) {
-  const items = await db.select({ referenceId: paymentRunItems.referenceId })
+async function referenciasProgramadas(companyId: string, itemType: PaymentRunItemType, q: Pick<Transaccion, "select"> = db) {
+  const items = await q.select({ referenceId: paymentRunItems.referenceId })
     .from(paymentRunItems)
     .innerJoin(paymentRuns, eq(paymentRunItems.paymentRunId, paymentRuns.id))
     .where(and(eq(paymentRuns.companyId, companyId), eq(paymentRunItems.itemType, itemType), ne(paymentRuns.status, "CANCELLED")));
@@ -516,34 +518,36 @@ export class TreasuryService {
    * Fetch payroll runs ready to be paid in Treasury.
    */
   static async getUnpaidPayrollRuns(companyId: string, branchId?: string | null) {
-    const runs = await db.query.payrollRuns.findMany({
-      where: eq(payrollRuns.companyId, companyId),
-      orderBy: (pr, { desc }) => [desc(pr.createdAt)],
+    return withCompanyContext({ companyId }, async (tx) => {
+      const runs = await tx.query.payrollRuns.findMany({
+        where: eq(payrollRuns.companyId, companyId),
+        orderBy: (pr, { desc }) => [desc(pr.createdAt)],
+      });
+
+      if (runs.length === 0) return [];
+
+      const runIds = runs.map(r => r.id);
+
+      const attachedIds = await referenciasProgramadas(companyId, "PAYROLL", tx);
+
+      const payslips = await tx.query.payrollPayslips.findMany({
+        where: inArray(payrollPayslips.runId, runIds),
+        columns: { runId: true, totalPercepcionesCents: true }
+      });
+
+      const payrollTotals = new Map<string, number>();
+      payslips.forEach(ps => {
+        payrollTotals.set(ps.runId, (payrollTotals.get(ps.runId) || 0) + (ps.totalPercepcionesCents || 0));
+      });
+
+      return runs
+        .filter(r => !attachedIds.has(r.id))
+        .map(r => ({
+          ...r,
+          totalAmountCents: payrollTotals.get(r.id) || 0,
+          branchName: "Todas las sucursales (Consolidado)",
+        }));
     });
-
-    if (runs.length === 0) return [];
-
-    const runIds = runs.map(r => r.id);
-
-    const attachedIds = await referenciasProgramadas(companyId, "PAYROLL");
-
-    const payslips = await db.query.payrollPayslips.findMany({
-      where: inArray(payrollPayslips.runId, runIds),
-      columns: { runId: true, totalPercepcionesCents: true }
-    });
-
-    const payrollTotals = new Map<string, number>();
-    payslips.forEach(ps => {
-      payrollTotals.set(ps.runId, (payrollTotals.get(ps.runId) || 0) + (ps.totalPercepcionesCents || 0));
-    });
-
-    return runs
-      .filter(r => !attachedIds.has(r.id))
-      .map(r => ({
-        ...r,
-        totalAmountCents: payrollTotals.get(r.id) || 0,
-        branchName: "Todas las sucursales (Consolidado)",
-      }));
   }
 
   /**
@@ -573,7 +577,7 @@ export class TreasuryService {
     /** Solo se usa en los tipos que no tienen documento con monto propio. */
     amountCents?: number;
     notes?: string;
-  }, q: Pick<Transaccion, "query"> = db): Promise<{
+  }, q?: Transaccion): Promise<{
     amountCents: number;
     counterparty: string;
     /** Cuenta verificada de proveedor, vigente al momento de agregar la partida (A2.1). */
@@ -583,11 +587,20 @@ export class TreasuryService {
     clabeLast4?: string | null;
   }> {
     const { companyId, itemType, referenceId, notes } = input;
+    if (itemType === "PAYROLL") {
+      if (!q) {
+        return withCompanyContext({ companyId }, (tx) => TreasuryService.assertCounterpartyPayable(input, tx));
+      }
+      // Reutilizar la transacción del alta mantiene lectura y bloqueo en la
+      // misma conexión, sin pedir otra conexión al pool durante el alta.
+      await setTenantContext(q, { companyId });
+    }
+    const executor = q ?? db;
 
     switch (itemType) {
       // Mercancía: contraparte = proveedor de la factura, con CLABE verificada.
       case "INVOICE": {
-        const invoice = await q.query.invoices.findFirst({
+        const invoice = await executor.query.invoices.findFirst({
           where: and(eq(invoices.id, referenceId), eq(invoices.companyId, companyId)),
         });
 
@@ -610,7 +623,7 @@ export class TreasuryService {
           );
         }
 
-        const verifiedAccount = await q.query.supplierBankAccounts.findFirst({
+        const verifiedAccount = await executor.query.supplierBankAccounts.findFirst({
           where: and(
             eq(supplierBankAccounts.supplierId, invoice.supplierId),
             eq(supplierBankAccounts.companyId, companyId),
@@ -619,7 +632,7 @@ export class TreasuryService {
           ),
         });
 
-        const supplier = await q.query.suppliers.findFirst({
+        const supplier = await executor.query.suppliers.findFirst({
           where: and(eq(suppliers.id, invoice.supplierId), eq(suppliers.companyId, companyId)),
         });
         if (!supplier) throw ApiError.notFound("Proveedor no encontrado en esta empresa");
@@ -646,13 +659,13 @@ export class TreasuryService {
       // empleados, no contra una cuenta de contraparte. **Se declara** que no
       // requiere contraparte bancaria; no cae por omisión.
       case "PAYROLL": {
-        const payrollRun = await q.query.payrollRuns.findFirst({
+        const payrollRun = await executor.query.payrollRuns.findFirst({
           where: and(eq(payrollRuns.id, referenceId), eq(payrollRuns.companyId, companyId)),
         });
 
         if (!payrollRun) throw ApiError.notFound("Corrida de nómina no encontrada");
 
-        const payslips = await q.query.payrollPayslips.findMany({
+        const payslips = await executor.query.payrollPayslips.findMany({
           where: eq(payrollPayslips.runId, payrollRun.id),
           columns: { totalPercepcionesCents: true },
         });
@@ -697,7 +710,7 @@ export class TreasuryService {
       // parcial, pero no se puede meter a la sucursal más efectivo del que el
       // fondo está autorizado a tener.
       case "PETTY_CASH_REIMBURSEMENT": {
-        const fund = await q.query.pettyCashFunds.findFirst({
+        const fund = await executor.query.pettyCashFunds.findFirst({
           where: and(
             eq(pettyCashFunds.id, referenceId),
             eq(pettyCashFunds.companyId, companyId)
@@ -735,7 +748,7 @@ export class TreasuryService {
       // hielo, plomero) no tiene a quién transferirle — igual que una factura
       // sin `supplierId` — así que se rechaza en vez de colarse como OTHER.
       case "OPERATING_EXPENSE": {
-        const expense = await q.query.operatingExpenses.findFirst({
+        const expense = await executor.query.operatingExpenses.findFirst({
           where: and(eq(operatingExpenses.id, referenceId), eq(operatingExpenses.companyId, companyId)),
         });
 
@@ -756,7 +769,7 @@ export class TreasuryService {
           );
         }
 
-        const verifiedAccount = await q.query.payeeBankAccounts.findFirst({
+        const verifiedAccount = await executor.query.payeeBankAccounts.findFirst({
           where: and(
             eq(payeeBankAccounts.payeeId, expense.payeeId),
             eq(payeeBankAccounts.companyId, companyId),
@@ -765,7 +778,7 @@ export class TreasuryService {
           ),
         });
 
-        const payee = await q.query.payees.findFirst({
+        const payee = await executor.query.payees.findFirst({
           where: and(eq(payees.id, expense.payeeId), eq(payees.companyId, companyId)),
         });
         if (!payee) throw ApiError.notFound("Contraparte no encontrada en esta empresa");
@@ -925,10 +938,10 @@ export class TreasuryService {
           return { ...item, invoiceDetails: inv || null };
         }
         if (item.itemType === 'PAYROLL') {
-          const pr = await db.query.payrollRuns.findFirst({
-            where: eq(payrollRuns.id, item.referenceId),
+          const pr = await withCompanyContext({ companyId }, (tx) => tx.query.payrollRuns.findFirst({
+            where: and(eq(payrollRuns.id, item.referenceId), eq(payrollRuns.companyId, companyId)),
             columns: { periodStart: true, periodEnd: true, status: true }
-          });
+          }));
           return { ...item, payrollDetails: pr || null };
         }
         if (item.itemType === 'OPERATING_EXPENSE') {
@@ -1636,7 +1649,7 @@ export class TreasuryService {
     const nominaItems = partidasVigentes.filter((i) => i.itemType === "PAYROLL");
 
     if (nominaItems.length > 0) {
-      const recibos = await db
+      const recibos = await withCompanyContext({ companyId }, (tx) => tx
         .select({
           runId: payrollPayslips.runId,
           userId: payrollPayslips.userId,
@@ -1646,14 +1659,17 @@ export class TreasuryService {
           clabe: employeeProfiles.clabe,
         })
         .from(payrollPayslips)
-        .leftJoin(users, eq(payrollPayslips.userId, users.id))
-        .leftJoin(employeeProfiles, eq(payrollPayslips.userId, employeeProfiles.userId))
+        .innerJoin(payrollRuns, and(eq(payrollPayslips.runId, payrollRuns.id), eq(payrollRuns.companyId, companyId)))
+        // Conservar recibos inconsistentes sin datos bancarios: sinClabe
+        // excluye toda la nómina y evita emitir transferencias parciales.
+        .leftJoin(users, and(eq(payrollPayslips.userId, users.id), eq(users.companyId, companyId)))
+        .leftJoin(employeeProfiles, eq(users.id, employeeProfiles.userId))
         .where(
           inArray(
             payrollPayslips.runId,
             nominaItems.map((i) => i.referenceId)
           )
-        );
+        ));
 
       // Las CLABEs de empleado viven cifradas cuando `PULSO_ENCRYPT_PII` está
       // encendido. La versión por lote desenvuelve el DEK una sola vez.

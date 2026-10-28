@@ -1,0 +1,71 @@
+pnpm.cmd : $ vitest run --configLoader bundle --config vitest.integration.config.ts
+"tests/integration/aguinaldo-runtime-recovery-db.test.ts" "-t" "no genera nómina parcial"
+En línea: 2 Carácter: 38
++ ... system-ca'; pnpm.cmd run test:integration tests/integration/aguinaldo ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ vitest run --...nómina parcial":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+[dotenv@17.2.3] injecting env (1) from .env.test -- tip: ⚙️  override existing env vars with { override: true }
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the
+default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `"type":
+"module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/david/pulso29
+
+stdout | tests/integration/aguinaldo-runtime-recovery-db.test.ts
+[dotenv@17.2.3] injecting env (0) from .env.test -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+
+ ❯ tests/integration/aguinaldo-runtime-recovery-db.test.ts (23 tests | 1 failed | 22 skipped) 13732ms
+     × C: no genera nómina parcial si un recibo histórico apunta a un empleado ajeno 3930ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/integration/aguinaldo-runtime-recovery-db.test.ts > OPS-02.nomina.A — recuperación con login runtime y
+políticas privadas > C: no genera nómina parcial si un recibo histórico apunta a un empleado ajeno
+AssertionError: promise resolved "{ …(12) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "avisos": [
++     "La nómina se dispersa en 1 transferencias, una por empleado, por el total de percepciones de cada recibo. Las
+deducciones no se restan aquí: es la misma base con la que la partida entró a la corrida.",
++   ],
++   "content": "CUENTA_ORIGEN,CLABE_DESTINO,BANCO_DESTINO,BENEFICIARIO,MONTO_PESOS,CONCEPTO,REFERENCIA
++ \"SIN_CUENTA_ORIGEN\",\"002180000000000001\",\"BANCO DE PRUEBA\",\"EMPLEADO SQL\",9000.00,\"NOMINA\",\"6108362\"",
++   "excluded": [],
++   "excludedAmountCents": 0,
++   "excludedCount": 0,
++   "format": "SPEI_CSV",
++   "itemCount": 1,
++   "recordCount": 1,
++   "runId": "2e79413d-2d3b-407e-858d-5b7cdb642c2d",
++   "runTitle": "Tesorería sintética",
++   "runTotalPesos": "0.00",
++   "totalPesos": "9000.00",
+  }
+
+ ❯ tests/integration/aguinaldo-runtime-recovery-db.test.ts:490:129
+    488|     await owner.insert(schema.payrollPayslips).values({ runId: own, us…
+    489|     await owner.insert(schema.paymentRunItems).values({ paymentRunId: …
+    490|     await expect(state.context!.run(actors[0], () => TreasuryService.g…
+       |
+                  ^
+    491|       .rejects.toMatchObject({ statusCode: 400, message: expect.string…
+    492|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 22 skipped (23)
+   Start at  15:21:48
+   Duration  40.03s (transform 4.41s, setup 246ms, import 22.77s, tests 13.73s, environment 0ms)
+
+[ELIFECYCLE] Command failed with exit code 1.

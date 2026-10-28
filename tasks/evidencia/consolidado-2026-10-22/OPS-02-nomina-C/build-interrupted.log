@@ -1,0 +1,13 @@
+$ next build
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+- Experiments (use with caution):
+  · serverActions
+  ✓ turbopackUseSystemTlsCerts
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 3.5min
+  Running TypeScript ...
+[ELIFECYCLE] Command failed with exit code 4294967295.
+
+Build interrumpido para incorporar la regresión de nómina parcial; no es una validación final.

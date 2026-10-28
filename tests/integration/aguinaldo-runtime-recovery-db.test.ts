@@ -24,6 +24,12 @@ import { recuperarAguinaldoRun } from "@/lib/services/aguinaldo-run-execution";
 import { executeAguinaldoRun, getAguinaldoRuns, registrarDispersionExcedente, listarDispersionesExcedente } from "@/lib/services/aguinaldo-payroll-service";
 import { timbrarNomina, getTimbrado, type NominaTimbradoInput } from "@/lib/services/fiscal-service";
 import { executePayrollRun, getPayrollRuns, getPayrollPayslips } from "@/lib/services/payroll-service";
+import { TreasuryService } from "@/lib/services/treasury-service";
+import { NextRequest } from "next/server";
+import { GET as unpaidPayroll } from "@/app/api/finance/treasury/payroll/unpaid/route";
+import { requirePermissionApi } from "@/lib/rbac/abac";
+vi.mock("@/lib/rbac/abac", () => ({ requirePermissionApi: vi.fn() }));
+vi.mock("@/lib/security/employee-cipher", () => ({ decryptProfileRecords: async (_company: string, rows: unknown[]) => rows }));
 
 neonConfig.webSocketConstructor = ws;
 state.context = new AsyncLocalStorage<Database>();
@@ -35,7 +41,8 @@ const pools = [0, 1].map(() => new Pool({ connectionString: runtimeUrl(), max: 1
 const actors = pools.map((pool) => drizzle(pool, { schema }));
 const tables = ["payroll_runs", "payroll_payslips", "payroll_aguinaldo_dispersiones", "cfdi_nomina_timbrados"];
 const sources = ["users", "employee_profiles", "employee_contracts", "shift_sessions", "leave_requests", "leave_types",
-  "labor_law_calendar_rules", "tenant_operating_config", "vacation_requests", "propinas", "propina_asignaciones", "holidays"];
+  "labor_law_calendar_rules", "tenant_operating_config", "vacation_requests", "propinas", "propina_asignaciones", "holidays",
+  "payment_runs", "payment_run_items"];
 const companyA = randomUUID(); const companyB = randomUUID();
 let created = false;
 
@@ -91,6 +98,24 @@ function ordinaryInput(companyId = companyA): NominaTimbradoInput {
   return { companyId, performedBy: "autoriza-ordinaria", empleadoRfc: "AAA010101AAA", empleadoNombre: "Empleado SQL",
     empleadoSalarioDiarioCents: 60000, periodo: "2026-01-01 - 2026-01-15", payrollTypeCode: "O",
     totalPercepciones: 900000, totalDeducciones: 50000 };
+}
+async function treasuryPayroll(companyId = companyA) {
+  const userId = await sourceEmployee(companyId);
+  await admin.query("UPDATE employee_profiles SET clabe='002180000000000001',bank_name='Banco de prueba' WHERE user_id=$1", [userId]);
+  const [run] = await owner.insert(schema.payrollRuns).values({ companyId, periodStart: "2026-01-01",
+    periodEnd: "2026-01-15", status: "COMPLETED" }).returning();
+  await owner.insert(schema.payrollPayslips).values({ runId: run.id, userId, totalPercepcionesCents: 900000,
+    totalDeduccionesCents: 119731, cfdiStatus: "TIMBRADO" });
+  return run.id;
+}
+async function paymentRun(companyId = companyA, status: "DRAFT" | "APPROVED" = "DRAFT") {
+  const [run] = await owner.insert(schema.paymentRuns).values({ companyId, title: "Tesorería sintética",
+    runDate: new Date("2026-01-15T12:00:00Z"), status }).returning();
+  return run.id;
+}
+function schedule(actor: number, paymentRunId: string, referenceId: string, companyId = companyA) {
+  return state.context!.run(actors[actor], () => TreasuryService.addItemToRun({ companyId, paymentRunId,
+    itemType: "PAYROLL", referenceId, amountCents: 1 }));
 }
 async function ordinaryEmployee(companyId = companyA) {
   const userId = await sourceEmployee(companyId);
@@ -403,5 +428,87 @@ describe("OPS-02.nomina.A — recuperación con login runtime y políticas priva
       .rejects.toMatchObject({ statusCode: 404 });
     await expect(state.context!.run(actors[0], () => getPayrollPayslips(companyA, randomUUID())))
       .rejects.toMatchObject({ statusCode: 404 });
+  });
+  it("C: pendientes HTTP conserva empresa de permisos y consulta SQL bajo RLS", async () => {
+    const a = await treasuryPayroll(); const b = await treasuryPayroll(companyB);
+    vi.mocked(requirePermissionApi).mockResolvedValue({ ctx: { userCompanyId: companyA } } as never);
+    const req = new NextRequest(`http://localhost/api/finance/treasury/payroll/unpaid?companyId=${companyB}`);
+    const response = await state.context!.run(actors[0], () => unpaidPayroll(req));
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toMatchObject([{ id: a, totalAmountCents: 900000 }]);
+    expect(vi.mocked(requirePermissionApi)).toHaveBeenLastCalledWith("reports", "read",
+      { classification: "FINANCIAL", audit: { action: "READ", req } });
+    expect((await state.context!.run(actors[0], () => TreasuryService.getUnpaidPayrollRuns(companyB))).map(r => r.id)).toEqual([b]);
+    expect((await pools[0].query("SELECT * FROM payroll_runs")).rows).toEqual([]);
+  });
+
+  it("C: validación directa y alta bloquean nómina propia con contexto en el tx real", async () => {
+    const a = await treasuryPayroll(); const b = await treasuryPayroll(companyB); const target = await paymentRun();
+    expect(await state.context!.run(actors[0], () => TreasuryService.assertCounterpartyPayable({
+      companyId: companyA, itemType: "PAYROLL", referenceId: a }))).toMatchObject({ amountCents: 900000 });
+    await expect(schedule(0, target, b)).rejects.toMatchObject({ statusCode: 404 });
+    expect(await schedule(0, target, a)).toMatchObject({ referenceId: a, amountCents: 900000 });
+    expect(await state.context!.run(actors[0], () => TreasuryService.getUnpaidPayrollRuns(companyA))).toEqual([]);
+    expect((await admin.query("SELECT total_amount_cents FROM payment_runs")).rows).toEqual([{ total_amount_cents: 900000 }]);
+  });
+
+  it("C: detalle y layout excluyen referencias ajenas incluso en partidas históricas", async () => {
+    const own = await treasuryPayroll(); const foreign = await treasuryPayroll(companyB); const target = await paymentRun(companyA, "APPROVED");
+    const items = await owner.insert(schema.paymentRunItems).values([own, foreign].map(referenceId => ({
+      paymentRunId: target, itemType: "PAYROLL" as const, referenceId, amountCents: 900000 }))).returning();
+    const detail = await state.context!.run(actors[0], () => TreasuryService.getPaymentRunDetails(target, companyA));
+    expect(detail.items.find(item => item.id === items[0].id)).toMatchObject({ payrollDetails: { status: "COMPLETED" } });
+    expect(detail.items.find(item => item.id === items[1].id)).toMatchObject({ payrollDetails: null });
+    const layout = await state.context!.run(actors[0], () => TreasuryService.generateBankDisbursementLayout(target, companyA, "ADMIN"));
+    expect(layout).toMatchObject({ recordCount: 1, excludedCount: 1, totalPesos: "9000.00" });
+    expect(layout.excluded[0].itemId).toBe(items[1].id);
+    await expect(state.context!.run(actors[0], () => TreasuryService.getPaymentRunDetails(target, companyB)))
+      .rejects.toMatchObject({ statusCode: 404 });
+    expect((await pools[0].query("SELECT * FROM payroll_payslips")).rows).toEqual([]);
+  });
+
+  it("C: un fallo posterior al bloqueo revierte partida/total y libera el contexto", async () => {
+    const payroll = await treasuryPayroll(); const target = await paymentRun();
+    await admin.query(`CREATE FUNCTION "${namespace}".reject_total() RETURNS trigger LANGUAGE plpgsql
+      AS $$ BEGIN RAISE EXCEPTION 'fallo de total sintético'; END $$`);
+    await admin.query(`CREATE TRIGGER reject_total BEFORE UPDATE ON "${namespace}".payment_runs
+      FOR EACH ROW EXECUTE FUNCTION "${namespace}".reject_total()`);
+    try {
+      await expect(schedule(0, target, payroll)).rejects.toThrow();
+      expect((await admin.query("SELECT * FROM payment_run_items")).rows).toEqual([]);
+      expect((await admin.query("SELECT total_amount_cents FROM payment_runs")).rows).toEqual([{ total_amount_cents: 0 }]);
+      expect((await pools[0].query("SELECT current_setting('app.current_company_id',true) company")).rows[0].company).toBeFalsy();
+    } finally { await admin.query(`DROP TRIGGER reject_total ON "${namespace}".payment_runs`); }
+    expect(await schedule(1, target, payroll)).toMatchObject({ amountCents: 900000 });
+  });
+
+  it("C: no genera nómina parcial si un recibo histórico apunta a un empleado ajeno", async () => {
+    const own = await treasuryPayroll(); const foreign = await treasuryPayroll(companyB); const target = await paymentRun(companyA, "APPROVED");
+    const userId = (await admin.query("SELECT user_id FROM payroll_payslips WHERE run_id=$1", [foreign])).rows[0].user_id;
+    await owner.insert(schema.payrollPayslips).values({ runId: own, userId, totalPercepcionesCents: 100000 });
+    await owner.insert(schema.paymentRunItems).values({ paymentRunId: target, itemType: "PAYROLL", referenceId: own, amountCents: 1000000 });
+    await expect(state.context!.run(actors[0], () => TreasuryService.generateBankDisbursementLayout(target, companyA, "ADMIN")))
+      .rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("no tienen CLABE") });
+  });
+
+  it("C: dos altas concurrentes retienen una única obligación bajo RLS", async () => {
+    const payroll = await treasuryPayroll(); const targets = await Promise.all([paymentRun(), paymentRun()]);
+    let entered = 0; let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const spies = actors.map(actor => {
+      const transaction = actor.transaction.bind(actor);
+      return vi.spyOn(actor, "transaction").mockImplementationOnce(async (fn, config) => {
+        if (++entered === 2) release(); await gate;
+        return transaction(fn, config);
+      });
+    });
+    let results;
+    try { results = await Promise.allSettled(targets.map((target, i) => schedule(i, target, payroll))); }
+    finally { spies.forEach(spy => spy.mockRestore()); }
+    expect(entered).toBe(2);
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
+    expect((await admin.query("SELECT amount_cents FROM payment_run_items")).rows).toEqual([{ amount_cents: 900000 }]);
+    expect((await admin.query("SELECT SUM(total_amount_cents)::int total FROM payment_runs")).rows).toEqual([{ total: 900000 }]);
   });
 });

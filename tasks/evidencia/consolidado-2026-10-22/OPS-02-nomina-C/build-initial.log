@@ -1,0 +1,25 @@
+$ next build
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+- Experiments (use with caution):
+  · serverActions
+  ✓ turbopackUseSystemTlsCerts
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 9.1min
+  Running TypeScript ...
+Failed to compile.
+
+./lib/services/treasury-service.ts:596:30
+Type error: Argument of type 'Pick<PgTransaction<NeonQueryResultHKT, typeof import("C:/Users/david/pulso29/lib/db/schema"), ExtractTablesWithRelations<typeof import("C:/Users/david/pulso29/lib/db/schema")>>, "query" | "execute">' is not assignable to parameter of type 'DbExecutor'.
+  Type 'Pick<PgTransaction<NeonQueryResultHKT, typeof import("C:/Users/david/pulso29/lib/db/schema"), ExtractTablesWithRelations<typeof import("C:/Users/david/pulso29/lib/db/schema")>>, "query" | "execute">' is missing the following properties from type 'PgTransaction<NeonQueryResultHKT, typeof import("C:/Users/david/pulso29/lib/db/schema"), ExtractTablesWithRelations<typeof import("C:/Users/david/pulso29/lib/db/schema")>>': schema, nestedIndex, rollback, setTransaction, and 13 more.
+
+  594 |       // Reutilizar la transacción del alta mantiene lectura y bloqueo en la
+  595 |       // misma conexión, sin pedir otra conexión al pool durante el alta.
+> 596 |       await setTenantContext(q, { companyId });
+      |                              ^
+  597 |     }
+  598 |     const executor = q ?? db;
+  599 |
+Next.js build worker exited with code: 1 and signal: null
+[ELIFECYCLE] Command failed with exit code 1.

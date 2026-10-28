@@ -126,6 +126,9 @@ function databaseFixture() {
       select,
       execute: async (statement: unknown) => {
         const { sql, params } = dialect.sqlToQuery(statement as never);
+        // El aislamiento RLS se verifica con PostgreSQL/runtime; este fixture
+        // sólo reproduce los bloqueos y el rollback de programación.
+        if (/set_config/i.test(sql)) return [];
         if (!/pg_advisory_xact_lock/i.test(sql)) throw new Error(`SQL execute no soportado: ${sql}`);
         await acquire(`advisory:${params.join(":")}`, releaseAtEnd);
         return [];

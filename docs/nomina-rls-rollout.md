@@ -1,6 +1,6 @@
 # OPS-02.nomina — Mapa previo a activar RLS
 
-2026-10-26; actualizado 2026-10-27. Fuente del entorno: manifiestos de OPS-01. El operativo conecta como dueño con bypass y no tiene pulso_app; la base aislada sí tiene pulso_app sin superuser/bypass, pero las cuatro tablas de public todavía no tienen políticas. OPS-02.nomina.A adapta el protocolo y la recuperación y acredita ese recorrido con login runtime y políticas exclusivamente privadas de prueba. No se activan políticas ni se cambian roles operativos.
+2026-10-26; actualizado 2026-10-28. Fuente del entorno: manifiestos de OPS-01. El operativo conecta como dueño con bypass y no tiene pulso_app; la base aislada sí tiene pulso_app sin superuser/bypass, pero las cuatro tablas de public todavía no tienen políticas. OPS-02.nomina.A adapta el protocolo y la recuperación y acredita ese recorrido con login runtime y políticas exclusivamente privadas de prueba. No se activan políticas ni se cambian roles operativos.
 
 ## Tablas del lote
 
@@ -36,7 +36,7 @@ CodeGraph devolvió la definición de payrollRuns, pero no los callers conocidos
    - **B.1 completo local:** autorización/historial/bitácora de aguinaldo; integración conjunta 25/25, focalizadas 39/39 y lint/build con TypeScript exit 0. [Evidencia](../tasks/evidencia/consolidado-2026-10-22/OPS-02-nomina-B1/README.md).
    - **B.2 completo local:** consulta/reutilización/persistencia fiscal ordinaria con runtime 4/4, focalizadas 12/12, lint/build TypeScript exit 0. [Evidencia](../tasks/evidencia/consolidado-2026-10-22/OPS-02-nomina-B2/README.md). Conserva el protocolo ordinario existente; su durabilidad sigue en NOM-04.
    - **B.3 completo local:** corridas/listados/recibos ordinarios y caller HTTP con empresa explícita. Integración conjunta 32/32, contrato API 7/7, lint/build con TypeScript exit 0; suite global 2230 passed y 19 fallos FEFO preexistentes. [Evidencia y límites](../tasks/evidencia/consolidado-2026-10-22/OPS-02-nomina-B3/README.md).
-3. **NOMINA-C:** lecturas/bloqueos de tesorería con contexto en el tx real y regresiones HTTP/layout.
+3. **NOMINA-C — completo local:** lecturas/bloqueos de tesorería con contexto en el tx real y regresiones del handler/layout. Integración final 38/38 (seis casos C), focalizadas 72/72 y lint/build con TypeScript exit 0. [Evidencia y límites](../tasks/evidencia/consolidado-2026-10-22/OPS-02-nomina-C/README.md). No extiende todavía RLS a las tablas financieras ni acredita la aceptación HTTP/job completa de F.
 4. **NOMINA-D:** cron/job por empresa, sin depender de sesión ni de bypass. Revisar también OWNER (no existe en el enum de roles) y el lenguaje que equipara corrida COMPLETED con dispersión; AGU-04 conserva esa aceptación funcional.
 5. **NOMINA-E:** generar/revisar la migración aditiva de políticas y grants del rol preaprovisionado; inventariar el nuevo lote en OPS-01. No crear credenciales en SQL versionado ni aplicar al operativo.
 6. **NOMINA-F / AGU-03C.3:** pruebas con login runtime real, propietario separado, sin superuser/bypass ni membresía que conceda propiedad. Aplicar las políticas reales del lote en el entorno de aceptación: dos empresas, consultas HTTP/job, pool max=1, pérdida del contexto entre transacciones, raw SELECT sin contexto sin filas y escrituras rechazadas. Correr también preview→autorización→recibo, reintento e incertidumbre fiscal sin duplicados.
@@ -50,3 +50,11 @@ OPS-03 conserva el aprovisionamiento/activación del entorno operativo, con revi
 GET `/api/payroll/[id]/payslips` conserva la ruta y el DTO de éxito. Obtiene la empresa desde `requirePermissionApi('reports','read', {classification:'FINANCIAL'})`, igual que GET `/api/payroll`; un companyId de query/body no puede seleccionar otra empresa. El único caller de `getPayrollPayslips` localizado está en esta ruta: se actualizó junto con la firma interna requerida `getPayrollPayslips(companyId, runId)`, sin fallback sin contexto.
 
 IDs inválidos se rechazan con 400, sesión/permiso con 401/403 y corrida ausente/ajena con 404. Una corrida propia sin recibos conserva 200 con arreglo vacío. Las lecturas de hijos se enlazan con el padre y la empresa; la validación del padre y consulta de recibos ocurren en la misma transacción. Las pruebas de propagación API y SQL/runtime se registran por separado; no sustituyen la aceptación HTTP/job completa de F.
+
+## Contrato C implementado y aceptación local
+
+Pendientes, validación del documento PAYROLL, bloqueo al agregar, detalle y layout fijan contexto de empresa al consultar payroll_runs/payroll_payslips. Los helpers que reciben el ejecutor del alta usan setTenantContext en ese ejecutor; el FOR UPDATE y las escrituras de partida/total mantienen la misma transacción. La validación directa abre su propia transacción acotada.
+
+El detalle filtra explícitamente la empresa de la nómina referenciada. El layout enlaza también la empresa del empleado; una partida histórica con referencia ajena no obtiene recibos ni datos bancarios. Si una nómina propia contiene un recibo con empleado ajeno, conserva esa fila sin datos personales/bancarios para excluir la nómina completa mediante la validación de CLABE, sin emitir transferencias parciales. El descifrado queda fuera de la consulta transaccional. No se alteran los importes basados en percepciones: NOM-05 conserva la aceptación económica de netos/deducciones.
+
+GET `/api/finance/treasury/payroll/unpaid` conserva permiso FINANCIAL, empresa de sesión y DTO. La prueba invoca el handler y el servicio SQL reales, con permisos simulados, dentro del runtime de aceptación. No equivale a autenticación/auditoría HTTP completas de F. [Evidencia C](../tasks/evidencia/consolidado-2026-10-22/OPS-02-nomina-C/README.md).
