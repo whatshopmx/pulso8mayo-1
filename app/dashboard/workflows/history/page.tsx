@@ -8,8 +8,7 @@ import { workflowInstances, workflowTemplates, branches } from "@/lib/db/schema"
 import { eq, sql, count, and, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { cookies } from "next/headers";
-import { BRANCH_COOKIE_NAME } from "@/lib/tenant-context";
+import { resolveRequestBranchScope, scopeBranchId } from "@/lib/server/effective-branch";
 
 export const metadata: Metadata = {
   title: "Historial de Workflows - Pulso",
@@ -32,9 +31,22 @@ export default async function WorkflowHistoryPage() {
     );
   }
 
-  // Get selected branch from cookie
-  const cookieStore = await cookies();
-  const selectedBranchId = cookieStore.get(BRANCH_COOKIE_NAME)?.value;
+  // F01: la sucursal autorizada la resuelve el servidor, no la cookie/query.
+  const scope = await resolveRequestBranchScope();
+  const selectedBranchId = scopeBranchId(scope);
+
+  if (scope.kind === "NONE") {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Sin sucursal asignada</h1>
+          <p className="text-muted-foreground">
+            Tu rol solo puede consultar una sucursal y no tienes ninguna asignada.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Get branch name if selected
   let branchName: string | null = null;

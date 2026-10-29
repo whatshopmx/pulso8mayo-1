@@ -1,6 +1,3 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { PinnedAnnouncements } from "@/components/dashboard/pinned-announcements";
@@ -9,8 +6,10 @@ import { GroupAreaOverview } from "@/components/dashboard/group-area-overview";
 import { MetricCardSkeleton } from "@/components/ui/metric-card";
 import { DataTableSkeleton } from "@/components/shared";
 import { PageContainer, PageHeader, SectionErrorBoundary } from "@/components/shared";
-import { BRANCH_COOKIE_NAME } from "@/lib/tenant-context";
 import { LiveCommandSection, LiveCommandSkeleton } from "@/components/dashboard/live/live-command-section";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { scopeBranchId, resolveRequestBranchScope } from "@/lib/server/effective-branch";
 
 export default async function Page({
   searchParams,
@@ -18,15 +17,35 @@ export default async function Page({
   searchParams: Promise<{ branch?: string; startDate?: string; endDate?: string }>;
 }) {
   const params = await searchParams;
-  // Branch scope flows from the header BranchScopeControl (cookie-backed, AD-1):
-  // "pulso_selected_branch" is the single source of truth across home sections.
-  const cookieBranch = (await cookies()).get(BRANCH_COOKIE_NAME)?.value;
-  const selectedBranch = cookieBranch || params.branch;
+
+  // F01: el alcance autorizado se resuelve una sola vez, aquí, y se comparte
+  // con todos los widgets. Antes la cookie/query se pasaba tal cual al pulso y
+  // un GERENTE de Condesa podía leer Roma con `?branch=<roma>`.
+  const scope = await resolveRequestBranchScope(params.branch);
+  const selectedBranch = scopeBranchId(scope);
 
   const session = await auth.api.getSession({
     headers: await headers(),
   });
   const companyId = session?.user?.companyId ?? "";
+
+  if (scope.kind === "NONE") {
+    return (
+      <PageContainer>
+        <PageHeader
+          title="Comando de Red en Vivo"
+          description="Monitoreo en tiempo real del turno: aperturas, dotación de personal, control de frío NOM-251 y ventas del día."
+        />
+        <div className="rounded-xl border border-border bg-card p-6">
+          <h2 className="text-sm font-semibold text-foreground">Sin sucursal asignada</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Tu usuario tiene un rol que solo puede ver una sucursal, pero no tiene ninguna
+            asignada. Pide a un administrador que te asigne una para consultar el pulso.
+          </p>
+        </div>
+      </PageContainer>
+    );
+  }
 
   return (
     <PageContainer>
@@ -39,7 +58,7 @@ export default async function Page({
       {/* #1 — Live Command Center: Pulso del turno, alertas de rush y matriz de sucursales */}
       <Suspense fallback={<LiveCommandSkeleton />}>
         <SectionErrorBoundary>
-          <LiveCommandSection companyId={companyId} branchId={selectedBranch} />
+          <LiveCommandSection companyId={companyId} branchId={selectedBranch ?? undefined} />
         </SectionErrorBoundary>
       </Suspense>
 
@@ -55,14 +74,24 @@ export default async function Page({
         </Suspense>
       </div>
 
-      {/* #3 — Bitácora de actividad reciente del turno */}
+      {/* #3 — Bitácora de actividad reciente del turno (histórico: sí respeta el rango de fechas) */}
       <div className="pt-2">
-        <h2 className="text-sm font-semibold tracking-tight text-foreground mb-3">
-          Bitácora en Tiempo Real de la Red
-        </h2>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">
+            Bitácora en Tiempo Real de la Red
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            El pulso del turno es en vivo; el rango de fechas aplica a esta bitácora.
+          </p>
+        </div>
         <Suspense fallback={<DataTableSkeleton columns={6} rows={5} />}>
           {companyId ? (
-            <RecentActivity companyId={companyId} branchId={selectedBranch} />
+            <RecentActivity
+              companyId={companyId}
+              branchId={selectedBranch ?? undefined}
+              startDate={params.startDate}
+              endDate={params.endDate}
+            />
           ) : (
             <DataTableSkeleton columns={6} rows={5} />
           )}
@@ -78,4 +107,3 @@ export default async function Page({
     </PageContainer>
   );
 }
-
