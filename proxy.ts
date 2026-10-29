@@ -7,6 +7,37 @@ import { createChildLogger } from './lib/logger';
 const logger = createChildLogger('proxy');
 const isDev = process.env.NODE_ENV === 'development';
 
+/**
+ * RBAC-01: una ruta negada responde 403, no un redirect.
+ *
+ * Redirigir al panel por defecto hacía que el rechazo pareciera un enlace roto:
+ * el usuario pulsaba "Iniciar" y aterrizaba en otra pantalla sin explicación.
+ * Este HTML mínimo conserva el status real y ofrece la salida al panel propio.
+ */
+function forbiddenResponse(defaultPath: string): NextResponse {
+    const html = `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>403 · Acceso denegado</title>
+</head>
+<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fafafa;color:#111827;font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
+<main style="max-width:26rem;padding:2rem;text-align:center">
+<p style="margin:0 0 .5rem;font-size:.75rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#6b7280">403 · Acceso denegado</p>
+<h1 style="margin:0 0 .5rem;font-size:1.25rem">Tu rol no puede abrir esta página</h1>
+<p style="margin:0 0 1.5rem;font-size:.875rem;line-height:1.5;color:#4b5563">La ruta existe, pero está reservada a otros roles. No se te redirige para no ocultar el rechazo.</p>
+<a href="${defaultPath}" style="display:inline-block;padding:.5rem 1rem;border-radius:.5rem;background:#111827;color:#fff;font-size:.875rem;text-decoration:none">Volver a mi panel</a>
+</main>
+</body>
+</html>`;
+
+    return new NextResponse(html, {
+        status: 403,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
+}
+
 async function verifySession(request: NextRequest) {
   const cookie = request.headers.get("cookie") || "";
 
@@ -152,7 +183,7 @@ export async function proxy(request: NextRequest) {
         if (!hasAccess(userRole, requestedPath)) {
           logger.warn({ userRole, path: requestedPath }, "Access denied by RBAC");
                     const defaultPath = getDefaultDashboard(userRole);
-                    return NextResponse.redirect(new URL(defaultPath, request.url));
+                    return forbiddenResponse(defaultPath);
                 }
             }
 

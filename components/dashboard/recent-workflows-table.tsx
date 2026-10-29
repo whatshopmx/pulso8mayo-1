@@ -28,6 +28,8 @@ interface WorkflowInstance {
 
 interface RecentWorkflowsTableProps {
     workflows: WorkflowInstance[];
+    /** RBAC-01: los roles sin acceso a /dashboard/workflows no reciben CTAs. */
+    canExecute: boolean;
 }
 
 const emptySubscribe = () => () => {};
@@ -38,7 +40,7 @@ const useMounted = () =>
         () => false
     );
 
-export function RecentWorkflowsTable({ workflows }: RecentWorkflowsTableProps) {
+export function RecentWorkflowsTable({ workflows, canExecute }: RecentWorkflowsTableProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const mounted = useMounted();
 
@@ -105,6 +107,13 @@ export function RecentWorkflowsTable({ workflows }: RecentWorkflowsTableProps) {
     };
 
     const renderActionButton = (workflow: WorkflowInstance) => {
+        if (!canExecute) {
+            return (
+                <span className="text-xs text-muted-foreground" title="Tu rol solo puede consultar">
+                    Solo lectura
+                </span>
+            );
+        }
         switch (workflow.status) {
             case "COMPLETED":
                 return (

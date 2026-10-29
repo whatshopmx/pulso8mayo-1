@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { requireExecutionAccess, assertExecutionInScope } from '@/lib/workflows/execution-access';
+import { isApiError } from "@/lib/api/error";
 
 interface PageProps {
     params: Promise<{
@@ -29,10 +30,34 @@ export default async function ExecuteWorkflowPage(props: PageProps) {
     if (!execution || !execution.template) {
         return notFound();
     }
+
+    // RBAC-01: ejecutar exige `workflows:update`. La lectura basta para ver el
+    // resultado, pero READONLY no debe recibir el stepper de captura.
     try {
-        const actor = await requireExecutionAccess('read');
+        const actor = await requireExecutionAccess('update');
         await assertExecutionInScope(actor, execution);
-    } catch { return notFound(); }
+    } catch (error) {
+        if (isApiError(error) && error.statusCode === 403) {
+            return (
+                <div className="container mx-auto py-16">
+                    <div className="mx-auto max-w-md rounded-xl border border-border bg-card p-6 text-center">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            403 · Acceso denegado
+                        </p>
+                        <h1 className="mt-2 text-lg font-bold text-foreground">
+                            Tu rol no puede ejecutar workflows
+                        </h1>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Solo los roles operativos pueden iniciar o continuar una ejecución.
+                            Si necesitas consultar el resultado, pide acceso de lectura sobre el historial.
+                        </p>
+                    </div>
+                </div>
+            );
+        }
+        // Fuera de alcance o de otra empresa: 404, para no confirmar existencia.
+        return notFound();
+    }
 
     // 3. Render Stepper
     return (

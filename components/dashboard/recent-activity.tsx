@@ -11,6 +11,8 @@ interface RecentActivityProps {
   /** Rango civil `YYYY-MM-DD` del selector del encabezado. */
   startDate?: string;
   endDate?: string;
+  /** RBAC-01: READONLY no recibe enlaces de ejecución. */
+  canExecute: boolean;
 }
 
 /**
@@ -18,7 +20,7 @@ interface RecentActivityProps {
  * suspend independently inside the page's <Suspense> boundary and stream
  * after the shell paints.
  */
-export async function RecentActivity({ companyId, branchId, startDate, endDate }: RecentActivityProps) {
+export async function RecentActivity({ companyId, branchId, startDate, endDate, canExecute }: RecentActivityProps) {
   const t = await getTranslations("dashboard.executive");
 
   const conditions = [eq(workflowTemplates.companyId, companyId)];
@@ -61,7 +63,7 @@ export async function RecentActivity({ companyId, branchId, startDate, endDate }
       <div className="px-6 py-4 border-b bg-muted/30">
         <h3 className="text-lg font-bold">{t("recentActivity")}</h3>
       </div>
-      <RecentWorkflowsTable workflows={formattedWorkflows} />
+      <RecentWorkflowsTable workflows={formattedWorkflows} canExecute={canExecute} />
     </div>
   );
 }

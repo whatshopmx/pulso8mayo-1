@@ -10,6 +10,7 @@ import { LiveCommandSection, LiveCommandSkeleton } from "@/components/dashboard/
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { scopeBranchId, resolveRequestBranchScope } from "@/lib/server/effective-branch";
+import { hasAccess, type UserRole } from "@/lib/rbac/permissions";
 
 export default async function Page({
   searchParams,
@@ -28,6 +29,11 @@ export default async function Page({
     headers: await headers(),
   });
   const companyId = session?.user?.companyId ?? "";
+
+  // RBAC-01: la bitácora enlaza a /dashboard/workflows, que READONLY tiene
+  // denegado. Sin esta bandera el CTA "Iniciar" era un enlace que expulsaba.
+  const role = (session?.user?.role ?? "EMPLEADO") as UserRole;
+  const canExecute = hasAccess(role, "/dashboard/workflows");
 
   if (scope.kind === "NONE") {
     return (
@@ -91,6 +97,7 @@ export default async function Page({
               branchId={selectedBranch ?? undefined}
               startDate={params.startDate}
               endDate={params.endDate}
+              canExecute={canExecute}
             />
           ) : (
             <DataTableSkeleton columns={6} rows={5} />

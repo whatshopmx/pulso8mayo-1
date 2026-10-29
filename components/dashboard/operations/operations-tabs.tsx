@@ -12,9 +12,11 @@ interface OperationsTabsProps {
   recentWorkflows: any[];
   period?: string;
   branchId?: string;
+  /** /dashboard/operations ya está limitado a roles operativos por el proxy. */
+  canExecute?: boolean;
 }
 
-export function OperationsTabs({ recentWorkflows, period = "30d", branchId }: OperationsTabsProps) {
+export function OperationsTabs({ recentWorkflows, period = "30d", branchId, canExecute = true }: OperationsTabsProps) {
     return (
         <Tabs defaultValue="overview" className="space-y-4">
             <TabsList>
@@ -36,7 +38,7 @@ export function OperationsTabs({ recentWorkflows, period = "30d", branchId }: Op
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <RecentWorkflowsTable workflows={recentWorkflows} />
+                        <RecentWorkflowsTable workflows={recentWorkflows} canExecute={canExecute} />
                     </CardContent>
                 </Card>
             </TabsContent>
