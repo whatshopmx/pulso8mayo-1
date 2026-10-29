@@ -242,6 +242,7 @@
     "assigned": "Asignado",
     "assignee": "Asignado a",
     "branch": "Sucursal",
+    "workflow": "Flujo",
     "evidence": "Evidencia",
     "evidences": "Evidencias",
     "incidents": "Incidentes",
@@ -428,9 +429,11 @@
         "pending": "Pendiente",
         "inProgress": "En Progreso",
         "completed": "Completado",
+        "blocked": "Bloqueado",
         "cancelled": "Cancelado",
         "failed": "Fallido"
-      }
+      },
+      "noWorkflowsFound": "No se encontraron workflows con los filtros actuales"
     },
     "scheduling": {
       "title": "Programación de Flujos",
