@@ -208,6 +208,11 @@ export async function main() {
       const dueDate = new Date(date);
       dueDate.setHours(hours, mins, 0, 0);
 
+      // SEED-01: la actividad reciente no debe mostrar eventos futuros. La
+      // ejecución de hoy cuya hora aún no llega se omite en vez de sembrarse
+      // como PENDING "en unas horas".
+      if (dueDate.getTime() > now.getTime()) continue;
+
       const completed = dueDate.getTime() + 120 * 60000 < now.getTime() && seedRandom("05-workflows") > 0.15;
       const score = completed ? (seedRandom("05-workflows") > 0.2 ? randomInt(70, 100) : randomInt(40, 69)) : undefined;
 
