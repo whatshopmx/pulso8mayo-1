@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +29,8 @@ import { format, endOfMonth, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { formatCents } from "@/lib/utils";
+import { parseCivilDate } from "@/lib/business-date";
+import { useBranch } from "@/lib/branch-context";
 import { AguinaldoCard } from "@/components/labor/aguinaldo-card";
 
 interface PayrollRun {
@@ -72,10 +73,15 @@ interface ValidationData {
 }
 
 export default function PayrollPage() {
+  // F03: la sucursal la gobierna el selector global del encabezado.
+  const {
+    selectedBranchId,
+    selectedBranch: activeBranch,
+    isBranchScoped,
+  } = useBranch();
+
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [loading, setLoading] = useState(true);
-  const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string>("all");
   
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -89,18 +95,6 @@ export default function PayrollPage() {
   const [loadingPayslips, setLoadingPayslips] = useState(false);
   
   const { toast } = useToast();
-
-  const fetchBranches = useCallback(async () => {
-    try {
-      const res = await fetch("/api/branches");
-      if (res.ok) {
-        const data = await res.json();
-        setBranches(data.data || data.branches || data || []);
-      }
-    } catch (err) {
-      console.error("Error fetching branches:", err);
-    }
-  }, []);
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -117,9 +111,8 @@ export default function PayrollPage() {
   }, []);
 
   useEffect(() => {
-    fetchBranches();
     fetchRuns();
-  }, [fetchBranches, fetchRuns]);
+  }, [fetchRuns]);
 
   // Preset helpers for Mexican payroll cycles
   const applyPreset = (preset: "Q1" | "Q2" | "PREV_Q" | "LAST_WEEK") => {
@@ -179,7 +172,7 @@ export default function PayrollPage() {
         body: JSON.stringify({ 
           startDate, 
           endDate,
-          branchId: selectedBranch !== "all" ? selectedBranch : undefined 
+          branchId: selectedBranchId ?? undefined,
         }),
       });
       const data = await res.json();
@@ -215,6 +208,18 @@ export default function PayrollPage() {
   const handleRunPayroll = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!startDate || !endDate) return;
+
+    // F11: timbrar exige una auditoría vigente y aprobada. La UI ya
+    // deshabilita el botón; esta guarda cubre el submit por teclado o un
+    // cambio de fechas que invalidó la validación.
+    if (!validationData?.canStamp) {
+      toast({
+        title: "Validación requerida",
+        description: "Ejecuta la auditoría de checador y resuelve los bloqueos antes de timbrar.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setRunning(true);
     try {
@@ -224,7 +229,7 @@ export default function PayrollPage() {
         body: JSON.stringify({ 
           startDate, 
           endDate,
-          branchId: selectedBranch !== "all" ? selectedBranch : undefined
+          branchId: selectedBranchId ?? undefined,
         })
       });
       const data = await res.json();
@@ -349,20 +354,15 @@ export default function PayrollPage() {
             <form onSubmit={handleRunPayroll} className="space-y-3.5">
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-foreground">Sucursal</Label>
-                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <Building2 className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                    <SelectValue placeholder="Todas las sucursales" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas las sucursales</SelectItem>
-                    {branches.map(b => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div
+                  className="flex h-8 items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 text-xs text-foreground"
+                  title="El alcance lo define el selector de sucursal del encabezado"
+                >
+                  <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate">
+                    {activeBranch?.name ?? (isBranchScoped ? "Sin sucursal asignada" : "Todas las sucursales")}
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -477,7 +477,8 @@ export default function PayrollPage() {
               <Button 
                 type="submit" 
                 className="w-full text-xs font-semibold h-9" 
-                disabled={running || (validationData ? !validationData.canStamp : false)}
+                disabled={running || !validationData?.canStamp}
+                title={!validationData?.canStamp ? "Primero valida el periodo y resuelve los bloqueos" : undefined}
               >
                 {running ? (
                   <>
@@ -500,7 +501,8 @@ export default function PayrollPage() {
               Historial de Nóminas y Timbrado
             </CardTitle>
             <CardDescription className="text-xs text-muted-foreground">
-              Registros de cálculo de nómina y estado del timbrado fiscal ante el SAT
+              Registros de toda la empresa y estado del timbrado fiscal ante el SAT. El alcance
+              de sucursal aplica al cálculo y a la validación, no al historial.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4">
@@ -528,8 +530,8 @@ export default function PayrollPage() {
                     {runs.map((run) => (
                       <TableRow key={run.id} className="hover:bg-muted/30">
                         <TableCell className="text-xs font-semibold font-mono">
-                          {format(new Date(run.periodStart), "dd MMM", { locale: es })} - {" "}
-                          {format(new Date(run.periodEnd), "dd MMM yyyy", { locale: es })}
+                          {format(parseCivilDate(run.periodStart), "dd MMM", { locale: es })} - {" "}
+                          {format(parseCivilDate(run.periodEnd), "dd MMM yyyy", { locale: es })}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground font-mono">
                           {format(new Date(run.createdAt), "dd MMM yyyy HH:mm", { locale: es })}
@@ -567,7 +569,10 @@ export default function PayrollPage() {
         </Card>
       </div>
 
-      <AguinaldoCard />
+      <AguinaldoCard
+        branchId={selectedBranchId}
+        branchName={activeBranch?.name ?? (isBranchScoped ? "Sin sucursal asignada" : null)}
+      />
 
       {/* Payslip Details Modal */}
       <Dialog open={!!selectedRun} onOpenChange={(open) => !open && setSelectedRun(null)}>
@@ -575,12 +580,20 @@ export default function PayrollPage() {
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <FileText className="h-4 w-4 text-primary" />
-              Recibos de Nómina Timbrados
+              {selectedRun?.status === "COMPLETED"
+                ? "Recibos de Nómina Timbrados"
+                : selectedRun?.status === "COMPLETED_WITH_ERRORS"
+                  ? "Recibos de Nómina con Errores"
+                  : selectedRun?.status === "DRAFT"
+                    ? "Recibos de Nómina · Borrador"
+                    : "Recibos de Nómina"}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               {selectedRun && (
                 <>
-                  Periodo: {format(new Date(selectedRun.periodStart), "dd MMM yyyy", { locale: es })} al {format(new Date(selectedRun.periodEnd), "dd MMM yyyy", { locale: es })}
+                  Periodo: {format(parseCivilDate(selectedRun.periodStart), "dd MMM yyyy", { locale: es })} al{" "}
+                  {format(parseCivilDate(selectedRun.periodEnd), "dd MMM yyyy", { locale: es })}
+                  {" · "}Estado de la corrida: {selectedRun.status}
                 </>
               )}
             </DialogDescription>
@@ -589,7 +602,7 @@ export default function PayrollPage() {
           {loadingPayslips ? (
             <div className="flex flex-col items-center justify-center p-8 space-y-2">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <p className="text-xs text-muted-foreground">Cargando recibos timbrados...</p>
+              <p className="text-xs text-muted-foreground">Cargando recibos de la corrida...</p>
             </div>
           ) : payslips.length === 0 ? (
             <div className="p-8 text-center border border-dashed rounded-lg text-xs text-muted-foreground">

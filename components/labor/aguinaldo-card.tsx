@@ -104,19 +104,18 @@ interface AguinaldoRun {
   aguinaldoSnapshot?: { version: number; fechaPago: string } | null;
 }
 
-interface Branch {
-  id: string;
-  name: string;
+interface AguinaldoCardProps {
+  /** Sucursal activa del selector global; `null` = toda la empresa. */
+  branchId?: string | null;
+  /** Nombre para mostrar el alcance; opcional para montajes aislados. */
+  branchName?: string | null;
 }
 
-export function AguinaldoCard() {
+export function AguinaldoCard({ branchId = null, branchName = null }: AguinaldoCardProps = {}) {
   const currentYear = new Date().getFullYear();
   const [anioFiscal, setAnioFiscal] = useState<number>(currentYear);
   const [fechaPago, setFechaPago] = useState(hoyCivilAguinaldo);
   const anios = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
-
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string>("all");
 
   const [preview, setPreview] = useState<AguinaldoPreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -135,16 +134,6 @@ export function AguinaldoCard() {
   const [bitacora, setBitacora] = useState<DispersionBitacora[]>([]);
 
   const { toast } = useToast();
-
-  const fetchBranches = useCallback(async () => {
-    try {
-      const res = await fetch("/api/branches");
-      const data = await res.json();
-      if (res.ok) setBranches(data.data || data.branches || data || []);
-    } catch (err) {
-      console.error("Error fetching branches:", err);
-    }
-  }, []);
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -165,7 +154,7 @@ export function AguinaldoCard() {
     setPreview(null);
     try {
       const params = new URLSearchParams({ anioFiscal: String(anioFiscal), fechaPago });
-      if (selectedBranch !== "all") params.set("branchId", selectedBranch);
+      if (branchId) params.set("branchId", branchId);
       const res = await fetch(`/api/payroll/aguinaldo?${params.toString()}`, { signal });
       const data = await res.json();
       if (signal?.aborted) return;
@@ -189,12 +178,11 @@ export function AguinaldoCard() {
     } finally {
       if (!signal?.aborted) setLoadingPreview(false);
     }
-  }, [anioFiscal, selectedBranch, fechaPago, toast]);
+  }, [anioFiscal, branchId, fechaPago, toast]);
 
   useEffect(() => {
-    fetchBranches();
     fetchRuns();
-  }, [fetchBranches, fetchRuns]);
+  }, [fetchRuns]);
 
   const fetchBitacora = useCallback(async () => {
     try {
@@ -289,7 +277,7 @@ export function AguinaldoCard() {
         body: JSON.stringify({
           anioFiscal,
           fechaPago: preview.fechaPago,
-          branchId: selectedBranch !== "all" ? selectedBranch : undefined,
+          branchId: branchId ?? undefined,
           diasLaboradosPorUsuario: Object.keys(diasEditados).length > 0 ? diasEditados : undefined,
         }),
       });
@@ -443,18 +431,13 @@ export function AguinaldoCard() {
             ) : (
               <Badge variant="destructive" className="text-xs font-medium">Cálculo NO vigente</Badge>
             )}
-            <Select value={selectedBranch} disabled={running} onValueChange={(value) => { setPreview(null); setSelectedBranch(value); }}>
-              <SelectTrigger className="h-7 w-[150px] text-xs">
-                <Building2 className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                <SelectValue placeholder="Todas las sucursales" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las sucursales</SelectItem>
-                {branches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <span
+              className="inline-flex h-7 max-w-[180px] items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 text-xs text-foreground"
+              title="El alcance lo define el selector de sucursal del encabezado"
+            >
+              <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="truncate">{branchName ?? "Todas las sucursales"}</span>
+            </span>
             <Select value={String(anioFiscal)} disabled={running} onValueChange={(v) => { setPreview(null); setAnioFiscal(Number(v)); }}>
               <SelectTrigger className="h-7 w-[110px] text-xs">
                 <SelectValue />
