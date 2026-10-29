@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ScheduleList } from '@/components/schedules/schedule-list';
 import { ScheduleStats } from '@/components/schedules/schedule-stats';
 import { ScheduleForm } from '@/components/schedules/schedule-form';
@@ -19,13 +19,15 @@ import {
     SheetHeader,
     SheetTitle,
 } from '@/components/ui/sheet';
-import { Plus, FilterX } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Plus, FilterX, Building2 } from 'lucide-react';
+import { useBranch } from '@/lib/branch-context';
 
 export default function SchedulesPage() {
-    const router = useRouter();
-    const [branchId, setBranchId] = useState<string>('');
-    const [branches, setBranches] = useState<any[]>([]);
+    // La sucursal la gobierna el selector global del encabezado: una sola
+    // fuente de verdad, para que el header, el selector interno y las
+    // peticiones no puedan apuntar a sucursales distintas.
+    const { branches, selectedBranchId, selectedBranch, setSelectedBranchId, isBranchScoped, userBranchId } = useBranch();
+    const branchId = selectedBranchId;
     const [filters, setFilters] = useState<{
         isActive?: boolean;
         frequency?: string;
@@ -34,32 +36,6 @@ export default function SchedulesPage() {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
     const [refreshKey, setRefreshKey] = useState(0);
-
-    useEffect(() => {
-        // Fetch user's branches
-        const fetchBranches = async () => {
-            try {
-                const response = await fetch('/api/branches', {
-                    credentials: 'include',
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    const data = result.data || result;
-                    setBranches(data);
-
-                    // Set first branch as default
-                    if (Array.isArray(data) && data.length > 0 && !branchId) {
-                        setBranchId(data[0].id);
-                    }
-                }
-            } catch (error) {
-                console.error('Error fetching branches:', error);
-            }
-        };
-
-        fetchBranches();
-    }, []);
 
     const handleEdit = (schedule: any) => {
         setSelectedSchedule(schedule);
@@ -97,9 +73,40 @@ export default function SchedulesPage() {
     const hasFilters = Object.values(filters).some(v => v !== undefined);
 
     if (!branchId) {
+        // "Todas" no tiene lectura agregada de schedules: la programación es
+        // por sucursal. Se pide elegir en vez de inventar una o dejar la
+        // pantalla cargando para siempre.
         return (
-            <div className="flex items-center justify-center h-96">
-                <p className="text-muted-foreground">Cargando...</p>
+            <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-card px-6 py-16 text-center">
+                <Building2 className="h-8 w-8 text-muted-foreground" />
+                <div className="space-y-1">
+                    <h2 className="text-lg font-semibold">Selecciona una sucursal</h2>
+                    <p className="text-sm text-muted-foreground">
+                        La programación de workflows se gestiona por sucursal.
+                    </p>
+                </div>
+                {isBranchScoped && !userBranchId ? (
+                    <p className="text-sm text-muted-foreground">
+                        Tu usuario no tiene una sucursal asignada. Pídele a un administrador que te asigne una.
+                    </p>
+                ) : branches.length > 0 ? (
+                    <Select onValueChange={(value) => setSelectedBranchId(value)}>
+                        <SelectTrigger className="w-[240px]">
+                            <SelectValue placeholder="Elegir sucursal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {branches.map((branch) => (
+                                <SelectItem key={branch.id} value={branch.id}>
+                                    {branch.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                ) : (
+                    <p className="text-sm text-muted-foreground">
+                        No hay sucursales disponibles en tu empresa.
+                    </p>
+                )}
             </div>
         );
     }
@@ -125,18 +132,28 @@ export default function SchedulesPage() {
 
                 {/* Filters */}
                 <div className="flex flex-wrap gap-4 items-center">
-                    <Select value={branchId} onValueChange={setBranchId}>
-                        <SelectTrigger className="w-[200px]">
-                            <SelectValue placeholder="Sucursal" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {branches.map((branch) => (
-                                <SelectItem key={branch.id} value={branch.id}>
-                                    {branch.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    {isBranchScoped ? (
+                        // Un rol fijado no elige sucursal: el servidor le
+                        // impone la suya, así que mostrarle un menú sería
+                        // prometer una agencia que no tiene.
+                        <span className="flex h-9 items-center gap-2 rounded-md px-3 text-sm text-muted-foreground">
+                            <Building2 className="h-4 w-4" aria-hidden="true" />
+                            Sucursal: {selectedBranch?.name ?? 'la tuya'}
+                        </span>
+                    ) : (
+                        <Select value={branchId} onValueChange={(value) => setSelectedBranchId(value)}>
+                            <SelectTrigger className="w-[200px]">
+                                <SelectValue placeholder="Sucursal" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {branches.map((branch) => (
+                                    <SelectItem key={branch.id} value={branch.id}>
+                                        {branch.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
 
                     <Select
                         value={filters.isActive === undefined ? 'all' : filters.isActive ? 'true' : 'false'}

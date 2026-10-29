@@ -74,8 +74,8 @@ export function ScheduleList({
                     throw new Error('Failed to fetch schedules');
                 }
 
-                const data = await response.json();
-                setSchedules(data);
+                const body = await response.json();
+                setSchedules(body.data ?? []);
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Unknown error');
             } finally {
@@ -121,7 +121,8 @@ export function ScheduleList({
                 throw new Error('Failed to toggle schedule');
             }
 
-            const updated = await response.json();
+            const body = await response.json();
+            const updated = body.data;
             setSchedules(schedules.map(s => s.id === scheduleId ? updated : s));
             onToggle(scheduleId, !currentActive);
         } catch (err) {

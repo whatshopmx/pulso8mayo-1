@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { WorkflowScheduleService } from '@/lib/services/workflow-schedule-service';
 import { createScheduleSchema, scheduleFiltersSchema } from '@/lib/validations/workflow-scheduling';
@@ -23,12 +23,26 @@ export async function GET(request: NextRequest) {
             return apiError('branchId is required', 400);
         }
 
-        // Parse filters
-        const filters = {
-            isActive: searchParams.get('isActive') === 'true' ? true : searchParams.get('isActive') === 'false' ? false : undefined,
-            frequency: searchParams.get('frequency') as any,
-            assignmentType: searchParams.get('assignmentType') as any,
-        };
+        // Un parámetro ausente no es un filtro nulo: se omite para que el
+        // schema `.optional()` lo acepte y la lista cargue sin filtros.
+        const filters: Record<string, unknown> = {};
+
+        const isActiveParam = searchParams.get('isActive');
+        if (isActiveParam !== null) {
+            // Un valor distinto de true/false se pasa tal cual para que el
+            // schema lo rechace con detalle en vez de ignorarlo en silencio.
+            filters.isActive = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : isActiveParam;
+        }
+
+        const frequencyParam = searchParams.get('frequency');
+        if (frequencyParam !== null) {
+            filters.frequency = frequencyParam;
+        }
+
+        const assignmentTypeParam = searchParams.get('assignmentType');
+        if (assignmentTypeParam !== null) {
+            filters.assignmentType = assignmentTypeParam;
+        }
 
         // Validate filters
         const validatedFilters = scheduleFiltersSchema.safeParse(filters);

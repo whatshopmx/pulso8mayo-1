@@ -18,6 +18,7 @@ interface Stats {
 export function ScheduleStats({ branchId }: ScheduleStatsProps) {
     const [stats, setStats] = useState<Stats | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -28,15 +29,22 @@ export function ScheduleStats({ branchId }: ScheduleStatsProps) {
                 );
 
                 if (response.ok) {
-                    const data = await response.json();
-                    setStats(data);
+                    const body = await response.json();
+                    setStats(body.data);
+                    setError(false);
+                } else {
+                    setError(true);
                 }
             } catch (error) {
                 console.error('Error fetching schedule stats:', error);
+                setError(true);
             } finally {
                 setLoading(false);
             }
         };
+
+        setLoading(true);
+        setStats(null);
 
         fetchStats();
 
@@ -54,6 +62,14 @@ export function ScheduleStats({ branchId }: ScheduleStatsProps) {
                         className="h-32 rounded-lg border bg-card animate-pulse"
                     />
                 ))}
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                No se pudieron cargar los KPIs de programación.
             </div>
         );
     }
