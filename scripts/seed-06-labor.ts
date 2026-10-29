@@ -1,3 +1,4 @@
+import { seedRandom } from "./seed-scenarios";
 import "dotenv/config";
 import { db } from "@/lib/db";
 import {
@@ -6,22 +7,23 @@ import {
 } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import {
-  COMPANY_ID, BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA,
+  COMPANY_ID, BRANCH_CONDESA,
   USER_ADMIN, USER_GERENTE, USER_SUPERVISOR,
   USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3,
+  branchForUser,
 } from "./seed-constants";
+import { seedDate, seedWorkday } from "./seed-scenarios";
 
 function randomDate(daysAgo: number, base?: Date): Date {
   const d = base ? new Date(base) : new Date();
-  d.setDate(d.getDate() - Math.floor(Math.random() * daysAgo));
+  d.setDate(d.getDate() - Math.floor(seedRandom("06-labor") * daysAgo));
   return d;
 }
 
 function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(seedRandom("06-labor") * (max - min + 1)) + min;
 }
 
-const BRANCHES = [BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA];
 const EMPLOYEES = [USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3, USER_SUPERVISOR];
 
 const SHIFT_TEMPLATES_DATA = [
@@ -49,7 +51,6 @@ export async function main() {
     const [row] = await db.insert(shiftTemplates).values({
       name: st.name,
       companyId: COMPANY_ID,
-      branchId: BRANCH_CONDESA,
       role: st.role,
       startTime: st.startTime,
       endTime: st.endTime,
@@ -61,18 +62,21 @@ export async function main() {
     tmplRows.push(row);
   }
 
-  console.log("Creating ~240 planned shifts (8 employees x 30 days)...");
+  console.log("Creating planned shifts (4 employees, 30 days)...");
   const now = new Date();
+  const lateDate = seedWorkday(2, now);
+  const missedBreakDate = seedWorkday(3, now);
+  const overtimeDate = seedWorkday(5, now);
+  const noShowDate = seedWorkday(10, now);
   const shiftValues: any[] = [];
 
-  for (let day = 0; day < 30; day++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - day);
+  for (let day = 1; day <= 30; day++) {
+    const date = seedDate(-day, now);
     const dateStr = date.toISOString().split("T")[0];
-    const dayOfWeek = date.getDay();
+    const dayOfWeek = date.getUTCDay();
 
     for (let e = 0; e < EMPLOYEES.length; e++) {
-      const isLateCase = day === 2 && e === 0;
+      const isLateCase = dateStr === lateDate && e === 0;
       const role = EMPLOYEES[e] === USER_SUPERVISOR ? "SUPERVISOR" : "EMPLEADO";
       const templateIdx = EMPLOYEES[e] === USER_SUPERVISOR ? 3 : e % 3;
       const tmpl = SHIFT_TEMPLATES_DATA[templateIdx];
@@ -86,7 +90,7 @@ export async function main() {
       shiftValues.push({
         companyId: COMPANY_ID,
         userId: EMPLOYEES[e],
-        branchId: BRANCHES[e % 3],
+        branchId: branchForUser(EMPLOYEES[e]),
         shiftDate: dateStr,
         startTime: start,
         endTime: end,
@@ -115,10 +119,10 @@ export async function main() {
 
   const nowMs = now.getTime();
   for (const ps of insertedShifts) {
-    const isLateCase = ps.shiftDate === new Date(nowMs - 2 * 86400000).toISOString().split("T")[0] && ps.userId === USER_EMPLEADO_1;
-    const isOvertimeCase = ps.shiftDate === new Date(nowMs - 5 * 86400000).toISOString().split("T")[0] && ps.userId === USER_EMPLEADO_2;
-    const isNoShow = ps.shiftDate === new Date(nowMs - 10 * 86400000).toISOString().split("T")[0] && ps.userId === USER_EMPLEADO_3;
-    const isMissedBreak = ps.shiftDate === new Date(nowMs - 3 * 86400000).toISOString().split("T")[0] && ps.userId === USER_EMPLEADO_1;
+    const isLateCase = ps.shiftDate === lateDate && ps.userId === USER_EMPLEADO_1;
+    const isOvertimeCase = ps.shiftDate === overtimeDate && ps.userId === USER_EMPLEADO_2;
+    const isNoShow = ps.shiftDate === noShowDate && ps.userId === USER_EMPLEADO_3;
+    const isMissedBreak = ps.shiftDate === missedBreakDate && ps.userId === USER_EMPLEADO_1;
 
     if (isNoShow) {
       sessionValues.push({
@@ -128,7 +132,7 @@ export async function main() {
         status: "NO_SHOW",
         scheduledStartTime: ps.startTime,
         scheduledEndTime: ps.endTime,
-        startedAt: new Date(ps.shiftDate + "T" + ps.startTime + ":00"),
+        startedAt: new Date(ps.shiftDate + "T" + ps.startTime + ":00-06:00"),
         notes: "Falta sin justificación",
       });
       continue;
@@ -137,9 +141,10 @@ export async function main() {
     const [hours] = ps.startTime.split(":").map(Number);
     const [endHours] = ps.endTime.split(":").map(Number);
 
-    const checkInTime = new Date(ps.shiftDate + "T" + (isLateCase ? "08:35" : ps.startTime) + ":00");
-    let checkOutTime = new Date(ps.shiftDate + "T" + ps.endTime + ":00");
-    if (endHours < hours) checkOutTime.setDate(checkOutTime.getDate() + 1);
+    const scheduledStart = new Date(ps.shiftDate + "T" + ps.startTime + ":00-06:00");
+    const checkInTime = new Date(scheduledStart.getTime() + (isLateCase ? 5 : 0) * 60000);
+    let checkOutTime = new Date(ps.shiftDate + "T" + ps.endTime + ":00-06:00");
+    if (endHours < hours) checkOutTime = new Date(checkOutTime.getTime() + 86400000);
 
     if (isOvertimeCase) {
       checkOutTime = new Date(checkOutTime.getTime() + 2 * 3600000);
@@ -148,7 +153,7 @@ export async function main() {
     const totalMinutes = (checkOutTime.getTime() - checkInTime.getTime()) / 60000;
     const breakMinutes = isMissedBreak ? 0 : randomInt(30, 60);
     const overtimeMinutes = isOvertimeCase ? 120 : 0;
-    const lateMinutes = isLateCase ? 35 : 0;
+    const lateMinutes = Math.max(0, Math.round((checkInTime.getTime() - scheduledStart.getTime()) / 60000));
 
     sessionValues.push({
       plannedShiftId: ps.id,
@@ -187,17 +192,10 @@ export async function main() {
     sessionRows.push(insertedSessions[i]);
     const ps = insertedShifts[i];
     if (!ps) continue;
-    const isMissedBreak = ps.shiftDate === new Date(nowMs - 3 * 86400000).toISOString().split("T")[0] && ps.userId === USER_EMPLEADO_1;
-    if (!isMissedBreak) {
-      const breakMinutes = randomInt(30, 60);
-      const [hours] = ps.startTime.split(":").map(Number);
-      const [endHours] = ps.endTime.split(":").map(Number);
-      const checkInTime = new Date(ps.shiftDate + "T" + ps.startTime + ":00");
-      let checkOutTime = new Date(ps.shiftDate + "T" + ps.endTime + ":00");
-      if (endHours < hours) checkOutTime.setDate(checkOutTime.getDate() + 1);
-      if (ps.shiftDate === new Date(nowMs - 5 * 86400000).toISOString().split("T")[0] && ps.userId === USER_EMPLEADO_2) {
-        checkOutTime = new Date(checkOutTime.getTime() + 2 * 3600000);
-      }
+    if (sessionValues[i].status === "NO_SHOW") continue;
+    const checkInTime = sessionValues[i].checkInTime as Date;
+    const breakMinutes = sessionValues[i].totalBreakMinutes as number;
+    if (breakMinutes > 0) {
       const breakStart = new Date(checkInTime.getTime() + 4 * 3600000);
       breakValues.push({
         sessionId: insertedSessions[i].id,
@@ -210,8 +208,8 @@ export async function main() {
     } else {
       breakValues.push({
         sessionId: insertedSessions[i].id,
-        startTime: new Date(),
-        endTime: new Date(),
+        startTime: new Date(checkInTime.getTime() + 4 * 3600000),
+        endTime: new Date(checkInTime.getTime() + 4 * 3600000),
         durationMinutes: 0,
         type: "MEAL",
         isCompliant: false,
@@ -269,13 +267,14 @@ export async function main() {
   }
 
   console.log("Creating shift approvals (overtime)...");
-  const overtimeSession = sessionRows.find(s => s.userId === USER_EMPLEADO_2);
-  const overtimeShift = insertedShifts.find(s => s.userId === USER_EMPLEADO_2 && s.shiftDate === new Date(nowMs - 5 * 86400000).toISOString().split("T")[0]);
+  const overtimeIndex = insertedShifts.findIndex(s => s.userId === USER_EMPLEADO_2 && s.shiftDate === overtimeDate);
+  const overtimeSession = sessionRows[overtimeIndex];
+  const overtimeShift = insertedShifts[overtimeIndex];
 
   if (overtimeSession && overtimeShift) {
     await db.insert(shiftApprovals).values({
       companyId: COMPANY_ID,
-      branchId: BRANCH_CONDESA,
+      branchId: overtimeSession.branchId,
       approvalType: "OVERTIME",
       requestedBy: USER_EMPLEADO_2,
       requestedFor: USER_EMPLEADO_2,
@@ -287,12 +286,13 @@ export async function main() {
       overtimeMinutes: 120,
       status: "APPROVED",
       approvedBy: USER_GERENTE,
-      approvedAt: randomDate(6),
+      approvedAt: new Date(sessionValues[overtimeIndex].checkOutTime.getTime() + 3600000),
     });
   }
 
-  const lateSession = sessionRows.find(s => s.userId === USER_EMPLEADO_1 && s.id !== overtimeSession?.id);
-  const lateShift = insertedShifts.find(s => s.userId === USER_EMPLEADO_1 && s.shiftDate === new Date(nowMs - 2 * 86400000).toISOString().split("T")[0]);
+  const lateIndex = insertedShifts.findIndex(s => s.userId === USER_EMPLEADO_1 && s.shiftDate === lateDate);
+  const lateSession = sessionRows[lateIndex];
+  const lateShift = insertedShifts[lateIndex];
 
   if (lateSession && lateShift) {
     await db.insert(shiftApprovals).values({
@@ -304,18 +304,19 @@ export async function main() {
       shiftSessionId: lateSession.id,
       plannedShiftId: lateShift.id,
       title: "Retraso - Tráfico",
-      description: "Llegué 35 minutos tarde por accidente en Periférico",
+      description: "Llegué 5 minutos tarde por accidente en Periférico",
       reason: "Accidente vial",
-      durationMinutes: 35,
+      durationMinutes: 5,
       status: "APPROVED",
       approvedBy: USER_GERENTE,
-      approvedAt: randomDate(3),
+      approvedAt: new Date(sessionValues[lateIndex].checkOutTime.getTime() + 3600000),
     });
   }
 
   console.log("Creating break reminder logs...");
   const reminderValues: any[] = [];
-  const missedBreakSession = sessionRows.find(s => s.userId === USER_EMPLEADO_1);
+  const missedBreakIndex = insertedShifts.findIndex(s => s.userId === USER_EMPLEADO_1 && s.shiftDate === missedBreakDate);
+  const missedBreakSession = sessionRows[missedBreakIndex];
   if (missedBreakSession) {
     reminderValues.push({
       sessionId: missedBreakSession.id,

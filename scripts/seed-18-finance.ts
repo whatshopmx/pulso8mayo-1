@@ -5,7 +5,7 @@ import {
   dailySalesCuts, payrollRuns, payrollPayslips, cfdiNominaTimbrados,
   paymentRunItems, paymentRuns, employeeProfiles, users, aggregatorSettlements,
 } from "@/lib/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { DekService } from "@/lib/security/dek";
 import { encryptColumnWithDek } from "@/lib/security/column-cipher";
 import { createHmac } from "node:crypto";
@@ -45,7 +45,7 @@ interface StatementRow {
 }
 
 export async function main() {
-  console.log("=== Phase 18: Banca corporativa, estado de cuenta, TPV gateway, payables recurrentes y CFDI de nómina ===");
+  console.log("=== Phase 18: Banca corporativa, estado de cuenta, TPV y preparación fiscal ===");
 
   // --------------------------------------------------------------------
   // 1. Catálogo de cuentas propias (el lado pagador). Número cifrado con
@@ -196,7 +196,8 @@ export async function main() {
       if (!terminal) continue;
       // Dos cobros por corte: 60/40 de la venta con tarjeta.
       [0.6, 0.4].forEach((share, index) => {
-        const gross = Math.round(cut.cardSales! * share);
+        const firstGross = Math.round(cut.cardSales! * 0.6);
+        const gross = index === 0 ? firstGross : cut.cardSales! - firstGross;
         if (gross <= 0) return;
         const fee = Math.round(gross * TPV_RATE_BPS / 10_000);
         const feeVat = Math.round(fee * TPV_VAT_BPS / 10_000);
@@ -232,12 +233,11 @@ export async function main() {
   console.log(`Payables recurrentes OPEN: +${payables.created} nuevas sobre ${payables.contractsConsidered} contratos considerados.`);
 
   // --------------------------------------------------------------------
-  // 5. CFDI de nómina timbrado: espejo del run de nómina de seed-15, una
-  //    fila por empleado + período (idempotencia por índice único).
-  //    "TIMBRADO" demo con folio sintético — sin PAC real.
+  // 5. Preparación fiscal de la nómina ordinaria: sin PAC, UUID ni timbrado.
+  //    Conserva el mismo período que usa executePayrollRun.
   // --------------------------------------------------------------------
   const [run] = await db.select().from(payrollRuns)
-    .where(eq(payrollRuns.companyId, COMPANY_ID))
+    .where(and(eq(payrollRuns.companyId, COMPANY_ID), isNull(payrollRuns.aguinaldoFiscalYear)))
     .orderBy(desc(payrollRuns.createdAt))
     .limit(1);
   if (!run) {
@@ -255,29 +255,26 @@ export async function main() {
     .leftJoin(users, eq(users.id, payrollPayslips.userId))
     .where(eq(payrollPayslips.runId, run.id));
 
-  const periodo = String(run.periodStart).slice(0, 7);
-  let timbrados = 0;
+  const periodo = `${run.periodStart} - ${run.periodEnd}`;
+  let preparados = 0;
   for (const [index, payslip] of payslips.entries()) {
     if (!payslip.rfc) continue;
     await db.insert(cfdiNominaTimbrados).values({
       companyId: COMPANY_ID, empleadoRfc: payslip.rfc,
       empleadoNombre: payslip.nombre ?? `Empleado demo ${index + 1}`,
       periodo,
-      uuid: `DEMO0000-2222-3333-4444-${String(index + 1).padStart(12, "0")}`,
-      status: "TIMBRADO",
+      status: "PENDIENTE",
       totalPercepcionesCents: payslip.totalPercepcionesCents,
       totalDeduccionesCents: payslip.totalDeduccionesCents,
-      rawResponse: { source: "DEMO_SEED", note: "Comprobante sintético de demostración, sin PAC real." },
-      timbradoPor: USER_ADMIN, fechaTimbrado: new Date(),
+      rawResponse: { source: "DEMO_SEED", note: "Preparación de demostración; no se envió al PAC ni acredita timbrado." },
     }).onConflictDoUpdate({
       target: [cfdiNominaTimbrados.companyId, cfdiNominaTimbrados.empleadoRfc, cfdiNominaTimbrados.periodo],
       set: {
         totalPercepcionesCents: payslip.totalPercepcionesCents,
         totalDeduccionesCents: payslip.totalDeduccionesCents,
-        fechaTimbrado: new Date(),
       },
     });
-    timbrados++;
+    preparados++;
   }
-  console.log(`CFDI de nómina demo: ${timbrados} comprobantes TIMBRADO (período ${periodo}).`);
+  console.log(`Preparaciones fiscales demo: ${preparados} PENDIENTE, sin timbrar (período ${periodo}).`);
 }

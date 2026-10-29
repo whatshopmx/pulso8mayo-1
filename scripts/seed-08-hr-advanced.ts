@@ -1,3 +1,4 @@
+import { seedRandom } from "./seed-scenarios";
 import "dotenv/config";
 import { db } from "@/lib/db";
 import {
@@ -6,7 +7,11 @@ import {
   vacationRequests, vacationAccruals, leaveTypes, leaveRequests, leaveBalances,
   employeeTraining, employeeCommunications, communicationReadReceipts,
   messageTemplates,
+  employeeProfiles,
 } from "@/lib/db/schema";
+import { seedDate } from "./seed-scenarios";
+import { calculateLFT2026Benefits } from "@/lib/services/payroll-service";
+import { differenceInYears } from "date-fns";
 import { eq, sql } from "drizzle-orm";
 import {
   COMPANY_ID, BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA,
@@ -17,18 +22,19 @@ import {
 
 function randomDate(daysAgo: number): Date {
   const d = new Date();
-  d.setDate(d.getDate() - Math.floor(Math.random() * daysAgo));
+  d.setDate(d.getDate() - Math.floor(seedRandom("08-hr-advanced") * daysAgo));
   return d;
 }
 
 function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(seedRandom("08-hr-advanced") * (max - min + 1)) + min;
 }
 
 const EMPLOYEES = [USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3, USER_SUPERVISOR];
-const BRANCHES = [BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA];
 
 export async function main() {
+  const today = seedDate();
+  const year = today.getUTCFullYear();
   console.log("=== Phase 8: HR Advanced ===");
   console.log("Cleaning up...");
 
@@ -91,7 +97,7 @@ export async function main() {
       overallRating,
       strengths,
       areasForImprovement,
-      goals: [{ goal: "Mejorar puntualidad", target: "0 retrasos", deadline: "2026-06-30" }] as unknown as Record<string, unknown>,
+      goals: [{ goal: "Mejorar puntualidad", target: "0 retrasos", deadline: seedDate(30).toISOString().slice(0, 10) }] as unknown as Record<string, unknown>,
       achievements: [{ achievement: "Completar todos los turnos asignados" }] as unknown as Record<string, unknown>,
       developmentPlan: "Capacitación en atención al cliente y manejo de alimentos",
       comments: "El empleado muestra compromiso y mejora continua",
@@ -123,11 +129,11 @@ export async function main() {
 
   console.log("Creating performance goals...");
   const goalData = [
-    { userId: USER_EMPLEADO_1, title: "Reducir merma de cocina", description: "Reducir desperdicio de alimentos en un 15%", category: "OPERATIONS", status: "IN_PROGRESS" as const, targetDate: new Date("2026-08-30") },
-    { userId: USER_EMPLEADO_1, title: "Mejorar velocidad de servicio", description: "Reducir tiempo de preparación en 5 minutos por orden", category: "OPERATIONS", status: "IN_PROGRESS" as const, targetDate: new Date("2026-07-15") },
-    { userId: USER_EMPLEADO_2, title: "Capacitación en seguridad alimentaria", description: "Completar curso NOM-251 con calificación superior a 90", category: "COMPLIANCE", status: "COMPLETED" as const, targetDate: new Date("2026-05-01"), completedDate: new Date("2026-04-28") },
-    { userId: USER_EMPLEADO_3, title: "Optimizar inventario de bebidas", description: "Implementar sistema de control de inventario de bar", category: "INVENTORY", status: "NOT_STARTED" as const, targetDate: new Date("2026-09-01") },
-    { userId: USER_SUPERVISOR, title: "Reducir quejas de clientes", description: "Implementar protocolo de atención y reducir quejas en 30%", category: "OPERATIONS", status: "IN_PROGRESS" as const, targetDate: new Date("2026-08-01") },
+    { userId: USER_EMPLEADO_1, title: "Reducir merma de cocina", description: "Reducir desperdicio de alimentos en un 15%", category: "OPERATIONS", status: "IN_PROGRESS" as const, targetDate: seedDate(30) },
+    { userId: USER_EMPLEADO_1, title: "Mejorar velocidad de servicio", description: "Reducir tiempo de preparación en 5 minutos por orden", category: "OPERATIONS", status: "IN_PROGRESS" as const, targetDate: seedDate(45) },
+    { userId: USER_EMPLEADO_2, title: "Capacitación en seguridad alimentaria", description: "Completar curso NOM-251 con calificación superior a 90", category: "COMPLIANCE", status: "COMPLETED" as const, targetDate: seedDate(-7), completedDate: seedDate(-10) },
+    { userId: USER_EMPLEADO_3, title: "Optimizar inventario de bebidas", description: "Implementar sistema de control de inventario de bar", category: "INVENTORY", status: "NOT_STARTED" as const, targetDate: seedDate(60) },
+    { userId: USER_SUPERVISOR, title: "Reducir quejas de clientes", description: "Implementar protocolo de atención y reducir quejas en 30%", category: "OPERATIONS", status: "IN_PROGRESS" as const, targetDate: seedDate(21) },
   ];
   const goalValues = goalData.map(g => ({
     userId: g.userId,
@@ -145,14 +151,14 @@ export async function main() {
 
   console.log("Creating vacation requests...");
   const vacationData = [
-    { userId: USER_EMPLEADO_1, startDate: new Date("2026-08-10"), endDate: new Date("2026-08-17"), totalDays: 7, status: "PENDING" as const, reason: "Vacaciones familiares" },
-    { userId: USER_EMPLEADO_2, startDate: new Date("2026-05-01"), endDate: new Date("2026-05-05"), totalDays: 5, status: "APPROVED" as const, reason: "Viaje personal", approvedBy: USER_GERENTE, approvedAt: new Date("2026-04-20") },
-    { userId: USER_EMPLEADO_3, startDate: new Date("2026-03-15"), endDate: new Date("2026-03-16"), totalDays: 2, status: "REJECTED" as const, reason: "Alta demanda en el periodo", rejectedBy: USER_GERENTE, rejectedAt: new Date("2026-03-01"), rejectionReason: "No hay cobertura suficiente para esas fechas" },
+    { userId: USER_EMPLEADO_1, startDate: seedDate(30), endDate: seedDate(36), totalDays: 7, status: "PENDING" as const, reason: "Vacaciones familiares" },
+    { userId: USER_EMPLEADO_2, startDate: seedDate(14), endDate: seedDate(18), totalDays: 5, status: "APPROVED" as const, reason: "Viaje personal", approvedBy: USER_GERENTE, approvedAt: seedDate(-2) },
+    { userId: USER_EMPLEADO_3, startDate: seedDate(7), endDate: seedDate(8), totalDays: 2, status: "REJECTED" as const, reason: "Alta demanda en el periodo", rejectedBy: USER_GERENTE, rejectedAt: seedDate(-1), rejectionReason: "No hay cobertura suficiente para esas fechas" },
   ];
   const vacationValues = vacationData.map(v => ({
     userId: v.userId,
     companyId: COMPANY_ID,
-    branchId: BRANCH_CONDESA,
+    branchId: branchForUser(v.userId),
     startDate: v.startDate,
     endDate: v.endDate,
     totalDays: v.totalDays,
@@ -168,11 +174,25 @@ export async function main() {
 
   console.log("Creating vacation accruals...");
   const accrualValues: any[] = [];
+  const profiles = await db.select().from(employeeProfiles);
+  const entitlements = new Map<string, number>();
   for (const empId of EMPLOYEES) {
-    accrualValues.push(
-      { userId: empId, companyId: COMPANY_ID, year: 2026, month: 1, daysAccrued: 2, daysTaken: 0, daysBalance: 2, yearsOfService: 2, applicableLawDays: 12, periodStart: new Date("2026-01-01"), periodEnd: new Date("2026-01-31") },
-      { userId: empId, companyId: COMPANY_ID, year: 2026, month: 2, daysAccrued: 2, daysTaken: 0, daysBalance: 4, yearsOfService: 2, applicableLawDays: 12, periodStart: new Date("2026-02-01"), periodEnd: new Date("2026-02-28") },
-    );
+    const profile = profiles.find((p) => p.userId === empId);
+    if (!profile?.hireDate) throw new Error(`Falta antigüedad para ${empId}`);
+    const yearsOfService = Math.max(1, differenceInYears(today, profile.seniorityDate ?? profile.hireDate));
+    const entitlement = calculateLFT2026Benefits(0, yearsOfService).vacationDays;
+    entitlements.set(empId, entitlement);
+    // Estimación mensual del demo, no un saldo autorizado ni un acumulado legal.
+    for (let month = 0; month <= today.getUTCMonth(); month++) {
+      const daysBalance = Math.floor(entitlement * (month + 1) / 12);
+      const daysAccrued = daysBalance - Math.floor(entitlement * month / 12);
+      accrualValues.push({ userId: empId, companyId: COMPANY_ID, year, month: month + 1,
+        daysAccrued, daysTaken: 0, daysBalance, yearsOfService,
+        applicableLawDays: entitlement, periodStart: new Date(Date.UTC(year, month, 1, 12)),
+        periodEnd: month === today.getUTCMonth() ? today : new Date(Date.UTC(year, month + 1, 0, 12)),
+        notes: "DEMO: estimación mensual informativa, no saldo autorizado. Días según el calculador actual del sistema.",
+      });
+    }
   }
   await db.insert(vacationAccruals).values(accrualValues);
 
@@ -190,7 +210,7 @@ export async function main() {
     },
     {
       companyId: COMPANY_ID,
-      name: "INCAPACIDAD_MEDICA",
+      name: "ENFERMEDAD_GENERAL",
       description: "Incapacidad por enfermedad o accidente",
       isPaid: true,
       requiresDocumentation: true,
@@ -209,23 +229,25 @@ export async function main() {
   ]).returning({ id: leaveTypes.id, name: leaveTypes.name });
 
   const leaveTypeVacation = insertedLeaveTypes.find(t => t.name === "VACACIONES")!;
-  const leaveTypeSick = insertedLeaveTypes.find(t => t.name === "INCAPACIDAD_MEDICA")!;
+  const leaveTypeSick = insertedLeaveTypes.find(t => t.name === "ENFERMEDAD_GENERAL")!;
+  const leaveTypeUnpaid = insertedLeaveTypes.find(t => t.name === "PERMISO_PERSONAL")!;
 
   console.log("Creating leave requests...");
   await db.insert(leaveRequests).values([
-    { userId: USER_EMPLEADO_1, companyId: COMPANY_ID, branchId: BRANCH_CONDESA, leaveTypeId: leaveTypeVacation.id, startDate: new Date("2026-08-10"), endDate: new Date("2026-08-17"), totalDays: 7, reason: "Vacaciones familiares", status: "PENDING" },
-    { userId: USER_EMPLEADO_2, companyId: COMPANY_ID, branchId: BRANCH_POLANCO, leaveTypeId: leaveTypeSick.id, startDate: new Date("2026-04-10"), endDate: new Date("2026-04-11"), totalDays: 2, reason: "Incapacidad médica", status: "APPROVED", approvedBy: USER_GERENTE, approvedAt: new Date("2026-04-09") },
+    { userId: USER_EMPLEADO_1, companyId: COMPANY_ID, branchId: BRANCH_CONDESA, leaveTypeId: leaveTypeVacation.id, startDate: seedDate(30), endDate: seedDate(36), totalDays: 7, reason: "Vacaciones familiares", status: "PENDING" },
+    { userId: USER_EMPLEADO_2, companyId: COMPANY_ID, branchId: BRANCH_POLANCO, leaveTypeId: leaveTypeSick.id, startDate: seedDate(-45), endDate: seedDate(-44), totalDays: 2, reason: "Enfermedad general: fuente auditable de aguinaldo", status: "APPROVED", approvedBy: USER_GERENTE, approvedAt: seedDate(-46) },
+    { userId: USER_EMPLEADO_3, companyId: COMPANY_ID, branchId: BRANCH_ROMA, leaveTypeId: leaveTypeUnpaid.id, startDate: seedDate(-42), endDate: seedDate(-41), totalDays: 2, reason: "Permiso sin goce: fuente auditable de aguinaldo", status: "APPROVED", approvedBy: USER_GERENTE, approvedAt: seedDate(-43) },
   ]);
 
   console.log("Creating leave balances...");
   const leaveBalanceValues = EMPLOYEES.map(empId => ({
     userId: empId,
     leaveTypeId: leaveTypeVacation.id,
-    year: 2026,
-    totalEntitlement: 12,
-    used: empId === USER_EMPLEADO_2 ? 5 : 0,
-    pending: empId === USER_EMPLEADO_1 ? 7 : 0,
-    balance: empId === USER_EMPLEADO_2 ? 7 : 12,
+    year,
+    totalEntitlement: entitlements.get(empId)!,
+    used: 0,
+    pending: empId === USER_EMPLEADO_1 ? 7 : empId === USER_EMPLEADO_2 ? 5 : 0,
+    balance: entitlements.get(empId)! - (empId === USER_EMPLEADO_1 ? 7 : empId === USER_EMPLEADO_2 ? 5 : 0),
   }));
   await db.insert(leaveBalances).values(leaveBalanceValues);
 

@@ -6,7 +6,8 @@ async function main() {
   const phaseNumber = Number(process.argv[2]);
   const phase = process.argv[2] === "passwords" ? "seed-passwords" : SEED_PHASES[phaseNumber - 1];
   if (!phase) throw new Error(`Fase inválida (1–${SEED_PHASES.length} o passwords).`);
-  const { assertDemoDatabase } = await import("./seed-cleanup");
+  const { assertDemoDatabase, assertSeedDatabaseRole } = await import("./seed-cleanup");
+  await assertSeedDatabaseRole();
   await assertDemoDatabase();
   const { main: run } = await import(`./${phase}`);
   await run();

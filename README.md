@@ -24,7 +24,7 @@ Pulso HORECA es el Software Integral MVP diseñado para cadenas de restaurantes,
    ```
 4. Si requieres observar el Panel de Demostración del MVP repleto de métricas e historial de la semana pasada, ejecuta nuestro Seed de demostración (Añadido en Sprint 4):
    ```bash
-   npx tsx scripts/seed-demo-data.ts
+   pnpm seed --reset
    ```
 5. Corre la Interfaz Web:
    ```bash

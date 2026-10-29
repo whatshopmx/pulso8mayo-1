@@ -1,3 +1,4 @@
+import { seedRandom } from "./seed-scenarios";
 import "dotenv/config";
 import { db } from "@/lib/db";
 import {
@@ -17,13 +18,13 @@ import {
 
 function randomDate(daysAgo: number): Date {
   const d = new Date();
-  d.setDate(d.getDate() - Math.floor(Math.random() * daysAgo));
-  d.setHours(Math.floor(Math.random() * 12) + 6, Math.floor(Math.random() * 60));
+  d.setDate(d.getDate() - Math.floor(seedRandom("04-inventory") * daysAgo));
+  d.setHours(Math.floor(seedRandom("04-inventory") * 12) + 6, Math.floor(seedRandom("04-inventory") * 60));
   return d;
 }
 
 function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(seedRandom("04-inventory") * (max - min + 1)) + min;
 }
 
 const HORECA_CONVERSIONS = [

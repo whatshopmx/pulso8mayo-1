@@ -36,7 +36,8 @@
     "seed:16": "tsx scripts/seed-phase.ts 16",
     "seed:17": "tsx scripts/seed-phase.ts 17",
     "seed:18": "tsx scripts/seed-phase.ts 18",
-    "seed:19": "tsx scripts/seed-phase.ts 19"
+    "seed:19": "tsx scripts/seed-phase.ts 19",
+    "seed:20": "tsx scripts/seed-phase.ts 20"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1029.0",

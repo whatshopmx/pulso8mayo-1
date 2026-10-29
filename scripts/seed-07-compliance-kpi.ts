@@ -1,3 +1,4 @@
+import { seedRandom } from "./seed-scenarios";
 import "dotenv/config";
 import { db } from "@/lib/db";
 import {
@@ -6,6 +7,7 @@ import {
   psychosocialSurveys,
 } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { kpiCalculator } from "@/lib/services/kpi-calculator";
 import {
   COMPANY_ID, BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA,
   USER_ADMIN, USER_GERENTE, USER_SUPERVISOR,
@@ -14,12 +16,12 @@ import {
 
 function randomDate(daysAgo: number): Date {
   const d = new Date();
-  d.setDate(d.getDate() - Math.floor(Math.random() * daysAgo));
+  d.setDate(d.getDate() - Math.floor(seedRandom("07-compliance-kpi") * daysAgo));
   return d;
 }
 
 function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(seedRandom("07-compliance-kpi") * (max - min + 1)) + min;
 }
 
 const BRANCHES = [BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA];
@@ -156,64 +158,9 @@ export async function main() {
     isSystem: kpi.isSystem,
     createdBy: USER_ADMIN,
   }));
-  const kpiRows = await db.insert(kpiDefinitions).values(kpiValues).returning({ id: kpiDefinitions.id });
+  await db.insert(kpiDefinitions).values(kpiValues);
 
-  console.log("Inserting 30 days of KPI history...");
-  const kpiHistoryValues: any[] = [];
-  for (let d = 0; d < 30; d++) {
-    const periodStart = new Date();
-    periodStart.setDate(periodStart.getDate() - 30 + d);
-    const periodEnd = new Date(periodStart);
-    periodEnd.setDate(periodEnd.getDate() + 1);
-
-    for (let k = 0; k < kpiRows.length; k++) {
-      const baseValue = 8000 + randomInt(-2000, 1500);
-      const value = Math.max(0, Math.min(10000, baseValue));
-      const status = value >= (kpiDefs[k].warningThreshold ?? 7000) ? "NORMAL" as const :
-                     value >= (kpiDefs[k].criticalThreshold ?? 6000) ? "WARNING" as const : "CRITICAL" as const;
-
-      kpiHistoryValues.push({
-        kpiId: kpiRows[k].id,
-        branchId: BRANCHES[d % 3],
-        value,
-        periodStart,
-        periodEnd,
-        status,
-        target: kpiDefs[k].target,
-        targetAchieved: value >= (kpiDefs[k].target ?? 8000),
-        calculatedAt: new Date(),
-      });
-    }
-  }
-  await db.insert(kpiHistory).values(kpiHistoryValues);
-
-  console.log("Inserting KPI alerts...");
-  await db.insert(kpiAlerts).values([
-    { kpiId: kpiRows[0].id, branchId: BRANCH_CONDESA, alertType: "WARNING", status: "ACTIVE", triggeredValue: 7200, threshold: 8000, title: "Cumplimiento operativo bajo", message: "El cumplimiento operativo en Condesa ha caído al 72%", acknowledgedBy: USER_GERENTE, acknowledgedAt: randomDate(2) },
-    { kpiId: kpiRows[4].id, branchId: BRANCH_ROMA, alertType: "CRITICAL", status: "ACTIVE", triggeredValue: 6500, threshold: 8000, title: "Temperaturas fuera de rango en Roma", message: "Solo el 65% de las lecturas de temperatura están en rango en Roma" },
-    { kpiId: kpiRows[9].id, branchId: BRANCH_POLANCO, alertType: "WARNING", status: "RESOLVED", triggeredValue: 7400, threshold: 8000, title: "Cumplimiento NOM-251 bajo en Polanco", message: "Score NOM-251 en Polanco al 74%", acknowledgedBy: USER_ADMIN, acknowledgedAt: randomDate(10), resolvedBy: USER_ADMIN, resolvedAt: randomDate(8), resolutionNotes: "Se implementaron acciones correctivas" },
-  ]);
-
-  console.log("Inserting KPI snapshot logs...");
-  const snapshotValues: any[] = [];
-  for (let s = 0; s < 4; s++) {
-    const snapshotDate = new Date();
-    snapshotDate.setDate(snapshotDate.getDate() - s * 7);
-    const metrics: Record<string, number> = {};
-    for (let k = 0; k < kpiRows.length; k++) {
-      metrics[kpiRows[k].id] = randomInt(6000, 10000);
-    }
-    snapshotValues.push({
-      companyId: COMPANY_ID,
-      branchId: BRANCHES[s % 3],
-      snapshotType: s === 0 ? "DAILY" : "WEEKLY",
-      snapshotDate,
-      metrics: metrics as unknown as Record<string, unknown>,
-      periodStart: new Date(snapshotDate.getTime() - 7 * 86400000),
-      periodEnd: snapshotDate,
-    });
-  }
-  await db.insert(kpiSnapshotLogs).values(snapshotValues);
+  // Las mediciones se derivan al final, cuando todas las fuentes están sembradas.
 
   console.log("Inserting psychosocial surveys (NOM-035)...");
   const surveyUsers = [USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3, USER_SUPERVISOR];
@@ -249,4 +196,35 @@ export async function main() {
   await db.insert(psychosocialSurveys).values(surveyValues);
 
   console.log("Phase 7 complete!");
+}
+
+/** Foto de fuentes actuales; no inventa treinta días de mediciones históricas. */
+export async function refreshSeedKpis(): Promise<void> {
+  const definitions = await db.select().from(kpiDefinitions).where(eq(kpiDefinitions.companyId, COMPANY_ID));
+  // Estos tokens todavía devuelven constantes en el calculador del producto.
+  // Quedan en el catálogo, sin mediciones ni gráficas fabricadas por el seed.
+  const unsupported = /on_time_shifts|labor_cost|avg_satisfaction_score/;
+  const now = new Date();
+  await db.delete(kpiHistory).where(sql`${kpiHistory.kpiId} IN (SELECT id FROM kpi_definitions WHERE company_id = ${COMPANY_ID})`);
+  await db.delete(kpiSnapshotLogs).where(eq(kpiSnapshotLogs.companyId, COMPANY_ID));
+  for (const branchId of BRANCHES) {
+    const metrics: Record<string, number> = {};
+    for (const definition of definitions) {
+      if (unsupported.test(definition.formula)) continue;
+      const value = Math.round(await kpiCalculator.calculate(definition.formula, COMPANY_ID, branchId) * 100);
+      const max = definition.thresholdType === "MAX";
+      const crosses = (threshold: number | null) => threshold !== null && (max ? value > threshold : value < threshold);
+      const status = crosses(definition.criticalThreshold) ? "CRITICAL" as const
+        : crosses(definition.warningThreshold) ? "WARNING" as const : "NORMAL" as const;
+      await db.insert(kpiHistory).values({ kpiId: definition.id, branchId, value, status,
+        target: definition.target, targetAchieved: definition.target === null || (max ? value <= definition.target : value >= definition.target),
+        periodStart: now, periodEnd: now,
+        metadata: { source: "DEMO_CURRENT_SOURCES", formula: definition.formula, scope: "CURRENT_STATE" },
+      });
+      metrics[definition.id] = value;
+    }
+    await db.insert(kpiSnapshotLogs).values({ companyId: COMPANY_ID, branchId, snapshotType: "DAILY",
+      snapshotDate: now, periodStart: now, periodEnd: now, metrics,
+    });
+  }
 }

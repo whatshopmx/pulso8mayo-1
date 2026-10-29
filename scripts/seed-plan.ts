@@ -15,6 +15,7 @@ export const SEED_PHASES = [
   "seed-18-finance",
   // Evidencia canónica (EVI-01, espejo de pasos reales) + protección civil.
   "seed-19-evidence-civil",
+  "seed-20-aguinaldo",
 ] as const;
 
 export function assertSeedReset(args: string[], environment?: string): void {

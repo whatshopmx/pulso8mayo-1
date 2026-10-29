@@ -1,3 +1,4 @@
+import { seedRandom } from "./seed-scenarios";
 import "dotenv/config";
 import { db } from "@/lib/db";
 import {
@@ -11,7 +12,7 @@ import {
 
 function randomDate(daysAgo: number): Date {
   const d = new Date();
-  d.setDate(d.getDate() - Math.floor(Math.random() * daysAgo));
+  d.setDate(d.getDate() - Math.floor(seedRandom("09-whatsapp") * daysAgo));
   return d;
 }
 

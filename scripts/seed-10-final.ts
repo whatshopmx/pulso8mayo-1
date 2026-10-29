@@ -1,3 +1,4 @@
+import { seedRandom } from "./seed-scenarios";
 import "dotenv/config";
 import { db } from "@/lib/db";
 import {
@@ -13,12 +14,12 @@ import {
 
 function randomDate(daysAgo: number): Date {
   const d = new Date();
-  d.setDate(d.getDate() - Math.floor(Math.random() * daysAgo));
+  d.setDate(d.getDate() - Math.floor(seedRandom("10-final") * daysAgo));
   return d;
 }
 
 function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(seedRandom("10-final") * (max - min + 1)) + min;
 }
 
 export async function main() {

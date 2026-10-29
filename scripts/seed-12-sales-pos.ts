@@ -1,3 +1,4 @@
+import { seedRandom } from "./seed-scenarios";
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
@@ -11,7 +12,7 @@ import {
 } from "./seed-constants";
 
 function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(seedRandom("12-sales-pos") * (max - min + 1)) + min;
 }
 
 export async function main() {

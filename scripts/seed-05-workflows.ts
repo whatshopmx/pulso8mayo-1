@@ -1,3 +1,4 @@
+import { seedRandom } from "./seed-scenarios";
 import "dotenv/config";
 import { db } from "@/lib/db";
 import {
@@ -15,16 +16,29 @@ import {
 
 function randomDate(daysAgo: number): Date {
   const d = new Date();
-  d.setDate(d.getDate() - Math.floor(Math.random() * daysAgo));
+  d.setDate(d.getDate() - Math.floor(seedRandom("05-workflows") * daysAgo));
   return d;
 }
 
 function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(seedRandom("05-workflows") * (max - min + 1)) + min;
 }
 
 const BRANCHES = [BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA];
 const BRANCH_OPERATORS = [USER_EMPLEADO_1, USER_EMPLEADO_2, USER_EMPLEADO_3];
+
+/**
+ * Assets locales del demo. Las evidencias del seed apuntaban a
+ * `https://pulso.ejemplo/...`, un dominio inexistente: la galería mostraba
+ * "Imagen no disponible" en todas las tarjetas. Los archivos viven en
+ * `public/demo-evidence/` y se sirven desde el propio sitio.
+ */
+const DEMO_EVIDENCE_COUNT = 8;
+
+function demoEvidenceUrl(seed: number): string {
+  const index = (Math.abs(seed) % DEMO_EVIDENCE_COUNT) + 1;
+  return `/demo-evidence/evidencia-${String(index).padStart(2, "0")}.png`;
+}
 
 // La revisión trata cualquier nota del operador como hallazgo que mirar
 // (`stepNeedsAttention` en `lib/workflows/step-definitions.ts`). Con una nota en
@@ -52,7 +66,7 @@ function notaDelPaso(aiAnalysis: { passed?: boolean } | null): string | null {
   if (aiAnalysis && aiAnalysis.passed === false) {
     return NOTAS_DISCREPANCIA[randomInt(0, NOTAS_DISCREPANCIA.length - 1)];
   }
-  if (Math.random() > 0.08) return null;
+  if (seedRandom("05-workflows") > 0.08) return null;
   return NOTAS_OPERADOR[randomInt(0, NOTAS_OPERADOR.length - 1)];
 }
 
@@ -194,8 +208,8 @@ export async function main() {
       const dueDate = new Date(date);
       dueDate.setHours(hours, mins, 0, 0);
 
-      const completed = dueDate.getTime() + 120 * 60000 < now.getTime() && Math.random() > 0.15;
-      const score = completed ? (Math.random() > 0.2 ? randomInt(70, 100) : randomInt(40, 69)) : undefined;
+      const completed = dueDate.getTime() + 120 * 60000 < now.getTime() && seedRandom("05-workflows") > 0.15;
+      const score = completed ? (seedRandom("05-workflows") > 0.2 ? randomInt(70, 100) : randomInt(40, 69)) : undefined;
 
       const assigneeId = BRANCH_OPERATORS[sc.branchIdx];
 
@@ -265,7 +279,8 @@ export async function main() {
       if (stepCompleted) {
         switch (step.type) {
           case "PHOTO":
-            value = `https://pulso.ejemplo/evidencia/${inst.id}-${step.id}.jpg`;
+            // Distribución determinista sobre los ocho assets locales.
+            value = demoEvidenceUrl(instIdx * 7 + stepIdx);
             evidenceUrl = value;
             break;
           case "NUMBER":
@@ -293,9 +308,11 @@ export async function main() {
         if (step.aiVerification?.enabled) {
           const aiScore = randomInt(60, 100);
           aiAnalysis = {
+            // Contrato EVI-01: la confianza se persiste como fracción 0–1.
+            // El porcentaje (60–100) es formato de presentación, no de storage.
             score: aiScore,
             passed: aiScore >= 85,
-            confidence: aiScore,
+            confidence: aiScore / 100,
             notes: aiScore >= 85 ? "Verificación automática exitosa" : "Requiere revisión manual",
           };
         }

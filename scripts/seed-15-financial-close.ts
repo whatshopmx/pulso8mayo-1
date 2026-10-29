@@ -12,6 +12,7 @@ import { computeClabeCheckDigit, validateClabe } from "@/lib/banking/clabe";
 import { DekService } from "@/lib/security/dek";
 import { encryptColumnWithDek } from "@/lib/security/column-cipher";
 import { createHmac } from "node:crypto";
+import { calculateEmployeePayroll } from "@/lib/services/payroll-service";
 import { COMPANY_ID, DEMO_BRANCHES, USER_ADMIN, USER_SUPER_ADMIN } from "./seed-constants";
 
 export async function main() {
@@ -53,9 +54,14 @@ export async function main() {
       propinaId: pool.id, userId: branch.operatorId, hoursWorked: "8", points: "1",
       assignedAmountCents: poolCents,
     });
+    const payrollCalc = await calculateEmployeePayroll(branch.operatorId, start, end);
     await db.insert(payrollPayslips).values({
-      runId: payroll.id, userId: branch.operatorId, baseSalaryCents: 350000,
-      propinasCents: poolCents, totalPercepcionesCents: 368000, totalDeduccionesCents: 0,
+      runId: payroll.id, userId: branch.operatorId,
+      baseSalaryCents: payrollCalc.baseSalaryCents,
+      propinasCents: payrollCalc.propinasCents, holidayPayCents: payrollCalc.holidayPayCents,
+      overtimePayCents: payrollCalc.overtimePayCents,
+      totalPercepcionesCents: payrollCalc.totalPercepcionesCents,
+      totalDeduccionesCents: payrollCalc.totalDeduccionesCents, cfdiStatus: "PENDIENTE",
     });
     const gross = Number((cut.aggregatorSales as Record<string, number> | null)?.rappi ?? 0);
     const commission = Math.round(gross * (index === 1 ? 0.25 : 0.275) * 1.16);
