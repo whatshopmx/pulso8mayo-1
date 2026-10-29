@@ -9,7 +9,7 @@ import {
   workflowInstances,
 } from "@/lib/db/schema";
 import { and, eq, gte, lte, inArray, notInArray, desc } from "drizzle-orm";
-import { businessDateIso, businessDayEnd, businessDayStart } from "@/lib/business-date";
+import { businessDateIso, businessDayEnd, businessDayStart, businessTimeParts } from "@/lib/business-date";
 
 /**
  * Status TERMINALES de un incidente: ya no requieren acción.
@@ -62,7 +62,11 @@ export interface LivePulseSummary {
   businessDate: string;
   totalBranches: number;
   openBranchesCount: number;
+  /** Sucursales con actividad, sin juzgar puntualidad. */
   openRatePercent: number;
+  /** Sucursales que abrieron dentro del horario (≤ 11:30 local). */
+  onTimeBranchesCount: number;
+  onTimeRatePercent: number;
   staffActiveNow: number;
   /** `null` = no hay dotación planificada; la UI debe decir "Sin dotación configurada", no "0%". */
   staffAttendanceRate: number | null;
@@ -112,7 +116,9 @@ export const LiveCommandService = {
         businessDate: todayIsoDate,
         totalBranches: 0,
         openBranchesCount: 0,
-        openRatePercent: 100,
+        openRatePercent: 0,
+        onTimeBranchesCount: 0,
+        onTimeRatePercent: 0,
         staffActiveNow: 0,
         staffAttendanceRate: null,
         salesTodayCents: 0,
@@ -294,6 +300,7 @@ export const LiveCommandService = {
     let totalActiveStaff = 0;
     let totalSalesCents = 0;
     let openCount = 0;
+    let onTimeCount = 0;
     const branchesLive: BranchLiveStatus[] = [];
 
     for (const b of branchRows) {
@@ -303,13 +310,27 @@ export const LiveCommandService = {
       const bIncidents = incidentsByBranch.get(b.id) ?? [];
       const bWorkflows = workflowsByBranch.get(b.id) ?? [];
 
-      // Apertura: evaluada si hay workflows completados o sesiones antes de las 12:00 hrs
-      const earliestActivity = bWorkflows[0]?.createdAt || bSessions[0]?.startedAt;
-      const isOpen = Boolean(earliestActivity);
+      // Apertura: la primera actividad real de la sucursal, no la primera fila
+      // que devolvió Postgres. Antes `bWorkflows[0]`/`bSessions[0]` dependían
+      // del orden de inserción, así que la hora de apertura era arbitraria.
+      const activityTimes = [
+        ...bWorkflows.map((w) => w.createdAt),
+        ...bSessions.map((s) => s.startedAt),
+      ]
+        .filter((value): value is Date => value != null)
+        .map((value) => new Date(value).getTime())
+        .filter((value) => Number.isFinite(value));
+
+      const earliestActivity =
+        activityTimes.length > 0 ? new Date(Math.min(...activityTimes)) : null;
+      const isOpen = earliestActivity !== null;
       if (isOpen) openCount++;
 
-      const openHour = earliestActivity ? new Date(earliestActivity).getHours() : 0;
-      const openMinutes = earliestActivity ? new Date(earliestActivity).getMinutes() : 0;
+      // Hora local de la sucursal, no del proceso: en un servidor UTC,
+      // `getHours()` convertía las 14:00 de México en "20:00 hrs".
+      const { hour: openHour, minute: openMinutes } = earliestActivity
+        ? businessTimeParts(earliestActivity)
+        : { hour: 0, minute: 0 };
       const timeString = earliestActivity
         ? `${openHour.toString().padStart(2, "0")}:${openMinutes.toString().padStart(2, "0")}`
         : null;
@@ -319,6 +340,8 @@ export const LiveCommandService = {
         : openHour > 11 || (openHour === 11 && openMinutes > 30)
         ? "DELAYED"
         : "ON_TIME";
+
+      if (openingStatus === "ON_TIME") onTimeCount++;
 
       const openingLabel = !isOpen
         ? "Pendiente de apertura"
@@ -408,7 +431,12 @@ export const LiveCommandService = {
       }));
 
     const totalBranches = branchRows.length;
-    const openRatePercent = totalBranches > 0 ? Math.round((openCount / totalBranches) * 100) : 100;
+    const openRatePercent = totalBranches > 0 ? Math.round((openCount / totalBranches) * 100) : 0;
+    // F09: "abierta" y "abrió a tiempo" son hechos distintos. El KPI rotulado
+    // "Aperturas a Tiempo" usaba `openCount` (cualquier actividad), así que
+    // podía decir 100% mientras la matriz marcaba aperturas tardías.
+    const onTimeRatePercent =
+      totalBranches > 0 ? Math.round((onTimeCount / totalBranches) * 100) : 0;
 
     // Un solo cálculo de asistencia: el mismo denominador que usa cada
     // sucursal (dotación planificada publicada). Si no hay dotación, no hay
@@ -424,6 +452,8 @@ export const LiveCommandService = {
       totalBranches,
       openBranchesCount: openCount,
       openRatePercent,
+      onTimeBranchesCount: onTimeCount,
+      onTimeRatePercent,
       staffActiveNow: totalActiveStaff,
       staffAttendanceRate,
       salesTodayCents: totalSalesCents,

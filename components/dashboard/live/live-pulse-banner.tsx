@@ -23,7 +23,7 @@ export function LivePulseBanner({ summary }: LivePulseBannerProps) {
     maximumFractionDigits: 0,
   }).format(summary.salesTodayCents / 100);
 
-  const isOpenFull = summary.openRatePercent === 100 && summary.totalBranches > 0;
+  const isOpenFull = summary.onTimeRatePercent === 100 && summary.totalBranches > 0;
   const hasStaffRate = summary.staffAttendanceRate !== null;
   const isStaffHealthy = hasStaffRate && summary.staffAttendanceRate! >= 90;
   const staffTileTone = !hasStaffRate
@@ -141,15 +141,20 @@ export function LivePulseBanner({ summary }: LivePulseBannerProps) {
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Aperturas a Tiempo</span>
               <span className={`text-xs font-semibold ${isOpenFull ? 'text-success-text' : 'text-warning-text'}`}>
-                {summary.openRatePercent}%
+                {summary.onTimeRatePercent}%
               </span>
             </div>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="text-lg font-bold tracking-tight text-foreground">
-                {summary.openBranchesCount}
+                {summary.onTimeBranchesCount}
               </span>
               <span className="text-xs text-muted-foreground">/ {summary.totalBranches} tiendas</span>
             </div>
+            {summary.openBranchesCount !== summary.onTimeBranchesCount && (
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {summary.openBranchesCount} abrieron; {summary.openBranchesCount - summary.onTimeBranchesCount} con retraso
+              </p>
+            )}
           </div>
         </div>
 
