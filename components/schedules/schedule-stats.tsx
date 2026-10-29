@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { MetricCard } from '@/components/ui/metric-card';
 import { Calendar, CheckCircle, Clock, ListTodo } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface ScheduleStatsProps {
     branchId: string;
@@ -16,6 +17,7 @@ interface Stats {
 }
 
 export function ScheduleStats({ branchId }: ScheduleStatsProps) {
+    const t = useTranslations('workflows.scheduling.stats');
     const [stats, setStats] = useState<Stats | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -81,29 +83,29 @@ export function ScheduleStats({ branchId }: ScheduleStatsProps) {
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <MetricCard
-                label="Total Schedules"
+                label={t('total')}
                 value={stats.totalSchedules}
                 icon={<ListTodo className="h-4 w-4" />}
-                subtitle="All configured schedules"
+                subtitle={t('totalSubtitle')}
             />
             <MetricCard
-                label="Active Schedules"
+                label={t('active')}
                 value={stats.activeSchedules}
                 icon={<CheckCircle className="h-4 w-4" />}
-                subtitle="Currently running"
+                subtitle={t('activeSubtitle')}
                 tone="success"
             />
             <MetricCard
-                label="Executions Today"
+                label={t('executionsToday')}
                 value={stats.executionsToday}
                 icon={<Calendar className="h-4 w-4" />}
-                subtitle="Workflows executed today"
+                subtitle={t('executionsTodaySubtitle')}
             />
             <MetricCard
-                label="Upcoming"
+                label={t('upcoming')}
                 value={stats.upcomingExecutions}
                 icon={<Clock className="h-4 w-4" />}
-                subtitle="Next 24 hours"
+                subtitle={t('upcomingSubtitle')}
             />
         </div>
     );

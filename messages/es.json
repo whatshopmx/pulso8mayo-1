@@ -454,6 +454,16 @@
         "vespertino": "Vespertino",
         "nocturno": "Nocturno",
         "mixto": "Mixto"
+      },
+      "stats": {
+        "total": "Programaciones Totales",
+        "totalSubtitle": "Todas las programaciones configuradas",
+        "active": "Programaciones Activas",
+        "activeSubtitle": "En ejecución actual",
+        "executionsToday": "Ejecuciones de Hoy",
+        "executionsTodaySubtitle": "Workflows ejecutados hoy",
+        "upcoming": "Próximas",
+        "upcomingSubtitle": "Siguientes 24 horas"
       }
     }
   },

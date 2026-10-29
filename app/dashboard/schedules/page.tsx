@@ -206,6 +206,7 @@ export default function SchedulesPage() {
                             <SelectItem value="ROLE">Por rol</SelectItem>
                             <SelectItem value="USER">Por usuario</SelectItem>
                             <SelectItem value="AUTO">Automática</SelectItem>
+                            <SelectItem value="MANUAL">Manual</SelectItem>
                         </SelectContent>
                     </Select>
 
