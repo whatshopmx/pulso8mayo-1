@@ -1,0 +1,66 @@
+Emulating viewport: {"deviceScaleFactor":1,"isMobile":false,"hasTouch":false,"isLandscape":false,"width":1365,"height":900}
+## Latest page snapshot
+uid=31_0 RootWebArea "Historial de Workflows - Pulso" url="https://pulso-horeca.netlify.app/dashboard/workflows/history?search=zz-auditoria-sin-coincidencias&branchId=b1000001-0000-4000-8000-000000000003"
+  uid=31_1 button "Roma Pulso HORECA Demo (ENTERPRISE)" expandable haspopup="menu"
+  uid=31_2 "Plataforma"
+  uid=31_3 button "Comando de Red" expandable
+  uid=31_4 button "Flujos de Trabajo" expandable expanded
+  uid=31_5 link "Dashboard" url="https://pulso-horeca.netlify.app/dashboard/workflows"
+  uid=31_7 link "Ejecución Rápida" url="https://pulso-horeca.netlify.app/dashboard/execute"
+  uid=31_9 link "Constructor" url="https://pulso-horeca.netlify.app/dashboard/builder"
+  uid=31_11 link "Plantillas" url="https://pulso-horeca.netlify.app/dashboard/builder/templates"
+  uid=31_13 link "Historial" url="https://pulso-horeca.netlify.app/dashboard/workflows/history"
+  uid=31_15 link "Incidentes" url="https://pulso-horeca.netlify.app/dashboard/incidents"
+  uid=31_17 link "Evidencias" url="https://pulso-horeca.netlify.app/dashboard/evidence"
+  uid=31_19 button "Inventario" expandable
+  uid=31_20 button "Equipos" expandable
+  uid=31_21 button "Cumplimiento" expandable
+  uid=31_22 button "Personal" expandable
+  uid=31_23 button "Desempeño" expandable
+  uid=31_24 button "Finanzas" expandable
+  uid=31_25 button "Organización" expandable
+  uid=31_26 button "CN Carlos Méndez carlos@pulso.mx" expandable haspopup="menu"
+  uid=31_27 button "Toggle Sidebar" description="Toggle Sidebar"
+  uid=31_28 main
+    uid=31_29 button "Toggle Sidebar"
+    uid=31_30 navigation "breadcrumb"
+      uid=31_31 link "Pulso HORECA Demo" url="https://pulso-horeca.netlify.app/dashboard"
+      uid=33_0 link "Flujos de Trabajo" url="https://pulso-horeca.netlify.app/dashboard/workflows"
+      uid=33_2 "Historial"
+    uid=31_34 button "Sucursal: Roma" expandable haspopup="menu"
+    uid=31_35 button "Fecha: Todo el período" expandable haspopup="menu"
+    uid=31_36 button "Notificaciones" expandable haspopup="menu"
+    uid=31_37 button "Toggle theme" expandable haspopup="menu"
+    uid=33_3 heading "Historial de Workflows" level="1"
+    uid=33_4 "Supervisa y audita las ejecuciones operativas en tu organización"
+    uid=33_5 "Roma"
+    uid=33_6 "Total Ejecuciones"
+    uid=33_7 "30"
+    uid=33_8 "Completados"
+    uid=33_9 "25"
+    uid=33_10 "En Progreso"
+    uid=33_11 "0"
+    uid=33_12 "Tasa de Completación"
+    uid=33_13 "83"
+    uid=33_14 "%"
+    uid=33_15 textbox "Buscar flujo..." focusable focused value="zz-auditoria-sin-coincidencias"
+    uid=34_0 button
+    uid=33_16 button "Filtros avanzados" expandable haspopup="dialog"
+    uid=33_17 button "Exportar"
+    uid=33_18 "Vistas rápidas:"
+    uid=33_19 button "Todos"
+    uid=33_20 button "Hoy"
+    uid=33_21 button "Esta Semana"
+    uid=33_22 button "Con Incidencias"
+    uid=33_23 button "Por Revisar"
+    uid=33_24 button "Bloqueados / Fallidos"
+    uid=34_1 button "Limpiar filtros"
+    uid=33_25 "Historial de Flujos"
+    uid=33_26 "Registro cronológico y estatus de workflows en operación"
+    uid=34_2 "0 registros"
+    uid=34_3 "workflows.history.noWorkflowsFound"
+    uid=34_4 "Intenta ajustar la búsqueda o seleccionar otro rango de fechas."
+    uid=34_5 button "Limpiar todos los filtros"
+  uid=31_94 alert atomic live="assertive" relevant="additions text"
+    uid=33_373 "Historial de Workflows"
+

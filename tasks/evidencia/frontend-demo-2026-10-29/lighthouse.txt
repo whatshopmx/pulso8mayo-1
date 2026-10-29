@@ -1,0 +1,16 @@
+## Lighthouse audit results
+Mode: snapshot
+Device: desktop
+URL: https://pulso-horeca.netlify.app/dashboard?branch=b1000001-0000-4000-8000-000000000003
+### Category scores
+- Accessibility: 100 (accessibility)
+- Best Practices: 100 (best-practices)
+- SEO: 100 (seo)
+- Agentic Browsing: 100 (agentic-browsing)
+### Audit summary
+Passed: 37
+Failed: 0
+Total timing: 4388.53ms
+### Reports
+- C:\Users\david\AppData\Local\Temp\chrome-devtools-mcp-7Z7Mxf\report.json
+- C:\Users\david\AppData\Local\Temp\chrome-devtools-mcp-cl0UIo\report.html

@@ -1,0 +1,60 @@
+The performance trace has been stopped.
+## Summary of Performance trace findings:
+URL: https://pulso-horeca.netlify.app/dashboard?branch=b1000001-0000-4000-8000-000000000003
+Trace bounds: {min: 250425022759µs, max: 250432805818µs}
+CPU throttling: 1x
+Network throttling: none
+
+# Available insight sets
+
+The following is a list of insight sets. An insight set covers a specific part of the trace, split by navigations. The insights within each insight set are specific to that part of the trace. Be sure to consider the insight set id and bounds when calling functions. If no specific insight set or navigation is mentioned, assume the user is referring to the first one.
+
+## insight set id: NAVIGATION_0
+
+URL: https://pulso-horeca.netlify.app/dashboard?branch=b1000001-0000-4000-8000-000000000003
+Bounds: {min: 250425035097µs, max: 250432805818µs}
+Metrics (lab / observed):
+  - LCP: 2081 ms, event: (eventKey: r-6396, ts: 250427116030), nodeId: 2671
+  - LCP breakdown:
+    - TTFB: 1,559 ms, bounds: {min: 250425035097µs, max: 250426594269.99997µs}
+    - Render delay: 522 ms, bounds: {min: 250426594269.99997µs, max: 250427116030µs}
+  - CLS: 0.19, event: (eventKey: c-17237, ts: 250428342768)
+Metrics (field / real users): n/a – no data for this page in CrUX
+Available insights:
+  - insight name: DocumentLatency
+    description: Your first network request is the most important. [Reduce its latency](https://developer.chrome.com/docs/performance/insights/document-latency) by avoiding redirects, ensuring a fast server response, and enabling text compression.
+    relevant trace bounds: {min: 726µs, max: 250426999360µs}
+    estimated metric savings: FCP 1455 ms, LCP 1455 ms
+    example question: How do I decrease the initial loading time of my page?
+    example question: Did anything slow down the request for this document?
+  - insight name: LCPBreakdown
+    description: Each [subpart has specific improvement strategies](https://developer.chrome.com/docs/performance/insights/lcp-breakdown). Ideally, most of the LCP time should be spent on loading the resources, not within delays.
+    relevant trace bounds: {min: 250425035097µs, max: 250427116030µs}
+    example question: Help me optimize my LCP score
+    example question: Which LCP subpart was most problematic?
+    example question: What can I do to reduce the LCP time for this page load?
+  - insight name: CLSCulprits
+    description: Layout shifts occur when elements move absent any user interaction. [Investigate the causes of layout shifts](https://developer.chrome.com/docs/performance/insights/cls-culprit), such as elements being added, removed, or their fonts changing as the page loads.
+    relevant trace bounds: {min: 250428342768µs, max: 250429342768µs}
+    example question: Help me optimize my CLS score
+    example question: How can I prevent layout shifts on this page?
+  - insight name: RenderBlocking
+    description: Requests are blocking the page’s initial render, which may delay LCP. [Deferring or inlining](https://developer.chrome.com/docs/performance/insights/render-blocking) can move these network requests out of the critical path.
+    relevant trace bounds: {min: 250426650467µs, max: 250426967382µs}
+    estimated metric savings: FCP 0 ms, LCP 0 ms
+    example question: Show me the most impactful render-blocking requests that I should focus on
+    example question: How can I reduce the number of render-blocking requests?
+  - insight name: ForcedReflow
+    description: A forced reflow occurs when JavaScript queries geometric properties (such as `offsetWidth`) after styles have been invalidated by a change to the DOM state. This can result in poor performance. Learn more about [forced reflows](https://developer.chrome.com/docs/performance/insights/forced-reflow) and possible mitigations.
+    relevant trace bounds: {min: 250427155830µs, max: 250428332709µs}
+    example question: How can I avoid forced reflows and layout thrashing?
+    example question: What is forced reflow and why is it problematic?
+  - insight name: LegacyJavaScript
+    description: Polyfills and transforms enable older browsers to use new JavaScript features. However, many aren’t necessary for modern browsers. Consider modifying your JavaScript build process to not transpile [Baseline](https://web.dev/articles/baseline-and-polyfills) features, unless you know you must support older browsers. [Learn why most sites can deploy ES6+ code without transpiling](https://developer.chrome.com/docs/performance/insights/legacy-javascript).
+    relevant trace bounds: {min: 250426652870µs, max: 250427284616µs}
+    estimated metric savings: FCP 0 ms, LCP 0 ms
+    estimated wasted bytes: 13.3 kB
+    example question: Is my site polyfilling modern JavaScript features?
+    example question: How can I reduce the amount of legacy JavaScript on my page?
+
+

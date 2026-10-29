@@ -1,0 +1,14 @@
+Emulating viewport: {"deviceScaleFactor":1,"isMobile":false,"hasTouch":false,"isLandscape":false,"width":1365,"height":900}
+## Console messages
+Showing 1-10 of 77 (Page 1 of 8).
+Next page: 1
+msgid=22 [error] Failed to load resource: the server responded with a status of 400 () (0 args) [8 times]
+msgid=30 [error] p: MISSING_MESSAGE: workflows.history.status.blocked (es) (1 args) [5 times]
+msgid=35 [error] p: MISSING_MESSAGE: common.workflow (es) (1 args)
+msgid=36 [error] p: MISSING_MESSAGE: workflows.history.status.blocked (es) (1 args)
+msgid=37 [error] p: MISSING_MESSAGE: common.workflow (es) (1 args)
+msgid=38 [error] p: MISSING_MESSAGE: workflows.history.status.blocked (es) (1 args)
+msgid=39 [error] p: MISSING_MESSAGE: common.workflow (es) (1 args)
+msgid=40 [error] p: MISSING_MESSAGE: workflows.history.status.blocked (es) (1 args)
+msgid=41 [error] p: MISSING_MESSAGE: common.workflow (es) (1 args)
+msgid=42 [error] p: MISSING_MESSAGE: workflows.history.status.blocked (es) (1 args)

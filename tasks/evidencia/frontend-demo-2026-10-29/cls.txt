@@ -1,0 +1,29 @@
+## Insight Title: Layout shift culprits
+
+## Insight Summary:
+Cumulative Layout Shifts (CLS) is a measure of the largest burst of layout shifts for every unexpected layout shift that occurs during the lifecycle of a page. This is a Core Web Vital and the thresholds for categorizing a score are:
+- Good: 0.1 or less
+- Needs improvement: more than 0.1 and less than or equal to 0.25
+- Bad: over 0.25
+
+## Detailed analysis:
+The worst layout shift cluster was the cluster that started at 3,320 ms and ended at 4,320 ms, with a duration of 1,000 ms.
+The score for this cluster is 0.1918.
+
+Layout shifts in this cluster:
+### Layout shift 1:
+- Impacted elements:
+  - MAIN class='bg-background relative flex w-full flex-1 flex-col md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2'
+  - svg class='lucide lucide-arrow-up-right h-3 w-3 ml-1'
+  - svg class='lucide lucide-clock h-3 w-3'
+
+- Start time: 3,320 ms
+- Score: 0.1918
+- No potential root causes identified
+
+## Estimated savings: none
+
+## External resources:
+- https://developer.chrome.com/docs/performance/insights/cls-culprit
+- https://web.dev/articles/cls
+- https://web.dev/articles/optimize-cls
