@@ -47,6 +47,45 @@ function timeZoneOffsetMs(at: Date): number {
   return asIfUtc - at.getTime();
 }
 
+/**
+ * Partes de reloj (hora/minuto) en la zona del negocio.
+ *
+ * `Date#getHours()` usa la zona del proceso: en un servidor desplegado en UTC
+ * devuelve UTC, así que una apertura a las 14:00 de Ciudad de México se leía
+ * como "20:00 hrs" y podía cruzar el umbral de retraso. Todo juicio horario de
+ * negocio debe salir de aquí.
+ */
+export function businessTimeParts(at: Date): { hour: number; minute: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BUSINESS_TIMEZONE,
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(at);
+
+  const read = (type: string): number => {
+    const value = parts.find((p) => p.type === type)?.value;
+    return value === undefined ? 0 : Number(value) % 24;
+  };
+
+  return { hour: read("hour"), minute: read("minute") };
+}
+
+/**
+ * Convierte una fecha civil `YYYY-MM-DD` (columna `date` de Postgres) en un
+ * `Date` local a mediodía.
+ *
+ * `new Date("2026-10-22")` se interpreta como medianoche **UTC**; formateado en
+ * America/Mexico_City cae el día anterior. Las fechas de período de nómina no
+ * son instantes, son días civiles: se construyen con sus componentes y a
+ * mediodía para que ningún cambio de offset las mueva de día.
+ */
+export function parseCivilDate(iso: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!match) return new Date(iso);
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0, 0);
+}
+
 /** El día de negocio (YYYY-MM-DD) que contiene `at`. */
 export function businessDateIso(at: Date = new Date()): string {
   // 'en-CA' formatea como YYYY-MM-DD.
