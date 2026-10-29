@@ -28,7 +28,9 @@ export const EVIDENCE_URL_TTL_SECONDS = 600;
  */
 export function isR2ObjectKey(value: string | null | undefined): value is string {
   if (!value) return false;
-  return !/^https?:\/\//i.test(value) && !value.startsWith("local://");
+  // Una ruta pública del sitio (`/demo-evidence/...`) no es una key de R2:
+  // presignarla la convertiría en una URL inválida.
+  return !/^https?:\/\//i.test(value) && !value.startsWith("local://") && !value.startsWith("/");
 }
 
 /** Key canónica para la foto de evidencia de una merma. */

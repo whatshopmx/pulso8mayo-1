@@ -9,6 +9,9 @@ import { resolveEvidenceUrl } from "@/lib/storage/scoped-evidence";
 vi.mock("@/lib/db", () => ({ db: { select: vi.fn() } }));
 vi.mock("@/lib/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
+vi.mock("@/lib/db/tenant-context", () => ({
+  withCompanyContext: vi.fn(async (_scope: unknown, fn: (tx: unknown) => unknown) => fn(db)),
+}));
 vi.mock("@/lib/storage/scoped-evidence", () => ({
   resolveEvidenceUrl: vi.fn(async (value: string | null | undefined) => value ?? null),
 }));
@@ -19,15 +22,25 @@ const branchB = "b2000000-0000-4000-8000-000000000002";
 
 let whereArg: unknown;
 let rows: unknown[] = [];
+let summaryRows: unknown[] = [];
 
 function chain() {
-  const limit = vi.fn(async () => rows);
+  // La consulta de datos sigue la cadena ...where().orderBy().limit().offset();
+  // la de agregados se resuelve al hacer `await ...where()`.
+  const offset = vi.fn(async () => rows);
+  const limit = vi.fn(() => ({ offset }));
   const orderBy = vi.fn(() => ({ limit }));
+  const whereResult = {
+    orderBy,
+    then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+      Promise.resolve(summaryRows).then(resolve, reject),
+  };
   const where = vi.fn((arg: unknown) => {
     whereArg = arg;
-    return { orderBy };
+    return whereResult;
   });
   const node: Record<string, unknown> = { where };
+  node.innerJoin = vi.fn(() => node);
   node.leftJoin = vi.fn(() => node);
   return node;
 }
@@ -44,6 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   whereArg = undefined;
   rows = [];
+  summaryRows = [{ total: 0, todayCount: 0, verifiedCount: 0, needsReviewCount: 0, uniqueBranches: 0 }];
   vi.mocked(db.select).mockReturnValue({ from: () => chain() } as never);
 });
 
@@ -79,7 +93,7 @@ describe("SEC-02: consulta de evidencia acotada al actor", () => {
     const res = await GET(url());
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ success: true, data: [] });
+    await expect(res.json()).resolves.toMatchObject({ success: true, data: [], total: 0 });
     expect(db.select).not.toHaveBeenCalled();
   });
 
@@ -87,14 +101,29 @@ describe("SEC-02: consulta de evidencia acotada al actor", () => {
     vi.mocked(auth.api.getSession).mockResolvedValue({
       user: { id: "admin", role: "ADMIN", branchId: null, companyId },
     } as never);
+    summaryRows = [{ total: 1, todayCount: 0, verifiedCount: 0, needsReviewCount: 1, uniqueBranches: 1 }];
     rows = [
-      { id: "s1", evidenceUrl: "companies/c/branchA/1.jpg", aiAnalysis: null, createdAt: null },
-      { id: "s2", evidenceUrl: "", aiAnalysis: null, createdAt: null },
+      {
+        id: "s1",
+        kind: "PHOTO",
+        url: "companies/c/branchA/1.jpg",
+        aiMetadata: null,
+        stepTitle: "Cámara fría",
+        stepId: "temp",
+        aiAnalysis: null,
+        completedAt: null,
+        registeredAt: null,
+        workflowName: "Apertura",
+        assigneeName: null,
+        branchName: null,
+        branchId: branchA,
+        workflowInstanceId: "i1",
+      },
     ];
 
     const res = await GET(url());
 
-    await expect(res.json()).resolves.toMatchObject({ data: [{ id: "s1" }] });
+    await expect(res.json()).resolves.toMatchObject({ data: [{ id: "s1" }], total: 1 });
     expect(resolveEvidenceUrl).toHaveBeenCalledTimes(1);
     expect(resolveEvidenceUrl).toHaveBeenCalledWith("companies/c/branchA/1.jpg");
   });

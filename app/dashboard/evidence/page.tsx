@@ -42,10 +42,11 @@ import {
     ShieldAlert,
     Clock
 } from "lucide-react";
-import { format, isToday, subDays } from "date-fns";
+import { format, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import Image from "next/image";
+import { useBranch } from "@/lib/branch-context";
 
 interface Evidence {
     id: string;
@@ -67,42 +68,44 @@ interface Evidence {
 interface EvidenceFilters {
     type?: string;
     verified?: string;
-    branchId?: string;
     dateFrom?: string;
     dateTo?: string;
     search?: string;
 }
 
-interface Branch {
-    id: string;
-    name: string;
+interface EvidenceSummary {
+    total: number;
+    todayCount: number;
+    verifiedCount: number;
+    needsReviewCount: number;
+    uniqueBranches: number;
 }
 
+const EMPTY_SUMMARY: EvidenceSummary = {
+    total: 0,
+    todayCount: 0,
+    verifiedCount: 0,
+    needsReviewCount: 0,
+    uniqueBranches: 0,
+};
+
+const PAGE_SIZE = 24;
+
 export default function EvidencePage() {
+    // F03: la sucursal la gobierna el selector global del encabezado. La
+    // galería ya no mantiene un "Todas" local que contradiga ese alcance.
+    const { selectedBranchId, selectedBranch, isBranchScoped } = useBranch();
+
     const [evidences, setEvidences] = useState<Evidence[]>([]);
-    const [branches, setBranches] = useState<Branch[]>([]);
+    const [summary, setSummary] = useState<EvidenceSummary>(EMPTY_SUMMARY);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [filters, setFilters] = useState<EvidenceFilters>({});
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedEvidence, setSelectedEvidence] = useState<Evidence | null>(null);
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const [imageErrorMap, setImageErrorMap] = useState<Record<string, boolean>>({});
-
-    // Fetch branches once on mount
-    useEffect(() => {
-        const fetchBranches = async () => {
-            try {
-                const res = await fetch("/api/branches");
-                if (res.ok) {
-                    const data = await res.json();
-                    setBranches(data.data || data || []);
-                }
-            } catch (err) {
-                console.error("Error fetching branches:", err);
-            }
-        };
-        fetchBranches();
-    }, []);
 
     // 300ms Debounce for text search
     useEffect(() => {
@@ -121,15 +124,19 @@ export default function EvidencePage() {
             const params = new URLSearchParams();
             if (filters.type) params.append("type", filters.type);
             if (filters.verified) params.append("verified", filters.verified);
-            if (filters.branchId && filters.branchId !== "all") params.append("branchId", filters.branchId);
+            if (selectedBranchId) params.append("branchId", selectedBranchId);
             if (filters.dateFrom) params.append("dateFrom", filters.dateFrom);
             if (filters.dateTo) params.append("dateTo", filters.dateTo);
             if (filters.search) params.append("search", filters.search);
+            params.append("page", String(page));
+            params.append("limit", String(PAGE_SIZE));
 
             const response = await fetch(`/api/workflows/evidence?${params.toString()}`);
             if (response.ok) {
                 const data = await response.json();
                 setEvidences(data.data || []);
+                setTotal(data.total ?? data.data?.length ?? 0);
+                setSummary(data.summary ?? EMPTY_SUMMARY);
             } else {
                 toast.error("Error al cargar evidencias");
             }
@@ -139,11 +146,17 @@ export default function EvidencePage() {
         } finally {
             setLoading(false);
         }
-    }, [filters]);
+    }, [filters, page, selectedBranchId]);
 
     useEffect(() => {
         fetchEvidences();
     }, [fetchEvidences]);
+
+    // Cualquier cambio de filtro vuelve a la primera página: quedarse en la 7
+    // de un resultado que ahora tiene 2 páginas muestra una galería vacía.
+    useEffect(() => {
+        setPage(1);
+    }, [filters, selectedBranchId]);
 
     // Modal navigation
     const currentIndex = useMemo(() => {
@@ -236,24 +249,16 @@ export default function EvidencePage() {
         }
     };
 
-    // Operational HORECA KPIs
+    // KPIs sobre el total del alcance/filtros, no sobre la página visible.
     const stats = useMemo(() => {
-        const total = evidences.length;
-        const todayCount = evidences.filter(e => isToday(new Date(e.createdAt))).length;
-        const verifiedCount = evidences.filter(e => e.aiVerified).length;
-        const needsReviewCount = evidences.filter(e => !e.aiVerified || (e.aiScore !== undefined && e.aiScore < 70)).length;
-        const uniqueBranches = new Set(evidences.map(e => e.branchName).filter(Boolean)).size;
-        const verifiedPct = total > 0 ? Math.round((verifiedCount / total) * 100) : 0;
+        const verifiedPct =
+            summary.total > 0 ? Math.round((summary.verifiedCount / summary.total) * 100) : 0;
+        return { ...summary, verifiedPct };
+    }, [summary]);
 
-        return {
-            total,
-            todayCount,
-            verifiedCount,
-            verifiedPct,
-            needsReviewCount,
-            uniqueBranches
-        };
-    }, [evidences]);
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const scopeLabel = selectedBranch?.name
+        ?? (isBranchScoped ? "Sin sucursal asignada" : "Todas las sucursales");
 
     return (
         <div className="container mx-auto py-6 space-y-6 max-w-7xl">
@@ -301,7 +306,9 @@ export default function EvidencePage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
-                        <p className="text-xs text-muted-foreground">En el periodo actual</p>
+                        <p className="text-xs text-muted-foreground">
+                            Con los filtros actuales · {evidences.length} en esta página
+                        </p>
                     </CardContent>
                 </Card>
 
@@ -434,23 +441,16 @@ export default function EvidencePage() {
                             </div>
                         </div>
 
-                        {/* Branch Filter */}
+                        {/* Alcance global (solo lectura) */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-medium text-muted-foreground">Sucursal</label>
-                            <Select
-                                value={filters.branchId || "all"}
-                                onValueChange={(val) => setFilters(prev => ({ ...prev, branchId: val === "all" ? undefined : val }))}
+                            <div
+                                className="flex h-9 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-xs text-foreground"
+                                title="El alcance lo define el selector de sucursal del encabezado"
                             >
-                                <SelectTrigger className="h-9 text-xs">
-                                    <SelectValue placeholder="Todas las sucursales" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todas las sucursales</SelectItem>
-                                    {branches.map(b => (
-                                        <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                <span className="truncate">{scopeLabel}</span>
+                            </div>
                         </div>
 
                         {/* AI Verification Filter */}
@@ -713,6 +713,41 @@ export default function EvidencePage() {
                         </div>
                     </CardContent>
                 </Card>
+            )}
+
+            {/* Paginación del registro canónico */}
+            {!loading && total > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+                    <p className="text-xs text-muted-foreground">
+                        Mostrando {Math.min((page - 1) * PAGE_SIZE + 1, total)}–
+                        {Math.min(page * PAGE_SIZE, total)} de {total} evidencias
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page <= 1}
+                        >
+                            <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                            Anterior
+                        </Button>
+                        <span className="text-xs font-mono text-muted-foreground px-1">
+                            {page} / {totalPages}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page >= totalPages}
+                        >
+                            Siguiente
+                            <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                        </Button>
+                    </div>
+                </div>
             )}
 
             {/* Inspection & Audit Modal */}
