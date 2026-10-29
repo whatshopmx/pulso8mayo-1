@@ -26,6 +26,7 @@ import { Employee } from "./employee-directory";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useSession } from "@/hooks/use-session";
+import { useTranslations } from "next-intl";
 
 interface EmployeeTableProps {
   employees: Employee[];
@@ -50,15 +51,6 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
   RESIGNED: "destructive",
 };
 
-const statusLabels: Record<string, string> = {
-  ONBOARDING: "Onboarding",
-  ACTIVE: "Active",
-  ON_LEAVE: "On Leave",
-  SUSPENDED: "Suspended",
-  TERMINATED: "Terminated",
-  RESIGNED: "Resigned",
-};
-
 export function EmployeeTable({ 
   employees, 
   loading, 
@@ -71,9 +63,14 @@ export function EmployeeTable({
   onAddEmployee,
   onClearFilters,
 }: EmployeeTableProps) {
+  const t = useTranslations("labor.employees.table");
+  const tFilters = useTranslations("labor.employees.filters");
   const { session } = useSession();
   const userRole = session?.user?.role;
   const canEdit = userRole === "SUPER_ADMIN" || userRole === "ADMIN" || userRole === "GERENTE";
+
+  const statusLabel = (status: string) =>
+    tFilters.has(`statuses.${status}`) ? tFilters(`statuses.${status}`) : status;
   
   const allSelected = employees.length > 0 && employees.every(e => selectedEmployees.includes(e.id));
 
@@ -84,14 +81,14 @@ export function EmployeeTable({
           <TableHeader>
             <TableRow>
               <TableHead className="w-10"><Skeleton className="h-4 w-4" /></TableHead>
-              <TableHead>Employee</TableHead>
-              <TableHead>Employee #</TableHead>
-              <TableHead>Position</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Hire Date</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>{t("employee")}</TableHead>
+              <TableHead>{t("employeeNumber")}</TableHead>
+              <TableHead>{t("position")}</TableHead>
+              <TableHead>{t("department")}</TableHead>
+              <TableHead>{t("status")}</TableHead>
+              <TableHead>{t("hireDate")}</TableHead>
+              <TableHead>{t("contact")}</TableHead>
+              <TableHead className="text-right">{t("actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -125,22 +122,22 @@ export function EmployeeTable({
       <div className="text-center py-12 border rounded-lg space-y-4">
         <User className="mx-auto h-12 w-12 text-muted-foreground" />
         <div className="space-y-1">
-          <h3 className="text-lg font-semibold">No employees found</h3>
+          <h3 className="text-lg font-semibold">{t("noEmployees")}</h3>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            Try adjusting your search or filters, or add a new team member to your organization.
+            {t("noEmployeesHint")}
           </p>
         </div>
         <div className="flex items-center justify-center gap-2 pt-2">
           {onClearFilters && (
             <Button variant="outline" size="sm" onClick={onClearFilters}>
               <X className="mr-2 h-4 w-4" />
-              Clear Filters
+              {t("clearFilters")}
             </Button>
           )}
           {canEdit && onAddEmployee && (
             <Button size="sm" onClick={onAddEmployee}>
               <Plus className="mr-2 h-4 w-4" />
-              Add Employee
+              {t("addEmployee")}
             </Button>
           )}
         </div>
@@ -157,17 +154,17 @@ export function EmployeeTable({
               <Checkbox 
                 checked={allSelected}
                 onCheckedChange={(checked) => onSelectAll?.(checked as boolean)}
-                aria-label="Select all employees"
+                aria-label={t("selectAll")}
               />
             </TableHead>
-            <TableHead>Employee</TableHead>
-            <TableHead>Employee #</TableHead>
-            <TableHead>Position</TableHead>
-            <TableHead>Department</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Hire Date</TableHead>
-            <TableHead>Contact</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead>{t("employee")}</TableHead>
+            <TableHead>{t("employeeNumber")}</TableHead>
+            <TableHead>{t("position")}</TableHead>
+            <TableHead>{t("department")}</TableHead>
+            <TableHead>{t("status")}</TableHead>
+            <TableHead>{t("hireDate")}</TableHead>
+            <TableHead>{t("contact")}</TableHead>
+            <TableHead className="text-right">{t("actions")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -177,7 +174,7 @@ export function EmployeeTable({
                 <Checkbox
                   checked={selectedEmployees.includes(employee.id)}
                   onCheckedChange={(checked) => onSelectEmployee?.(employee.id, checked as boolean)}
-                  aria-label={`Select ${employee.userName || 'employee'}`}
+                  aria-label={t("selectOne", { name: employee.userName || "empleado" })}
                 />
               </TableCell>
               <TableCell className="flex items-center gap-3">
@@ -200,7 +197,7 @@ export function EmployeeTable({
               <TableCell>
                 {employee.employeeStatus && (
                   <Badge variant={statusColors[employee.employeeStatus] || "outline"}>
-                    {statusLabels[employee.employeeStatus] || employee.employeeStatus}
+                    {statusLabel(employee.employeeStatus)}
                   </Badge>
                 )}
               </TableCell>
@@ -221,30 +218,30 @@ export function EmployeeTable({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="h-8 w-8 p-0">
-                      <span className="sr-only">Open menu</span>
+                      <span className="sr-only">{t("openMenu")}</span>
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                    <DropdownMenuLabel>{t("actions")}</DropdownMenuLabel>
                     <DropdownMenuItem onClick={() => onViewEmployee(employee.id)}>
                       <User className="mr-2 h-4 w-4" />
-                      View Profile
+                      {t("viewProfile")}
                     </DropdownMenuItem>
                     {canEdit && (
                       <DropdownMenuItem onClick={() => onEditEmployee(employee.id)}>
                         <Edit className="mr-2 h-4 w-4" />
-                        Edit Profile
+                        {t("editProfile")}
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem>
                       <MessageSquare className="mr-2 h-4 w-4" />
-                      Send Message
+                      {t("sendMessage")}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onViewDocuments(employee.id)}>
                       <FileText className="mr-2 h-4 w-4" />
-                      View Documents
+                      {t("viewDocuments")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

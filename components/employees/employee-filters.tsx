@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useBranches } from "@/hooks/queries/use-branches";
+import { useTranslations } from "next-intl";
 
 export interface EmployeeFiltersState {
   department: string;
@@ -36,31 +37,17 @@ const departments = [
   "OTHER",
 ];
 
-const departmentLabels: Record<string, string> = {
-  KITCHEN: "Kitchen",
-  SERVICE: "Service",
-  HOUSEKEEPING: "Housekeeping",
-  RECEPTION: "Reception",
-  ADMINISTRATION: "Administration",
-  MAINTENANCE: "Maintenance",
-  SALES: "Sales",
-  ACCOUNTING: "Accounting",
-  HUMAN_RESOURCES: "Human Resources",
-  MANAGEMENT: "Management",
-  SECURITY: "Security",
-  OTHER: "Other",
-};
-
 const statuses = [
-  { value: "ONBOARDING", label: "Onboarding" },
-  { value: "ACTIVE", label: "Active" },
-  { value: "ON_LEAVE", label: "On Leave" },
-  { value: "SUSPENDED", label: "Suspended" },
-  { value: "TERMINATED", label: "Terminated" },
-  { value: "RESIGNED", label: "Resigned" },
+  "ONBOARDING",
+  "ACTIVE",
+  "ON_LEAVE",
+  "SUSPENDED",
+  "TERMINATED",
+  "RESIGNED",
 ];
 
 export function EmployeeFilters({ filters, onFilterChange }: EmployeeFiltersProps) {
+  const t = useTranslations("labor.employees.filters");
   const { data: branches = [] } = useBranches();
 
   const handleDepartmentChange = (value: string) => {
@@ -78,16 +65,16 @@ export function EmployeeFilters({ filters, onFilterChange }: EmployeeFiltersProp
   return (
     <div className="flex gap-4 flex-wrap">
       <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">Department</Label>
+        <Label className="text-xs text-muted-foreground">{t("department")}</Label>
         <Select value={filters.department || "all"} onValueChange={handleDepartmentChange}>
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All Departments" />
+            <SelectValue placeholder={t("allDepartments")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Departments</SelectItem>
+            <SelectItem value="all">{t("allDepartments")}</SelectItem>
             {departments.map((dept) => (
               <SelectItem key={dept} value={dept}>
-                {departmentLabels[dept] || dept}
+                {t(`departments.${dept}`)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -95,16 +82,16 @@ export function EmployeeFilters({ filters, onFilterChange }: EmployeeFiltersProp
       </div>
 
       <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">Status</Label>
+        <Label className="text-xs text-muted-foreground">{t("status")}</Label>
         <Select value={filters.status || "all"} onValueChange={handleStatusChange}>
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All Statuses" />
+            <SelectValue placeholder={t("allStatuses")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="all">{t("allStatuses")}</SelectItem>
             {statuses.map((status) => (
-              <SelectItem key={status.value} value={status.value}>
-                {status.label}
+              <SelectItem key={status} value={status}>
+                {t(`statuses.${status}`)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -112,13 +99,13 @@ export function EmployeeFilters({ filters, onFilterChange }: EmployeeFiltersProp
       </div>
 
       <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">Branch</Label>
+        <Label className="text-xs text-muted-foreground">{t("branch")}</Label>
         <Select value={filters.branch || "all"} onValueChange={handleBranchChange}>
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All Branches" />
+            <SelectValue placeholder={t("allBranches")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Branches</SelectItem>
+            <SelectItem value="all">{t("allBranches")}</SelectItem>
             {branches.map((branch) => (
               <SelectItem key={branch.id} value={branch.id}>
                 {branch.name}

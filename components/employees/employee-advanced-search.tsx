@@ -21,6 +21,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Search, Filter, X, Calendar as CalendarIcon, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 export interface AdvancedSearchFilters {
   search: string;
@@ -42,12 +43,12 @@ interface EmployeeAdvancedSearchProps {
 }
 
 const defaultStatuses = [
-  { value: "ONBOARDING", label: "Onboarding" },
-  { value: "ACTIVE", label: "Active" },
-  { value: "ON_LEAVE", label: "On Leave" },
-  { value: "SUSPENDED", label: "Suspended" },
-  { value: "TERMINATED", label: "Terminated" },
-  { value: "RESIGNED", label: "Resigned" },
+  "ONBOARDING",
+  "ACTIVE",
+  "ON_LEAVE",
+  "SUSPENDED",
+  "TERMINATED",
+  "RESIGNED",
 ];
 
 const defaultDepartments = [
@@ -65,30 +66,22 @@ const defaultDepartments = [
   "OTHER",
 ];
 
-const departmentLabels: Record<string, string> = {
-  KITCHEN: "Kitchen",
-  SERVICE: "Service",
-  HOUSEKEEPING: "Housekeeping",
-  RECEPTION: "Reception",
-  ADMINISTRATION: "Administration",
-  MAINTENANCE: "Maintenance",
-  SALES: "Sales",
-  ACCOUNTING: "Accounting",
-  HUMAN_RESOURCES: "Human Resources",
-  MANAGEMENT: "Management",
-  SECURITY: "Security",
-  OTHER: "Other",
-};
-
 export function EmployeeAdvancedSearch({
   filters,
   onFiltersChange,
   onClearFilters,
   departments = defaultDepartments,
   branches = [],
-  statuses = defaultStatuses,
+  statuses,
 }: EmployeeAdvancedSearchProps) {
+  const t = useTranslations("labor.employees.advancedSearch");
+  const tFilters = useTranslations("labor.employees.filters");
   const [isOpen, setIsOpen] = useState(false);
+
+  const statusOptions = statuses ?? defaultStatuses.map((value) => ({
+    value,
+    label: tFilters(`statuses.${value}`),
+  }));
 
   const hasActiveFilters =
     filters.department ||
@@ -121,7 +114,7 @@ export function EmployeeAdvancedSearch({
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by name, email, employee number, or position..."
+            placeholder={t("searchPlaceholder")}
             value={filters.search}
             onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-10"
@@ -131,7 +124,7 @@ export function EmployeeAdvancedSearch({
           <PopoverTrigger asChild>
             <Button variant="outline" className="gap-2">
               <SlidersHorizontal className="h-4 w-4" />
-              Filters
+              {t("filters")}
               {activeFilterCount > 0 && (
                 <Badge variant="secondary" className="ml-1">
                   {activeFilterCount}
@@ -142,18 +135,18 @@ export function EmployeeAdvancedSearch({
           <PopoverContent className="w-96" align="end">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium">Filters</h4>
+                <h4 className="font-medium">{t("filters")}</h4>
                 {hasActiveFilters && (
                   <Button variant="ghost" size="sm" onClick={onClearFilters}>
                     <X className="mr-1 h-3 w-3" />
-                    Clear all
+                    {t("clearAll")}
                   </Button>
                 )}
               </div>
 
               {/* Department Filter */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Department</label>
+                <label className="text-sm font-medium">{t("department")}</label>
                 <Select
                   value={filters.department || "all"}
                   onValueChange={(value) =>
@@ -161,13 +154,13 @@ export function EmployeeAdvancedSearch({
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="All Departments" />
+                    <SelectValue placeholder={tFilters("allDepartments")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
+                    <SelectItem value="all">{tFilters("allDepartments")}</SelectItem>
                     {departments.map((dept) => (
                       <SelectItem key={dept} value={dept}>
-                        {departmentLabels[dept] || dept}
+                        {tFilters(`departments.${dept}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -176,7 +169,7 @@ export function EmployeeAdvancedSearch({
 
               {/* Status Filter */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Status</label>
+                <label className="text-sm font-medium">{t("status")}</label>
                 <Select
                   value={filters.status || "all"}
                   onValueChange={(value) =>
@@ -184,11 +177,11 @@ export function EmployeeAdvancedSearch({
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="All Statuses" />
+                    <SelectValue placeholder={tFilters("allStatuses")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    {statuses.map((status) => (
+                    <SelectItem value="all">{tFilters("allStatuses")}</SelectItem>
+                    {statusOptions.map((status) => (
                       <SelectItem key={status.value} value={status.value}>
                         {status.label}
                       </SelectItem>
@@ -200,7 +193,7 @@ export function EmployeeAdvancedSearch({
               {/* Branch Filter */}
               {branches.length > 0 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Branch</label>
+                  <label className="text-sm font-medium">{t("branch")}</label>
                   <Select
                     value={filters.branch || "all"}
                     onValueChange={(value) =>
@@ -208,10 +201,10 @@ export function EmployeeAdvancedSearch({
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="All Branches" />
+                      <SelectValue placeholder={tFilters("allBranches")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Branches</SelectItem>
+                      <SelectItem value="all">{tFilters("allBranches")}</SelectItem>
                       {branches.map((branch) => (
                         <SelectItem key={branch} value={branch}>
                           {branch}
@@ -224,9 +217,9 @@ export function EmployeeAdvancedSearch({
 
               {/* Position Filter */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Position</label>
+                <label className="text-sm font-medium">{t("position")}</label>
                 <Input
-                  placeholder="Filter by position..."
+                  placeholder={t("positionPlaceholder")}
                   value={filters.position}
                   onChange={(e) => handleFilterChange("position", e.target.value)}
                 />
@@ -234,7 +227,7 @@ export function EmployeeAdvancedSearch({
 
               {/* Hire Date Range */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Hire Date Range</label>
+                <label className="text-sm font-medium">{t("hireDateRange")}</label>
                 <div className="grid grid-cols-2 gap-2">
                   <Popover>
                     <PopoverTrigger asChild>
@@ -249,7 +242,7 @@ export function EmployeeAdvancedSearch({
                         {filters.hireDateFrom ? (
                           format(filters.hireDateFrom, "PP", { locale: es })
                         ) : (
-                          <span>From</span>
+                          <span>{t("from")}</span>
                         )}
                       </Button>
                     </PopoverTrigger>
@@ -275,7 +268,7 @@ export function EmployeeAdvancedSearch({
                         {filters.hireDateTo ? (
                           format(filters.hireDateTo, "PP", { locale: es })
                         ) : (
-                          <span>To</span>
+                          <span>{t("to")}</span>
                         )}
                       </Button>
                     </PopoverTrigger>
@@ -292,7 +285,7 @@ export function EmployeeAdvancedSearch({
               </div>
 
               <Button className="w-full" onClick={() => setIsOpen(false)}>
-                Apply Filters
+                {t("applyFilters")}
               </Button>
             </div>
           </PopoverContent>
@@ -304,7 +297,7 @@ export function EmployeeAdvancedSearch({
         <div className="flex flex-wrap gap-2">
           {filters.department && (
             <Badge variant="secondary" className="gap-1">
-              Dept: {departmentLabels[filters.department] || filters.department}
+              {t("badges.department", { value: tFilters(`departments.${filters.department}`) })}
               <X
                 className="h-3 w-3 cursor-pointer"
                 onClick={() => handleFilterChange("department", "")}
@@ -313,7 +306,10 @@ export function EmployeeAdvancedSearch({
           )}
           {filters.status && (
             <Badge variant="secondary" className="gap-1">
-              Status: {statuses.find((s) => s.value === filters.status)?.label || filters.status}
+              {t("badges.status", {
+                value:
+                  statusOptions.find((s) => s.value === filters.status)?.label ?? filters.status,
+              })}
               <X
                 className="h-3 w-3 cursor-pointer"
                 onClick={() => handleFilterChange("status", "")}
@@ -322,7 +318,7 @@ export function EmployeeAdvancedSearch({
           )}
           {filters.branch && (
             <Badge variant="secondary" className="gap-1">
-              Branch: {filters.branch}
+              {t("badges.branch", { value: filters.branch })}
               <X
                 className="h-3 w-3 cursor-pointer"
                 onClick={() => handleFilterChange("branch", "")}
@@ -331,7 +327,7 @@ export function EmployeeAdvancedSearch({
           )}
           {filters.position && (
             <Badge variant="secondary" className="gap-1">
-              Position: {filters.position}
+              {t("badges.position", { value: filters.position })}
               <X
                 className="h-3 w-3 cursor-pointer"
                 onClick={() => handleFilterChange("position", "")}
@@ -340,8 +336,14 @@ export function EmployeeAdvancedSearch({
           )}
           {(filters.hireDateFrom || filters.hireDateTo) && (
             <Badge variant="secondary" className="gap-1">
-              Hire Date: {filters.hireDateFrom ? format(filters.hireDateFrom, "MMM d") : "Any"} -{" "}
-              {filters.hireDateTo ? format(filters.hireDateTo, "MMM d") : "Any"}
+              {t("badges.hireDate", {
+                from: filters.hireDateFrom
+                  ? format(filters.hireDateFrom, "MMM d", { locale: es })
+                  : t("any"),
+                to: filters.hireDateTo
+                  ? format(filters.hireDateTo, "MMM d", { locale: es })
+                  : t("any"),
+              })}
               <X
                 className="h-3 w-3 cursor-pointer"
                 onClick={() => {

@@ -18,6 +18,7 @@ import {
   Search,
   Filter,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export interface Document {
   id: string;
@@ -37,15 +38,17 @@ interface DocumentGridProps {
   onView: (docId: string) => void;
 }
 
-const DOCUMENT_TYPE_LABELS: Record<string, string> = {
-  CONTRACT: "Contract",
-  ID: "ID Document",
-  PROOF_OF_ADDRESS: "Proof of Address",
-  BANK_INFO: "Bank Information",
-  MEDICAL_CERTIFICATE: "Medical Certificate",
-  TRAINING_CERTIFICATE: "Training Certificate",
-  OTHER: "Other",
-};
+const DOCUMENT_TYPES = [
+  "CONTRACT",
+  "ID",
+  "PROOF_OF_ADDRESS",
+  "BANK_INFO",
+  "MEDICAL_CERTIFICATE",
+  "TRAINING_CERTIFICATE",
+  "OTHER",
+] as const;
+
+const DOCUMENT_STATUSES = ["VALIDATED", "PENDING", "EXPIRED", "REJECTED"] as const;
 
 const STATUS_COLORS: Record<string, string> = {
   VALIDATED: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
@@ -72,9 +75,13 @@ export function DocumentGrid({
   onUpload,
   onView,
 }: DocumentGridProps) {
+  const t = useTranslations("labor.employees.documents");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("ALL");
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
+
+  // `doc.type` llega como texto libre; una clave desconocida muestra el valor.
+  const typeLabel = (type: string) => (t.has(`types.${type}`) ? t(`types.${type}`) : type);
 
   const filteredDocuments = documents.filter((doc) => {
     const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -88,13 +95,13 @@ export function DocumentGrid({
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
           <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No Documents Yet</h3>
+          <h3 className="text-lg font-semibold mb-2">{t("noDocuments")}</h3>
           <p className="text-sm text-muted-foreground text-center mb-4">
-            Upload the first document for this employee
+            {t("noDocumentsHint")}
           </p>
           <Button onClick={onUpload}>
             <Upload className="mr-2 h-4 w-4" />
-            Upload Document
+            {t("uploadDocument")}
           </Button>
         </CardContent>
       </Card>
@@ -108,7 +115,7 @@ export function DocumentGrid({
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search documents..."
+            placeholder={t("searchPlaceholder")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -118,32 +125,33 @@ export function DocumentGrid({
           <Select value={filterType} onValueChange={setFilterType}>
             <SelectTrigger className="w-[180px]">
               <Filter className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Document Type" />
+              <SelectValue placeholder={t("typePlaceholder")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All Types</SelectItem>
-              {Object.keys(DOCUMENT_TYPE_LABELS).map((type) => (
+              <SelectItem value="ALL">{t("allTypes")}</SelectItem>
+              {DOCUMENT_TYPES.map((type) => (
                 <SelectItem key={type} value={type}>
-                  {DOCUMENT_TYPE_LABELS[type]}
+                  {typeLabel(type)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Status" />
+              <SelectValue placeholder={t("statusPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All Statuses</SelectItem>
-              <SelectItem value="VALIDATED">Validated</SelectItem>
-              <SelectItem value="PENDING">Pending</SelectItem>
-              <SelectItem value="EXPIRED">Expired</SelectItem>
-              <SelectItem value="REJECTED">Rejected</SelectItem>
+              <SelectItem value="ALL">{t("allStatuses")}</SelectItem>
+              {DOCUMENT_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {t(`statuses.${status}`)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button onClick={onUpload}>
             <Upload className="mr-2 h-4 w-4" />
-            Upload
+            {t("upload")}
           </Button>
         </div>
       </div>
@@ -163,7 +171,7 @@ export function DocumentGrid({
                   {doc.name}
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  {DOCUMENT_TYPE_LABELS[doc.type] || doc.type}
+                  {typeLabel(doc.type)}
                 </p>
               </div>
 
@@ -172,19 +180,19 @@ export function DocumentGrid({
                   className={STATUS_COLORS[doc.status]}
                   variant="secondary"
                 >
-                  {doc.status}
+                  {t(`statuses.${doc.status}`)}
                 </Badge>
 
                 <div className="text-xs text-muted-foreground space-y-1">
-                  <p>Uploaded: {format(new Date(doc.uploadDate), "MMM d, yyyy", { locale: es })}</p>
+                  <p>
+                    {t("uploaded", {
+                      date: format(new Date(doc.uploadDate), "MMM d, yyyy", { locale: es }),
+                    })}
+                  </p>
                   {doc.expirationDate && (
                     <p>
-                      Expires:{" "}
-                      <span
-                        className={
-                          doc.status === "EXPIRED" ? "text-red-600 font-semibold" : ""
-                        }
-                      >
+                      {t("expiresLabel")}{" "}
+                      <span className={doc.status === "EXPIRED" ? "text-red-600 font-semibold" : ""}>
                         {format(new Date(doc.expirationDate), "MMM d, yyyy", { locale: es })}
                       </span>
                     </p>
@@ -202,7 +210,7 @@ export function DocumentGrid({
                     }}
                   >
                     <Eye className="mr-1 h-3 w-3" />
-                    View
+                    {t("view")}
                   </Button>
                   <Button
                     variant="outline"
@@ -214,7 +222,7 @@ export function DocumentGrid({
                     }}
                   >
                     <Download className="mr-1 h-3 w-3" />
-                    Download
+                    {t("download")}
                   </Button>
                 </div>
 
@@ -229,7 +237,7 @@ export function DocumentGrid({
                     }}
                   >
                     <CheckCircle className="mr-1 h-3 w-3" />
-                    Validate
+                    {t("validate")}
                   </Button>
                 )}
 
@@ -239,13 +247,13 @@ export function DocumentGrid({
                   className="w-full text-xs text-red-600 hover:text-red-700"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (confirm("Are you sure you want to delete this document?")) {
+                    if (confirm(t("deleteConfirm"))) {
                       onDelete(doc.id);
                     }
                   }}
                 >
                   <Trash2 className="mr-1 h-3 w-3" />
-                  Delete
+                  {t("delete")}
                 </Button>
               </div>
             </CardContent>
@@ -256,7 +264,7 @@ export function DocumentGrid({
       {filteredDocuments.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No documents match your filters
+            {t("noMatches")}
           </CardContent>
         </Card>
       )}

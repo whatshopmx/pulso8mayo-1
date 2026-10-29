@@ -15,6 +15,7 @@ import { useBranch } from "@/lib/branch-context";
 import { toast } from "sonner";
 import { EmployeeCard } from "./employee-card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useTranslations } from "next-intl";
 
 export interface Employee {
   id: string;
@@ -36,6 +37,7 @@ export interface Employee {
 }
 
 export default function EmployeeDirectory() {
+  const t = useTranslations("labor.employees.directory");
   const { session } = useSession();
   const { selectedBranchId } = useBranch();
   const router = useRouter();
@@ -106,15 +108,15 @@ export default function EmployeeDirectory() {
         setEmployees(data.data || []);
         setTotal(data.pagination?.total || 0);
       } else {
-        toast.error("Error fetching employees");
+        toast.error(t("fetchError"));
       }
     } catch (error) {
       console.error("Error fetching employees:", error);
-      toast.error("Error fetching employees");
+      toast.error(t("fetchError"));
     } finally {
       setLoading(false);
     }
-  }, [companyId, page, limit, debouncedSearch, filters]);
+  }, [companyId, page, limit, debouncedSearch, filters, t]);
 
   useEffect(() => {
     fetchEmployees();
@@ -188,21 +190,19 @@ export default function EmployeeDirectory() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Employee Directory</h1>
-          <p className="text-muted-foreground">
-            Manage your team members, view profiles, and update employment information.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("title")}</h1>
+          <p className="text-muted-foreground">{t("description")}</p>
         </div>
         <div className="flex gap-2">
           {session?.user && (
             <Button variant="outline" onClick={() => setShowExportDialog(true)}>
-              Export
+              {t("export")}
             </Button>
           )}
           {canManageEmployees && (
             <Button onClick={handleAddEmployee}>
               <Plus className="mr-2 h-4 w-4" />
-              Add Employee
+              {t("addEmployee")}
             </Button>
           )}
         </div>
@@ -214,24 +214,24 @@ export default function EmployeeDirectory() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, email, employee number, or position..."
+              placeholder={t("searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10"
             />
           </div>
           <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as "list" | "grid")}>
-            <ToggleGroupItem value="list" aria-label="List view">
+            <ToggleGroupItem value="list" aria-label={t("listView")}>
               <List className="h-4 w-4" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="grid" aria-label="Grid view">
+            <ToggleGroupItem value="grid" aria-label={t("gridView")}>
               <LayoutGrid className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
           {(search || filters.department || filters.status || (filters.branch && filters.branch !== "all")) && (
             <Button variant="ghost" onClick={handleClearFilters}>
               <X className="mr-2 h-4 w-4" />
-              Clear Filters
+              {t("clearFilters")}
             </Button>
           )}
         </div>
@@ -279,8 +279,11 @@ export default function EmployeeDirectory() {
       {/* Pagination */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Showing {(page - 1) * limit + 1} to{" "}
-          {Math.min(page * limit, total)} of {total} employees
+          {t("showing", {
+            from: (page - 1) * limit + 1,
+            to: Math.min(page * limit, total),
+            total,
+          })}
         </p>
         <div className="flex items-center gap-2">
           <select
@@ -288,10 +291,11 @@ export default function EmployeeDirectory() {
             onChange={(e) => handleLimitChange(Number(e.target.value))}
             className="border rounded px-2 py-1 text-sm"
           >
-            <option value={10}>10 per page</option>
-            <option value={20}>20 per page</option>
-            <option value={50}>50 per page</option>
-            <option value={100}>100 per page</option>
+            {[10, 20, 50, 100].map((count) => (
+              <option key={count} value={count}>
+                {t("perPage", { count })}
+              </option>
+            ))}
           </select>
           <Button
             variant="outline"
@@ -299,10 +303,10 @@ export default function EmployeeDirectory() {
             disabled={page <= 1}
             onClick={() => handlePageChange(page - 1)}
           >
-            Previous
+            {t("previous")}
           </Button>
           <span className="text-sm">
-            Page {page} of {totalPages || 1}
+            {t("pageOf", { page, total: totalPages || 1 })}
           </span>
           <Button
             variant="outline"
@@ -310,7 +314,7 @@ export default function EmployeeDirectory() {
             disabled={page >= totalPages}
             onClick={() => handlePageChange(page + 1)}
           >
-            Next
+            {t("next")}
           </Button>
         </div>
       </div>

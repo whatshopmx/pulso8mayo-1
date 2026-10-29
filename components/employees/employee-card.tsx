@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Employee } from "./employee-directory";
 import { Mail, MapPin, MoreVertical, Phone, Eye, Edit, MessageSquare } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface EmployeeCardProps {
   employee: Employee;
@@ -44,7 +45,14 @@ const getInitials = (name: string | null) => {
 };
 
 export function EmployeeCard({ employee, onView, onEdit }: EmployeeCardProps) {
-  const statusLabel = employee.employeeStatus?.replace("_", " ") || "Unknown";
+  const t = useTranslations("labor.employees.card");
+  const tFilters = useTranslations("labor.employees.filters");
+  const status = employee.employeeStatus;
+  const statusLabel = status
+    ? tFilters.has(`statuses.${status}`)
+      ? tFilters(`statuses.${status}`)
+      : status.replace("_", " ")
+    : t("unknownStatus");
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -69,15 +77,15 @@ export function EmployeeCard({ employee, onView, onEdit }: EmployeeCardProps) {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onView(employee.id)}>
                 <Eye className="mr-2 h-4 w-4" />
-                View Profile
+                {t("viewProfile")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onEdit(employee.id)}>
                 <Edit className="mr-2 h-4 w-4" />
-                Edit
+                {t("edit")}
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <MessageSquare className="mr-2 h-4 w-4" />
-                Send Message
+                {t("sendMessage")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -130,7 +138,7 @@ export function EmployeeCard({ employee, onView, onEdit }: EmployeeCardProps) {
         {employee.hireDate && (
           <div className="pt-2 border-t">
             <p className="text-xs text-muted-foreground">
-              Hire Date: {new Date(employee.hireDate).toLocaleDateString("es-MX")}
+              {t("hireDate", { date: new Date(employee.hireDate).toLocaleDateString("es-MX") })}
             </p>
           </div>
         )}
@@ -144,7 +152,7 @@ export function EmployeeCard({ employee, onView, onEdit }: EmployeeCardProps) {
             onClick={() => onView(employee.id)}
           >
             <Eye className="mr-1.5 h-3.5 w-3.5" />
-            View
+            {t("view")}
           </Button>
           <Button
             variant="default"
@@ -153,7 +161,7 @@ export function EmployeeCard({ employee, onView, onEdit }: EmployeeCardProps) {
             onClick={() => onEdit(employee.id)}
           >
             <Edit className="mr-1.5 h-3.5 w-3.5" />
-            Edit
+            {t("edit")}
           </Button>
         </div>
       </CardContent>
