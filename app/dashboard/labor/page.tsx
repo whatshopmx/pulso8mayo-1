@@ -2,7 +2,7 @@ import { getCurrentTenant } from "@/lib/tenant-context"
 import { EmptyState, PageContainer } from "@/components/shared"
 import { EmployeeService } from "@/lib/services/employee-service"
 import { db } from "@/lib/db"
-import { plannedShifts, shiftSessions, users, shiftApprovals, employeeDocuments, leaveRequests, vacationRequests, breakLogs, shiftTemplates, shiftChangeRequests, holidays, incidents, branches } from "@/lib/db/schema"
+import { plannedShifts, shiftSessions, users, employeeProfiles, shiftApprovals, employeeDocuments, leaveRequests, vacationRequests, breakLogs, shiftTemplates, shiftChangeRequests, holidays, incidents, branches } from "@/lib/db/schema"
 import { eq, and, sql, gte, isNull, inArray, count } from "drizzle-orm"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MetricCard, MetricGrid } from "@/components/ui/metric-card"
@@ -96,7 +96,10 @@ export default async function LaborManagementPage() {
 
     const scheduledCount = Number(scheduledTodayRes[0]?.count || 0);
     const actualCount = Number(actualTodayRes[0]?.count || 0);
-    const attendancePercent = scheduledCount > 0 ? Math.round((actualCount / scheduledCount) * 100) : 0;
+    // LAB-01: sin turnos programados no hay asistencia que medir; 0 % y "1/0"
+    // sugerían una falta total en vez de una agenda vacía.
+    const hasScheduledToday = scheduledCount > 0;
+    const attendancePercent = hasScheduledToday ? Math.round((actualCount / scheduledCount) * 100) : 0;
 
     const weeklyStats = weeklyStatsRes[0];
     const weeklyHours = Math.round((Number(weeklyStats?.totalMinutes || 0)) / 60);
@@ -177,7 +180,18 @@ export default async function LaborManagementPage() {
         db.select({ count: count() }).from(incidents)
             .innerJoin(branches, eq(incidents.branchId, branches.id))
             .where(and(eq(branches.companyId, companyId), inArray(incidents.status, ['DETECTED', 'IN_REMEDIATION']))),
-        db.select({ count: count() }).from(users).where(and(eq(users.companyId, companyId), gte(users.createdAt, oneWeekAgo), isNull(users.deletedAt)))
+        // LAB-02: "nuevos" se medía con `users.createdAt`, así que sembrar la
+        // demo aparecía como ocho contrataciones. La fecha real de ingreso es
+        // `employeeProfiles.hireDate`.
+        db.select({ count: sql<number>`count(distinct ${users.id})` })
+            .from(users)
+            .innerJoin(employeeProfiles, eq(employeeProfiles.userId, users.id))
+            .where(and(
+                eq(users.companyId, companyId),
+                gte(employeeProfiles.hireDate, oneWeekAgo),
+                isNull(users.deletedAt),
+                ...(branchId ? [eq(users.branchId, branchId)] : [])
+            ))
     ]);
 
     const breakStats = breakStatsRes[0];
@@ -223,7 +237,7 @@ export default async function LaborManagementPage() {
                     label="Empleados Activos"
                     value={activeCount}
                     icon={<Users className="h-4 w-4" />}
-                    subtitle={`+${newEmployeesCount} nuevos esta semana`}
+                    subtitle={newEmployeesCount > 0 ? `+${newEmployeesCount} altas en 7 días` : "Sin altas en 7 días"}
                 />
                 <MetricCard
                     label="Horas Semanales"
@@ -263,8 +277,17 @@ export default async function LaborManagementPage() {
                                         <span className="text-sm font-semibold text-foreground">Asistencia del Día</span>
                                         <FileText className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                                     </div>
-                                    <div className="text-2xl font-bold">{attendancePercent}%</div>
-                                    <p className="text-xs text-muted-foreground mt-1">Hoy: {actualCount}/{scheduledCount} empleados en turno</p>
+                                    {hasScheduledToday ? (
+                                        <>
+                                            <div className="text-2xl font-bold">{attendancePercent}%</div>
+                                            <p className="text-xs text-muted-foreground mt-1">Hoy: {actualCount}/{scheduledCount} empleados en turno</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="text-lg font-bold text-muted-foreground">Sin dotación configurada</div>
+                                            <p className="text-xs text-muted-foreground mt-1">No hay turnos programados para hoy</p>
+                                        </>
+                                    )}
                                 </Link>
                             </Card>
 
@@ -356,8 +379,12 @@ export default async function LaborManagementPage() {
                             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-5">
                                 <div className="p-3 border rounded bg-muted/20">
                                     <span className="text-xs text-muted-foreground block mb-1">Completion</span>
-                                    <div className="text-lg font-bold">{attendancePercent}%</div>
-                                    <span className="text-xs text-muted-foreground">Asistencia hoy</span>
+                                    <div className="text-lg font-bold">
+                                        {hasScheduledToday ? `${attendancePercent}%` : "—"}
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">
+                                        {hasScheduledToday ? "Asistencia hoy" : "Sin turnos hoy"}
+                                    </span>
                                 </div>
                                 <div className="p-3 border rounded bg-muted/20">
                                     <span className="text-xs text-muted-foreground block mb-1">Puntualidad</span>
