@@ -45,7 +45,6 @@ import {
 import { format, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
-import Image from "next/image";
 import { useBranch } from "@/lib/branch-context";
 
 interface Evidence {
@@ -105,6 +104,9 @@ export default function EvidencePage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedEvidence, setSelectedEvidence] = useState<Evidence | null>(null);
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+    // Las URLs llegan presignadas (host de R2 variable) o como URLs legacy de
+    // seed: `next/image` rechaza hosts no declarados y tumba la vista entera,
+    // así que estas miniaturas usan `<img>` con respaldo en `onError`.
     const [imageErrorMap, setImageErrorMap] = useState<Record<string, boolean>>({});
 
     // 300ms Debounce for text search
@@ -549,12 +551,11 @@ export default function EvidencePage() {
                                             <span className="text-xs">Imagen no disponible</span>
                                         </div>
                                     ) : (
-                                        <Image
+                                        /* eslint-disable-next-line @next/next/no-img-element */
+                                        <img
                                             src={evidence.url}
                                             alt={evidence.stepName}
-                                            fill
-                                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
-                                            className="object-cover group-hover:scale-105 transition-transform duration-200"
+                                            className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-200"
                                             onError={() => setImageErrorMap(prev => ({ ...prev, [evidence.id]: true }))}
                                         />
                                     )
@@ -650,11 +651,11 @@ export default function EvidencePage() {
                                     {/* Thumbnail box */}
                                     <div className="w-14 h-14 rounded-md bg-muted flex items-center justify-center shrink-0 overflow-hidden relative border border-border">
                                         {evidence.type === "PHOTO" && !imageErrorMap[evidence.id] ? (
-                                            <Image
+                                            /* eslint-disable-next-line @next/next/no-img-element */
+                                            <img
                                                 src={evidence.url}
                                                 alt={evidence.stepName}
-                                                fill
-                                                className="object-cover"
+                                                className="absolute inset-0 h-full w-full object-cover"
                                                 onError={() => setImageErrorMap(prev => ({ ...prev, [evidence.id]: true }))}
                                             />
                                         ) : (
@@ -802,11 +803,10 @@ export default function EvidencePage() {
                                             <p className="text-xs font-medium">No se pudo cargar la imagen remota.</p>
                                         </div>
                                     ) : (
-                                        <Image
+                                        /* eslint-disable-next-line @next/next/no-img-element */
+                                        <img
                                             src={selectedEvidence.url}
                                             alt={selectedEvidence.stepName}
-                                            width={1000}
-                                            height={700}
                                             className="object-contain max-h-[420px] w-auto h-auto"
                                             onError={() => setImageErrorMap(prev => ({ ...prev, [selectedEvidence.id]: true }))}
                                         />
