@@ -1,6 +1,6 @@
 # Checklist: finanzas y contabilidad integrada
 
-Fecha: 2026-10-30. Estado: FC-01 completada técnicamente; revisión funcional de reglas pendiente antes de adaptadores.
+Fecha: 2026-10-30. Estado: FC-01 completada técnicamente y contrato de desarrollo sintético validado; FC-02 con 9 pruebas focalizadas aprobadas y checkpoint global en verificación.
 Plan y decisiones: [plan.md](plan.md). Las rutas nuevas son propuestas; `<...>` indica un punto a resolver en FC-01, no un archivo existente.
 
 ## Reglas de ejecución
@@ -26,21 +26,24 @@ Plan y decisiones: [plan.md](plan.md). Las rutas nuevas son propuestas; `<...>` 
 
 ## FC-02: Construir el mes de referencia
 
-- [ ] Completada con evidencia.
+- [x] Fixture y controles completados: [matriz-fuentes.md §7](matriz-fuentes.md#7-fc-02--mes-sintético-y-cálculo-independiente), 9/9 pruebas focalizadas y ESLint de ambos archivos aprobado. Checkpoint revisado: suite completa, TypeScript y lint aprobados; build inicial bloqueado por red, reintento en curso (compilación aprobada).
 - **Tamaño:** M. **Dependencias:** FC-01.
 - **Descripción:** Preparar fixture sintético y resultados esperados calculados independientemente de la implementación.
 - **Aceptación:**
-  - [ ] Dos sucursales y empresa ajena cubren casos de §7.
-  - [ ] apertura, cargos, abonos y cierre esperado cuadran en centavos.
-  - [ ] permisos y cortes de fecha tienen ejemplos negativos.
-- **Verificación:** Revisión del fixture y cálculo independiente de balances/flujo; pnpm run test:unit -- tests/unit/finance/accounting-reference.test.ts.
+  - [x] Dos sucursales y empresa ajena cubren casos de §7.
+  - [x] apertura, cargos, abonos y cierre esperado cuadran en centavos.
+  - [x] permisos y cortes de fecha tienen ejemplos negativos (contratos esperados; enforcement se prueba en tareas de servicios).
+- **Verificación:** Revisión del fixture y cálculo independiente de balances/flujo; `pnpm exec vitest run --configLoader bundle tests/unit/finance/accounting-reference.test.ts --maxWorkers 2`.
 - **Archivos previstos:** `tests/fixtures/accounting/month.ts`, `tests/unit/finance/accounting-reference.test.ts`, `tasks/finanzas-contabilidad/matriz-fuentes.md`.
 
 **Checkpoint tras FC-02:** revisar aceptación y evidencia de las tareas acumuladas; ejecutar verificaciones aplicables y actualizar decisiones/riesgos del plan antes de ampliar el alcance.
 
+Ejecución 2026-10-30: focalizada 9/9; ESLint de fixture/test exit 0. Checkpoint recuperado al continuar: suite completa **190 archivos, 2360 pruebas aprobadas, 1 skipped, 1 todo, exit 0**; TypeScript **exit 0**; lint global **exit 0, 2438 warnings, 0 errores**. Build inicial exit 1 al descargar Geist/Geist Mono; se repitió con red autorizada y compiló, aún pendiente su resultado final al registrar este estado. Logs locales: `.tmp/fc02-{tsc,lint,build,unit}.log` y `.tmp/fc02-build-retry.log`. El intento inicial con separador `--` se interrumpió por filtro incorrecto; los resultados aprobados corresponden a comandos corregidos. FC-02 solo añade fixture/tests y documentación: no aplica migraciones ni modifica runtime. Se permite avanzar con el límite de build explícito, sin presentarlo como aprobado.
+
 ## FC-03: Consultar el origen de una cifra
 
 - [ ] Completada con evidencia.
+- **División de ejecución (mantener máximo cinco archivos por incremento):** FC-03a entrega consulta/API de ventas, gastos operativos y caja chica, con total completo y aislamiento; FC-03b ampliará inventario/merma, FC-03c labor/comisiones y puente de utilidad. No marcar FC-03 completa con cobertura parcial. Cada ampliación debe reproducir la fórmula actual, sin fabricar documentos para estimaciones.
 - **Tamaño:** M. **Dependencias:** FC-01, FC-02.
 - **Descripción:** Crear consulta paginada de detalle del P&L usando la base y alcance del cálculo actual.
 - **Aceptación:**
@@ -64,11 +67,11 @@ Plan y decisiones: [plan.md](plan.md). Las rutas nuevas son propuestas; `<...>` 
 
 **Checkpoint tras FC-04:** revisar aceptación y evidencia de las tareas acumuladas; ejecutar verificaciones aplicables y actualizar decisiones/riesgos del plan antes de ampliar el alcance.
 
-## FC-05: Crear catálogo contable por empresa
+## FC-05: Completar vínculos contables sobre catálogos existentes
 
 - [ ] Completada con evidencia.
 - **Tamaño:** M. **Dependencias:** FC-01.
-- **Descripción:** Incorporar esquema y servicio de cuentas con su relación al catálogo bancario existente.
+- **Descripción:** Inventariar y reutilizar `cost_centers.accountingLine`, partidas QSR y `company_bank_accounts` RECEPCION/DISPERSION/MIXTO. Incorporar únicamente estructuras y vínculos que falten para el registro contable; conservar catálogos y clasificación operativa existentes.
 - **Aceptación:**
   - [ ] Código único por empresa y jerarquía sin ciclos.
   - [ ] referencias y cuenta bancaria pertenecen al mismo ámbito.
@@ -281,5 +284,3 @@ Plan y decisiones: [plan.md](plan.md). Las rutas nuevas son propuestas; `<...>` 
 - **Archivos previstos:** `tasks/finanzas-contabilidad/pilot-review.md`, `docs/accounting-operations.md`.
 
 **Checkpoint tras FC-21:** revisar aceptación y evidencia de las tareas acumuladas; ejecutar verificaciones aplicables y actualizar decisiones/riesgos del plan antes de ampliar el alcance.
-
-

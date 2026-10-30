@@ -2,7 +2,7 @@
 
 Fecha: 2026-10-30. Estado: FC-01 inventariado; contrato propuesto para desarrollo y revisión funcional pendiente antes de adaptadores.
 Checklist de ejecución: [todo.md](todo.md).
-Matriz y evidencia de FC-01: [matriz-fuentes.md](matriz-fuentes.md). Confirmado por el propietario: cada `companyId` corresponde a una razón social; todavía no existen clientes. La apertura real y la revisión del primer piloto se resolverán cuando exista esa empresa; el desarrollo usa escenarios sintéticos.
+Matriz y evidencia de FC-01: [matriz-fuentes.md](matriz-fuentes.md). Confirmado por el propietario: cada `companyId` corresponde a una razón social; todavía no existen clientes. Contrato de desarrollo sintético validado en esta sesión: cortes como fuente de ingresos, gastos aprobados con fecha explícita, pagos separados y plantilla revisable por empresa. La apertura real y la revisión del primer piloto se resolverán cuando exista esa empresa.
 
 ## 1. Objetivo y resultado esperado
 
@@ -31,6 +31,8 @@ Revisado en código; no constituye una auditoría de datos ni de funcionamiento 
 | `lib/services/pnl-service.ts` | Reutilizar P&L por sucursal, desglose de merma/comisiones y fuentes con cobertura |
 | `lib/services/food-cost-service.ts`, `labor-cost-service.ts`, `commission-service.ts` | Integrar fuentes de costos; verificar momento de reconocimiento y posibilidad de congelar valores |
 | `lib/services/expense-service.ts` | Reutilizar gasto, aprobación y pago; separar esos eventos contablemente |
+| `lib/services/cost-center-service.ts`, `cost_centers.accounting_line` | Reutilizar centros/partidas QSR y su clasificación contable; completar vínculos al registro contable sin crear otra clasificación de gastos paralela |
+| `company_bank_accounts` en `lib/db/schema/treasury.ts` | Reutilizar cuentas propias, propósito RECEPCION/DISPERSION/MIXTO, anclas y saldo calculado; una cuenta MIXTO recibe y efectúa pagos |
 | `lib/services/treasury-service.ts` | Reutilizar corridas y liquidaciones; generar efecto contable solo desde el hecho confirmado correspondiente |
 | `lib/services/financial-period-service.ts` | Extender cierre/reapertura mensual existente y su integración con snapshots |
 | `lib/services/pnl-snapshot-service.ts` | Preservar historial del P&L; añadir vínculo con versión del cierre contable |
@@ -68,7 +70,7 @@ Impuestos, propinas, descuentos, devoluciones, contracargos, diferencias de rece
 
 Modelo propuesto en `lib/db/schema/accounting.ts`, exportado por el esquema existente:
 
-- Cuentas por empresa: código, naturaleza, padre, vigencia y estado. Bancos operativos existentes se vinculan a cuentas contables; no se duplican sus datos sensibles.
+- Completar las cuentas del registro contable por empresa (código, naturaleza, padre, vigencia y estado) a partir del inventario existente. Reutilizar centros/partidas QSR con `accountingLine` y cuentas bancarias propias con propósito RECEPCION/DISPERSION/MIXTO; vincularlos sin duplicar catálogos operativos, clasificación de gastos ni datos sensibles. FC-05 debe justificar cada estructura nueva por una capacidad ausente (partida doble, activo/pasivo/capital, integridad y saldos), no por renombrar lo que ya existe.
 - Reglas versionadas por hecho y vigencia. Guardar la versión aplicada en cada póliza.
 - Pólizas y renglones: empresa, fecha contable, fecha de negocio, fuente, sucursal/centro de costo, cargos, abonos, actor, motivo y referencias.
 - Eventos pendientes persistidos y estado de procesamiento: identificador de origen, versión, intento, error y póliza resultante.
@@ -127,9 +129,9 @@ Pruebas exigidas: balance exacto en centavos; conservación de valor; corte temp
 Comandos disponibles en `package.json`, a ejecutar durante implementación según alcance:
 
 ```powershell
-pnpm run test:unit -- tests/unit/finance
-pnpm run test:integration -- tests/integration/accounting
-pnpm run test:e2e -- tests/e2e/accounting.spec.ts
+pnpm exec vitest run --configLoader bundle tests/unit/finance --maxWorkers 2
+pnpm exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/accounting --maxWorkers 2
+pnpm exec playwright test tests/e2e/accounting.spec.ts
 pnpm exec tsc --noEmit
 pnpm run lint
 pnpm run build

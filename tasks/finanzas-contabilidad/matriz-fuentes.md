@@ -1,6 +1,13 @@
 # FC-01 — Contrato de fuentes y reconocimiento
 
-Revisión técnica: 2026-10-30. Alcance: código local, sin consultar datos de clientes ni certificar producción. Cada `companyId` es una razón social (confirmado por el propietario en esta sesión). Aún no existen clientes; el primer escenario será sintético. Las reglas siguientes son el contrato propuesto para desarrollo, sujeto a revisión funcional antes de los adaptadores y contable antes del piloto.
+Revisión técnica: 2026-10-30. Alcance: código local, sin consultar datos de clientes ni certificar producción. Cada `companyId` es una razón social (confirmado por el propietario en esta sesión). Aún no existen clientes; el primer escenario será sintético. El propietario validó el contrato para desarrollo sintético (cortes, gastos aprobados con fecha, pagos separados y plantilla revisable). La validación contable de una empresa real queda para el piloto.
+
+### Catálogos existentes que se reutilizan
+
+- `cost_centers` en [service-orders.ts](../../lib/db/schema/service-orders.ts): empresa, código, nombre, `accountingLine` y estado activo. [cost-center-service.ts](../../lib/services/cost-center-service.ts) ya aporta partidas QSR 2xxx–6xxx para COGS, nómina, OPEX, corporativo y CAPEX. Son la clasificación existente de los egresos; no crear otra plantilla de categorías equivalente.
+- `company_bank_accounts` en [treasury.ts](../../lib/db/schema/treasury.ts): cuentas propias con propósito RECEPCION, DISPERSION o MIXTO, número cifrado, saldo de apertura y fecha. MIXTO permite recibir y efectuar pagos desde la misma cuenta; no crear otra cuenta operativa para representar cada dirección del dinero.
+- `operating_expenses.costCenterId` ya enlaza el gasto con su partida; tesorería ya selecciona cuenta bancaria de origen. Lo pendiente es unir clasificación, operación, obligación y pago al registro de cargos/abonos y sus saldos. `accountingLine` hoy es texto clasificatorio, no una póliza balanceada ni una relación a un libro mayor general.
+- FC-05 inventariará esos vínculos antes del esquema: extender lo necesario para integridad contable sin duplicar centros, partidas o cuentas bancarias. Ejemplo: gasto de renta usa su centro/partida actual y pago desde la cuenta MIXTO actual; dos hechos vinculados, una clasificación y una cuenta bancaria operativa.
 
 ## 1. Fuentes, fechas y elegibilidad
 
@@ -74,7 +81,7 @@ Los checklists bancarios anteriores están desactualizados respecto al código. 
 |---|---|---|---|
 | D01 | companyId = una razón social, confirmado; validar también ownership/franquicias al consolidar sucursales | Propietario de producto; ingeniería valida ámbito | Identidad empresarial resuelta; no incluir franquiciatario como activo propio por compartir tenant. |
 | D02 | Cortes como fuente inicial de ingreso; sales_entries solo consumo/analítica; no hay tickets individuales canónicos en este circuito | Producto revisa propuesta; ingeniería implementa | Revisar antes de FC-11; FC-03 usa exactamente la base actual descrita arriba. |
-| D03 | Plantilla sugerida por empresa: cuentas y mapeos por hecho/categoría, vigencia, preview de cargos/abonos y activación explícita | Ingeniería (FC-05/08), propietario autorizado y futuro contador (validación) | Configuración administrativa, sin editor arbitrario de fórmulas. Sin cuenta/regla vigente, evento pendiente. Versiones aplicadas quedan congeladas. |
+| D03 | Reutilizar centros/partidas y `accountingLine` QSR, y bancos RECEPCION/DISPERSION/MIXTO. Completar vínculos/reglas por empresa, vigencia, preview de cargos/abonos y activación explícita | Ingeniería (FC-05/08), propietario autorizado y futuro contador (validación) | Contrato de desarrollo validado. Configuración administrativa sin duplicar catálogos ni editor arbitrario de fórmulas. Sin cuenta/regla vigente, evento pendiente. Versiones aplicadas quedan congeladas. |
 | D04 | Aprobación reconoce gasto con businessDate explícita; pagos son aplicaciones separadas, manual/tesorería comparten identidad | Producto + futuro responsable contable; ingeniería para vínculo | Resolver identidades y parciales en FC-09; no usar el espejo PAID como segundo evento. |
 | D05 | Impuestos documentados separados; propinas como obligación cuando estén identificadas; descuentos/devoluciones con referencia; no inferir IVA faltante | Futuro responsable contable, ingeniería implementa validación | Bloquea publicación automática del hecho incompleto; catálogo/cuentas y tratamiento fiscal reales se validan antes del piloto. |
 | D06 | Primera apertura/fecha real todavía no aplican; usar octubre 2026 sintético. Histórico anterior se consulta, sin backfill automático | Propietario de futura empresa piloto | Bloquea FC-20/21 reales, no desarrollo ni fixtures. |
@@ -82,7 +89,7 @@ Los checklists bancarios anteriores están desactualizados respecto al código. 
 | D08 | Publicar/revertir, configurar, cerrar y reabrir serán capacidades separadas; reutilizar ABAC y alcance, sin dar acceso global por título de contador | Ingeniería; producto revisa roles finales | Definir contrato de permisos antes de API de mutaciones FC-07/08 y cierre FC-16. |
 | D09 | Valor por movimiento congelado; fecha de negocio de sucursal distinta del timestamp; preservar ambas y hacer corte explícito | Ingeniería; futuro contador valida método | FC-13/14 deben guardar valoración antes de emitir contabilidad. FC-02 probará cruce de mes y conservación. |
 
-Revisión funcional pendiente: D02–D05 y D08–D09 tienen propuesta concreta, no aprobación implícita. La matriz completa FC-01 en su aceptación técnica (incluye decisiones pendientes con responsables y bloqueos); la regla del checklist impide implementar adaptadores antes de resolverlas. Puede prepararse FC-02 con supuestos sintéticos explícitos.
+Revisión funcional recibida: el propietario eligió «Sí, seguir con ese contrato» para desarrollo con datos sintéticos. Se mantienen explícitos los huecos técnicos por tarea y las decisiones de un futuro piloto (cuentas concretas, tratamiento fiscal aplicable, apertura y revisor). Esta aprobación no certifica reglas fiscales para clientes. Aclaración posterior del propietario incorporada: aprovechar centros/partidas y cuentas de recepción/dispersión/mixtas existentes, sin recrearlos.
 
 ## 6. Verificación de FC-01
 
@@ -90,3 +97,41 @@ Revisión funcional pendiente: D02–D05 y D08–D09 tienen propuesta concreta, 
 - Recorridos venta → cobro y recepción → factura → pago revisados contra los servicios enlazados.
 - Sin cambios a runtime, migraciones ni clientes. Verificación aplicable: revisión documental, enlaces locales y `git diff --check`; no requiere build ni pruebas de aplicación.
 - La skill incremental remite a `references/definition-of-done.md`, ausente en su directorio local; se aplican los checks explícitos del checklist y de la skill.
+
+## 7. FC-02 — Mes sintético y cálculo independiente
+
+Fixture: [month.ts](../../tests/fixtures/accounting/month.ts). Verificación de integridad del oráculo: [accounting-reference.test.ts](../../tests/unit/finance/accounting-reference.test.ts). Son resultados esperados para probar las siguientes entregas, no un motor de contabilización ni una prueba de autorización, recuperación o persistencia de la aplicación.
+
+Octubre de 2026, MXN en centavos. Company A tiene sucursales A/B; company-foreign tiene su propia sucursal y una venta de 999999 excluida de todos los totales de A. Apertura al inicio del 1 de octubre (antes de movimientos del día): activos 1980000, proveedores 150000, capital 1830000. Incluye dos versiones de reglas (1 y 16 de octubre), vínculo recepción/factura, factura con impuesto documentado en cero, dos pagos de 10000/5000 contra gasto bruto 34800, nómina bruta 80000 con neto 70000 y deducciones 10000, impuesto y propina separados, descuento/devolución y transferencias internas.
+
+Resultados calculados antes de ejecutar tests; el test suma las pólizas esperadas y coteja estas constantes sin importar ningún servicio de producción:
+
+| Control de octubre (centavos) | Cálculo independiente | Esperado |
+|---|---|---:|
+| Banco | 1500000 - 15000 - 70000 - 1160 + 92800 - 58000 + 200000; transferencia propia neta cero | 1648640 |
+| Caja | 150000 + 118000 - 11600 + 52200 | 308600 |
+| Fondo caja chica | 30000 - 1160 + 1160 | 30000 |
+| Inventario | 300000 + 60000 - 70000 - 5000; transferencia propia neta cero | 285000 |
+| Por liquidar | Venta tarjeta 232000 + plataforma 116000 - plataforma liquidada 116000 | 232000 |
+| IVA documentado recuperable | 4800 + 160 + 3200 + 8000 | 16160 |
+| Equipo | Compra de activo, sin llevarla a gasto | 50000 |
+| Total activos | Banco + caja + fondo + inventario + por liquidar + IVA + equipo | 2570400 |
+| Proveedores | Apertura 150000 + recepción/factura 60000 + gasto 34800 - pagos 15000 | 229800 |
+| Otros pasivos | IVA trasladado 69600 + propinas 2000 + deducciones 10000 + préstamo 200000 | 281600 |
+| Ingreso neto | 100000 + 200000 + 100000 - devolución 10000 + venta con descuento 45000 | 435000 |
+| Costos/gastos | Consumo 70000 + merma 5000 + nómina 80000 + gastos 31000 + comisión medida 20000 | 206000 |
+| Resultado | Ingreso neto 435000 - costos/gastos 206000 | 229000 |
+| Ecuación patrimonial | Pasivos 511400 + capital 1830000 + resultado 229000 | 2570400 |
+| Sumas de pólizas de apertura + octubre | Cargos = abonos, contando regularización de factura y ambas piernas internas | 3400920 |
+| Saldos deudores/acreedores de balanza | Activos 2570400 + costos/gastos 206000 = pasivos/capital/ingresos | 2776400 |
+| Flujo operativo realizado | 118000 + 52200 - 11600 + 92800 - 15000 - 70000 - 1160 | 165240 |
+| Flujo inversión / financiamiento | Compra equipo con IVA / préstamo recibido | -58000 / 200000 |
+| Efectivo al cierre | Apertura 1680000 + operación 165240 - inversión 58000 + financiamiento 200000 | 1987240 |
+
+La venta con tarjeta del 31 de octubre ocurrió a `2026-11-01T05:30:00Z` (31 de octubre local). Su liquidación del 2 de noviembre: neto 225040 + comisión 6000 + IVA de comisión 960 = 232000; queda fuera de octubre. No se estima una comisión contable de octubre sin documento. La devolución refiere a la primera venta, la factura refiere a recepción y ambos pagos refieren al mismo gasto; banco/gateway de noviembre explican la misma póliza, no dos cobros.
+
+Las sucursales no son entidades jurídicas separadas: las transferencias de 100000 de banco y 20000 de inventario cambian sus activos respectivos. La ecuación patrimonial exigida aquí es de la empresa; no se oculta la diferencia de sucursal con una cuenta automática. No hay partidas corporativas sin asignar en este caso; FC-17 deberá incluir otro caso si incorpora esas partidas.
+
+Casos de entrada que **no** se incorporan como nuevas pólizas esperadas: corte/receta solapados, reimportación de banco, comprobante en gasto y caja chica, FAILED/PENDING, gasto pendiente, estimación de nómina, lectura de empresa ajena/sucursal oculta, escritura con solo permiso de lectura, periodo cerrado e impuesto sin documentar. Cada uno tiene resultado esperado y motivo en `sourceCases`; su enforcement real se prueba al implementar los respectivos servicios.
+
+Comando focalizado: `pnpm exec vitest run --configLoader bundle tests/unit/finance/accounting-reference.test.ts --maxWorkers 2`. No pasar un separador `--` al script: en este entorno llegaba literalmente a Vitest e iniciaba la suite completa en lugar de aplicar el filtro. Checkpoint técnico: resultados de ejecución se registran en el checklist FC-02 al finalizar.
