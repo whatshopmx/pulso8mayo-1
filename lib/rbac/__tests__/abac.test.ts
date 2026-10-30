@@ -123,6 +123,21 @@ describe("evaluateAccess — eje 1: matriz RBAC base", () => {
 });
 
 describe("evaluateAccess — eje 2: alcance de sucursal", () => {
+  it('RP-02b: toda empresa se valida incluso para SUPER_ADMIN', () => {
+    for (const role of [...GATE_ROLES, ...MASKED_ROLES]) {
+      expect(evaluar(role, { companyId: 'other-company' })).toEqual({ allowed: false, reason: 'company-out-of-scope' });
+      expect(evaluar(role, undefined, { userCompanyId: '' }).allowed).toBe(false);
+    }
+  });
+  it('RP-02b: READONLY se fija y una asignación ausente no cae a global', () => {
+    expect(evaluar('READONLY', { branchId: 'branch-2' }).allowed).toBe(false);
+    for (const role of MASKED_ROLES) {
+      expect(evaluar(role, {}, { userBranchId: null }).allowed).toBe(false);
+    }
+  });
+  it('RP-02b: enmascarar finanzas no evita comprobar franquicia', () => {
+    expect(evaluar('GERENTE', { dataClassification: 'FINANCIAL', ownershipType: 'FRANCHISE', franchiseeUserId: 'other' }).allowed).toBe(false);
+  });
   it("rol acotado que toca SU sucursal pasa", () => {
     const d = evaluar("GERENTE", { branchId: "branch-1" });
     expect(d.allowed).toBe(true);

@@ -24,6 +24,7 @@ import type { NextRequest } from "next/server";
 import { logDataAccess, type DataAccessAction } from "@/lib/security/audit";
 import type { Role, Resource, Action } from "@/lib/permissions";
 import { hasPermission } from "@/lib/permissions";
+import { isBranchScopedRole } from "./resource-scope";
 import {
   SENSITIVE_GATE_ROLES,
   FINANCIAL_FIELDS,
@@ -69,9 +70,6 @@ export interface AccessDecision {
   reason?: string;
 }
 
-/** Roles scoped to their own branch by default (Pilar 1 step 2). */
-const BRANCH_SCOPED_ROLES: Role[] = ["GERENTE", "SUPERVISOR", "EMPLEADO"];
-
 /**
  * Roles that read FINANCIAL data masked (never plaintext) even when allowed.
  * Pilar 2 §6.2 — gate roles (SUPER_ADMIN/OWNER/ADMIN) see plaintext; everyone
@@ -115,9 +113,17 @@ export function evaluateAccess(
     return { allowed: false, reason: "role-not-permitted" };
   }
 
+  if (!ctx.userCompanyId || (target?.companyId !== undefined && target.companyId !== ctx.userCompanyId)) {
+    return { allowed: false, reason: 'company-out-of-scope' };
+  }
+
+  if (resource !== 'profile' && isBranchScopedRole(ctx.userRole) && !ctx.userBranchId) {
+    return { allowed: false, reason: 'branch-not-assigned' };
+  }
+
   // 2. Branch scoping — branch-scoped roles can only touch their own branch.
   if (
-    BRANCH_SCOPED_ROLES.includes(ctx.userRole) &&
+    resource !== 'profile' && isBranchScopedRole(ctx.userRole) &&
     target?.branchId &&
     target.branchId !== ctx.userBranchId
   ) {
@@ -134,6 +140,7 @@ export function evaluateAccess(
   //    redaction once Task 3 wires the maskers onto `decision.redactFields`.
   const classification: DataClassification | undefined =
     target?.dataClassification;
+  let redactFields: string[] | undefined;
   if (classification === "SENSITIVE") {
     if (!SENSITIVE_GATE_ROLES.has(ctx.userRole)) {
       return { allowed: false, reason: "insensitive-data-gate" };
@@ -146,13 +153,11 @@ export function evaluateAccess(
       // PII-bearing routes must be migrated with SENSITIVE (deny) or wait for
       // Task 3 before relying on this allow+redact path.
       if (FINANCIAL_MASKED_ROLES.includes(ctx.userRole)) {
-        return {
-          allowed: true,
-          redactFields: [...FINANCIAL_REDACT_FIELDS],
-        };
+        redactFields = [...FINANCIAL_REDACT_FIELDS];
+      } else {
+        // Rol fuera de ambos conjuntos: falla cerrado.
+        return { allowed: false, reason: "insensitive-data-gate" };
       }
-      // Role outside both gate and masked set (e.g. a future role) → deny.
-      return { allowed: false, reason: "insensitive-data-gate" };
     }
     // Gate roles (SUPER_ADMIN/OWNER/ADMIN) read FINANCIAL plaintext.
   }
@@ -183,7 +188,7 @@ export function evaluateAccess(
     return { allowed: false, reason: "owned-not-visible" };
   }
 
-  return { allowed: true };
+  return redactFields ? { allowed: true, redactFields } : { allowed: true };
 }
 
 /**
