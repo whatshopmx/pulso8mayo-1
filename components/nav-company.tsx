@@ -23,6 +23,8 @@ import { useRouter } from "next/navigation"
 import { switchBranch } from "@/app/actions/user"
 import { useBranch } from "@/lib/branch-context"
 import { toast } from "sonner"
+import { getRoleScope } from "@/lib/rbac/resource-scope"
+import type { Role } from "@/lib/permissions"
 
 export function NavCompany({
   company: propCompany = { name: "", plan: "" },
@@ -51,7 +53,7 @@ export function NavCompany({
   const tSuccess = useTranslations("success")
   const tErrors = useTranslations("errors")
 
-  const isBranchScoped = userRole === "GERENTE" || userRole === "SUPERVISOR"
+  const isBranchScoped = getRoleScope(userRole as Role) !== 'COMPANY'
   const displayBranches = isBranchScoped && userBranchId
     ? propBranches.filter(b => b.id === userBranchId)
     : propBranches
