@@ -1,0 +1,108 @@
+{
+  "environment": "localhost:3000",
+  "capturedAt": "2026-10-30T15:30:43.768Z",
+  "results": [
+    {
+      "user": "juan",
+      "views": [
+        {
+          "route": "/dashboard",
+          "status": 200,
+          "url": "http://localhost:3000/dashboard",
+          "text": "Toggle Sidebar\nPulso HORECA Demo\nSucursal: Condesa\nTu usuario está asignado a esta sucursal.\nFecha: Todo el período\nNotificaciones\nToggle theme\nComando de Red en Vivo\n\nMonitoreo en tiempo real del turno: aperturas, dotación de personal, control de frío NOM-251 y ventas del día.\n\nExportar Reporte\nPulso en Vivo del Turno\nFecha Operativa: 2026-10-30\n\nMonitoreo activo para 1 sucursales de la cadena\n\n1 riesgo en rush requiere atención\nAperturas a Tiempo\n0%\n0\n/ 1 tiendas\nPersonal en Piso\nSin dotación\n0\ncolaboradores activos\nVenta Acumulada Hoy\nPOS\n$0\nRiesgos Operativos\nM17 / NOM-251\n1\nVer mesa\nAtención Urgente en Rush (1 alerta)\n\nIncidencias operativas en curso que amenazan el servicio o la inocuidad en tienda\n\nIr a Mesa de Excepciones\nCondesa\nInocuidad & Frío\n\nIncendio menor en parrilla\n\nActivo en turno\nAtender\nMatriz Operativa de Red (3 a 15 Sucursales)\n1 tiendas\n\nEstado de apertura, dotación de personal, control de frío NOM-251 y ventas del día\n\nTodas (1)\nCon Alertas\n1\nCondesa\nRequiere supervisión\nApertura\nPendiente\n\nPendiente de apertura\n\nPersonal\nSin dotación\n\nSin dotación configurada\n\nFrío NOM-251\nSin registro\n\nSin lectura hoy\n\nVenta Hoy\nEn curso\n\n$0\n\nVer 1 alerta\nSalud Operativa por Áreas del Grupo\nOperación\n1\nSeveridad Fatal:\nCondesa\nIncendio menor en parrilla\nIr a Operación\nInventario\n2\nSeveridad Alto:\nCondesa\nStock bajo en insumo clave: Pechuga de Pollo\nSeveridad Info:\nCondesa\nInsumo por vencer (caducidad): Yogurt Natural\nIr a Inventario\nPersonal\n1\nSeveridad Info:\nCondesa\nCambio de turno: Cita médica familiar\nIr a Personal\nCumplimiento\n1\nSeveridad Aviso:\nCondesa\nIncidente de temperatura recurrente\nIr a Cumplimiento\nEquipos\n2\nSeveridad Alto:\nCondesa\nFumigación programada para mañana\nSeveridad Aviso:\nCondesa\nMantenimiento preventivo próximo\nIr a Equipos\nFinanzas\n1\nSeveridad Alto:\nCondesa\nFaltante de caja en turno COMPLETO: -$250.00 MXN\nIr a Finanzas\nBitácora en Tiempo Real de la Red\n\nEl pulso del turno es en vivo; el rango de fechas aplica a esta bitácora.\n\nActividad Reciente\nFLUJO DE TRABAJO\tESTADO\tCALIFICACIÓN\tASIGNADO A\tACTUALIZADO\tACCIONES\n⚠️ Reporte de Incidentes\t\nCompletado\t75%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n⏰ Asistencia Diaria\t\nCompletado\t40%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n🧼 Control de Higiene Personal\t\nCompletado\t72%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n🌡️ Control de Temperaturas\t\nCompletado\t51%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n🔍 Inspección de Alimentos\t\nCompletado\t78%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n📦 Recepción de Mercancía\t\nCompletado\t66%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n🌅 Apertura de Restaurante\t\nCompletado\t80%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n🚪 Control de Accesos\t\nCompletado\t74%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n🍳 Producción Diaria\t\nCompletado\t71%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n⚠️ Reporte de Incidentes\t\nPendiente\t-\tPedro Sánchez\t29/10/2026\t\nIniciar",
+          "genericError": false
+        },
+        {
+          "route": "/dashboard/schedules",
+          "status": 200,
+          "url": "http://localhost:3000/dashboard/schedules",
+          "text": "Toggle Sidebar\nPulso HORECA Demo\nSchedules\nSucursal: Condesa\nTu usuario está asignado a esta sucursal.\nFecha: Todo el período\nNotificaciones\nToggle theme\nProgramación de Workflows\n\nGestiona la ejecución automática de workflows\n\nNuevo Schedule\nSucursal: Condesa\nTodos\nTodas\nTodas",
+          "genericError": false
+        },
+        {
+          "route": "/dashboard/employees",
+          "status": 200,
+          "url": "http://localhost:3000/dashboard/employees",
+          "text": "Toggle Sidebar\nPulso HORECA Demo\nDirectorio\nSucursal: Condesa\nTu usuario está asignado a esta sucursal.\nFecha: Todo el período\nNotificaciones\nToggle theme",
+          "genericError": false
+        },
+        {
+          "route": "/dashboard/executive",
+          "status": 200,
+          "url": "http://localhost:3000/dashboard/executive",
+          "text": "Toggle Sidebar\nPulso HORECA Demo\nExecutive\nSucursal: Condesa\nTu usuario está asignado a esta sucursal.\nFecha: Todo el período\nNotificaciones\nToggle theme\nDirección & Unit Economics\nPulso HORECA Demo\n\nCabina de decisiones estratégicas, margen operativo y liquidez de red\n\nExportar (PDF)\nSalud de Red (Twin)\n88/100\nAlineado\n\nDisciplinas operativas estables\n\nVenta Neta del Mes\n$513.1K\n96% meta\n\nCorte consolidado todas las sucursales\n\nPrime Cost (Comida + Nómina)\n6.3%\nMeta ≤ 60%\n\nAlimentos 3.9% · Nómina 2.4%\n\nCaja Libre Proyectada (14d)\n$648.0K\nHolgado\n\nDescontando nómina e IMSS confirmados\n\n1. Despacho & Decisiones\n2. Unit Economics & Prime Cost\n3. Oxígeno & Flujo 14D\nCola de Decisiones & Autorizaciones\nDespacha, delega o difiere cada caso sin salir de la cabina: firma en un clic o manda la instrucción correctiva al gerente por WhatsApp\n0 de 0 casos pendientes\n\nRed en Control Operativo\n\nNo hay autorizaciones de emergencia, desviaciones críticas de prime cost ni alertas rojas bloqueadas el día de hoy.\n\nSocio Estratégico & Simulador de Decisiones\nEscenarios de optimización generados a partir del Executive Twin de la red\nMotor Causal Multi-Unidad\n+$46K MXN/mes pot.\nEstandarización de Porciones & Recetas\n\nAnalizar impacto en EBITDA al alinear el rendimiento de cocina de las tiendas con mayor merma al estándar de la mejor sucursal.\n\nCorrer simulación\nProtección Margen\nMitigación de Inflación en Carnes & Proteínas\n\nSimular impacto de un aumento del 7% en costos de proveedor cárnico sobre el Prime Cost de la red.\n\nCorrer simulación\nEvaluación Expansión\nCapacidad de Absorción (Apertura Sucursal #6)\n\nEvaluar solidez de flujo de caja y capacidad de supervisión para determinar si el grupo puede absorber una nueva unidad este trimestre.\n\nCorrer simulación\nConsultar",
+          "genericError": false
+        }
+      ],
+      "errors": []
+    },
+    {
+      "user": "ana",
+      "views": [
+        {
+          "route": "/dashboard",
+          "status": 200,
+          "url": "http://localhost:3000/dashboard",
+          "text": "Polanco\nPulso HORECA Demo (ENTERPRISE)\nPlataforma\nComando de Red\nEn Vivo\nExcepciones & Riesgos\nLiga de Sucursales\nDirección & P&L\nFlujos de Trabajo\nInventario\nEquipos\nCumplimiento\nPersonal\nDesempeño\nFinanzas\nCN\nAna Martínez\nana@pulso.mx\nToggle Sidebar\nPulso HORECA Demo\nSucursal: Polanco\nTu usuario está asignado a esta sucursal.\nFecha: Todo el período\nNotificaciones\nToggle theme\nComando de Red en Vivo\n\nMonitoreo en tiempo real del turno: aperturas, dotación de personal, control de frío NOM-251 y ventas del día.\n\nExportar Reporte\nPulso en Vivo del Turno\nFecha Operativa: 2026-10-30\n\nMonitoreo activo para 1 sucursales de la cadena\n\n1 de 1 sucursales sin apertura a tiempo\nAperturas a Tiempo\n0%\n0\n/ 1 tiendas\nPersonal en Piso\nSin dotación\n0\ncolaboradores activos\nVenta Acumulada Hoy\nPOS\n$0\nRiesgos Operativos\nM17 / NOM-251\n0\nVer mesa\nMatriz Operativa de Red (3 a 15 Sucursales)\n1 tiendas\n\nEstado de apertura, dotación de personal, control de frío NOM-251 y ventas del día\n\nTodas (1)\nCon Alertas\n1\nPolanco\nOperación normal\nApertura\nPendiente\n\nPendiente de apertura\n\nPersonal\nSin dotación\n\nSin dotación configurada\n\nFrío NOM-251\nSin registro\n\nSin lectura hoy\n\nVenta Hoy\nEn curso\n\n$0\n\nVer 2 alertas\nSalud Operativa por Áreas del Grupo\nOperación\n2\nSeveridad Aviso:\nPolanco\nIncumplimiento en limpieza de campana\nSeveridad Aviso:\nPolanco\nProducto vencido en refrigerador\nIr a Operación\nInventario\nSin excepciones abiertas\nIr a Inventario\nPersonal\nSin excepciones abiertas\nIr a Personal\nCumplimiento\n2\nSeveridad Alto:\nPolanco\nRevisar distribución de cargas del turno\nSeveridad Aviso:\nPolanco\nLimpieza de campana atrasada\nIr a Cumplimiento\nEquipos\nSin excepciones abiertas\nIr a Equipos\nFinanzas\nSin excepciones abiertas\nIr a Finanzas\nBitácora en Tiempo Real de la Red\n\nEl pulso del turno es en vivo; el rango de fechas aplica a esta bitácora.\n\nActividad Reciente\nFLUJO DE TRABAJO\tESTADO\tCALIFICACIÓN\tASIGNADO A\tACTUALIZADO\tACCIONES\n⏰ Asistencia Diaria\t\nCompletado\t89%\tLuisa Fernández\thace alrededor de 16 horas\t\nVer detalles\n🧼 Control de Higiene Personal\t\nCompletado\t61%\tLuisa Fernández\thace alrededor de 16 horas\t\nVer detalles\n🌡️ Control de Temperaturas\t\nCompletado\t73%\tLuisa Fernández\thace alrededor de 16 horas\t\nVer detalles\n🌅 Apertura de Restaurante\t\nCompletado\t80%\tLuisa Fernández\thace alrededor de 16 horas\t\nVer detalles\n⚠️ Reporte de Incidentes\t\nCompletado\t77%\tLuisa Fernández\thace alrededor de 16 horas\t\nVer detalles\n⏰ Asistencia Diaria\t\nPendiente\t-\tLuisa Fernández\thace alrededor de 16 horas\t\nIniciar\n⏰ Asistencia Diaria\t\nCompletado\t93%\tLuisa Fernández\thace alrededor de 16 horas\t\nVer detalles\n🧼 Control de Higiene Personal\t\nCompletado\t85%\tLuisa Fernández\thace alrededor de 16 horas\t\nVer detalles\n🌡️ Control de Temperaturas\t\nCompletado\t75%\tLuisa Fernández\thace alrededor de 16 horas\t\nVer detalles\n⚠️ Reporte de Incidentes\t\nCompletado\t74%\tLuisa Fernández\thace alrededor de 16 horas\t\nVer detalles",
+          "genericError": false
+        },
+        {
+          "route": "/dashboard/schedules",
+          "status": 200,
+          "url": "http://localhost:3000/dashboard/schedules",
+          "text": "Polanco\nPulso HORECA Demo (ENTERPRISE)\nPlataforma\nComando de Red\nEn Vivo\nExcepciones & Riesgos\nLiga de Sucursales\nDirección & P&L\nFlujos de Trabajo\nInventario\nEquipos\nCumplimiento\nPersonal\nDesempeño\nFinanzas\nCN\nAna Martínez\nana@pulso.mx\nToggle Sidebar\nPulso HORECA Demo\nSchedules\nSucursal: Polanco\nTu usuario está asignado a esta sucursal.\nFecha: Todo el período\nNotificaciones\nToggle theme\nProgramación de Workflows\n\nGestiona la ejecución automática de workflows\n\nNuevo Schedule\nSucursal: Polanco\nTodos\nTodas\nTodas",
+          "genericError": false
+        },
+        {
+          "route": "/dashboard/employees",
+          "status": 200,
+          "url": "http://localhost:3000/dashboard/employees",
+          "text": "Toggle Sidebar\nPulso HORECA Demo\nDirectorio\nSucursal: Polanco\nTu usuario está asignado a esta sucursal.\nFecha: Todo el período\nNotificaciones\nToggle theme",
+          "genericError": false
+        },
+        {
+          "route": "/dashboard/executive",
+          "status": 200,
+          "url": "http://localhost:3000/dashboard/executive",
+          "text": "Toggle Sidebar\nPulso HORECA Demo\nExecutive\nSucursal: Polanco\nTu usuario está asignado a esta sucursal.\nFecha: Todo el período\nNotificaciones\nToggle theme\nDirección & Unit Economics\nPulso HORECA Demo\n\nCabina de decisiones estratégicas, margen operativo y liquidez de red\n\nExportar (PDF)\nSalud de Red (Twin)\n88/100\nAlineado\n\nDisciplinas operativas estables\n\nVenta Neta del Mes\n$531.4K\n96% meta\n\nCorte consolidado todas las sucursales\n\nPrime Cost (Comida + Nómina)\n8.5%\nMeta ≤ 60%\n\nAlimentos 3.2% · Nómina 5.3%\n\nCaja Libre Proyectada (14d)\n$648.0K\nHolgado\n\nDescontando nómina e IMSS confirmados\n\n1. Despacho & Decisiones\n2. Unit Economics & Prime Cost\n3. Oxígeno & Flujo 14D\nCola de Decisiones & Autorizaciones\nDespacha, delega o difiere cada caso sin salir de la cabina: firma en un clic o manda la instrucción correctiva al gerente por WhatsApp\n0 de 0 casos pendientes\n\nRed en Control Operativo\n\nNo hay autorizaciones de emergencia, desviaciones críticas de prime cost ni alertas rojas bloqueadas el día de hoy.\n\nSocio Estratégico & Simulador de Decisiones\nEscenarios de optimización generados a partir del Executive Twin de la red\nMotor Causal Multi-Unidad\n+$46K MXN/mes pot.\nEstandarización de Porciones & Recetas\n\nAnalizar impacto en EBITDA al alinear el rendimiento de cocina de las tiendas con mayor merma al estándar de la mejor sucursal.\n\nCorrer simulación\nProtección Margen\nMitigación de Inflación en Carnes & Proteínas\n\nSimular impacto de un aumento del 7% en costos de proveedor cárnico sobre el Prime Cost de la red.\n\nCorrer simulación\nEvaluación Expansión\nCapacidad de Absorción (Apertura Sucursal #6)\n\nEvaluar solidez de flujo de caja y capacidad de supervisión para determinar si el grupo puede absorber una nueva unidad este trimestre.\n\nCorrer simulación\nConsultar",
+          "genericError": false
+        }
+      ],
+      "errors": []
+    },
+    {
+      "user": "pedro",
+      "views": [
+        {
+          "route": "/dashboard",
+          "status": 200,
+          "url": "http://localhost:3000/dashboard",
+          "text": "Toggle Sidebar\nPulso HORECA Demo\nSucursal: Todas\nFecha: Todo el período\nNotificaciones\nToggle theme\nComando de Red en Vivo\n\nMonitoreo en tiempo real del turno: aperturas, dotación de personal, control de frío NOM-251 y ventas del día.\n\nExportar Reporte\nPulso en Vivo del Turno\nFecha Operativa: 2026-10-30\n\nMonitoreo activo para 3 sucursales de la cadena\n\n2 riesgos en rush requieren atención\nAperturas a Tiempo\n0%\n0\n/ 3 tiendas\nPersonal en Piso\nSin dotación\n0\ncolaboradores activos\nVenta Acumulada Hoy\nPOS\n$0\nRiesgos Operativos\nM17 / NOM-251\n2\nVer mesa\nAtención Urgente en Rush (2 alertas)\n\nIncidencias operativas en curso que amenazan el servicio o la inocuidad en tienda\n\nIr a Mesa de Excepciones\nRoma\nInocuidad & Frío\n\nPlaga de cucarachas en almacén Roma\n\nActivo en turno\nAtender\nCondesa\nInocuidad & Frío\n\nIncendio menor en parrilla\n\nActivo en turno\nAtender\nMatriz Operativa de Red (3 a 15 Sucursales)\n3 tiendas\n\nEstado de apertura, dotación de personal, control de frío NOM-251 y ventas del día\n\nTodas (3)\nCon Alertas\n3\nCondesa\nRequiere supervisión\nApertura\nPendiente\n\nPendiente de apertura\n\nPersonal\nSin dotación\n\nSin dotación configurada\n\nFrío NOM-251\nSin registro\n\nSin lectura hoy\n\nVenta Hoy\nEn curso\n\n$0\n\nVer 1 alerta\nPolanco\nOperación normal\nApertura\nPendiente\n\nPendiente de apertura\n\nPersonal\nSin dotación\n\nSin dotación configurada\n\nFrío NOM-251\nSin registro\n\nSin lectura hoy\n\nVenta Hoy\nEn curso\n\n$0\n\nVer 2 alertas\nRoma\nRequiere supervisión\nApertura\nPendiente\n\nPendiente de apertura\n\nPersonal\nSin dotación\n\nSin dotación configurada\n\nFrío NOM-251\nSin registro\n\nSin lectura hoy\n\nVenta Hoy\nEn curso\n\n$0\n\nVer 1 alerta\nSalud Operativa por Áreas del Grupo\nOperación\n4\n\n81.8%Promedio del grupo\n\nSeveridad Fatal:\nCondesa\nIncendio menor en parrilla\nSeveridad Crítico:\nRoma\nPlaga de cucarachas en almacén Roma\nSeveridad Aviso:\nPolanco\nIncumplimiento en limpieza de campana\nIr a Operación\nVer 4\nInventario\n4\n\n$34,033Promedio del grupo\n\nSeveridad Alto:\nCondesa\nStock bajo en insumo clave: Pechuga de Pollo\nSeveridad Aviso:\nRoma\nInsumo por vencer (caducidad): Costilla de Cerdo\nSeveridad Aviso:\nRoma\nStock bajo en insumo clave: Leche Entera\nIr a Inventario\nVer 4\nPersonal\n1\n\n0.3 ausenciasPromedio del grupo\n\nSeveridad Info:\nCondesa\nCambio de turno: Cita médica familiar\nIr a Personal\nCumplimiento\n4\n\n78%Promedio del grupo\n\nSeveridad Crítico:\nRoma\nScore de cumplimiento bajo en Roma\nSeveridad Alto:\nPolanco\nRevisar distribución de cargas del turno\nSeveridad Aviso:\nPolanco\nLimpieza de campana atrasada\nIr a Cumplimiento\nVer 4\nEquipos\n3\nSeveridad Alto:\nCondesa\nFumigación programada para mañana\nSeveridad Aviso:\nCondesa\nMantenimiento preventivo próximo\nSeveridad Info:\nRoma\nMantenimiento de freidora\nIr a Equipos\nFinanzas\n1\nSeveridad Alto:\nCondesa\nFaltante de caja en turno COMPLETO: -$250.00 MXN\nIr a Finanzas\nBitácora en Tiempo Real de la Red\n\nEl pulso del turno es en vivo; el rango de fechas aplica a esta bitácora.\n\nActividad Reciente\nFLUJO DE TRABAJO\tESTADO\tCALIFICACIÓN\tASIGNADO A\tACTUALIZADO\tACCIONES\n⚠️ Reporte de Incidentes\t\nCompletado\t75%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n⚠️ Reporte de Incidentes\t\nCompletado\t74%\tLuisa Fernández\t29/10/2026\t\nVer detalles\n⚠️ Reporte de Incidentes\t\nCompletado\t91%\tRoberto Gutiérrez\t29/10/2026\t\nVer detalles\n⏰ Asistencia Diaria\t\nCompletado\t40%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n⏰ Asistencia Diaria\t\nCompletado\t89%\tLuisa Fernández\t29/10/2026\t\nVer detalles\n🧼 Control de Higiene Personal\t\nCompletado\t72%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n🧼 Control de Higiene Personal\t\nCompletado\t61%\tLuisa Fernández\t29/10/2026\t\nVer detalles\n🌡️ Control de Temperaturas\t\nCompletado\t51%\tPedro Sánchez\t29/10/2026\t\nVer detalles\n🌡️ Control de Temperaturas\t\nCompletado\t73%\tLuisa Fernández\t29/10/2026\t\nVer detalles\n⚠️ Reporte de Incidentes\t\nPendiente\t-\tPedro Sánchez\t29/10/2026\t\nIniciar",
+          "genericError": false
+        },
+        {
+          "route": "/dashboard/schedules",
+          "status": 403,
+          "url": "http://localhost:3000/dashboard/schedules",
+          "text": "403 · ACCESO DENEGADO\n\nTu rol no puede abrir esta página\n\nLa ruta existe, pero está reservada a otros roles. No se te redirige para no ocultar el rechazo.\n\nVolver a mi panel",
+          "genericError": false
+        },
+        {
+          "route": "/dashboard/employees",
+          "status": 403,
+          "url": "http://localhost:3000/dashboard/employees",
+          "text": "403 · ACCESO DENEGADO\n\nTu rol no puede abrir esta página\n\nLa ruta existe, pero está reservada a otros roles. No se te redirige para no ocultar el rechazo.\n\nVolver a mi panel",
+          "genericError": false
+        },
+        {
+          "route": "/dashboard/executive",
+          "status": 200,
+          "url": "http://localhost:3000/dashboard/executive",
+          "text": "Toggle Sidebar\nPulso HORECA Demo\nExecutive\nSucursal: Todas\nFecha: Todo el período\nNotificaciones\nToggle theme\nDirección & Unit Economics\nPulso HORECA Demo\n\nCabina de decisiones estratégicas, margen operativo y liquidez de red\n\nExportar (PDF)\nSalud de Red (Twin)\n88/100\nAlineado\n\nDisciplinas operativas estables\n\nVenta Neta del Mes\n$513.1K\n96% meta\n\nCorte consolidado todas las sucursales\n\nPrime Cost (Comida + Nómina)\n6.3%\nMeta ≤ 60%\n\nAlimentos 3.9% · Nómina 2.4%\n\nCaja Libre Proyectada (14d)\n$648.0K\nHolgado\n\nDescontando nómina e IMSS confirmados\n\n1. Despacho & Decisiones\n2. Unit Economics & Prime Cost\n3. Oxígeno & Flujo 14D\nCola de Decisiones & Autorizaciones\nDespacha, delega o difiere cada caso sin salir de la cabina: firma en un clic o manda la instrucción correctiva al gerente por WhatsApp\n0 de 0 casos pendientes\n\nRed en Control Operativo\n\nNo hay autorizaciones de emergencia, desviaciones críticas de prime cost ni alertas rojas bloqueadas el día de hoy.\n\nSocio Estratégico & Simulador de Decisiones\nEscenarios de optimización generados a partir del Executive Twin de la red\nMotor Causal Multi-Unidad\n+$46K MXN/mes pot.\nEstandarización de Porciones & Recetas\n\nAnalizar impacto en EBITDA al alinear el rendimiento de cocina de las tiendas con mayor merma al estándar de la mejor sucursal.\n\nCorrer simulación\nProtección Margen\nMitigación de Inflación en Carnes & Proteínas\n\nSimular impacto de un aumento del 7% en costos de proveedor cárnico sobre el Prime Cost de la red.\n\nCorrer simulación\nEvaluación Expansión\nCapacidad de Absorción (Apertura Sucursal #6)\n\nEvaluar solidez de flujo de caja y capacidad de supervisión para determinar si el grupo puede absorber una nueva unidad este trimestre.\n\nCorrer simulación\nConsultar",
+          "genericError": false
+        }
+      ],
+      "errors": []
+    }
+  ]
+}
