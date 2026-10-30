@@ -16,10 +16,13 @@
  * `companyId + ownershipScope` (not just `companyId`) once adopted.
  */
 import type { AccessContext, BranchOwnership } from "./abac";
+import { getRoleScope, isBranchScopedRole } from './resource-scope';
 
 /** Minimal branch projection the filter needs. */
 export interface BranchOwnershipInfo {
   id: string;
+  /** Catálogos legacy deben cargarse ya filtrados por la empresa de sesión. */
+  companyId?: string;
   ownershipType: BranchOwnership;
   /** If FRANCHISE, the userId of the franchisee who owns the branch. */
   franchiseeUserId?: string | null;
@@ -30,8 +33,7 @@ export interface BranchOwnershipInfo {
  *
  * Rules (docs §8.3 matrix):
  *   - OWNER / SUPER_ADMIN / ADMIN: all branches.
- *   - READONLY: owned branches only (no franchise detail) — per §8.3 HR row;
- *     READONLY mirrors compliance-only visibility, kept conservative.
+ *   - READONLY: su sucursal asignada y restricciones de clasificación/franquicia.
  *   - GERENTE / SUPERVISOR / EMPLEADO: only their own branch (owned or their
  *     own franchise). Step enforce via ctx.ownershipScope + userBranchId.
  */
@@ -40,21 +42,22 @@ export function branchVisibilityFilter(
   branches: BranchOwnershipInfo[],
 ): string[] {
   const { userRole, userId, userBranchId, ownershipScope } = ctx;
+  if (!ctx.userCompanyId || getRoleScope(userRole) === 'NONE') return [];
+  const scopedBranches = branches.filter(b =>
+    (b.companyId === undefined || b.companyId === ctx.userCompanyId) &&
+    (!isBranchScopedRole(userRole) || (!!userBranchId && b.id === userBranchId))
+  );
 
   if (userRole === "OWNER" || userRole === "SUPER_ADMIN" || userRole === "ADMIN") {
-    return branches.map((b) => b.id);
+    return scopedBranches.map((b) => b.id);
   }
 
-  return branches
+  return scopedBranches
     .filter((b) => {
       // Owned branches: visible only if the actor's scope allows owned.
       if (b.ownershipType === "OWNED") {
         if (!ownershipScope.canSeeOwned) return false;
-        // Branch-scoped roles only see their own branch.
-        if (userRole === "GERENTE" || userRole === "SUPERVISOR" || userRole === "EMPLEADO") {
-          return b.id === userBranchId;
-        }
-        return true; // READONLY etc.
+        return true; // La sucursal ya se acotó antes de evaluar ownership.
       }
 
       // Franchise branches: gated by the franchise visibility scope.
