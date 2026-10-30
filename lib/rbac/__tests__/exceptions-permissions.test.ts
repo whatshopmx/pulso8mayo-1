@@ -13,8 +13,8 @@ import {
  * Contratos:
  * - `hasPermission` con `'exceptions'`: SUPER_ADMIN/OWNER/ADMIN gestionan,
  *   GERENTE/SUPERVISOR leen+actualizan, EMPLEADO/READONLY solo leen.
- * - No regresión: el catálogo de recursos de cada rol es exactamente el que
- *   tenía la matriz antes de agregar `exceptions` (arreglo congelado).
+ * - No regresión: conserva el catálogo histórico más las capacidades explícitas
+ *   de RP-01; el permiso de exceptions no cambia.
  */
 
 const ROLES: Role[] = [
@@ -112,10 +112,20 @@ const EXPECTED_RESOURCES: Record<Role, Resource[]> = {
   ],
 };
 
-describe("matriz de recursos — no regresión (Task 2)", () => {
+const RP01_RESOURCES: Record<Role, Resource[]> = {
+  SUPER_ADMIN: ['executive', 'financial-summary', 'payroll', 'incidents', 'profile'],
+  OWNER: ['executive', 'financial-summary', 'payroll', 'incidents', 'profile'],
+  ADMIN: ['executive', 'financial-summary', 'payroll', 'incidents', 'profile'],
+  GERENTE: ['financial-summary', 'incidents', 'profile'],
+  SUPERVISOR: ['incidents', 'profile'],
+  EMPLEADO: ['incidents', 'profile'],
+  READONLY: ['incidents', 'profile'],
+};
+
+describe("matriz de recursos — no regresión (Task 2 + RP-01)", () => {
   it.each(ROLES)("%s conserva exactamente sus recursos", (role) => {
     expect(Object.keys(PERMISSIONS[role]).sort()).toEqual(
-      [...EXPECTED_RESOURCES[role]].sort(),
+      [...EXPECTED_RESOURCES[role], ...RP01_RESOURCES[role]].sort(),
     );
   });
 
@@ -156,7 +166,7 @@ describe("hasPermission — recurso exceptions", () => {
     }
   });
 
-  it("SUPER_ADMIN pasa por bypass incluso sin declarar la acción", () => {
+  it("SUPER_ADMIN lee exceptions mediante manage explícito", () => {
     expect(hasPermission("SUPER_ADMIN", "exceptions", "read")).toBe(true);
   });
 });

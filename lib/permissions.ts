@@ -5,18 +5,29 @@ import type { roleEnum } from "./db/schema";
 
 export type Role = typeof roleEnum.enumValues[number];
 
-export type Resource =
-    | 'users'
-    | 'companies'
-    | 'branches'
-    | 'workflows'
-    | 'inventory'
-    | 'reports'
-    | 'settings'
-    | 'billing'
-    | 'exceptions';
+const CRUD = ['create', 'read', 'update', 'delete', 'manage'] as const;
 
-export type Action = 'create' | 'read' | 'update' | 'delete' | 'manage';
+// Catálogo puro: manage cubre únicamente acciones definidas para el recurso.
+// Las capacidades base nunca sustituyen scope, clasificación o guardas fiscales.
+export const RESOURCE_ACTIONS = {
+    users: CRUD,
+    companies: CRUD,
+    branches: CRUD,
+    workflows: [...CRUD, 'execute', 'build'],
+    inventory: CRUD,
+    reports: [...CRUD, 'export'],
+    settings: CRUD,
+    billing: CRUD,
+    exceptions: CRUD,
+    executive: ['read', 'resolve', 'reason', 'refresh', 'export', 'manage'],
+    'financial-summary': ['read'],
+    payroll: CRUD,
+    incidents: [...CRUD, 'resolve'],
+    profile: ['read', 'update'],
+} as const;
+
+export type Resource = keyof typeof RESOURCE_ACTIONS;
+export type Action = typeof RESOURCE_ACTIONS[Resource][number];
 
 type PermissionMatrix = Record<Role, Partial<Record<Resource, Action[]>>>;
 
@@ -71,7 +82,7 @@ export function roleIsAtLeast(userRole: string, requiredRole: string): boolean {
 
 export const PERMISSIONS: PermissionMatrix = {
     'SUPER_ADMIN': {
-        // Full access implicitly handled in logic, but explicit here for clarity
+        // Autoridad explícita; no bypass para recursos/acciones desconocidos.
         'users': ['manage'],
         'companies': ['manage'],
         'branches': ['manage'],
@@ -80,7 +91,12 @@ export const PERMISSIONS: PermissionMatrix = {
         'reports': ['manage'],
         'settings': ['manage'],
         'billing': ['manage'],
-        'exceptions': ['manage']
+        'exceptions': ['manage'],
+        'executive': ['manage'],
+        'financial-summary': ['read'],
+        'payroll': ['manage'],
+        'incidents': ['manage'],
+        'profile': ['read', 'update']
     },
     'OWNER': {
         'users': ['manage'],
@@ -91,7 +107,12 @@ export const PERMISSIONS: PermissionMatrix = {
         'reports': ['manage'],
         'settings': ['manage'],
         'billing': ['manage'],
-        'exceptions': ['manage']
+        'exceptions': ['manage'],
+        'executive': ['manage'],
+        'financial-summary': ['read'],
+        'payroll': ['manage'],
+        'incidents': ['manage'],
+        'profile': ['read', 'update']
     },
     'ADMIN': {
         'users': ['manage'],
@@ -102,40 +123,52 @@ export const PERMISSIONS: PermissionMatrix = {
         'reports': ['manage'],
         'settings': ['manage'],
         'billing': ['read'], // Cannot modify billing
-        'exceptions': ['manage']
+        'exceptions': ['manage'],
+        'executive': ['manage'],
+        'financial-summary': ['read'],
+        'payroll': ['manage'],
+        'incidents': ['manage'],
+        'profile': ['read', 'update']
     },
     'GERENTE': {
         'users': ['read', 'create', 'update'], // Can manage branch users
         'companies': ['read'],
         'branches': ['read', 'update'],
-        'workflows': ['read', 'create', 'update', 'delete'], // Can manage workflows
+        'workflows': ['read', 'create', 'update', 'delete', 'execute', 'build'],
         'inventory': ['manage'],
-        'reports': ['read'],
+        'reports': ['read', 'export'],
         'settings': ['read'],
         'billing': [],
-        'exceptions': ['read', 'update']
+        'exceptions': ['read', 'update'],
+        'financial-summary': ['read'],
+        'incidents': ['read', 'create', 'update', 'resolve'],
+        'profile': ['read', 'update']
     },
     'SUPERVISOR': {
         'users': ['read'],
         'companies': ['read'],
         'branches': ['read'],
-        'workflows': ['read', 'create', 'update'], // Assignment mainly
+        'workflows': ['read', 'create', 'update', 'execute'], // Assignment mainly
         'inventory': ['read', 'update', 'create'],
-        'reports': ['read'],
+        'reports': ['read', 'export'],
         'settings': [],
         'billing': [],
-        'exceptions': ['read', 'update']
+        'exceptions': ['read', 'update'],
+        'incidents': ['read', 'create', 'update', 'resolve'],
+        'profile': ['read', 'update']
     },
     'EMPLEADO': {
         'users': ['read'], // Can see team
         'companies': ['read'],
         'branches': ['read'],
-        'workflows': ['read', 'update'], // Execute steps
+        'workflows': ['read', 'update', 'execute'], // Execute eligible assigned steps
         'inventory': ['read'],
         'reports': [],
         'settings': [],
         'billing': [],
-        'exceptions': ['read']
+        'exceptions': ['read'],
+        'incidents': ['read', 'create'],
+        'profile': ['read', 'update']
     },
     'READONLY': {
         'users': ['read'],
@@ -143,10 +176,12 @@ export const PERMISSIONS: PermissionMatrix = {
         'branches': ['read'],
         'workflows': ['read'],
         'inventory': ['read'],
-        'reports': ['read'],
+        'reports': ['read', 'export'],
         'settings': ['read'],
         'billing': [],
-        'exceptions': ['read']
+        'exceptions': ['read'],
+        'incidents': ['read'],
+        'profile': ['read']
     }
 };
 
@@ -154,10 +189,10 @@ export const PERMISSIONS: PermissionMatrix = {
  * Check if a user role has permission to perform an action on a resource.
  */
 export function hasPermission(userRole: Role, resource: Resource, action: Action): boolean {
-    if (!userRole) return false;
-
-    // Super Admin bypass
-    if (userRole === 'SUPER_ADMIN') return true;
+    if (!Object.prototype.hasOwnProperty.call(PERMISSIONS, userRole) ||
+        !Object.prototype.hasOwnProperty.call(RESOURCE_ACTIONS, resource)) return false;
+    const definedActions: readonly string[] = RESOURCE_ACTIONS[resource];
+    if (!definedActions.includes(action)) return false;
 
     const rolePermissions = PERMISSIONS[userRole];
     if (!rolePermissions) return false;
