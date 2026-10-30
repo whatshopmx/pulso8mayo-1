@@ -3,19 +3,15 @@ import { and, eq } from "drizzle-orm";
 import { db } from "./db";
 import { branches } from "./db/schema";
 import { ApiError } from "./api/error";
+import { getRoleScope, isBranchScopedRole } from "./rbac/resource-scope";
+export { isBranchScopedRole } from "./rbac/resource-scope";
 
 /** Forma de un UUID, para no mandar a Postgres un id que no puede castear. */
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const BRANCH_SCOPED_ROLES: Role[] = ["GERENTE", "SUPERVISOR"];
-
-export function isBranchScopedRole(role: Role): boolean {
-  return BRANCH_SCOPED_ROLES.includes(role);
-}
-
 export function canAccessAllBranches(role: Role): boolean {
-  return !BRANCH_SCOPED_ROLES.includes(role);
+  return getRoleScope(role) === 'COMPANY';
 }
 
 export function enforceBranchScope(
@@ -35,6 +31,7 @@ export function getAccessibleBranchIds(
   userBranchId: string | null | undefined,
   allBranchIds: string[]
 ): string[] {
+  if (getRoleScope(userRole) === 'NONE') return [];
   if (!isBranchScopedRole(userRole)) {
     return allBranchIds;
   }
@@ -43,7 +40,7 @@ export function getAccessibleBranchIds(
     return [userBranchId];
   }
 
-  return userBranchId ? [userBranchId] : [];
+  return [];
 }
 
 /**
@@ -78,6 +75,7 @@ export function resolveBranchScope(
   userBranchId: string | null | undefined,
   requestedBranchId?: string | null
 ): BranchScope {
+  if (getRoleScope(userRole) === 'NONE') return { kind: 'NONE' };
   if (!isBranchScopedRole(userRole)) {
     return requestedBranchId ? { kind: "BRANCH", branchId: requestedBranchId } : { kind: "ALL" };
   }

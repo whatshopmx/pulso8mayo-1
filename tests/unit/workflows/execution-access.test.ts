@@ -312,16 +312,28 @@ describe("assertExecutionInScope — la lectura por id", () => {
     ).rejects.toBeTruthy();
   });
 
-  it("READONLY lee lo de su empresa pero no lo de otra", async () => {
+  it("READONLY lee su sucursal asignada, no otra sucursal ni empresa", async () => {
+    const consulta = actor({ ...readonlyA, branchId: SUCURSAL_A_1 });
     encadenarSelect([{ id: SUCURSAL_A_1 }]);
     await expect(
-      assertExecutionInScope(actor(readonlyA), instancia())
+      assertExecutionInScope(consulta, instancia())
     ).resolves.toBeUndefined();
+
+    encadenarSelect([{ id: SUCURSAL_A_2 }]);
+    await expect(
+      assertExecutionInScope(consulta, instancia({ branchId: SUCURSAL_A_2 }))
+    ).rejects.toBeTruthy();
 
     encadenarSelect([]);
     await expect(
-      assertExecutionInScope(actor(readonlyA), instancia({ branchId: SUCURSAL_B_1 }))
+      assertExecutionInScope(consulta, instancia({ branchId: SUCURSAL_B_1 }))
     ).rejects.toBeTruthy();
+  });
+
+  it('READONLY sin sucursal falla antes de consultar la base', async () => {
+    const select = encadenarSelect([{ id: SUCURSAL_A_1 }]);
+    await expect(assertExecutionInScope(actor(readonlyA), instancia())).rejects.toBeTruthy();
+    expect(select.from).not.toHaveBeenCalled();
   });
 });
 

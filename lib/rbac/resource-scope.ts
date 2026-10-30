@@ -17,6 +17,25 @@ export type ResourceScope =
 /** Catálogo cargado en servidor; companyId permite rechazar una FK cruzada. */
 export interface ScopeBranch { id: string; companyId: string }
 
+export function getRoleScope(role: Role): ResourceScope['kind'] {
+  switch (role) {
+    case 'SUPER_ADMIN':
+    case 'OWNER':
+    case 'ADMIN': return 'COMPANY';
+    case 'GERENTE':
+    case 'SUPERVISOR':
+    case 'READONLY': return 'BRANCH';
+    case 'EMPLEADO': return 'OWN';
+    default: return 'NONE';
+  }
+}
+
+/** OWN también está limitado por sucursal, pero nunca equivale a BRANCH. */
+export function isBranchScopedRole(role: Role): boolean {
+  const kind = getRoleScope(role);
+  return kind === 'OWN' || kind === 'BRANCH';
+}
+
 /**
  * Límite máximo del recurso. Clasificación, franquicia, estado y elegibilidad
  * se aplican después y solo reducen este alcance. OWN requiere filtrar dueño
@@ -34,7 +53,7 @@ export function resolveResourceScope(
   if (resource === 'profile') return { kind: 'OWN', companyId, userId };
 
   const branchAllowed = (id: string) => branches.some(b => b.id === id && b.companyId === companyId);
-  if (role === 'SUPER_ADMIN' || role === 'OWNER' || role === 'ADMIN') {
+  if (getRoleScope(role) === 'COMPANY') {
     if (!requestedBranchId) return { kind: 'COMPANY', companyId };
     return branchAllowed(requestedBranchId)
       ? { kind: 'BRANCH', companyId, branchId: requestedBranchId }

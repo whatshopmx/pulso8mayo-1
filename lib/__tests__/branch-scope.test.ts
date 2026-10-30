@@ -20,9 +20,8 @@ import type { Role } from "../permissions";
  * base efímera (Task 16).
  *
  * Contratos congelados aquí (documentados en el propio módulo):
- * - Los roles acotados a sucursal son SÓLO GERENTE y SUPERVISOR. EMPLEADO no
- *   está acotado en ESTE módulo (a diferencia de `lib/rbac/abac.ts`, donde
- *   BRANCH_SCOPED_ROLES sí lo incluye — son dos capas distintas).
+ * - RP-02: GERENTE/SUPERVISOR/READONLY tienen BRANCH y EMPLEADO tiene OWN,
+ *   ambos limitados por su sucursal. Los recursos personales usan además userId.
  * - `enforceBranchScope` es legacy fail-ABIERTO para un GERENTE sin sucursal:
  *   devuelve null y el consumidor interpreta "sin filtro". No corregir aquí;
  *   `resolveBranchScope` es su reemplazo fail-cerrado.
@@ -38,7 +37,7 @@ const ALL_ROLES: Role[] = [
   "READONLY",
 ];
 
-const BRANCH_SCOPED: Role[] = ["GERENTE", "SUPERVISOR"];
+const BRANCH_SCOPED: Role[] = ["GERENTE", "SUPERVISOR", "EMPLEADO", "READONLY"];
 const NOT_SCOPED = ALL_ROLES.filter((r) => !BRANCH_SCOPED.includes(r));
 
 describe("isBranchScopedRole", () => {
@@ -72,7 +71,7 @@ describe("enforceBranchScope", () => {
   it("rol sin acotación sin parámetro devuelve null (= todas)", () => {
     expect(enforceBranchScope("ADMIN", null, null)).toBeNull();
     expect(enforceBranchScope("ADMIN", undefined, undefined)).toBeNull();
-    expect(enforceBranchScope("READONLY", "propia", null)).toBeNull();
+    expect(enforceBranchScope("OWNER", "propia", null)).toBeNull();
   });
 
   it("rol acotado SIEMPRE devuelve su propia sucursal aunque pida otra (no amplía alcance por parámetro)", () => {
@@ -107,17 +106,29 @@ describe("getAccessibleBranchIds", () => {
     ]);
   });
 
-  it("rol acotado con sucursal FUERA del catálogo sigue viendo sólo la suya", () => {
-    // Congelado: la respuesta es [userBranchId] aunque no esté en allBranchIds.
-    // El helper no valida contra el catálogo; quien consume decide si 404.
+  it("rol acotado con sucursal FUERA del catálogo falla cerrado", () => {
     expect(getAccessibleBranchIds("GERENTE", "suc-fantasma", catalogo)).toEqual(
-      ["suc-fantasma"]
+      []
     );
   });
 
   it("rol acotado sin sucursal asignada ve el vacío (fail-cerrado)", () => {
     expect(getAccessibleBranchIds("GERENTE", null, catalogo)).toEqual([]);
     expect(getAccessibleBranchIds("SUPERVISOR", "", catalogo)).toEqual([]);
+  });
+});
+
+describe('RP-02b · roles fijados y desconocidos', () => {
+  it.each(BRANCH_SCOPED)('%s ignora preferencias y no cae a ALL sin asignación', role => {
+    expect(isBranchScopedRole(role)).toBe(true);
+    expect(resolveBranchScope(role, 'propia', 'otra')).toEqual({ kind: 'BRANCH', branchId: 'propia' });
+    expect(resolveBranchScope(role, null, 'otra')).toEqual({ kind: 'NONE' });
+  });
+  it('rol desconocido no obtiene empresa ni sucursales', () => {
+    const role = 'UNKNOWN' as Role;
+    expect(canAccessAllBranches(role)).toBe(false);
+    expect(resolveBranchScope(role, null, 'otra')).toEqual({ kind: 'NONE' });
+    expect(getAccessibleBranchIds(role, null, ['otra'])).toEqual([]);
   });
 });
 

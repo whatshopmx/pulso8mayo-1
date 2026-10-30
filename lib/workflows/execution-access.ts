@@ -18,7 +18,7 @@
  * - `SUPER_ADMIN`/`OWNER`/`ADMIN`: cualquier instancia de su empresa.
  * - `GERENTE`/`SUPERVISOR`: sólo las de su sucursal (`NONE` si no tiene).
  * - `EMPLEADO`: sólo las que tiene asignadas, o las sin asignar de su sucursal.
- * - `READONLY`: lectura de su empresa.
+ * - `READONLY`: lectura de su sucursal asignada; sin asignación NONE.
  *
  * Los caminos por token (smart links y enlaces públicos) **no** pasan por aquí:
  * su contexto es el token, no la sesión. Siguen usando el cargador sin acotar, y
@@ -204,14 +204,13 @@ export async function assertExecutionInScope(
     if (instance.branchId !== alcance.branchId) {
       throw ApiError.forbidden("No puedes ver una ejecución de otra sucursal.");
     }
-    return;
+    // BRANCH es un límite de sucursal, no una concesión sobre compañeros.
+    // EMPLEADO conserva debajo su comprobación adicional de responsable.
+    if (actor.role !== 'EMPLEADO') return;
   }
 
-  // EMPLEADO y READONLY: decide la relación con el ejecutor, no el alcance de
-  // empresa. Un empleado ve lo que tiene asignado, y una ejecución sin asignar
+  // EMPLEADO: decide además la relación con el ejecutor. Ve lo asignado y una ejecución sin asignar
   // sólo si es de su sucursal —es trabajo sin dueño que puede tomar—.
-  if (actor.role === "READONLY") return;
-
   if (instance.assigneeId === actor.userId) return;
 
   if (!instance.assigneeId && actor.branchId === instance.branchId) return;
