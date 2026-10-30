@@ -22,9 +22,8 @@ import type { Role } from "../permissions";
  * Contratos congelados aquí (documentados en el propio módulo):
  * - RP-02: GERENTE/SUPERVISOR/READONLY tienen BRANCH y EMPLEADO tiene OWN,
  *   ambos limitados por su sucursal. Los recursos personales usan además userId.
- * - `enforceBranchScope` es legacy fail-ABIERTO para un GERENTE sin sucursal:
- *   devuelve null y el consumidor interpreta "sin filtro". No corregir aquí;
- *   `resolveBranchScope` es su reemplazo fail-cerrado.
+ * - RP-02: `enforceBranchScope` lanza sin asignación; `resolveBranchScope`
+ *   devuelve NONE. Ninguno permite interpretar ausencia como consolidado.
  */
 
 const ALL_ROLES: Role[] = [
@@ -83,12 +82,11 @@ describe("enforceBranchScope", () => {
     );
   });
 
-  it("⚠️ rol acotado SIN sucursal asignada devuelve null (fail-abierto, legacy documentado)", () => {
-    // Congelado a propósito: null significa "sin filtro" para quien llama,
-    // así que un GERENTE sin branchId ve toda la empresa por este helper.
-    // El reemplazo fail-cerrado es resolveBranchScope → NONE.
-    expect(enforceBranchScope("GERENTE", null, "suc-pedida")).toBeNull();
-    expect(enforceBranchScope("SUPERVISOR", undefined, "suc-pedida")).toBeNull();
+  it("RP-02: helper legacy sin asignación lanza 403, nunca null interpretable como ALL", () => {
+    for (const role of BRANCH_SCOPED) {
+      expect(() => enforceBranchScope(role, null, 'suc-pedida')).toThrow(/sucursal/i);
+    }
+    expect(() => enforceBranchScope('UNKNOWN' as Role, null, 'suc-pedida')).toThrow();
   });
 });
 

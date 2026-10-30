@@ -5,7 +5,8 @@ import {
   BRANCH_SCOPE_ALL,
   BRANCH_SCOPE_COOKIE_NAME,
 } from "@/lib/branch-cookies";
-import { resolveBranchScope, type BranchScope } from "@/lib/branch-scope";
+import { assertBranchOfCompany, canAccessAllBranches, resolveBranchScope, type BranchScope } from "@/lib/branch-scope";
+import { ApiError } from '@/lib/api/error';
 import type { Role } from "@/lib/permissions";
 
 /**
@@ -28,10 +29,10 @@ export async function resolveRequestBranchScope(
 ): Promise<BranchScope> {
   const session = await auth.api.getSession({ headers: await headers() });
   const user = session?.user as
-    | { role?: Role; branchId?: string | null }
+    | { role?: Role; branchId?: string | null; companyId?: string | null }
     | undefined;
 
-  if (!user?.role) return { kind: "NONE" };
+  if (!user?.role || !user.companyId) return { kind: "NONE" };
 
   const cookieStore = await cookies();
   const scopeEsTodas =
@@ -39,7 +40,19 @@ export async function resolveRequestBranchScope(
   const cookieBranch = cookieStore.get(BRANCH_COOKIE_NAME)?.value ?? null;
   const requested = requestedBranchId || (scopeEsTodas ? null : cookieBranch);
 
-  return resolveBranchScope(user.role, user.branchId ?? null, requested);
+  const scope = resolveBranchScope(user.role, user.branchId ?? null, requested);
+  if (scope.kind !== 'BRANCH') return scope;
+  try {
+    await assertBranchOfCompany(user.companyId, scope.branchId);
+    return scope;
+  } catch (error) {
+    // Una preferencia vieja de dirección se descarta. Una query explícita
+    // inválida o una asignación ajena nunca se convierten en consolidado.
+    if (error instanceof ApiError && error.statusCode === 400) {
+      return !requestedBranchId && canAccessAllBranches(user.role) ? { kind: 'ALL' } : { kind: 'NONE' };
+    }
+    throw error; // Red/DB no se representa como "sin datos".
+  }
 }
 
 /** Id de sucursal a pasar a una consulta, o `null` para "toda la empresa". */

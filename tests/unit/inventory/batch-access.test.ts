@@ -66,18 +66,18 @@ beforeEach(async () => {
 const get = (query = '') => GET(new NextRequest(`http://localhost/api/inventory/batches${query}`));
 
 describe('FEFO-03A: alcance real de listado y trazabilidad', () => {
-  it.each(['ADMIN', 'OWNER', 'SUPER_ADMIN', 'READONLY'])('%s sólo lista productos/sucursales de su empresa', async role => {
+  it.each(['ADMIN', 'OWNER', 'SUPER_ADMIN'])('%s sólo lista productos/sucursales de su empresa', async role => {
     session(role, null);
     const response = await get();
     expect(response.status).toBe(200);
     expect((await response.json()).batches.map((row: { id: string }) => row.id).sort()).toEqual([lot1, lot2]);
   });
-  it.each(['GERENTE', 'SUPERVISOR', 'EMPLEADO'])('%s sólo consulta su sucursal', async role => {
+  it.each(['GERENTE', 'SUPERVISOR', 'EMPLEADO', 'READONLY'])('%s sólo consulta su sucursal', async role => {
     session(role);
     expect((await (await get()).json()).batches.map((row: { id: string }) => row.id)).toEqual([lot1]);
     expect((await get(`?id=${lot2}&trace=true`)).status).toBe(404);
   });
-  it.each(['GERENTE', 'SUPERVISOR', 'EMPLEADO'])('%s sin sucursal no obtiene datos', async role => {
+  it.each(['GERENTE', 'SUPERVISOR', 'EMPLEADO', 'READONLY'])('%s sin sucursal no obtiene datos', async role => {
     session(role, null);
     expect((await get()).status).toBe(403);
   });

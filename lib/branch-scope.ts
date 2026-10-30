@@ -19,6 +19,10 @@ export function enforceBranchScope(
   userBranchId: string | null | undefined,
   requestedBranchId?: string | null
 ): string | null {
+  if (getRoleScope(userRole) === 'NONE') throw ApiError.forbidden('Rol no autorizado.');
+  if (isBranchScopedRole(userRole) && !userBranchId) {
+    throw ApiError.forbidden('Tu usuario no tiene una sucursal asignada.');
+  }
   if (!isBranchScopedRole(userRole)) {
     return requestedBranchId || null;
   }
@@ -46,7 +50,7 @@ export function getAccessibleBranchIds(
 /**
  * Alcance de sucursal resuelto de forma explícita.
  *
- * `enforceBranchScope` colapsa dos situaciones distintas en el mismo `null`:
+ * El helper legacy antes colapsaba dos situaciones en el mismo `null`:
  * "este rol ve toda la empresa" y "este rol está acotado a una sucursal, pero
  * no tiene ninguna asignada". Quien lo llama interpreta ese `null` como "no
  * filtres por sucursal", así que un GERENTE sin `branchId` termina viendo el
@@ -67,8 +71,9 @@ export type BranchScope =
  * `users.branch_id` es nullable en el esquema, así que ese usuario es
  * representable aunque hoy no exista ninguno.
  *
- * `enforceBranchScope` se mantiene como está: tiene ~15 call sites y cambiarle
- * la semántica en silencio es peor que migrarlos uno a uno.
+ * RP-02: el helper legacy ahora lanza 403 en ese caso; sus consumidores nunca
+ * pueden interpretar una asignación ausente como "todas". Este resolver permite
+ * a las páginas representar NONE explícitamente en lugar de lanzar.
  */
 export function resolveBranchScope(
   userRole: Role,
