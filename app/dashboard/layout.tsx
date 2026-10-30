@@ -14,6 +14,8 @@ import { redirect } from "next/navigation"
 import { CompanyService } from "@/lib/services/company-service"
 import { BranchService } from "@/lib/services/branch-service"
 import { BRANCH_COOKIE_NAME, BRANCH_SCOPE_ALL, BRANCH_SCOPE_COOKIE_NAME } from "@/lib/branch-cookies"
+import { resolveBranchPreference } from "@/lib/rbac/resource-scope"
+import type { Role } from "@/lib/permissions"
 
 export default async function DashboardLayout({
   children,
@@ -56,7 +58,7 @@ export default async function DashboardLayout({
    * único que falta es saber que estos dos campos existen.
    */
   const { role: userRole, branchId: userBranchId } = session.user as {
-    role?: 'SUPER_ADMIN' | 'ADMIN' | 'GERENTE' | 'SUPERVISOR' | 'EMPLEADO' | 'READONLY';
+    role?: Role;
     branchId?: string;
   };
 
@@ -69,19 +71,20 @@ export default async function DashboardLayout({
    * así que el encabezado decía una sucursal mientras el servidor respondía por
    * la cadena entera. Para GERENTE y SUPERVISOR la sesión sí manda (AD-B7).
    */
-  const esFijadoASucursal = userRole === "GERENTE" || userRole === "SUPERVISOR";
-  const selectedBranchId = alcanceEsTodas
-    ? null
-    : cookieDeSucursal || (esFijadoASucursal ? userBranchId : null) || null;
+  const preference = resolveBranchPreference(userRole!, userBranchId, branches.map(b => b.id), alcanceEsTodas ? null : cookieDeSucursal);
+  const selectedBranchId = preference.selectedBranchId;
+  // Filtrar ANTES de serializar props: no enviar el catálogo de otras sucursales.
+  const visibleBranches = branches.filter(b => preference.branchIds.includes(b.id));
 
   return (
     <DashboardSessionProvider initialSession={session}>
       <BranchProvider 
+        key={`${session.user.id}:${userRole}:${userBranchId ?? ''}`}
         initialBranchId={selectedBranchId}
-        initialBranches={branches}
-        initialScopeChosen={alcanceEsTodas}
+        initialBranches={visibleBranches}
+        initialScopeChosen={alcanceEsTodas && !preference.fixed}
         userRole={userRole}
-        userBranchId={userBranchId ?? null}
+        userBranchId={preference.fixed ? selectedBranchId : userBranchId ?? null}
       >
         <SidebarProvider>
         <AppSidebarClient
@@ -96,7 +99,7 @@ export default async function DashboardLayout({
               name: company?.name || "Mi Empresa",
               plan: company?.plan || "FREE"
             }}
-            branches={branches}
+            branches={visibleBranches}
             currentBranchId={selectedBranchId}
           />
           <SidebarInset>

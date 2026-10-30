@@ -36,6 +36,22 @@ export function isBranchScopedRole(role: Role): boolean {
   return kind === 'OWN' || kind === 'BRANCH';
 }
 
+/** Preferencia visual sobre un catálogo ya autorizado; nunca amplía permisos. */
+export function resolveBranchPreference(
+  role: Role,
+  assignedBranchId: string | null | undefined,
+  availableBranchIds: readonly string[],
+  preferredBranchId?: string | null,
+): { kind: 'NONE' | 'ALL' | 'BRANCH'; selectedBranchId: string | null; branchIds: string[]; fixed: boolean } {
+  const mode = getRoleScope(role);
+  const fixed = mode !== 'COMPANY';
+  const branchIds = mode === 'COMPANY' ? [...availableBranchIds]
+    : isBranchScopedRole(role) && assignedBranchId && availableBranchIds.includes(assignedBranchId) ? [assignedBranchId] : [];
+  const preferred = fixed ? assignedBranchId : preferredBranchId;
+  const selectedBranchId = preferred && branchIds.includes(preferred) ? preferred : null;
+  return { kind: fixed && !selectedBranchId ? 'NONE' : selectedBranchId ? 'BRANCH' : 'ALL', selectedBranchId, branchIds, fixed };
+}
+
 /**
  * Límite máximo del recurso. Clasificación, franquicia, estado y elegibilidad
  * se aplican después y solo reducen este alcance. OWN requiere filtrar dueño
