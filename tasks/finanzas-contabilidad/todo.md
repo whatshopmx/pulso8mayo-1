@@ -1,6 +1,6 @@
 # Checklist: finanzas y contabilidad integrada
 
-Fecha: 2026-10-30. Estado: FC-01 completada técnicamente y contrato de desarrollo sintético validado; FC-02 con 9 pruebas focalizadas aprobadas y checkpoint global en verificación.
+Fecha: 2026-10-30. Estado: FC-01/02 completadas técnicamente; contrato de desarrollo sintético validado; FC-03a implementada y contrastada contra Postgres aislado, con verificaciones globales aprobadas. FC-03b/c pendientes.
 Plan y decisiones: [plan.md](plan.md). Las rutas nuevas son propuestas; `<...>` indica un punto a resolver en FC-01, no un archivo existente.
 
 ## Reglas de ejecución
@@ -26,7 +26,7 @@ Plan y decisiones: [plan.md](plan.md). Las rutas nuevas son propuestas; `<...>` 
 
 ## FC-02: Construir el mes de referencia
 
-- [x] Fixture y controles completados: [matriz-fuentes.md §7](matriz-fuentes.md#7-fc-02--mes-sintético-y-cálculo-independiente), 9/9 pruebas focalizadas y ESLint de ambos archivos aprobado. Checkpoint revisado: suite completa, TypeScript y lint aprobados; build inicial bloqueado por red, reintento en curso (compilación aprobada).
+- [x] Fixture y controles completados: [matriz-fuentes.md §7](matriz-fuentes.md#7-fc-02--mes-sintético-y-cálculo-independiente), 9/9 pruebas focalizadas y ESLint de ambos archivos aprobado. Checkpoint revisado: suite completa, TypeScript y lint aprobados; build recuperado con exit 0 durante FC-03a (ver evidencia abajo).
 - **Tamaño:** M. **Dependencias:** FC-01.
 - **Descripción:** Preparar fixture sintético y resultados esperados calculados independientemente de la implementación.
 - **Aceptación:**
@@ -52,6 +52,17 @@ Ejecución 2026-10-30: focalizada 9/9; ESLint de fixture/test exit 0. Checkpoint
   - [ ] documentos de otro ámbito no son accesibles.
 - **Verificación:** Pruebas de contrato, total paginado y denegación entre empresas/sucursales.
 - **Archivos previstos:** `lib/services/pnl-detail-service.ts`, `app/api/finance/pnl/detail/route.ts`, `tests/unit/finance/pnl-detail.test.ts`, `tests/integration/accounting/pnl-detail.test.ts`.
+
+### FC-03a — detalle de ventas, gastos y caja chica (2026-10-30)
+
+- [x] API `GET /api/finance/pnl/detail`: requiere `reports:read`, clasificación FINANCIAL, empresa de sesión y alcance de sucursal. Respuesta privada `no-store`; no publica evidencia, beneficiarios ni datos bancarios.
+- [x] Consulta paginada con total completo y página en una sola sentencia/snapshot; conserva el total después de la última página. Mismas fechas, estados, cobertura y centavos que los tres renglones actuales del P&L.
+- [x] Integración con Postgres aislado: **8/8 aprobadas**. Compara `getPnlDetail` con `getPnLByBranch`, suma páginas sin repetir documentos y prueba extremos de mes, prioridad de fechas de gasto, pendientes/rechazados, reposición excluida, cero medido frente a ausencia y denegación por empresa/sucursal. Referencias inconsistentes heredadas no exponen centros de costo ajenos.
+- [x] Área financiera: **10 archivos, 148 pruebas aprobadas**, incluidas **13 de contrato/HTTP** para este detalle. ESLint de los cuatro archivos de código/tests: **exit 0**. Se reprodujo y corrigió la aceptación del año `0000` (válido en JavaScript, inválido en Postgres).
+- **Entorno de integración:** `TEST_DATABASE_URL` con rechazo explícito si coincide con `.env`/`.env.local`; esquema aleatorio, copias de estructura sin datos, fixtures sintéticos y limpieza al finalizar. No hay fallback de `search_path` a public. Solo se simulan food/labor/comisiones/tasa, ajenos a FC-03a; las consultas y los tres renglones comparados usan Postgres real. No acredita RLS ni autenticación de sesión real; permisos HTTP se prueban en la capa unitaria.
+- **Comandos:** `pnpm.cmd exec vitest run --configLoader bundle tests/unit/finance --maxWorkers 1`; `pnpm.cmd exec vitest run --configLoader bundle --config vitest.integration.config.ts tests/integration/accounting/pnl-detail.test.ts --maxWorkers 2`. Node 22.17 requiere `NODE_OPTIONS=--use-system-ca` para la conexión TLS del equipo; `NODE_USE_SYSTEM_CA` no resolvió el certificado.
+- **Verificación global:** los primeros intentos concurrentes agotaron memoria de Node; build inicial también falló descargando Geist/Geist Mono. Recuperación en serie con `NODE_OPTIONS=--max-old-space-size=6144`: **TypeScript exit 0**, **lint global exit 0, 2438 warnings y 0 errores** (mismo conteo documentado en FC-02), **suite global exit 0: 191 archivos, 2373 aprobadas, 1 skipped, 1 todo**. **Build de producción exit 0**, con `NODE_OPTIONS=--max-old-space-size=8192 --use-system-ca` y red autorizada; recupera también la verificación pendiente de FC-02. Evidencia local: `.tmp/fc03a-{unit,unit-retry,tsc,tsc-retry,lint,build,build-retry,finance,tsc-serial,lint-serial,unit-serial}.log`.
+- **Límite:** FC-03 sigue abierta. Próximo incremento FC-03b: inventario/merma con valoración y proxies actuales; después FC-03c: labor/comisiones y utilidad. FC-04 aún no tiene interfaz de detalle. Sin migraciones ni activación contable.
 
 ## FC-04: Mostrar documentos desde Resultados
 
