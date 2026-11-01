@@ -190,6 +190,16 @@ export default function ControlInternoPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/finance/control-interno/polizas">Pólizas contables</Link>
+          </Button>
+          {isAdmin && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/finance/settings/accounting">
+                <SlidersHorizontal className="w-4 h-4 mr-2" /> Contabilidad
+              </Link>
+            </Button>
+          )}
+          <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard/finance/fiscal">
               <FileText className="w-4 h-4 mr-2" /> Expediente Fiscal
             </Link>

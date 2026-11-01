@@ -10,6 +10,7 @@ const IMSS_SECTIONS = [
   { href: "/dashboard/compliance/imss/bajas", label: "Bajas" },
   { href: "/dashboard/compliance/imss/sua", label: "SUA" },
   { href: "/dashboard/compliance/imss/reports", label: "Reportes" },
+  { href: "/dashboard/compliance/imss/configuracion", label: "Configuración" },
 ]
 
 export function ImssSubNav() {

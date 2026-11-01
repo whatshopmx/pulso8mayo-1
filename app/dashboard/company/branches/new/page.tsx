@@ -24,6 +24,11 @@ export default function NewBranchPage() {
         code: "",
         address: "",
         managerId: "",
+        // H1 (`plan-imss-operacion`): la API ya aceptaba el dato, pero el
+        // formulario nunca lo enviaba, así que toda sucursal nacía sin registro
+        // y su primer movimiento quedaba bloqueado. Es opcional a propósito:
+        // una sucursal en trámite existe antes que su registro.
+        imssRegistroPatronal: "",
     });
 
     useEffect(() => {
@@ -59,7 +64,11 @@ export default function NewBranchPage() {
 
             if (!res.ok) {
                 const error = await res.json();
-                throw new Error(error.message || "Failed to create branch");
+                const detail = error?.error?.details;
+                const firstIssue = detail && typeof detail === "object"
+                    ? Object.values(detail as Record<string, unknown>).flat().find((item): item is string => typeof item === "string")
+                    : undefined;
+                throw new Error(firstIssue || error?.error?.message || "Failed to create branch");
             }
 
             toast.success("Sucursal creada exitosamente");
@@ -151,6 +160,24 @@ export default function NewBranchPage() {
                                     </option>
                                 ))}
                             </select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="imssRegistroPatronal">Registro patronal IMSS</Label>
+                            <Input
+                                id="imssRegistroPatronal"
+                                value={formData.imssRegistroPatronal}
+                                maxLength={11}
+                                autoCapitalize="characters"
+                                placeholder="A1234567890"
+                                aria-describedby="imssRegistroPatronal-help"
+                                onChange={(e) =>
+                                    setFormData({ ...formData, imssRegistroPatronal: e.target.value.toUpperCase() })
+                                }
+                            />
+                            <p id="imssRegistroPatronal-help" className="text-xs text-muted-foreground">
+                                Opcional. Once caracteres de la tarjeta patronal de esta sucursal. Sin este dato no se pueden preparar movimientos IMSS; puedes capturarlo después en el módulo IMSS → Configuración.
+                            </p>
                         </div>
 
                         <div className="flex justify-end gap-2">

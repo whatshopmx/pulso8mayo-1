@@ -7,6 +7,7 @@ import {
   uuid,
   integer,
   uniqueIndex,
+  unique,
   index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -236,6 +237,7 @@ export const costCenters = pgTable("cost_centers", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   costCentersCompanyCodeUnique: uniqueIndex("cost_centers_company_code_unique").on(table.companyId, table.code),
+  costCentersCompanyIdUnique: unique("cost_centers_company_id_unique").on(table.companyId, table.id),
 }));
 
 export const branchBudgets = pgTable("branch_budgets", {

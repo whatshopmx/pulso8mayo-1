@@ -37,3 +37,6 @@ export * from './exceptions';
 
 // Fase 2 / EVI-01: evidencia común durable (adjunto con empresa, entidad y autor).
 export * from './evidence';
+
+// FC-05: ledger accounts linked to existing operational catalogs.
+export * from './accounting';

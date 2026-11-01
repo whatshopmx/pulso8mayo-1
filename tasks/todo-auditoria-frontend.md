@@ -4,6 +4,10 @@ Spec: `tasks/evidencia/frontend-demo-2026-10-29/auditoria-produccion-2026-10-29.
 Plan detallado: `tasks/plan-auditoria-frontend.md`
 Tracker de sesión: tareas #4–#19
 
+**Auditoría posterior en producción por rol:** ver `tasks/evidencia/frontend-roles-2026-10-30/README.md` (8 usuarios, 6 roles). Detectó ROLE-01–ROLE-10, incluida exposición financiera por URL y errores React #185 para GERENTE/SUPERVISOR. El cierre histórico local de este tracker no cierra esos nuevos hallazgos.
+
+**Revisión 2026-10-30:** implementación contrastada con `HEAD e2e8e9a`; 57/57 pruebas unitarias repetidas y aprobadas. El plan ahora distingue los criterios originales del estado implementado. Pendientes: revisión humana, preview y publicación autorizada con recorrido posterior sobre el despliegue. Detalle: `tasks/evidencia/frontend-demo-2026-10-29/revision-plan-2026-10-30.md`.
+
 Reglas transversales: desenvolver `{success,data}` una sola vez · filtro ausente ≠ `null` · una sola sucursal efectiva por request · gating de rol también en servidor · fechas con `lib/business-date` · seed sin eventos futuros.
 
 ## Phase 1 — Desbloquear schedules (P1)

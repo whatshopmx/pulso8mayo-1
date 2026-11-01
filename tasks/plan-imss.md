@@ -287,3 +287,9 @@ Lo que la migración `0121` toca: **3 enums nuevos, 2 tablas nuevas, 2 columnas 
 ## Ejecución autorizada — 2026-10-24
 
 GO explícito recibido y `0121` aplicada en una transacción a la base operativa (journal id 138; hash y schema verificados). `0122` no se incluyó. T8–T10 implementadas: parser único, archivos persistidos, historial, descarga privada, acuses por rol y retención. Evidencia y límites: `tasks/evidencia/imss-files-2026-10-24/README.md`. T11–T18 se cerraron el 2026-10-25; ver `tasks/evidencia/imss-ui-2026-10-25/README.md`.
+
+## Continuación — 2026-10-30
+
+Este plan cierra el circuito archivo → acuse, pero asume que la empresa ya tiene registro patronal capturado, que un `ADMIN` de Pulso opera el IMSS y que toda empresa activa tiene obligación IMSS. Esos supuestos no cubren al contador/despacho externo ni a una empresa sin IDSE.
+
+El trabajo pendiente vive en **`tasks/plan-imss-operacion.md`**: configuración visible del registro patronal, modo de operación (`INTERNO` / `DESPACHO_EXTERNO` / `SIN_OBLIGACION` / `POR_CONFIGURAR`), responsable IMSS, entrega del archivo y registro externo recurrente con evidencia.

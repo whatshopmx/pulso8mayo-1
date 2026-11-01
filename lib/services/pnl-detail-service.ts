@@ -5,6 +5,8 @@ import { branches, costCenters, dailySalesCuts, operatingExpenses, pettyCashFund
 import { ApiError } from "@/lib/api/error";
 import type { BranchScope } from "@/lib/branch-scope";
 import { resolvePnlPeriod } from "./pnl-service";
+import { getInventoryPnlDetail } from "./pnl-inventory-detail-service";
+import { DERIVED_PNL_LINES, getDerivedPnlDetail } from "./pnl-derived-detail-service";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
   const date = new Date(`${value}T00:00:00Z`);
@@ -12,14 +14,16 @@ const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
   return value >= "0001-01-01" && !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }, "Fecha inválida.");
 export const pnlDetailQuerySchema = z.object({
-  branchId: z.uuid(), line: z.enum(["sales", "operatingExpenses", "pettyCash"]),
+  branchId: z.uuid(), line: z.enum(["sales", "operatingExpenses", "pettyCash", "foodCost", "waste", ...DERIVED_PNL_LINES]),
   startDate: day.optional(), endDate: day.optional(),
   page: z.coerce.number().int().min(1).max(10_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 }).refine(value => {
   const period = resolvePnlPeriod(value.startDate, value.endDate);
   return period.startDate <= period.endDate;
-}, "El inicio no puede ser posterior al fin del periodo.");
+}, "El inicio no puede ser posterior al fin del periodo.").refine(value => {
+  return resolvePnlPeriod(value.startDate, value.endDate).days <= 366;
+}, "El detalle admite periodos de hasta 366 días.");
 
 type Input = z.input<typeof pnlDetailQuerySchema> & { companyId: string; scope: BranchScope };
 type DetailRow = {
@@ -41,6 +45,11 @@ export async function getPnlDetail(input: Input) {
   }
   const companyId = z.uuid().parse(input.companyId);
   const period = resolvePnlPeriod(p.startDate, p.endDate);
+  if (p.line === "foodCost" || p.line === "waste") return getInventoryPnlDetail({ ...p, companyId, period, line: p.line });
+  // Renglones calculados (nómina, comisiones, utilidad): no tienen documentos.
+  if (p.line === "labor" || p.line === "commissions" || p.line === "operatingProfit") {
+    return getDerivedPnlDetail({ ...p, companyId, period, line: p.line });
+  }
   const { startDate: from, endDate: to } = period;
   const costCenter = sql`CASE WHEN ${costCenters.id} IS NULL THEN NULL ELSE jsonb_build_object(
     'id', ${costCenters.id}, 'code', ${costCenters.code}, 'name', ${costCenters.name},

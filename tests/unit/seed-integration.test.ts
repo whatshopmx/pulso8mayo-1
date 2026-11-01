@@ -21,6 +21,10 @@ vi.mock("@/lib/services/fiscal-service", async (original) => ({
 
 let pg: PGlite;
 beforeAll(async () => {
+  // Month-end must not roll the previous budget month back into October.
+  // Only freeze Date; PGlite and asynchronous services retain real timers.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-31T12:00:00Z"));
   pg = new PGlite();
   const real = drizzle(pg, { schema });
   // PGlite sólo tiene una conexión. Los servicios de producción consultan
@@ -44,7 +48,7 @@ beforeAll(async () => {
     await pg.exec(await readFile(new URL(`../../drizzle/${migration}.sql`, import.meta.url), "utf8"));
   }
 }, 60_000);
-afterAll(async () => { await pg?.close(); });
+afterAll(async () => { try { await pg?.close(); } finally { vi.useRealTimers(); } });
 
 describe("seed sobre el esquema actual en Postgres aislado", () => {
   it("completa todas las fases y permite reiniciar sin duplicados", async () => {
@@ -57,6 +61,10 @@ describe("seed sobre el esquema actual en Postgres aislado", () => {
           try {
             const { main } = await import(`../../scripts/${phase}.ts`);
             await main();
+            if (phase === "seed-11-control-orders") {
+              const months = await pg.query<{ month: string }>("SELECT DISTINCT month FROM branch_budgets ORDER BY month");
+              expect(months.rows.map(row => row.month)).toEqual(["2026-09", "2026-10"]);
+            }
             process.stdout.write(`seed run ${run + 1}: ${phase} OK\n`);
           } catch (cause) {
             let root = cause as Error & { cause?: Error };

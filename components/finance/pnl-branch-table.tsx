@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { PnlSourceDetail, type PnlDetailLine } from "./pnl-source-detail";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +47,16 @@ const SOURCE_CLASS: Record<LineSource, string> = {
 };
 
 /** Nota de celda accesible: Tooltip Radix (foco de teclado + táctil) en vez de `title`. */
-function NoteTip({ note, children }: { note?: string | null; children: ReactNode }) {
+type Inspect = { label: string; onSelect: () => void };
+function NoteTip({ note, children, inspect }: { note?: string | null; children: ReactNode; inspect?: Inspect }) {
+  if (inspect) return (
+    <Tooltip><TooltipTrigger asChild>
+      <button type="button" onClick={inspect.onSelect} aria-label={inspect.label} aria-controls="pnl-source-detail"
+        className="min-h-9 rounded-sm underline decoration-dotted underline-offset-4 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        {children}
+      </button>
+    </TooltipTrigger><TooltipContent className="max-w-72">{note || inspect.label}</TooltipContent></Tooltip>
+  );
   if (!note) return <>{children}</>;
   return (
     <Tooltip>
@@ -73,12 +83,14 @@ function LineCell({
   mode,
   extraNote,
   className = "",
+  inspect,
 }: {
   value: PnLLine;
   mode: "money" | "percent";
   /** Nota adicional (p. ej. la merma del período) que vive en el tooltip. */
   extraNote?: string;
   className?: string;
+  inspect?: Inspect;
 }) {
   const isNoData = value.source === "NO_DATA";
   const percentUnavailable = mode === "percent" && value.percentOfSales === null;
@@ -88,7 +100,7 @@ function LineCell({
   if (isNoData || percentUnavailable) {
     return (
       <TableCell className={`text-right text-muted-foreground ${className}`}>
-        <NoteTip note={note}>
+        <NoteTip note={note} inspect={inspect}>
           <span aria-label="Sin datos">—</span>
         </NoteTip>
       </TableCell>
@@ -97,7 +109,7 @@ function LineCell({
 
   return (
     <TableCell className={`text-right ${SOURCE_CLASS[value.source]} ${className}`}>
-      <NoteTip note={note}>
+      <NoteTip note={note} inspect={inspect}>
         <span>
           {mode === "money" ? formatCents(value.cents) : `${value.percentOfSales}%`}
           {MARKER[value.source] && (
@@ -116,9 +128,11 @@ function LineCell({
 function ProfitCell({
   value,
   approximate,
+  inspect,
 }: {
   value: PnLLine;
   approximate: boolean;
+  inspect?: Inspect;
 }) {
   const isNoData = value.source === "NO_DATA";
   return (
@@ -131,7 +145,7 @@ function ProfitCell({
             : "bg-destructive/5 text-destructive"
       }`}
     >
-      <NoteTip note={value.note}>
+      <NoteTip note={value.note} inspect={inspect}>
         <span>
           {isNoData ? (
             <span aria-label="Sin datos">—</span>
@@ -234,14 +248,14 @@ function commissionsOf(b: BranchPnLItem): PnLLine {
 }
 
 /** Celda de comisiones con el desglose por canal en el tooltip. */
-function CommissionCell({ item }: { item: BranchPnLItem }) {
+function CommissionCell({ item, inspect }: { item: BranchPnLItem; inspect?: Inspect }) {
   const value = commissionsOf(item);
   const breakdown = item.commissionsByChannel ?? [];
 
   if (value.source === "NO_DATA") {
     return (
       <TableCell className="text-right text-muted-foreground">
-        <NoteTip note={value.note}>
+        <NoteTip note={value.note} inspect={inspect}>
           <span aria-label="Sin datos">—</span>
         </NoteTip>
       </TableCell>
@@ -268,7 +282,7 @@ function CommissionCell({ item }: { item: BranchPnLItem }) {
 
   return (
     <TableCell className={`text-right ${SOURCE_CLASS[value.source]}`}>
-      <NoteTip note={[detalle, value.note].filter(Boolean).join(" — ")}>
+      <NoteTip note={[detalle, value.note].filter(Boolean).join(" — ")} inspect={inspect}>
         <span>
           {formatCents(value.cents)}
           {MARKER[value.source] && (
@@ -317,6 +331,9 @@ function PrimeCostCell({
 }
 
 export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
+  const detailTrigger = useRef<HTMLElement | null>(null);
+  const pnlRequest = useRef(0);
+  const [detail, setDetail] = useState<{ branch: BranchPnLItem; line: PnlDetailLine; period: typeof period } | null>(null);
   const [pnlData, setPnlData] = useState<BranchPnLItem[]>([]);
   const [period, setPeriod] = useState<{ startDate: string; endDate: string; days: number } | null>(
     null,
@@ -330,6 +347,13 @@ export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
     dir: "asc" | "desc";
   } | null>(null);
   const [page, setPage] = useState(1);
+  const inspect = (branch: BranchPnLItem, line: PnlDetailLine): Inspect => ({
+    label: `Ver detalle de ${line === "sales" ? "ventas" : line === "foodCost" ? "food cost" : line === "labor" ? "nómina" : line === "operatingExpenses" ? "gastos operativos" : line === "commissions" ? "comisiones" : "utilidad operativa"} de ${branch.branchName}`,
+    onSelect: () => {
+      detailTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setDetail({ branch, line, period });
+    },
+  });
   // El propósito del bloque es ver las sucursales juntas; partir 6-15 filas en
   // páginas de cinco rompe justo la comparación que lo justifica.
   const pageSize = 15;
@@ -448,6 +472,7 @@ export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
   };
 
   const loadPnL = useCallback(async (range?: DateRange) => {
+    const request = ++pnlRequest.current;
     setLoading(true);
     setFailed(false);
     try {
@@ -460,6 +485,7 @@ export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
       }
       const res = await fetch(url.toString());
       const json = await res.json();
+      if (request !== pnlRequest.current) return;
       if (!res.ok || !json.success) {
         setFailed(true);
         return;
@@ -467,15 +493,17 @@ export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
       setPnlData(json.data?.branches ?? []);
       setPeriod(json.data?.meta?.period ?? null);
     } catch (err) {
+      if (request !== pnlRequest.current) return;
       console.error("Failed to load P&L data:", err);
       setFailed(true);
     } finally {
-      setLoading(false);
+      if (request === pnlRequest.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     loadPnL(dateRange);
+    return () => { pnlRequest.current += 1; };
   }, [loadPnL, dateRange]);
 
   // Totales del grupo. Solo se suman los renglones que tienen datos: un NO_DATA
@@ -612,7 +640,7 @@ export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
           <CardDescription className="text-xs mt-0.5 max-w-[70ch]">
             Utilidad Operativa = Ventas − Alimentos − Merma − Nómina − Gastos Operativos −
             Comisiones de canal. La merma del período está en el tooltip de Food Cost; el desglose
-            de comisiones por canal, en el de Comisiones.
+            de comisiones por canal, en el de Comisiones. Selecciona una cifra para consultar su detalle, merma y caja chica.
             {period && (
               <>
                 {" "}
@@ -716,7 +744,7 @@ export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 text-xs">
-                    <TableHead className="sticky left-0 z-10 bg-muted/50">Sucursal</TableHead>
+                    <TableHead className="md:sticky md:left-0 md:z-10 bg-muted/50">Sucursal</TableHead>
                     <SortableHead
                       label="Venta Neta"
                       active={sort?.key === "sales"}
@@ -758,7 +786,7 @@ export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
                 <TableBody>
                   {/* Consolidado del grupo */}
                   <TableRow className="bg-primary/5 hover:bg-primary/10 font-bold text-xs border-b-2 border-primary/20">
-                    <TableCell className="sticky left-0 z-10 bg-primary/5 font-bold text-foreground flex items-center gap-1.5">
+                    <TableCell className="md:sticky md:left-0 md:z-10 bg-primary/5 font-bold text-foreground flex items-center gap-1.5">
                       <span>TOTAL GRUPO</span>
                       <Badge variant="outline" className="text-xs py-0 font-medium text-foreground bg-background">
                         {groupCount} sucursales
@@ -869,7 +897,7 @@ export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
                         : `Caja chica del período: ${formatCents(item.pettyCash.cents)}. Ya está restada de la utilidad; no pasa por la cola de autorización de gastos.`;
                     return (
                       <TableRow key={item.branchId} className="hover:bg-muted/40 focus-within:bg-muted/40 transition text-xs">
-                        <TableCell className="sticky left-0 z-10 bg-background font-medium">
+                        <TableCell className="md:sticky md:left-0 md:z-10 bg-background font-medium">
                           <Link
                             href={`/dashboard/branches?branchId=${item.branchId}`}
                             title={item.branchName}
@@ -878,18 +906,19 @@ export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
                             {item.branchName}
                           </Link>
                         </TableCell>
-                        <LineCell value={item.sales} mode="money" className="font-medium" />
-                        <LineCell value={item.foodCost} mode="percent" extraNote={mermaNote} />
-                        <LineCell value={item.labor} mode="percent" />
+                        <LineCell value={item.sales} mode="money" className="font-medium" inspect={inspect(item, "sales")} />
+                        <LineCell value={item.foodCost} mode="percent" extraNote={mermaNote} inspect={inspect(item, "foodCost")} />
+                        <LineCell value={item.labor} mode="percent" inspect={inspect(item, "labor")} />
                         <PrimeCostCell foodCost={item.foodCost} labor={item.labor} />
                         <LineCell
                           value={item.operatingExpenses}
                           mode="money"
                           className="font-medium"
                           extraNote={cajaChicaNote}
+                          inspect={inspect(item, "operatingExpenses")}
                         />
-                        <CommissionCell item={item} />
-                        <ProfitCell value={item.operatingProfit} approximate={approximate} />
+                        <CommissionCell item={item} inspect={inspect(item, "commissions")} />
+                        <ProfitCell value={item.operatingProfit} approximate={approximate} inspect={inspect(item, "operatingProfit")} />
                         <TableCell className="text-center">
                           <ConfidenceDot
                             approximate={approximate}
@@ -963,6 +992,15 @@ export function PnlBranchTable({ dateRange }: { dateRange?: DateRange }) {
                 </div>
               </div>
             )}
+          </div>
+        )}
+        {!loading && !failed && detail && period && detail.period === period && (
+          <div id="pnl-source-detail">
+            <PnlSourceDetail key={`${detail.branch.branchId}:${detail.line}:${period.startDate}:${period.endDate}`}
+              branchId={detail.branch.branchId} branchName={detail.branch.branchName} line={detail.line}
+              period={period} expected={detail.branch[detail.line] ?? noDataLine("Sin datos")}
+              onLineChange={line => setDetail({ ...detail, line })}
+              onClose={() => { setDetail(null); requestAnimationFrame(() => detailTrigger.current?.focus()); }} />
           </div>
         )}
       </CardContent>

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, uuid, integer, pgEnum, uniqueIndex, index, foreignKey, date } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, integer, pgEnum, unique, uniqueIndex, index, foreignKey, date } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { companies, branches } from "./core";
 import { users } from "./auth";
@@ -373,6 +373,7 @@ export const companyBankAccounts = pgTable("company_bank_accounts", {
   accountUnique: uniqueIndex("company_bank_accounts_active_number_unique")
     .on(table.companyId, table.accountFingerprint)
     .where(sql`${table.active}`),
+  companyIdUnique: unique("company_bank_accounts_company_id_unique").on(table.companyId, table.id),
   companyIdx: index("company_bank_accounts_company_idx").on(table.companyId),
 }));
 

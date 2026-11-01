@@ -5,6 +5,46 @@
 **Baseline de producción:** `HEAD 3b27ac4` (2026-10-28). El árbol local tiene correcciones sin commitear.
 **Tracker:** task list de sesión (#4–#19) + `tasks/todo-auditoria-frontend.md`
 
+## Estado revisado — 30 de octubre de 2026
+
+**Seguimiento en producción por rol:** la auditoría posterior con las ocho cuentas del seed detectó hallazgos adicionales y fallos de render para GERENTE/SUPERVISOR que no quedan cubiertos por el cierre local anterior. Consultar `tasks/evidencia/frontend-roles-2026-10-30/README.md` antes de considerar listo el despliegue por rol. La tabla de abajo acredita implementación/evidencia local previa; no certifica el funcionamiento actual de todos los roles en producción.
+
+La implementación de los 16 hallazgos ya está en `HEAD e2e8e9a`. El plan original de abajo conserva los criterios de aceptación de partida; sus casillas sin marcar **no representan trabajo de código pendiente**. El seguimiento actualizado está en `tasks/todo-auditoria-frontend.md` y la validación local documentada en `tasks/evidencia/frontend-demo-2026-10-29/verificacion-local-2026-10-29.md`.
+
+| Hallazgo | Implementación comprobada | Commit |
+|---|---|---|
+| SCH-01 | Omite filtros ausentes y valida valores inválidos | `279b3ca` |
+| SCH-02 | Lista y KPIs consumen `body.data` y muestran errores | `279b3ca` |
+| SCH-03 | Schedules consume la sucursal del contexto global | `279b3ca`, `21825a1` |
+| PAY-01 | Botón y submit exigen `canStamp`; título según estado | `4b48b43` |
+| LIVE-01 | Hora de negocio y tasa de puntualidad coherente con la matriz | `8834230`, `a052660` |
+| PAY-02 | Tabla y modal formatean fechas civiles con `parseCivilDate` | `4b48b43` |
+| EVID-01 | Filtro de sucursal, resumen y total antes de paginar; imágenes con respaldo | `e86b93f`, `f4fb768` |
+| NAV-01 | Selector global escribe cookie y llama a `router.refresh()`; la llamada ya existía antes de esta auditoría | `6d32866` |
+| RBAC-01 | READONLY sin CTA; acceso rechazado con 403 | `2f1638f` |
+| LAB-01 | Estado sin dotación mediante `hasScheduledToday` | `f4e8b2a` |
+| LAB-02 | Altas por `employeeProfiles.hireDate` | `f4e8b2a` |
+| I18N-01 | Componentes de empleados usan mensajes de `next-intl` | `708aade` |
+| SEED-01 | Omite instancias con vencimiento posterior a `now` | `1d67aa7` |
+| SCH-05 | KPIs con traducciones en español | `c5eef54` |
+| SCH-04 | Filtro de asignación incluye `MANUAL` | `c5eef54` |
+| OBS-01 | Sin 400 ni reintentos fallidos en el recorrido local documentado | `e2e8e9a` (evidencia) |
+
+### Trabajo pendiente real
+
+- [ ] Revisión humana de los checkpoints A y C y del lote que se publicará.
+- [ ] Preparar y validar el preview del lote aprobado; revisar los cambios ajenos que existen en el árbol antes de seleccionar archivos.
+- [ ] Obtener autorización explícita para publicar a producción, como requiere este plan.
+- [ ] Tras publicar, repetir el recorrido con SUPER_ADMIN, GERENTE y READONLY y dos sucursales, contrastar UI/API y registrar consola/red del despliegue.
+
+La verificación previa es **local**, no acredita producción ni un preview. La última evidencia identifica producción en `3b27ac4`; no se ha consultado su versión actual en esta revisión. No hace falta resiembrar ni ejecutar timbrado o dispersión para completar la comprobación frontend.
+
+Comprobación repetida el 30 de octubre: los seis archivos unitarios de las áreas auditadas pasan, **57/57 pruebas**. NAV-01 ya tenía `router.refresh()` en el historial anterior al baseline; su cierre se sustenta en el recorrido local registrado, no en una nueva modificación de ese control durante la auditoría.
+
+## Plan original y criterios de aceptación
+
+Las siguientes fases describen la situación inicial del 29 de octubre. Para el estado posterior a su implementación, usar la tabla anterior y el tracker enlazado.
+
 ## Overview
 
 Dieciséis hallazgos reproducidos en producción: 5 P1, 8 P2 y 3 P3. Cuatro ya tienen corrección escrita en el árbol local (PAY-01, LIVE-01, EVID-01, PAY-02) y solo requieren commit, despliegue y verificación. El resto requiere código nuevo. El plan se ordena por severidad y por dependencia real: primero la pantalla de schedules, que está completamente rota; después los riesgos fiscales y los fixes listos; luego alcance por sucursal y rol, estados engañosos, i18n y datos demo.

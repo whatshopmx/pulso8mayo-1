@@ -1,0 +1,106 @@
+{
+  "generatedAt": "2026-10-29T15:28:45.002Z",
+  "counts": {
+    "companies": 1,
+    "branches": 3,
+    "users": 8,
+    "credentials": 8,
+    "profiles": 7,
+    "inventory_items": 30,
+    "inventory_batches": 78,
+    "recipes": 7,
+    "workflow_templates": 30,
+    "workflow_instances": 622,
+    "workflow_steps": 6939,
+    "shifts": 104,
+    "attendance": 104,
+    "purchase_orders": 5,
+    "receipts": 2,
+    "sales_cuts": 93,
+    "payroll_runs": 2,
+    "aguinaldo_slips": 6,
+    "canonical_evidence": 1312,
+    "bank_transactions": 12,
+    "gateway_transactions": 14,
+    "kpi_measurements": 21,
+    "exceptions": 18
+  },
+  "checks": {
+    "foreign_companies": 0,
+    "missing_invite_tokens": 0,
+    "missing_step_definitions": 0,
+    "waste_evidence_candidates": 0,
+    "false_stamps": 0,
+    "invalid_attendance": 0,
+    "invalid_approvals": 0,
+    "invalid_cuts": 0,
+    "missing_role_branch": 0
+  },
+  "credentials": [
+    {
+      "email": "ana@pulso.mx",
+      "role": "SUPERVISOR",
+      "valid": true
+    },
+    {
+      "email": "carlos@pulso.mx",
+      "role": "SUPER_ADMIN",
+      "valid": true
+    },
+    {
+      "email": "diana@pulso.mx",
+      "role": "READONLY",
+      "valid": true
+    },
+    {
+      "email": "juan@pulso.mx",
+      "role": "GERENTE",
+      "valid": true
+    },
+    {
+      "email": "luisa@pulso.mx",
+      "role": "EMPLEADO",
+      "valid": true
+    },
+    {
+      "email": "maria@pulso.mx",
+      "role": "ADMIN",
+      "valid": true
+    },
+    {
+      "email": "pedro@pulso.mx",
+      "role": "EMPLEADO",
+      "valid": true
+    },
+    {
+      "email": "roberto@pulso.mx",
+      "role": "EMPLEADO",
+      "valid": true
+    }
+  ],
+  "runs": [
+    {
+      "period_start": "2026-10-22",
+      "period_end": "2026-10-28",
+      "status": "DRAFT",
+      "aguinaldo_fiscal_year": null
+    },
+    {
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "status": "DRAFT",
+      "aguinaldo_fiscal_year": 2026
+    }
+  ],
+  "nominaPolicies": {
+    "count": 4
+  },
+  "migrations": {
+    "count": 137,
+    "latest": "1793211322963"
+  },
+  "evidenceBackfill": {
+    "candidates": 0
+  },
+  "piiEncryptionEnabled": false
+}

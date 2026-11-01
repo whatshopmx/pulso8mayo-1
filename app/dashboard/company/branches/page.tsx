@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, MapPin, Users, UserCog, Building2, Mail } from "lucide-react";
+import { Plus, MapPin, Users, UserCog, Building2, Mail, FileCheck2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { isRegistroPatronal } from "@/lib/services/compliance/imss-registro";
 
 interface Manager {
     id: string;
@@ -29,6 +30,7 @@ interface Branch {
     name: string;
     address: string | null;
     active: boolean;
+    imssRegistroPatronal?: string | null;
     inviteToken?: string;
     manager?: Manager | null;
     _count?: {
@@ -159,6 +161,12 @@ export default function BranchesPage() {
                                     <Users className="h-4 w-4" />
                                     <span>{branch._count?.employees || 0} empleados</span>
                                 </div>
+                                {isRegistroPatronal(branch.imssRegistroPatronal)
+                                    ? <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <FileCheck2 className="h-4 w-4" />
+                                        <span className="font-mono text-xs">{branch.imssRegistroPatronal}</span>
+                                    </div>
+                                    : <Badge variant="secondary" className="w-fit">Sin registro patronal</Badge>}
                             </CardContent>
                         </div>
                         <div className="px-6 pb-4">

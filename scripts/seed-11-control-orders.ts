@@ -53,9 +53,12 @@ export async function main() {
   const ccMap = new Map(insertedCCs.map(c => [c.code, c.id]));
 
   console.log("Inserting monthly branch budgets...");
-  const currentMonth = new Date().toISOString().slice(0, 7); // e.g. "2026-08"
-  const prevMonthDate = new Date();
-  prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+  const now = new Date();
+  const currentMonth = now.toISOString().slice(0, 7); // e.g. "2026-08"
+  const prevMonthDate = new Date(now);
+  // Match the UTC month key and avoid overflowing September 31 into October.
+  prevMonthDate.setUTCDate(1);
+  prevMonthDate.setUTCMonth(prevMonthDate.getUTCMonth() - 1);
   const prevMonth = prevMonthDate.toISOString().slice(0, 7);
 
   const branchesList = [BRANCH_CONDESA, BRANCH_POLANCO, BRANCH_ROMA];

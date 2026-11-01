@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
             bajas,
             summary,
             branches: branchesAll,
-            permissions: { canAdopt: access.canAcknowledge },
+            permissions: { canAdopt: access.canAcknowledge, canConfigure: access.canConfigure },
         });
     } catch (error) {
         return imssError(error);

@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { isRegistroPatronal } from '@/lib/services/compliance/imss-registro';
 
-const imssRegistroPatronalSchema = z.string().trim().toUpperCase()
+/**
+ * Contrato del registro patronal, exportado para que `PATCH /api/imss/config`
+ * use exactamente la misma regla que la edición de sucursal: dos validaciones
+ * del mismo dato acaban aceptando valores distintos. `''` limpia a `NULL`.
+ */
+export const imssRegistroPatronalSchema = z.string().trim().toUpperCase()
   .refine(value => value === '' || isRegistroPatronal(value), 'Registro patronal: 11 caracteres, primero letra o número y después 10 dígitos')
   .transform(value => value || null).nullable().optional();
 

@@ -56,6 +56,10 @@ async function prepare(page: Page, options = { saved: true, canAcknowledge: true
             { userId: 'caro', name: 'Caro Sin Contrato', nss: '12345678902', branchName: 'Centro', baseSalaryPesos: null, sdiPesos: null, contractId: null, yearsOfService: 0, blockedReasons: ['SIN_SALARIO_BASE'] },
         ], window: { key: '2026-09', start: '2026-09-01', end: '2026-10-31' } } });
         if (url.pathname === '/api/imss/summary') return route.fulfill({ json: { stats: { totalEmployees: 5, requiredMovements: 6, confirmedMovements: 1, complianceRate: 17, pendingAltas: 4, pendingBajas: 1, overdueAltas: 2, overdueBajas: 0 } } });
+        // Configuración del arranque (T6): con la sucursal configurada no se oculta la tabla.
+        if (url.pathname === '/api/imss/config') return route.fulfill({ json: { mode: 'POR_CONFIGURAR', primaRiesgoTrabajo: '0.5000',
+            branches: [{ id: branchId, name: 'Centro', imssRegistroPatronal: 'A1234567890', configured: true, active: true, employees: 5 }],
+            configuredCount: 1, canConfigure: true, permissions: { canConfigure: true } } });
         if (url.pathname === '/api/imss/files' && method === 'POST') {
             generated = true;
             if (body!.layout === 'SUA') {

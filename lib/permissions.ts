@@ -16,6 +16,7 @@ export const RESOURCE_ACTIONS = {
     workflows: [...CRUD, 'execute', 'build'],
     inventory: CRUD,
     reports: [...CRUD, 'export'],
+    accounting: ['read', 'create', 'update', 'delete', 'publish', 'reverse'],
     settings: CRUD,
     billing: CRUD,
     exceptions: CRUD,
@@ -82,6 +83,7 @@ export function roleIsAtLeast(userRole: string, requiredRole: string): boolean {
 
 export const PERMISSIONS: PermissionMatrix = {
     'SUPER_ADMIN': {
+        'accounting': ['read', 'create', 'update', 'delete', 'publish', 'reverse'],
         // Autoridad explícita; no bypass para recursos/acciones desconocidos.
         'users': ['manage'],
         'companies': ['manage'],
@@ -99,6 +101,7 @@ export const PERMISSIONS: PermissionMatrix = {
         'profile': ['read', 'update']
     },
     'OWNER': {
+        'accounting': ['read', 'create', 'update', 'delete', 'publish', 'reverse'],
         'users': ['manage'],
         'companies': ['manage'],
         'branches': ['manage'],
@@ -115,6 +118,7 @@ export const PERMISSIONS: PermissionMatrix = {
         'profile': ['read', 'update']
     },
     'ADMIN': {
+        'accounting': ['read', 'create', 'update', 'delete'],
         'users': ['manage'],
         'companies': ['read', 'update'],
         'branches': ['manage'],
@@ -131,6 +135,7 @@ export const PERMISSIONS: PermissionMatrix = {
         'profile': ['read', 'update']
     },
     'GERENTE': {
+        'accounting': ['read'],
         'users': ['read', 'create', 'update'], // Can manage branch users
         'companies': ['read'],
         'branches': ['read', 'update'],
@@ -145,6 +150,7 @@ export const PERMISSIONS: PermissionMatrix = {
         'profile': ['read', 'update']
     },
     'SUPERVISOR': {
+        'accounting': ['read'],
         'users': ['read'],
         'companies': ['read'],
         'branches': ['read'],
@@ -171,6 +177,7 @@ export const PERMISSIONS: PermissionMatrix = {
         'profile': ['read', 'update']
     },
     'READONLY': {
+        'accounting': ['read'],
         'users': ['read'],
         'companies': ['read'],
         'branches': ['read'],

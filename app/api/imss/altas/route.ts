@@ -209,7 +209,7 @@ export async function GET(req: NextRequest) {
             altas,
             summary,
             branches: branchesAll,
-            permissions: { canAdopt: access.canAcknowledge },
+            permissions: { canAdopt: access.canAcknowledge, canConfigure: access.canConfigure },
         });
     } catch (error) {
         return imssError(error);

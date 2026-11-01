@@ -6,6 +6,6 @@ export async function GET(req: NextRequest) {
     try {
         const access = await imssAccess();
         const stats = await ImssMovementService.getDashboardSummary(access.companyId, imssBranchScope(req, access.branchScope));
-        return NextResponse.json({ stats, permissions: { canAdopt: access.canAcknowledge, canAcknowledge: access.canAcknowledge } }, { headers: { 'Cache-Control': 'no-store' } });
+        return NextResponse.json({ stats, permissions: { canAdopt: access.canAcknowledge, canAcknowledge: access.canAcknowledge, canConfigure: access.canConfigure } }, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) { return imssError(error); }
 }

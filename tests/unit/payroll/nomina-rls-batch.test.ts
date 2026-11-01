@@ -28,10 +28,13 @@ const journal = JSON.parse(readFileSync(JOURNAL, "utf8")) as {
 };
 
 describe("OPS-02.nomina.E — migración 0123 de RLS de nómina", () => {
-  it("está inventariada en el journal con el siguiente índice", () => {
+  it("conserva su índice y registro único al añadir migraciones posteriores", () => {
     const entry = journal.entries.find((item) => item.tag === "0123_rls_nomina");
     expect(entry).toMatchObject({ idx: 123, breakpoints: true });
-    expect(journal.entries.at(-1)?.tag).toBe("0123_rls_nomina");
+    const position = journal.entries.findIndex(item => item.tag === "0123_rls_nomina");
+    expect(position).toBeGreaterThan(0);
+    expect(journal.entries[position - 1].idx).toBe(122);
+    expect(journal.entries.filter(item => item.tag === "0123_rls_nomina")).toHaveLength(1);
   });
 
   it("habilita RLS en las cuatro tablas del lote y en ninguna otra", () => {

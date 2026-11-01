@@ -14,7 +14,7 @@ import {
  * - `hasPermission` con `'exceptions'`: SUPER_ADMIN/OWNER/ADMIN gestionan,
  *   GERENTE/SUPERVISOR leen+actualizan, EMPLEADO/READONLY solo leen.
  * - No regresión: conserva el catálogo histórico más las capacidades explícitas
- *   de RP-01; el permiso de exceptions no cambia.
+ *   de RP-01 y FC-07; el permiso de exceptions no cambia.
  */
 
 const ROLES: Role[] = [
@@ -121,11 +121,15 @@ const RP01_RESOURCES: Record<Role, Resource[]> = {
   EMPLEADO: ['incidents', 'profile'],
   READONLY: ['incidents', 'profile'],
 };
+const FC07_RESOURCES: Record<Role, Resource[]> = {
+  SUPER_ADMIN:["accounting"], OWNER:["accounting"], ADMIN:["accounting"],
+  GERENTE:["accounting"], SUPERVISOR:["accounting"], READONLY:["accounting"], EMPLEADO:[],
+};
 
 describe("matriz de recursos — no regresión (Task 2 + RP-01)", () => {
   it.each(ROLES)("%s conserva exactamente sus recursos", (role) => {
     expect(Object.keys(PERMISSIONS[role]).sort()).toEqual(
-      [...EXPECTED_RESOURCES[role], ...RP01_RESOURCES[role]].sort(),
+      [...EXPECTED_RESOURCES[role], ...RP01_RESOURCES[role], ...FC07_RESOURCES[role]].sort(),
     );
   });
 
@@ -133,6 +137,17 @@ describe("matriz de recursos — no regresión (Task 2 + RP-01)", () => {
     for (const role of ROLES) {
       expect(PERMISSIONS[role], role).toBeDefined();
     }
+  });
+});
+
+describe("FC-07 — capacidades contables explícitas",()=>{
+  it.each(ROLES)("%s tiene exclusivamente las capacidades de su perfil",role=>{
+    const expected=role==="OWNER"||role==="SUPER_ADMIN"?["read","create","update","delete","publish","reverse"]:
+      role==="ADMIN"?["read","create","update","delete"]:role==="EMPLEADO"?[]:["read"];
+    for(const action of ["read","create","update","delete","publish","reverse"] as const){
+      expect(hasPermission(role,"accounting",action),`${role}:${action}`).toBe(expected.includes(action));
+    }
+    expect(hasPermission(role,"accounting","manage")).toBe(false);
   });
 });
 

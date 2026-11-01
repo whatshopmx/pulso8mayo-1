@@ -16,16 +16,24 @@ import { useBranch } from '@/lib/branch-context';
 import { todayInMx } from '@/lib/services/compliance/imss-rules';
 import { ImssSubNav } from './imss-sub-nav';
 import { ImssAdoptionDialog } from './imss-adoption-dialog';
-import { ImssLoading, ImssNotice, ImssStateBadge } from './imss-status';
-import { generateImssFile, imssDate, imssQuery, imssReason, imssTerminationReason, useImssResource, type ImssListSummary, type ImssMovementRow } from './imss-client';
+import { ImssBlockedReasons, ImssConfigStartBanner, ImssLoading, ImssNotice, ImssStateBadge, useImssConfig } from './imss-status';
+import { generateImssFile, imssDate, imssQuery, imssTerminationReason, useImssResource, type ImssListSummary, type ImssMovementRow } from './imss-client';
 
-interface MovementList { altas?: ImssMovementRow[]; bajas?: ImssMovementRow[]; summary: ImssListSummary; branches: { id: string; name: string }[]; permissions: { canAdopt: boolean } }
+interface MovementList { altas?: ImssMovementRow[]; bajas?: ImssMovementRow[]; summary: ImssListSummary; branches: { id: string; name: string }[]; permissions: { canAdopt: boolean; canConfigure?: boolean } }
 export function ImssMovementsPage({ type }: { type: 'ALTA' | 'BAJA' }) {
     const { selectedBranchId } = useBranch();
     const resource = useImssResource<MovementList>(`/api/imss/${type === 'ALTA' ? 'altas' : 'bajas'}${imssQuery(selectedBranchId)}`);
+    // T6: sin ningún registro patronal no hay "deuda": hay un dato que falta.
+    // Pedirlo antes de pintar la tabla evita N filas bloqueadas por el mismo motivo.
+    const config = useImssConfig();
+    const loading = resource.loading || config.loading;
+    const noBranchesConfigured = !!config.data && config.data.configuredCount === 0;
     return <div className="space-y-6"><PageHeader title={type === 'ALTA' ? 'Altas IMSS' : 'Bajas IMSS'} description="Prepara movimientos y confirma su estado con el acuse. Plazo de aviso: cinco días hábiles." icon={type === 'ALTA' ? UserPlus : UserMinus} /><ImssSubNav /><ImssNotice />
         {type === 'BAJA' && <Alert><AlertDescription>Revisa el finiquito o liquidación final con la fecha de baja capturada para cada persona.</AlertDescription></Alert>}
-        {resource.loading ? <ImssLoading /> : resource.error ? <ErrorState message={resource.error} onRetry={resource.refresh} /> : resource.data ? <MovementTable key={`${type}-${selectedBranchId || 'all'}`} type={type} data={resource.data} refresh={resource.refresh} /> : null}
+        {loading ? <ImssLoading /> : resource.error ? <ErrorState message={resource.error} onRetry={resource.refresh} />
+            : !resource.data ? null
+                : noBranchesConfigured && config.data ? <ImssConfigStartBanner config={config.data} />
+                    : <MovementTable key={`${type}-${selectedBranchId || 'all'}`} type={type} data={resource.data} refresh={resource.refresh} />}
     </div>;
 }
 function MovementTable({ type, data, refresh }: { type: 'ALTA' | 'BAJA'; data: MovementList; refresh: () => void }) {
@@ -54,7 +62,7 @@ function MovementTable({ type, data, refresh }: { type: 'ALTA' | 'BAJA'; data: M
         <Card><CardHeader><CardTitle>{type === 'ALTA' ? 'Altas por preparar y confirmar' : 'Bajas por preparar y confirmar'}</CardTitle><CardDescription>Los movimientos vencidos con datos completos siguen siendo seleccionables.</CardDescription></CardHeader><CardContent className="p-0">
             {!visible.length ? <p className="p-6 text-sm text-muted-foreground">No hay movimientos pendientes en este alcance.</p> : <Table className="min-w-[48rem]"><caption className="sr-only">Movimientos IMSS de {type === 'ALTA' ? 'alta' : 'baja'}</caption><TableHeader><TableRow><TableHead className="w-12"><Checkbox aria-label="Seleccionar todos los movimientos listos" disabled={busy || !ready.length} checked={ready.length > 0 && ids.size === ready.length ? true : ids.size ? 'indeterminate' : false} onCheckedChange={() => setIds(ids.size === ready.length ? new Set() : new Set(ready.map(row => row.userId)))} /></TableHead><TableHead>Persona y sucursal</TableHead><TableHead>NSS</TableHead><TableHead>{type === 'ALTA' ? 'Fecha de alta' : 'Fecha y motivo de baja'}</TableHead><TableHead>Días hábiles</TableHead><TableHead>Estado IMSS</TableHead><TableHead>Preparación</TableHead></TableRow></TableHeader><TableBody>{visible.map(row => <TableRow key={row.userId}>
                 <TableCell><Checkbox aria-label={`Seleccionar ${row.name}`} checked={ids.has(row.userId)} disabled={busy || row.status !== 'READY'} onCheckedChange={checked => setIds(previous => { const next = new Set(previous); if (checked) next.add(row.userId); else next.delete(row.userId); return next; })} /></TableCell>
-                <TableCell><p className="font-medium">{row.name}</p><p className="text-xs text-muted-foreground">{row.branchName || 'Sin sucursal'} · {row.employeeNumber || 'Sin número'}</p>{row.blockedReasons.length > 0 && <p className="max-w-xs text-xs text-destructive">{row.blockedReasons.map(imssReason).join(' · ')}</p>}</TableCell><TableCell className="font-mono text-xs">{row.nss || '—'}</TableCell>
+                <TableCell><p className="font-medium">{row.name}</p><p className="text-xs text-muted-foreground">{row.branchName || 'Sin sucursal'} · {row.employeeNumber || 'Sin número'}</p><ImssBlockedReasons reasons={row.blockedReasons} branchName={row.branchName} canConfigure={data.permissions.canConfigure} /></TableCell><TableCell className="font-mono text-xs">{row.nss || '—'}</TableCell>
                 <TableCell>{imssDate(type === 'ALTA' ? row.hireDate : row.terminationDate)}{type === 'BAJA' && <p className="max-w-xs text-xs text-muted-foreground">{imssTerminationReason(row.terminationReason)}</p>}</TableCell><TableCell>{type === 'ALTA' ? row.daysSinceHire : row.daysSinceTermination}{row.overdue && <Badge variant="destructive" className="ml-2">Vencido</Badge>}</TableCell><TableCell><ImssStateBadge status={row.imssStatus} /></TableCell><TableCell>{row.status === 'READY' ? 'Listo para archivo' : row.imssStatus === 'EN_ARCHIVO' ? 'Registrar acuse' : row.imssStatus === 'CONFIRMADO' ? 'Confirmación registrada' : 'Completar datos'}</TableCell>
             </TableRow>)}</TableBody></Table>}
         </CardContent></Card>

@@ -4,10 +4,10 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, FileText, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/shared';
-import { ImssSummaryCards } from '@/components/compliance/imss-status';
+import { ImssConfigBanner, ImssSummaryCards } from '@/components/compliance/imss-status';
 import { ImssSubNav } from '@/components/compliance/imss-sub-nav';
 export default function IMSSPage() {
-    return <div className="space-y-6"><PageHeader title="Integración IMSS" description="Estado afiliatorio, movimientos y archivos de trabajo" icon={ShieldCheck} /><ImssSubNav /><ImssSummaryCards />
+    return <div className="space-y-6"><PageHeader title="Integración IMSS" description="Estado afiliatorio, movimientos y archivos de trabajo" icon={ShieldCheck} /><ImssSubNav /><ImssConfigBanner /><ImssSummaryCards />
             <Card>
                 <CardHeader>
                     <CardTitle>Gestión IMSS</CardTitle>

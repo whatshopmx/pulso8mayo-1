@@ -54,9 +54,14 @@ export function NavCompany({
   const tErrors = useTranslations("errors")
 
   const isBranchScoped = getRoleScope(userRole as Role) !== 'COMPANY'
-  const displayBranches = isBranchScoped && userBranchId
-    ? propBranches.filter(b => b.id === userBranchId)
-    : propBranches
+  // Identidad estable: el efecto de abajo llama a `setBranches`, y un `filter`
+  // nuevo en cada render encadena render → efecto → estado → render sin fin.
+  const displayBranches = React.useMemo(
+    () => (isBranchScoped && userBranchId
+      ? propBranches.filter(b => b.id === userBranchId)
+      : propBranches),
+    [isBranchScoped, userBranchId, propBranches]
+  )
 
   const company = propCompany.name ? propCompany : { name: t("selectBranch"), plan: "" }
 

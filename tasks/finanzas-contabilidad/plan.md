@@ -1,6 +1,6 @@
 # Plan: trazabilidad y contabilidad integrada de Pulso
 
-Fecha: 2026-10-30. Estado: FC-01 inventariado; contrato propuesto para desarrollo y revisión funcional pendiente antes de adaptadores.
+Fecha: 2026-11-01. Estado: FC-01–04 completadas técnicamente y verificadas; FC-05–07 con esquema, guardas, servicios, API y pantalla probados en base aislada (sin migrar la base operativa). FC-07 añade listado/detalle por sucursal, capacidades separadas y reversa/reemplazo con motivo e historial, deshabilitado salvo `ACCOUNTING_REVIEW_ENABLED=1`; ver evidencia y resultados globales en el checklist. Siguiente incremento FC-08: apertura balanceada y reglas versionadas con fecha efectiva. Contrato sintético validado para desarrollo; revisión funcional de las reglas antes de adaptadores y revisión contable del piloto pendientes según la matriz.
 Checklist de ejecución: [todo.md](todo.md).
 Matriz y evidencia de FC-01: [matriz-fuentes.md](matriz-fuentes.md). Confirmado por el propietario: cada `companyId` corresponde a una razón social; todavía no existen clientes. Contrato de desarrollo sintético validado en esta sesión: cortes como fuente de ingresos, gastos aprobados con fecha explícita, pagos separados y plantilla revisable por empresa. La apertura real y la revisión del primer piloto se resolverán cuando exista esa empresa.
 
