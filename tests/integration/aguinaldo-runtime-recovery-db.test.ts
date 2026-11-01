@@ -10,6 +10,7 @@ import { payrollRuns, payrollPayslips } from "@/lib/db/schema";
 import * as schema from "@/lib/db/schema";
 import type { AguinaldoEmpleadoSnapshot, AguinaldoSnapshotCabecera } from "@/lib/services/aguinaldo-snapshot";
 import { RUNTIME_ROLE, runtimeUrl } from "./helpers/runtime-role";
+import { applyNominaRlsBatch } from "./helpers/nomina-rls-batch";
 
 type Database = ReturnType<typeof drizzle>;
 const state = vi.hoisted(() => ({ context: null as AsyncLocalStorage<Database> | null }));
@@ -127,7 +128,7 @@ function executeOrdinary(actor: number, companyId = companyA) {
   return state.context!.run(actors[actor], () => executePayrollRun(companyId, "2026-01-01", "2026-01-15", "autoriza-ordinaria"));
 }
 
-describe("OPS-02.nomina.A — recuperación con login runtime y políticas privadas", () => {
+describe("OPS-02.nomina.F.1 — recorridos runtime con el lote real 0123", () => {
   beforeAll(async () => {
     const target = new URL(process.env.TEST_DATABASE_URL!);
     for (const file of [".env", ".env.local"]) {
@@ -148,15 +149,7 @@ describe("OPS-02.nomina.A — recuperación con login runtime y políticas priva
       ON "${namespace}".payroll_payslips(run_id,user_id) WHERE aguinaldo_snapshot IS NOT NULL`);
     await admin.query(`GRANT USAGE ON SCHEMA "${namespace}" TO "${RUNTIME_ROLE}"`);
     for (const table of sources) await admin.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON "${namespace}".${table} TO "${RUNTIME_ROLE}"`);
-    const context = "NULLIF(current_setting('app.current_company_id',true),'')::uuid";
-    for (const table of tables) {
-      await admin.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON "${namespace}".${table} TO "${RUNTIME_ROLE}"`);
-      await admin.query(`ALTER TABLE "${namespace}".${table} ENABLE ROW LEVEL SECURITY`);
-      const parent = `EXISTS (SELECT 1 FROM "${namespace}".payroll_runs r WHERE r.id=run_id AND r.company_id=${context})`;
-      const condition = table === "payroll_payslips" ? parent : table === "payroll_aguinaldo_dispersiones"
-        ? `company_id=${context} AND (run_id IS NULL OR ${parent})` : `company_id=${context}`;
-      await admin.query(`CREATE POLICY tenant_scope ON "${namespace}".${table} USING (${condition}) WITH CHECK (${condition})`);
-    }
+    await applyNominaRlsBatch(admin, namespace);
     const connections = await Promise.all(pools.map(async (pool) => (await pool.query(
       "SELECT current_user role, current_schema() namespace, pg_backend_pid() pid")).rows[0]));
     expect(connections.map((c) => [c.role, c.namespace])).toEqual([[RUNTIME_ROLE, namespace], [RUNTIME_ROLE, namespace]]);
@@ -172,6 +165,14 @@ describe("OPS-02.nomina.A — recuperación con login runtime y políticas priva
   afterAll(async () => {
     try { await Promise.all(pools.map((pool) => pool.end())); if (created) await admin.query(`DROP SCHEMA "${namespace}" CASCADE`); }
     finally { await admin.end(); }
+  });
+
+  it("F.1: los recorridos usan las cuatro políticas publicadas en el lote 0123", async () => {
+    const policies = (await admin.query(`SELECT tablename,policyname FROM pg_policies
+      WHERE schemaname=$1 ORDER BY tablename`, [namespace])).rows;
+    expect(policies).toEqual([...tables].sort().map(tablename => ({
+      tablename, policyname: `${tablename}_tenant_isolation`,
+    })));
   });
 
   it("recupera y finaliza bajo RLS sin heredar contexto al reutilizar el pool", async () => {

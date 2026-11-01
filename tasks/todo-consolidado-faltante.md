@@ -2,6 +2,8 @@
 
 Revisión 2026-10-22. Spec y criterios por ID: [plan consolidado](../plans/2026-plan-consolidado-trabajo-faltante.md). Este checklist sustituye la secuencia del 2026-10-21. Estado: implementación iniciada; ver registro al final. Casillas sin marcar no niegan los avances existentes descritos en la spec.
 
+Revisión de continuidad 2026-10-29: [implementado, aceptación pendiente y orden de continuación](evidencia/consolidado-2026-10-22/REVISION-2026-10-29.md). Base `3b27ac4`, árbol limpio al iniciar; no se infiere despliegue por el nombre de un commit.
+
 Reglas: centavos enteros; vigencias/fuentes; companyId y permisos en servidor; migraciones sin DROP; sugerencia/archivo/bitácora no son confirmación de pago. Separar evidencia local de despliegue. S=1–2 archivos; M=3–5 incluidos tests; padres por dominio/familia se subdividen antes de implementar.
 
 ## Avances conservados
@@ -106,6 +108,8 @@ Aguinaldo Tasks 10–14 implementadas con commits 2229604, a0b6366, bb9b116, a37
   - [x] **OPS-02.nomina.E** — Migración generada de políticas padre/hijas y grants; actualizar manifiesto sin activación operativa.
     - Implementado: `drizzle/0123_rls_nomina.sql` (journal idx 123) con RLS y grants para `payroll_runs`, `payroll_payslips`, `payroll_aguinaldo_dispersiones` y `cfdi_nomina_timbrados`; recibos por corrida padre (incluido cambio de `run_id`) y dispersión coherente con su corrida. Contrato estático 7/7 y runtime 5/5 aplicando el SQL real en esquema privado con `pulso_app`, dos empresas y pool max=1. [Evidencia y límites](evidencia/consolidado-2026-10-22/OPS-02-nomina-E/README.md). Sin rol/credencial nueva, sin aplicar al operativo ni a `public` de la base aislada; manifiestos OPS-01 inventariados pero sin regenerar. F y OPS-03 pendientes.
   - [ ] **OPS-02.nomina.F** — Aceptación runtime HTTP/job con políticas reales, dos empresas y pool max=1; hereda AGU-03C.3.
+    - [x] **OPS-02.nomina.F.1** (M, 3 archivos de pruebas) — Sustituir políticas recreadas por el SQL publicado 0123 en los recorridos runtime de autorización/recuperación/ordinaria/tesorería y lectura del recordatorio. Postgres aislado, rol sin bypass, dos empresas y pool max=1: integración 34/34, exit 0. [Evidencia y límites](evidencia/consolidado-2026-10-22/OPS-02-nomina-F1/README.md). Sin activación operativa; no cierra F ni C.3.
+    - [ ] **OPS-02.nomina.F.2** (M, hasta 5 archivos por incremento) — Acreditar autenticación/autorización HTTP y handler completo del cron con runtime/políticas reales; 401/403/cross-tenant, contexto por empresa y notificaciones simuladas. Los handlers con permisos simulados y las pruebas del servicio de recordatorio no sustituyen este recorrido.
 - [ ] **OPS-03** (S por lote) — Aplicar únicamente el lote revisado al entorno identificado y comprobarlo.
   - Depende: OPS-01 y puertas locales del lote. Verificar: V2+V3; no acredita despliegue la sola existencia del SQL ni una prueba aislada.
 
@@ -262,5 +266,7 @@ Aguinaldo Tasks 10–14 implementadas con commits 2229604, a0b6366, bb9b116, a37
 | OPS-02.nomina.D | Implementación y aceptación local completas | Base c02c6e6 / 2026-10-28 | Vitest UTC + Postgres aislado con login pulso_app, políticas privadas de contrato, dos empresas y pool max=1 | Unitarias 15/15; runtime 5/5; lint sin errores; tsc exit 0; build final exit 0 con 430 páginas generadas | [Evidencia y límites](evidencia/consolidado-2026-10-22/OPS-02-nomina-D/README.md); lectura por empresa con contexto, `OWNER` fuera de destinatarios y `TIMBRADO` separado del pago; E/F y AGU-04 pendientes, sin activación operativa |
 
 | OPS-02.nomina.E | Migración generada y aceptación local completas; sin aplicar | Base c02c6e6 / 2026-10-28 | Vitest estático + Postgres aislado con pulso_app; SQL real 0123 en esquema privado, dos empresas y pool max=1 | Contrato 7/7; runtime 5/5; lint sin errores; tsc exit 0; build final exit 0 con 430 páginas; global 2284 passed | [Evidencia y límites](evidencia/consolidado-2026-10-22/OPS-02-nomina-E/README.md); cuatro tablas con USING/WITH CHECK, recibos por padre y dispersión coherente con su corrida; manifiestos sin regenerar, F y OPS-03 pendientes |
+
+| OPS-02.nomina.F.1 | Aceptación local con políticas publicadas; F abierto por F.2 | Base 3b27ac4 / 2026-10-29 | Postgres aislado, esquemas privados, login pulso_app sin bypass, dos empresas y pool max=1 | Integración 34/34; unitarias 181 archivos/2284 pasadas; lint/tsc/build exit 0 (build tras reintento por Google Fonts) | [Evidencia y límites](evidencia/consolidado-2026-10-22/OPS-02-nomina-F1/README.md); sustituye políticas recreadas por SQL real 0123, sin activación operativa; HTTP/job completo y C.3 pendientes |
 
 Al implementar: crear hijos antes de tareas que excedan cinco archivos, conservar ID del padre y cerrar solo con criterios completos. Un bloqueo por conteo físico/entorno/archivo real no detiene las ramas independientes.

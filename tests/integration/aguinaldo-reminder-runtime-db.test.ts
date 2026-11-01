@@ -12,12 +12,12 @@ import {
   leerEstadoAguinaldo,
 } from "@/lib/services/aguinaldo-reminder-service";
 import { RUNTIME_ROLE, runtimeUrl } from "./helpers/runtime-role";
+import { applyNominaRlsBatch, NOMINA_RLS_TABLES } from "./helpers/nomina-rls-batch";
 
 /**
  * OPS-02.nomina.D — recordatorio de aguinaldo con rol runtime y RLS.
  *
- * El lote definitivo de políticas es OPS-02.nomina.E; aquí se usan políticas
- * privadas de contrato sobre una copia de `payroll_runs` en un esquema aislado.
+ * F.1 aplica el lote definitivo 0123 sobre copias privadas de sus cuatro tablas.
  * Comprueba lo que el cron anterior no podía cumplir:
  *   (1) cada empresa se lee en su propia transacción con contexto;
  *   (2) sin contexto el rol runtime no ve corridas (no hay bypass);
@@ -26,8 +26,7 @@ import { RUNTIME_ROLE, runtimeUrl } from "./helpers/runtime-role";
  *   (4) `OWNER` no es destinatario (no existe en `UserRole`/rutas) y la empresa
  *       que sólo tiene OWNER se reporta en `sinDestinatario`.
  *
- * No acredita la aceptación HTTP/job completa de OPS-02.nomina.F ni el lote
- * definitivo de políticas.
+ * No acredita la autenticación HTTP ni el handler completo del cron de F.2.
  */
 
 neonConfig.webSocketConstructor = ws;
@@ -50,7 +49,7 @@ const runtimePool = new Pool({
   options,
 });
 const runtime = drizzle(runtimePool, { schema });
-const tables = ["payroll_runs", "users"];
+const tables = [...NOMINA_RLS_TABLES, "users"];
 const companyA = randomUUID();
 const companyB = randomUUID();
 let created = false;
@@ -69,7 +68,7 @@ async function seedRun(companyId: string, status: string, anioFiscal = 2026) {
   return run.id;
 }
 
-describe("OPS-02.nomina.D — recordatorio por empresa con RLS", () => {
+describe("OPS-02.nomina.F.1 — lectura del recordatorio con el lote real 0123", () => {
   beforeAll(async () => {
     // Misma salvaguarda que el resto de pruebas de runtime: nunca la operativa.
     const target = new URL(process.env.TEST_DATABASE_URL!);
@@ -108,18 +107,13 @@ describe("OPS-02.nomina.D — recordatorio por empresa con RLS", () => {
     );
 
     await admin.query(`GRANT USAGE ON SCHEMA "${namespace}" TO "${RUNTIME_ROLE}"`);
-    for (const table of tables) {
+    for (const table of ["users"]) {
       await admin.query(
         `GRANT SELECT,INSERT,UPDATE,DELETE ON "${namespace}".${table} TO "${RUNTIME_ROLE}"`,
       );
     }
 
-    const contexto = "NULLIF(current_setting('app.current_company_id',true),'')::uuid";
-    await admin.query(`ALTER TABLE "${namespace}".payroll_runs ENABLE ROW LEVEL SECURITY`);
-    await admin.query(
-      `CREATE POLICY tenant_scope ON "${namespace}".payroll_runs
-        USING (company_id=${contexto}) WITH CHECK (company_id=${contexto})`,
-    );
+    await applyNominaRlsBatch(admin, namespace);
 
     const connection = (
       await runtimePool.query(
