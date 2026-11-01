@@ -1,6 +1,6 @@
 # Plan: trazabilidad y contabilidad integrada de Pulso
 
-Fecha: 2026-11-01. Estado: FC-01–04 completadas técnicamente y verificadas; FC-05–07 con esquema, guardas, servicios, API y pantalla probados en base aislada (sin migrar la base operativa). FC-07 añade listado/detalle por sucursal, capacidades separadas y reversa/reemplazo con motivo e historial, deshabilitado salvo `ACCOUNTING_REVIEW_ENABLED=1`; ver evidencia y resultados globales en el checklist. Siguiente incremento FC-08: apertura balanceada y reglas versionadas con fecha efectiva. Contrato sintético validado para desarrollo; revisión funcional de las reglas antes de adaptadores y revisión contable del piloto pendientes según la matriz.
+Fecha: 2026-11-01. Estado: FC-01–04 completadas técnicamente y verificadas; FC-05–08 con esquema, guardas, servicios, API y pantalla probados en base aislada (sin migrar la base operativa). FC-07 añade listado/detalle por sucursal, capacidades separadas y reversa/reemplazo con motivo e historial; FC-08 añade apertura única balanceada y reglas versionadas con fecha efectiva, con la versión aplicada congelada en la póliza. Ambos recorridos quedan deshabilitados salvo `ACCOUNTING_REVIEW_ENABLED=1`; ver evidencia y resultados globales en el checklist. Siguiente incremento FC-09: gasto reconocido y pagos parciales. Contrato sintético validado para desarrollo; revisión funcional de las reglas antes de adaptadores y revisión contable del piloto pendientes según la matriz.
 Checklist de ejecución: [todo.md](todo.md).
 Matriz y evidencia de FC-01: [matriz-fuentes.md](matriz-fuentes.md). Confirmado por el propietario: cada `companyId` corresponde a una razón social; todavía no existen clientes. Contrato de desarrollo sintético validado en esta sesión: cortes como fuente de ingresos, gastos aprobados con fecha explícita, pagos separados y plantilla revisable por empresa. La apertura real y la revisión del primer piloto se resolverán cuando exista esa empresa.
 
@@ -81,6 +81,13 @@ Una póliza contabilizada es inmutable. Corregir mediante reversa y nueva póliz
 Publicación atómica: cabecera y renglones se confirman juntos, con cargos iguales a abonos, importes no negativos por lado y cuentas vigentes. El balance se valida en la frontera de publicación con protección transaccional en base de datos; no solo en el formulario. Política explícita de redondeo y protección contra desbordamiento en sumas.
 
 Idempotencia única en base de datos por empresa + tipo/id de fuente + tipo de hecho + versión. Dos trabajadores concurrentes no crean dos pólizas. Una corrección crea nueva versión; nunca modifica silenciosamente la ya contabilizada.
+
+### Reglas de reconocimiento y apertura (FC-08)
+
+- Una regla es una fila inmutable por versión, no un registro editable: revisar significa insertar una fila nueva con `supersedesId`, `version` = anterior + 1 y `effectiveFrom` posterior; sin `effectiveTo`. Se resuelve la versión más reciente con `effectiveFrom <= fecha` del hecho. La base rechaza editar o borrar reglas y entradas, saltar versiones, retroceder la fecha efectiva o cambiar el hecho entre versiones.
+- La póliza congela `ruleId`/`ruleVersion`; la versión siempre se resuelve en servidor, nunca del cliente. Al publicar un hecho sin regla se resuelve y congela la última vigente. Falta de regla, versión retirada, regla vacía o cuenta requerida inactiva/no postable/fuera de vigencia bloquea con el motivo explícito visible en la vista previa y en el conflicto de publicación.
+- La apertura es única por empresa (`UNIQUE (company_id)`), inmutable, ligada a una póliza `source_type='OPENING'` con hecho nulo y `source_id` = id de apertura. Exige al menos un documento de respaldo (constraint trigger diferido) y no puede solaparse con pólizas publicadas en o antes de su fecha; ninguna póliza puede fecharse en o antes de la apertura.
+- Configurar reglas o apertura exige `settings:update` y alcance COMPANY; publicar la apertura exige además `accounting:publish`. Un usuario con alcance de sucursal no ve ni publica ninguna de las dos. No se siembran reglas ni cuentas: cada empresa configura las suyas y la falta se reporta como bloqueo, no se rellena por omisión.
 
 ### Automatización confiable
 

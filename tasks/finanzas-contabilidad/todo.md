@@ -1,6 +1,6 @@
 ﻿# Checklist: finanzas y contabilidad integrada
 
-Fecha: 2026-10-31. Estado: FC-01–06 completadas técnicamente, con checkpoint global aprobado en FC-04 y verificación de esquema/servicios en FC-05–06. Siguiente incremento: FC-07. La descarga de cada comprobante privado y la revisión contable del piloto quedan fuera de esta verificación; ver evidencia, verificaciones globales y límites de cada entrega abajo.
+Fecha: 2026-11-01. Estado: FC-01–04 completadas y verificadas; FC-05–08 con esquema, guardas, servicios, API y pantalla probados en base aislada, con checkpoint global y build aprobados en FC-07 y FC-08. Siguiente incremento: FC-09 (gasto reconocido y pagos parciales). La descarga de cada comprobante privado y la revisión contable del piloto quedan fuera de esta verificación; ver evidencia, verificaciones globales y límites de cada entrega abajo.
 Plan y decisiones: [plan.md](plan.md). Las rutas nuevas son propuestas; `<...>` indica un punto a resolver en FC-01, no un archivo existente.
 
 ## Reglas de ejecución
@@ -204,15 +204,31 @@ Ejecución 2026-10-30: focalizada 9/9; ESLint de fixture/test exit 0. Checkpoint
 
 ## FC-08: Capturar apertura y reglas vigentes
 
-- [ ] Completada con evidencia.
+- [x] Completada con evidencia (2026-11-01); integración 9/9, checkpoint global y build aprobados, límites anotados abajo.
 - **Tamaño:** M. **Dependencias:** FC-05, FC-06.
 - **Descripción:** Permitir apertura balanceada y mapeos versionados con fecha efectiva y vista previa.
 - **Aceptación:**
-  - [ ] Apertura identifica fecha y documentos sin solapar histórico.
-  - [ ] regla seleccionada queda congelada en póliza.
-  - [ ] falta de cuenta/regla bloquea publicación con motivo visible.
+  - [x] Apertura identifica fecha y documentos sin solapar histórico.
+  - [x] regla seleccionada queda congelada en póliza.
+  - [x] falta de cuenta/regla bloquea publicación con motivo visible.
 - **Verificación:** Fixture de cambio de regla y apertura; verificación UI y pruebas de fecha efectiva.
 - **Archivos previstos:** `lib/services/accounting/mapping-service.ts`, `lib/services/accounting/opening-service.ts`, `app/api/finance/accounting/settings/route.ts`, `app/dashboard/finance/settings/accounting/page.tsx`, `tests/integration/accounting/opening-mapping.test.ts`.
+
+### FC-08 — ejecución por incrementos (2026-11-01)
+
+- **División real:** a) esquema `accountingRules`, `accountingRuleEntries`, `accountingOpenings`, `accountingOpeningDocuments` y columnas `ruleId`/`ruleVersion`, migración 0130 ampliada con guardas, snapshot/journal (cuatro archivos); b) servicios de reglas y apertura más congelado de regla al publicar en el servicio de pólizas (tres); c) rutas de API, pantalla de configuración y acceso desde Cierre y control (cinco); d) prueba de integración y cierre documental en plan, checklist y [fc08-review.md](fc08-review.md). Se conserva el resto del árbol local.
+- **Modelo de reglas:** una fila inmutable por versión. Revisar es insertar fila nueva con `supersedesId`, `version` = anterior + 1 y `effectiveFrom` posterior, sin `effectiveTo`; se resuelve la versión más reciente con `effectiveFrom <= fecha`. Se eliminaron edición y borrado de reglas y entradas. Las guardas rechazan además saltar versiones, retroceder la fecha efectiva, cambiar el hecho entre versiones y mapear cuentas inactivas, acumulativas o fuera de vigencia en la fecha efectiva. No se siembran reglas ni cuentas.
+- **Congelado en póliza:** `ruleId`/`ruleVersion` se resuelven siempre en servidor. Al publicar un hecho sin regla se resuelve y congela la última vigente; falta de regla, versión retirada, regla vacía o cuenta requerida no usable bloquea con el motivo explícito en el conflicto y en la vista previa. El cliente nunca fija la versión.
+- **Apertura:** una por empresa (`UNIQUE (company_id)`), inmutable, con póliza `source_type='OPENING'`, hecho nulo y `source_id` = id de apertura; exige al menos un documento (constraint trigger diferido) y no puede solaparse con pólizas publicadas en o antes de su fecha. Ninguna póliza puede fecharse en o antes de la apertura. Se relajó `accounting_journals_source_check` solo para permitir la apertura con hecho nulo.
+- **Permisos:** reglas y apertura exigen `settings:update` + alcance COMPANY; publicar la apertura exige además `accounting:publish`. Alcance de sucursal no ve ni publica apertura ni reglas. API protegida por `ACCOUNTING_REVIEW_ENABLED=1` con principal de revisión.
+- **Verificación de esquema (base aislada):** script SQL sobre `TEST_DATABASE_URL` con **14/14 comprobaciones**: inmutabilidad de reglas/entradas, versión obligatoria con anterior, regla requerida al publicar, vigencia, apertura con documentos, solape, apertura única, póliza anterior a la apertura y publicación de la propia apertura. No se aplicó nada a la base operativa.
+- **Verificación de servicios:** `pnpm exec tsc --noEmit` **exit 0** (`.tmp/fc08-tsc3.log`, sin diagnósticos).
+- **Interfaz:** `/dashboard/finance/settings/accounting`, acceso desde Cierre y control. Apertura con fecha, motivo, renglones balanceados y documentos; reglas con versiones, vista previa por hecho/fecha, detalle de cuentas y captura de nueva versión. Carga, vacío, error con reintento y foco nativo. Se corrigieron dos avisos `react-hooks/set-state-in-effect`: el estado de carga de la lista ahora se deriva de la clave de la consulta en lugar de asignarse dentro del efecto; el lint focalizado de los ocho archivos queda **exit 0, sin advertencias**.
+- **Integración:** `tests/integration/accounting/opening-mapping.test.ts` **9/9, exit 0** (`.tmp/fc08-integration-final.log`). Cubre versionado y límites de regla, cuentas no usables al configurar, vista previa por fecha, congelado de regla al publicar, falta de regla, versión retirada, cuenta desactivada, apertura balanceada con documentos, apertura única, inmutabilidad, fechas en o antes de la apertura, solape con histórico publicado, documento de respaldo diferido, aislamiento y RLS fail-closed, actor/permisos y privilegios del rol de runtime (append-only sin UPDATE/DELETE).
+- **Checkpoint global aprobado:** suite global **2405 aprobadas, una skipped y una todo preexistentes; 193 archivos, exit 0** (`.tmp/fc08-unit-full.log`); lint global **exit 0, cero errores y 2438 advertencias**, mismo conteo anterior (`.tmp/fc08-lint-global.log`); Drizzle generate **exit 0**, sin cambios de esquema (`.tmp/fc08-generate.log`); **TypeScript exit 0**. **Build de producción exit 0**: compilación, `Running TypeScript` y **439 páginas**, con `/api/finance/accounting/settings`, `/api/finance/accounting/openings` y `/dashboard/finance/settings/accounting` (`.tmp/fc08-build.log`).
+- **Habilitación y límites:** no se aplican migraciones a la base operativa ni se activa contabilidad; `ACCOUNTING_REVIEW_ENABLED=1` solo en el entorno revisado. La apertura es de empresa (sin `branchId`), así que el alcance de sucursal no la opera. No hay adaptadores automáticos: los hechos llegan por captura manual hasta FC-09. La revisión funcional de las reglas con el responsable contable y el piloto real siguen pendientes; activar la bandera sin esa revisión publicaría pólizas con un mapeo no aprobado. Deshabilitar la bandera detiene esta interfaz/API sin borrar reglas, aperturas ni pólizas.
+
+**Checkpoint tras FC-08:** revisar aceptación y evidencia acumuladas; FC-09 parte del gasto reconocido con su regla ya congelable por hecho y sin adaptadores inventados. Antes del piloto siguen pendientes la revisión de reglas con el responsable contable, las cuentas de apertura reales y la aplicación de migraciones fuera de la base aislada.
 
 ## FC-09: Contabilizar un gasto y su pago
 
